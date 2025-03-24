@@ -8,13 +8,12 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
-	"golang.org/x/text/encoding"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/textutils"
 )
 
 type textLogsUnmarshaler struct {
-	decoder *encoding.Decoder
+	enc *textutils.Encoding
 }
 
 func newTextLogsUnmarshaler() LogsUnmarshalerWithEnc {
@@ -22,18 +21,18 @@ func newTextLogsUnmarshaler() LogsUnmarshalerWithEnc {
 }
 
 func (r *textLogsUnmarshaler) Unmarshal(buf []byte) (plog.Logs, error) {
-	if r.decoder == nil {
+	if r.enc == nil {
 		return plog.Logs{}, errors.New("encoding not set")
 	}
 	p := plog.NewLogs()
-	decoded, err := textutils.DecodeAsString(r.decoder, buf)
+	decoded, err := r.enc.Decode(buf)
 	if err != nil {
 		return p, err
 	}
 
 	l := p.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
 	l.SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Now()))
-	l.Body().SetStr(decoded)
+	l.Body().SetStr(string(decoded))
 	return p, nil
 }
 
@@ -43,11 +42,13 @@ func (r *textLogsUnmarshaler) Encoding() string {
 
 func (r *textLogsUnmarshaler) WithEnc(encodingName string) (LogsUnmarshalerWithEnc, error) {
 	var err error
-	enc, err := textutils.LookupEncoding(encodingName)
+	encCfg := textutils.NewEncodingConfig()
+	encCfg.Encoding = encodingName
+	enc, err := encCfg.Build()
 	if err != nil {
 		return nil, err
 	}
 	return &textLogsUnmarshaler{
-		decoder: enc.NewDecoder(),
+		enc: &enc,
 	}, nil
 }

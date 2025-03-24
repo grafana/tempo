@@ -9,12 +9,9 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/cenkalti/backoff/v4"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -37,8 +34,6 @@ const (
 )
 
 var errInvalidInitialOffset = errors.New("invalid initial offset")
-
-var errMemoryLimiterDataRefused = errors.New("data refused due to high memory usage")
 
 // kafkaTracesConsumer uses sarama to consume and handle messages from kafka.
 type kafkaTracesConsumer struct {
@@ -161,7 +156,7 @@ func createKafkaClient(ctx context.Context, config Config) (sarama.ConsumerGroup
 			return nil, err
 		}
 	}
-	if err := kafka.ConfigureSaramaAuthentication(ctx, config.Authentication, saramaConfig); err != nil {
+	if err := kafka.ConfigureAuthentication(ctx, config.Authentication, saramaConfig); err != nil {
 		return nil, err
 	}
 	return sarama.NewConsumerGroup(config.Brokers, config.GroupID, saramaConfig)
@@ -210,7 +205,6 @@ func (c *kafkaTracesConsumer) Start(_ context.Context, host component.Host) erro
 		messageMarking:    c.messageMarking,
 		headerExtractor:   &nopHeaderExtractor{},
 		telemetryBuilder:  c.telemetryBuilder,
-		backOff:           newExponentialBackOff(c.config.ErrorBackOff),
 	}
 	if c.headerExtraction {
 		consumerGroup.headerExtractor = &headerExtractor{
@@ -319,7 +313,6 @@ func (c *kafkaMetricsConsumer) Start(_ context.Context, host component.Host) err
 		messageMarking:    c.messageMarking,
 		headerExtractor:   &nopHeaderExtractor{},
 		telemetryBuilder:  c.telemetryBuilder,
-		backOff:           newExponentialBackOff(c.config.ErrorBackOff),
 	}
 	if c.headerExtraction {
 		metricsConsumerGroup.headerExtractor = &headerExtractor{
@@ -431,7 +424,6 @@ func (c *kafkaLogsConsumer) Start(_ context.Context, host component.Host) error 
 		messageMarking:    c.messageMarking,
 		headerExtractor:   &nopHeaderExtractor{},
 		telemetryBuilder:  c.telemetryBuilder,
-		backOff:           newExponentialBackOff(c.config.ErrorBackOff),
 	}
 	if c.headerExtraction {
 		logsConsumerGroup.headerExtractor = &headerExtractor{
@@ -489,7 +481,6 @@ type tracesConsumerGroupHandler struct {
 	autocommitEnabled bool
 	messageMarking    MessageMarking
 	headerExtractor   HeaderExtractor
-	backOff           *backoff.ExponentialBackOff
 }
 
 type metricsConsumerGroupHandler struct {
@@ -507,7 +498,6 @@ type metricsConsumerGroupHandler struct {
 	autocommitEnabled bool
 	messageMarking    MessageMarking
 	headerExtractor   HeaderExtractor
-	backOff           *backoff.ExponentialBackOff
 }
 
 type logsConsumerGroupHandler struct {
@@ -525,7 +515,6 @@ type logsConsumerGroupHandler struct {
 	autocommitEnabled bool
 	messageMarking    MessageMarking
 	headerExtractor   HeaderExtractor
-	backOff           *backoff.ExponentialBackOff
 }
 
 var (
@@ -590,28 +579,10 @@ func (c *tracesConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSe
 			err = c.nextConsumer.ConsumeTraces(session.Context(), traces)
 			c.obsrecv.EndTracesOp(ctx, c.unmarshaler.Encoding(), spanCount, err)
 			if err != nil {
-				if errorRequiresBackoff(err) && c.backOff != nil {
-					backOffDelay := c.backOff.NextBackOff()
-					if backOffDelay != backoff.Stop {
-						select {
-						case <-session.Context().Done():
-							return nil
-						case <-time.After(backOffDelay):
-							if !c.messageMarking.After {
-								// Unmark the message so it can be retried
-								session.ResetOffset(claim.Topic(), claim.Partition(), message.Offset, "")
-							}
-							return err
-						}
-					}
-				}
 				if c.messageMarking.After && c.messageMarking.OnError {
 					session.MarkMessage(message, "")
 				}
 				return err
-			}
-			if c.backOff != nil {
-				c.backOff.Reset()
 			}
 			if c.messageMarking.After {
 				session.MarkMessage(message, "")
@@ -685,28 +656,10 @@ func (c *metricsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupS
 			err = c.nextConsumer.ConsumeMetrics(session.Context(), metrics)
 			c.obsrecv.EndMetricsOp(ctx, c.unmarshaler.Encoding(), dataPointCount, err)
 			if err != nil {
-				if errorRequiresBackoff(err) && c.backOff != nil {
-					backOffDelay := c.backOff.NextBackOff()
-					if backOffDelay != backoff.Stop {
-						select {
-						case <-session.Context().Done():
-							return nil
-						case <-time.After(backOffDelay):
-							if !c.messageMarking.After {
-								// Unmark the message so it can be retried
-								session.ResetOffset(claim.Topic(), claim.Partition(), message.Offset, "")
-							}
-							return err
-						}
-					}
-				}
 				if c.messageMarking.After && c.messageMarking.OnError {
 					session.MarkMessage(message, "")
 				}
 				return err
-			}
-			if c.backOff != nil {
-				c.backOff.Reset()
 			}
 			if c.messageMarking.After {
 				session.MarkMessage(message, "")
@@ -779,28 +732,10 @@ func (c *logsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSess
 			err = c.nextConsumer.ConsumeLogs(session.Context(), logs)
 			c.obsrecv.EndLogsOp(ctx, c.unmarshaler.Encoding(), logRecordCount, err)
 			if err != nil {
-				if errorRequiresBackoff(err) && c.backOff != nil {
-					backOffDelay := c.backOff.NextBackOff()
-					if backOffDelay != backoff.Stop {
-						select {
-						case <-session.Context().Done():
-							return nil
-						case <-time.After(backOffDelay):
-							if !c.messageMarking.After {
-								// Unmark the message so it can be retried
-								session.ResetOffset(claim.Topic(), claim.Partition(), message.Offset, "")
-							}
-							return err
-						}
-					}
-				}
 				if c.messageMarking.After && c.messageMarking.OnError {
 					session.MarkMessage(message, "")
 				}
 				return err
-			}
-			if c.backOff != nil {
-				c.backOff.Reset()
 			}
 			if c.messageMarking.After {
 				session.MarkMessage(message, "")
@@ -816,20 +751,6 @@ func (c *logsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSess
 			return nil
 		}
 	}
-}
-
-func newExponentialBackOff(config configretry.BackOffConfig) *backoff.ExponentialBackOff {
-	if !config.Enabled {
-		return nil
-	}
-	backOff := backoff.NewExponentialBackOff()
-	backOff.InitialInterval = config.InitialInterval
-	backOff.RandomizationFactor = config.RandomizationFactor
-	backOff.Multiplier = config.Multiplier
-	backOff.MaxInterval = config.MaxInterval
-	backOff.MaxElapsedTime = config.MaxElapsedTime
-	backOff.Reset()
-	return backOff
 }
 
 func toSaramaInitialOffset(initialOffset string) (int64, error) {
@@ -870,8 +791,4 @@ func encodingToComponentID(encoding string) (*component.ID, error) {
 	}
 	id := component.NewID(componentType)
 	return &id, nil
-}
-
-func errorRequiresBackoff(err error) bool {
-	return err.Error() == errMemoryLimiterDataRefused.Error()
 }

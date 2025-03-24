@@ -1,9 +1,8 @@
-// Copyright The OpenTelemetry Authors
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package udpserver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver"
+package customtransport
 
 import (
 	"bytes"
@@ -50,6 +49,7 @@ func (p *TBufferedReadTransport) Read(buf []byte) (int, error) {
 
 // RemainingBytes returns the number of bytes left to be read from the readBuf
 func (p *TBufferedReadTransport) RemainingBytes() uint64 {
+	//nolint: gosec // G115
 	return uint64(p.readBuf.Len())
 }
 
