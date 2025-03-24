@@ -1640,6 +1640,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	}
 
 	makeIter := makeIterFunc(ctx, rgs, pf)
+	makeNilIter := makeNilIterFunc(ctx, rgs, pf)
 
 	// Global state
 	// Span-filtering behavior changes depending on the resource-filtering in effect,
@@ -1681,7 +1682,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, linkIter)
 	}
 
-	spanIter, err := createSpanIterator(makeIter, innerIterators, catConditions.span, allConditions, dc, selectAll, spanSampler)
+	spanIter, err := createSpanIterator(makeIter, makeNilIter, innerIterators, catConditions.span, allConditions, dc, selectAll, spanSampler)
 	if err != nil {
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
@@ -1845,7 +1846,7 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, all
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool,
+func createSpanIterator(makeIter , makeNilIter makeIterFn, innerIterators []parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool,
 	sampler traceql.Sampler,
 ) (parquetquery.Iterator, error) {
 	var (
@@ -2044,6 +2045,21 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 				}
 				addPredicate(c.ColumnPath, pred)
 				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				continue
+			}
+		}
+
+		// nil?
+		if len(cond.Operands) != 0 {
+			switch cond.Operands[0].Type {
+			case traceql.TypeNil:
+				if cond.Op == traceql.OpEqual {
+					pred, err := createNilPredicate(cond.Attribute.Name)
+					if err != nil {
+						return nil, err
+					}
+					iters =  append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
+				}
 				continue
 			}
 		}
@@ -2493,6 +2509,10 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 	default:
 		return nil, fmt.Errorf("cannot create predicate for operand: %v", operands[0])
 	}
+}
+
+func createNilPredicate(attribute string) (parquetquery.Predicate, error) {
+	return parquetquery.NewStringEqualPredicate([]byte(attribute)), nil
 }
 
 func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
