@@ -181,7 +181,7 @@ Find root spans for complete traces:
 { nestedSetLeft=1 }
 ```
 
-Select spans of incomplete traces:
+You could use the following example to find and analyze incomplete traces:
 
 ```
 { nestedSetParent=0 }
