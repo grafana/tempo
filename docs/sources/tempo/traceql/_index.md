@@ -171,9 +171,21 @@ Find if `productcatalogservice` and `frontend` are siblings.
 { resource.service.name = "productcatalogservice" } ~ { resource.service.name="frontend" }
 ```
 
+#### Query spans in nested sets
+
+You can use nested set intrinsics to request structural details about spans.
+Using `nestedSetLeft`, `nestedSetRight`, and `nestedSetParent`, your query can evaluate spans in relationship to columns and parents.
+
+For example, if you want to get a list of all users who hit "Service A span" who also hit "Service B inner span."
+The count should not include times that "service B inner span" was hit not via "Service A span".
+
+```traceql
+{ nestedSetLeft<0} >> { resource.service.name = "service-a" } >> { resource.service.name = "service-b" } > { resource.service.name = "service-b" && kind = internal } > { .foo = "bar" }
+```
+
 ### Other examples
 
-Find the services where the http status is 200, and list the service name the span belongs to along with returned traces.
+Find the services where the HTTP status is `200`, and list the service name the span belongs to along with returned traces.
 
 ```
 { span.http.status_code = 200 } | select(resource.service.name)
@@ -203,7 +215,7 @@ Find any trace with a `deployment.environment` attribute that matches the regex 
 { resource.deployment.environment =~ "prod-.*" && span.http.status_code = 200 }
 ```
 
-## Selecting spans
+## Select spans {#selecting-spans}
 
 In TraceQL, curly brackets `{}` always select a set of spans from available traces.
 Curly brackets are commonly paired with a condition to reduce the spans fetched.
