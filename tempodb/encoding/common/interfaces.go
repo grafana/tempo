@@ -43,7 +43,7 @@ type SearchOptions struct {
 	PrefetchTraceCount int    // How many traces to prefetch async.
 	ReadBufferCount    int
 	ReadBufferSize     int
-	RF1After           time.Time // Only blocks with this replication factor == 1 will be searched after this date.
+	RF1After           time.Time // Only blocks with RF1 are selected after this timestamp. RF3 is selected otherwise.
 }
 
 // DefaultSearchOptions is used in a lot of places such as local ingester searches. It is important
