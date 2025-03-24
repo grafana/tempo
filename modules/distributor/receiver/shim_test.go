@@ -41,11 +41,12 @@ func TestShim_integration(t *testing.T) {
 	headers := map[string]configopaque.String{generator.NoGenerateMetricsContextKey: "true"}
 
 	testCases := []struct {
-		name              string
-		receiverCfg       map[string]interface{}
-		factory           exporter.Factory
-		exporterCfg       component.Config
-		expectedTransport string
+		name                string
+		expectedComponentID string
+		receiverCfg         map[string]interface{}
+		factory             exporter.Factory
+		exporterCfg         component.Config
+		expectedTransport   string
 	}{
 		{
 			name: "otlpexporter",
@@ -66,7 +67,8 @@ func TestShim_integration(t *testing.T) {
 					Headers: headers,
 				},
 			},
-			expectedTransport: "grpc",
+			expectedComponentID: "otlp",
+			expectedTransport:   "grpc",
 		},
 		{
 			name: "otlphttpexporter - JSON encoding",
@@ -85,7 +87,8 @@ func TestShim_integration(t *testing.T) {
 				},
 				Encoding: otlphttpexporter.EncodingJSON,
 			},
-			expectedTransport: "http",
+			expectedComponentID: "otlphttp",
+			expectedTransport:   "http",
 		},
 		{
 			name: "otlphttpexporter - proto encoding",
@@ -104,7 +107,8 @@ func TestShim_integration(t *testing.T) {
 				},
 				Encoding: otlphttpexporter.EncodingProto,
 			},
-			expectedTransport: "http",
+			expectedComponentID: "otlphttp",
+			expectedTransport:   "http",
 		},
 	}
 	for _, testCase := range testCases {
@@ -115,7 +119,7 @@ func TestShim_integration(t *testing.T) {
 			stopShim := runReceiverShim(t, testCase.receiverCfg, pusher, reg)
 			defer stopShim()
 
-			exporter, stopExporter := runOTelExporter(t, testCase.factory, testCase.exporterCfg)
+			exporter, stopExporter := runOTelExporter(t, testCase.factory, testCase.exporterCfg, testCase.expectedComponentID)
 			defer stopExporter()
 
 			err := exporter.ConsumeTraces(context.Background(), randomTraces)
@@ -132,13 +136,13 @@ func TestShim_integration(t *testing.T) {
 			assert.Equal(t, 2, count)
 
 			expected := `
-# HELP tempo_receiver_accepted_spans Number of spans successfully pushed into the pipeline.
-# TYPE tempo_receiver_accepted_spans counter
-tempo_receiver_accepted_spans{receiver="tempo/otlp_receiver", transport="<transport>"} 5
-# HELP tempo_receiver_refused_spans Number of spans that could not be pushed into the pipeline.
-# TYPE tempo_receiver_refused_spans counter
-tempo_receiver_refused_spans{receiver="tempo/otlp_receiver", transport="<transport>"} 0
-`
+			# HELP tempo_receiver_accepted_spans Number of spans successfully pushed into the pipeline.
+			# TYPE tempo_receiver_accepted_spans counter
+			tempo_receiver_accepted_spans{receiver="otlp/otlp_receiver", transport="<transport>"} 5
+			# HELP tempo_receiver_refused_spans Number of spans that could not be pushed into the pipeline.
+			# TYPE tempo_receiver_refused_spans counter
+			tempo_receiver_refused_spans{receiver="otlp/otlp_receiver", transport="<transport>"} 0
+			`
 			expectedWithTransport := strings.ReplaceAll(expected, "<transport>", testCase.expectedTransport)
 
 			err = testutil.GatherAndCompare(reg, strings.NewReader(expectedWithTransport), "tempo_receiver_accepted_spans", "tempo_receiver_refused_spans")
@@ -166,11 +170,11 @@ func runReceiverShim(t *testing.T, receiverCfg map[string]interface{}, pusher Tr
 	}
 }
 
-func runOTelExporter(t *testing.T, factory exporter.Factory, cfg component.Config) (exporter.Traces, func()) {
+func runOTelExporter(t *testing.T, factory exporter.Factory, cfg component.Config, componentID string) (exporter.Traces, func()) {
 	exporter, err := factory.CreateTraces(
 		context.Background(),
 		exporter.Settings{
-			ID: component.MustNewID("test"),
+			ID: component.MustNewID(componentID),
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zap.NewNop(),
 				TracerProvider: tracenoop.NewTracerProvider(),

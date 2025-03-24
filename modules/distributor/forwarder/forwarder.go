@@ -83,7 +83,7 @@ func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) 
 	factory := filterprocessor.NewFactory()
 
 	set := processor.Settings{
-		ID: component.ID{},
+		ID: component.MustNewID(factory.Type().String()),
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         newLogger(logLevel),
 			TracerProvider: tracenoop.NewTracerProvider(),
