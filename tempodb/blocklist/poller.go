@@ -171,9 +171,11 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 	)
 
 	for _, tenantID := range tenants {
-		// Do not continue if our parent has been cancelled.
+		// Do not continue if we have been canceled.
 		if parentCtx.Err() != nil {
-			return nil, nil, parentCtx.Err()
+			// Wait for our work to complete.
+			wg.Wait()
+			return nil, nil, nil
 		}
 
 		// Exit early if we have exceeded our tolerance for number of failing tenants.

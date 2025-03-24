@@ -145,6 +145,8 @@ type readerWriter struct {
 	compactorSharder      CompactorSharder
 	compactorOverrides    CompactorOverrides
 	compactorTenantOffset uint
+
+	shutdownCh chan struct{}
 }
 
 // New creates a new tempodb
@@ -199,13 +201,14 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:         c,
-		r:         r,
-		w:         w,
-		cfg:       cfg,
-		logger:    logger,
-		pool:      pool.NewPool(cfg.Pool),
-		blocklist: blocklist.New(),
+		c:          c,
+		r:          r,
+		w:          w,
+		cfg:        cfg,
+		logger:     logger,
+		pool:       pool.NewPool(cfg.Pool),
+		blocklist:  blocklist.New(),
+		shutdownCh: make(chan struct{}),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -536,7 +539,8 @@ func (rw *readerWriter) FetchTagNames(ctx context.Context, meta *backend.BlockMe
 }
 
 func (rw *readerWriter) Shutdown() {
-	// todo: stop blocklist poll
+	// Closed only by context cancelation when the poller is finished.
+	<-rw.shutdownCh
 	rw.pool.Shutdown()
 	rw.r.Shutdown()
 }
@@ -634,6 +638,7 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			close(rw.shutdownCh)
 			return
 		case <-ticker.C:
 			rw.pollBlocklist(ctx)
@@ -644,7 +649,10 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(ctx, rw.blocklist)
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
+		if ctx.Err() == nil {
+			level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
+		}
+
 		return
 	}
 
