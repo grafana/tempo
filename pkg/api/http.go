@@ -501,6 +501,9 @@ func BuildQueryRequest(req *http.Request, queryParams map[string]string) *http.R
 	}
 	qb := newQueryBuilder(req.URL.RawQuery)
 	for k, v := range queryParams {
+		if v == "" {
+			continue
+		}
 		qb.addParam(k, v)
 	}
 	req.URL.RawQuery = qb.query()
