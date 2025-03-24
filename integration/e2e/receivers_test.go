@@ -42,7 +42,8 @@ func TestReceivers(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	testReceivers := []struct {
-		name     string
+		name string
+
 		factory  exporter.Factory
 		config   func(exporter.Factory, string) component.Config
 		endpoint string
@@ -89,6 +90,7 @@ func TestReceivers(t *testing.T) {
 			exporter, err := tc.factory.CreateTraces(
 				context.Background(),
 				exporter.Settings{
+					ID: component.NewID(tc.factory.Type()),
 					TelemetrySettings: component.TelemetrySettings{
 						Logger:         logger,
 						TracerProvider: tracenoop.NewTracerProvider(),

@@ -41,12 +41,11 @@ func TestShim_integration(t *testing.T) {
 	headers := map[string]configopaque.String{generator.NoGenerateMetricsContextKey: "true"}
 
 	testCases := []struct {
-		name                string
-		expectedComponentID string
-		receiverCfg         map[string]interface{}
-		factory             exporter.Factory
-		exporterCfg         component.Config
-		expectedTransport   string
+		name              string
+		receiverCfg       map[string]interface{}
+		factory           exporter.Factory
+		exporterCfg       component.Config
+		expectedTransport string
 	}{
 		{
 			name: "otlpexporter",
@@ -67,8 +66,7 @@ func TestShim_integration(t *testing.T) {
 					Headers: headers,
 				},
 			},
-			expectedComponentID: "otlp",
-			expectedTransport:   "grpc",
+			expectedTransport: "grpc",
 		},
 		{
 			name: "otlphttpexporter - JSON encoding",
@@ -87,8 +85,7 @@ func TestShim_integration(t *testing.T) {
 				},
 				Encoding: otlphttpexporter.EncodingJSON,
 			},
-			expectedComponentID: "otlphttp",
-			expectedTransport:   "http",
+			expectedTransport: "http",
 		},
 		{
 			name: "otlphttpexporter - proto encoding",
@@ -107,8 +104,7 @@ func TestShim_integration(t *testing.T) {
 				},
 				Encoding: otlphttpexporter.EncodingProto,
 			},
-			expectedComponentID: "otlphttp",
-			expectedTransport:   "http",
+			expectedTransport: "http",
 		},
 	}
 	for _, testCase := range testCases {
@@ -119,7 +115,7 @@ func TestShim_integration(t *testing.T) {
 			stopShim := runReceiverShim(t, testCase.receiverCfg, pusher, reg)
 			defer stopShim()
 
-			exporter, stopExporter := runOTelExporter(t, testCase.factory, testCase.exporterCfg, testCase.expectedComponentID)
+			exporter, stopExporter := runOTelExporter(t, testCase.factory, testCase.exporterCfg)
 			defer stopExporter()
 
 			err := exporter.ConsumeTraces(context.Background(), randomTraces)
@@ -170,11 +166,11 @@ func runReceiverShim(t *testing.T, receiverCfg map[string]interface{}, pusher Tr
 	}
 }
 
-func runOTelExporter(t *testing.T, factory exporter.Factory, cfg component.Config, componentID string) (exporter.Traces, func()) {
+func runOTelExporter(t *testing.T, factory exporter.Factory, cfg component.Config) (exporter.Traces, func()) {
 	exporter, err := factory.CreateTraces(
 		context.Background(),
 		exporter.Settings{
-			ID: component.MustNewID(componentID),
+			ID: component.MustNewID(factory.Type().String()),
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zap.NewNop(),
 				TracerProvider: tracenoop.NewTracerProvider(),
