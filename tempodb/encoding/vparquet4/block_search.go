@@ -371,6 +371,29 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 	}
 }
 
+func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
+	async := os.Getenv(EnvVarAsyncIteratorName) == EnvVarAsyncIteratorValue
+
+	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+		index, _ := pq.GetColumnIndexByPath(pf, name)
+		if index == -1 {
+			// TODO - don't panic, error instead
+			panic("column not found in parquet file:" + name)
+		}
+
+		if async {
+			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
+		}
+
+		var opts []pq.NilAttributeIteratorOpt
+		if name != columnPathSpanID && name != columnPathTraceID {
+			opts = append(opts, pq.NilAttributeIteratorOptIntern())
+		}
+
+		return pq.NewNilAttributeIterator(ctx, rgs, index, name, 1000, predicate, selectAs, opts...)
+	}
+}
+
 type rowNumberIterator struct {
 	rowNumbers []pq.RowNumber
 }
