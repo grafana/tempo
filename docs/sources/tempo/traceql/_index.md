@@ -171,16 +171,19 @@ Find if `productcatalogservice` and `frontend` are siblings.
 { resource.service.name = "productcatalogservice" } ~ { resource.service.name="frontend" }
 ```
 
-#### Query spans in nested sets
+You can use nested set intrinsics to request structural details about spans: `nestedSetLeft`, `nestedSetRight`, and `nestedSetParent` columns.
+For incomplete traces, all values are set to `0`.
 
-You can use nested set intrinsics to request structural details about spans.
-Using `nestedSetLeft`, `nestedSetRight`, and `nestedSetParent`, your query can evaluate spans in relationship to columns and parents.
+Find root spans for complete traces:
 
-For example, if you want to get a list of all users who hit "Service A span" who also hit "Service B inner span."
-The count should not include times that "service B inner span" was hit not via "Service A span".
+```
+{ nestedSetLeft=1 }
+```
 
-```traceql
-{ nestedSetLeft<0} >> { resource.service.name = "service-a" } >> { resource.service.name = "service-b" } > { resource.service.name = "service-b" && kind = internal } > { .foo = "bar" }
+Select spans of incomplete traces:
+
+```
+{ nestedSetParent=0 }
 ```
 
 ### Other examples
