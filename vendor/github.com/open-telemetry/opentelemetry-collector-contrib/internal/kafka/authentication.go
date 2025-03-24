@@ -15,73 +15,22 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/awsmsk"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/configkafka"
 )
 
-// Authentication defines authentication.
-type Authentication struct {
-	PlainText *PlainTextConfig        `mapstructure:"plain_text"`
-	SASL      *SASLConfig             `mapstructure:"sasl"`
-	TLS       *configtls.ClientConfig `mapstructure:"tls"`
-	Kerberos  *KerberosConfig         `mapstructure:"kerberos"`
-}
-
-// PlainTextConfig defines plaintext authentication.
-type PlainTextConfig struct {
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-}
-
-// SASLConfig defines the configuration for the SASL authentication.
-type SASLConfig struct {
-	// Username to be used on authentication
-	Username string `mapstructure:"username"`
-	// Password to be used on authentication
-	Password string `mapstructure:"password"`
-	// SASL Mechanism to be used, possible values are: (PLAIN, AWS_MSK_IAM, AWS_MSK_IAM_OAUTHBEARER, SCRAM-SHA-256 or SCRAM-SHA-512).
-	Mechanism string `mapstructure:"mechanism"`
-	// SASL Protocol Version to be used, possible values are: (0, 1). Defaults to 0.
-	Version int `mapstructure:"version"`
-
-	AWSMSK AWSMSKConfig `mapstructure:"aws_msk"`
-}
-
-// AWSMSKConfig defines the additional SASL authentication
-// measures needed to use AWS_MSK_IAM and AWS_MSK_IAM_OAUTHBEARER mechanism
-type AWSMSKConfig struct {
-	// Region is the AWS region the MSK cluster is based in
-	Region string `mapstructure:"region"`
-	// BrokerAddr is the client is connecting to in order to perform the auth required
-	BrokerAddr string `mapstructure:"broker_addr"`
-	// Context
-	ctx context.Context
-}
-
-// Token return the AWS session token for the AWS_MSK_IAM_OAUTHBEARER mechanism
-func (c *AWSMSKConfig) Token() (*sarama.AccessToken, error) {
-	token, _, err := signer.GenerateAuthToken(c.ctx, c.Region)
-
-	return &sarama.AccessToken{Token: token}, err
-}
-
-// KerberosConfig defines kerberos configuration.
-type KerberosConfig struct {
-	ServiceName     string `mapstructure:"service_name"`
-	Realm           string `mapstructure:"realm"`
-	UseKeyTab       bool   `mapstructure:"use_keytab"`
-	Username        string `mapstructure:"username"`
-	Password        string `mapstructure:"password" json:"-"`
-	ConfigPath      string `mapstructure:"config_file"`
-	KeyTabPath      string `mapstructure:"keytab_file"`
-	DisablePAFXFAST bool   `mapstructure:"disable_fast_negotiation"`
-}
-
-// ConfigureAuthentication configures authentication in sarama.Config.
-func ConfigureAuthentication(ctx context.Context, config Authentication, saramaConfig *sarama.Config) error {
+// ConfigureSaramaAuthentication configures authentication in sarama.Config.
+//
+// The provided config is assumed to have been validated.
+func ConfigureSaramaAuthentication(
+	ctx context.Context,
+	config configkafka.AuthenticationConfig,
+	saramaConfig *sarama.Config,
+) error {
 	if config.PlainText != nil {
 		configurePlaintext(*config.PlainText, saramaConfig)
 	}
 	if config.TLS != nil {
-		if err := configureTLS(*config.TLS, saramaConfig); err != nil {
+		if err := configureTLS(ctx, *config.TLS, saramaConfig); err != nil {
 			return err
 		}
 	}
@@ -90,31 +39,23 @@ func ConfigureAuthentication(ctx context.Context, config Authentication, saramaC
 			return err
 		}
 	}
-
 	if config.Kerberos != nil {
 		configureKerberos(*config.Kerberos, saramaConfig)
 	}
 	return nil
 }
 
-func configurePlaintext(config PlainTextConfig, saramaConfig *sarama.Config) {
+func configurePlaintext(config configkafka.PlainTextConfig, saramaConfig *sarama.Config) {
 	saramaConfig.Net.SASL.Enable = true
 	saramaConfig.Net.SASL.User = config.Username
 	saramaConfig.Net.SASL.Password = config.Password
 }
 
-func configureSASL(ctx context.Context, config SASLConfig, saramaConfig *sarama.Config) error {
-	if config.Username == "" && config.Mechanism != "AWS_MSK_IAM_OAUTHBEARER" {
-		return fmt.Errorf("username have to be provided")
-	}
-
-	if config.Password == "" && config.Mechanism != "AWS_MSK_IAM_OAUTHBEARER" {
-		return fmt.Errorf("password have to be provided")
-	}
-
+func configureSASL(ctx context.Context, config configkafka.SASLConfig, saramaConfig *sarama.Config) error {
 	saramaConfig.Net.SASL.Enable = true
 	saramaConfig.Net.SASL.User = config.Username
 	saramaConfig.Net.SASL.Password = config.Password
+	saramaConfig.Net.SASL.Version = int16(config.Version)
 
 	switch config.Mechanism {
 	case "SCRAM-SHA-512":
@@ -131,30 +72,17 @@ func configureSASL(ctx context.Context, config SASLConfig, saramaConfig *sarama.
 		}
 		saramaConfig.Net.SASL.Mechanism = awsmsk.Mechanism
 	case "AWS_MSK_IAM_OAUTHBEARER":
-		config.AWSMSK.ctx = ctx
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeOAuth
-		saramaConfig.Net.SASL.TokenProvider = &config.AWSMSK
+		saramaConfig.Net.SASL.TokenProvider = &awsMSKTokenProvider{ctx: ctx, region: config.AWSMSK.Region}
 		tlsConfig := tls.Config{}
 		saramaConfig.Net.TLS.Enable = true
 		saramaConfig.Net.TLS.Config = &tlsConfig
-	default:
-		return fmt.Errorf(`invalid SASL Mechanism %q: can be either "PLAIN", "AWS_MSK_IAM", "AWS_MSK_IAM_OAUTHBEARER", "SCRAM-SHA-256" or "SCRAM-SHA-512"`, config.Mechanism)
 	}
-
-	switch config.Version {
-	case 0:
-		saramaConfig.Net.SASL.Version = sarama.SASLHandshakeV0
-	case 1:
-		saramaConfig.Net.SASL.Version = sarama.SASLHandshakeV1
-	default:
-		return fmt.Errorf(`invalid SASL Protocol Version %d: can be either 0 or 1`, config.Version)
-	}
-
 	return nil
 }
 
-func configureTLS(config configtls.ClientConfig, saramaConfig *sarama.Config) error {
-	tlsConfig, err := config.LoadTLSConfig(context.Background())
+func configureTLS(ctx context.Context, config configtls.ClientConfig, saramaConfig *sarama.Config) error {
+	tlsConfig, err := config.LoadTLSConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("error loading tls config: %w", err)
 	}
@@ -163,7 +91,7 @@ func configureTLS(config configtls.ClientConfig, saramaConfig *sarama.Config) er
 	return nil
 }
 
-func configureKerberos(config KerberosConfig, saramaConfig *sarama.Config) {
+func configureKerberos(config configkafka.KerberosConfig, saramaConfig *sarama.Config) {
 	saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeGSSAPI
 	saramaConfig.Net.SASL.Enable = true
 	if config.UseKeyTab {
@@ -178,4 +106,15 @@ func configureKerberos(config KerberosConfig, saramaConfig *sarama.Config) {
 	saramaConfig.Net.SASL.GSSAPI.Realm = config.Realm
 	saramaConfig.Net.SASL.GSSAPI.ServiceName = config.ServiceName
 	saramaConfig.Net.SASL.GSSAPI.DisablePAFXFAST = config.DisablePAFXFAST
+}
+
+type awsMSKTokenProvider struct {
+	ctx    context.Context
+	region string
+}
+
+// Token return the AWS session token for the AWS_MSK_IAM_OAUTHBEARER mechanism
+func (c *awsMSKTokenProvider) Token() (*sarama.AccessToken, error) {
+	token, _, err := signer.GenerateAuthToken(c.ctx, c.region)
+	return &sarama.AccessToken{Token: token}, err
 }

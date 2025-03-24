@@ -28,7 +28,7 @@ func createIsDoubleFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments)
 	return isDouble(args.Target), nil
 }
 
-// nolint:errorlint
+//nolint:errorlint
 func isDouble[K any](target ottl.FloatGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		_, err := target.Get(ctx, tCtx)

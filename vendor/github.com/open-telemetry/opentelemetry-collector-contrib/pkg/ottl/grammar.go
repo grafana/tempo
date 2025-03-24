@@ -296,12 +296,16 @@ func (f *field) accept(v grammarVisitor) {
 }
 
 type key struct {
-	String     *string          `parser:"'[' (@String "`
-	Int        *int64           `parser:"| @Int"`
-	Expression *mathExprLiteral `parser:"| @@ ) ']'"`
+	String         *string          `parser:"'[' (@String "`
+	Int            *int64           `parser:"| @Int"`
+	MathExpression *mathExpression  `parser:"| @@"`
+	Expression     *mathExprLiteral `parser:"| @@ ) ']'"`
 }
 
 func (k *key) accept(v grammarVisitor) {
+	if k.MathExpression != nil {
+		k.MathExpression.accept(v)
+	}
 	if k.Expression != nil {
 		k.Expression.accept(v)
 	}

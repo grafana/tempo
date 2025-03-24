@@ -38,7 +38,6 @@ func createLenFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ott
 	return computeLen(args.Target), nil
 }
 
-// nolint:exhaustive
 func computeLen[K any](target ottl.Getter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)

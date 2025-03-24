@@ -18,13 +18,27 @@ This package implements everything necessary to use OTTL in a Collector componen
 - [Troubleshooting](#troubleshooting)
 - [Resources](#resources)
 
+
 ## Getting Started
 
-If you're looking to write OTTL statements for a component's configuration check out these resources.
+An OTTL statement is made up of 2 parts:
+1. A function that transforms telemetry
+2. Optionally, a condition that determines whether the function is executed.
 
-See [OTTL Functions](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/ottlfuncs#ottl-functions) for a list of functions available for use in the OTTL statements of most components.
+Here is an example OTTL statement:
 
-OTTL Contexts define how you access the fields on a given telemetry item. See the table to find the exact list of available fields:
+```
+set(span.attributes["test"], "pass") where span.attributes["test"] == nil
+```
+
+This statement sets a new span attribute named `"test"` with a value of `"pass"` whenever the span does not already
+have an attribute named `"test"`. In this example, the **function** is `set`, which uses the second parameter to set the value of the first parameter, and the **condition** is `span.attributes["test"] == nil`.
+
+Within a statement you utilize OTTL Paths to access telemetry. The example uses the Path `span.attributes` to access
+the span's attributes. For each Open Telemetry Signal, OTTL has a Path to every field (plus some extras to help make
+interacting with the data easier).
+
+To see a list of available Paths for each Open Telemetry Signal, checkout the links below.
 
 | Telemetry               | OTTL Context                                                                                                                               |
 |-------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
@@ -36,7 +50,17 @@ OTTL Contexts define how you access the fields on a given telemetry item. See th
 | `Datapoint`             | [DataPoint](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/contexts/ottldatapoint/README.md)         |
 | `Log`                   | [Log](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/contexts/ottllog/README.md)                     |
 
-To understand what OTTL offers as a language, check out [OTTL's grammar doc](./LANGUAGE.md).
+OTTL does not support cross-signal interactions at this time. That means you cannot write a statement like
+
+```
+set(span.attributes["log body"], log.body)
+```
+
+See [OTTL Functions](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/ottlfuncs#ottl-functions) for a list of functions available for use in OTTL statements of most components.
+
+To see more examples of OTTL statements, checkout the [Transform Processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/transformprocessor/README.md#examples)
+
+There is a lot more OTTL can do, like nested functions, arithmetic, indexing, and enums. To explore it further check out [OTTL's grammar doc](./LANGUAGE.md).
 
 ## Where to use OTTL
 

@@ -236,7 +236,7 @@ func newSaramaProducer(ctx context.Context, config Config) (sarama.SyncProducer,
 		c.Version = version
 	}
 
-	if err := kafka.ConfigureAuthentication(ctx, config.Authentication, c); err != nil {
+	if err := kafka.ConfigureSaramaAuthentication(ctx, config.Authentication, c); err != nil {
 		return nil, err
 	}
 

@@ -5,8 +5,10 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 
 import (
 	"bytes"
+	"reflect"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"golang.org/x/exp/constraints"
 )
 
@@ -168,6 +170,49 @@ func (p *Parser[K]) compareTime(a time.Time, b any, op compareOp) bool {
 	}
 }
 
+func (p *Parser[K]) compareMap(a map[string]any, b any, op compareOp) bool {
+	switch v := b.(type) {
+	case pcommon.Map:
+		switch op {
+		case eq:
+			return reflect.DeepEqual(a, v.AsRaw())
+		case ne:
+			return !reflect.DeepEqual(a, v.AsRaw())
+		default:
+			return p.invalidComparison(op)
+		}
+	case map[string]any:
+		switch op {
+		case eq:
+			return reflect.DeepEqual(a, v)
+		case ne:
+			return !reflect.DeepEqual(a, v)
+		default:
+			return p.invalidComparison(op)
+		}
+	default:
+		return p.invalidComparison(op)
+	}
+}
+
+func (p *Parser[K]) comparePMap(a pcommon.Map, b any, op compareOp) bool {
+	switch v := b.(type) {
+	case pcommon.Map:
+		switch op {
+		case eq:
+			return a.Equal(v)
+		case ne:
+			return !a.Equal(v)
+		default:
+			return p.invalidComparison(op)
+		}
+	case map[string]any:
+		return p.compareMap(a.AsRaw(), v, op)
+	default:
+		return p.invalidComparison(op)
+	}
+}
+
 // a and b are the return values from a Getter; we try to compare them
 // according to the given operator.
 func (p *Parser[K]) compare(a any, b any, op compareOp) bool {
@@ -199,6 +244,10 @@ func (p *Parser[K]) compare(a any, b any, op compareOp) bool {
 		return p.compareDuration(v, b, op)
 	case time.Time:
 		return p.compareTime(v, b, op)
+	case map[string]any:
+		return p.compareMap(v, b, op)
+	case pcommon.Map:
+		return p.comparePMap(v, b, op)
 	default:
 		// If we don't know what type it is, we can't do inequalities yet. So we can fall back to the old behavior where we just
 		// use Go's standard equality.

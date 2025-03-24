@@ -147,6 +147,12 @@ func (r TracesUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 		span.Attributes().PutStr("http.scheme", scheme)
 		span.Attributes().PutStr("http.method", azureTrace.Properties["HTTP Method"])
 
+		for key, value := range azureTrace.Properties {
+			if key != "HTTP Method" { // HTTP Method is already mapped to http.method
+				span.Attributes().PutStr(key, value)
+			}
+		}
+
 		span.SetKind(ptrace.SpanKindServer)
 		span.SetName(azureTrace.Name)
 		span.SetStartTimestamp(nanos)

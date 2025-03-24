@@ -1,3 +1,23 @@
+# v1.8.1 (2024-08-15)
+
+* **Dependency Update**: Bump minimum Go version to 1.21.
+
+# v1.8.0 (2024-02-13)
+
+* **Feature**: Bump minimum Go version to 1.20 per our language support policy.
+
+# v1.7.3 (2024-01-22)
+
+* **Bug Fix**: Remove invalid escaping of shared config values. All values in the shared config file will now be interpreted literally, save for fully-quoted strings which are unwrapped for legacy reasons.
+
+# v1.7.2 (2023-12-08)
+
+* **Bug Fix**: Correct loading of [services *] sections into shared config.
+
+# v1.7.1 (2023-11-16)
+
+* **Bug Fix**: Fix recognition of trailing comments in shared config properties. # or ; separators that aren't preceded by whitespace at the end of a property value should be considered part of it.
+
 # v1.7.0 (2023-11-13)
 
 * **Feature**: Replace the legacy config parser with a modern, less-strict implementation. Parsing failures within a section will now simply ignore the invalid line rather than silently drop the entire section.

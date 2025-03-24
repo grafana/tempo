@@ -150,6 +150,48 @@ type Config struct {
 	// BaseEndpoint is an intermediary transfer location to a service specific
 	// BaseEndpoint on a service's Options.
 	BaseEndpoint *string
+
+	// DisableRequestCompression toggles if an operation request could be
+	// compressed or not. Will be set to false by default. This variable is sourced from
+	// environment variable AWS_DISABLE_REQUEST_COMPRESSION or the shared config profile attribute
+	// disable_request_compression
+	DisableRequestCompression bool
+
+	// RequestMinCompressSizeBytes sets the inclusive min bytes of a request body that could be
+	// compressed. Will be set to 10240 by default and must be within 0 and 10485760 bytes inclusively.
+	// This variable is sourced from environment variable AWS_REQUEST_MIN_COMPRESSION_SIZE_BYTES or
+	// the shared config profile attribute request_min_compression_size_bytes
+	RequestMinCompressSizeBytes int64
+
+	// Controls how a resolved AWS account ID is handled for endpoint routing.
+	AccountIDEndpointMode AccountIDEndpointMode
+
+	// RequestChecksumCalculation determines when request checksum calculation is performed.
+	//
+	// There are two possible values for this setting:
+	//
+	// 1. RequestChecksumCalculationWhenSupported (default): The checksum is always calculated
+	//    if the operation supports it, regardless of whether the user sets an algorithm in the request.
+	//
+	// 2. RequestChecksumCalculationWhenRequired: The checksum is only calculated if the user
+	//    explicitly sets a checksum algorithm in the request.
+	//
+	// This setting is sourced from the environment variable AWS_REQUEST_CHECKSUM_CALCULATION
+	// or the shared config profile attribute "request_checksum_calculation".
+	RequestChecksumCalculation RequestChecksumCalculation
+
+	// ResponseChecksumValidation determines when response checksum validation is performed
+	//
+	// There are two possible values for this setting:
+	//
+	// 1. ResponseChecksumValidationWhenSupported (default): The checksum is always validated
+	//    if the operation supports it, regardless of whether the user sets the validation mode to ENABLED in request.
+	//
+	// 2. ResponseChecksumValidationWhenRequired: The checksum is only validated if the user
+	//    explicitly sets the validation mode to ENABLED in the request
+	// This variable is sourced from environment variable AWS_RESPONSE_CHECKSUM_VALIDATION or
+	// the shared config profile attribute "response_checksum_validation".
+	ResponseChecksumValidation ResponseChecksumValidation
 }
 
 // NewConfig returns a new Config pointer that can be chained with builder
@@ -158,8 +200,7 @@ func NewConfig() *Config {
 	return &Config{}
 }
 
-// Copy will return a shallow copy of the Config object. If any additional
-// configurations are provided they will be merged into the new config returned.
+// Copy will return a shallow copy of the Config object.
 func (c Config) Copy() Config {
 	cp := c
 	return cp

@@ -2,6 +2,7 @@ package xmlquery
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -39,15 +40,31 @@ func Parse(r io.Reader) (*Node, error) {
 func ParseWithOptions(r io.Reader, options ParserOptions) (*Node, error) {
 	p := createParser(r)
 	options.apply(p)
-	for {
-		_, err := p.parse()
-		if err == io.EOF {
-			return p.doc, nil
-		}
-		if err != nil {
-			return nil, err
-		}
+	var err error
+	for err == nil {
+		_, err = p.parse()
 	}
+
+	if err == io.EOF {
+		// additional check for validity
+		// according to: https://www.w3.org/TR/xml
+		// the document MUST contain at least ONE element
+		valid := false
+		for doc := p.doc; doc != nil; doc = doc.NextSibling {
+			for node := doc.FirstChild; node != nil; node = node.NextSibling {
+				if node.Type == ElementNode {
+					valid = true
+					break
+				}
+			}
+		}
+		if !valid {
+			return nil, fmt.Errorf("xmlquery: invalid XML document")
+		}
+		return p.doc, nil
+	}
+
+	return nil, err
 }
 
 type parser struct {
@@ -168,7 +185,7 @@ func (p *parser) parse() (*Node, error) {
 
 			if node.NamespaceURI != "" {
 				if v, ok := p.space2prefix[node.NamespaceURI]; ok {
-					cached := string(p.reader.Cache())
+					cached := string(p.reader.CacheWithLimit(len(v.name) + len(node.Data) + 2))
 					if strings.HasPrefix(cached, fmt.Sprintf("%s:%s", v.name, node.Data)) || strings.HasPrefix(cached, fmt.Sprintf("<%s:%s", v.name, node.Data)) {
 						node.Prefix = v.name
 					}
@@ -228,12 +245,11 @@ func (p *parser) parse() (*Node, error) {
 			}
 		case xml.CharData:
 			// First, normalize the cache...
-			cached := strings.ToUpper(string(p.reader.Cache()))
+			cached := bytes.ToUpper(p.reader.CacheWithLimit(9))
 			nodeType := TextNode
-			if strings.HasPrefix(cached, "<![CDATA[") || strings.HasPrefix(cached, "![CDATA[") {
+			if bytes.HasPrefix(cached, []byte("<![CDATA[")) || bytes.HasPrefix(cached, []byte("![CDATA[")) {
 				nodeType = CharDataNode
 			}
-
 			node := &Node{Type: nodeType, Data: string(tok), level: p.level}
 			if p.level == p.prev.level {
 				AddSibling(p.prev, node)

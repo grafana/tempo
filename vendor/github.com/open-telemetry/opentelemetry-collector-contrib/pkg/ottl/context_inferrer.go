@@ -5,8 +5,13 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 
 import (
 	"cmp"
+	"fmt"
 	"math"
 	"slices"
+
+	"go.opentelemetry.io/collector/component"
+	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 )
 
 var defaultContextInferPriority = []string{
@@ -27,8 +32,9 @@ type contextInferrer interface {
 }
 
 type priorityContextInferrer struct {
-	contextPriority  map[string]int
-	contextCandidate map[string]*priorityContextInferrerCandidate
+	telemetrySettings component.TelemetrySettings
+	contextPriority   map[string]int
+	contextCandidate  map[string]*priorityContextInferrerCandidate
 }
 
 type priorityContextInferrerCandidate struct {
@@ -49,9 +55,10 @@ type priorityContextInferrerOption func(*priorityContextInferrer)
 //
 // If non-prioritized contexts are found on the statements, they get assigned the lowest possible priority,
 // and are only selected if no other prioritized context is found.
-func newPriorityContextInferrer(contextsCandidate map[string]*priorityContextInferrerCandidate, options ...priorityContextInferrerOption) contextInferrer {
+func newPriorityContextInferrer(telemetrySettings component.TelemetrySettings, contextsCandidate map[string]*priorityContextInferrerCandidate, options ...priorityContextInferrerOption) contextInferrer {
 	c := &priorityContextInferrer{
-		contextCandidate: contextsCandidate,
+		telemetrySettings: telemetrySettings,
+		contextCandidate:  contextsCandidate,
 	}
 	for _, opt := range options {
 		opt(c)
@@ -74,11 +81,24 @@ func withContextInferrerPriorities(priorities []string) priorityContextInferrerO
 	}
 }
 
-func (s *priorityContextInferrer) infer(statements []string) (string, error) {
+func (s *priorityContextInferrer) infer(statements []string) (inferredContext string, err error) {
+	s.telemetrySettings.Logger.Debug("Inferring context from statements",
+		zap.Strings("candidates", maps.Keys(s.contextCandidate)),
+		zap.Any("priority", s.contextPriority),
+		zap.Strings("statements", statements),
+	)
+
+	defer func() {
+		if inferredContext != "" {
+			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Inferred context: "%s"`, inferredContext))
+		} else {
+			s.telemetrySettings.Logger.Debug("Unable to infer context from statements")
+		}
+	}()
+
 	requiredFunctions := map[string]struct{}{}
 	requiredEnums := map[enumSymbol]struct{}{}
 
-	var inferredContext string
 	var inferredContextPriority int
 	for _, statement := range statements {
 		parsed, err := parseStatement(statement)
@@ -107,6 +127,7 @@ func (s *priorityContextInferrer) infer(statements []string) (string, error) {
 	}
 	// No inferred context or nothing left to verify.
 	if inferredContext == "" || (len(requiredFunctions) == 0 && len(requiredEnums) == 0) {
+		s.telemetrySettings.Logger.Debug("No context candidate found in the statements")
 		return inferredContext, nil
 	}
 	ok := s.validateContextCandidate(inferredContext, requiredFunctions, requiredEnums)
@@ -123,8 +144,10 @@ func (s *priorityContextInferrer) validateContextCandidate(
 	requiredFunctions map[string]struct{},
 	requiredEnums map[enumSymbol]struct{},
 ) bool {
+	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Validating selected context candidate: "%s"`, context))
 	candidate, ok := s.contextCandidate[context]
 	if !ok {
+		s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Context "%s" is not a valid candidate`, context))
 		return false
 	}
 	if len(requiredFunctions) == 0 && len(requiredEnums) == 0 {
@@ -132,11 +155,13 @@ func (s *priorityContextInferrer) validateContextCandidate(
 	}
 	for function := range requiredFunctions {
 		if !candidate.hasFunctionName(function) {
+			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Context "%s" does not meet the function requirement: "%s"`, context, function))
 			return false
 		}
 	}
 	for enum := range requiredEnums {
 		if !candidate.hasEnumSymbol((*EnumSymbol)(&enum)) {
+			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Context "%s" does not meet the enum requirement: "%s"`, context, string(enum)))
 			return false
 		}
 	}
@@ -152,6 +177,7 @@ func (s *priorityContextInferrer) inferFromLowerContexts(
 	requiredFunctions map[string]struct{},
 	requiredEnums map[enumSymbol]struct{},
 ) string {
+	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Trying to infer context using "%s" lower contexts`, context))
 	inferredContextCandidate, ok := s.contextCandidate[context]
 	if !ok {
 		return ""
