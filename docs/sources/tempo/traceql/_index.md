@@ -173,7 +173,7 @@ Find if `productcatalogservice` and `frontend` are siblings.
 
 You can use nested set intrinsics to request structural details about spans.
 These intrinsics include `nestedSetLeft`, `nestedSetRight`, and `nestedSetParent.
-For incomplete traces, all values are set to `0`.
+For incomplete traces, all values are set to `0`. Complete traces have values from `1` to infinity. 
 
 Find root spans for complete traces:
 
