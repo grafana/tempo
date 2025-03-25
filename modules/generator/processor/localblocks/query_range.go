@@ -88,13 +88,12 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			case <-seriesCtx.Done():
 				return
 			default:
-				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				seriesCount, err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
 				}
-				numSeries := len(rawEval.Results())
 				select {
-				case seriesCountCh <- numSeries:
+				case seriesCountCh <- seriesCount:
 				case <-seriesCtx.Done():
 				}
 			}
@@ -117,13 +116,12 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			case <-seriesCtx.Done():
 				return
 			default:
-				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				seriesCount, err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
 				}
-				numSeries := len(rawEval.Results())
 				select {
-				case seriesCountCh <- numSeries:
+				case seriesCountCh <- seriesCount:
 				case <-seriesCtx.Done():
 				}
 			}
@@ -171,7 +169,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	return nil
 }
 
-func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) error {
+func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) (int, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "Processor.QueryRange.WALBlock", trace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -223,7 +221,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return b.Fetch(ctx, req, common.DefaultSearchOptions())
 	})
-	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
+	_, err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}
