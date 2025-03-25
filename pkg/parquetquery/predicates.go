@@ -478,3 +478,31 @@ func (m *CallbackPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { return m.
 func (m *CallbackPredicate) KeepPage(pq.Page) bool { return m.cb() }
 
 func (m *CallbackPredicate) KeepValue(pq.Value) bool { return m.cb() }
+
+var _ Predicate = (*NilStringEqualPredicate)(nil)
+
+type NilStringEqualPredicate struct {
+	value []byte
+}
+
+func NewNilStringEqualPredicate(val []byte) NilStringEqualPredicate {
+	return NilStringEqualPredicate{value: val}
+}
+
+func (p NilStringEqualPredicate) String() string {
+	return fmt.Sprintf("NilStringEqualPredicate{%s}", p.value)
+}
+
+func (p NilStringEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	return true
+}
+
+func (p NilStringEqualPredicate) KeepPage(page pq.Page) bool {
+
+	return true
+}
+
+func (p NilStringEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return bytes.Equal(vv, p.value)
+}
