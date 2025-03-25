@@ -1005,7 +1005,7 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
-func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) (int, error) {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1017,7 +1017,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		if overlap == 0.0 {
 			// This shouldn't happen but might as well check.
 			// No overlap == nothing to do
-			return nil
+			return 0, nil
 		}
 
 		// Our heuristic is if the overlap between the given fetcher (i.e. block)
@@ -1032,10 +1032,10 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 	fetch, err := f.Fetch(ctx, storageReq)
 	if errors.Is(err, util.ErrUnsupported) {
-		return nil
+		return 0, nil
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer fetch.Results.Close()
@@ -1045,7 +1045,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	for {
 		ss, err := fetch.Results.Next(ctx)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if ss == nil {
 			break
@@ -1081,7 +1081,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	defer e.mtx.Unlock()
 	e.bytes += fetch.Bytes()
 
-	return nil
+	return seriesCount, nil
 }
 
 func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
