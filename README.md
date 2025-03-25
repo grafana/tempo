@@ -55,7 +55,7 @@ Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ing
 
 To learn more about Tempo, consult the following documents & talks:
 
-- [How to get started with Tmepo with Joe Elliot (video)](https://www.youtube.com/watch?v=zDrA7Ly3ovU)
+- [How to get started with Tempo with Joe Elliott (video)](https://www.youtube.com/watch?v=zDrA7Ly3ovU)
 - [Grafana blog posts about Tempo](https://grafana.com/tags/tempo/)
 - [New in Grafana Tempo 2.0: Apache Parquet as the default storage format, support for TraceQL][tempo_20_announce]
 - [Get to know TraceQL: A powerful new query language for distributed tracing][traceql-post]

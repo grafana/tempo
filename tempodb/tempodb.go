@@ -92,14 +92,19 @@ type Reader interface {
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 
+	BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
+	Tenants() []string
 
 	Shutdown()
 }
 
 type Compactor interface {
 	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
+	MarkBlockCompacted(tenantID string, blockID backend.UUID) error
+	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
+	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
 }
 
 type CompactorSharder interface {
@@ -274,8 +279,30 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
+func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+	meta, err := rw.r.BlockMeta(ctx, (uuid.UUID)(blockID), tenantID)
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+		return nil, nil, err
+	}
+
+	if meta != nil {
+		return meta, nil, nil
+	}
+
+	compactedMeta, err := rw.c.CompactedBlockMeta((uuid.UUID)(blockID), tenantID)
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+		return nil, nil, err
+	}
+
+	return nil, compactedMeta, nil
+}
+
 func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return rw.blocklist.Metas(tenantID)
+}
+
+func (rw *readerWriter) Tenants() []string {
+	return rw.blocklist.Tenants()
 }
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
@@ -545,6 +572,10 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 	return nil
 }
 
+func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
+	return rw.c.MarkBlockCompacted((uuid.UUID)(blockID), tenantID)
+}
+
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
@@ -592,7 +623,7 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 
 	// do the first poll cycle synchronously. this will allow the caller to know
 	// that when this method returns the block list is updated
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	go rw.pollingLoop(ctx)
 }
@@ -605,13 +636,13 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			rw.pollBlocklist()
+			rw.pollBlocklist(ctx)
 		}
 	}
 }
 
-func (rw *readerWriter) pollBlocklist() {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(rw.blocklist)
+func (rw *readerWriter) pollBlocklist(ctx context.Context) {
+	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(ctx, rw.blocklist)
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
 		return

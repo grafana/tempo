@@ -174,7 +174,9 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger())
-			actualList, actualCompactedList, err := poller.Do(b)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			actualList, actualCompactedList, err := poller.Do(ctx, b)
 
 			// confirm return as expected
 			assert.Equal(t, tc.expectedList, actualList)
@@ -280,7 +282,10 @@ func TestTenantIndexFallback(t *testing.T) {
 			}, &mockJobSharder{
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger())
-			_, _, err := poller.Do(b)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			_, _, err := poller.Do(ctx, b)
 
 			assert.Equal(t, tc.expectsError, err != nil)
 			assert.Equal(t, tc.expectsTenantIndexWritten, w.IndexCompactedMeta != nil)
@@ -647,7 +652,9 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				EmptyTenantDeletionAge:    testEmptyTenantIndexAge,
 			}, s, r, c, w, log.NewLogfmtLogger(os.Stdout))
 
-			_, _, err := poller.Do(b)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			_, _, err := poller.Do(ctx, b)
 
 			if tc.expectedError != nil {
 				assert.ErrorContains(t, err, tc.expectedError.Error())
@@ -919,12 +926,14 @@ func TestPollComparePreviousResults(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var (
-				c        = newMockCompactor(tc.currentCompactedPerTenant, false)
-				w        = &backend.MockWriter{}
-				s        = &mockJobSharder{owns: true}
-				r        = newMockReader(tc.currentPerTenant, tc.currentCompactedPerTenant, tc.readerErr)
-				previous = newBlocklist(tc.previousPerTenant, tc.previousCompactedPerTenant)
+				c           = newMockCompactor(tc.currentCompactedPerTenant, false)
+				w           = &backend.MockWriter{}
+				s           = &mockJobSharder{owns: true}
+				r           = newMockReader(tc.currentPerTenant, tc.currentCompactedPerTenant, tc.readerErr)
+				previous    = newBlocklist(tc.previousPerTenant, tc.previousCompactedPerTenant)
+				ctx, cancel = context.WithCancel(context.Background())
 			)
+			defer cancel()
 
 			// This mock reader returns error or nil based on the tenant ID
 			poller := NewPoller(&PollerConfig{
@@ -936,7 +945,7 @@ func TestPollComparePreviousResults(t *testing.T) {
 				TolerateTenantFailures:    tc.tollerateTenantFailures,
 			}, s, r, c, w, log.NewNopLogger())
 
-			metas, compactedMetas, err := poller.Do(previous)
+			metas, compactedMetas, err := poller.Do(ctx, previous)
 			require.Equal(t, tc.err, err)
 
 			require.Equal(t, len(tc.expectedPerTenant), len(metas))
@@ -1115,7 +1124,7 @@ func BenchmarkFullPoller(b *testing.B) {
 			b.Run("initial", func(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					ml, cl, _ = poller.Do(list)
+					ml, cl, _ = poller.Do(ctx, list)
 				}
 				b.StopTimer()
 
@@ -1126,7 +1135,7 @@ func BenchmarkFullPoller(b *testing.B) {
 			b.Run("second", func(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					ml, cl, _ = poller.Do(list)
+					ml, cl, _ = poller.Do(ctx, list)
 				}
 				b.StopTimer()
 
@@ -1151,7 +1160,7 @@ func BenchmarkFullPoller(b *testing.B) {
 				b.Run(fmt.Sprintf("grow%d", i), func(b *testing.B) {
 					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
-						ml, cl, _ = poller.Do(list)
+						ml, cl, _ = poller.Do(ctx, list)
 					}
 					b.StopTimer()
 

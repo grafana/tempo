@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -130,12 +131,12 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 	//   Favoring lower compaction levels, and compacting blocks only from the same tenant.
 	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
 	//   It picks more recent windows first, and compacting blocks only from the same tenant.
-	blockSelector := newTimeWindowBlockSelector(blocklist,
+	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist,
 		window,
 		rw.compactorCfg.MaxCompactionObjects,
 		rw.compactorCfg.MaxBlockBytes,
-		defaultMinInputBlocks,
-		defaultMaxInputBlocks)
+		blockselector.DefaultMinInputBlocks,
+		blockselector.DefaultMaxInputBlocks)
 
 	start := time.Now()
 
@@ -150,7 +151,7 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 		// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
-			measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+			MeasureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
 			level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 			return
@@ -176,7 +177,7 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 
 		// after a maintenance cycle bail out
 		if start.Add(rw.compactorCfg.MaxTimePerTenant).Before(time.Now()) {
-			measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+			MeasureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
 			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
 			return
@@ -235,6 +236,11 @@ func (rw *readerWriter) compactWhileOwns(ctx context.Context, blockMetas []*back
 }
 
 func (rw *readerWriter) compactOneJob(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
+	_, err := rw.CompactWithConfig(ctx, blockMetas, tenantID, rw.compactorCfg, rw.compactorSharder, rw.compactorOverrides)
+	return err
+}
+
+func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) ([]*backend.BlockMeta, error) {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
@@ -247,7 +253,7 @@ func (rw *readerWriter) compactOneJob(ctx context.Context, blockMetas []*backend
 	}
 
 	if len(blockMetas) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	var err error
@@ -276,32 +282,32 @@ func (rw *readerWriter) compactOneJob(ctx context.Context, blockMetas []*backend
 		// Make sure block still exists
 		_, err = rw.r.BlockMeta(ctx, (uuid.UUID)(blockMeta.BlockID), tenantID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	enc, err := encoding.FromVersion(blockMetas[0].Version)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	compactionLevel := compactionLevelForBlocks(blockMetas)
+	compactionLevel := CompactionLevelForBlocks(blockMetas)
 	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 
 	combiner := instrumentedObjectCombiner{
 		tenant:               tenantID,
-		inner:                rw.compactorSharder,
+		inner:                compactorSharder,
 		compactionLevelLabel: compactionLevelLabel,
 	}
 
 	opts := common.CompactionOptions{
 		BlockConfig:        *rw.cfg.Block,
-		ChunkSizeBytes:     rw.compactorCfg.ChunkSizeBytes,
-		FlushSizeBytes:     rw.compactorCfg.FlushSizeBytes,
-		IteratorBufferSize: rw.compactorCfg.IteratorBufferSize,
+		ChunkSizeBytes:     compactorCfg.ChunkSizeBytes,
+		FlushSizeBytes:     compactorCfg.FlushSizeBytes,
+		IteratorBufferSize: compactorCfg.IteratorBufferSize,
 		OutputBlocks:       outputBlocks,
 		Combiner:           combiner,
-		MaxBytesPerTrace:   rw.compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
+		MaxBytesPerTrace:   compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
 		},
@@ -312,7 +318,7 @@ func (rw *readerWriter) compactOneJob(ctx context.Context, blockMetas []*backend
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
 		SpansDiscarded: func(traceId, rootSpanName, rootServiceName string, spans int) {
-			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName, rootServiceName)
+			compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName, rootServiceName)
 		},
 		DisconnectedTrace: func() {
 			dataquality.WarnDisconnectedTrace(tenantID, dataquality.PhaseTraceCompactorCombine)
@@ -330,12 +336,12 @@ func (rw *readerWriter) compactOneJob(ctx context.Context, blockMetas []*backend
 	// Compact selected blocks into a larger one
 	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.w, blockMetas)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// mark old blocks compacted, so they don't show up in polling
 	if err := markCompacted(rw, tenantID, blockMetas, newCompactedBlocks); err != nil {
-		return err
+		return nil, err
 	}
 
 	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
@@ -350,6 +356,22 @@ func (rw *readerWriter) compactOneJob(ctx context.Context, blockMetas []*backend
 		logArgs = append(logArgs, "blockID", meta.BlockID.String())
 	}
 	level.Info(rw.logger).Log(logArgs...)
+
+	return newCompactedBlocks, nil
+}
+
+// MarkCompacted marks the old blocks as compacted and adds the new blocks to the blocklist.  No backend changes are made.
+func (rw *readerWriter) MarkBlocklistCompacted(tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {
+	// Converted outgoing blocks into compacted entries.
+	newCompactions := make([]*backend.CompactedBlockMeta, 0, len(oldBlocks))
+	for _, newBlock := range oldBlocks {
+		newCompactions = append(newCompactions, &backend.CompactedBlockMeta{
+			BlockMeta:     *newBlock,
+			CompactedTime: time.Now(),
+		})
+	}
+
+	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions, nil)
 
 	return nil
 }
@@ -385,7 +407,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	return nil
 }
 
-func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSelector, owned func(hash string) bool) {
+func MeasureOutstandingBlocks(tenantID string, blockSelector blockselector.CompactionBlockSelector, owned func(hash string) bool) {
 	// count number of per-tenant outstanding blocks before next maintenance cycle
 	var totalOutstandingBlocks int
 	for {
@@ -402,7 +424,7 @@ func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSele
 	metricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
 }
 
-func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
+func CompactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
 	level := uint8(0)
 
 	for _, m := range blockMetas {

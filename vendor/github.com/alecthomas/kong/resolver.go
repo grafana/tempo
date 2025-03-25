@@ -63,6 +63,6 @@ func JSON(r io.Reader) (Resolver, error) {
 }
 
 func snakeCase(name string) string {
-	name = strings.Join(strings.Split(strings.Title(name), "-"), "")
+	name = strings.Join(strings.Split(strings.Title(name), "-"), "") //nolint:staticcheck // Unicode punctuation not an issue
 	return strings.ToLower(name[:1]) + name[1:]
 }

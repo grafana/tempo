@@ -255,7 +255,7 @@ gen-proto:  ## Generate proto files
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 	find pkg/tempopb -name *.pb.go | xargs -L 1 -I rm
 	# Here we avoid removing our tempo.proto and our frontend.proto due to reliance on the gogoproto bits.
-	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | xargs -L 1 -I rm
+	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | grep -v backendwork.proto | xargs -L 1 -I rm
 
 	@echo --
 	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
@@ -286,6 +286,7 @@ gen-proto:  ## Generate proto files
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
+	$(call PROTO_GEN,pkg/tempopb/backendwork.proto,./)
 	$(call PROTO_GEN_WITHOUT_RELATIVE,tempodb/backend/v1/v1.proto,./)
 	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v1/frontendv1pb/frontend.proto,./)
 

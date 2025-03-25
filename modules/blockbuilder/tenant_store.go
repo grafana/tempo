@@ -88,15 +88,35 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 	return nil
 }
 
-func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
+func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error {
 	if s.liveTraces.Len() == 0 {
 		// This can happen if the tenant instance was created but
 		// no live traces were successfully pushed. i.e. all exceeded max trace size.
 		return nil
 	}
 
+	blockID, existingBlocksToBeCompacted, err := s.determineBlockIDs(ctx, r)
+	if err != nil {
+		return err
+	}
+
+	// TODO - Check if the existing block can be reused and exit early
+
+	if len(existingBlocksToBeCompacted) > 0 {
+		for _, blockID := range existingBlocksToBeCompacted {
+			level.Warn(s.logger).Log(
+				"msg", "Marking existing block compacted",
+				"tenant", s.tenantID,
+				"blockid", blockID,
+			)
+			if err := c.MarkBlockCompacted(s.tenantID, blockID); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Initial meta for creating the block
-	meta := backend.NewBlockMeta(s.tenantID, uuid.UUID(s.idGenerator.NewID()), s.enc.Version(), backend.EncNone, "")
+	meta := backend.NewBlockMeta(s.tenantID, (uuid.UUID)(blockID), s.enc.Version(), backend.EncNone, "")
 	meta.DedicatedColumns = s.overrides.DedicatedColumns(s.tenantID)
 	meta.ReplicationFactor = 1
 	meta.TotalObjects = int64(s.liveTraces.Len())
@@ -131,7 +151,7 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 		return err
 	}
 
-	if err := store.WriteBlock(ctx, NewWriteableBlock(newBlock, reader, writer)); err != nil {
+	if err := w.WriteBlock(ctx, NewWriteableBlock(newBlock, reader, writer)); err != nil {
 		return err
 	}
 
@@ -185,4 +205,29 @@ func (s *tenantStore) adjustTimeRangeForSlack(start, end time.Time) (time.Time, 
 	}
 
 	return start, end
+}
+
+func (s *tenantStore) determineBlockIDs(ctx context.Context, r tempodb.Reader) (nextID backend.UUID, existingBlocksToBeCompacted []backend.UUID, err error) {
+	for {
+		nextID = s.idGenerator.NewID()
+
+		meta, compactedMeta, err := r.BlockMeta(ctx, s.tenantID, nextID)
+		if err != nil {
+			return backend.UUID{}, nil, err
+		}
+
+		if compactedMeta != nil {
+			// This ID is already in use but does not need to be compacted again
+			continue
+		}
+
+		if meta != nil {
+			// This ID is already in use and needs to be compacted
+			existingBlocksToBeCompacted = append(existingBlocksToBeCompacted, nextID)
+			continue
+		}
+
+		// This block is available
+		return nextID, existingBlocksToBeCompacted, nil
+	}
 }

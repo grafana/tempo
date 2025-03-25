@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/grafana/dskit/clusterutil"
 	"github.com/grafana/dskit/httpgrpc"
 	httpgrpc_server "github.com/grafana/dskit/httpgrpc/server"
 	"github.com/grafana/dskit/log"
@@ -155,6 +156,8 @@ type Config struct {
 	GrpcMethodLimiter GrpcInflightMethodLimiter `yaml:"-"`
 
 	Throughput Throughput `yaml:"-"`
+
+	ClusterValidation clusterutil.ServerClusterValidationConfig `yaml:"cluster_validation" category:"experimental"`
 }
 
 type Throughput struct {
@@ -218,6 +221,11 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.BoolVar(&cfg.ProxyProtocolEnabled, "server.proxy-protocol-enabled", false, "Enables PROXY protocol.")
 	f.DurationVar(&cfg.Throughput.LatencyCutoff, "server.throughput.latency-cutoff", 0, "Requests taking over the cutoff are be observed to measure throughput. Server-Timing header is used with specified unit as the indicator, for example 'Server-Timing: unit;val=8.2'. If set to 0, the throughput is not calculated.")
 	f.StringVar(&cfg.Throughput.Unit, "server.throughput.unit", "samples_processed", "Unit of the server throughput metric, for example 'processed_bytes' or 'samples_processed'. Observed values are gathered from the 'Server-Timing' header with the 'val' key. If set, it is appended to the request_server_throughput metric name.")
+	cfg.ClusterValidation.RegisterFlagsWithPrefix("server.cluster-validation.", f)
+}
+
+func (cfg *Config) Validate() error {
+	return cfg.ClusterValidation.Validate()
 }
 
 func (cfg *Config) registererOrDefault() prometheus.Registerer {
@@ -400,6 +408,9 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 		middleware.UnaryServerInstrumentInterceptor(metrics.RequestDuration, grpcInstrumentationOptions...),
 	}
 	grpcMiddleware = append(grpcMiddleware, cfg.GRPCMiddleware...)
+	if cfg.ClusterValidation.GRPC.Enabled {
+		grpcMiddleware = append(grpcMiddleware, middleware.ClusterUnaryServerInterceptor(cfg.ClusterValidation.Label, cfg.ClusterValidation.GRPC.SoftValidation, logger))
+	}
 
 	grpcStreamMiddleware := []grpc.StreamServerInterceptor{
 		serverLog.StreamServerInterceptor,

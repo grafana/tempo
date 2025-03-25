@@ -69,8 +69,8 @@ job "tempo" {
     }
 
     service {
-      name = "tempo-otpl"
-      port = "otpl"
+      name = "tempo-otlp"
+      port = "otlp"
       tags = []
     }
 
@@ -84,6 +84,7 @@ job "tempo" {
         ports = [
           "http",
           "grpc",
+          "otlp"
         ]
 
         args = [
@@ -104,7 +105,8 @@ job "tempo" {
             otlp:
               protocols:
                 http:
-                grpc: 0.0.0.0:{{ env "NOMAD_PORT_otlp" }}
+                grpc: 
+                  endpoint: 0.0.0.0:{{ env "NOMAD_PORT_otlp" }}
 
         metrics_generator:
           processor:

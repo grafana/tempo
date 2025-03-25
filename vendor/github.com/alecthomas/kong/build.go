@@ -54,6 +54,7 @@ func flattenedFields(v reflect.Value, ptag *Tag) (out []flattenedField, err erro
 	if v.Kind() != reflect.Struct {
 		return out, nil
 	}
+	ignored := map[string]bool{}
 	for i := 0; i < v.NumField(); i++ {
 		ft := v.Type().Field(i)
 		fv := v.Field(i)
@@ -61,7 +62,8 @@ func flattenedFields(v reflect.Value, ptag *Tag) (out []flattenedField, err erro
 		if err != nil {
 			return nil, err
 		}
-		if tag.Ignored {
+		if tag.Ignored || ignored[ft.Name] {
+			ignored[ft.Name] = true
 			continue
 		}
 		// Assign group if it's not already set.
@@ -106,7 +108,25 @@ func flattenedFields(v reflect.Value, ptag *Tag) (out []flattenedField, err erro
 		}
 		out = append(out, sub...)
 	}
+	out = removeIgnored(out, ignored)
 	return out, nil
+}
+
+func removeIgnored(fields []flattenedField, ignored map[string]bool) []flattenedField {
+	j := 0
+	for i := 0; i < len(fields); i++ {
+		if ignored[fields[i].field.Name] {
+			continue
+		}
+		if i != j {
+			fields[j] = fields[i]
+		}
+		j++
+	}
+	if j != len(fields) {
+		fields = fields[:j]
+	}
+	return fields
 }
 
 // Build a Node in the Kong data model.
