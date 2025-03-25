@@ -312,7 +312,7 @@ func (m *MetricsCompare) String() string {
 	return "compare(" + m.f.String() + "}"
 }
 
-var _ metricsFirstStageElement = (*MetricsCompare)(nil)
+var _ firstStageElement = (*MetricsCompare)(nil)
 
 // BaselineAggregator is a special series combiner for the compare() function.
 // It resplits job-level results into baseline and selection buffers, and if
