@@ -177,7 +177,7 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 		}
 	}
 
-	err = ts.Flush(ctx, store)
+	err = ts.Flush(ctx, store, store, store)
 	require.NoError(t, err)
 
 	// This forces another immediate poll

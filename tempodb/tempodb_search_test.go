@@ -275,8 +275,11 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		// avgs
 		{Query: "{ } | avg(.dne) != 0"},
 		{Query: "{ } | avg(duration) < 0"},
+		{Query: "{ } | min(.dne) != 0"},
 		{Query: "{ } | min(duration) < 0"},
+		{Query: "{ } | max(.dne) != 0"},
 		{Query: "{ } | max(duration) < 0"},
+		{Query: "{ } | sum(.dne) != 0"},
 		{Query: "{ } | sum(duration) < 0"},
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 1"},
@@ -1242,7 +1245,19 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 			},
 		},
 		{
+			req: &tempopb.SearchRequest{Query: "{ nil != duration }", Limit: 10},
+			expected: expected{
+				key: "duration",
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{ resource.service.name != nil }", Limit: 10},
+			expected: expected{
+				key: "resource.service.name",
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ nil != resource.service.name }", Limit: 10},
 			expected: expected{
 				key: "resource.service.name",
 			},

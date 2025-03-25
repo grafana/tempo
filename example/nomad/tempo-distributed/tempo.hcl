@@ -338,7 +338,7 @@ job "tempo" {
     network {
       port "http" {}
       port "grpc" {}
-      port "otpl" { to = 4317 }
+      port "otlp" { to = 4317 }
     }
 
     service {
@@ -356,8 +356,8 @@ job "tempo" {
     }
 
     service {
-      name = "tempo-distributor-otpl"
-      port = "otpl"
+      name = "tempo-distributor-otlp"
+      port = "otlp"
       tags = []
     }
 
@@ -385,7 +385,7 @@ job "tempo" {
         ports = [
           "http",
           "grpc",
-          "otpl",
+          "otlp",
         ]
 
         args = [

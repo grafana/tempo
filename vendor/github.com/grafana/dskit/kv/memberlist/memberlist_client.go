@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/golang/snappy"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
@@ -367,9 +368,10 @@ func (v ValueDesc) String() string {
 
 var (
 	// if merge fails because of CAS version mismatch, this error is returned. CAS operation reacts on it
-	errVersionMismatch  = errors.New("version mismatch")
-	errNoChangeDetected = errors.New("no change detected")
-	errTooManyRetries   = errors.New("too many retries")
+	errVersionMismatch     = errors.New("version mismatch")
+	errNoChangeDetected    = errors.New("no change detected")
+	errTooManyRetries      = errors.New("too many retries")
+	emptySnappyEncodedData = snappy.Encode(nil, []byte{})
 )
 
 // NewKV creates new gossip-based KV service. Note that service needs to be started, until then it doesn't initialize
@@ -547,7 +549,7 @@ func (m *KV) running(ctx context.Context) error {
 		case <-obsoleteEntriesTickerChan:
 			// cleanupObsoleteEntries is normally called during push/pull, but if there are no other
 			// nodes to push/pull with, we can call it periodically to make sure we remove unused entries from memory.
-			level.Debug(m.logger).Log("msg", "initiating cleanup of obsolete entries")
+			level.Info(m.logger).Log("msg", "initiating cleanup of obsolete entries")
 			m.cleanupObsoleteEntries()
 
 		case <-ctx.Done():
@@ -1045,11 +1047,13 @@ func (m *KV) Delete(key string) error {
 
 	c := m.GetCodec(val.CodecID)
 	if c == nil {
+		level.Error(m.logger).Log("msg", "could not mark key for deletion due to an invalid codec", "key", key, "codec", val.CodecID)
 		return fmt.Errorf("invalid codec: %s", val.CodecID)
 	}
 
 	change, newver, deleted, updated, err := m.mergeValueForKey(key, val.value, false, 0, val.CodecID, true, time.Now())
 	if err != nil {
+		level.Error(m.logger).Log("msg", "could not mark key for deletion due to error while trying to merge new value", "key", key, "err", err)
 		return err
 	}
 
@@ -1057,6 +1061,8 @@ func (m *KV) Delete(key string) error {
 		m.notifyWatchers(key)
 		m.broadcastNewValue(key, change, newver, c, false, deleted, updated)
 	}
+
+	level.Info(m.logger).Log("msg", "successfully marked key for deletion", "key", key)
 
 	return nil
 }
@@ -1171,8 +1177,8 @@ func (m *KV) broadcastNewValue(key string, change Mergeable, version uint, codec
 		level.Warn(m.logger).Log("msg", "skipped broadcasting of locally-generated update because memberlist KV is shutting down", "key", key)
 		return
 	}
+	data, err := codec.Encode(change)
 
-	data, err := handlePossibleNilEncode(codec, change)
 	if err != nil {
 		level.Error(m.logger).Log("msg", "failed to encode change", "key", key, "version", version, "err", err)
 		m.numberOfBroadcastMessagesDropped.Inc()
@@ -1187,7 +1193,7 @@ func (m *KV) broadcastNewValue(key string, change Mergeable, version uint, codec
 		return
 	}
 
-	mergedChanges := handlePossibleNilMergeContent(change)
+	mergedChanges := change.MergeContent()
 	m.addSentMessage(Message{
 		Time:    time.Now(),
 		Size:    len(pairData),
@@ -1295,9 +1301,11 @@ func (m *KV) processValueUpdate(workerCh <-chan valueUpdate, key string) {
 				Time: time.Now(),
 				Size: update.messageSize,
 				Pair: KeyValuePair{
-					Key:   key,
-					Value: update.value,
-					Codec: update.codec.CodecID(),
+					Key:              key,
+					Value:            update.value,
+					Codec:            update.codec.CodecID(),
+					Deleted:          deleted,
+					UpdateTimeMillis: updateTimeMillis(updated),
 				},
 				Version: version,
 				Changes: changes,
@@ -1496,6 +1504,10 @@ func (m *KV) MergeRemoteState(data []byte, _ bool) {
 }
 
 func (m *KV) mergeBytesValueForKey(key string, incomingData []byte, codec codec.Codec, deleted bool, updateTime time.Time) (Mergeable, uint, bool, time.Time, error) {
+	// Even if there is no change to the Mergeable, we still may need to update the timestamp and deleted state.
+	if len(incomingData) == 0 {
+		incomingData = emptySnappyEncodedData
+	}
 	decodedValue, err := codec.Decode(incomingData)
 	if err != nil {
 		return nil, 0, false, time.Time{}, fmt.Errorf("failed to decode value: %v", err)
@@ -1522,6 +1534,12 @@ func (m *KV) mergeValueForKey(key string, incomingValue Mergeable, incomingValue
 	// This is safe because the entire function runs under the store lock; we do not return
 	// the full state anywhere as is done elsewhere (i.e. Get/WatchKey/CAS).
 	curr := m.store[key]
+
+	// if current entry is nil but the incoming for that key is deleted then we return no change, as we do not want to revive the entry.
+	if curr.value == nil && deleted {
+		return nil, 0, false, time.Time{}, err
+	}
+
 	// if casVersion is 0, then there was no previous value, so we will just do normal merge, without localCAS flag set.
 	if casVersion > 0 && curr.Version != casVersion {
 		return nil, 0, false, time.Time{}, errVersionMismatch
@@ -1530,13 +1548,11 @@ func (m *KV) mergeValueForKey(key string, incomingValue Mergeable, incomingValue
 	if err != nil {
 		return nil, 0, false, time.Time{}, err
 	}
-
-	newVersion = curr.Version + 1
 	newUpdated = curr.UpdateTime
 	newDeleted = curr.Deleted
 
 	// If incoming value is newer, use its timestamp and deleted value
-	if !updateTime.IsZero() && updateTime.After(newUpdated) {
+	if !updateTime.IsZero() && updateTime.After(newUpdated) && deleted {
 		newUpdated = updateTime
 		newDeleted = deleted
 	}
@@ -1566,6 +1582,12 @@ func (m *KV) mergeValueForKey(key string, incomingValue Mergeable, incomingValue
 		}
 	}
 
+	if change == nil && curr.Deleted != newDeleted {
+		// return result as change if the only thing that changes is the Delete state of the entry.
+		change = result
+	}
+
+	newVersion = curr.Version + 1
 	m.store[key] = ValueDesc{
 		value:      result,
 		Version:    newVersion,
@@ -1664,7 +1686,7 @@ func (m *KV) cleanupObsoleteEntries() {
 
 	for k, v := range m.store {
 		if v.Deleted && time.Since(v.UpdateTime) > m.cfg.ObsoleteEntriesTimeout {
-			level.Debug(m.logger).Log("msg", "deleting entry from KV store", "key", k)
+			level.Info(m.logger).Log("msg", "deleting entry from KV store", "key", k)
 			delete(m.store, k)
 		}
 	}
@@ -1694,20 +1716,4 @@ func updateTimeMillis(ts time.Time) int64 {
 		return 0
 	}
 	return ts.UnixMilli()
-}
-
-func handlePossibleNilEncode(codec codec.Codec, change Mergeable) ([]byte, error) {
-	if change == nil {
-		return []byte{}, nil
-	}
-
-	return codec.Encode(change)
-}
-
-func handlePossibleNilMergeContent(change Mergeable) []string {
-	if change == nil {
-		return []string{}
-	}
-
-	return change.MergeContent()
 }

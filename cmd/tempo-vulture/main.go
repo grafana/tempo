@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-test/deep"
+	"github.com/grafana/tempo/pkg/api"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -43,6 +44,8 @@ var (
 	tempoSearchBackoffDuration    time.Duration
 	tempoRetentionDuration        time.Duration
 	tempoPushTLS                  bool
+
+	rf1After time.Time
 
 	logger *zap.Logger
 )
@@ -74,6 +77,32 @@ type vultureConfiguration struct {
 	tempoPushTLS                  bool
 }
 
+var _ flag.Value = (*timeVar)(nil)
+
+type timeVar struct {
+	t *time.Time
+}
+
+func newTimeVar(t *time.Time) *timeVar { return &timeVar{t: t} }
+
+func (v timeVar) String() string {
+	return (*v.t).Format(time.RFC3339)
+}
+
+func (v timeVar) Set(s string) error {
+	if s == "" {
+		return nil
+	}
+
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return err
+	}
+	*v.t = t
+
+	return nil
+}
+
 func init() {
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":80", "The address to listen on for Prometheus scrapes.")
@@ -87,6 +116,8 @@ func init() {
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
 	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls.  Set to 0s to disable search.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
+
+	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
 }
 
 func main() {
@@ -118,6 +149,10 @@ func main() {
 		panic(err)
 	}
 	httpClient := httpclient.New(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID)
+
+	if !rf1After.IsZero() {
+		httpClient.SetQueryParam(api.URLParamRF1After, rf1After.Format(time.RFC3339))
+	}
 
 	tickerWrite, tickerRead, tickerSearch, err := initTickers(vultureConfig.tempoWriteBackoffDuration, vultureConfig.tempoReadBackoffDuration, vultureConfig.tempoSearchBackoffDuration)
 	if err != nil {

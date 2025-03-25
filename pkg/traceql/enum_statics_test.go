@@ -66,13 +66,13 @@ func TestStaticType_isMatchingOperand(t *testing.T) {
 		{t: TypeNil, otherT: TypeFloatArray, want: true},
 		{t: TypeNil, otherT: TypeStringArray, want: true},
 		{t: TypeNil, otherT: TypeBooleanArray, want: true},
-		{t: TypeNil, otherT: TypeInt, want: false},
-		{t: TypeNil, otherT: TypeFloat, want: false},
-		{t: TypeNil, otherT: TypeString, want: false},
-		{t: TypeNil, otherT: TypeBoolean, want: false},
-		{t: TypeNil, otherT: TypeDuration, want: false},
-		{t: TypeNil, otherT: TypeStatus, want: false},
-		{t: TypeNil, otherT: TypeKind, want: false},
+		{t: TypeNil, otherT: TypeInt, want: true},
+		{t: TypeNil, otherT: TypeFloat, want: true},
+		{t: TypeNil, otherT: TypeString, want: true},
+		{t: TypeNil, otherT: TypeBoolean, want: true},
+		{t: TypeNil, otherT: TypeDuration, want: true},
+		{t: TypeNil, otherT: TypeStatus, want: true},
+		{t: TypeNil, otherT: TypeKind, want: true},
 
 		// array types
 		{t: TypeIntArray, otherT: TypeIntArray, want: true},
@@ -96,6 +96,7 @@ func TestStaticType_isMatchingOperand(t *testing.T) {
 		name := fmt.Sprintf("%s with %s", tt.t, tt.otherT)
 		t.Run(name, func(t *testing.T) {
 			assert.Equalf(t, tt.want, tt.t.isMatchingOperand(tt.otherT), "isMatchingOperand: %s", name)
+			assert.Equalf(t, tt.want, tt.otherT.isMatchingOperand(tt.t), "isMatchingOperand: %s", name)
 		})
 	}
 }

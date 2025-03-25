@@ -50,6 +50,7 @@ spec:
           name: overrides
       securityContext:
         fsGroup: 10001
+      terminationGracePeriodSeconds: 60
       volumes:
       - configMap:
           name: tempo-block-builder

@@ -76,6 +76,11 @@ server:
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
     http_path_prefix: ""
+    cluster_validation:
+        label: ""
+        grpc:
+            enabled: false
+            soft_validation: false
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -135,6 +140,11 @@ internal_server:
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
     http_path_prefix: ""
+    cluster_validation:
+        label: ""
+        grpc:
+            enabled: false
+            soft_validation: false
     enable: false
 distributor:
     ring:
@@ -236,6 +246,8 @@ ingester_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
 metrics_generator_client:
     pool_config:
         checkinterval: 15s
@@ -267,6 +279,8 @@ metrics_generator_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
 querier:
     search:
         query_timeout: 30s
@@ -306,6 +320,8 @@ querier:
             connect_timeout: 0s
             connect_backoff_base_delay: 0s
             connect_backoff_max_delay: 0s
+            cluster_validation:
+                label: ""
     shuffle_sharding_ingesters_enabled: false
     shuffle_sharding_ingesters_lookback_period: 1h0m0s
     query_relevant_ingesters: false
@@ -342,6 +358,7 @@ query_frontend:
         max_traceql_conditions: 4
         max_regex_conditions: 1
     max_query_expression_size_bytes: 131072
+    rf1_after: 0001-01-01T00:00:00Z
 compactor:
     ring:
         kvstore:
@@ -496,6 +513,7 @@ ingester:
     complete_block_timeout: 15m0s
     override_ring_key: ring
     flush_all_on_shutdown: false
+    flush_object_storage: true
 metrics_generator:
     ring:
         kvstore:
@@ -949,4 +967,112 @@ cache:
         writeback_goroutines: 10
         writeback_buffer: 10000
     caches: []
+backend_scheduler:
+    tenant_measurement_interval: 1m0s
+    compaction:
+        v2_in_buffer_bytes: 5242880
+        v2_out_buffer_bytes: 20971520
+        v2_prefetch_traces_count: 1000
+        compaction_window: 1h0m0s
+        max_compaction_objects: 6000000
+        max_block_bytes: 107374182400
+        block_retention: 336h0m0s
+        compacted_block_retention: 1h0m0s
+        retention_concurrency: 10
+        max_time_per_tenant: 5m0s
+        compaction_cycle: 30s
+    work:
+        prune_age: 1h0m0s
+        dead_job_timeout: 24h0m0s
+    max_jobs_per_tenant: 1000
+    maintenance_interval: 1m0s
+backend_scheduler_client:
+    grpc_client_config:
+        max_recv_msg_size: 104857600
+        max_send_msg_size: 104857600
+        grpc_compression: snappy
+        rate_limit: 0
+        rate_limit_burst: 0
+        backoff_on_ratelimits: false
+        backoff_config:
+            min_period: 100ms
+            max_period: 10s
+            max_retries: 10
+        initial_stream_window_size: 63KiB1023B
+        initial_connection_window_size: 63KiB1023B
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
+        connect_timeout: 5s
+        connect_backoff_base_delay: 1s
+        connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
+backend_worker:
+    backend_scheduler_addr: ""
+    backoff:
+        min_period: 100ms
+        max_period: 1m0s
+        max_retries: 0
+    compaction:
+        v2_in_buffer_bytes: 5242880
+        v2_out_buffer_bytes: 20971520
+        v2_prefetch_traces_count: 1000
+        compaction_window: 1h0m0s
+        max_compaction_objects: 6000000
+        max_block_bytes: 107374182400
+        block_retention: 336h0m0s
+        compacted_block_retention: 1h0m0s
+        retention_concurrency: 10
+        max_time_per_tenant: 5m0s
+        compaction_cycle: 30s
+    override_ring_key: backend-worker
+    ring:
+        kvstore:
+            store: ""
+            prefix: collectors/
+            consul:
+                host: localhost:8500
+                acl_token: ""
+                http_client_timeout: 20s
+                consistent_reads: false
+                watch_rate_limit: 1
+                watch_burst_size: 1
+                cas_retry_delay: 1s
+            etcd:
+                endpoints: []
+                dial_timeout: 10s
+                max_retries: 10
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                username: ""
+                password: ""
+            multi:
+                primary: ""
+                secondary: ""
+                mirror_enabled: false
+                mirror_timeout: 2s
+        heartbeat_period: 5s
+        heartbeat_timeout: 1m0s
+        wait_stability_min_duration: 1m0s
+        wait_stability_max_duration: 5m0s
+        instance_id: hostname
+        instance_interface_names:
+            - eth0
+            - en0
+        instance_port: 0
+        instance_addr: ""
+        enable_inet6: false
+        wait_active_instance_timeout: 10m0s
 ```

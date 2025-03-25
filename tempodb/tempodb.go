@@ -92,14 +92,19 @@ type Reader interface {
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 
+	BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
+	Tenants() []string
 
 	Shutdown()
 }
 
 type Compactor interface {
 	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
+	MarkBlockCompacted(tenantID string, blockID backend.UUID) error
+	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
+	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
 }
 
 type CompactorSharder interface {
@@ -274,8 +279,30 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
+func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+	meta, err := rw.r.BlockMeta(ctx, (uuid.UUID)(blockID), tenantID)
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+		return nil, nil, err
+	}
+
+	if meta != nil {
+		return meta, nil, nil
+	}
+
+	compactedMeta, err := rw.c.CompactedBlockMeta((uuid.UUID)(blockID), tenantID)
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+		return nil, nil, err
+	}
+
+	return nil, compactedMeta, nil
+}
+
 func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return rw.blocklist.Metas(tenantID)
+}
+
+func (rw *readerWriter) Tenants() []string {
+	return rw.blocklist.Tenants()
 }
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
@@ -309,13 +336,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	compactedBlocksSearched := 0
 
 	for _, b := range blocklist {
-		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd, opts.BlockReplicationFactor) {
+		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd, opts.RF1After) {
 			copiedBlocklist = append(copiedBlocklist, b)
 			blocksSearched++
 		}
 	}
 	for _, c := range compactedBlocklist {
-		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd, opts.BlockReplicationFactor) {
+		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd, opts.RF1After) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 			compactedBlocksSearched++
 		}
@@ -545,6 +572,10 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 	return nil
 }
 
+func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
+	return rw.c.MarkBlockCompacted((uuid.UUID)(blockID), tenantID)
+}
+
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
@@ -621,7 +652,7 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
-func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte, timeStart, timeEnd int64, replicationFactor int) bool {
+func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte, timeStart, timeEnd int64, rf1After time.Time) bool {
 	// todo: restore this functionality once it works. min/max ids are currently not recorded
 	//    https://github.com/grafana/tempo/issues/1903
 	//  correctly in a block
@@ -642,16 +673,21 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 		return false
 	}
 
-	return b.ReplicationFactor == uint32(replicationFactor)
+	if rf1After.IsZero() {
+		return b.ReplicationFactor == backend.DefaultReplicationFactor
+	}
+
+	return (b.StartTime.Before(rf1After) && b.ReplicationFactor == backend.DefaultReplicationFactor) ||
+		(b.StartTime.After(rf1After) && b.ReplicationFactor == backend.MetricsGeneratorReplicationFactor)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search
-func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart, blockEnd []byte, poll time.Duration, timeStart, timeEnd int64, replicationFactor int) bool {
+func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart, blockEnd []byte, poll time.Duration, timeStart, timeEnd int64, rf1After time.Time) bool {
 	lookback := time.Now().Add(-(2 * poll))
 	if c.CompactedTime.Before(lookback) {
 		return false
 	}
-	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd, timeStart, timeEnd, replicationFactor)
+	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd, timeStart, timeEnd, rf1After)
 }
 
 // createLegacyCache uses the config to return a cache and a list of roles.

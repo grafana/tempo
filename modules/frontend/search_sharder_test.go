@@ -39,7 +39,8 @@ var _ tempodb.Reader = (*mockReader)(nil)
 
 // implements tempodb.Reader interface
 type mockReader struct {
-	metas []*backend.BlockMeta
+	metas   []*backend.BlockMeta
+	tenants []string
 }
 
 func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, *tempopb.SearchTagsBlockRequest, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
@@ -62,8 +63,16 @@ func (m *mockReader) Find(context.Context, string, common.ID, string, string, in
 	return nil, nil, nil
 }
 
+func (m *mockReader) BlockMeta(context.Context, string, backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+	return nil, nil, nil
+}
+
 func (m *mockReader) BlockMetas(string) []*backend.BlockMeta {
 	return m.metas
+}
+
+func (m *mockReader) Tenants() []string {
+	return m.tenants
 }
 
 func (m *mockReader) Search(context.Context, *backend.BlockMeta, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
@@ -1003,6 +1012,38 @@ func TestBackendShards(t *testing.T) {
 			assert.Equal(t, tc.expected, actualShards)
 		})
 	}
+}
+
+func TestRF1After(t *testing.T) {
+	// Define a set of block metadata with different replication factors and time ranges
+	blockMetas := []*backend.BlockMeta{
+		{StartTime: time.Unix(100, 0), EndTime: time.Unix(200, 0), ReplicationFactor: backend.DefaultReplicationFactor},
+		{StartTime: time.Unix(100, 0), EndTime: time.Unix(200, 0), ReplicationFactor: backend.MetricsGeneratorReplicationFactor},
+		{StartTime: time.Unix(200, 0), EndTime: time.Unix(300, 0), ReplicationFactor: backend.DefaultReplicationFactor},
+		{StartTime: time.Unix(200, 0), EndTime: time.Unix(300, 0), ReplicationFactor: backend.MetricsGeneratorReplicationFactor},
+	}
+
+	// Create a request for processing, including a query string that specifies `rf1After` as a filter
+	r := httptest.NewRequest("GET", "/?q={}&rf1After=1970-01-01T00:01:30Z&bar&limit=50&start=50&end=300", nil)
+	searchReq, err := api.ParseSearchRequest(r)
+	require.NoError(t, err)
+
+	ctx, cancelCause := context.WithCancelCause(context.Background())
+	pipelineRequest := pipeline.NewHTTPRequest(r)
+
+	// Initialize the search sharder with mock metadata for testing
+	s := &asyncSearchSharder{
+		cfg: SearchSharderConfig{
+			MostRecentShards: defaultMostRecentShards,
+		},
+	}
+	s.reader = &mockReader{metas: blockMetas}
+
+	// Execute backend requests and validate the result
+	searchJobResponse := &combiner.SearchJobResponse{}
+	s.backendRequests(ctx, "test", pipelineRequest, searchReq, searchJobResponse, make(chan pipeline.Request), cancelCause)
+
+	require.Equal(t, 2, searchJobResponse.TotalBlocks) // Verify the expected number of blocks after filtering
 }
 
 func urisEqual(t *testing.T, expectedURIs, actualURIs []string) {

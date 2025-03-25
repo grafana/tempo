@@ -203,6 +203,11 @@ func (s *Scanner) Peek() Token {
 	return s.args[0]
 }
 
+// PeekAll remaining tokens
+func (s *Scanner) PeekAll() []Token {
+	return s.args
+}
+
 // Push an untyped Token onto the front of the Scanner.
 func (s *Scanner) Push(arg any) *Scanner {
 	s.PushToken(Token{Value: arg})

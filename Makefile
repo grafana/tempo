@@ -18,8 +18,8 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.23.0
-LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.33.2
+DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.25.0
+LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.34.6
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -242,7 +242,7 @@ endif
 PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF_IMAGE} --proto_path=${PWD}
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
-PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
+PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative,Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types:$(2) $(1)
 PROTO_GEN_WITH_VENDOR = $(PROTOC) $(PROTO_INCLUDES) -Ivendor -Ivendor/github.com/gogo/protobuf --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
 PROTO_GEN_WITHOUT_RELATIVE = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc:$(2) $(1)
 
@@ -255,7 +255,7 @@ gen-proto:  ## Generate proto files
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 	find pkg/tempopb -name *.pb.go | xargs -L 1 -I rm
 	# Here we avoid removing our tempo.proto and our frontend.proto due to reliance on the gogoproto bits.
-	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | xargs -L 1 -I rm
+	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | grep -v backendwork.proto | xargs -L 1 -I rm
 
 	@echo --
 	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
@@ -286,6 +286,7 @@ gen-proto:  ## Generate proto files
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
+	$(call PROTO_GEN,pkg/tempopb/backendwork.proto,./)
 	$(call PROTO_GEN_WITHOUT_RELATIVE,tempodb/backend/v1/v1.proto,./)
 	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v1/frontendv1pb/frontend.proto,./)
 

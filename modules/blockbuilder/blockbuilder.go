@@ -88,7 +88,12 @@ type BlockBuilder struct {
 	overrides Overrides
 	enc       encoding.VersionedEncoding
 	wal       *wal.WAL // TODO - Shared between tenants, should be per tenant?
+
+	reader    tempodb.Reader
 	writer    tempodb.Writer
+	compactor tempodb.Compactor
+
+	consumeStopped chan struct{}
 }
 
 type partitionState struct {
@@ -123,12 +128,15 @@ func New(
 	}
 
 	b := &BlockBuilder{
-		logger:        logger,
-		cfg:           cfg,
-		partitionRing: partitionRing,
-		decoder:       ingest.NewDecoder(),
-		overrides:     overrides,
-		writer:        store,
+		logger:         logger,
+		cfg:            cfg,
+		partitionRing:  partitionRing,
+		decoder:        ingest.NewDecoder(),
+		overrides:      overrides,
+		reader:         store,
+		writer:         store,
+		compactor:      store,
+		consumeStopped: make(chan struct{}),
 	}
 
 	b.Service = services.NewBasicService(b.starting, b.running, b.stopping)
@@ -191,14 +199,22 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 }
 
 func (b *BlockBuilder) running(ctx context.Context) error {
+	defer close(b.consumeStopped)
 	for {
-		waitTime, err := b.consume(ctx)
+		// Create a detached context for consume
+		consumeCtx, cancel := context.WithCancel(context.Background())
+
+		waitTime, err := b.consume(consumeCtx)
+		cancel() // Always cancel the context after consume completes
+
 		if err != nil {
 			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
 		}
+
 		select {
-		case <-time.After(waitTime):
+		case <-time.After(waitTime): // Continue with next cycle
 		case <-ctx.Done():
+			// Parent context canceled, return
 			return nil
 		}
 	}
@@ -384,21 +400,17 @@ outer:
 	// Record lag at the end of the consumption
 	ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(lastRec.Timestamp))
 
-	err = writer.flush(ctx, b.writer)
+	err = writer.flush(ctx, b.reader, b.writer, b.compactor)
 	if err != nil {
 		return time.Time{}, -1, err
 	}
 
 	offset := kadm.NewOffsetFromRecord(lastRec)
-	offsets := make(kadm.Offsets)
-	offsets.Add(offset)
-	resp, err := b.kadm.CommitOffsets(ctx, group, offsets) // TODO - Retry commit
+	err = b.commitOffset(ctx, offset, group, ps.partition)
 	if err != nil {
 		return time.Time{}, -1, err
 	}
-	if err := resp.Error(); err != nil {
-		return time.Time{}, -1, err
-	}
+
 	level.Info(b.logger).Log(
 		"msg", "successfully committed offset to kafka",
 		"partition", ps.partition,
@@ -407,6 +419,34 @@ outer:
 	)
 
 	return lastRec.Timestamp, offset.At, nil
+}
+
+func (b *BlockBuilder) commitOffset(ctx context.Context, offset kadm.Offset, group string, partition int32) error {
+	offsets := make(kadm.Offsets)
+	offsets.Add(offset)
+
+	boff := backoff.New(ctx, backoff.Config{
+		MinBackoff: 100 * time.Millisecond,
+		MaxBackoff: time.Minute,
+		MaxRetries: 10,
+	})
+	for boff.Ongoing() {
+		err := b.kadm.CommitAllOffsets(ctx, group, offsets)
+		if err == nil {
+			break
+		}
+		level.Warn(b.logger).Log(
+			"msg", "failed to commit offset, retrying",
+			"err", err,
+			"partition", partition,
+			"commit_offset", offset.At,
+		)
+		boff.Wait()
+	}
+	if err := boff.ErrCause(); err != nil {
+		return fmt.Errorf("error committing offset %d for partition %d, it won't be retried: %w", offset.At, partition, err)
+	}
+	return nil
 }
 
 func formatActivePartitions(partitions []int32) string {
@@ -471,6 +511,12 @@ func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetRes
 }
 
 func (b *BlockBuilder) stopping(err error) error {
+	select {
+	case <-b.consumeStopped:
+	case <-time.After(60 * time.Second):
+		// 60s is the default terminationGracePeriod for the BlockBuilder's statefulSet
+		level.Error(b.logger).Log("msg", "failed to gracefully stop", "err", err)
+	}
 	if b.kafkaClient != nil {
 		b.kafkaClient.Close()
 	}
