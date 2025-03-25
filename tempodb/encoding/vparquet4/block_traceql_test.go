@@ -202,12 +202,10 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			parse(t, `{.`+LabelHTTPStatusCode+` = 500}`),
 			parse(t, `{.`+LabelHTTPStatusCode+` > 500}`),
 		)},
-		{
-			"Mix of duration with other conditions", makeReq(
+		{"Mix of duration with other conditions", makeReq(
 			parse(t, `{`+LabelName+` = "hello"}`),   // Match
 			parse(t, `{`+LabelDuration+` < 100s }`), // No match
-		),
-		},
+		)},
 		// Check for existence
 		{".foo != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo != nil}`)},
 		{"nil != .foo", traceql.MustExtractFetchSpansRequestWithMetadata(`{nil != .foo}`)},
