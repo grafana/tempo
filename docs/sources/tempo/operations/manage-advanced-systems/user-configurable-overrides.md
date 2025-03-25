@@ -108,7 +108,7 @@ Query-parameters:
 Example:
 
 ```shell
-curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged`
+curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged
 ```
 
 #### POST /api/overrides
