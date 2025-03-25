@@ -57,6 +57,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Fix behavior for queries like {.foo && true} and {.foo || false} [#4855](https://github.com/grafana/tempo/pull/4855) (@stoewer)
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
 * [BUGFIX] TraceQL incorrect results for additional spanset filters after a select operation [#4600](https://github.com/grafana/tempo/pull/4600) (@mdisibio)
+* [BUGFIX] TraceQL metrics incorrect results for queries with multiple filters that reside in non-dedicated columns that also group by the same variable [#4887](https://github.com/grafana/tempo/pull/4887) (@mdisibio)
 * [BUGFIX] TraceQL results caching bug for floats ending in .0 [#4539](https://github.com/grafana/tempo/pull/4539) (@carles-grafana)
 * [BUGFIX] Rhythm: fix sorting order for partition consumption [#4747](https://github.com/grafana/tempo/pull/4747) (@javiermolinar)
 * [BUGFIX] Rhythm: fix block builder to not reuse a block ID if it was already flushed, to prevent read errors [#4872](https://github.com/grafana/tempo/pull/4872) (@mdisibio)

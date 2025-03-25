@@ -919,32 +919,51 @@ func optimize(req *FetchSpansRequest) {
 	// layer and doesn't alter the correctness of the query.
 	// This can't be done for plain attributes or in all cases.
 	if len(req.SecondPassConditions) > 0 {
-		secondLayerAlwaysPresent := true
-		for _, cond := range req.SecondPassConditions {
-			if cond.Attribute.Intrinsic != IntrinsicNone {
-				continue
-			}
-
-			// This is a very special case. resource.service.name is also always present
-			// (required by spec) so it can be moved too.
-			if cond.Attribute.Scope == AttributeScopeResource && cond.Attribute.Name == "service.name" {
-				continue
-			}
-
-			secondLayerAlwaysPresent = false
+		if !allIntrinsics(req.SecondPassConditions) {
+			// Cannot move them.
+			return
 		}
 
-		if secondLayerAlwaysPresent {
-			// Move all to first pass
-			req.Conditions = append(req.Conditions, req.SecondPassConditions...)
-			req.SecondPass = nil
-			req.SecondPassConditions = nil
-		}
+		// Move all to first pass
+		req.Conditions = append(req.Conditions, req.SecondPassConditions...)
+		req.SecondPassConditions = nil
 	}
 
-	if len(req.SecondPassConditions) == 0 {
+	// If the remaining first layer is a single condition, then we can
+	// eliminate the callback.
+	if len(req.Conditions) == 1 {
+		req.SecondPass = nil
+		return
+	}
+
+	// Finally if the entire remaining first layer is intrinsics, then we can
+	// elmininate the callback.
+	// TODO(mdisibio): We can't eliminate the callback if other conditions exist, despite AllConditions, because the storage layer
+	// doesn't strictly honor AllConditions for multiple attributes of the same type in the shared columns.
+	// For example: { span.string_a = "foo" && span.string_b = "bar" } | rate()
+	// This query requires the callback to assert the attributes correctly.
+	// Dedicated columns aren't affected but we don't have the information to distinguish that here.
+	if len(req.Conditions) > 0 && allIntrinsics(req.Conditions) {
 		req.SecondPass = nil
 	}
+}
+
+func allIntrinsics(conds []Condition) bool {
+	for _, cond := range conds {
+		if cond.Attribute.Intrinsic != IntrinsicNone {
+			continue
+		}
+
+		// This is a very special case. resource.service.name is also always present
+		// (required by spec) so it can be moved too.
+		if cond.Attribute.Scope == AttributeScopeResource && cond.Attribute.Name == "service.name" {
+			continue
+		}
+
+		// Anything else is not an intrinsic
+		return false
+	}
+	return true
 }
 
 func lookup(needles []Attribute, haystack Span) Static {

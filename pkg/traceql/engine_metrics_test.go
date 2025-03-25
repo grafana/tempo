@@ -320,6 +320,107 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	}
 }
 
+func TestOptimizeFetchSpansRequest(t *testing.T) {
+	secondPass := func(_ *Spanset) ([]*Spanset, error) {
+		return nil, nil
+	}
+
+	tc := []struct {
+		name     string
+		input    FetchSpansRequest
+		expected FetchSpansRequest
+	}{
+		{
+			name: "Not able to be optimized because not all conditions",
+			input: FetchSpansRequest{
+				SecondPass: secondPass,
+				SecondPassConditions: []Condition{
+					{Attribute: IntrinsicNameAttribute},
+					{Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name")},
+				},
+			},
+			expected: FetchSpansRequest{
+				SecondPass: secondPass,
+				SecondPassConditions: []Condition{
+					{Attribute: IntrinsicNameAttribute},
+					{Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name")},
+				},
+			},
+		},
+		{
+			name: "Intrinsics moved to first pass and second pass eliminated",
+			input: FetchSpansRequest{
+				AllConditions: true,
+				SecondPass:    secondPass,
+				SecondPassConditions: []Condition{
+					{Attribute: IntrinsicNameAttribute},
+					{Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name")},
+				},
+			},
+			expected: FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{Attribute: IntrinsicNameAttribute},
+					{Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name")},
+				},
+			},
+		},
+		{
+			name: "Unscoped cannot be optimized",
+			input: FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{Attribute: NewScopedAttribute(AttributeScopeNone, false, "http.status_code")},
+				},
+				SecondPass: secondPass,
+			},
+			expected: FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{Attribute: NewScopedAttribute(AttributeScopeNone, false, "http.status_code")},
+				},
+				SecondPass: secondPass,
+			},
+		},
+		{
+			name: "Single scoped non-intrinsic can still elminiate second pass",
+			input: FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{Attribute: NewScopedAttribute(AttributeScopeSpan, false, "http.status_code")},
+				},
+				SecondPass: secondPass,
+			},
+			expected: FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{Attribute: NewScopedAttribute(AttributeScopeSpan, false, "http.status_code")},
+				},
+			},
+		},
+	}
+
+	for _, c := range tc {
+		t.Run(c.name, func(t *testing.T) {
+			// Make a copy
+			actual := &c.input
+			optimize(actual)
+
+			// Instead of comparing func pointers, check if they are both set or not
+			if c.expected.SecondPass != nil {
+				require.NotNil(t, actual.SecondPass)
+			} else {
+				require.Nil(t, actual.SecondPass)
+			}
+
+			// Now nil out func and compare the rest
+			c.expected.SecondPass = nil
+			actual.SecondPass = nil
+			require.Equal(t, c.expected, *actual)
+		})
+	}
+}
+
 func TestQuantileOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
