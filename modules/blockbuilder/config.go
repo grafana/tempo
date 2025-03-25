@@ -75,7 +75,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.InstanceID, "block-builder.instance-id", hostname, "Instance id.")
 	f.Var(newPartitionAssignmentVar(&c.AssignedPartitions), prefix+".assigned-partitions", "List of partitions assigned to this block builder.")
 	f.DurationVar(&c.ConsumeCycleDuration, prefix+".consume-cycle-duration", 5*time.Minute, "Interval between consumption cycles.")
-	f.Uint64Var(&c.MaxBytesPerCycle, prefix+".max-bytes-per-cycle", 50e6, "Maximum number of bytes that can be consumed in a single cycle. 0 to disable")
+	f.Uint64Var(&c.MaxBytesPerCycle, prefix+".max-bytes-per-cycle", 5e9, "Maximum number of bytes that can be consumed in a single cycle. 0 to disable") // 5 Gb
 
 	c.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
 	c.WAL.RegisterFlags(f)
