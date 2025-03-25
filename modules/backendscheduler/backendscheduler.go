@@ -49,6 +49,8 @@ type BackendScheduler struct {
 	curTenant         *tenantselector.Item
 	curSelector       blockselector.CompactionBlockSelector
 	curTenantJobCount int
+
+	jobChan chan *work.Job
 }
 
 // New creates a new BackendScheduler
@@ -66,6 +68,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 		reader:      reader,
 		writer:      writer,
 		curPriority: tenantselector.NewPriorityQueue(),
+		jobChan:     make(chan *work.Job, 1),
 	}
 
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
@@ -94,6 +97,9 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 	maintenanceTicker := time.NewTicker(s.cfg.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
 
+	retentionTicker := time.NewTicker(s.cfg.RetentionInterval)
+	defer retentionTicker.Stop()
+
 	s.measureTenants()
 
 	for {
@@ -102,6 +108,23 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			return nil
 		case <-maintenanceTicker.C:
 			s.work.Prune()
+		case <-retentionTicker.C:
+			// Get a retention job if we don't already have one running.
+			j := s.nextRetentionJob(ctx)
+			if j == nil {
+				continue
+			}
+
+			select {
+			case s.jobChan <- &work.Job{
+				ID:   uuid.New().String(),
+				Type: tempopb.JobType_JOB_TYPE_RETENTION,
+				JobDetail: tempopb.JobDetail{
+					Retention: &tempopb.RetentionDetail{},
+				},
+			}:
+			default:
+			}
 		case <-prioritizeTenantsTicker.C:
 			s.measureTenants()
 		}
@@ -109,6 +132,8 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 }
 
 func (s *BackendScheduler) stopping(_ error) error {
+	close(s.jobChan)
+
 	return s.flushWorkCache(context.Background())
 }
 
@@ -222,9 +247,14 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		return resp, nil
 	}
 
-	// only one job type right now, just grab the next comapction job. later we can add code to grab the next whatever type of job
-	j = s.nextCompactionJob(ctx)
-	if j != nil {
+	select {
+	case j = <-s.jobChan:
+	default:
+		// get the next comapction job
+		j = s.nextCompactionJob(ctx)
+	}
+
+	if j != nil && j.ID != "" {
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
 			Type:   j.Type,
@@ -325,13 +355,14 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {
 	x := table.NewWriter()
-	x.AppendHeader(table.Row{"tenant", "jobID", "input", "output", "status", "worker", "created", "start", "end"})
+	x.AppendHeader(table.Row{"tenant", "jobID", "type", "input", "output", "status", "worker", "created", "start", "end"})
 
 	for _, j := range s.work.ListJobs() {
 		x.AppendRows([]table.Row{
 			{
 				j.Tenant(),
 				j.GetID(),
+				j.GetType().String(),
 				j.GetCompactionInput(),
 				j.GetCompactionOutput(),
 				j.GetStatus().String(),
@@ -347,6 +378,24 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, x.Render())
+}
+
+func (s *BackendScheduler) nextRetentionJob(_ context.Context) *work.Job {
+	// Check if we already have a retention job running
+	for _, j := range s.work.ListJobs() {
+		if j.GetType() == tempopb.JobType_JOB_TYPE_RETENTION && j.GetStatus() == tempopb.JobStatus_JOB_STATUS_RUNNING {
+			return nil
+		}
+	}
+
+	// Invent the next retention job
+	return &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_RETENTION,
+		JobDetail: tempopb.JobDetail{
+			Retention: &tempopb.RetentionDetail{},
+		},
+	}
 }
 
 // returns the next compabeingBackendScheduler-0290053e1ction job. this could probably be rewritten cleverly to use yields
