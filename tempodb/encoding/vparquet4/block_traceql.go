@@ -1666,7 +1666,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, primaryIter)
 	}
 
-	eventIter, err := createEventIterator(makeIter, catConditions.event, allConditions, selectAll)
+	eventIter, err := createEventIterator(makeIter, makeNilIter, catConditions.event, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating event iterator: %w", err)
 	}
@@ -1674,7 +1674,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, eventIter)
 	}
 
-	linkIter, err := createLinkIterator(makeIter, catConditions.link, allConditions, selectAll)
+	linkIter, err := createLinkIterator(makeIter, makeNilIter, catConditions.link, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating link iterator: %w", err)
 	}
@@ -1687,12 +1687,12 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
 
-	instrumentationIter, err := createInstrumentationIterator(makeIter, spanIter, catConditions.instrumentation, allConditions, selectAll)
+	instrumentationIter, err := createInstrumentationIterator(makeIter, makeNilIter, spanIter, catConditions.instrumentation, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating scope iterator: %w", err)
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, instrumentationIter, catConditions.resource, batchRequireAtLeastOneMatchOverall, allConditions, dc, selectAll)
+	resourceIter, err := createResourceIterator(makeIter, makeNilIter, instrumentationIter, catConditions.resource, batchRequireAtLeastOneMatchOverall, allConditions, dc, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
@@ -1700,7 +1700,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, allConditions, selectAll, traceSampler)
 }
 
-func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
+func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.Condition, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
 		return nil, nil
 	}
@@ -1725,6 +1725,22 @@ func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition, al
 			eventIters = append(eventIters, makeIter(columnPathEventTimeSinceStart, pred, columnPathEventTimeSinceStart))
 			continue
 		}
+
+		// nil?
+		if len(cond.Operands) != 0 {
+			switch cond.Operands[0].Type {
+			case traceql.TypeNil:
+				if cond.Op == traceql.OpEqual {
+					pred, err := createNilPredicate(cond.Attribute.Name)
+					if err != nil {
+						return nil, err
+					}
+					eventIters =  append(eventIters, makeNilIter(columnPathEventAttrKey, pred, columnPathEventAttrKey))
+				}
+				continue
+			}
+		}
+
 		genericConditions = append(genericConditions, cond)
 	}
 
@@ -1773,7 +1789,7 @@ func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition, al
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, required, eventIters, eventCol, parquetquery.WithPool(pqEventPool))
 }
 
-func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, allConditions, selectAll bool) (parquetquery.Iterator, error) {
+func createLinkIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.Condition, allConditions, selectAll bool) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
 		return nil, nil
 	}
@@ -1798,6 +1814,21 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, all
 			}
 			linkIters = append(linkIters, makeIter(columnPathLinkSpanID, pred, columnPathLinkSpanID))
 			continue
+		}
+
+		// nil?
+		if len(cond.Operands) != 0 {
+			switch cond.Operands[0].Type {
+			case traceql.TypeNil:
+				if cond.Op == traceql.OpEqual {
+					pred, err := createNilPredicate(cond.Attribute.Name)
+					if err != nil {
+						return nil, err
+					}
+					linkIters =  append(linkIters, makeNilIter(columnPathLinkAttrKey, pred, columnPathLinkAttrKey))
+				}
+				continue
+			}
 		}
 		genericConditions = append(genericConditions, cond)
 	}
@@ -2170,7 +2201,7 @@ func createSpanIterator(makeIter , makeNilIter makeIterFn, innerIterators []parq
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol, parquetquery.WithPool(pqSpanPool))
 }
 
-func createInstrumentationIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, allConditions, selectAll bool) (parquetquery.Iterator, error) {
+func createInstrumentationIterator(makeIter, makeNilIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, allConditions, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		iters             = []parquetquery.Iterator{}
 		genericConditions []traceql.Condition
@@ -2195,6 +2226,21 @@ func createInstrumentationIterator(makeIter makeIterFn, spanIterator parquetquer
 			}
 			iters = append(iters, makeIter(columnPathInstrumentationVersion, pred, columnPathInstrumentationVersion))
 			continue
+		}
+
+		// nil?
+		if len(cond.Operands) != 0 {
+			switch cond.Operands[0].Type {
+			case traceql.TypeNil:
+				if cond.Op == traceql.OpEqual {
+					pred, err := createNilPredicate(cond.Attribute.Name)
+					if err != nil {
+						return nil, err
+					}
+					iters =  append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, columnPathInstrumentationAttrKey))
+				}
+				continue
+			}
 		}
 
 		// Else: generic attribute lookup
@@ -2252,7 +2298,7 @@ func createInstrumentationIterator(makeIter makeIterFn, spanIterator parquetquer
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets. Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFn, instrumentationIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -2303,6 +2349,21 @@ func createResourceIterator(makeIter makeIterFn, instrumentationIterator parquet
 				}
 				addPredicate(c.ColumnPath, pred)
 				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+				continue
+			}
+		}
+
+		// nil?
+		if len(cond.Operands) != 0 {
+			switch cond.Operands[0].Type {
+			case traceql.TypeNil:
+				if cond.Op == traceql.OpEqual {
+					pred, err := createNilPredicate(cond.Attribute.Name)
+					if err != nil {
+						return nil, err
+					}
+					iters =  append(iters, makeNilIter(columnPathResourceAttrKey, pred, columnPathResourceAttrKey))
+				}
 				continue
 			}
 		}
@@ -2512,7 +2573,7 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 }
 
 func createNilPredicate(attribute string) (parquetquery.Predicate, error) {
-	return parquetquery.NewStringEqualPredicate([]byte(attribute)), nil
+	return parquetquery.NewNilStringEqualPredicate([]byte(attribute)), nil
 }
 
 func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {

@@ -715,7 +715,6 @@ func (p StringEqualPredicate) KeepPage(page pq.Page) bool {
 
 func (p StringEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
-	// fmt.Printf("vv: %s, p.value: %s\n", vv, p.value)
 	return bytes.Equal(vv, p.value)
 }
 
