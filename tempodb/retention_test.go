@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"flag"
 	"path"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -218,4 +220,67 @@ func TestBlockRetentionOverride(t *testing.T) {
 	r.(*readerWriter).doRetention(ctx)
 	rw.pollBlocklist(ctx)
 	require.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
+}
+
+func TestRetainWithConfig(t *testing.T) {
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testRetainWithConfig(t, version)
+		})
+	}
+}
+
+func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
+	tempDir := t.TempDir()
+
+	_, w, c, err := New(
+		&Config{
+			Backend: backend.Local,
+			Pool: &pool.Config{
+				MaxWorkers: 10,
+				QueueDepth: 100,
+			},
+			Local: &local.Config{
+				Path: path.Join(tempDir, "traces"),
+			},
+			Block: &common.BlockConfig{
+				IndexDownsampleBytes: 11,
+				BloomFP:              .01,
+				BloomShardSizeBytes:  100_000,
+				Version:              targetBlockVersion,
+				Encoding:             backend.EncNone,
+				IndexPageSizeBytes:   1000,
+			},
+			WAL: &wal.Config{
+				Filepath: path.Join(tempDir, "wal"),
+			},
+			BlocklistPoll: 0,
+		}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	blocks := cutTestBlocks(t, w, testTenantID, 10, 10)
+	metas := make([]*backend.BlockMeta, 0)
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	compactorCfg := &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+		MaxCompactionObjects:    1000,
+		MaxBlockBytes:           100_000_000, // Needs to be sized appropriately for the test data
+	}
+
+	compactorCfg.RegisterFlagsAndApplyDefaults("test", &flag.FlagSet{})
+
+	c.RetainWithConfig(ctx,
+		compactorCfg,
+		&mockSharder{},
+		&mockOverrides{},
+	)
 }

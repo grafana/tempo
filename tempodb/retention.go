@@ -33,28 +33,32 @@ func (rw *readerWriter) retentionLoop(ctx context.Context) {
 }
 
 func (rw *readerWriter) doRetention(ctx context.Context) {
+	rw.RetainWithConfig(ctx, rw.compactorCfg, rw.compactorSharder, rw.compactorOverrides)
+}
+
+func (rw *readerWriter) RetainWithConfig(ctx context.Context, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) {
 	tenants := rw.blocklist.Tenants()
 
-	bg := boundedwaitgroup.New(rw.compactorCfg.RetentionConcurrency)
+	bg := boundedwaitgroup.New(compactorCfg.RetentionConcurrency)
 
 	for _, tenantID := range tenants {
 		bg.Add(1)
 		go func(t string) {
 			defer bg.Done()
-			rw.retainTenant(ctx, t)
+			rw.retainTenant(ctx, t, compactorCfg, compactorSharder, compactorOverrides)
 		}(tenantID)
 	}
 
 	bg.Wait()
 }
 
-func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string) {
+func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) {
 	start := time.Now()
 	defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
 
 	// Check for overrides
-	retention := rw.compactorCfg.BlockRetention // Default
-	if r := rw.compactorOverrides.BlockRetentionForTenant(tenantID); r != 0 {
+	retention := compactorCfg.BlockRetention // Default
+	if r := compactorOverrides.BlockRetentionForTenant(tenantID); r != 0 {
 		retention = r
 	}
 	level.Debug(rw.logger).Log("msg", "Performing block retention", "tenantID", tenantID, "retention", retention)
@@ -67,7 +71,7 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string) {
 		case <-ctx.Done():
 			return
 		default:
-			if b.EndTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
+			if b.EndTime.Before(cutoff) && compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.MarkBlockCompacted((uuid.UUID)(b.BlockID), tenantID)
 				if err != nil {
@@ -88,15 +92,15 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string) {
 	}
 
 	// iterate through compacted list looking for blocks ready to be cleared
-	cutoff = time.Now().Add(-rw.compactorCfg.CompactedBlockRetention)
+	cutoff = time.Now().Add(-compactorCfg.CompactedBlockRetention)
 	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
 	for _, b := range compactedBlocklist {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			level.Debug(rw.logger).Log("owns", rw.compactorSharder.Owns(b.BlockID.String()), "blockID", b.BlockID, "tenantID", tenantID)
-			if b.CompactedTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
+			level.Debug(rw.logger).Log("owns", compactorSharder.Owns(b.BlockID.String()), "blockID", b.BlockID, "tenantID", tenantID)
+			if b.CompactedTime.Before(cutoff) && compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.ClearBlock((uuid.UUID)(b.BlockID), tenantID)
 				if err != nil {

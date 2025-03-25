@@ -17,12 +17,14 @@ type Config struct {
 	Poll                      bool                    `yaml:"-"`
 	MaxJobsPerTenant          int                     `yaml:"max_jobs_per_tenant"`
 	MaintenanceInterval       time.Duration           `yaml:"maintenance_interval"`
+	RetentionInterval         time.Duration           `yaml:"retention_interval"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.TenantMeasurementInterval, prefix+"backend-scheduler.tenant-measurement-interval", time.Minute, "Interval at which to measure outstanding blocks")
 	f.IntVar(&cfg.MaxJobsPerTenant, prefix+"backend-scheduler.max-jobs-per-tenant", 1000, "Maximum number of jobs to run per tenant before moving on to the next tenant")
-	f.DurationVar(&cfg.MaintenanceInterval, prefix+"backend-scheduler.maintenance-interval", time.Minute, "Interval at which to perform maintenance tasks")
+	f.DurationVar(&cfg.MaintenanceInterval, prefix+"backend-scheduler.maintenance-interval", time.Minute, "Interval at which to perform scheduler maintenance tasks")
+	f.DurationVar(&cfg.RetentionInterval, prefix+"backend-scheduler.retention-interval", time.Hour, "Interval at which to perform tenant retention")
 
 	cfg.Work.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
 
