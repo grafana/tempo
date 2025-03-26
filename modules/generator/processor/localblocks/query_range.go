@@ -64,40 +64,20 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	)
 
 	maxSeries := int(req.MaxSeries)
-	seriesCount := int32(0)
-	seriesCountCh := make(chan int)
-	seriesCtx, seriesCancel := context.WithCancel(ctx) // Use context for cancellation
-	defer seriesCancel()
-
-	// listens for series counts and updates the total series count.
-	go func() {
-		for count := range seriesCountCh {
-			syncAtomic.AddInt32(&seriesCount, int32(count))
-			if syncAtomic.LoadInt32(&seriesCount) >= int32(maxSeries) {
-				seriesCancel()
-				return
-			}
-		}
-	}()
+	totalSeriesCount := int32(0)
 
 	if p.headBlock != nil && withinRange(p.headBlock.BlockMeta()) {
-		wg.Add(1)
-		go func(w common.WALBlock) {
-			defer wg.Done()
-			select {
-			case <-seriesCtx.Done():
-				return
-			default:
+		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalSeriesCount) < int32(maxSeries)) {
+			wg.Add(1)
+			go func(w common.WALBlock) {
+				defer wg.Done()
 				seriesCount, err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
 				}
-				select {
-				case seriesCountCh <- seriesCount:
-				case <-seriesCtx.Done():
-				}
-			}
-		}(p.headBlock)
+				syncAtomic.AddInt32(&totalSeriesCount, int32(seriesCount))
+			}(p.headBlock)
+		}
 	}
 
 	for _, w := range p.walBlocks {
@@ -109,23 +89,17 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		wg.Add(1)
-		go func(w common.WALBlock) {
-			defer wg.Done()
-			select {
-			case <-seriesCtx.Done():
-				return
-			default:
+		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalSeriesCount) < int32(maxSeries)) {
+			wg.Add(1)
+			go func(w common.WALBlock) {
+				defer wg.Done()
 				seriesCount, err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
 				}
-				select {
-				case seriesCountCh <- seriesCount:
-				case <-seriesCtx.Done():
-				}
-			}
-		}(w)
+				syncAtomic.AddInt32(&totalSeriesCount, int32(seriesCount))
+			}(w)
+		}
 	}
 
 	for _, b := range p.completeBlocks {
@@ -137,30 +111,22 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		wg.Add(1)
-		go func(b *ingester.LocalBlock) {
-			defer wg.Done()
-			select {
-			case <-seriesCtx.Done():
-				return
-			default:
+		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalSeriesCount) < int32(maxSeries)){
+			wg.Add(1)
+			go func(b *ingester.LocalBlock) {
+				defer wg.Done()
 				resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
 				if err != nil {
 					jobErr.Store(err)
 					return
 				}
-
 				seriesCount := jobEval.ObserveSeries(resp)
-				select {
-				case seriesCountCh <- seriesCount:
-				case <-seriesCtx.Done():
-				}
-			}
-		}(b)
+				syncAtomic.AddInt32(&totalSeriesCount, int32(seriesCount))
+			}(b)
+		}
 	}
 
 	wg.Wait()
-	close(seriesCountCh)
 
 	if err := jobErr.Load(); err != nil {
 		return err

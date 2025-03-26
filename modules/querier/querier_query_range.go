@@ -124,13 +124,19 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 
 	inspectedBytes, spansTotal, _ := eval.Metrics()
 
-	return &tempopb.QueryRangeResponse{
+	response := &tempopb.QueryRangeResponse{
 		Series: queryRangeTraceQLToProto(res, req),
 		Metrics: &tempopb.SearchMetrics{
 			InspectedBytes: inspectedBytes,
 			InspectedSpans: spansTotal,
 		},
-	}, nil
+	}
+
+	if len(res) > int(req.MaxSeries) {
+		response.Status = tempopb.PartialStatus_PARTIAL
+	}
+
+	return response, nil
 }
 
 func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
