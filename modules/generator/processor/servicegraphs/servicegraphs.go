@@ -45,11 +45,25 @@ var (
 )
 
 const (
-	metricRequestTotal                  = "traces_service_graph_request_total"
-	metricRequestFailedTotal            = "traces_service_graph_request_failed_total"
-	metricRequestServerSeconds          = "traces_service_graph_request_server_seconds"
-	metricRequestClientSeconds          = "traces_service_graph_request_client_seconds"
-	metricRequestMessagingSystemSeconds = "traces_service_graph_request_messaging_system_seconds"
+	metricRequestTotal     = "traces_service_graph_request_total"
+	metricRequestTotalHelp = "Total number of requests tracked in the service graph"
+	metricRequestTotalUnit = "requests"
+
+	metricRequestFailedTotal     = "traces_service_graph_request_failed_total"
+	metricRequestFailedTotalHelp = "Total number of failed requests tracked in the service graph"
+	metricRequestFailedTotalUnit = "requests"
+
+	metricRequestServerSeconds     = "traces_service_graph_request_server_seconds"
+	metricRequestServerSecondsHelp = "Duration of requests from the server's perspective"
+	metricRequestServerSecondsUnit = "seconds"
+
+	metricRequestClientSeconds     = "traces_service_graph_request_client_seconds"
+	metricRequestClientSecondsHelp = "Duration of requests from the client's perspective"
+	metricRequestClientSecondsUnit = "seconds"
+
+	metricRequestMessagingSystemSeconds     = "traces_service_graph_request_messaging_system_seconds"
+	metricRequestMessagingSystemSecondsHelp = "Latency between producer and consumer in messaging systems"
+	metricRequestMessagingSystemSecondsUnit = "seconds"
 )
 
 const virtualNodeLabel = "virtual_node"
@@ -115,11 +129,11 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) ge
 		labels:   labels,
 		closeCh:  make(chan struct{}, 1),
 
-		serviceGraphRequestTotal:                           reg.NewCounter(metricRequestTotal),
-		serviceGraphRequestFailedTotal:                     reg.NewCounter(metricRequestFailedTotal),
-		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
-		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
-		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
+		serviceGraphRequestTotal:                           reg.NewCounter(metricRequestTotal, metricRequestTotalHelp, metricRequestTotalUnit),
+		serviceGraphRequestFailedTotal:                     reg.NewCounter(metricRequestFailedTotal, metricRequestFailedTotalHelp, metricRequestFailedTotalUnit),
+		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, metricRequestServerSecondsHelp, metricRequestServerSecondsUnit, cfg.HistogramBuckets, cfg.HistogramOverride),
+		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, metricRequestClientSecondsHelp, metricRequestClientSecondsUnit, cfg.HistogramBuckets, cfg.HistogramOverride),
+		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, metricRequestMessagingSystemSecondsHelp, metricRequestMessagingSystemSecondsUnit, cfg.HistogramBuckets, cfg.HistogramOverride),
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),

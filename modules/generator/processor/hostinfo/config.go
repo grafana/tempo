@@ -17,6 +17,10 @@ type Config struct {
 	HostIdentifiers []string `yaml:"host_identifiers"`
 	// MetricName defines the name of the metric that will be generated
 	MetricName string `yaml:"metric_name"`
+	// Help defines the help text for the metric that is sent as metadata.
+	Help string `yaml:"help"`
+	// Unit defines the unit text for the metric that is sent as metadata.
+	Unit string `yaml:"unit"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

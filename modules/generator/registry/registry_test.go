@@ -42,7 +42,7 @@ func TestManagedRegistry_concurrency(*testing.T) {
 		for i := range s {
 			s[i] = letters[rand.Intn(len(letters))]
 		}
-		registry.NewCounter(string(s))
+		registry.NewCounter(string(s), "", "")
 	})
 
 	go accessor(func() {
@@ -63,7 +63,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("my_counter")
+	counter := registry.NewCounter("my_counter", "", "")
 
 	counter.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 
@@ -80,7 +80,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	histogram := registry.NewHistogram("histogram", []float64{1.0, 2.0}, HistogramModeClassic)
+	histogram := registry.NewHistogram("histogram", "", "", []float64{1.0, 2.0}, HistogramModeClassic)
 
 	histogram.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 
@@ -107,8 +107,8 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter1 := registry.NewCounter("metric_1")
-	counter2 := registry.NewCounter("metric_2")
+	counter1 := registry.NewCounter("metric_1", "", "")
+	counter2 := registry.NewCounter("metric_2", "", "")
 
 	counter1.Inc(nil, 1)
 	counter2.Inc(nil, 2)
@@ -148,7 +148,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("my_counter")
+	counter := registry.NewCounter("my_counter", "", "")
 	counter.Inc(nil, 1.0)
 
 	expectedSamples := []sample{
@@ -167,7 +167,7 @@ func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("my_counter")
+	counter := registry.NewCounter("my_counter", "", "")
 	counter.Inc(nil, 1.0)
 
 	expectedSamples := []sample{
@@ -186,8 +186,8 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter1 := registry.NewCounter("metric_1")
-	counter2 := registry.NewCounter("metric_2")
+	counter1 := registry.NewCounter("metric_1", "", "")
+	counter2 := registry.NewCounter("metric_2", "", "")
 
 	counter1.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	// these series should be discarded
@@ -211,7 +211,7 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("metric_1")
+	counter := registry.NewCounter("metric_1", "", "")
 	counter.Inc(nil, 1.0)
 
 	// active series are still tracked
@@ -232,8 +232,8 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("counter")
-	histogram := registry.NewHistogram("histogram", []float64{1.0}, HistogramModeClassic)
+	counter := registry.NewCounter("counter", "", "")
+	histogram := registry.NewHistogram("histogram", "", "", []float64{1.0}, HistogramModeClassic)
 
 	counter.Inc(registry.NewLabelValueCombo([]string{"very_lengthy_label"}, []string{"very_length_value"}), 1.0)
 	histogram.ObserveWithExemplar(registry.NewLabelValueCombo([]string{"another_very_lengthy_label"}, []string{"another_very_lengthy_value"}), 1.0, "", 1.0)
@@ -293,7 +293,7 @@ func TestHistogramOverridesConfig(t *testing.T) {
 			registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
 			defer registry.Close()
 
-			tt := registry.NewHistogram("histogram", []float64{1.0, 2.0}, c.nativeHistogramMode)
+			tt := registry.NewHistogram("histogram", "", "", []float64{1.0, 2.0}, c.nativeHistogramMode)
 			require.IsType(t, c.typeOfHistogram, tt)
 		})
 	}

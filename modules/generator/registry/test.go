@@ -24,14 +24,14 @@ func NewTestRegistry() *TestRegistry {
 	}
 }
 
-func (t *TestRegistry) NewCounter(name string) Counter {
+func (t *TestRegistry) NewCounter(name string, help string, unit string) Counter {
 	return &testCounter{
 		n:        name,
 		registry: t,
 	}
 }
 
-func (t *TestRegistry) NewGauge(name string) Gauge {
+func (t *TestRegistry) NewGauge(name string, help string, unit string) Gauge {
 	return &testGauge{
 		n:        name,
 		registry: t,
@@ -42,7 +42,7 @@ func (t *TestRegistry) NewLabelValueCombo(labels []string, values []string) *Lab
 	return newLabelValueCombo(labels, values)
 }
 
-func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides HistogramMode) Histogram {
+func (t *TestRegistry) NewHistogram(name string, help string, unit string, buckets []float64, histogramOverrides HistogramMode) Histogram {
 	return &testHistogram{
 		nameSum:            name + "_sum",
 		nameCount:          name + "_count",

@@ -4,7 +4,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 )
@@ -13,6 +15,8 @@ type counter struct {
 	//nolint unused
 	metric
 	metricName string
+	help       string
+	unit       string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx sync.RWMutex
@@ -48,7 +52,7 @@ func (co *counterSeries) registerSeenSeries() {
 	co.firstSeries.Store(false)
 }
 
-func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *counter {
+func newCounter(name string, help string, unit string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *counter {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -60,6 +64,8 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 
 	return &counter{
 		metricName:     name,
+		help:           help,
+		unit:           unit,
 		series:         make(map[uint64]*counterSeries),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
@@ -145,11 +151,20 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activ
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, s.labels, endOfLastMinuteMs, 0)
+			var ref storage.SeriesRef
+			ref, err = appender.Append(0, s.labels, endOfLastMinuteMs, 0)
 			if err != nil {
 				return
 			}
 			s.registerSeenSeries()
+			// Update the metadata for the series. Since metadata is static we only need to do this once.
+			// If we get an error we can ignore.
+			_, _ = appender.UpdateMetadata(ref, s.labels, metadata.Metadata{
+				Type: model.MetricTypeCounter,
+				Unit: c.unit,
+				Help: c.help,
+			})
+
 		}
 
 		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())

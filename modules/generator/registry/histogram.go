@@ -18,6 +18,8 @@ var _ metric = (*histogram)(nil)
 
 type histogram struct {
 	metricName     string
+	help           string
+	unit           string
 	nameCount      string
 	nameSum        string
 	nameBucket     string
@@ -67,7 +69,7 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string) *histogram {
+func newHistogram(name string, help string, unit string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string) *histogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -91,6 +93,8 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 
 	return &histogram{
 		metricName:       name,
+		help:             help,
+		unit:             unit,
 		nameCount:        fmt.Sprintf("%s_count", name),
 		nameSum:          fmt.Sprintf("%s_sum", name),
 		nameBucket:       fmt.Sprintf("%s_bucket", name),

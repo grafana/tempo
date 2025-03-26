@@ -17,6 +17,8 @@ type gauge struct {
 	metric
 
 	metricName string
+	help       string
+	unit       string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx sync.RWMutex
@@ -44,7 +46,7 @@ const (
 	set = "set"
 )
 
-func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *gauge {
+func newGauge(name string, help string, unit string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *gauge {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -56,6 +58,8 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 
 	return &gauge{
 		metricName:     name,
+		help:           help,
+		unit:           unit,
 		series:         make(map[uint64]*gaugeSeries),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
