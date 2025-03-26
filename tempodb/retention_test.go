@@ -2,7 +2,7 @@ package tempodb
 
 import (
 	"context"
-	"flag"
+	"os"
 	"path"
 	"testing"
 	"time"
@@ -234,7 +234,9 @@ func TestRetainWithConfig(t *testing.T) {
 func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
-	_, w, c, err := New(
+	logger := log.NewLogfmtLogger(os.Stderr)
+
+	r, w, c, err := New(
 		&Config{
 			Backend: backend.Local,
 			Pool: &pool.Config{
@@ -255,32 +257,70 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 			WAL: &wal.Config{
 				Filepath: path.Join(tempDir, "wal"),
 			},
-			BlocklistPoll: 0,
-		}, nil, log.NewNopLogger())
+			BlocklistPoll: 100 * time.Millisecond,
+		}, nil,
+		// log.NewNopLogger()
+		logger,
+	)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blocks := cutTestBlocks(t, w, testTenantID, 10, 10)
+
 	metas := make([]*backend.BlockMeta, 0)
 	for _, b := range blocks {
 		metas = append(metas, b.BlockMeta())
 	}
 
+	time.Sleep(time.Second)
+
 	compactorCfg := &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
+		BlockRetention:          time.Nanosecond,
+		CompactedBlockRetention: time.Nanosecond,
 		MaxCompactionObjects:    1000,
 		MaxBlockBytes:           100_000_000, // Needs to be sized appropriately for the test data
+		RetentionConcurrency:    1,
 	}
 
-	compactorCfg.RegisterFlagsAndApplyDefaults("test", &flag.FlagSet{})
+	var (
+		rw    = r.(*readerWriter)
+		preM  = rw.blocklist.Metas(testTenantID)
+		preCm = rw.blocklist.CompactedMetas(testTenantID)
+	)
+
+	require.Len(t, preM, 10)
+	require.Len(t, preCm, 0)
+
+	_, err = c.CompactWithConfig(ctx, metas, testTenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	var (
+		postM  = rw.blocklist.Metas(testTenantID)
+		postCm = rw.blocklist.CompactedMetas(testTenantID)
+	)
+
+	require.Less(t, len(postM), len(preM))
+	require.Greater(t, len(postCm), len(preCm))
+
+	require.Len(t, rw.blocklist.Metas(testTenantID), 1)
+	require.Len(t, rw.blocklist.CompactedMetas(testTenantID), 10)
 
 	c.RetainWithConfig(ctx,
 		compactorCfg,
 		&mockSharder{},
 		&mockOverrides{},
 	)
+
+	time.Sleep(100 * time.Millisecond)
+
+	require.Empty(t, rw.blocklist.Metas(testTenantID))
+	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID))
 }
