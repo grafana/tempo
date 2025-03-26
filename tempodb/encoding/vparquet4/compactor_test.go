@@ -213,3 +213,41 @@ func TestCompact(t *testing.T) {
 	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }
+func TestCompactWithFactory(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	require.NoError(t, common.ValidateConfig(&blockConfig))
+
+	c := NewCompactorWithFactories(common.CompactionOptions{
+		BlockConfig:     blockConfig,
+		OutputBlocks:    1,
+		FlushSizeBytes:  30_000_000,
+		ObjectsCombined: func(compactionLevel, objects int) {},
+	}, nil, nil)
+
+	dedicatedColumns := backend.DedicatedColumns{
+		{Scope: "resource", Name: "dedicated.resource.1", Type: "string"},
+		{Scope: "span", Name: "dedicated.span.1", Type: "string"},
+	}
+
+	meta1 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, 1, dedicatedColumns)
+	meta2 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, 1, dedicatedColumns)
+
+	inputs := []*backend.BlockMeta{meta1, meta2}
+
+	newMeta, err := c.Compact(context.Background(), log.NewNopLogger(), r, w, inputs)
+	require.NoError(t, err)
+	require.Len(t, newMeta, 1)
+	require.Equal(t, int64(20), newMeta[0].TotalObjects)
+	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
+	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
+}

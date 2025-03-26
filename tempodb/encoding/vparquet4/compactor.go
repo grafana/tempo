@@ -25,6 +25,21 @@ var defaultMultiblockIteratorFactory = func(bookmarks []*bookmark[parquet.Row], 
 }
 var defaultStreamingBlockFactory = newStreamingBlock
 
+func NewCompactorWithFactories(opts common.CompactionOptions, multiblockIteratorFactory func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row], streamingBlockFactory func(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock) *Compactor {
+
+	if multiblockIteratorFactory == nil {
+		multiblockIteratorFactory = defaultMultiblockIteratorFactory
+	}
+	if streamingBlockFactory == nil {
+		streamingBlockFactory = defaultStreamingBlockFactory
+	}
+	return &Compactor{
+		opts: opts,
+
+		multiblockIteratorFactory: multiblockIteratorFactory,
+		streamingBlockFactory:     streamingBlockFactory,
+	}
+}
 func NewCompactor(opts common.CompactionOptions) *Compactor {
 	return &Compactor{
 		opts: opts,
