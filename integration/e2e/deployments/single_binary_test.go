@@ -131,7 +131,7 @@ func TestAllInOne(t *testing.T) {
 					{
 						Type:  labels.MatchEqual,
 						Name:  "receiver",
-						Value: "tempo/jaeger_receiver",
+						Value: "jaeger/jaeger_receiver",
 					},
 					{
 						Type:  labels.MatchEqual,
