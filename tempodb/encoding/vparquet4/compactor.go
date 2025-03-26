@@ -20,16 +20,17 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+var defaultMultiblockIteratorFactory = func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row] {
+	return newMultiblockIterator(bookmarks, combine)
+}
+var defaultStreamingBlockFactory = newStreamingBlock
+
 func NewCompactor(opts common.CompactionOptions) *Compactor {
 	return &Compactor{
 		opts: opts,
 
-		multiblockIteratorFactory: func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row] {
-			return newMultiblockIterator(bookmarks, combine)
-		},
-		streamingBlockFactory: func(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
-			return newStreamingBlock(ctx, cfg, meta, r, to, createBufferedWriter)
-		},
+		multiblockIteratorFactory: defaultMultiblockIteratorFactory,
+		streamingBlockFactory:     defaultStreamingBlockFactory,
 	}
 }
 
