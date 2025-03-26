@@ -21,11 +21,20 @@ import (
 )
 
 func NewCompactor(opts common.CompactionOptions) *Compactor {
-	return &Compactor{opts: opts}
+	return &Compactor{
+		opts: opts,
+
+		multiblockIteratorFactory: func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row] {
+			return newMultiblockIterator(bookmarks, combine)
+		},
+	}
 }
 
 type Compactor struct {
 	opts common.CompactionOptions
+
+	// factories for testing
+	multiblockIteratorFactory func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row]
 }
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
@@ -135,7 +144,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	}
 
 	var (
-		m               = newMultiblockIterator(bookmarks, combine)
+		m               = c.multiblockIteratorFactory(bookmarks, combine)
 		recordsPerBlock = (totalRecords / int64(c.opts.OutputBlocks))
 		currentBlock    *streamingBlock
 	)
