@@ -20,7 +20,7 @@ import (
 const (
 	frontendProtoGenPkgPath = "github.com/grafana/tempo/modules/frontend"
 	tempoProtoGenPkgPath    = "github.com/grafana/tempo/pkg/tempopb"
-	jaegerProtoGenPkgPath   = "github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	jaegerProtoGenPkgPath   = "github.com/jaegertracing/jaeger-idl/proto-gen"
 	jaegerModelPkgPath      = "github.com/jaegertracing/jaeger-idl/model"
 	otelProtoPkgPath        = "go.opentelemetry.io/collector"
 	// etcd path can be removed once upgrade to grpc >v1.38 is released (tentatively next release from v3.5.1)
