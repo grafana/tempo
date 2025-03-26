@@ -42,9 +42,14 @@ func createRemoveXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 func removeXML[K any](target ottl.StringGetter[K], xPath string) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		var doc *xmlquery.Node
-		if targetVal, err := target.Get(ctx, tCtx); err != nil {
+		targetVal, err := target.Get(ctx, tCtx)
+		if err != nil {
 			return nil, err
-		} else if doc, err = parseNodesXML(targetVal); err != nil {
+		}
+		if targetVal == "" {
+			return "", nil
+		}
+		if doc, err = parseNodesXML(targetVal); err != nil {
 			return nil, err
 		}
 

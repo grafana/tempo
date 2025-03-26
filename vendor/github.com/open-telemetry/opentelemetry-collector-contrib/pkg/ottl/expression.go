@@ -169,6 +169,7 @@ func (l *listGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		evaluated[i] = val
 	}
 
@@ -180,22 +181,36 @@ type mapGetter[K any] struct {
 }
 
 func (m *mapGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
-	evaluated := map[string]any{}
+	result := pcommon.NewMap()
 	for k, v := range m.mapValues {
 		val, err := v.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
-		switch t := val.(type) {
+		switch typedVal := val.(type) {
 		case pcommon.Map:
-			evaluated[k] = t.AsRaw()
+			target := result.PutEmpty(k).SetEmptyMap()
+			typedVal.CopyTo(target)
+		case []any:
+			target := result.PutEmpty(k).SetEmptySlice()
+			for _, el := range typedVal {
+				switch typedEl := el.(type) {
+				case pcommon.Map:
+					m := target.AppendEmpty().SetEmptyMap()
+					typedEl.CopyTo(m)
+				default:
+					err := target.AppendEmpty().FromRaw(el)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
 		default:
-			evaluated[k] = t
+			err := result.PutEmpty(k).FromRaw(val)
+			if err != nil {
+				return nil, err
+			}
 		}
-	}
-	result := pcommon.NewMap()
-	if err := result.FromRaw(evaluated); err != nil {
-		return nil, err
 	}
 	return result, nil
 }

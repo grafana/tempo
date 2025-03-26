@@ -11,13 +11,14 @@ func GetPartition(region string) *PartitionConfig {
 var partitions = []Partition{
 	{
 		ID:          "aws",
-		RegionRegex: "^(us|eu|ap|sa|ca|me|af)\\-\\w+\\-\\d+$",
+		RegionRegex: "^(us|eu|ap|sa|ca|me|af|il)\\-\\w+\\-\\d+$",
 		DefaultConfig: PartitionConfig{
-			Name:               "aws",
-			DnsSuffix:          "amazonaws.com",
-			DualStackDnsSuffix: "api.aws",
-			SupportsFIPS:       true,
-			SupportsDualStack:  true,
+			Name:                 "aws",
+			DnsSuffix:            "amazonaws.com",
+			DualStackDnsSuffix:   "api.aws",
+			SupportsFIPS:         true,
+			SupportsDualStack:    true,
+			ImplicitGlobalRegion: "us-east-1",
 		},
 		Regions: map[string]RegionOverrides{
 			"af-south-1": {
@@ -90,6 +91,13 @@ var partitions = []Partition{
 				SupportsFIPS:       nil,
 				SupportsDualStack:  nil,
 			},
+			"ap-southeast-4": {
+				Name:               nil,
+				DnsSuffix:          nil,
+				DualStackDnsSuffix: nil,
+				SupportsFIPS:       nil,
+				SupportsDualStack:  nil,
+			},
 			"aws-global": {
 				Name:               nil,
 				DnsSuffix:          nil,
@@ -98,6 +106,13 @@ var partitions = []Partition{
 				SupportsDualStack:  nil,
 			},
 			"ca-central-1": {
+				Name:               nil,
+				DnsSuffix:          nil,
+				DualStackDnsSuffix: nil,
+				SupportsFIPS:       nil,
+				SupportsDualStack:  nil,
+			},
+			"ca-west-1": {
 				Name:               nil,
 				DnsSuffix:          nil,
 				DualStackDnsSuffix: nil,
@@ -160,6 +175,13 @@ var partitions = []Partition{
 				SupportsFIPS:       nil,
 				SupportsDualStack:  nil,
 			},
+			"il-central-1": {
+				Name:               nil,
+				DnsSuffix:          nil,
+				DualStackDnsSuffix: nil,
+				SupportsFIPS:       nil,
+				SupportsDualStack:  nil,
+			},
 			"me-central-1": {
 				Name:               nil,
 				DnsSuffix:          nil,
@@ -215,11 +237,12 @@ var partitions = []Partition{
 		ID:          "aws-cn",
 		RegionRegex: "^cn\\-\\w+\\-\\d+$",
 		DefaultConfig: PartitionConfig{
-			Name:               "aws-cn",
-			DnsSuffix:          "amazonaws.com.cn",
-			DualStackDnsSuffix: "api.amazonwebservices.com.cn",
-			SupportsFIPS:       true,
-			SupportsDualStack:  true,
+			Name:                 "aws-cn",
+			DnsSuffix:            "amazonaws.com.cn",
+			DualStackDnsSuffix:   "api.amazonwebservices.com.cn",
+			SupportsFIPS:         true,
+			SupportsDualStack:    true,
+			ImplicitGlobalRegion: "cn-northwest-1",
 		},
 		Regions: map[string]RegionOverrides{
 			"aws-cn-global": {
@@ -249,11 +272,12 @@ var partitions = []Partition{
 		ID:          "aws-us-gov",
 		RegionRegex: "^us\\-gov\\-\\w+\\-\\d+$",
 		DefaultConfig: PartitionConfig{
-			Name:               "aws-us-gov",
-			DnsSuffix:          "amazonaws.com",
-			DualStackDnsSuffix: "api.aws",
-			SupportsFIPS:       true,
-			SupportsDualStack:  true,
+			Name:                 "aws-us-gov",
+			DnsSuffix:            "amazonaws.com",
+			DualStackDnsSuffix:   "api.aws",
+			SupportsFIPS:         true,
+			SupportsDualStack:    true,
+			ImplicitGlobalRegion: "us-gov-west-1",
 		},
 		Regions: map[string]RegionOverrides{
 			"aws-us-gov-global": {
@@ -283,11 +307,12 @@ var partitions = []Partition{
 		ID:          "aws-iso",
 		RegionRegex: "^us\\-iso\\-\\w+\\-\\d+$",
 		DefaultConfig: PartitionConfig{
-			Name:               "aws-iso",
-			DnsSuffix:          "c2s.ic.gov",
-			DualStackDnsSuffix: "c2s.ic.gov",
-			SupportsFIPS:       true,
-			SupportsDualStack:  false,
+			Name:                 "aws-iso",
+			DnsSuffix:            "c2s.ic.gov",
+			DualStackDnsSuffix:   "c2s.ic.gov",
+			SupportsFIPS:         true,
+			SupportsDualStack:    false,
+			ImplicitGlobalRegion: "us-iso-east-1",
 		},
 		Regions: map[string]RegionOverrides{
 			"aws-iso-global": {
@@ -317,11 +342,12 @@ var partitions = []Partition{
 		ID:          "aws-iso-b",
 		RegionRegex: "^us\\-isob\\-\\w+\\-\\d+$",
 		DefaultConfig: PartitionConfig{
-			Name:               "aws-iso-b",
-			DnsSuffix:          "sc2s.sgov.gov",
-			DualStackDnsSuffix: "sc2s.sgov.gov",
-			SupportsFIPS:       true,
-			SupportsDualStack:  false,
+			Name:                 "aws-iso-b",
+			DnsSuffix:            "sc2s.sgov.gov",
+			DualStackDnsSuffix:   "sc2s.sgov.gov",
+			SupportsFIPS:         true,
+			SupportsDualStack:    false,
+			ImplicitGlobalRegion: "us-isob-east-1",
 		},
 		Regions: map[string]RegionOverrides{
 			"aws-iso-b-global": {
@@ -339,5 +365,39 @@ var partitions = []Partition{
 				SupportsDualStack:  nil,
 			},
 		},
+	},
+	{
+		ID:          "aws-iso-e",
+		RegionRegex: "^eu\\-isoe\\-\\w+\\-\\d+$",
+		DefaultConfig: PartitionConfig{
+			Name:                 "aws-iso-e",
+			DnsSuffix:            "cloud.adc-e.uk",
+			DualStackDnsSuffix:   "cloud.adc-e.uk",
+			SupportsFIPS:         true,
+			SupportsDualStack:    false,
+			ImplicitGlobalRegion: "eu-isoe-west-1",
+		},
+		Regions: map[string]RegionOverrides{
+			"eu-isoe-west-1": {
+				Name:               nil,
+				DnsSuffix:          nil,
+				DualStackDnsSuffix: nil,
+				SupportsFIPS:       nil,
+				SupportsDualStack:  nil,
+			},
+		},
+	},
+	{
+		ID:          "aws-iso-f",
+		RegionRegex: "^us\\-isof\\-\\w+\\-\\d+$",
+		DefaultConfig: PartitionConfig{
+			Name:                 "aws-iso-f",
+			DnsSuffix:            "csp.hci.ic.gov",
+			DualStackDnsSuffix:   "csp.hci.ic.gov",
+			SupportsFIPS:         true,
+			SupportsDualStack:    false,
+			ImplicitGlobalRegion: "us-isof-south-1",
+		},
+		Regions: map[string]RegionOverrides{},
 	},
 }

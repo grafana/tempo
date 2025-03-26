@@ -28,7 +28,7 @@ func createIsBoolFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 	return isBool(args.Target), nil
 }
 
-// nolint:errorlint
+//nolint:errorlint
 func isBool[K any](target ottl.BoolGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		_, err := target.Get(ctx, tCtx)

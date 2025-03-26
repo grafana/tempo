@@ -126,9 +126,11 @@ type MatchProperties struct {
 }
 
 var (
-	ErrMissingRequiredField    = errors.New(`at least one of "attributes", "libraries",  or "resources" field must be specified`)
-	ErrInvalidLogField         = errors.New("services, span_names, and span_kinds are not valid for log records")
-	ErrMissingRequiredLogField = errors.New(`at least one of "attributes", "libraries", "span_kinds", "resources", "log_bodies", "log_severity_texts" or "log_severity_number" field must be specified`)
+	ErrMissingRequiredSpanField   = errors.New(`at least one of "attributes", "libraries",  or "resources" field must be specified`)
+	ErrInvalidLogField            = errors.New("services, span_names, span_kinds and metric_names are not valid for log records")
+	ErrMissingRequiredLogField    = errors.New(`at least one of "attributes", "libraries", "span_kinds", "resources", "log_bodies", "log_severity_texts" or "log_severity_number" field must be specified`)
+	ErrMissingRequiredMetricField = errors.New(`at least one of "metric_names" or "resources" field must be specified`)
+	ErrInvalidMetricField         = errors.New(`"span_names", "span_kinds", "log_bodies", "log_severity_texts", "log_severity_number", "services", "attributes" and "libraries" are not valid for metrics`)
 
 	spanKinds = map[string]bool{
 		traceutil.SpanKindStr(ptrace.SpanKindInternal): true,
@@ -153,9 +155,13 @@ func (mp *MatchProperties) ValidateForSpans() error {
 		return errors.New("log_severity_number should not be specified for trace spans")
 	}
 
+	if len(mp.MetricNames) > 0 {
+		return errors.New("metric_names should not be specified for trace spans")
+	}
+
 	if len(mp.Services) == 0 && len(mp.SpanNames) == 0 && len(mp.Attributes) == 0 &&
 		len(mp.Libraries) == 0 && len(mp.Resources) == 0 && len(mp.SpanKinds) == 0 {
-		return ErrMissingRequiredField
+		return ErrMissingRequiredSpanField
 	}
 
 	if len(mp.SpanKinds) > 0 && mp.MatchType == "strict" {
@@ -176,7 +182,7 @@ func (mp *MatchProperties) ValidateForSpans() error {
 
 // ValidateForLogs validates properties for logs.
 func (mp *MatchProperties) ValidateForLogs() error {
-	if len(mp.SpanNames) > 0 || len(mp.Services) > 0 || len(mp.SpanKinds) > 0 {
+	if len(mp.SpanNames) > 0 || len(mp.Services) > 0 || len(mp.SpanKinds) > 0 || len(mp.MetricNames) > 0 {
 		return ErrInvalidLogField
 	}
 
@@ -185,6 +191,26 @@ func (mp *MatchProperties) ValidateForLogs() error {
 		len(mp.LogSeverityTexts) == 0 && mp.LogSeverityNumber == nil &&
 		len(mp.SpanKinds) == 0 {
 		return ErrMissingRequiredLogField
+	}
+
+	return nil
+}
+
+// ValidateForMetrics validates properties for metrics.
+func (mp *MatchProperties) ValidateForMetrics() error {
+	if len(mp.LogBodies) > 0 ||
+		len(mp.LogSeverityTexts) > 0 ||
+		len(mp.SpanNames) > 0 ||
+		len(mp.Services) > 0 ||
+		len(mp.SpanKinds) > 0 ||
+		len(mp.Attributes) > 0 ||
+		len(mp.Libraries) > 0 ||
+		mp.LogSeverityNumber != nil {
+		return ErrInvalidMetricField
+	}
+
+	if len(mp.MetricNames) == 0 && len(mp.Resources) == 0 {
+		return ErrMissingRequiredMetricField
 	}
 
 	return nil
@@ -261,9 +287,13 @@ type MetricMatchProperties struct {
 	ResourceAttributes []Attribute `mapstructure:"resource_attributes"`
 }
 
-func CreateMetricMatchPropertiesFromDefault(properties *MatchProperties) *MetricMatchProperties {
+func CreateMetricMatchPropertiesFromDefault(properties *MatchProperties) (*MetricMatchProperties, error) {
 	if properties == nil {
-		return nil
+		return nil, nil
+	}
+
+	if err := properties.ValidateForMetrics(); err != nil {
+		return nil, err
 	}
 
 	return &MetricMatchProperties{
@@ -271,5 +301,5 @@ func CreateMetricMatchPropertiesFromDefault(properties *MatchProperties) *Metric
 		RegexpConfig:       properties.Config.RegexpConfig,
 		MetricNames:        properties.MetricNames,
 		ResourceAttributes: properties.Resources,
-	}
+	}, nil
 }

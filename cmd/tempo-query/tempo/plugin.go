@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,7 +21,7 @@ import (
 	"github.com/grafana/dskit/user"
 	jaeger "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
-	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
+
 	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
@@ -61,6 +62,9 @@ var (
 )
 
 var tracer = otel.Tracer("cmd/tempo-query/tempo")
+
+// ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
+var ErrTraceNotFound = errors.New("trace not found")
 
 type Backend struct {
 	logger                       *zap.Logger
@@ -227,7 +231,7 @@ func (b *Backend) getTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, jaeger_spanstore.ErrTraceNotFound
+		return nil, ErrTraceNotFound
 	}
 
 	body, err := io.ReadAll(resp.Body)

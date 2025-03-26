@@ -28,7 +28,7 @@ func createIsMapFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (o
 	return isMap(args.Target), nil
 }
 
-// nolint:errorlint
+//nolint:errorlint
 func isMap[K any](target ottl.PMapGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		_, err := target.Get(ctx, tCtx)

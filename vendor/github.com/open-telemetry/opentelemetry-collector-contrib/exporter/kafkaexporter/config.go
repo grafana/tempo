@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/configkafka"
 )
 
 // Config defines configuration for Kafka exporter.
@@ -63,7 +63,7 @@ type Config struct {
 	Producer Producer `mapstructure:"producer"`
 
 	// Authentication defines used authentication mechanism.
-	Authentication kafka.Authentication `mapstructure:"auth"`
+	Authentication configkafka.AuthenticationConfig `mapstructure:"auth"`
 }
 
 // Metadata defines configuration for retrieving metadata from the broker.
@@ -121,40 +121,8 @@ func (cfg *Config) Validate() error {
 	if cfg.Producer.RequiredAcks < -1 || cfg.Producer.RequiredAcks > 1 {
 		return fmt.Errorf("producer.required_acks has to be between -1 and 1. configured value %v", cfg.Producer.RequiredAcks)
 	}
-
 	_, err := saramaProducerCompressionCodec(cfg.Producer.Compression)
-	if err != nil {
-		return err
-	}
-
-	return validateSASLConfig(cfg.Authentication.SASL)
-}
-
-func validateSASLConfig(c *kafka.SASLConfig) error {
-	if c == nil {
-		return nil
-	}
-
-	if c.Username == "" {
-		return fmt.Errorf("auth.sasl.username is required")
-	}
-
-	if c.Password == "" {
-		return fmt.Errorf("auth.sasl.password is required")
-	}
-
-	switch c.Mechanism {
-	case "PLAIN", "AWS_MSK_IAM", "AWS_MSK_IAM_OAUTHBEARER", "SCRAM-SHA-256", "SCRAM-SHA-512":
-		// Do nothing, valid mechanism
-	default:
-		return fmt.Errorf("auth.sasl.mechanism should be one of 'PLAIN', 'AWS_MSK_IAM', 'AWS_MSK_IAM_OAUTHBEARER', 'SCRAM-SHA-256' or 'SCRAM-SHA-512'. configured value %v", c.Mechanism)
-	}
-
-	if c.Version < 0 || c.Version > 1 {
-		return fmt.Errorf("auth.sasl.version has to be either 0 or 1. configured value %v", c.Version)
-	}
-
-	return nil
+	return err
 }
 
 func saramaProducerCompressionCodec(compression string) (sarama.CompressionCodec, error) {

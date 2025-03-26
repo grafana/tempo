@@ -4,63 +4,14 @@
 package textutils // import "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/textutils"
 
 import (
-	"errors"
 	"fmt"
 	"strings"
+	"unsafe"
 
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/ianaindex"
 	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 )
-
-// NewEncodingConfig creates a new Encoding config
-func NewEncodingConfig() EncodingConfig {
-	return EncodingConfig{
-		Encoding: "utf-8",
-	}
-}
-
-// EncodingConfig is the configuration of a Encoding helper
-type EncodingConfig struct {
-	Encoding string `mapstructure:"encoding,omitempty"`
-}
-
-// Build will build an Encoding operator.
-func (c EncodingConfig) Build() (Encoding, error) {
-	enc, err := lookupEncoding(c.Encoding)
-	if err != nil {
-		return Encoding{}, err
-	}
-
-	return Encoding{
-		Encoding:     enc,
-		decodeBuffer: make([]byte, 1<<12),
-		decoder:      enc.NewDecoder(),
-	}, nil
-}
-
-type Encoding struct {
-	Encoding     encoding.Encoding
-	decoder      *encoding.Decoder
-	decodeBuffer []byte
-}
-
-// Decode converts the bytes in msgBuf to utf-8 from the configured encoding
-func (e *Encoding) Decode(msgBuf []byte) ([]byte, error) {
-	for {
-		e.decoder.Reset()
-		nDst, _, err := e.decoder.Transform(e.decodeBuffer, msgBuf, true)
-		if err == nil {
-			return e.decodeBuffer[:nDst], nil
-		}
-		if errors.Is(err, transform.ErrShortDst) {
-			e.decodeBuffer = make([]byte, len(e.decodeBuffer)*2)
-			continue
-		}
-		return nil, fmt.Errorf("transform encoding: %w", err)
-	}
-}
 
 var encodingOverrides = map[string]encoding.Encoding{
 	"utf-16":   unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM),
@@ -73,8 +24,8 @@ var encodingOverrides = map[string]encoding.Encoding{
 	"":         unicode.UTF8,
 }
 
-func lookupEncoding(enc string) (encoding.Encoding, error) {
-	if e, ok := EncodingOverridesMap.Get(strings.ToLower(enc)); ok {
+func LookupEncoding(enc string) (encoding.Encoding, error) {
+	if e, ok := encodingOverrides[strings.ToLower(enc)]; ok {
 		return e, nil
 	}
 	e, err := ianaindex.IANA.Encoding(enc)
@@ -88,18 +39,25 @@ func lookupEncoding(enc string) (encoding.Encoding, error) {
 }
 
 func IsNop(enc string) bool {
-	e, err := lookupEncoding(enc)
+	e, err := LookupEncoding(enc)
 	if err != nil {
 		return false
 	}
 	return e == encoding.Nop
 }
 
-var EncodingOverridesMap = encodingOverridesMap{}
+// DecodeAsString converts the given encoded bytes using the given decoder. It returns the converted
+// bytes or nil, err if any error occurred.
+func DecodeAsString(decoder *encoding.Decoder, buf []byte) (string, error) {
+	dstBuf, err := decoder.Bytes(buf)
+	if err != nil {
+		return "", err
+	}
+	return UnsafeBytesAsString(dstBuf), nil
+}
 
-type encodingOverridesMap struct{}
-
-func (e *encodingOverridesMap) Get(key string) (encoding.Encoding, bool) {
-	v, ok := encodingOverrides[key]
-	return v, ok
+// UnsafeBytesAsString converts the byte array to string.
+// This function must be called iff the input buffer is not going to be re-used after.
+func UnsafeBytesAsString(buf []byte) string {
+	return unsafe.String(unsafe.SliceData(buf), len(buf))
 }

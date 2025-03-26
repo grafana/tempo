@@ -5,45 +5,48 @@ import (
 )
 
 type cachedReader struct {
-	buffer *bufio.Reader
-	cache []byte
-	cacheCap int
-	cacheLen int
+	buffer  *bufio.Reader
+	cache   []byte
 	caching bool
 }
 
 func newCachedReader(r *bufio.Reader) *cachedReader {
 	return &cachedReader{
-		buffer:   r,
-		cache:    make([]byte, 4096),
-		cacheCap: 4096,
-		cacheLen: 0,
-		caching:  false,
+		buffer:  r,
+		cache:   make([]byte, 0, 4096),
+		caching: false,
 	}
 }
 
 func (c *cachedReader) StartCaching() {
-	c.cacheLen = 0
+	c.cache = c.cache[:0]
 	c.caching = true
 }
 
-func (c *cachedReader) ReadByte() (byte, error) {
-	if !c.caching {
-		return c.buffer.ReadByte()
-	}
-	b, err := c.buffer.ReadByte()
+func (c *cachedReader) ReadByte() (b byte, err error) {
+	b, err = c.buffer.ReadByte()
 	if err != nil {
-		return b, err
+		return
 	}
-	if c.cacheLen < c.cacheCap {
-		c.cache[c.cacheLen] = b
-		c.cacheLen++
+	if c.caching {
+		c.cacheByte(b)
 	}
-	return b, err
+	return
 }
 
 func (c *cachedReader) Cache() []byte {
-	return c.cache[:c.cacheLen]
+	return c.cache
+}
+
+func (c *cachedReader) CacheWithLimit(n int) []byte {
+	if n < 1 {
+		return nil
+	}
+	l := len(c.cache)
+	if n > l {
+		n = l
+	}
+	return c.cache[:n]
 }
 
 func (c *cachedReader) StopCaching() {
@@ -55,11 +58,9 @@ func (c *cachedReader) Read(p []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	if c.caching && c.cacheLen < c.cacheCap {
+	if c.caching {
 		for i := 0; i < n; i++ {
-			c.cache[c.cacheLen] = p[i]
-			c.cacheLen++
-			if c.cacheLen >= c.cacheCap {
+			if !c.cacheByte(p[i]) {
 				break
 			}
 		}
@@ -67,3 +68,12 @@ func (c *cachedReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+func (c *cachedReader) cacheByte(b byte) bool {
+	n := len(c.cache)
+	if n == cap(c.cache) {
+		return false
+	}
+	c.cache = c.cache[:n+1]
+	c.cache[n] = b
+	return true
+}

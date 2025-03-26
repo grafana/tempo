@@ -3,7 +3,14 @@ type: opencensus
 status:
   class: receiver
   stability:
-    beta: [metrics, traces]
+    deprecated: [metrics, traces]
   distributions: [core, contrib, k8s]
+  deprecation:
+    metrics:
+      date: "2025-02-14"
+      migration: "Use OTLP receiver (https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/36791)"
+    traces:
+      date: "2025-02-14"
+      migration: "use OTLP receiver (https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/36791)"
   codeowners:
     active: [open-telemetry/collector-approvers]

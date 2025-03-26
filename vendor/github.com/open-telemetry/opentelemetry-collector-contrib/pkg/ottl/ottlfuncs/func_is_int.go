@@ -28,7 +28,7 @@ func createIsIntFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (o
 	return isInt(args.Target), nil
 }
 
-// nolint:errorlint
+//nolint:errorlint
 func isInt[K any](target ottl.IntGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		_, err := target.Get(ctx, tCtx)

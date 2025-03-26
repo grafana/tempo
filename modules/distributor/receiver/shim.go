@@ -162,7 +162,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	zapLogger := newLogger(logLevel)
 
 	// load config
-	receiverFactories, err := receiver.MakeFactoryMap(
+	receiverFactories, err := otelcol.MakeFactoryMap(
 		jaegerreceiver.NewFactory(),
 		zipkinreceiver.NewFactory(),
 		opencensusreceiver.NewFactory(),
@@ -238,7 +238,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		return nil, err
 	}
 
-	nopType := component.MustNewType("tempo")
 	traceProvider := tracenoop.NewTracerProvider()
 	meterProvider := NewMeterProvider(reg)
 	// todo: propagate a real context?  translate our log configuration into zap?
@@ -277,7 +276,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		}
 
 		params := receiver.Settings{
-			ID: component.NewIDWithName(nopType, fmt.Sprintf("%s_receiver", componentID.Type().String())),
+			ID: component.NewIDWithName(componentID.Type(), fmt.Sprintf("%s_receiver", componentID.Type().String())),
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zapLogger,
 				TracerProvider: traceProvider,

@@ -28,7 +28,7 @@ func createIsStringFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments)
 	return isString(args.Target), nil
 }
 
-// nolint:errorlint
+//nolint:errorlint
 func isString[K any](target ottl.StringGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		_, err := target.Get(ctx, tCtx)

@@ -132,13 +132,13 @@ func TestShim_integration(t *testing.T) {
 			assert.Equal(t, 2, count)
 
 			expected := `
-# HELP tempo_receiver_accepted_spans Number of spans successfully pushed into the pipeline.
-# TYPE tempo_receiver_accepted_spans counter
-tempo_receiver_accepted_spans{receiver="tempo/otlp_receiver", transport="<transport>"} 5
-# HELP tempo_receiver_refused_spans Number of spans that could not be pushed into the pipeline.
-# TYPE tempo_receiver_refused_spans counter
-tempo_receiver_refused_spans{receiver="tempo/otlp_receiver", transport="<transport>"} 0
-`
+			# HELP tempo_receiver_accepted_spans Number of spans successfully pushed into the pipeline.
+			# TYPE tempo_receiver_accepted_spans counter
+			tempo_receiver_accepted_spans{receiver="otlp/otlp_receiver", transport="<transport>"} 5
+			# HELP tempo_receiver_refused_spans Number of spans that could not be pushed into the pipeline.
+			# TYPE tempo_receiver_refused_spans counter
+			tempo_receiver_refused_spans{receiver="otlp/otlp_receiver", transport="<transport>"} 0
+			`
 			expectedWithTransport := strings.ReplaceAll(expected, "<transport>", testCase.expectedTransport)
 
 			err = testutil.GatherAndCompare(reg, strings.NewReader(expectedWithTransport), "tempo_receiver_accepted_spans", "tempo_receiver_refused_spans")
@@ -170,7 +170,7 @@ func runOTelExporter(t *testing.T, factory exporter.Factory, cfg component.Confi
 	exporter, err := factory.CreateTraces(
 		context.Background(),
 		exporter.Settings{
-			ID: component.MustNewID("test"),
+			ID: component.MustNewID(factory.Type().String()),
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zap.NewNop(),
 				TracerProvider: tracenoop.NewTracerProvider(),
