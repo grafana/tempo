@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 )
@@ -209,10 +211,18 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
+			var ref storage.SeriesRef
+			ref, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 			if err != nil {
 				return
 			}
+			
+			// Add metadata for count series
+			_, _ = appender.UpdateMetadata(ref, s.countLabels, metadata.Metadata{
+				Type: model.MetricTypeGauge,
+				Unit: h.unit,
+				Help: h.help,
+			})
 		}
 
 		// sum
@@ -231,10 +241,18 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 		for i := range h.bucketLabels {
 			if s.isNew() {
 				endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-				_, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
+				var ref storage.SeriesRef
+				ref, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
 				if err != nil {
 					return
 				}
+				
+				// Add metadata for bucket series
+				_, _ = appender.UpdateMetadata(ref, s.bucketLabels[i], metadata.Metadata{
+					Type: model.MetricTypeGauge,
+					Unit: h.unit,
+					Help: h.help,
+				})
 			}
 			ref, err := appender.Append(0, s.bucketLabels[i], timeMs, s.buckets[i].Load())
 			if err != nil {

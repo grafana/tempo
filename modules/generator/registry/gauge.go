@@ -4,7 +4,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 )
@@ -34,6 +36,15 @@ type gaugeSeries struct {
 	labels      labels.Labels
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
+	firstSeries *atomic.Bool
+}
+
+func (gs *gaugeSeries) isNew() bool {
+	return gs.firstSeries.Load()
+}
+
+func (gs *gaugeSeries) registerSeenSeries() {
+	gs.firstSeries.Store(false)
 }
 
 var (
@@ -130,6 +141,7 @@ func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaug
 		labels:      lb.Labels(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+		firstSeries: atomic.NewBool(true),
 	}
 }
 
@@ -154,9 +166,29 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 
 	for _, s := range g.series {
 		t := time.UnixMilli(timeMs)
-		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
-		if err != nil {
-			return
+		
+		// Check if this is the first time we're seeing this series
+		if s.isNew() {
+			var ref storage.SeriesRef
+			ref, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
+			if err != nil {
+				return
+			}
+			
+			// Add metadata for the gauge
+			_, _ = appender.UpdateMetadata(ref, s.labels, metadata.Metadata{
+				Type: model.MetricTypeGauge,
+				Unit: g.unit,
+				Help: g.help,
+			})
+			
+			// Mark as seen
+			s.registerSeenSeries()
+		} else {
+			_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
+			if err != nil {
+				return
+			}
 		}
 		// TODO: support exemplars
 	}

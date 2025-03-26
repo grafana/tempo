@@ -54,6 +54,7 @@ func (n noopAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.
 type capturingAppender struct {
 	samples      []sample
 	exemplars    []exemplarSample
+	metadata     []metadataSample
 	isCommitted  bool
 	isRolledback bool
 }
@@ -67,6 +68,11 @@ type sample struct {
 type exemplarSample struct {
 	l labels.Labels
 	e exemplar.Exemplar
+}
+
+type metadataSample struct {
+	l labels.Labels
+	m metadata.Metadata
 }
 
 func newSample(lbls map[string]string, t int64, v float64) sample {
@@ -85,6 +91,15 @@ func newExemplar(lbls map[string]string, e exemplar.Exemplar) exemplarSample {
 	return exemplarSample{
 		l: l,
 		e: e,
+	}
+}
+
+func newMetadata(lbls map[string]string, m metadata.Metadata) metadataSample {
+	l := labels.FromMap(lbls)
+	sort.Slice(l, func(i, j int) bool { return l[i].Name < l[j].Name })
+	return metadataSample{
+		l: l,
+		m: m,
 	}
 }
 
@@ -125,8 +140,9 @@ func (c *capturingAppender) Rollback() error {
 	return nil
 }
 func (c *capturingAppender) SetOptions(_ *storage.AppendOptions) {}
-func (c *capturingAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.Metadata) (storage.SeriesRef, error) {
-	return 0, nil
+func (c *capturingAppender) UpdateMetadata(ref storage.SeriesRef, l labels.Labels, m metadata.Metadata) (storage.SeriesRef, error) {
+	c.metadata = append(c.metadata, metadataSample{l, m})
+	return ref, nil
 }
 
 func (c *capturingAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {

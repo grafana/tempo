@@ -63,6 +63,9 @@ overrides:
 	generatorConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	generatorConfig.Storage.Path = t.TempDir()
 	generatorConfig.Ring.KVStore.Store = "inmemory"
+	// Set a dummy instance address to avoid network interface lookup
+	generatorConfig.Ring.InstanceAddr = "localhost"
+	generatorConfig.Ring.InstanceInterfaceNames = []string{"loopback"}
 	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, newTestLogger(t))
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))

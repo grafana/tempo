@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -297,6 +298,327 @@ func TestHistogramOverridesConfig(t *testing.T) {
 			require.IsType(t, c.typeOfHistogram, tt)
 		})
 	}
+}
+
+func TestManagedRegistry_Metadata(t *testing.T) {
+	appender := &capturingAppender{}
+
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	// Create metrics with help text and unit
+	counter := registry.NewCounter("test_counter", "Help text for counter", "count")
+	gauge := registry.NewGauge("test_gauge", "Help text for gauge", "bytes")
+	histogram := registry.NewHistogram("test_histogram", "Help text for histogram", "seconds", []float64{1.0, 2.0}, HistogramModeClassic)
+
+	// Use the metrics to generate series
+	counter.Inc(nil, 1.0)
+	gauge.Set(nil, 42.0)
+	histogram.ObserveWithExemplar(nil, 1.5, "", 1.0)
+
+	// Collect metrics and verify metadata
+	registry.CollectMetrics(context.Background())
+
+	// Verify that metadata was collected
+	require.NotEmpty(t, appender.metadata, "No metadata was collected")
+
+	// Helper function to find metadata for a given metric
+	findMetadata := func(metricName string) *metadata.Metadata {
+		for _, m := range appender.metadata {
+			name := ""
+			for _, label := range m.l {
+				if label.Name == "__name__" {
+					name = label.Value
+					break
+				}
+			}
+			if name == metricName {
+				return &m.m
+			}
+		}
+		return nil
+	}
+
+	// Verify counter metadata
+	counterMetadata := findMetadata("test_counter")
+	require.NotNil(t, counterMetadata, "Counter metadata not found")
+	assert.Equal(t, "Help text for counter", counterMetadata.Help)
+	assert.Equal(t, "count", counterMetadata.Unit)
+
+	// Verify gauge metadata
+	gaugeMetadata := findMetadata("test_gauge")
+	require.NotNil(t, gaugeMetadata, "Gauge metadata not found")
+	assert.Equal(t, "Help text for gauge", gaugeMetadata.Help)
+	assert.Equal(t, "bytes", gaugeMetadata.Unit)
+
+	// Verify histogram metadata - histograms have multiple series
+	histogramCountMetadata := findMetadata("test_histogram_count")
+	require.NotNil(t, histogramCountMetadata, "Histogram count metadata not found")
+	assert.Equal(t, "Help text for histogram", histogramCountMetadata.Help)
+	assert.Equal(t, "seconds", histogramCountMetadata.Unit)
+
+	// Check histogram bucket metadata
+	histogramBucketMetadata := findMetadata("test_histogram_bucket")
+	require.NotNil(t, histogramBucketMetadata, "Histogram bucket metadata not found")
+	assert.Equal(t, "Help text for histogram", histogramBucketMetadata.Help)
+	assert.Equal(t, "seconds", histogramBucketMetadata.Unit)
+}
+
+func TestManagedRegistry_MetadataSendOnce(t *testing.T) {
+	appender := &capturingAppender{}
+
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	// Create a gauge and update it multiple times
+	gauge := registry.NewGauge("test_gauge", "Help text for gauge", "bytes")
+	gauge.Set(nil, 42.0)
+
+	// First collection - should include metadata
+	registry.CollectMetrics(context.Background())
+	initialMetadataCount := len(appender.metadata)
+	require.NotZero(t, initialMetadataCount, "No metadata collected in first collection")
+
+	// Keep track of metadata sent for the gauge
+	countMetadataForGauge := 0
+	for _, m := range appender.metadata {
+		name := ""
+		for _, label := range m.l {
+			if label.Name == "__name__" {
+				name = label.Value
+				break
+			}
+		}
+		if name == "test_gauge" {
+			countMetadataForGauge++
+		}
+	}
+	require.Equal(t, 1, countMetadataForGauge, "Expected exactly one metadata entry for gauge")
+
+	// Reset appender
+	appender.metadata = nil
+
+	// Update the gauge again and collect
+	gauge.Set(nil, 84.0)
+	registry.CollectMetrics(context.Background())
+
+	// Verify no new metadata was sent for the existing series
+	for _, m := range appender.metadata {
+		name := ""
+		for _, label := range m.l {
+			if label.Name == "__name__" {
+				name = label.Value
+				break
+			}
+		}
+		require.NotEqual(t, "test_gauge", name, "Should not have sent metadata again for existing gauge series")
+	}
+
+	// Reset appender again
+	appender.metadata = nil
+
+	// Now create a new series with different labels
+	gauge.Set(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 100.0)
+	registry.CollectMetrics(context.Background())
+
+	// Verify metadata was sent for the new series
+	newSeriesMetadataFound := false
+	for _, m := range appender.metadata {
+		name := ""
+		hasLabel := false
+		for _, label := range m.l {
+			if label.Name == "__name__" && label.Value == "test_gauge" {
+				name = label.Value
+			}
+			if label.Name == "label" && label.Value == "value-1" {
+				hasLabel = true
+			}
+		}
+		if name == "test_gauge" && hasLabel {
+			newSeriesMetadataFound = true
+			assert.Equal(t, "Help text for gauge", m.m.Help)
+			assert.Equal(t, "bytes", m.m.Unit)
+		}
+	}
+	assert.True(t, newSeriesMetadataFound, "Metadata for new gauge series with new labels not found")
+}
+
+func TestCounter_MetadataSendOnce(t *testing.T) {
+	appender := &capturingAppender{}
+
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	// Create a counter with help text and unit
+	counter := registry.NewCounter("test_counter", "Help text for counter", "operations")
+	
+	// Use the counter to generate series
+	counter.Inc(nil, 1.0)
+	
+	// Collect metrics and verify metadata
+	registry.CollectMetrics(context.Background())
+	
+	// Verify that metadata was collected
+	require.NotEmpty(t, appender.metadata, "No metadata was collected")
+	
+	// Helper function to find metadata for a given metric
+	findMetadata := func(metricName string) *metadata.Metadata {
+		for _, m := range appender.metadata {
+			name := ""
+			for _, label := range m.l {
+				if label.Name == "__name__" {
+					name = label.Value
+					break
+				}
+			}
+			if name == metricName {
+				return &m.m
+			}
+		}
+		return nil
+	}
+	
+	// Verify counter metadata
+	counterMetadata := findMetadata("test_counter")
+	require.NotNil(t, counterMetadata, "Counter metadata not found")
+	assert.Equal(t, "Help text for counter", counterMetadata.Help)
+	assert.Equal(t, "operations", counterMetadata.Unit)
+	
+	// Reset appender
+	appender.metadata = nil
+	
+	// Update the counter again and collect
+	counter.Inc(nil, 2.0)
+	registry.CollectMetrics(context.Background())
+	
+	// Verify no new metadata was sent for the existing series
+	for _, m := range appender.metadata {
+		name := ""
+		for _, label := range m.l {
+			if label.Name == "__name__" {
+				name = label.Value
+				break
+			}
+		}
+		require.NotEqual(t, "test_counter", name, "Should not have sent metadata again for existing counter series")
+	}
+	
+	// Reset appender again
+	appender.metadata = nil
+	
+	// Now create a new series with different labels
+	counter.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 3.0)
+	registry.CollectMetrics(context.Background())
+	
+	// Verify metadata was sent for the new series
+	newSeriesMetadataFound := false
+	for _, m := range appender.metadata {
+		name := ""
+		hasLabel := false
+		for _, label := range m.l {
+			if label.Name == "__name__" && label.Value == "test_counter" {
+				name = label.Value
+			}
+			if label.Name == "label" && label.Value == "value-1" {
+				hasLabel = true
+			}
+		}
+		if name == "test_counter" && hasLabel {
+			newSeriesMetadataFound = true
+			assert.Equal(t, "Help text for counter", m.m.Help)
+			assert.Equal(t, "operations", m.m.Unit)
+		}
+	}
+	assert.True(t, newSeriesMetadataFound, "Metadata for new counter series with new labels not found")
+}
+
+func TestHistogram_MetadataMultipleSeries(t *testing.T) {
+	appender := &capturingAppender{}
+
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	// Create a histogram with help text and unit
+	histogram := registry.NewHistogram("test_histogram", "Help text for histogram", "seconds", []float64{1.0, 2.0}, HistogramModeClassic)
+
+	// Use the histogram to generate series
+	histogram.ObserveWithExemplar(nil, 1.5, "", 1.0)
+
+	// Collect metrics and verify metadata
+	registry.CollectMetrics(context.Background())
+
+	// Verify that metadata was collected
+	require.NotEmpty(t, appender.metadata, "No metadata was collected")
+
+	// Helper function to find metadata for a given metric
+	findMetadata := func(metricName string) *metadata.Metadata {
+		for _, m := range appender.metadata {
+			name := ""
+			for _, label := range m.l {
+				if label.Name == "__name__" {
+					name = label.Value
+					break
+				}
+			}
+			if name == metricName {
+				return &m.m
+			}
+		}
+		return nil
+	}
+
+	// Verify histogram metadata components
+	histogramCountMetadata := findMetadata("test_histogram_count")
+	require.NotNil(t, histogramCountMetadata, "Histogram count metadata not found")
+	assert.Equal(t, "Help text for histogram", histogramCountMetadata.Help)
+	assert.Equal(t, "seconds", histogramCountMetadata.Unit)
+
+	// Reset appender
+	appender.metadata = nil
+
+	// Update the histogram again and collect
+	histogram.ObserveWithExemplar(nil, 2.5, "", 1.0)
+	registry.CollectMetrics(context.Background())
+
+	// Verify no new metadata was sent for the existing series
+	for _, m := range appender.metadata {
+		name := ""
+		for _, label := range m.l {
+			if label.Name == "__name__" {
+				name = label.Value
+				break
+			}
+		}
+		require.NotEqual(t, "test_histogram_count", name, "Should not have sent metadata again for existing histogram count series")
+	}
+
+	// Reset appender again
+	appender.metadata = nil
+
+	// Now create a new series with different labels
+	histogram.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 3.5, "", 1.0)
+	registry.CollectMetrics(context.Background())
+
+	// Verify metadata was sent for the new series
+	newSeriesMetadataFound := false
+	for _, m := range appender.metadata {
+		name := ""
+		hasLabel := false
+		for _, label := range m.l {
+			if label.Name == "__name__" && label.Value == "test_histogram_count" {
+				name = label.Value
+			}
+			if label.Name == "label" && label.Value == "value-1" {
+				hasLabel = true
+			}
+		}
+		if name == "test_histogram_count" && hasLabel {
+			newSeriesMetadataFound = true
+			assert.Equal(t, "Help text for histogram", m.m.Help)
+			assert.Equal(t, "seconds", m.m.Unit)
+		}
+	}
+	assert.True(t, newSeriesMetadataFound, "Metadata for new histogram series with new labels not found")
 }
 
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
