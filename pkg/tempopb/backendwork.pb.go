@@ -139,7 +139,6 @@ func (m *CompactionDetail) GetOutput() []string {
 	return nil
 }
 
-// RetentionDetail contains fields specific to retention jobs
 type RetentionDetail struct {
 }
 
