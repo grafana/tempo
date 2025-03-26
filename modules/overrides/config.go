@@ -114,12 +114,16 @@ type LocalBlocksOverrides struct {
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout,omitempty" json:"complete_block_timeout,omitempty"`
 }
 
+type HostInfoOverrides struct {
+	HostIdentifiers []string `yaml:"host_identifiers,omitempty" json:"host_identifies,omitempty"`
+	MetricName      string   `yaml:"metric_name,omitempty" json:"metric_name,omitempty"`
+}
+
 type ProcessorOverrides struct {
 	ServiceGraphs ServiceGraphsOverrides `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
-
-	SpanMetrics SpanMetricsOverrides `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
-
-	LocalBlocks LocalBlocksOverrides `yaml:"local_blocks,omitempty" json:"local_blocks,omitempty"`
+	SpanMetrics   SpanMetricsOverrides   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
+	LocalBlocks   LocalBlocksOverrides   `yaml:"local_blocks,omitempty" json:"local_blocks,omitempty"`
+	HostInfo      HostInfoOverrides      `yaml:"host_info,omitempty" json:"host_info,omitempty"`
 }
 
 type RemoteWriteHeaders map[string]config.Secret

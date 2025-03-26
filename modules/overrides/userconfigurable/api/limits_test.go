@@ -48,6 +48,10 @@ func Test_limitsFromOverrides(t *testing.T) {
 						HistogramBuckets:             []float64{1, 2, 5},
 						TargetInfoExcludedDimensions: []string{"no"},
 					},
+					HostInfo: overrides.HostInfoOverrides{
+						HostIdentifiers: []string{"k8s.node.name", "host.id"},
+						MetricName:      "traces_host_info",
+					},
 				},
 			},
 		},
@@ -113,6 +117,13 @@ func Test_limitsFromOverrides(t *testing.T) {
         "target_info_excluded_dimensions": [
           "no"
         ]
+      },
+      "host_info": {
+        "host_identifiers": [
+          "k8s.node.name",
+          "host.id"
+        ],
+        "metric_name": "traces_host_info"
       }
     }
   }

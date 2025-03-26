@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
@@ -201,6 +202,41 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+	})
+
+	t.Run("add hostinfo processor", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name: {},
+			spanmetrics.Name:   {},
+			hostinfo.Name:      {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		assert.Len(t, instance.processors, 3)
+		assert.Equal(t, instance.processors[servicegraphs.Name].Name(), servicegraphs.Name)
+		assert.Equal(t, instance.processors[spanmetrics.Name].Name(), spanmetrics.Name)
+		assert.Equal(t, instance.processors[hostinfo.Name].Name(), hostinfo.Name)
+	})
+
+	t.Run("replace hostinfo processor", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name: {},
+			spanmetrics.Name:   {},
+			hostinfo.Name:      {},
+		}
+		overrides.hostInfoHostIdentifiers = []string{"host.id"}
+
+		overrides.hostInfoMetricName = "sample_traces_host_info"
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		var expectedConfig hostinfo.Config
+		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		expectedConfig.HostIdentifiers = []string{"host.id"}
+		expectedConfig.MetricName = "sample_traces_host_info"
+
+		assert.Equal(t, expectedConfig, instance.processors[hostinfo.Name].(*hostinfo.Processor).Cfg)
 	})
 
 	t.Run("remove processor", func(t *testing.T) {

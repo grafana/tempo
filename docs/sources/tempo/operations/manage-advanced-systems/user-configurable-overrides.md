@@ -81,6 +81,10 @@ metrics_generator:
       ]
       [enable_target_info: <bool>]
       [target_info_excluded_dimensions: <list of string>]
+
+    host_info:
+      [metric_name: <string>]
+      [host_identifiers: <list of string>]
 ```
 
 ## API
@@ -98,12 +102,13 @@ If the tenant is run in distributed mode, only the query-frontend will accept AP
 Returns the current overrides and it's version.
 
 Query-parameters:
+
 - `scope`: whether to return overrides from the API only `api` or merge it with the runtime overrides `merged`. Defaults to `api`.
 
 Example:
 
 ```shell
-$ curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged`
+curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged
 ```
 
 #### POST /api/overrides
@@ -156,13 +161,13 @@ $ curl -v http://localhost:3100/api/overrides
 Requests that modify or delete overrides need to pass the current version using the `If-Match` header:
 
 ```shell
-$ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "..."
+curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "..."
 ```
 
 This example uses overrides in the `overrides.json` file with the location in `pwd`:
 
 ```shell
-$ curl -X POST -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data @overrides.json
+curl -X POST -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data @overrides.json
 ```
 
 If the version doesn't match the version in the backend, the request is rejected with HTTP error 412.
@@ -190,5 +195,5 @@ overrides:
 You can bypass this check by setting the query parameter `skip-conflicting-overrides-check=true`:
 
 ```shell
-$ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides?skip-conflicting-overrides-check=true --data "..."
+curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides?skip-conflicting-overrides-check=true --data "..."
 ```
