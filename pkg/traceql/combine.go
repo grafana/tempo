@@ -353,7 +353,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	// Here is where the job results are reentered into the pipeline
 	seriesCount := q.eval.ObserveSeries(resp.Series)
 
-	if q.maxSeries > 0 && seriesCount >= q.maxSeries {
+	if (q.maxSeries > 0 && seriesCount >= q.maxSeries) || resp.Status == tempopb.PartialStatus_PARTIAL {
 		q.maxSeriesReached = true
 	}
 
@@ -369,10 +369,14 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 }
 
 func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
-	return &tempopb.QueryRangeResponse{
+	response := &tempopb.QueryRangeResponse{
 		Series:  q.eval.Results().ToProto(q.req),
 		Metrics: q.metrics,
 	}
+	if q.maxSeriesReached {
+		response.Status = tempopb.PartialStatus_PARTIAL
+	}
+	return response
 }
 
 func (q *QueryRangeCombiner) MaxSeriesReached() bool {
