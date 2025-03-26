@@ -371,6 +371,7 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 	return factory.CreateTraces(
 		context.Background(),
 		exporter.Settings{
+			ID: component.MustNewID(factory.Type().String()),
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         logger,
 				TracerProvider: tnoop.NewTracerProvider(),
