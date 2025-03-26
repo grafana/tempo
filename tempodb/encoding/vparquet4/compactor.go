@@ -27,6 +27,9 @@ func NewCompactor(opts common.CompactionOptions) *Compactor {
 		multiblockIteratorFactory: func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row] {
 			return newMultiblockIterator(bookmarks, combine)
 		},
+		streamingBlockFactory: func(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
+			return newStreamingBlock(ctx, cfg, meta, r, to, createBufferedWriter)
+		},
 	}
 }
 
@@ -35,6 +38,7 @@ type Compactor struct {
 
 	// factories for testing
 	multiblockIteratorFactory func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row]
+	streamingBlockFactory     func(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock
 }
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
@@ -176,7 +180,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 				DedicatedColumns:  inputs[0].DedicatedColumns,
 			}
 
-			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
+			currentBlock = c.streamingBlockFactory(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
