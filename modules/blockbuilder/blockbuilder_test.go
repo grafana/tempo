@@ -99,7 +99,7 @@ func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T)
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
 	_, err = b.consume(ctx)
-	require.ErrorContains(t, err, "No partitions assigned")
+	require.ErrorIs(t, err, errNoPartitionsAssigned)
 }
 
 func TestBlockbuilder_getAssignedPartitions(t *testing.T) {

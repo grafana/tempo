@@ -77,6 +77,8 @@ var (
 	}, []string{"partition"})
 
 	tracer = otel.Tracer("modules/blockbuilder")
+
+	errNoPartitionsAssigned = errors.New("no partitions assigned")
 )
 
 type BlockBuilder struct {
@@ -234,7 +236,7 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	defer span.End()
 
 	if len(partitions) == 0 {
-		return b.cfg.ConsumeCycleDuration, errors.New("no partitions assigned")
+		return b.cfg.ConsumeCycleDuration, errNoPartitionsAssigned
 	}
 
 	level.Info(b.logger).Log("msg", "starting consume cycle", "active_partitions", formatActivePartitions(partitions))
