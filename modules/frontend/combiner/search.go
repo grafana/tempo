@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -42,6 +43,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
 	completedThroughTracker := &ShardCompletionTracker{}
+	metricsCollector := collector.NewSimpleMetricsCollector()
 
 	c := &genericCombiner[*tempopb.SearchResponse]{
 		httpStatusCode: 200,
@@ -62,7 +64,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 
 			if partial.Metrics != nil {
 				final.Metrics.CompletedJobs++
-				final.Metrics.InspectedBytes += partial.Metrics.InspectedBytes
+				metricsCollector.Add(partial.Metrics.InspectedBytes)
 				final.Metrics.InspectedTraces += partial.Metrics.InspectedTraces
 			}
 
@@ -85,6 +87,12 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 			// metrics are already combined on the passed in final
 			final.Traces = metadataCombiner.Metadata()
 
+			// Apply metrics from collector
+			if final.Metrics == nil {
+				final.Metrics = &tempopb.SearchMetrics{}
+			}
+			final.Metrics.InspectedBytes = metricsCollector.TotalValue()
+
 			addRootSpanNotReceivedText(final.Traces)
 			return final, nil
 		},
@@ -94,6 +102,12 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 				Traces:  make([]*tempopb.TraceSearchMetadata, 0, len(diffTraces)),
 				Metrics: current.Metrics,
 			}
+
+			// Apply metrics from collector to the diff result
+			if diff.Metrics == nil {
+				diff.Metrics = &tempopb.SearchMetrics{}
+			}
+			diff.Metrics.InspectedBytes = metricsCollector.TotalValue()
 
 			metadataFn := metadataCombiner.Metadata
 			if keepMostRecent {
@@ -127,8 +141,6 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 
 			return diff, nil
 		},
-		// search combiner doesn't use current in the way i would have expected. it only tracks metrics through current and uses the results map for the actual traces.
-		//  should we change this?
 		quit: func(_ *tempopb.SearchResponse) bool {
 			completedThroughSeconds := completedThroughTracker.completedThroughSeconds
 			// have we completed any shards?
