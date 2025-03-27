@@ -1441,7 +1441,15 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) int {
 			})
 		}
 	}
-	return len(h.ss)
+	maxBuckets := 0
+	for _, s := range h.ss {
+		for _, h := range s.hist {
+			if len(h.Buckets) > maxBuckets {
+				maxBuckets = len(h.Buckets)
+			}
+		}
+	}
+	return len(h.ss) * maxBuckets
 }
 
 func (h *HistogramAggregator) Results() SeriesSet {

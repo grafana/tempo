@@ -35,9 +35,9 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
 
-		// if a limit is being enforced, honor the request if it is less than the limit
-		// else set it to max limit
-		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && req.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) {
+		// if a limit is being enforced in the system, honor the limit in the incoming request if it is less than the system limit
+		// else set it to system limit
+		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (req.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || req.MaxSeries == 0) {
 			req.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
 		}
 
@@ -89,7 +89,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 
 		// if a limit is being enforced, honor the request if it is less than the limit
 		// else set it to max limit
-		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && queryRangeReq.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) {
+		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (queryRangeReq.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || queryRangeReq.MaxSeries == 0) {
 			queryRangeReq.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
 		}
 		if err != nil {

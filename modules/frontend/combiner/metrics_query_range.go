@@ -23,6 +23,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 	}
 
 	var prevResp *tempopb.QueryRangeResponse
+	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
@@ -54,7 +55,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 				// it's possible that the last response pushed us over the max series limit.
 				resp.Series = resp.Series[:maxSeries]
 				resp.Status = tempopb.PartialStatus_PARTIAL
-				resp.Message = fmt.Sprintf("Response exceeds maximum series of %d, a partial response is returned", maxSeries)
+				resp.Message = maxSeriesReachedErrorMsg
 			}
 			attachExemplars(req, resp)
 
@@ -81,7 +82,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 
 			if combiner.MaxSeriesReached() {
 				diff.Status = tempopb.PartialStatus_PARTIAL
-				diff.Message = fmt.Sprintf("Response exceeds maximum series of %d, a partial response is returned", maxSeries)
+				diff.Message = maxSeriesReachedErrorMsg
 			}
 
 			return diff, nil
