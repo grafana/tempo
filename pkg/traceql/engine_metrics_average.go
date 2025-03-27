@@ -50,9 +50,8 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 	a.exemplarFn = exemplarFnFor(a.attr)
 }
 
-func (a *averageOverTimeAggregator) observe(span Span) int {
+func (a *averageOverTimeAggregator) observe(span Span) {
 	a.agg.Observe(span)
-	return len(a.agg.Series())
 }
 
 func (a *averageOverTimeAggregator) observeExemplar(span Span) {
@@ -60,8 +59,8 @@ func (a *averageOverTimeAggregator) observeExemplar(span Span) {
 	a.agg.ObserveExemplar(span, v, ts)
 }
 
-func (a *averageOverTimeAggregator) observeSeries(ss []*tempopb.TimeSeries) int {
-	return a.seriesAgg.Combine(ss)
+func (a *averageOverTimeAggregator) observeSeries(ss []*tempopb.TimeSeries) {
+	a.seriesAgg.Combine(ss)
 }
 
 func (a *averageOverTimeAggregator) result() SeriesSet {
@@ -80,6 +79,13 @@ func (a *averageOverTimeAggregator) result() SeriesSet {
 		}
 	}
 	return ss
+}
+
+func (a *averageOverTimeAggregator) length() int {
+	if a.agg != nil {
+		return a.agg.Length()
+	}
+	return a.seriesAgg.Length()
 }
 
 func (a *averageOverTimeAggregator) extractConditions(request *FetchSpansRequest) {
@@ -245,7 +251,7 @@ var (
 	nan                  = math.Float64frombits(normalNaN)
 )
 
-func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) int {
+func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 	// We traverse the TimeSeries to initialize new TimeSeries and map the counter series with the position in the `in` array
 	countPosMapper := make(map[string]int, len(in)/2)
 	for i, ts := range in {
@@ -279,7 +285,6 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) int 
 			b.aggregateExemplars(ts, b.weightedAverageSeries[ts.PromLabels])
 		}
 	}
-	return len(b.weightedAverageSeries)
 }
 
 func (b *averageOverTimeSeriesAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *averageSeries) {
@@ -332,6 +337,10 @@ func (b *averageOverTimeSeriesAggregator) Results() SeriesSet {
 		ss[countSeries.Labels.String()] = countSeries
 	}
 	return ss
+}
+
+func (b *averageOverTimeSeriesAggregator) Length() int {
+	return len(b.weightedAverageSeries)
 }
 
 // Accumulated results of average over time
@@ -460,6 +469,10 @@ func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float
 		TimestampMs: ts,
 	})
 	g.series[g.buf.fast] = s
+}
+
+func (g *avgOverTimeSpanAggregator[F, S]) Length() int {
+	return len(g.series)
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S) (Labels, string) {

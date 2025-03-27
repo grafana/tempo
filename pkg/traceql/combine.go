@@ -351,7 +351,8 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	}
 
 	// Here is where the job results are reentered into the pipeline
-	seriesCount := q.eval.ObserveSeries(resp.Series)
+	q.eval.ObserveSeries(resp.Series)
+	seriesCount := q.eval.Length()
 
 	if (q.maxSeries > 0 && seriesCount >= q.maxSeries) || resp.Status == tempopb.PartialStatus_PARTIAL {
 		q.maxSeriesReached = true
