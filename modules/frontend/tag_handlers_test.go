@@ -645,6 +645,197 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	require.Equal(t, overwriteResp, actualResp)
 }
 
+func TestTagValuesCachedMetrics(t *testing.T) {
+	// set up backend
+	meta := &backend.BlockMeta{
+		StartTime:    time.Unix(15, 0),
+		EndTime:      time.Unix(16, 0),
+		Size_:        defaultTargetBytesPerRequest,
+		TotalRecords: 1,
+		BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000123"),
+	}
+	rdr := &mockReader{
+		metas: []*backend.BlockMeta{meta},
+	}
+
+	// set up cache
+	c := test.NewMockClient()
+	p := test.NewMockProvider()
+	err := p.AddCache(cache.RoleFrontendSearch, c)
+	require.NoError(t, err)
+
+	// Set up a mock response with specific metrics that should be cleared when cached
+	f := frontendWithSettings(t, &mockRoundTripper{
+		responseFn: func() proto.Message {
+			return &tempopb.SearchTagValuesV2Response{
+				TagValues: []*tempopb.TagValue{
+					{
+						Type:  "keyword",
+						Value: "frontend",
+					},
+					{
+						Type:  "keyword",
+						Value: "backend",
+					},
+					{
+						Type:  "keyword",
+						Value: "database",
+					},
+				},
+				Metrics: &tempopb.MetadataMetrics{
+					InspectedBytes: 1024,
+				},
+			}
+		},
+	}, rdr, nil, p)
+
+	// setup query
+	tenant := "foo"
+	tagName := "service.name"
+	hash := fnv1a.HashString64(tagName)
+	start := uint32(10)
+	end := uint32(20)
+	startTime := time.Unix(int64(start), 0)
+	endTime := time.Unix(int64(end), 0)
+	cacheKey := cacheKey(cacheKeyPrefixSearchTagValues, tenant, hash, startTime, endTime, meta, 0, 1)
+
+	// confirm cache key doesn't exist
+	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
+	require.Equal(t, 0, len(bufs))
+
+	// execute query
+	path := fmt.Sprintf("/api/v2/search/tag/%s/values?start=%d&end=%d", tagName, start, end)
+	req := httptest.NewRequest("GET", path, nil)
+	req = mux.SetURLVars(req, map[string]string{"tagName": tagName})
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, tenant)
+	req = req.WithContext(ctx)
+
+	respWriter := httptest.NewRecorder()
+	f.SearchTagsValuesV2Handler.ServeHTTP(respWriter, req)
+	resp := respWriter.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	// parse response
+	actualResp := &tempopb.SearchTagValuesV2Response{}
+	bytesResp, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// verify metrics are collected
+	require.Equal(t, uint64(1024), actualResp.Metrics.InspectedBytes)
+
+	// execute query again
+	respWriter = httptest.NewRecorder()
+	f.SearchTagsValuesV2Handler.ServeHTTP(respWriter, req)
+	resp = respWriter.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	// parse cached response
+	actualResp = &tempopb.SearchTagValuesV2Response{}
+	bytesResp, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// verify metrics are 0 because the response was cached
+	require.Equal(t, uint64(0), actualResp.Metrics.InspectedBytes)
+}
+
+func TestTagsCachedMetrics(t *testing.T) {
+	// set up backend
+	meta := &backend.BlockMeta{
+		StartTime:    time.Unix(15, 0),
+		EndTime:      time.Unix(16, 0),
+		Size_:        defaultTargetBytesPerRequest,
+		TotalRecords: 1,
+		BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000123"),
+	}
+	rdr := &mockReader{
+		metas: []*backend.BlockMeta{meta},
+	}
+
+	// set up cache
+	c := test.NewMockClient()
+	p := test.NewMockProvider()
+	err := p.AddCache(cache.RoleFrontendSearch, c)
+	require.NoError(t, err)
+
+	// Set up a mock response with specific metrics that should be cleared when cached
+	f := frontendWithSettings(t, &mockRoundTripper{
+		responseFn: func() proto.Message {
+			return &tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: "resource",
+						Tags: []string{"service.name", "http.method", "http.status_code"},
+					},
+					{
+						Name: "span",
+						Tags: []string{"span.kind", "span.name", "span.status"},
+					},
+				},
+				Metrics: &tempopb.MetadataMetrics{
+					InspectedBytes: 2048,
+				},
+			}
+		},
+	}, rdr, nil, p)
+
+	// setup query
+	tenant := "foo"
+	scope := "resource"
+	hash := fnv1a.HashString64(scope)
+	start := uint32(10)
+	end := uint32(20)
+	startTime := time.Unix(int64(start), 0)
+	endTime := time.Unix(int64(end), 0)
+	cacheKey := cacheKey(cacheKeyPrefixSearchTag, tenant, hash, startTime, endTime, meta, 0, 1)
+
+	// confirm cache key doesn't exist
+	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
+	require.Equal(t, 0, len(bufs))
+
+	// execute query
+	path := fmt.Sprintf("/api/v2/search/tags?start=%d&end=%d&scope=%s", start, end, scope)
+	req := httptest.NewRequest("GET", path, nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, tenant)
+	req = req.WithContext(ctx)
+
+	respWriter := httptest.NewRecorder()
+	f.SearchTagsV2Handler.ServeHTTP(respWriter, req)
+	resp := respWriter.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	// parse response
+	actualResp := &tempopb.SearchTagsV2Response{}
+	bytesResp, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// verify metrics are collected
+	require.Equal(t, uint64(2048), actualResp.Metrics.InspectedBytes)
+
+	// execute query again
+	respWriter = httptest.NewRecorder()
+	f.SearchTagsV2Handler.ServeHTTP(respWriter, req)
+	resp = respWriter.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	// parse cached response
+	actualResp = &tempopb.SearchTagsV2Response{}
+	bytesResp, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// verify metrics are 0 because the response was cached
+	require.Equal(t, uint64(0), actualResp.Metrics.InspectedBytes)
+}
+
 func TestParseParams(t *testing.T) {
 	tests := []struct {
 		name                   string

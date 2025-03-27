@@ -589,7 +589,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	end := uint32(20)
 	cacheKey := searchJobCacheKey(tenant, hash, time.Unix(int64(start), 0), time.Unix(int64(end), 0), meta, 0, 1)
 
-	// confirm cache key coesn't exist
+	// confirm cache key doesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
 	require.Equal(t, 0, len(bufs))
 
@@ -632,7 +632,7 @@ func TestSearchAccessesCache(t *testing.T) {
 			RootTraceName:   "bar2",
 		}},
 		Metrics: &tempopb.SearchMetrics{
-			InspectedBytes: 11,
+			InspectedBytes: 0, // the cached response will have 0 inspected bytes no matter what value we have here
 		},
 	}
 	overwriteString, err := (&jsonpb.Marshaler{}).MarshalToString(overwriteResp)
@@ -670,6 +670,89 @@ func cacheResponsesEqual(t *testing.T, cacheResponse *tempopb.SearchResponse, pi
 	}
 
 	require.Equal(t, pipelineResp, cacheResponse)
+}
+
+func TestSearchCachedMetrics(t *testing.T) {
+	// set up backend
+	tenant := "foo"
+	meta := &backend.BlockMeta{
+		StartTime:    time.Unix(15, 0),
+		EndTime:      time.Unix(16, 0),
+		Size_:        defaultTargetBytesPerRequest,
+		TotalRecords: 1,
+		BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000123"),
+	}
+	rdr := &mockReader{
+		metas: []*backend.BlockMeta{meta},
+	}
+
+	// set up cache
+	c := test.NewMockClient()
+	p := test.NewMockProvider()
+	err := p.AddCache(cache.RoleFrontendSearch, c)
+	require.NoError(t, err)
+	f := frontendWithSettings(t, nil, rdr, nil, p)
+
+	// set up query
+	query := "{}"
+	hash := hashForSearchRequest(&tempopb.SearchRequest{Query: query, Limit: 3, SpansPerSpanSet: 2})
+	start := uint32(10)
+	end := uint32(20)
+	cacheKey := searchJobCacheKey(tenant, hash, time.Unix(int64(start), 0), time.Unix(int64(end), 0), meta, 0, 1)
+
+	// confirm cache key doesn't exist
+	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
+	require.Equal(t, 0, len(bufs))
+
+	// execute query
+	path := fmt.Sprintf("/?start=%d&end=%d&q=%s&limit=3&spss=2", start, end, query)
+	req := httptest.NewRequest("GET", path, nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, tenant)
+	req = req.WithContext(ctx)
+	respWriter := httptest.NewRecorder()
+	f.SearchHandler.ServeHTTP(respWriter, req)
+	resp := respWriter.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	// parse response
+	actualResp := &tempopb.SearchResponse{}
+	bytesResp, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// verify metrics are collected
+	require.Equal(t, uint64(1), actualResp.Metrics.InspectedBytes)
+	require.Equal(t, uint32(1), actualResp.Metrics.InspectedTraces)
+	require.Equal(t, uint64(0), actualResp.Metrics.InspectedSpans)
+	require.Equal(t, uint32(1), actualResp.Metrics.CompletedJobs)
+	require.Equal(t, uint32(1), actualResp.Metrics.TotalJobs)
+	require.Equal(t, uint32(1), actualResp.Metrics.TotalBlocks)
+	require.Equal(t, uint64(defaultTargetBytesPerRequest), actualResp.Metrics.TotalBlockBytes)
+
+	// execute query again
+	respWriter = httptest.NewRecorder()
+	f.SearchHandler.ServeHTTP(respWriter, req)
+	resp = respWriter.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	// parse cached response
+	actualResp = &tempopb.SearchResponse{}
+	bytesResp, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// verify metrics are 0 because the the response was cached
+	require.Equal(t, uint64(0), actualResp.Metrics.InspectedBytes)
+	require.Equal(t, uint32(0), actualResp.Metrics.InspectedTraces)
+	require.Equal(t, uint64(0), actualResp.Metrics.InspectedSpans)
+	// these are metadata metrics and are not affected by caching
+	require.Equal(t, uint32(1), actualResp.Metrics.CompletedJobs)
+	require.Equal(t, uint32(1), actualResp.Metrics.TotalJobs)
+	require.Equal(t, uint32(1), actualResp.Metrics.TotalBlocks)
+	require.Equal(t, uint64(defaultTargetBytesPerRequest), actualResp.Metrics.TotalBlockBytes)
 }
 
 func BenchmarkSearchPipeline(b *testing.B) {
