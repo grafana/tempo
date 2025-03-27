@@ -146,7 +146,7 @@ type readerWriter struct {
 	compactorOverrides    CompactorOverrides
 	compactorTenantOffset uint
 
-	shutdownCh chan struct{}
+	pollerShutdownCh chan struct{}
 }
 
 // New creates a new tempodb
@@ -201,14 +201,13 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:          c,
-		r:          r,
-		w:          w,
-		cfg:        cfg,
-		logger:     logger,
-		pool:       pool.NewPool(cfg.Pool),
-		blocklist:  blocklist.New(),
-		shutdownCh: make(chan struct{}),
+		c:         c,
+		r:         r,
+		w:         w,
+		cfg:       cfg,
+		logger:    logger,
+		pool:      pool.NewPool(cfg.Pool),
+		blocklist: blocklist.New(),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -540,7 +539,9 @@ func (rw *readerWriter) FetchTagNames(ctx context.Context, meta *backend.BlockMe
 
 func (rw *readerWriter) Shutdown() {
 	// Closed only by context cancelation when the poller is finished.
-	<-rw.shutdownCh
+	if rw.pollerShutdownCh != nil {
+		<-rw.pollerShutdownCh
+	}
 	rw.pool.Shutdown()
 	rw.r.Shutdown()
 }
@@ -624,6 +625,7 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller
+	rw.pollerShutdownCh = make(chan struct{})
 
 	// do the first poll cycle synchronously. this will allow the caller to know
 	// that when this method returns the block list is updated
@@ -638,7 +640,7 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			close(rw.shutdownCh)
+			close(rw.pollerShutdownCh)
 			return
 		case <-ticker.C:
 			rw.pollBlocklist(ctx)
