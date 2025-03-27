@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// jpe - add comment
 func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 

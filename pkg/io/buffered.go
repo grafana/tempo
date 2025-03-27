@@ -19,7 +19,6 @@ type BufferedReaderAt struct {
 }
 
 type readerBuffer struct {
-	mtx   sync.RWMutex
 	buf   []byte
 	off   int64
 	count int64
@@ -94,23 +93,10 @@ func calculateBounds(offset, length int64, bufferSize int, readerAtSize int64) (
 }
 
 func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
-	// There are two-levels of locking: the top-level governs the
-	// the reader and the arrangement and position of the buffers.
-	// Then each individual buffer has its own lock for populating
-	// and reading it.
-
-	// The main reason for this is to support concurrent activity
-	// while solving the stampeding herd issue for fresh reads:
-	// The first read will prep the offset/length of the buffer
-	// and then switch to the buffer's write-lock while populating it.
-	// The second read will inspect the offset/length and know
-	// that it will satisfy, but by taking the read-lock will
-	// wait until the first call has finished populating the buffer .
-
 	r.mtx.Lock()
+	defer r.mtx.Unlock()
 
 	if len(r.buffers) == 0 {
-		r.mtx.Unlock()
 		return r.ra.ReadAt(b, offset)
 	}
 
@@ -133,13 +119,8 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 		// No buffer satisfied read, overwrite least-recently-used
 		buf = lru
 
-		// Here we exchange the top-level lock for
-		// the buffer's individual write lock
-		buf.mtx.Lock()
-		defer buf.mtx.Unlock()
 		r.prep(buf, offset, int64(len(b)))
 		buf.count = r.count
-		r.mtx.Unlock()
 
 		if _, err := r.populate(buf); err != nil {
 			return 0, err
@@ -149,13 +130,7 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 		return len(b), nil
 	}
 
-	// Here we exchange the top-level lock for
-	// the buffer's individual read lock
-	buf.mtx.RLock()
-	defer buf.mtx.RUnlock()
 	buf.count = r.count
-	r.mtx.Unlock()
-
 	r.read(buf, b, offset)
 	return len(b), nil
 }
