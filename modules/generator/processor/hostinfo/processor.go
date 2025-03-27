@@ -71,7 +71,7 @@ func New(cfg Config, reg registry.Registry, logger log.Logger) (*Processor, erro
 		logger:     logger,
 		registry:   reg,
 		metricName: cfg.MetricName,
-		gauge:      reg.NewGauge(cfg.MetricName),
+		gauge:      reg.NewGauge(cfg.MetricName, cfg.Help, cfg.Unit),
 		labels:     labels,
 	}
 	return p, nil

@@ -23,10 +23,21 @@ import (
 )
 
 const (
-	metricCallsTotal      = "traces_spanmetrics_calls_total"
+	metricCallsTotal = "traces_spanmetrics_calls_total"
+	metricCallsHelp  = "Total count of spans processed by the spanmetrics processor"
+	metricCallsUnit  = "spans"
+
 	metricDurationSeconds = "traces_spanmetrics_latency"
-	metricSizeTotal       = "traces_spanmetrics_size_total"
-	targetInfo            = "traces_target_info"
+	metricDurationHelp    = "Latency of spans processed by the spanmetrics processor"
+	metricDurationUnit    = "seconds"
+
+	metricSizeTotal = "traces_spanmetrics_size_total"
+	metricSizeHelp  = "Total size of spans processed by the spanmetrics processor"
+	metricSizeUnit  = "bytes"
+
+	targetInfo     = "traces_target_info"
+	targetInfoHelp = "Information about the target of the spans"
+	targetInfoUnit = "info"
 )
 
 type sanitizeFn func(string) string
@@ -88,7 +99,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 	p := &Processor{
 		Cfg:                   cfg,
 		registry:              reg,
-		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
+		spanMetricsTargetInfo: reg.NewGauge(targetInfo, targetInfoHelp, targetInfoUnit),
 		now:                   time.Now,
 		labels:                labels,
 		filteredSpansCounter:  filteredSpansCounter,
@@ -97,13 +108,13 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 	}
 
 	if cfg.Subprocessors[Latency] {
-		p.spanMetricsDurationSeconds = reg.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
+		p.spanMetricsDurationSeconds = reg.NewHistogram(metricDurationSeconds, metricDurationHelp, metricDurationUnit, cfg.HistogramBuckets, cfg.HistogramOverride)
 	}
 	if cfg.Subprocessors[Count] {
-		p.spanMetricsCallsTotal = reg.NewCounter(metricCallsTotal)
+		p.spanMetricsCallsTotal = reg.NewCounter(metricCallsTotal, metricCallsHelp, metricCallsUnit)
 	}
 	if cfg.Subprocessors[Size] {
-		p.spanMetricsSizeTotal = reg.NewCounter(metricSizeTotal)
+		p.spanMetricsSizeTotal = reg.NewCounter(metricSizeTotal, metricSizeHelp, metricSizeUnit)
 	}
 
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)

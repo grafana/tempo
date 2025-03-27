@@ -3,9 +3,9 @@ package registry
 // Registry is a metrics store.
 type Registry interface {
 	NewLabelValueCombo(labels []string, values []string) *LabelValueCombo
-	NewCounter(name string) Counter
-	NewHistogram(name string, buckets []float64, histogramOverride HistogramMode) Histogram
-	NewGauge(name string) Gauge
+	NewCounter(name string, help string, unit string) Counter
+	NewHistogram(name string, help string, unit string, buckets []float64, histogramOverride HistogramMode) Histogram
+	NewGauge(name string, help string, unit string) Gauge
 }
 
 // Counter
