@@ -120,7 +120,8 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 					jobErr.Store(err)
 					return
 				}
-				seriesCount := jobEval.ObserveSeries(resp)
+				jobEval.ObserveSeries(resp)
+				seriesCount := jobEval.Length()
 				syncAtomic.AddInt32(&totalSeriesCount, int32(seriesCount))
 			}(b)
 		}

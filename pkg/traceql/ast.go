@@ -24,10 +24,11 @@ type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
 	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
-	observe(Span) int // TODO - batching?
+	observe(Span) // TODO - batching?
 	observeExemplar(Span)
-	observeSeries([]*tempopb.TimeSeries) int // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
+	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result() SeriesSet
+	length() int
 }
 
 >>>>>>> e263698da (enforce limit at metrics evaluator)

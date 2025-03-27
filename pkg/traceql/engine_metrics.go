@@ -328,10 +328,11 @@ type VectorAggregator interface {
 // RangeAggregator sorts spans into time slots
 // TODO - for efficiency we probably combine this with VectorAggregator (see todo about CountOverTimeAggregator)
 type RangeAggregator interface {
-	Observe(s Span) int
+	Observe(s Span)
 	ObserveExemplar(float64, uint64, Labels)
 	Samples() []float64
 	Exemplars() []Exemplar
+	Length() int
 }
 
 // SpanAggregator sorts spans into series
@@ -339,6 +340,7 @@ type SpanAggregator interface {
 	Observe(Span) int
 	ObserveExemplar(Span, float64, uint64)
 	Series() SeriesSet
+	Length() int
 }
 
 // CountOverTimeAggregator counts the number of spans. It can also
@@ -455,13 +457,12 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 	}
 }
 
-func (s *StepAggregator) Observe(span Span) int {
+func (s *StepAggregator) Observe(span Span) {
 	interval := IntervalOf(span.StartTimeUnixNanos(), s.start, s.end, s.step)
 	if interval == -1 {
-		return 0
+		return
 	}
 	s.vectors[interval].Observe(span)
-	return 0
 }
 
 func (s *StepAggregator) ObserveExemplar(value float64, ts uint64, lbls Labels) {
@@ -490,6 +491,10 @@ func (s *StepAggregator) Samples() []float64 {
 
 func (s *StepAggregator) Exemplars() []Exemplar {
 	return s.exemplars
+}
+
+func (s *StepAggregator) Length() int {
+	return 0
 }
 
 const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
@@ -681,6 +686,10 @@ func (g *GroupingAggregator[F, S]) ObserveExemplar(span Span, value float64, ts 
 	s.agg.ObserveExemplar(value, ts, lbls)
 }
 
+func (g *GroupingAggregator[F, S]) Length() int {
+	return len(g.series)
+}
+
 // labelsFor gives the final labels for the series. Slower and not on the hot path.
 // This is tweaked to match what prometheus does where possible with an exception.
 // In the case of all values missing.
@@ -766,6 +775,10 @@ func (u *UngroupedAggregator) ObserveExemplar(span Span, value float64, ts uint6
 		lbls = append(lbls, Label{k.String(), v})
 	}
 	u.innerAgg.ObserveExemplar(value, ts, lbls)
+}
+
+func (u *UngroupedAggregator) Length() int {
+	return 0
 }
 
 // Series output.
@@ -1093,7 +1106,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 			}
 
 			validSpansCount++
-			seriesCount = e.metricsPipeline.observe(s)
+			e.metricsPipeline.observe(s)
 
 			if !needExemplar {
 				continue
@@ -1111,8 +1124,11 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 			e.metricsPipeline.observeExemplar(ss.Spans[randomSpanIndex])
 		}
 
+		seriesCount = e.metricsPipeline.length()
+
 		e.mtx.Unlock()
 		ss.Release()
+
 		if maxSeries > 0 && seriesCount >= maxSeries {
 			break
 		}
@@ -1168,11 +1184,11 @@ type MetricsFrontendEvaluator struct {
 	metricsSecondStage secondStageElement
 }
 
-func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) int {
+func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	return m.metricsPipeline.observeSeries(in)
+	m.metricsPipeline.observeSeries(in)
 }
 
 func (m *MetricsFrontendEvaluator) Results() SeriesSet {
@@ -1191,9 +1207,17 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	return results
 }
 
+func (m *MetricsFrontendEvaluator) Length() int {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return m.metricsPipeline.length()
+}
+
 type SeriesAggregator interface {
-	Combine([]*tempopb.TimeSeries) int
+	Combine([]*tempopb.TimeSeries)
 	Results() SeriesSet
+	Length() int
 }
 
 type SimpleAggregationOp int
@@ -1248,7 +1272,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 	}
 }
 
-func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) int {
+func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 	nan := math.Float64frombits(normalNaN)
 
 	for _, ts := range in {
@@ -1288,8 +1312,6 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) int {
 
 		b.ss[ts.PromLabels] = existing
 	}
-
-	return len(b.ss)
 }
 
 func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *TimeSeries) {
@@ -1318,6 +1340,10 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 
 func (b *SimpleAggregator) Results() SeriesSet {
 	return b.ss
+}
+
+func (b *SimpleAggregator) Length() int {
+	return len(b.ss)
 }
 
 type HistogramBucket struct {
@@ -1370,7 +1396,7 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *Histo
 	}
 }
 
-func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) int {
+func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 	// var min, max time.Time
 
 	for _, ts := range in {
@@ -1441,15 +1467,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) int {
 			})
 		}
 	}
-	maxBuckets := 0
-	for _, s := range h.ss {
-		for _, h := range s.hist {
-			if len(h.Buckets) > maxBuckets {
-				maxBuckets = len(h.Buckets)
-			}
-		}
-	}
-	return len(h.ss) * maxBuckets
+
 }
 
 func (h *HistogramAggregator) Results() SeriesSet {
@@ -1481,6 +1499,10 @@ func (h *HistogramAggregator) Results() SeriesSet {
 		}
 	}
 	return results
+}
+
+func (h *HistogramAggregator) Length() int {
+	return len(h.ss) * len(h.qs)
 }
 
 // Log2Bucketize rounds the given value to the next powers-of-two bucket.

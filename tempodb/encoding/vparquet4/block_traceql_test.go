@@ -1108,6 +1108,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{resource.service.name=`loki-ingester`} | rate()",
 		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",
+		"{} | quantile_over_time(duration, .99, .9, .5)",
+		"{} | quantile_over_time(duration, .99) by (name)",
+		"{} | histogram_over_time(duration)",
+		"{} | avg_over_time(duration) by (span.http.status_code)",
+		"{} | max_over_time(duration) by (span.http.status_code)",
+		"{} | min_over_time(duration) by (span.http.status_code)",
+		"{ name != nil } | compare({status=error})",
 	}
 
 	e := traceql.NewEngine()

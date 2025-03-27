@@ -105,7 +105,7 @@ func (m *MetricsCompare) isSelection(span Span) Static {
 	return isSelection
 }
 
-func (m *MetricsCompare) observe(span Span) int {
+func (m *MetricsCompare) observe(span Span) {
 	// For performance, MetricsCompare doesn't use the Range/StepAggregator abstractions.
 	// This lets us:
 	// * Include the same attribute value in multiple series. This doesn't fit within
@@ -167,7 +167,6 @@ func (m *MetricsCompare) observe(span Span) int {
 		}
 		totals[i]++
 	})
-	return len(m.seriesAgg.Results())
 }
 
 func (m *MetricsCompare) observeExemplar(span Span) {
@@ -195,9 +194,8 @@ func (m *MetricsCompare) observeExemplar(span Span) {
 	}
 }
 
-func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) int {
+func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
 	m.seriesAgg.Combine(ss)
-	return len(m.seriesAgg.Results())
 }
 
 func (m *MetricsCompare) result() SeriesSet {
@@ -287,6 +285,10 @@ func (m *MetricsCompare) result() SeriesSet {
 	return ss
 }
 
+func (m *MetricsCompare) length() int {
+	return len(m.baselines) + len(m.selections) + len(m.baselineTotals) + len(m.selectionTotals)
+}
+
 func (m *MetricsCompare) validate() error {
 	err := m.f.validate()
 	if err != nil {
@@ -354,7 +356,7 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAg
 	}
 }
 
-func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) int {
+func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 	for _, s := range ss {
 		var metaType string
 		var err string
@@ -449,7 +451,6 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) int {
 		}
 		attr[vk] = ts
 	}
-	return len(b.baseline) + len(b.selection) + len(b.baselineTotals) + len(b.selectionTotals)
 }
 
 func (b *BaselineAggregator) Results() SeriesSet {
@@ -494,6 +495,10 @@ func (b *BaselineAggregator) Results() SeriesSet {
 	}
 
 	return output
+}
+
+func (b *BaselineAggregator) Length() int {
+	return len(b.baseline) + len(b.selection) + len(b.baselineTotals) + len(b.selectionTotals)
 }
 
 var _ SeriesAggregator = (*BaselineAggregator)(nil)
