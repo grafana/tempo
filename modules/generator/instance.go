@@ -553,13 +553,21 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 			return nil, err
 		}
 	}
-
 	// Combine the raw results into the job results
 	walResults := rawEval.Results().ToProto(req)
 	jobEval.ObserveSeries(walResults)
 
 	r := jobEval.Results()
 	rr := r.ToProto(req)
+
+	maxSeries := int(req.MaxSeries)
+	if maxSeries > 0 && len(rr) > maxSeries {
+		return &tempopb.QueryRangeResponse{
+			Series: rr[:maxSeries],
+			Status: tempopb.PartialStatus_PARTIAL,
+		}, nil
+	}
+
 	return &tempopb.QueryRangeResponse{
 		Series: rr,
 	}, nil

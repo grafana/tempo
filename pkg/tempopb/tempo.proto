@@ -64,11 +64,7 @@ message TraceByIDRequest {
 message TraceByIDResponse {
   Trace trace = 1;
   TraceByIDMetrics metrics = 2;
-  enum Status {
-    COMPLETE = 0;
-    PARTIAL = 1;
-  }
-  Status status = 3;
+  PartialStatus status = 3;
   string message = 4;
 }
 
@@ -419,6 +415,8 @@ message QueryInstantRequest {
 message QueryInstantResponse {
   repeated InstantSeries series = 1;
   SearchMetrics metrics = 2;
+  PartialStatus status = 3;
+  string message = 4;
 }
 
 message InstantSeries {
@@ -451,11 +449,19 @@ message QueryRangeRequest {
   repeated DedicatedColumn dedicatedColumns = 15;
   // Exemplars are optional and can be empty.
   uint32 exemplars = 16;
+  uint32 maxSeries = 17; // max response serie before bailing early
+}
+
+enum PartialStatus {
+  COMPLETE = 0;
+  PARTIAL = 1;
 }
 
 message QueryRangeResponse {
   repeated TimeSeries series = 1;
   SearchMetrics metrics = 2;
+  PartialStatus status = 3;
+  string message = 4;
 }
 
 message Exemplar {

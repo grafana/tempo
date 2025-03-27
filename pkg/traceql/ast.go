@@ -27,6 +27,7 @@ type metricsFirstStageElement interface {
 	observeExemplar(Span)
 	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result() SeriesSet
+	length() int
 }
 
 type pipelineElement interface {
@@ -1344,6 +1345,14 @@ func (a *MetricsAggregate) observeExemplar(span Span) {
 
 func (a *MetricsAggregate) observeSeries(ss []*tempopb.TimeSeries) {
 	a.seriesAgg.Combine(ss)
+}
+
+func (a *MetricsAggregate) length() int {
+	if a.agg != nil {
+		return a.agg.Length()
+	}
+
+	return a.seriesAgg.Length()
 }
 
 func (a *MetricsAggregate) result() SeriesSet {

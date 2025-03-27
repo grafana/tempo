@@ -317,13 +317,15 @@ type RangeAggregator interface {
 	ObserveExemplar(float64, uint64, Labels)
 	Samples() []float64
 	Exemplars() []Exemplar
+	Length() int
 }
 
 // SpanAggregator sorts spans into series
 type SpanAggregator interface {
-	Observe(Span)
+	Observe(Span) int
 	ObserveExemplar(Span, float64, uint64)
 	Series() SeriesSet
+	Length() int
 }
 
 // CountOverTimeAggregator counts the number of spans. It can also
@@ -474,6 +476,10 @@ func (s *StepAggregator) Samples() []float64 {
 
 func (s *StepAggregator) Exemplars() []Exemplar {
 	return s.exemplars
+}
+
+func (s *StepAggregator) Length() int {
+	return 0
 }
 
 const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
@@ -639,13 +645,14 @@ func (g *GroupingAggregator[F, S]) getSeries() aggregatorWitValues[S] {
 
 // Observe the span by looking up its group-by attributes, mapping to the series,
 // and passing to the inner aggregate.  This is a critical hot path.
-func (g *GroupingAggregator[F, S]) Observe(span Span) {
+func (g *GroupingAggregator[F, S]) Observe(span Span) int {
 	if !g.getGroupingValues(span) {
-		return
+		return 0
 	}
 
 	s := g.getSeries()
 	s.agg.Observe(span)
+	return len(g.series)
 }
 
 func (g *GroupingAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
@@ -662,6 +669,10 @@ func (g *GroupingAggregator[F, S]) ObserveExemplar(span Span, value float64, ts 
 		lbls = append(lbls, Label{k.String(), v})
 	}
 	s.agg.ObserveExemplar(value, ts, lbls)
+}
+
+func (g *GroupingAggregator[F, S]) Length() int {
+	return len(g.series)
 }
 
 // labelsFor gives the final labels for the series. Slower and not on the hot path.
@@ -737,8 +748,9 @@ type UngroupedAggregator struct {
 
 var _ SpanAggregator = (*UngroupedAggregator)(nil)
 
-func (u *UngroupedAggregator) Observe(span Span) {
+func (u *UngroupedAggregator) Observe(span Span) int {
 	u.innerAgg.Observe(span)
+	return 0
 }
 
 func (u *UngroupedAggregator) ObserveExemplar(span Span, value float64, ts uint64) {
@@ -748,6 +760,10 @@ func (u *UngroupedAggregator) ObserveExemplar(span Span, value float64, ts uint6
 		lbls = append(lbls, Label{k.String(), v})
 	}
 	u.innerAgg.ObserveExemplar(value, ts, lbls)
+}
+
+func (u *UngroupedAggregator) Length() int {
+	return 0
 }
 
 // Series output.
@@ -1001,7 +1017,8 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
-func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64) error {
+
+func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) (int, error) {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1013,7 +1030,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		if overlap == 0.0 {
 			// This shouldn't happen but might as well check.
 			// No overlap == nothing to do
-			return nil
+			return 0, nil
 		}
 
 		// Our heuristic is if the overlap between the given fetcher (i.e. block)
@@ -1028,18 +1045,20 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 	fetch, err := f.Fetch(ctx, storageReq)
 	if errors.Is(err, util.ErrUnsupported) {
-		return nil
+		return 0, nil
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer fetch.Results.Close()
 
+	seriesCount := 0
+
 	for {
 		ss, err := fetch.Results.Next(ctx)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if ss == nil {
 			break
@@ -1064,15 +1083,21 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 			e.metricsPipeline.observeExemplar(ss.Spans[rand.Intn(len(ss.Spans))])
 		}
 
+		seriesCount = e.metricsPipeline.length()
+
 		e.mtx.Unlock()
 		ss.Release()
+
+		if maxSeries > 0 && seriesCount >= maxSeries {
+			break
+		}
 	}
 
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	e.bytes += fetch.Bytes()
 
-	return nil
+	return seriesCount, nil
 }
 
 func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
@@ -1126,9 +1151,17 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	return m.metricsPipeline.result()
 }
 
+func (m *MetricsFrontendEvaluator) Length() int {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return m.metricsPipeline.length()
+}
+
 type SeriesAggregator interface {
 	Combine([]*tempopb.TimeSeries)
 	Results() SeriesSet
+	Length() int
 }
 
 type SimpleAggregationOp int
@@ -1251,6 +1284,10 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 
 func (b *SimpleAggregator) Results() SeriesSet {
 	return b.ss
+}
+
+func (b *SimpleAggregator) Length() int {
+	return len(b.ss)
 }
 
 type HistogramBucket struct {
@@ -1405,6 +1442,10 @@ func (h *HistogramAggregator) Results() SeriesSet {
 		}
 	}
 	return results
+}
+
+func (h *HistogramAggregator) Length() int {
+	return len(h.ss) * len(h.qs)
 }
 
 // Log2Bucketize rounds the given value to the next powers-of-two bucket.
