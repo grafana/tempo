@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -114,21 +113,4 @@ func TestBufferedReaderConcurrency(t *testing.T) {
 			require.NoError(t, err)
 		}()
 	}
-}
-
-func TestBufferedWriterWithQueueWritesToBackend(t *testing.T) {
-	buf := bytes.NewBuffer(make([]byte, 0, 10))
-
-	b := NewBufferedWriterWithQueue(buf)
-
-	n, err := b.Write([]byte{0x01})
-	require.NoError(t, err)
-	require.Equal(t, 1, n)
-
-	require.NoError(t, b.Flush())
-	require.NoError(t, b.Close())
-
-	// eventual consistency :)
-	time.Sleep(100 * time.Millisecond)
-	require.Equal(t, []byte{0x01}, buf.Bytes())
 }

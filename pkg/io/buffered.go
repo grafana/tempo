@@ -1,11 +1,8 @@
 package io
 
 import (
-	"fmt"
 	"io"
 	"sync"
-
-	"go.uber.org/atomic"
 )
 
 // BufferedReaderAt implements io.ReaderAt but extends and buffers reads up to the given buffer size.
@@ -160,6 +157,12 @@ type BufferedWriter struct {
 	buf []byte
 }
 
+type BufferedWriteFlusher interface {
+	io.WriteCloser
+	Len() int
+	Flush() error
+}
+
 func NewBufferedWriter(w io.Writer) BufferedWriteFlusher {
 	return &BufferedWriter{w, nil}
 }
@@ -188,98 +191,4 @@ func (b *BufferedWriter) Close() error {
 		return err
 	}
 	return nil
-}
-
-type BufferedWriteFlusher interface {
-	io.WriteCloser
-	Len() int
-	Flush() error
-}
-
-// BufferedWriterWithQueue is an attempt at writing an async queue of outgoing data to the underlying writer.
-// As a tradeoff for removing flushes from the hot path, this writer does not provide guarantees about
-// bubbling up errors and takes a best effort approach to signal a failure.
-//
-// Note: This is not used at the moment due to concerns with error handling when writing async data to the backend.
-type BufferedWriterWithQueue struct {
-	w   io.Writer
-	buf []byte
-
-	flushCh chan []byte
-	doneCh  chan struct{}
-	err     atomic.Error
-}
-
-var _ BufferedWriteFlusher = (*BufferedWriterWithQueue)(nil)
-
-func NewBufferedWriterWithQueue(w io.Writer) BufferedWriteFlusher {
-	b := &BufferedWriterWithQueue{
-		w:       w,
-		buf:     nil,
-		flushCh: make(chan []byte, 10), // todo: guess better?
-		doneCh:  make(chan struct{}, 1),
-	}
-
-	go b.flushLoop()
-
-	return b
-}
-
-func (b *BufferedWriterWithQueue) Write(p []byte) (n int, err error) {
-	b.buf = append(b.buf, p...)
-	return len(p), nil
-}
-
-func (b *BufferedWriterWithQueue) Len() int {
-	return len(b.buf)
-}
-
-func (b *BufferedWriterWithQueue) Flush() error {
-	if err := b.err.Load(); err != nil {
-		return fmt.Errorf("error in async write using buffered writer: %w", err)
-	}
-
-	bufCopy := make([]byte, 0, len(b.buf))
-	bufCopy = append(bufCopy, b.buf...)
-
-	// reset/resize buffer
-	b.buf = b.buf[:0]
-
-	// will only block if the entire buffered channel is full
-	b.flushCh <- bufCopy
-	return nil
-}
-
-func (b *BufferedWriterWithQueue) flushLoop() {
-	defer close(b.doneCh)
-
-	// for-range will exit once channel is closed
-	// https://dave.cheney.net/tag/golang-3
-	for buf := range b.flushCh {
-		_, err := b.w.Write(buf)
-		if err != nil {
-			b.err.Store(err)
-			return
-		}
-	}
-}
-
-func (b *BufferedWriterWithQueue) Close() error {
-	if err := b.err.Load(); err != nil {
-		return err
-	}
-
-	var flushErr error
-	if len(b.buf) > 0 {
-		flushErr = b.Flush()
-		b.buf = nil
-	}
-
-	// close out flushLoop
-	close(b.flushCh)
-
-	// blocking wait on doneCh
-	<-b.doneCh
-
-	return flushErr
 }
