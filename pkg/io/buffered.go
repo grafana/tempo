@@ -68,7 +68,7 @@ func (r *BufferedReaderAt) populate(buf *readerBuffer) (int, error) {
 
 	// if err is fatal we need to invalidate the buffer by setting it back to 0s (uninitialized)
 	if isFatalError(err) {
-		buf.buf = buf.buf[:n]
+		buf.buf = buf.buf[:0]
 		buf.count = 0
 		buf.off = 0
 	}
