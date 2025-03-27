@@ -73,16 +73,19 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		resp, err := rt.RoundTrip(req)
 		elapsed := time.Since(start)
 
-		bytesProcessed := comb.TotalBytesProcessed()
-		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
+		var inspectBytes uint64
+		if comb.MetricsCombiner != nil && comb.MetricsCombiner.Metrics != nil {
+			inspectBytes = comb.MetricsCombiner.Metrics.InspectedBytes
+		}
+		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
 		level.Info(logger).Log(
 			"msg", "trace id response",
 			"tenant", tenant,
 			"path", req.URL.Path,
 			"duration_seconds", elapsed.Seconds(),
-			"inspected_bytes", bytesProcessed,
-			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
+			"inspected_bytes", inspectBytes,
+			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
 			"err", err)
 
 		return resp, err
