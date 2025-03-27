@@ -38,11 +38,15 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		// Rewrite into a query_range request.
 		// --------------------------------------------------
 		qr := &tempopb.QueryRangeRequest{
-			Query:     req.Query,
-			Start:     req.Start,
-			End:       req.End,
-			Step:      req.End - req.Start,
-			MaxSeries: uint32(cfg.Metrics.Sharder.MaxResponseSeries),
+			Query: req.Query,
+			Start: req.Start,
+			End:   req.End,
+			Step:  req.End - req.Start,
+		}
+		// if a limit is being enforced, honor the request if it is less than the limit
+		// else set it to max limit
+		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (qr.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || qr.MaxSeries == 0) {
+			qr.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
 		}
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -104,11 +108,15 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		// Rewrite into a query_range request.
 		// --------------------------------------------------
 		qr := &tempopb.QueryRangeRequest{
-			Query:     i.Query,
-			Start:     i.Start,
-			End:       i.End,
-			Step:      i.End - i.Start,
-			MaxSeries: uint32(cfg.Metrics.Sharder.MaxResponseSeries),
+			Query: i.Query,
+			Start: i.Start,
+			End:   i.End,
+			Step:  i.End - i.Start,
+		}
+		// if a limit is being enforced, honor the request if it is less than the limit
+		// else set it to max limit
+		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (qr.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || qr.MaxSeries == 0) {
+			qr.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
 		}
 
 		// Clone existing to keep it unaltered.

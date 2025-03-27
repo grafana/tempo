@@ -111,7 +111,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalSeriesCount) < int32(maxSeries)){
+		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalSeriesCount) < int32(maxSeries)) {
 			wg.Add(1)
 			go func(b *ingester.LocalBlock) {
 				defer wg.Done()

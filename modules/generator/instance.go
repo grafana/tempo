@@ -496,7 +496,6 @@ func (i *instance) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsReque
 
 func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
 	var processors []*localblocks.Processor
-	fmt.Printf("** generator max series %d\n", req.MaxSeries)
 
 	i.processorsMtx.RLock()
 	for _, processor := range i.processors {

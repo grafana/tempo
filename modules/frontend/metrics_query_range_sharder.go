@@ -117,6 +117,12 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	}
 	req.Exemplars = maxExemplars
 
+	// if a limit is being enforced, honor the request if it is less than the limit
+	// else set it to max limit
+	if s.cfg.MaxResponseSeries > 0 && (req.MaxSeries > uint32(s.cfg.MaxResponseSeries) || req.MaxSeries == 0) {
+		req.MaxSeries = uint32(s.cfg.MaxResponseSeries)
+	}
+
 	var (
 		allowUnsafe           = s.overrides.UnsafeQueryHints(tenantID)
 		targetBytesPerRequest = s.jobSize(expr, allowUnsafe)
