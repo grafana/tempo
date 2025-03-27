@@ -136,7 +136,7 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 }
 
 // Do does the doing of getting a blocklist
-func (p *Poller) Do(ctx context.Context, previous *List) (PerTenant, PerTenantCompacted, error) {
+func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
@@ -145,13 +145,13 @@ func (p *Poller) Do(ctx context.Context, previous *List) (PerTenant, PerTenantCo
 		backend.ClearDedicatedColumns()
 	}()
 
-	ctx, cancel := context.WithCancel(ctx)
+	parentCtx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "Poller.Do")
-	defer span.End()
+	parentCtx, parentSpan := tracer.Start(parentCtx, "Poller.Do")
+	defer parentSpan.End()
 
-	tenants, err := p.reader.Tenants(ctx)
+	tenants, err := p.reader.Tenants(parentCtx)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
 		return nil, nil, err
@@ -165,9 +165,19 @@ func (p *Poller) Do(ctx context.Context, previous *List) (PerTenant, PerTenantCo
 		compactedBlocklist = PerTenantCompacted{}
 
 		tenantFailuresRemaining = atomic.NewInt32(int32(p.cfg.TolerateTenantFailures))
+
+		link  = trace.LinkFromContext(parentCtx)
+		bgCtx = context.Background()
 	)
 
 	for _, tenantID := range tenants {
+		// Do not continue if we have been canceled.
+		if parentCtx.Err() != nil {
+			// Wait for our work to complete.
+			wg.Wait()
+			return nil, nil, nil
+		}
+
 		// Exit early if we have exceeded our tolerance for number of failing tenants.
 		if tenantFailuresRemaining.Load() < 0 {
 			level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors")
@@ -178,6 +188,12 @@ func (p *Poller) Do(ctx context.Context, previous *List) (PerTenant, PerTenantCo
 		go func(tenantID string) {
 			defer wg.Done()
 
+			bgCtx, bgSpan := tracer.Start(bgCtx, "Poller.Do.func")
+			defer bgSpan.End()
+
+			bgSpan.SetAttributes(attribute.String("tenant", tenantID))
+			bgSpan.AddLink(link)
+
 			var (
 				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
 				newBlockList               = make([]*backend.BlockMeta, 0)
@@ -186,7 +202,7 @@ func (p *Poller) Do(ctx context.Context, previous *List) (PerTenant, PerTenantCo
 			)
 
 			for consecutiveErrorsRemaining >= 0 {
-				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(bgCtx, tenantID, previous)
 				if err == nil {
 					break
 				}
@@ -285,7 +301,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 	// everything is happy, write this tenant index
 	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(blocklist), "compactedMetas", len(compactedBlocklist))
-	err = p.writer.WriteTenantIndex(derivedCtx, tenantID, blocklist, compactedBlocklist)
+	err = p.writer.WriteTenantIndex(ctx, tenantID, blocklist, compactedBlocklist)
 	if err != nil {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)

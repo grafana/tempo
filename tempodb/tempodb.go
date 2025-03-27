@@ -145,6 +145,8 @@ type readerWriter struct {
 	compactorSharder      CompactorSharder
 	compactorOverrides    CompactorOverrides
 	compactorTenantOffset uint
+
+	pollerShutdownCh chan struct{}
 }
 
 // New creates a new tempodb
@@ -536,7 +538,10 @@ func (rw *readerWriter) FetchTagNames(ctx context.Context, meta *backend.BlockMe
 }
 
 func (rw *readerWriter) Shutdown() {
-	// todo: stop blocklist poll
+	// Closed only by context cancelation when the poller is finished.
+	if rw.pollerShutdownCh != nil {
+		<-rw.pollerShutdownCh
+	}
 	rw.pool.Shutdown()
 	rw.r.Shutdown()
 }
@@ -620,6 +625,7 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller
+	rw.pollerShutdownCh = make(chan struct{})
 
 	// do the first poll cycle synchronously. this will allow the caller to know
 	// that when this method returns the block list is updated
@@ -634,6 +640,7 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			close(rw.pollerShutdownCh)
 			return
 		case <-ticker.C:
 			rw.pollBlocklist(ctx)
@@ -644,7 +651,10 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(ctx, rw.blocklist)
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
+		if ctx.Err() == nil {
+			level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
+		}
+
 		return
 	}
 
