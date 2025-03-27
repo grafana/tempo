@@ -214,7 +214,7 @@ sendLoop:
 
 	// max series is 3 so we should get a partial response with 3 series
 	require.Equal(t, tempopb.PartialStatus_PARTIAL, queryRangeRes.GetStatus())
-	require.Equal(t, "Response exceeds maximum series of 3, a partial response is returned", queryRangeRes.GetMessage())
+	require.Equal(t, "Response exceeds maximum series limit of 3, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", queryRangeRes.GetMessage())
 	require.Equal(t, 3, len(queryRangeRes.GetSeries()))
 }
 
