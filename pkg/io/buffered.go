@@ -1,6 +1,7 @@
 package io
 
 import (
+	"errors"
 	"io"
 	"sync"
 )
@@ -65,8 +66,8 @@ func (r *BufferedReaderAt) populate(buf *readerBuffer) (int, error) {
 	// Read
 	n, err := r.ra.ReadAt(buf.buf, buf.off)
 
-	// if err != nil we need to invalid the buffer by setting it back to 0s (uninitialized)
-	if err != nil {
+	// if err != nil we need to invalidate the buffer by setting it back to 0s (uninitialized)
+	if isFatalError(err) {
 		buf.buf = buf.buf[:n]
 		buf.count = 0
 		buf.off = 0
@@ -126,12 +127,13 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 		r.prep(buf, offset, int64(len(b)))
 		buf.count = r.count
 
-		if _, err := r.populate(buf); err != nil {
+		var err error
+		if _, err = r.populate(buf); isFatalError(err) {
 			return 0, err
 		}
 
 		r.read(buf, b, offset)
-		return len(b), nil
+		return len(b), err
 	}
 
 	buf.count = r.count
@@ -178,4 +180,16 @@ func (b *BufferedWriter) Close() error {
 		return err
 	}
 	return nil
+}
+
+func isFatalError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, io.EOF) {
+		return false
+	}
+
+	return true
 }

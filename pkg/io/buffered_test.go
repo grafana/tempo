@@ -3,6 +3,7 @@ package io
 import (
 	"bytes"
 	"errors"
+	"io"
 	"math/rand"
 	"testing"
 
@@ -117,12 +118,11 @@ func TestBufferedReaderConcurrency(t *testing.T) {
 }
 
 type erroringReaderAt struct {
-	err    error
-	reader *bytes.Reader
+	err error
 }
 
 func (e *erroringReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
-	if e.err != nil {
+	if e.err != nil && e.err != io.EOF {
 		// set all bytes to 0
 		for i := range p {
 			p[i] = 0
@@ -130,22 +130,20 @@ func (e *erroringReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
 		return 0, e.err
 	}
 
-	return e.reader.Read(p)
+	// set the bytes to the offset
+	for i := range p {
+		p[i] = byte(off + int64(i))
+	}
+
+	return len(p), e.err
 }
 
 func TestBufferedReaderInvalidatesBufferOnErr(t *testing.T) {
-	input := make([]byte, 100)
 	erroringReaderAt := &erroringReaderAt{
-		err:    nil,
-		reader: bytes.NewReader(input),
+		err: nil,
 	}
 
-	// write the values 0 - 99 to the input
-	for i := 0; i < 100; i++ {
-		input[i] = byte(i)
-	}
-
-	r := NewBufferedReaderAt(erroringReaderAt, int64(len(input)), 50, 1)
+	r := NewBufferedReaderAt(erroringReaderAt, 100, 50, 1)
 
 	// force the reader to return an error
 	erroringReaderAt.err = errors.New("error")
@@ -162,4 +160,12 @@ func TestBufferedReaderInvalidatesBufferOnErr(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 10, read)
 	require.Equal(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, actual) // first 10 bytes should be read
+
+	// force the reader to return io.EOF and see it handled correctly
+	erroringReaderAt.err = io.EOF
+	actual = make([]byte, 10)
+	read, err = r.ReadAt(actual, 90)
+	require.ErrorIs(t, err, io.EOF)
+	require.Equal(t, 10, read)
+	require.Equal(t, []byte{90, 91, 92, 93, 94, 95, 96, 97, 98, 99}, actual) // last 10 bytes should be read
 }
