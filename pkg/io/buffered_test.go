@@ -134,7 +134,7 @@ type erroringReaderAt struct {
 }
 
 func (e *erroringReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
-	if e.err != nil && e.err != io.EOF {
+	if e.err != nil && !errors.Is(e.err, io.EOF) {
 		// set all bytes to 0
 		for i := range p {
 			p[i] = 0
