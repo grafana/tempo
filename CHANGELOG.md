@@ -57,6 +57,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Make comparison to nil symmetric [#4869](https://github.com/grafana/tempo/pull/4869) (@stoewer)
 * [BUGFIX] Fix behavior for queries like {.foo && true} and {.foo || false} [#4855](https://github.com/grafana/tempo/pull/4855) (@stoewer)
+* [BUGFIX] Fix lookups .attr != nil with special columns [#4864](https://github.com/grafana/tempo/pull/4864) (@stoewer)
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
 * [BUGFIX] TraceQL incorrect results for additional spanset filters after a select operation [#4600](https://github.com/grafana/tempo/pull/4600) (@mdisibio)
 * [BUGFIX] TraceQL metrics incorrect results for queries with multiple filters that reside in non-dedicated columns that also group by the same variable [#4887](https://github.com/grafana/tempo/pull/4887) (@mdisibio)
