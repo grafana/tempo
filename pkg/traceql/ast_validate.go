@@ -184,7 +184,15 @@ func (o *BinaryOperation) validate() error {
 	}
 
 	if rhsT == TypeNil && o.Op == OpEqual {
-		return newUnsupportedError("{.a = nil}")
+		if o.LHS.impliedType() == TypeAttribute {
+			switch o.LHS.(Attribute).Scope {
+			case AttributeScopeEvent:
+				return newUnsupportedError("{event.a = nil}")
+			case AttributeScopeLink: 
+				return newUnsupportedError("{link.a = nil}")
+			}
+		}
+
 	}
 
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
