@@ -358,6 +358,8 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 		q.maxSeriesReached = true
 	}
 
+	// TODO: this is here only for the querier
+	// we want to use the metrics combiner from the frontend
 	if resp.Metrics != nil {
 		q.metrics.TotalJobs += resp.Metrics.TotalJobs
 		q.metrics.TotalBlocks += resp.Metrics.TotalBlocks
