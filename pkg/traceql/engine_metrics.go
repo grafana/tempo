@@ -1411,7 +1411,6 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			})
 		}
 	}
-
 }
 
 func (h *HistogramAggregator) Results() SeriesSet {
