@@ -13,6 +13,8 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -82,6 +84,8 @@ func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRe
 
 func (p *writer) flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error {
 	// TODO - Retry with backoff?
+	ctx, span := tracer.Start(ctx, "writer.flush", trace.WithAttributes(attribute.Int("partition", int(p.partition)), attribute.String("section_start_time", p.startTime.String())))
+	defer span.End()
 
 	// Flush tenants concurrently
 	g, ctx := errgroup.WithContext(ctx)
