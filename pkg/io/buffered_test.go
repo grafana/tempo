@@ -99,21 +99,33 @@ func TestBufferedReaderAt(t *testing.T) {
 	}
 }
 
-func TestBufferedReaderConcurrency(t *testing.T) {
-	input := make([]byte, 1024)
-	inputReader := bytes.NewReader(input)
+func TestBufferedReaderConcurrencyAndFuzz(t *testing.T) {
+	const minLen = 100
 
-	r := NewBufferedReaderAt(inputReader, int64(len(input)), 50, 1)
+	for i := 0; i < 100; i++ {
+		inputLen := rand.Intn(1024) + minLen
+		input := make([]byte, inputLen)
+		inputReader := bytes.NewReader(input)
 
-	for i := 0; i < 1000; i++ {
-		length := rand.Intn(100)
-		offset := rand.Intn(len(input) - length)
-		b := make([]byte, length)
+		// write 0 -> 1023 to input
+		for i := range input {
+			input[i] = byte(i)
+		}
 
-		go func() {
-			_, err := r.ReadAt(b, int64(offset))
-			require.NoError(t, err)
-		}()
+		r := NewBufferedReaderAt(inputReader, int64(len(input)), 50, 1)
+
+		for i := 0; i < 1000; i++ {
+			go func() {
+				length := rand.Intn(minLen)
+				offset := rand.Intn(len(input) - length)
+
+				b := make([]byte, length)
+				_, err := r.ReadAt(b, int64(offset))
+				require.NoError(t, err)
+				// require actual to be expected
+				require.Equal(t, input[offset:offset+length], b)
+			}()
+		}
 	}
 }
 

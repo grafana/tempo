@@ -63,10 +63,10 @@ func (r *BufferedReaderAt) prep(buf *readerBuffer, offset, length int64) {
 }
 
 func (r *BufferedReaderAt) populate(buf *readerBuffer) (int, error) {
-	// Read
+	// read
 	n, err := r.ra.ReadAt(buf.buf, buf.off)
 
-	// if err != nil we need to invalidate the buffer by setting it back to 0s (uninitialized)
+	// if err is fatal we need to invalidate the buffer by setting it back to 0s (uninitialized)
 	if isFatalError(err) {
 		buf.buf = buf.buf[:n]
 		buf.count = 0
