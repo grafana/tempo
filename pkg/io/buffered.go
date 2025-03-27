@@ -9,6 +9,10 @@ import (
 // Subsequent reads are returned from the buffers. Additionally it supports concurrent readers
 // by maintaining multiple buffers at different offsets, and matching up reads with existing
 // buffers where possible. When needed the least-recently-used buffer is overwritten with new reads.
+//
+// Note that the locking effectively serializes reads to the underlying io.ReaderAt. This reader
+// is not suitable for high-concurrency workloads, but does nicely reduce memory usage and backend calls
+// for batch workloads.
 type BufferedReaderAt struct {
 	mtx     sync.Mutex
 	ra      io.ReaderAt
