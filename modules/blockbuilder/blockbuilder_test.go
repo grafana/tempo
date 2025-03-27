@@ -603,8 +603,8 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	// Check that the offset was committed correctly (lastRec.Offset + 1)
 	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 
-	// Enable polling to trigger another immediate poll
-	store.EnablePolling(ctx, &ownEverythingSharder{})
+	// Sleep to let the poller cycle
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify that each tenant only has 1 active block
 	require.Equal(t, 1, len(store.BlockMetas(goodTenantID)))
@@ -746,7 +746,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) stora
 			WAL: &wal.Config{
 				Filepath: tmpDir,
 			},
-			BlocklistPoll: 5 * time.Second,
+			BlocklistPoll: 100 * time.Millisecond,
 		},
 	}, nil, log)
 	require.NoError(t, err)
