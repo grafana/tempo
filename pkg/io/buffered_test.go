@@ -2,6 +2,7 @@ package io
 
 import (
 	"bytes"
+	"errors"
 	"math/rand"
 	"testing"
 
@@ -113,4 +114,52 @@ func TestBufferedReaderConcurrency(t *testing.T) {
 			require.NoError(t, err)
 		}()
 	}
+}
+
+type erroringReaderAt struct {
+	err    error
+	reader *bytes.Reader
+}
+
+func (e *erroringReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
+	if e.err != nil {
+		// set all bytes to 0
+		for i := range p {
+			p[i] = 0
+		}
+		return 0, e.err
+	}
+
+	return e.reader.Read(p)
+}
+
+func TestBufferedReaderInvalidatesBufferOnErr(t *testing.T) {
+	input := make([]byte, 100)
+	erroringReaderAt := &erroringReaderAt{
+		err:    nil,
+		reader: bytes.NewReader(input),
+	}
+
+	// write the values 0 - 99 to the input
+	for i := 0; i < 100; i++ {
+		input[i] = byte(i)
+	}
+
+	r := NewBufferedReaderAt(erroringReaderAt, int64(len(input)), 50, 1)
+
+	// force the reader to return an error
+	erroringReaderAt.err = errors.New("error")
+	actual := make([]byte, 10)
+	read, err := r.ReadAt(actual, 0)
+	require.Error(t, err)
+	require.Equal(t, 0, read)
+	require.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, actual) // first 10 bytes should be zeroed
+
+	// clear the error and read the first 10 bytes again
+	erroringReaderAt.err = nil
+	actual = make([]byte, 10)
+	read, err = r.ReadAt(actual, 0)
+	require.NoError(t, err)
+	require.Equal(t, 10, read)
+	require.Equal(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, actual) // first 10 bytes should be read
 }

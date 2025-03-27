@@ -61,6 +61,14 @@ func (r *BufferedReaderAt) prep(buf *readerBuffer, offset, length int64) {
 func (r *BufferedReaderAt) populate(buf *readerBuffer) (int, error) {
 	// Read
 	n, err := r.ra.ReadAt(buf.buf, buf.off)
+
+	// if err != nil we need to invalid the buffer by setting it back to 0s (uninitialized)
+	if err != nil {
+		buf.buf = buf.buf[:n]
+		buf.count = 0
+		buf.off = 0
+	}
+
 	return n, err
 }
 
