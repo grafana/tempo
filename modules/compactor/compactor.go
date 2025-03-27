@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"math/rand/v2"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -193,6 +194,11 @@ func (c *Compactor) Owns(hash string) bool {
 	}
 
 	level.Debug(log.Logger).Log("msg", "checking hash", "hash", hash)
+
+	// 1 in a 100 chance of returning false
+	if rand.IntN(100) == 0 {
+		return false
+	}
 
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(hash))
