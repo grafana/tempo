@@ -76,7 +76,7 @@ var (
 		Help:      "Total number of errors while fetching by the consumer.",
 	}, []string{"partition"})
 
-	tracer = otel.Tracer("modules/ingester")
+	tracer = otel.Tracer("modules/blockbuilder")
 )
 
 type BlockBuilder struct {
