@@ -6,7 +6,11 @@ import (
 )
 
 func (d *Distributor) padWithArtificialDelay(reqStart time.Time, userID string) {
-	artificialDelay := d.overrides.IngestionArtificialDelay(userID)
+	artificialDelay := d.cfg.ArtificialDelay
+	if artificialDelayOverride, ok := d.overrides.IngestionArtificialDelay(userID); ok {
+		artificialDelay = artificialDelayOverride
+	}
+
 	if artificialDelay <= 0 {
 		return
 	}
