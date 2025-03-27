@@ -29,10 +29,17 @@ import (
 )
 
 func TestManagedRegistry_concurrency(*testing.T) {
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	
 	cfg := &Config{
 		StaleDuration: 1 * time.Millisecond,
+		RemoteWriteEndpoint: server.URL,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", &noopAppender{}, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	end := make(chan struct{})
@@ -73,7 +80,50 @@ func TestManagedRegistry_concurrency(*testing.T) {
 func TestManagedRegistry_counter(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
+	registry := New(&Config{RemoteWriteEndpoint: server.URL}, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter", "", "")
@@ -90,7 +140,50 @@ func TestManagedRegistry_counter(t *testing.T) {
 func TestManagedRegistry_histogram(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
+	registry := New(&Config{RemoteWriteEndpoint: server.URL}, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	histogram := registry.NewHistogram("histogram", "", "", []float64{1.0, 2.0}, HistogramModeClassic)
@@ -114,10 +207,54 @@ func TestManagedRegistry_histogram(t *testing.T) {
 func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	appender := &capturingAppender{}
 
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
 	cfg := &Config{
 		StaleDuration: 75 * time.Millisecond,
+		RemoteWriteEndpoint: server.URL,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	counter1 := registry.NewCounter("metric_1", "", "")
@@ -153,12 +290,56 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 func TestManagedRegistry_externalLabels(t *testing.T) {
 	appender := &capturingAppender{}
 
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
 	cfg := &Config{
 		ExternalLabels: map[string]string{
 			"__foo": "bar",
 		},
+		RemoteWriteEndpoint: server.URL,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter", "", "")
@@ -174,10 +355,54 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
 	appender := &capturingAppender{}
 
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
 	cfg := &Config{
 		InjectTenantIDAs: "__tempo_tenant",
+		RemoteWriteEndpoint: server.URL,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter", "", "")
@@ -193,10 +418,53 @@ func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
 func TestManagedRegistry_maxSeries(t *testing.T) {
 	appender := &capturingAppender{}
 
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
 	overrides := &mockOverrides{
 		maxActiveSeries: 1,
 	}
-	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+	registry := New(&Config{RemoteWriteEndpoint: server.URL}, overrides, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	counter1 := registry.NewCounter("metric_1", "", "")
@@ -218,10 +486,53 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 func TestManagedRegistry_disableCollection(t *testing.T) {
 	appender := &capturingAppender{}
 
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
 	overrides := &mockOverrides{
 		disableCollection: true,
 	}
-	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+	registry := New(&Config{RemoteWriteEndpoint: server.URL}, overrides, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	counter := registry.NewCounter("metric_1", "", "")
@@ -238,11 +549,55 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 	appender := &capturingAppender{}
 
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
 	cfg := &Config{
 		MaxLabelNameLength:  8,
 		MaxLabelValueLength: 5,
+		RemoteWriteEndpoint: server.URL,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	counter := registry.NewCounter("counter", "", "")
@@ -303,7 +658,14 @@ func TestHistogramOverridesConfig(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			appender := &capturingAppender{}
 			overrides := &mockOverrides{}
-			registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+			
+			// Set up a test server that acts as a remote write endpoint
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			
+			registry := New(&Config{RemoteWriteEndpoint: server.URL}, overrides, "test", nil, log.NewNopLogger())
 			defer registry.Close()
 
 			tt := registry.NewHistogram("histogram", "", "", []float64{1.0, 2.0}, c.nativeHistogramMode)
@@ -315,7 +677,50 @@ func TestHistogramOverridesConfig(t *testing.T) {
 func TestManagedRegistry_Metadata(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
+	registry := New(&Config{RemoteWriteEndpoint: server.URL}, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	// Create metrics with help text and unit
@@ -379,7 +784,50 @@ func TestManagedRegistry_Metadata(t *testing.T) {
 func TestManagedRegistry_MetadataSendOnce(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
+	registry := New(&Config{RemoteWriteEndpoint: server.URL}, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	// Create a gauge and update it multiple times
@@ -458,7 +906,50 @@ func TestManagedRegistry_MetadataSendOnce(t *testing.T) {
 func TestCounter_MetadataSendOnce(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
+	registry := New(&Config{RemoteWriteEndpoint: server.URL}, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	// Create a counter with help text and unit
@@ -547,7 +1038,50 @@ func TestCounter_MetadataSendOnce(t *testing.T) {
 func TestHistogram_MetadataMultipleSeries(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	// Set up a test server that acts as a remote write endpoint
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Forward the requests to our capturing appender for verification
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		defer r.Body.Close()
+		
+		// Decode the snappy-compressed data
+		decoded, err := snappy.Decode(nil, body)
+		require.NoError(t, err)
+		
+		// Parse the protobuf
+		var req prompb.WriteRequest
+		err = proto.Unmarshal(decoded, &req)
+		require.NoError(t, err)
+		
+		// Process samples
+		for _, ts := range req.Timeseries {
+			// Convert labels back to model.Labels
+			lset := make(labels.Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				lset = append(lset, labels.Label{Name: l.Name, Value: l.Value})
+			}
+			sort.Sort(lset)
+			
+			// Add samples to the capturing appender
+			for _, s := range ts.Samples {
+				appender.Append(0, lset, s.Timestamp, s.Value)
+			}
+		}
+		
+		// Process metadata
+		for _, m := range req.Metadata {
+			lset := labels.Labels{labels.Label{Name: "__name__", Value: m.MetricFamilyName}}
+			appender.UpdateMetadata(0, lset, metadata.Metadata{
+				Help: m.Help,
+				Unit: m.Unit,
+			})
+		}
+	}))
+	defer server.Close()
+
+	registry := New(&Config{RemoteWriteEndpoint: server.URL}, &mockOverrides{}, "test", nil, log.NewNopLogger())
 	defer registry.Close()
 
 	// Create a histogram with help text and unit
