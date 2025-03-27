@@ -1102,14 +1102,14 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
-		"{} | rate() by (name)",
+		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
 		"{} | rate() by (span.http.url)", // High cardinality attribute
 		"{resource.service.name=`loki-ingester`} | rate()",
 		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",
 		"{} | quantile_over_time(duration, .99, .9, .5)",
-		"{} | quantile_over_time(duration, .99) by (name)",
+		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",
 		"{} | max_over_time(duration) by (span.http.status_code)",
@@ -1120,7 +1120,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	e := traceql.NewEngine()
 	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
-	opts.TotalPages = 10
+	opts.TotalPages = 1
 
 	block := blockForBenchmarks(b)
 	_, _, err := block.openForSearch(ctx, opts)
@@ -1147,7 +1147,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						Step:      uint64(time.Minute),
 						Start:     uint64(st.UnixNano()),
 						End:       uint64(end.UnixNano()),
-						MaxSeries: 100,
+						MaxSeries: 1000,
 					}
 
 					eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
