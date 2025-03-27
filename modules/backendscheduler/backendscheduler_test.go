@@ -42,8 +42,11 @@ func TestBackendScheduler(t *testing.T) {
 		ctx, cancel   = context.WithCancel(context.Background())
 		store, rr, ww = newStore(ctx, t, tmpDir)
 	)
-	defer cancel()
-	defer store.Shutdown()
+
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
 
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
