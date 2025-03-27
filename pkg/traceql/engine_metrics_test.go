@@ -617,7 +617,6 @@ func TestMinOverTimeForDuration(t *testing.T) {
 	assert.Equal(t, 8/float64(time.Second), fooBar.Values[1])
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 	assert.Equal(t, len(result), seriesCount)
-
 }
 
 func TestMinOverTimeWithNoMatch(t *testing.T) {
@@ -765,7 +764,6 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 	assert.Equal(t, 100., fooBar.Values[0]*float64(time.Second))
 	assert.Equal(t, 200., fooBar.Values[1]*float64(time.Second))
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
-
 }
 
 func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
