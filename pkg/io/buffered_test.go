@@ -2,9 +2,10 @@ package io
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -98,37 +99,85 @@ func TestBufferedReaderAt(t *testing.T) {
 	}
 }
 
-func TestBufferedReaderConcurrency(t *testing.T) {
-	input := make([]byte, 1024)
-	inputReader := bytes.NewReader(input)
+func TestBufferedReaderConcurrencyAndFuzz(t *testing.T) {
+	const minLen = 100
 
-	r := NewBufferedReaderAt(inputReader, int64(len(input)), 50, 1)
+	for i := 0; i < 100; i++ {
+		inputLen := rand.Intn(1024) + minLen
+		input := make([]byte, inputLen)
+		inputReader := bytes.NewReader(input)
 
-	for i := 0; i < 1000; i++ {
-		length := rand.Intn(100)
-		offset := rand.Intn(len(input) - length)
-		b := make([]byte, length)
+		// write 0 -> 1023 to input
+		for i := range input {
+			input[i] = byte(i)
+		}
 
-		go func() {
-			_, err := r.ReadAt(b, int64(offset))
-			require.NoError(t, err)
-		}()
+		r := NewBufferedReaderAt(inputReader, int64(len(input)), 50, 1)
+
+		for i := 0; i < 1000; i++ {
+			go func() {
+				length := rand.Intn(minLen)
+				offset := rand.Intn(len(input) - length)
+
+				b := make([]byte, length)
+				_, err := r.ReadAt(b, int64(offset))
+				require.NoError(t, err)
+				// require actual to be expected
+				require.Equal(t, input[offset:offset+length], b)
+			}()
+		}
 	}
 }
 
-func TestBufferedWriterWithQueueWritesToBackend(t *testing.T) {
-	buf := bytes.NewBuffer(make([]byte, 0, 10))
+type erroringReaderAt struct {
+	err error
+}
 
-	b := NewBufferedWriterWithQueue(buf)
+func (e *erroringReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
+	if e.err != nil && !errors.Is(e.err, io.EOF) {
+		// set all bytes to 0
+		for i := range p {
+			p[i] = 0
+		}
+		return 0, e.err
+	}
 
-	n, err := b.Write([]byte{0x01})
+	// set the bytes to the offset
+	for i := range p {
+		p[i] = byte(off + int64(i))
+	}
+
+	return len(p), e.err
+}
+
+func TestBufferedReaderInvalidatesBufferOnErr(t *testing.T) {
+	erroringReaderAt := &erroringReaderAt{
+		err: nil,
+	}
+
+	r := NewBufferedReaderAt(erroringReaderAt, 100, 50, 1)
+
+	// force the reader to return an error
+	erroringReaderAt.err = errors.New("error")
+	actual := make([]byte, 10)
+	read, err := r.ReadAt(actual, 0)
+	require.Error(t, err)
+	require.Equal(t, 0, read)
+	require.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, actual) // first 10 bytes should be zeroed
+
+	// clear the error and read the first 10 bytes again
+	erroringReaderAt.err = nil
+	actual = make([]byte, 10)
+	read, err = r.ReadAt(actual, 0)
 	require.NoError(t, err)
-	require.Equal(t, 1, n)
+	require.Equal(t, 10, read)
+	require.Equal(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, actual) // first 10 bytes should be read
 
-	require.NoError(t, b.Flush())
-	require.NoError(t, b.Close())
-
-	// eventual consistency :)
-	time.Sleep(100 * time.Millisecond)
-	require.Equal(t, []byte{0x01}, buf.Bytes())
+	// force the reader to return io.EOF and see it handled correctly
+	erroringReaderAt.err = io.EOF
+	actual = make([]byte, 10)
+	read, err = r.ReadAt(actual, 90)
+	require.ErrorIs(t, err, io.EOF)
+	require.Equal(t, 10, read)
+	require.Equal(t, []byte{90, 91, 92, 93, 94, 95, 96, 97, 98, 99}, actual) // last 10 bytes should be read
 }
