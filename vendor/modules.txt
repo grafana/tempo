@@ -515,8 +515,8 @@ github.com/go-logr/stdr
 ## explicit; go 1.12
 github.com/go-ole/go-ole
 github.com/go-ole/go-ole/oleutil
-# github.com/go-openapi/analysis v0.22.2
-## explicit; go 1.19
+# github.com/go-openapi/analysis v0.23.0
+## explicit; go 1.20
 github.com/go-openapi/analysis
 github.com/go-openapi/analysis/internal/debug
 github.com/go-openapi/analysis/internal/flatten/normalize
@@ -530,15 +530,15 @@ github.com/go-openapi/errors
 # github.com/go-openapi/jsonpointer v0.21.0
 ## explicit; go 1.20
 github.com/go-openapi/jsonpointer
-# github.com/go-openapi/jsonreference v0.20.4
-## explicit; go 1.19
+# github.com/go-openapi/jsonreference v0.21.0
+## explicit; go 1.20
 github.com/go-openapi/jsonreference
 github.com/go-openapi/jsonreference/internal
-# github.com/go-openapi/loads v0.21.5
-## explicit; go 1.19
+# github.com/go-openapi/loads v0.22.0
+## explicit; go 1.20
 github.com/go-openapi/loads
-# github.com/go-openapi/spec v0.20.14
-## explicit; go 1.19
+# github.com/go-openapi/spec v0.21.0
+## explicit; go 1.20
 github.com/go-openapi/spec
 # github.com/go-openapi/strfmt v0.23.0
 ## explicit; go 1.20
@@ -546,8 +546,8 @@ github.com/go-openapi/strfmt
 # github.com/go-openapi/swag v0.23.0
 ## explicit; go 1.20
 github.com/go-openapi/swag
-# github.com/go-openapi/validate v0.23.0
-## explicit; go 1.19
+# github.com/go-openapi/validate v0.24.0
+## explicit; go 1.20
 github.com/go-openapi/validate
 # github.com/go-redis/redis/v8 v8.11.5
 ## explicit; go 1.17
@@ -750,7 +750,7 @@ github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/hashicorp/consul/api v1.30.0
+# github.com/hashicorp/consul/api v1.31.0
 ## explicit; go 1.19
 github.com/hashicorp/consul/api
 # github.com/hashicorp/errwrap v1.1.0
@@ -774,7 +774,7 @@ github.com/hashicorp/go-multierror
 # github.com/hashicorp/go-rootcerts v1.0.2
 ## explicit; go 1.12
 github.com/hashicorp/go-rootcerts
-# github.com/hashicorp/go-sockaddr v1.0.6
+# github.com/hashicorp/go-sockaddr v1.0.7
 ## explicit; go 1.19
 github.com/hashicorp/go-sockaddr
 # github.com/hashicorp/go-uuid v1.0.3
@@ -792,7 +792,7 @@ github.com/hashicorp/golang-lru/simplelru
 github.com/hashicorp/golang-lru/v2
 github.com/hashicorp/golang-lru/v2/internal
 github.com/hashicorp/golang-lru/v2/simplelru
-# github.com/hashicorp/memberlist v0.5.0 => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
+# github.com/hashicorp/memberlist v0.5.1 => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
 ## explicit; go 1.12
 github.com/hashicorp/memberlist
 # github.com/hashicorp/serf v0.10.1
@@ -1044,6 +1044,11 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/timeutils/internal/ctimefmt
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil
+# github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.116.0
+## explicit; go 1.22.0
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics/identity
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics/staleness
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics/streams
 # github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.122.0
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr
@@ -1116,6 +1121,16 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinthriftconverter
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2
+# github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.116.0
+## explicit; go 1.22.0
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/data
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/data/expo
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/delta
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/metadata
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/metrics
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/putil/pslice
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/telemetry
 # github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.122.0
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor
@@ -1223,8 +1238,8 @@ github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
 ## explicit; go 1.14
 github.com/power-devops/perfstat
-# github.com/prometheus/alertmanager v0.27.0
-## explicit; go 1.21
+# github.com/prometheus/alertmanager v0.28.0
+## explicit; go 1.22.0
 github.com/prometheus/alertmanager/api/v2/models
 # github.com/prometheus/client_golang v1.21.1
 ## explicit; go 1.21
@@ -1260,7 +1275,7 @@ github.com/prometheus/exporter-toolkit/web
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/prometheus/prometheus v0.301.0
+# github.com/prometheus/prometheus v0.302.1
 ## explicit; go 1.22.7
 github.com/prometheus/prometheus/config
 github.com/prometheus/prometheus/discovery
@@ -1318,7 +1333,7 @@ github.com/prometheus/prometheus/util/strutil
 github.com/prometheus/prometheus/util/testutil
 github.com/prometheus/prometheus/util/zeropool
 github.com/prometheus/prometheus/web/api/v1
-# github.com/prometheus/sigv4 v0.1.0
+# github.com/prometheus/sigv4 v0.1.1
 ## explicit; go 1.21
 github.com/prometheus/sigv4
 # github.com/prometheus/statsd_exporter v0.26.1
@@ -1806,7 +1821,7 @@ go.opentelemetry.io/contrib/exporters/autoexport
 ## explicit; go 1.22.0
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal
-# go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.58.0
+# go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.59.0
 ## explicit; go 1.22.0
 go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace
 go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace/internal/semconvutil
@@ -2061,6 +2076,7 @@ golang.org/x/sys/windows/svc
 golang.org/x/sys/windows/svc/eventlog
 # golang.org/x/text v0.23.0
 ## explicit; go 1.23.0
+golang.org/x/text/cases
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
 golang.org/x/text/encoding/htmlindex
@@ -2072,6 +2088,7 @@ golang.org/x/text/encoding/korean
 golang.org/x/text/encoding/simplifiedchinese
 golang.org/x/text/encoding/traditionalchinese
 golang.org/x/text/encoding/unicode
+golang.org/x/text/internal
 golang.org/x/text/internal/language
 golang.org/x/text/internal/language/compact
 golang.org/x/text/internal/tag
@@ -2086,7 +2103,7 @@ golang.org/x/text/width
 # golang.org/x/time v0.11.0
 ## explicit; go 1.23.0
 golang.org/x/time/rate
-# golang.org/x/tools v0.28.0
+# golang.org/x/tools v0.29.0
 ## explicit; go 1.22.0
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/packages
