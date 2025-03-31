@@ -65,6 +65,19 @@ type ReaderObjectAttrs struct {
 	// meaningful in the context of a particular generation of a
 	// particular object.
 	Metageneration int64
+
+	// CRC32C is the CRC32 checksum of the entire object's content using the
+	// Castagnoli93 polynomial, if available.
+	CRC32C uint32
+
+	// Decompressed is true if the object is stored as a gzip file and was
+	// decompressed when read.
+	// Objects are automatically decompressed if the object's metadata property
+	// "Content-Encoding" is set to "gzip" or satisfies decompressive
+	// transcoding as per https://cloud.google.com/storage/docs/transcoding.
+	//
+	// To prevent decompression on reads, use [ObjectHandle.ReadCompressed].
+	Decompressed bool
 }
 
 // NewReader creates a new Reader to read the contents of the
@@ -72,6 +85,12 @@ type ReaderObjectAttrs struct {
 // ErrObjectNotExist will be returned if the object is not found.
 //
 // The caller must call Close on the returned Reader when done reading.
+//
+// By default, reads are made using the Cloud Storage XML API. We recommend
+// using the JSON API instead, which can be done by setting [WithJSONReads]
+// when calling [NewClient]. This ensures consistency with other client
+// operations, which all use JSON. JSON will become the default in a future
+// release.
 func (o *ObjectHandle) NewReader(ctx context.Context) (*Reader, error) {
 	return o.NewRangeReader(ctx, 0, -1)
 }
@@ -85,7 +104,14 @@ func (o *ObjectHandle) NewReader(ctx context.Context) (*Reader, error) {
 // If the object's metadata property "Content-Encoding" is set to "gzip" or satisfies
 // decompressive transcoding per https://cloud.google.com/storage/docs/transcoding
 // that file will be served back whole, regardless of the requested range as
-// Google Cloud Storage dictates.
+// Google Cloud Storage dictates. If decompressive transcoding occurs,
+// [Reader.Attrs.Decompressed] will be true.
+//
+// By default, reads are made using the Cloud Storage XML API. We recommend
+// using the JSON API instead, which can be done by setting [WithJSONReads]
+// when calling [NewClient]. This ensures consistency with other client
+// operations, which all use JSON. JSON will become the default in a future
+// release.
 func (o *ObjectHandle) NewRangeReader(ctx context.Context, offset, length int64) (r *Reader, err error) {
 	// This span covers the life of the reader. It is closed via the context
 	// in Reader.Close.
@@ -196,7 +222,9 @@ var emptyBody = ioutil.NopCloser(strings.NewReader(""))
 // the stored CRC, returning an error from Read if there is a mismatch. This integrity check
 // is skipped if transcoding occurs. See https://cloud.google.com/storage/docs/transcoding.
 type Reader struct {
-	Attrs              ReaderObjectAttrs
+	Attrs          ReaderObjectAttrs
+	objectMetadata *map[string]string
+
 	seen, remain, size int64
 	checkCRC           bool // Did we check the CRC? This is now only used by tests.
 
@@ -271,4 +299,17 @@ func (r *Reader) CacheControl() string {
 // Deprecated: use Reader.Attrs.LastModified.
 func (r *Reader) LastModified() (time.Time, error) {
 	return r.Attrs.LastModified, nil
+}
+
+// Metadata returns user-provided metadata, in key/value pairs.
+//
+// It can be nil if no metadata is present, or if the client uses the JSON
+// API for downloads. Only the XML and gRPC APIs support getting
+// custom metadata via the Reader; for JSON make a separate call to
+// ObjectHandle.Attrs.
+func (r *Reader) Metadata() map[string]string {
+	if r.objectMetadata != nil {
+		return *r.objectMetadata
+	}
+	return nil
 }
