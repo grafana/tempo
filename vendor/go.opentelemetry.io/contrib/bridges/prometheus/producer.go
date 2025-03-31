@@ -296,6 +296,7 @@ func convertBuckets(buckets []*dto.Bucket, sampleCount uint64) ([]float64, []uin
 		bucketCounts = make([]uint64, len(buckets)+1)
 	}
 	exemplars := make([]metricdata.Exemplar[float64], 0)
+	var previousCount uint64
 	for i, bucket := range buckets {
 		// The last bound may be the +Inf bucket, which is implied in OTel, but
 		// is explicit in Prometheus. Skip the last boundary if it is the +Inf
@@ -303,7 +304,7 @@ func convertBuckets(buckets []*dto.Bucket, sampleCount uint64) ([]float64, []uin
 		if bound := bucket.GetUpperBound(); !math.IsInf(bound, +1) {
 			bounds[i] = bound
 		}
-		bucketCounts[i] = bucket.GetCumulativeCount()
+		previousCount, bucketCounts[i] = bucket.GetCumulativeCount(), bucket.GetCumulativeCount()-previousCount
 		if ex := bucket.GetExemplar(); ex != nil {
 			exemplars = append(exemplars, convertExemplar(ex))
 		}
@@ -311,7 +312,7 @@ func convertBuckets(buckets []*dto.Bucket, sampleCount uint64) ([]float64, []uin
 	if !hasInf {
 		// The Inf bucket was missing, so set the last bucket counts to the
 		// overall count
-		bucketCounts[len(bucketCounts)-1] = sampleCount
+		bucketCounts[len(bucketCounts)-1] = sampleCount - previousCount
 	}
 	return bounds, bucketCounts, exemplars
 }
