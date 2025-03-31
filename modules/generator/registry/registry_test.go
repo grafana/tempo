@@ -451,16 +451,16 @@ func TestCounter_MetadataSendOnce(t *testing.T) {
 
 	// Create a counter with help text and unit
 	counter := registry.NewCounter("test_counter", "Help text for counter", "operations")
-	
+
 	// Use the counter to generate series
 	counter.Inc(nil, 1.0)
-	
+
 	// Collect metrics and verify metadata
 	registry.CollectMetrics(context.Background())
-	
+
 	// Verify that metadata was collected
 	require.NotEmpty(t, appender.metadata, "No metadata was collected")
-	
+
 	// Helper function to find metadata for a given metric
 	findMetadata := func(metricName string) *metadata.Metadata {
 		for _, m := range appender.metadata {
@@ -477,20 +477,20 @@ func TestCounter_MetadataSendOnce(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Verify counter metadata
 	counterMetadata := findMetadata("test_counter")
 	require.NotNil(t, counterMetadata, "Counter metadata not found")
 	assert.Equal(t, "Help text for counter", counterMetadata.Help)
 	assert.Equal(t, "operations", counterMetadata.Unit)
-	
+
 	// Reset appender
 	appender.metadata = nil
-	
+
 	// Update the counter again and collect
 	counter.Inc(nil, 2.0)
 	registry.CollectMetrics(context.Background())
-	
+
 	// Verify no new metadata was sent for the existing series
 	for _, m := range appender.metadata {
 		name := ""
@@ -502,14 +502,14 @@ func TestCounter_MetadataSendOnce(t *testing.T) {
 		}
 		require.NotEqual(t, "test_counter", name, "Should not have sent metadata again for existing counter series")
 	}
-	
+
 	// Reset appender again
 	appender.metadata = nil
-	
+
 	// Now create a new series with different labels
 	counter.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 3.0)
 	registry.CollectMetrics(context.Background())
-	
+
 	// Verify metadata was sent for the new series
 	newSeriesMetadataFound := false
 	for _, m := range appender.metadata {

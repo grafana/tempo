@@ -166,7 +166,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 
 	for _, s := range g.series {
 		t := time.UnixMilli(timeMs)
-		
+
 		// Check if this is the first time we're seeing this series
 		if s.isNew() {
 			var ref storage.SeriesRef
@@ -174,14 +174,14 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 			if err != nil {
 				return
 			}
-			
+
 			// Add metadata for the gauge
 			_, _ = appender.UpdateMetadata(ref, s.labels, metadata.Metadata{
 				Type: model.MetricTypeGauge,
 				Unit: g.unit,
 				Help: g.help,
 			})
-			
+
 			// Mark as seen
 			s.registerSeenSeries()
 		} else {

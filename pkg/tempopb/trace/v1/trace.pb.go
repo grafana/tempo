@@ -31,7 +31,7 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 // a bit-mask.  To extract the bit-field, for example, use an
 // expression like:
 //
-//   (span.flags & SPAN_FLAGS_TRACE_FLAGS_MASK)
+//	(span.flags & SPAN_FLAGS_TRACE_FLAGS_MASK)
 //
 // See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
 //

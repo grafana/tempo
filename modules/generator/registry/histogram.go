@@ -216,7 +216,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 			if err != nil {
 				return
 			}
-			
+
 			// Add metadata for count series
 			_, _ = appender.UpdateMetadata(ref, s.countLabels, metadata.Metadata{
 				Type: model.MetricTypeGauge,
@@ -246,7 +246,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 				if err != nil {
 					return
 				}
-				
+
 				// Add metadata for bucket series
 				_, _ = appender.UpdateMetadata(ref, s.bucketLabels[i], metadata.Metadata{
 					Type: model.MetricTypeGauge,
