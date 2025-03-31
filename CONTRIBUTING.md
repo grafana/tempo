@@ -87,8 +87,7 @@ import (
   services and backends. The relevant dashboards can be found in the [Tempo mixin](operations/tempo-mixin).
 - **Logs**: Tempo uses the [go-kit level logging library](https://pkg.go.dev/github.com/go-kit/kit/log/level) and emits
   logs in the `key=value` (logfmt) format.
-- **Traces**: Tempo uses the [Jaeger Golang SDK](https://github.com/jaegertracing/jaeger-client-go) for tracing instrumentation.
-  As of this writing, only the read path of tempo is instrumented for tracing.
+- **Traces**: Tempo uses the [OpenTelemetry](https://pkg.go.dev/go.opentelemetry.io) for tracing instrumentation.
 
 ### Testing
 
