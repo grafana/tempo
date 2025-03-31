@@ -27,10 +27,6 @@ type Config struct {
 	// MaxLabelValueLength configures the maximum length of label values. Label values exceeding
 	// this limit will be truncated.
 	MaxLabelValueLength int `yaml:"max_label_value_length"`
-	
-	// RemoteWriteEndpoint is the URL to send metrics to via Prometheus remote write protocol.
-	// If specified, metrics will be sent to this endpoint instead of using the provided appender.
-	RemoteWriteEndpoint string `yaml:"remote_write_endpoint,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
