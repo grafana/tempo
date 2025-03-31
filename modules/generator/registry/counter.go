@@ -148,7 +148,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activ
 		// to first insert a 0 value to allow Prometheus to start from a non-null
 		// value.
 		if s.isNew() {
-			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
+			// We set the timestamp of the init series at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			var ref storage.SeriesRef

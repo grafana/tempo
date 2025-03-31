@@ -4,6 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/golang/snappy"
+	prometheus_config "github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/prompb"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -21,6 +28,7 @@ import (
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
+	common_config "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +38,64 @@ const (
 	user1 = "user1"
 	user2 = "user2"
 )
+
+func TestMetadataE2E(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		data, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		data, err = snappy.Decode(nil, data)
+		require.NoError(t, err)
+
+		var req prompb.WriteRequest
+		err = req.Unmarshal(data)
+		require.NoError(t, err)
+		println(len(req.Metadata))
+	}))
+	testURL, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	var (
+		tenant = "test-tenant"
+		reg    = prometheus.NewRegistry()
+		log    = log.NewNopLogger()
+		cfg    = &Config{}
+
+		walcfg = &storage.Config{
+			Path: t.TempDir(),
+			RemoteWrite: []prometheus_config.RemoteWriteConfig{
+				prometheus_config.DefaultRemoteWriteConfig,
+			},
+		}
+		o = &mockOverrides{
+			processors: map[string]struct{}{
+				"span-metrics":   {},
+				"service-graphs": {},
+			},
+			spanMetricsEnableTargetInfo:             true,
+			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
+		}
+	)
+	walcfg.RemoteWrite[0].MetadataConfig =
+		prometheus_config.MetadataConfig{
+			Send:              true,
+			SendInterval:      model.Duration(1 * time.Second),
+			MaxSamplesPerSend: 100,
+		}
+	walcfg.RemoteWrite[0].URL = &common_config.URL{URL: testURL}
+
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	wal, err := storage.New(walcfg, o, tenant, reg, log)
+	require.NoError(t, err)
+
+	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil)
+	require.NoError(t, err)
+	cnt := inst.registry.NewCounter("e2e", "e2e help", "bytes")
+	cnt.Inc(nil, 1.0)
+	defer inst.shutdown()
+	time.Sleep(2 * time.Minute)
+}
 
 func TestGeneratorSpanMetrics_subprocessorConcurrency(t *testing.T) {
 	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
