@@ -20,6 +20,12 @@ type LogOption = option[log.Exporter]
 
 var logsSignal = newSignal[log.Exporter]("OTEL_LOGS_EXPORTER")
 
+// WithFallbackLogExporter sets the fallback exporter to use when no exporter
+// is configured through the OTEL_LOGS_EXPORTER environment variable.
+func WithFallbackLogExporter(logExporterFactory func(ctx context.Context) (log.Exporter, error)) LogOption {
+	return withFallbackFactory[log.Exporter](logExporterFactory)
+}
+
 // NewLogExporter returns a configured [go.opentelemetry.io/otel/sdk/log.Exporter]
 // defined using the environment variables described below.
 //
