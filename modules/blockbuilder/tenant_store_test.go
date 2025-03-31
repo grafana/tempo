@@ -180,8 +180,8 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 	err = ts.Flush(ctx, store, store, store)
 	require.NoError(t, err)
 
-	// This forces another immediate poll
-	store.EnablePolling(ctx, &ownEverythingSharder{})
+	// This allows a polling cycle
+	time.Sleep(100 * time.Millisecond)
 
 	metas := store.BlockMetas(ts.tenantID)
 	require.Equal(t, 1, len(metas))
