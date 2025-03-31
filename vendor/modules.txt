@@ -1,8 +1,8 @@
-# cel.dev/expr v0.19.1
+# cel.dev/expr v0.19.2
 ## explicit; go 1.21.1
 cel.dev/expr
-# cloud.google.com/go v0.116.0
-## explicit; go 1.21
+# cloud.google.com/go v0.118.3
+## explicit; go 1.23.0
 cloud.google.com/go/internal
 cloud.google.com/go/internal/optional
 cloud.google.com/go/internal/trace
@@ -30,17 +30,17 @@ cloud.google.com/go/auth/oauth2adapt
 # cloud.google.com/go/compute/metadata v0.6.0
 ## explicit; go 1.21
 cloud.google.com/go/compute/metadata
-# cloud.google.com/go/iam v1.2.2
-## explicit; go 1.21
+# cloud.google.com/go/iam v1.4.1
+## explicit; go 1.23.0
 cloud.google.com/go/iam
 cloud.google.com/go/iam/apiv1/iampb
-# cloud.google.com/go/monitoring v1.21.2
-## explicit; go 1.21
+# cloud.google.com/go/monitoring v1.24.0
+## explicit; go 1.22.7
 cloud.google.com/go/monitoring/apiv3/v2
 cloud.google.com/go/monitoring/apiv3/v2/monitoringpb
 cloud.google.com/go/monitoring/internal
-# cloud.google.com/go/storage v1.49.0
-## explicit; go 1.21
+# cloud.google.com/go/storage v1.51.0
+## explicit; go 1.23.0
 cloud.google.com/go/storage
 cloud.google.com/go/storage/experimental
 cloud.google.com/go/storage/internal
@@ -122,11 +122,11 @@ github.com/AzureAD/microsoft-authentication-library-for-go/apps/public
 # github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0
 ## explicit; go 1.21
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp
-# github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.48.1
-## explicit; go 1.21
+# github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0
+## explicit; go 1.22
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric
-# github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.48.1
-## explicit; go 1.21
+# github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0
+## explicit; go 1.22
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping
 # github.com/IBM/sarama v1.45.1
 ## explicit; go 1.21
@@ -349,7 +349,7 @@ github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3
+# github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42
 ## explicit; go 1.19
 github.com/cncf/xds/go/udpa/annotations
 github.com/cncf/xds/go/udpa/type/v1
@@ -2149,11 +2149,12 @@ google.golang.org/api/storage/v1
 google.golang.org/api/transport
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http
-# google.golang.org/genproto v0.0.0-20241118233622-e639e219e697
-## explicit; go 1.21
+# google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb
+## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/type/calendarperiod
 google.golang.org/genproto/googleapis/type/date
 google.golang.org/genproto/googleapis/type/expr
+google.golang.org/genproto/googleapis/type/timeofday
 # google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb
 ## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/api
