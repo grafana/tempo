@@ -106,6 +106,16 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	if cfg.InjectTenantIDAs != "" {
 		externalLabels[cfg.InjectTenantIDAs] = tenant
 	}
+	
+	// If a RemoteWriteEndpoint is configured, create a remote write appender
+	// and use it instead of the provided appendable
+	if cfg.RemoteWriteEndpoint != "" && appendable == nil {
+		var err error
+		appendable, err = newRemoteWriteAppendable(cfg.RemoteWriteEndpoint, logger)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to create remote write appendable", "err", err)
+		}
+	}
 
 	r := &ManagedRegistry{
 		onShutdown: cancel,
