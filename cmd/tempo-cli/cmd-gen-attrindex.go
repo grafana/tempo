@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"unsafe"
 
 	"github.com/parquet-go/parquet-go"
 
@@ -42,9 +45,15 @@ func (cmd *attrIndexCmd) Run(ctx *globalOptions) error {
 	if err != nil {
 		return err
 	}
-
 	cmd.printAttrStats(stats)
 
+	index := cmd.generateAttributeIndex(stats)
+	err = cmd.writeAttributeIndex(index)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Successfully generated attribute index in %s/index.parquet\n", cmd.In)
 	return nil
 }
 
@@ -61,7 +70,7 @@ func (cmd *attrIndexCmd) readDedicatedAttributes(meta *backend.BlockMeta) {
 
 func (cmd *attrIndexCmd) collectAttributeStats() (*fileStats, error) {
 	stats := fileStats{
-		Attributes: make(map[string]*attributeInfo, 100),
+		Attributes: make(map[string]*attributeInfo, 200),
 	}
 
 	in, pf, err := openParquetFile(cmd.In)
@@ -71,9 +80,13 @@ func (cmd *attrIndexCmd) collectAttributeStats() (*fileStats, error) {
 	defer in.Close()
 
 	reader := parquet.NewGenericReader[vp4.Trace](pf)
-	traceBuffer := make([]vp4.Trace, 10240)
+	defer reader.Close()
 
-	var readCount int
+	var (
+		traceBuffer = make([]vp4.Trace, 1024)
+		readCount   int
+	)
+
 	for {
 		readCount, err = reader.Read(traceBuffer)
 		if err != nil {
@@ -82,6 +95,8 @@ func (cmd *attrIndexCmd) collectAttributeStats() (*fileStats, error) {
 			}
 			break
 		}
+		runtime.GC() // after reading the new traces to the buffer GC can free the old ones
+
 		if readCount > 0 {
 			cmd.collectAttributeStatsForTraces(&stats, traceBuffer[:readCount])
 		}
@@ -97,10 +112,12 @@ func (cmd *attrIndexCmd) collectAttributeStatsForTraces(stats *fileStats, traces
 	row := pq.EmptyRowNumber()
 	stats.Traces += len(traces)
 	for _, tr := range traces {
-		// TODO row.Next()
 		stats.Resources += len(tr.ResourceSpans)
+		row.Next(0, 0, 3)
+
 		for _, rs := range tr.ResourceSpans {
-			// TODO row.Next()
+			row.Next(1, 1, 3)
+
 			res := rs.Resource
 			stats.addAttributes(row, scopeResource, res.Attrs)
 			stats.addDedicatedAttributes(row, scopeResource, cmd.dedicatedRes, &res.DedicatedAttributes)
@@ -115,13 +132,15 @@ func (cmd *attrIndexCmd) collectAttributeStatsForTraces(stats *fileStats, traces
 			stats.addAttribute(row, scopeResource, "k8s.pod.name", res.K8sPodName)
 			stats.addAttribute(row, scopeResource, "k8s.container.name", res.K8sContainerName)
 			for _, ss := range rs.ScopeSpans {
-				// TODO row.Next()
+				row.Next(2, 2, 3)
+
 				scope := ss.Scope
 				stats.Spans += len(ss.Spans)
 				stats.addAttributes(row, scopeScope, scope.Attrs)
 				// TODO maybe add scope.name and scope.version
 				for _, sp := range ss.Spans {
-					// TODO row.Next()
+					row.Next(3, 3, 3)
+
 					stats.Events += len(sp.Events)
 					stats.Links += len(sp.Links)
 					stats.addAttributes(row, scopeSpan, sp.Attrs)
@@ -178,25 +197,133 @@ func (cmd *attrIndexCmd) printAttrStats(stats *fileStats) {
 	_ = w.Flush()
 }
 
-func (cmd *attrIndexCmd) writeAttributeIndex(stats *fileStats) error {
+func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttribute {
+	var (
+		index         = make([]indexedAttribute, 0, len(stats.Attributes))
+		keyCode int64 = 0
+	)
+
+	for _, attr := range stats.Attributes {
+		keyCode++
+
+		a := indexedAttribute{
+			Key:       attr.Key,
+			KeyCode:   keyCode,
+			ScopeMask: attr.ScopeMask,
+		}
+
+		if len(attr.ValuesString) > 0 {
+			a.ValuesString = make([]indexedStringValue, 0, len(attr.ValuesString))
+
+			for _, v := range attr.ValuesString {
+				a.ValuesString = append(a.ValuesString, indexedStringValue{
+					Value:      v.Value,
+					RowNumbers: v.RowNumbers,
+				})
+			}
+
+			sort.Slice(a.ValuesString, func(i, j int) bool {
+				return cmp.Compare(a.ValuesString[i].Value, a.ValuesString[j].Value) < 0
+			})
+
+			var valueCode int64 = 0
+			for i := range a.ValuesString {
+				valueCode++
+				a.ValuesString[i].ValueCode = valueCode
+			}
+		}
+
+		if len(attr.ValuesInt64) > 0 {
+			a.ValuesInt64 = make([]indexedNumericValue[int64], 0, len(attr.ValuesInt64))
+
+			for _, v := range attr.ValuesInt64 {
+				a.ValuesInt64 = append(a.ValuesInt64, indexedNumericValue[int64]{
+					Value:      v.Value,
+					RowNumbers: v.RowNumbers,
+				})
+			}
+
+			sort.Slice(a.ValuesInt64, func(i, j int) bool {
+				return a.ValuesInt64[i].Value < a.ValuesInt64[j].Value
+			})
+		}
+
+		if len(attr.ValuesFloat64) > 0 {
+			a.ValuesFloat64 = make([]indexedNumericValue[float64], 0, len(attr.ValuesFloat64))
+
+			for _, v := range attr.ValuesFloat64 {
+				a.ValuesFloat64 = append(a.ValuesFloat64, indexedNumericValue[float64]{
+					Value:      v.Value,
+					RowNumbers: v.RowNumbers,
+				})
+			}
+
+			sort.Slice(a.ValuesFloat64, func(i, j int) bool {
+				return a.ValuesFloat64[i].Value < a.ValuesFloat64[j].Value
+			})
+		}
+
+		index = append(index, a)
+	}
+
+	return index
+}
+
+func (cmd *attrIndexCmd) writeAttributeIndex(index []indexedAttribute) error {
+	stat, err := os.Stat(filepath.Join(cmd.In, "data.parquet"))
+	if err != nil {
+		return err
+	}
+
+	out, err := os.OpenFile(filepath.Join(cmd.In, "index.parquet"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stat.Mode())
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	writer := parquet.NewGenericWriter[indexedAttribute](out)
+	defer writer.Close()
+
+	writeCount := 0
+	for writeCount < len(index) {
+		n, err := writer.Write(index[writeCount:])
+		if err != nil {
+			return err
+		}
+		writeCount += n
+	}
+
+	err = writer.Flush()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 type indexedAttribute struct {
-	Key           string
-	KeyCode       int64
-	ScopeMask     scopeMask
-	ValuesString  []indexedValued[string]
-	ValuesInt64   []indexedValued[int64]
-	ValuesFloat64 []indexedValued[float64]
-	ValuesBool    []indexedValued[bool]
+	Key           string    `parquet:",snappy"`
+	KeyCode       int64     `parquet:",snappy,delta"`
+	ScopeMask     scopeMask `parquet:",snappy,delta"`
+	ValuesString  []indexedStringValue
+	ValuesInt64   []indexedNumericValue[int64]
+	ValuesFloat64 []indexedNumericValue[float64]
+	ValuesBool    []indexedNumericValue[bool]
 }
 
-type indexedValued[T comparable] struct {
-	Value      T
-	ValueCode  int64
-	RowNumbers []pq.RowNumber
+type rowNumberBytes [32]byte
+
+type indexedStringValue struct {
+	Value      string           `parquet:",snappy"`
+	ValueCode  int64            `parquet:",snappy,delta"`
+	RowNumbers []rowNumberBytes `parquet:",snappy"`
 }
+
+type indexedNumericValue[T comparable] struct {
+	Value      T                `parquet:",snappy"`
+	RowNumbers []rowNumberBytes `parquet:",snappy"`
+}
+
 type attributeInfo struct {
 	Key           string
 	ScopeMask     scopeMask
@@ -209,7 +336,7 @@ type attributeInfo struct {
 
 type valueInfo[T comparable] struct {
 	Value      T
-	RowNumbers []pq.RowNumber
+	RowNumbers []rowNumberBytes
 }
 
 type fileStats struct {
@@ -275,6 +402,7 @@ func (fs *fileStats) addDedicatedAttributes(row pq.RowNumber, scope scopeMask, c
 }
 
 func (fs *fileStats) addAttribute(row pq.RowNumber, scope scopeMask, key string, value any) {
+	// TODO support array values
 	value = dereferenceAny(value)
 	if value == nil {
 		return
@@ -302,42 +430,42 @@ func (fs *fileStats) addAttribute(row pq.RowNumber, scope scopeMask, key string,
 		if !ok {
 			v = &valueInfo[string]{
 				Value:      value,
-				RowNumbers: make([]pq.RowNumber, 0, 1000),
+				RowNumbers: make([]rowNumberBytes, 0, 10),
 			}
 			attr.ValuesString[value] = v
 		}
 
-		v.RowNumbers = append(v.RowNumbers, row)
+		v.RowNumbers = append(v.RowNumbers, toRowNumberBytes(row))
 	case int64:
 		v, ok := attr.ValuesInt64[value]
 		if !ok {
 			v = &valueInfo[int64]{
 				Value:      value,
-				RowNumbers: make([]pq.RowNumber, 0, 1000),
+				RowNumbers: make([]rowNumberBytes, 0, 10),
 			}
 			attr.ValuesInt64[value] = v
 		}
-		v.RowNumbers = append(v.RowNumbers, row)
+		v.RowNumbers = append(v.RowNumbers, toRowNumberBytes(row))
 	case float64:
 		v, ok := attr.ValuesFloat64[value]
 		if !ok {
 			v = &valueInfo[float64]{
 				Value:      value,
-				RowNumbers: make([]pq.RowNumber, 0, 1000),
+				RowNumbers: make([]rowNumberBytes, 0, 10),
 			}
 			attr.ValuesFloat64[value] = v
 		}
-		v.RowNumbers = append(v.RowNumbers, row)
+		v.RowNumbers = append(v.RowNumbers, toRowNumberBytes(row))
 	case bool:
 		v, ok := attr.ValuesBool[value]
 		if !ok {
 			v = &valueInfo[bool]{
 				Value:      value,
-				RowNumbers: make([]pq.RowNumber, 0, 1000),
+				RowNumbers: make([]rowNumberBytes, 0, 10),
 			}
 			attr.ValuesBool[value] = v
 		}
-		v.RowNumbers = append(v.RowNumbers, row)
+		v.RowNumbers = append(v.RowNumbers, toRowNumberBytes(row))
 	}
 }
 
@@ -382,6 +510,10 @@ func (s *scopeMask) Scopes() []string {
 
 func (s *scopeMask) String() string {
 	return strings.Join(s.Scopes(), " ")
+}
+
+func toRowNumberBytes(row pq.RowNumber) rowNumberBytes {
+	return *(*rowNumberBytes)(unsafe.Pointer(&row))
 }
 
 func dereferenceAny(val any) any {
