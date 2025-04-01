@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"github.com/prometheus/prometheus/model/value"
 	"math"
 	"os"
 	"sync"
@@ -11,12 +10,12 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
-
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
 var (
@@ -112,12 +111,18 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		return collectionInterval(cfg, overrides, tenant)
 	})
 	return newWithTrigger(cfg, overrides, tenant, appendable, logger, trigger, instanceCtx, cancel)
-
 }
 
-// newWithTrigger is like new but allows fine tuned control over when collection triggers..
-func newWithTrigger(cfg *Config, overrides Overrides, tenant string, appendable storage.Appendable, logger log.Logger, triggerCollection chan struct{}, instanceCtx context.Context, cancel func()) *ManagedRegistry {
-
+// newWithTrigger is like new but allows fine tuned control over when collection triggers.
+func newWithTrigger(cfg *Config,
+	overrides Overrides,
+	tenant string,
+	appendable storage.Appendable,
+	logger log.Logger,
+	triggerCollection chan struct{},
+	instanceCtx context.Context,
+	cancel func(),
+) *ManagedRegistry {
 	externalLabels := make(map[string]string)
 	for k, v := range cfg.ExternalLabels {
 		externalLabels[k] = v

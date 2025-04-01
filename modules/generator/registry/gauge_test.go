@@ -2,12 +2,13 @@ package registry
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"math"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"

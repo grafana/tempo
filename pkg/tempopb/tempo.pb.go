@@ -1981,7 +1981,8 @@ func (m *PushResponse) GetErrorsByTrace() []PushErrorReason {
 
 // PushBytesRequest pushes slices of traces, ids and searchdata. Traces are
 // encoded using the
-//  current BatchDecoder in ./pkg/model
+//
+//	current BatchDecoder in ./pkg/model
 type PushBytesRequest struct {
 	// pre-marshalled Traces. length must match ids
 	Traces []PreallocBytes `protobuf:"bytes,2,rep,name=traces,proto3,customtype=PreallocBytes" json:"traces"`
