@@ -187,7 +187,7 @@ func (cmd *attrIndexCmd) printAttrStats(stats *fileStats) {
 		return attrs[i].Count > attrs[j].Count
 	})
 
-	fmt.Println("\nAttributes:")
+	fmt.Println("\nAttribute stats:")
 	w = tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.DiscardEmptyColumns)
 	_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", "Name", "Scopes", "Count", "Cardinality")
 	tmpl = "%s\t%s\t%d\t%d\n"
@@ -311,17 +311,24 @@ type indexedAttribute struct {
 	ValuesBool    []indexedNumericValue[bool]
 }
 
-type rowNumberBytes [32]byte
+type rowNumberBytes [16]byte
+
+type rowNumberCols struct {
+	Lvl01 int64 `parquet:",snappy,delta"`
+	Lvl02 int64 `parquet:",snappy,delta"`
+	Lvl03 int64 `parquet:",snappy,delta"`
+	Lvl04 int64 `parquet:",snappy,delta"`
+}
 
 type indexedStringValue struct {
-	Value      string           `parquet:",snappy"`
-	ValueCode  int64            `parquet:",snappy,delta"`
-	RowNumbers []rowNumberBytes `parquet:",snappy"`
+	Value      string `parquet:",snappy"`
+	ValueCode  int64  `parquet:",snappy,delta"`
+	RowNumbers []rowNumberCols
 }
 
 type indexedNumericValue[T comparable] struct {
-	Value      T                `parquet:",snappy"`
-	RowNumbers []rowNumberBytes `parquet:",snappy"`
+	Value      T `parquet:",snappy"`
+	RowNumbers []rowNumberCols
 }
 
 type attributeInfo struct {
@@ -336,7 +343,7 @@ type attributeInfo struct {
 
 type valueInfo[T comparable] struct {
 	Value      T
-	RowNumbers []rowNumberBytes
+	RowNumbers []rowNumberCols
 }
 
 type fileStats struct {
@@ -430,42 +437,42 @@ func (fs *fileStats) addAttribute(row pq.RowNumber, scope scopeMask, key string,
 		if !ok {
 			v = &valueInfo[string]{
 				Value:      value,
-				RowNumbers: make([]rowNumberBytes, 0, 10),
+				RowNumbers: make([]rowNumberCols, 0, 10),
 			}
 			attr.ValuesString[value] = v
 		}
 
-		v.RowNumbers = append(v.RowNumbers, toRowNumberBytes(row))
+		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
 	case int64:
 		v, ok := attr.ValuesInt64[value]
 		if !ok {
 			v = &valueInfo[int64]{
 				Value:      value,
-				RowNumbers: make([]rowNumberBytes, 0, 10),
+				RowNumbers: make([]rowNumberCols, 0, 10),
 			}
 			attr.ValuesInt64[value] = v
 		}
-		v.RowNumbers = append(v.RowNumbers, toRowNumberBytes(row))
+		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
 	case float64:
 		v, ok := attr.ValuesFloat64[value]
 		if !ok {
 			v = &valueInfo[float64]{
 				Value:      value,
-				RowNumbers: make([]rowNumberBytes, 0, 10),
+				RowNumbers: make([]rowNumberCols, 0, 10),
 			}
 			attr.ValuesFloat64[value] = v
 		}
-		v.RowNumbers = append(v.RowNumbers, toRowNumberBytes(row))
+		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
 	case bool:
 		v, ok := attr.ValuesBool[value]
 		if !ok {
 			v = &valueInfo[bool]{
 				Value:      value,
-				RowNumbers: make([]rowNumberBytes, 0, 10),
+				RowNumbers: make([]rowNumberCols, 0, 10),
 			}
 			attr.ValuesBool[value] = v
 		}
-		v.RowNumbers = append(v.RowNumbers, toRowNumberBytes(row))
+		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
 	}
 }
 
@@ -514,6 +521,15 @@ func (s *scopeMask) String() string {
 
 func toRowNumberBytes(row pq.RowNumber) rowNumberBytes {
 	return *(*rowNumberBytes)(unsafe.Pointer(&row))
+}
+
+func toRowNumberCols(row pq.RowNumber) rowNumberCols {
+	return rowNumberCols{
+		Lvl01: int64(row[0]),
+		Lvl02: int64(row[1]),
+		Lvl03: int64(row[2]),
+		Lvl04: int64(row[3]),
+	}
 }
 
 func dereferenceAny(val any) any {
