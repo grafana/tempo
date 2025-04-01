@@ -37,3 +37,17 @@ func WarnDisconnectedTrace(tenant string, phase string) {
 func WarnRootlessTrace(tenant string, phase string) {
 	metric.WithLabelValues(tenant, reasonRootlessTrace+phase).Inc()
 }
+
+var MetricSpanInFuture = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "tempo",
+	Name:      "spans_distance_in_future_seconds",
+	Help:      "The number of seconds in the future of the span end time in relation to the ingestion time.",
+	Buckets:   []float64{300, 1800, 3600}, // 5m, 30m, 1h
+}, []string{"tenant"})
+
+var MetricSpanInPast = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "tempo",
+	Name:      "spans_distance_in_past_seconds",
+	Help:      "The number of seconds in the past of the span end time in relation to the ingestion time.",
+	Buckets:   []float64{300, 1800, 3600}, // 5m, 30m, 1h
+}, []string{"tenant"})

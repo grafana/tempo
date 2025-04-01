@@ -36,6 +36,7 @@ import (
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -430,6 +431,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
 	}
+
 	// check limits
 	// todo - usage tracker include discarded bytes?
 	err = d.checkForRateLimits(size, spanCount, userID)
@@ -461,6 +463,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
 	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
+
 	statBytesReceived.Inc(int64(size))
 	statSpansReceived.Inc(int64(spanCount))
 
@@ -705,7 +708,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
 	truncatedAttributeCount := 0
-
+	currentTime := uint32(time.Now().Unix())
 	for _, b := range batches {
 		spansByILS := make(map[uint64]*v1.ScopeSpans)
 		// check resource for large attributes
@@ -793,6 +796,13 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 
 				// increase span count for trace
 				existingTrace.spanCount = existingTrace.spanCount + 1
+
+				// Count spans with timestamps in the future
+				if end > currentTime {
+					dataquality.MetricSpanInFuture.WithLabelValues(userID).Observe(float64(end - currentTime))
+				} else {
+					dataquality.MetricSpanInPast.WithLabelValues(userID).Observe(float64(currentTime - end))
+				}
 			}
 		}
 	}
