@@ -54,7 +54,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	withinRange := func(m *backend.BlockMeta) bool {
 		start := uint64(m.StartTime.UnixNano())
 		end := uint64(m.EndTime.UnixNano())
-		return req.Start < end && req.End > start
+		return req.Start <= end && req.End >= start
 	}
 
 	var (
