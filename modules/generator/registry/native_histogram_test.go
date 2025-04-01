@@ -468,7 +468,7 @@ func Test_Histograms(t *testing.T) {
 	// Tests a single histogram implementation.
 	testHistogram := func(t *testing.T, h Histogram, collections collections) {
 		for _, c := range collections {
-			appender := &capturingAppender{}
+			appender := newCapturingAppender()
 			for _, obs := range c.observations {
 				h.ObserveWithExemplar(obs.labelValueCombo, obs.value, obs.traceID, obs.multiplier)
 			}
@@ -505,7 +505,7 @@ func Test_Histograms(t *testing.T) {
 }
 
 func collectMetricsAndAssertSeries(t *testing.T, m metric, collectionTimeMs int64, expectedSeries int, appender storage.Appender) {
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
+	activeSeries, err := m.collectMetrics(appender, collectionTimeMs, collectionTimeMs)
 	require.NoError(t, err)
 	require.Equal(t, expectedSeries, activeSeries)
 }

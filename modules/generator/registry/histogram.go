@@ -52,7 +52,6 @@ type histogramSeries struct {
 	// to the desired value.  This avoids Prometheus throwing away the first
 	// value in the series, due to the transition from null -> x.
 	firstSeries *atomic.Bool
-	stale       *atomic.Bool
 }
 
 func (hs *histogramSeries) isNew() bool {
@@ -133,7 +132,6 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 		exemplarValues: make([]*atomic.Float64, 0, len(h.buckets)),
 		lastUpdated:    atomic.NewInt64(0),
 		firstSeries:    atomic.NewBool(true),
-		stale:          atomic.NewBool(false),
 	}
 	for i := 0; i < len(h.buckets); i++ {
 		newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
@@ -188,7 +186,6 @@ func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID stri
 	s.exemplarValues[bucket].Store(value)
 
 	s.lastUpdated.Store(time.Now().UnixMilli())
-	s.stale.Store(false)
 }
 
 func (h *histogram) name() string {
@@ -222,18 +219,17 @@ func (h *histogram) appendStaleMarkers(appender storage.Appender, s *histogramSe
 	return
 }
 
-func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
-	h.seriesMtx.RLock()
+func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, staleTimeMs int64) (activeSeries int, err error) {
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
 
-	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSeries())
 	staleSeries := []uint64{}
 
 	for hash, s := range h.series {
-		if s.stale.Load() {
+		if s.lastUpdated.Load() < staleTimeMs {
 			staleSeries = append(staleSeries, hash)
 			err = h.appendStaleMarkers(appender, s, timeMs)
 			if err != nil {
-				h.seriesMtx.RUnlock()
 				return
 			}
 			continue
@@ -247,7 +243,6 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 			if err != nil {
-				h.seriesMtx.RUnlock()
 				return
 			}
 		}
@@ -255,14 +250,12 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 		// sum
 		_, err = appender.Append(0, s.sumLabels, timeMs, s.sum.Load())
 		if err != nil {
-			h.seriesMtx.RUnlock()
 			return
 		}
 
 		// count
 		_, err = appender.Append(0, s.countLabels, timeMs, s.count.Load())
 		if err != nil {
-			h.seriesMtx.RUnlock()
 			return
 		}
 
@@ -272,13 +265,11 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 				endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 				_, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
 				if err != nil {
-					h.seriesMtx.RUnlock()
 					return
 				}
 			}
 			ref, err := appender.Append(0, s.bucketLabels[i], timeMs, s.buckets[i].Load())
 			if err != nil {
-				h.seriesMtx.RUnlock()
 				return activeSeries, err
 			}
 
@@ -293,7 +284,6 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 					Ts:    timeMs,
 				})
 				if err != nil {
-					h.seriesMtx.RUnlock()
 					return activeSeries, err
 				}
 			}
@@ -305,33 +295,17 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 			s.registerSeenSeries()
 		}
 	}
-	h.seriesMtx.RUnlock()
 
 	if len(staleSeries) > 0 {
-		h.seriesMtx.Lock()
-		defer h.seriesMtx.Unlock()
-
 		for _, hash := range staleSeries {
-			if s, ok := h.series[hash]; ok && s.stale.Load() {
-				delete(h.series, hash)
-			}
+			delete(h.series, hash)
 		}
 
 		h.onRemoveSeries(uint32(len(staleSeries)) * h.activeSeriesPerHistogramSeries())
 	}
+	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSeries())
 
 	return
-}
-
-func (h *histogram) removeStaleSeries(staleTimeMs int64) {
-	h.seriesMtx.RLock()
-	defer h.seriesMtx.RUnlock()
-
-	for _, s := range h.series {
-		if s.lastUpdated.Load() < staleTimeMs {
-			s.stale.Store(true)
-		}
-	}
 }
 
 func (h *histogram) activeSeriesPerHistogramSeries() uint32 {

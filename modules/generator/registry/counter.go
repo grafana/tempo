@@ -33,7 +33,6 @@ type counterSeries struct {
 	// to the desired value.  This avoids Prometheus throwing away the first
 	// value in the series, due to the transition from null -> x.
 	firstSeries *atomic.Bool
-	stale       *atomic.Bool
 }
 
 var (
@@ -120,46 +119,41 @@ func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *co
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),
-		stale:       atomic.NewBool(false),
 	}
 }
 
 func (c *counter) updateSeries(s *counterSeries, value float64) {
 	s.value.Add(value)
 	s.lastUpdated.Store(time.Now().UnixMilli())
-	s.stale.Store(false)
 }
 
 func (c *counter) name() string {
 	return c.metricName
 }
 
-func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
-	c.seriesMtx.RLock()
+func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, staleTime int64) (activeSeries int, err error) {
+	c.seriesMtx.Lock()
+	defer c.seriesMtx.Unlock()
 
-	activeSeries = len(c.series)
-	staleSeries := []uint64{}
+	staleSeries := make([]uint64, 0)
 
 	for hash, s := range c.series {
 		// If we are about to call Append for the first time on a series, we need
 		// to first insert a 0 value to allow Prometheus to start from a non-null
 		// value.
 		if s.isNew() {
-			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
+			// We set the timestamp of the init series at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err = appender.Append(0, s.labels, endOfLastMinuteMs, 0)
 			if err != nil {
-				c.seriesMtx.RUnlock()
 				return
 			}
 			s.registerSeenSeries()
 		}
-
-		if s.stale.Load() {
+		if s.lastUpdated.Load() < staleTime {
 			_, err = appender.Append(0, s.labels, timeMs, staleMarker())
 			if err != nil {
-				c.seriesMtx.RUnlock()
 				return
 			}
 			staleSeries = append(staleSeries, hash)
@@ -168,37 +162,18 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activ
 
 		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
-			c.seriesMtx.RUnlock()
 			return
 		}
 	}
-	c.seriesMtx.RUnlock()
 
 	// TODO: support exemplars
 
 	if len(staleSeries) > 0 {
-		c.seriesMtx.Lock()
-		defer c.seriesMtx.Unlock()
-
 		for _, hash := range staleSeries {
-			if s, ok := c.series[hash]; ok && s.stale.Load() {
-				delete(c.series, hash)
-			}
+			delete(c.series, hash)
 		}
-
 		c.onRemoveSeries(uint32(len(staleSeries)))
 	}
-
+	activeSeries = len(c.series)
 	return
-}
-
-func (c *counter) removeStaleSeries(staleTimeMs int64) {
-	c.seriesMtx.RLock()
-	defer c.seriesMtx.RUnlock()
-
-	for _, s := range c.series {
-		if s.lastUpdated.Load() < staleTimeMs {
-			s.stale.Store(true)
-		}
-	}
 }

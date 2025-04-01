@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"sort"
@@ -17,7 +18,8 @@ import (
 
 func TestManagedRegistry_concurrency(*testing.T) {
 	cfg := &Config{
-		StaleDuration: 1 * time.Millisecond,
+		StaleDuration:      1 * time.Millisecond,
+		CollectionInterval: 1 * time.Second,
 	}
 	registry := New(cfg, &mockOverrides{}, "test", &noopAppender{}, log.NewNopLogger())
 	defer registry.Close()
@@ -49,18 +51,18 @@ func TestManagedRegistry_concurrency(*testing.T) {
 		registry.CollectMetrics(context.Background())
 	})
 
-	go accessor(func() {
-		registry.removeStaleSeries(context.Background())
-	})
-
 	time.Sleep(200 * time.Millisecond)
 	close(end)
 }
 
 func TestManagedRegistry_counter(t *testing.T) {
-	appender := &capturingAppender{}
-
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	appender := newCapturingAppender()
+	trigger := make(chan struct{})
+	instanceCtx, cancel := context.WithCancel(context.Background())
+	registry := newWithTrigger(&Config{
+		CollectionInterval: 1 * time.Second,
+		StaleDuration:      10 * time.Second,
+	}, &mockOverrides{}, "test", appender, log.NewNopLogger(), trigger, instanceCtx, cancel)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
@@ -71,13 +73,19 @@ func TestManagedRegistry_counter(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
 	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+	ctx, cncl := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cncl()
+	collectRegistryMetricsAndAssert(t, trigger, ctx, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_histogram(t *testing.T) {
-	appender := &capturingAppender{}
-
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	appender := newCapturingAppender()
+	trigger := make(chan struct{})
+	instanceCtx, cancel := context.WithCancel(context.Background())
+	registry := newWithTrigger(&Config{
+		CollectionInterval: 1 * time.Second,
+		StaleDuration:      10 * time.Second,
+	}, &mockOverrides{}, "test", appender, log.NewNopLogger(), trigger, instanceCtx, cancel)
 	defer registry.Close()
 
 	histogram := registry.NewHistogram("histogram", []float64{1.0, 2.0}, HistogramModeClassic)
@@ -95,16 +103,21 @@ func TestManagedRegistry_histogram(t *testing.T) {
 		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 1, 1.0),
 	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+	ctx, cncl := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cncl()
+	collectRegistryMetricsAndAssert(t, trigger, ctx, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_removeStaleSeries(t *testing.T) {
-	appender := &capturingAppender{}
+	appender := newCapturingAppender()
 
 	cfg := &Config{
-		StaleDuration: 75 * time.Millisecond,
+		StaleDuration:      4 * time.Second,
+		CollectionInterval: 2 * time.Second,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	trigger := make(chan struct{})
+	instanceCtx, cancel := context.WithCancel(context.Background())
+	registry := newWithTrigger(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), trigger, instanceCtx, cancel)
 	defer registry.Close()
 
 	counter1 := registry.NewCounter("metric_1")
@@ -113,39 +126,36 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	counter1.Inc(nil, 1)
 	counter2.Inc(nil, 2)
 
-	registry.removeStaleSeries(context.Background())
-
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "metric_1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "metric_1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
 		newSample(map[string]string{"__name__": "metric_2", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "metric_2", "__metrics_gen_instance": mustGetHostname()}, 0, 2),
 	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
-
-	appender.samples = nil
-
-	time.Sleep(50 * time.Millisecond)
+	ctx, cncl := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cncl()
+	collectRegistryMetricsAndAssert(t, trigger, ctx, registry, appender, expectedSamples)
+	time.Sleep(5 * time.Second)
 	counter2.Inc(nil, 2)
-	time.Sleep(50 * time.Millisecond)
-
-	registry.removeStaleSeries(context.Background())
-
 	expectedSamples = []sample{
+		newSample(map[string]string{"__name__": "metric_1", "__metrics_gen_instance": mustGetHostname()}, 0, staleMarker()),
 		newSample(map[string]string{"__name__": "metric_2", "__metrics_gen_instance": mustGetHostname()}, 0, 4),
 	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+	collectRegistryMetricsAndAssert(t, trigger, ctx, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_externalLabels(t *testing.T) {
-	appender := &capturingAppender{}
+	appender := newCapturingAppender()
 
-	cfg := &Config{
+	trigger := make(chan struct{})
+	instanceCtx, cancel := context.WithCancel(context.Background())
+	registry := newWithTrigger(&Config{
+		CollectionInterval: 1 * time.Second,
+		StaleDuration:      1 * time.Second,
 		ExternalLabels: map[string]string{
 			"__foo": "bar",
 		},
-	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	}, &mockOverrides{}, "test", appender, log.NewNopLogger(), trigger, instanceCtx, cancel)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
@@ -155,16 +165,20 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__foo": "bar"}, 0, 0),
 		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__foo": "bar"}, 0, 1),
 	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+	ctx, cncl := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cncl()
+	collectRegistryMetricsAndAssert(t, trigger, ctx, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
-	appender := &capturingAppender{}
-
-	cfg := &Config{
-		InjectTenantIDAs: "__tempo_tenant",
-	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	appender := newCapturingAppender()
+	trigger := make(chan struct{})
+	instanceCtx, cancel := context.WithCancel(context.Background())
+	registry := newWithTrigger(&Config{
+		CollectionInterval: 1 * time.Second,
+		StaleDuration:      10 * time.Second,
+		InjectTenantIDAs:   "__tempo_tenant",
+	}, &mockOverrides{}, "test", appender, log.NewNopLogger(), trigger, instanceCtx, cancel)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
@@ -174,16 +188,21 @@ func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__tempo_tenant": "test"}, 0, 0),
 		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__tempo_tenant": "test"}, 0, 1),
 	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+	ctx, cncl := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cncl()
+	collectRegistryMetricsAndAssert(t, trigger, ctx, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_maxSeries(t *testing.T) {
-	appender := &capturingAppender{}
-
-	overrides := &mockOverrides{
+	appender := newCapturingAppender()
+	trigger := make(chan struct{})
+	instanceCtx, cancel := context.WithCancel(context.Background())
+	registry := newWithTrigger(&Config{
+		CollectionInterval: 1 * time.Second,
+		StaleDuration:      10 * time.Second,
+	}, &mockOverrides{
 		maxActiveSeries: 1,
-	}
-	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+	}, "test", appender, log.NewNopLogger(), trigger, instanceCtx, cancel)
 	defer registry.Close()
 
 	counter1 := registry.NewCounter("metric_1")
@@ -199,12 +218,13 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
 	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+	ctx, cncl := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cncl()
+	collectRegistryMetricsAndAssert(t, trigger, ctx, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_disableCollection(t *testing.T) {
-	appender := &capturingAppender{}
-
+	appender := newCapturingAppender()
 	overrides := &mockOverrides{
 		disableCollection: true,
 	}
@@ -223,13 +243,15 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 }
 
 func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
-	appender := &capturingAppender{}
-
-	cfg := &Config{
+	appender := newCapturingAppender()
+	trigger := make(chan struct{})
+	instanceCtx, cancel := context.WithCancel(context.Background())
+	registry := newWithTrigger(&Config{
 		MaxLabelNameLength:  8,
 		MaxLabelValueLength: 5,
-	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+		CollectionInterval:  1 * time.Second,
+		StaleDuration:       10 * time.Second,
+	}, &mockOverrides{}, "test", appender, log.NewNopLogger(), trigger, instanceCtx, cancel)
 	defer registry.Close()
 
 	counter := registry.NewCounter("counter")
@@ -249,11 +271,13 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 1, 1.0),
 	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+	ctx, cncl := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cncl()
+	collectRegistryMetricsAndAssert(t, trigger, ctx, registry, appender, expectedSamples)
 }
 
 func TestValidLabelValueCombo(t *testing.T) {
-	appender := &capturingAppender{}
+	appender := newCapturingAppender()
 
 	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
@@ -288,7 +312,7 @@ func TestHistogramOverridesConfig(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			appender := &capturingAppender{}
+			appender := newCapturingAppender()
 			overrides := &mockOverrides{}
 			registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
 			defer registry.Close()
@@ -299,9 +323,15 @@ func TestHistogramOverridesConfig(t *testing.T) {
 	}
 }
 
-func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
+func collectRegistryMetricsAndAssert(t *testing.T, trigger chan struct{}, ctx context.Context, _ *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
 	collectionTimeMs := time.Now().UnixMilli()
-	r.CollectMetrics(context.Background())
+
+	var actualSamples []sample
+
+	// This will trigger a collection.
+	trigger <- struct{}{}
+
+	actualSamples = <-appender.onCommit
 
 	// Ignore the collection time on expected samples, since we won't know when the collection will actually take place.
 	for i := range expectedSamples {
@@ -309,14 +339,16 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 	}
 
 	// Ignore the collection time on the collected samples.  Initial counter values will be offset from the collection time.
-	for i := range appender.samples {
-		appender.samples[i].t = collectionTimeMs
+	for i := range actualSamples {
+		actualSamples[i].t = collectionTimeMs
 	}
 
-	assert.Equal(t, true, appender.isCommitted)
-	assert.Equal(t, false, appender.isRolledback)
+	require.Equal(t, true, appender.isCommitted)
+	require.Equal(t, false, appender.isRolledback)
 
-	actualSamples := appender.samples
+	for i := range actualSamples {
+		println(actualSamples[i].String())
+	}
 	require.Equal(t, len(expectedSamples), len(actualSamples))
 
 	// Ensure that both slices are ordered consistently.
@@ -333,11 +365,16 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 	for i, expected := range expectedSamples {
 		actual := actualSamples[i]
 
-		assert.Equal(t, expected.t, actual.t)
-		assert.Equal(t, expected.v, actual.v)
+		require.Equal(t, expected.t, actual.t)
+		// Silly nan checks.
+		if math.IsNaN(expected.v) {
+			require.True(t, math.IsNaN(actual.v))
+		} else {
+			require.Equal(t, expected.v, actual.v)
+		}
 		// Rely on the fact that Go prints map keys in sorted order.
 		// See https://tip.golang.org/doc/go1.12#fmt.
-		assert.Equal(t, fmt.Sprint(expected.l.Map()), fmt.Sprint(actual.l.Map()))
+		require.Equal(t, fmt.Sprint(expected.l.Map()), fmt.Sprint(actual.l.Map()))
 	}
 }
 
@@ -354,7 +391,7 @@ func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(string) uint32 {
 }
 
 func (m *mockOverrides) MetricsGeneratorCollectionInterval(string) time.Duration {
-	return 15 * time.Second
+	return 1 * time.Second
 }
 
 func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {

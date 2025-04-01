@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"github.com/stretchr/testify/require"
 	"math"
 	"math/rand"
 	"sync"
@@ -30,7 +31,7 @@ func Test_gaugeInc(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
@@ -43,7 +44,7 @@ func Test_gaugeInc(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-3"}, collectionTimeMs, 3),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 3, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 3, expectedSamples, nil)
 }
 
 func TestGaugeDifferentLabels(t *testing.T) {
@@ -65,7 +66,7 @@ func TestGaugeDifferentLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "another_label": "another_value"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
 }
 
 func Test_gaugeSet(t *testing.T) {
@@ -87,7 +88,7 @@ func Test_gaugeSet(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
 
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
@@ -100,7 +101,7 @@ func Test_gaugeSet(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-3"}, collectionTimeMs, 3),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 3, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 3, expectedSamples, nil)
 }
 
 func Test_gauge_cantAdd(t *testing.T) {
@@ -123,7 +124,7 @@ func Test_gauge_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
 
 	// block new series - existing series can still be updated
 	canAdd = false
@@ -136,7 +137,7 @@ func Test_gauge_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
 }
 
 func Test_gauge_removeStaleSeries(t *testing.T) {
@@ -148,38 +149,35 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 
 	c := newGauge("my_gauge", nil, onRemove, nil)
 
-	timeMs := time.Now().UnixMilli()
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(timeMs)
-
-	assert.Equal(t, 0, removedSeries)
-
 	collectionTimeMs := time.Now().UnixMilli()
+
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	assert.Equal(t, 0, removedSeries)
 
 	time.Sleep(10 * time.Millisecond)
-	timeMs = time.Now().UnixMilli()
+	// By setting the staleness to now after the sleep we will exclude any created after this.
+	stalenessTimeMs := time.Now().UnixMilli()
 
 	// update value-2 series
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
-
-	c.removeStaleSeries(timeMs)
-	activeSeries, err := c.collectMetrics(&capturingAppender{}, timeMs)
+	activeSeries, err := c.collectMetrics(newCapturingAppender(), collectionTimeMs, stalenessTimeMs)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, activeSeries)
+	assert.Equal(t, 1, activeSeries)
 	assert.Equal(t, 1, removedSeries)
 
 	collectionTimeMs = time.Now().UnixMilli()
+	time.Sleep(2 * time.Second)
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, stalenessTimeMs, 1, expectedSamples, nil)
 }
 
 func Test_gauge_externalLabels(t *testing.T) {
@@ -193,7 +191,7 @@ func Test_gauge_externalLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
 }
 
 func Test_gauge_concurrencyDataRace(t *testing.T) {
@@ -230,12 +228,8 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := c.collectMetrics(&noopAppender{}, 0)
+		_, err := c.collectMetrics(&noopAppender{}, 0, 0)
 		assert.NoError(t, err)
-	})
-
-	go accessor(func() {
-		c.removeStaleSeries(time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)
@@ -275,30 +269,39 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, 0, 1, expectedSamples, nil)
 }
 
 func Test_gauge_sendStaleMarkers(t *testing.T) {
 	c := newGauge("my_gauge", nil, nil, nil)
 
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value"}), 1.0)
-
-	staleTimeMs := time.Now().Add(1 * time.Minute).UnixMilli()
-	c.removeStaleSeries(staleTimeMs)
-
+	appender := newCapturingAppender()
 	collectionTimeMs := time.Now().UnixMilli()
+
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value"}), 1.0)
+	// Need to get the first collection out of the way so that that the initial item is triggered
+	// since it is always created. The 0 indicates no staleness checked.
+	activeSeries, err := c.collectMetrics(appender, collectionTimeMs, 0)
+
+	// Commit runs separately.
+	go appender.Commit()
+
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value"}, collectionTimeMs, staleMarker()),
 	}
-	assert.True(t, math.IsNaN(expectedSamples[0].v))
+	require.True(t, math.IsNaN(expectedSamples[0].v))
 
-	appender := &capturingAppender{}
-
-	activeSeries, err := c.collectMetrics(appender, collectionTimeMs)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, activeSeries)
-	assert.False(t, appender.isCommitted)
-	assert.False(t, appender.isRolledback)
-	assert.Equal(t, expectedSamples[0].String(), appender.samples[0].String())
-	assert.True(t, math.IsNaN(appender.samples[0].v))
+	time.Sleep(10 * time.Millisecond)
+	// Anything before this will be marked as stale.
+	stalenessTimeMs := time.Now().UnixMilli()
+	appender = newCapturingAppender()
+	activeSeries, err = c.collectMetrics(appender, collectionTimeMs, stalenessTimeMs)
+	go appender.Commit()
+	samples := <-appender.onCommit
+	require.NoError(t, err)
+	require.Equal(t, 0, activeSeries)
+	require.True(t, appender.isCommitted)
+	require.False(t, appender.isRolledback)
+	require.Equal(t, expectedSamples[0].String(), samples[0].String())
+	require.True(t, math.IsNaN(samples[0].v))
 }
