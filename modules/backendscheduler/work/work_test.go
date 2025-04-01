@@ -62,6 +62,9 @@ func TestWorkLifecycle(t *testing.T) {
 
 	require.Len(t, w.ListJobs(), 0)
 	require.Equal(t, w.Len(), 0)
+
+	err = w.AddJob(nil)
+	require.Error(t, err)
 }
 
 func TestTenant(t *testing.T) {
