@@ -12,6 +12,8 @@ import (
 	"github.com/prometheus/prometheus/storage"
 )
 
+const dontCheckStaleness = 0
+
 type noopAppender struct{}
 
 var (

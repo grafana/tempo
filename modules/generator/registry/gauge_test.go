@@ -31,7 +31,7 @@ func Test_gaugeInc(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
@@ -44,7 +44,7 @@ func Test_gaugeInc(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-3"}, collectionTimeMs, 3),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 3, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 3, expectedSamples, nil)
 }
 
 func TestGaugeDifferentLabels(t *testing.T) {
@@ -66,7 +66,7 @@ func TestGaugeDifferentLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "another_label": "another_value"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 }
 
 func Test_gaugeSet(t *testing.T) {
@@ -88,7 +88,7 @@ func Test_gaugeSet(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
@@ -101,7 +101,7 @@ func Test_gaugeSet(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-3"}, collectionTimeMs, 3),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 3, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 3, expectedSamples, nil)
 }
 
 func Test_gauge_cantAdd(t *testing.T) {
@@ -124,7 +124,7 @@ func Test_gauge_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 
 	// block new series - existing series can still be updated
 	canAdd = false
@@ -137,7 +137,7 @@ func Test_gauge_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 }
 
 func Test_gauge_removeStaleSeries(t *testing.T) {
@@ -158,7 +158,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 	assert.Equal(t, 0, removedSeries)
 
 	time.Sleep(10 * time.Millisecond)
@@ -191,7 +191,7 @@ func Test_gauge_externalLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 }
 
 func Test_gauge_concurrencyDataRace(t *testing.T) {
@@ -269,7 +269,7 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 1, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 1, expectedSamples, nil)
 }
 
 func Test_gauge_sendStaleMarkers(t *testing.T) {

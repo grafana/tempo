@@ -34,7 +34,7 @@ func Test_counter(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, endOfLastMinuteMs, 0),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
@@ -50,7 +50,7 @@ func Test_counter(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-3"}, collectionTimeMs, 3),
 	}
 
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 3, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 3, expectedSamples, nil)
 }
 
 func TestCounterDifferentLabels(t *testing.T) {
@@ -75,7 +75,7 @@ func TestCounterDifferentLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "another_label": "another_value"}, endOfLastMinuteMs, 0),
 		newSample(map[string]string{"__name__": "my_counter", "another_label": "another_value"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 }
 
 func Test_counter_cantAdd(t *testing.T) {
@@ -101,7 +101,7 @@ func Test_counter_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, endOfLastMinuteMs, 0),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 
 	// block new series - existing series can still be updated
 	canAdd = false
@@ -114,7 +114,7 @@ func Test_counter_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 }
 
 func Test_counter_removeStaleSeries(t *testing.T) {
@@ -141,7 +141,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, endOfLastMinuteMs, 0),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 0, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 
 	timeMs = time.Now().UnixMilli()
 	time.Sleep(10 * time.Millisecond)
@@ -161,7 +161,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
 
-	collectMetricAndAssert(t, c, collectionTimeMs, stalenessTimeMs, 1, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 1, expectedSamples, nil)
 }
 
 func Test_counter_externalLabels(t *testing.T) {
@@ -178,7 +178,7 @@ func Test_counter_externalLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2", "external_label": "external_value"}, endOfLastMinuteMs, 0),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, collectionTimeMs, 2, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 2, expectedSamples, nil)
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
@@ -258,7 +258,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, endOfLastMinuteMs, 0),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, totalCount.Load()),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, collectionTimeMs, 1, expectedSamples, nil)
+	collectMetricAndAssert(t, c, collectionTimeMs, dontCheckStaleness, 1, expectedSamples, nil)
 }
 
 func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, stalenessTimeMs int64, expectedActiveSeries int, expectedSamples []sample, expectedExemplars []exemplarSample) {
