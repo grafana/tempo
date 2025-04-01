@@ -114,22 +114,18 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to load work cache: %w", err)
 	}
 
-	go s.mergeJobs(ctx)
-
-	return nil
-}
-
-func (s *BackendScheduler) running(ctx context.Context) error {
-	level.Info(log.Logger).Log("msg", "backend scheduler running")
-
 	// Start providers and collect job channels
 	s.mergedJobs = make(chan *work.Job, len(s.providers))
+
+	wg := sync.WaitGroup{}
 
 	for i := range s.providers {
 		s.providers[i].jobs = s.providers[i].provider.Start(ctx)
 
+		wg.Add(1)
 		// Start a goroutine to forward jobs from each provider to the merged channel
 		go func(jobs <-chan *work.Job) {
+			defer wg.Done()
 			for job := range jobs {
 				select {
 				case s.mergedJobs <- job:
@@ -139,6 +135,53 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			}
 		}(s.providers[i].jobs)
 	}
+
+	wg.Add(1)
+	// Start a goroutine to merge jobs from all providers
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				jobFound := false
+				for _, p := range s.providers {
+					select {
+					case job, ok := <-p.jobs:
+						if !ok {
+							continue // Provider channel closed
+						}
+						select {
+						case s.mergedJobs <- job:
+							jobFound = true
+						default:
+							// Merged channel full, try next time
+						}
+					default:
+						// No job from this provider, try next one
+						continue
+					}
+				}
+
+				if !jobFound {
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
+		}
+	}()
+
+	// Start a goroutine to close the merged channel when all providers are done
+	go func() {
+		wg.Wait()
+		close(s.mergedJobs)
+	}()
+
+	return nil
+}
+
+func (s *BackendScheduler) running(ctx context.Context) error {
+	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
 	maintenanceTicker := time.NewTicker(s.cfg.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
@@ -160,7 +203,7 @@ func (s *BackendScheduler) stopping(_ error) error {
 	}
 
 	level.Info(log.Logger).Log("msg", "backend scheduler stopping")
-	close(s.mergedJobs)
+	// close(s.mergedJobs)
 	return nil
 }
 
@@ -318,36 +361,4 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, x.Render())
-}
-
-func (s *BackendScheduler) mergeJobs(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			jobFound := false
-			for _, p := range s.providers {
-				select {
-				case job, ok := <-p.jobs:
-					if !ok {
-						continue // Provider channel closed
-					}
-					select {
-					case s.mergedJobs <- job:
-						jobFound = true
-					default:
-						// Merged channel full, try next time
-					}
-				default:
-					// No job from this provider, try next one
-					continue
-				}
-			}
-
-			if !jobFound {
-				time.Sleep(10 * time.Millisecond)
-			}
-		}
-	}
 }
