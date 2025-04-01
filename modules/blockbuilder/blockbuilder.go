@@ -387,6 +387,8 @@ outer:
 					b.wal,
 					b.enc)
 				init = true
+
+				span.AddLink(trace.LinkFromContext(rec.Context))
 			}
 
 			if rec.Timestamp.After(end) {
