@@ -55,6 +55,14 @@ func Test_outerMaybeDelayMiddleware(t *testing.T) {
 			reqDuration:   50 * time.Millisecond,
 			expectedSleep: 550 * time.Millisecond,
 		},
+		{
+			name:          "Override delay configured with 0",
+			userID:        "user4",
+			delayCfg:      500 * time.Millisecond,
+			delayOverride: durationPtr(0 * time.Millisecond),
+			reqDuration:   50 * time.Millisecond,
+			expectedSleep: 0,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
