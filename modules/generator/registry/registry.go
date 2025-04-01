@@ -10,12 +10,12 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
-
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
 var (
@@ -84,12 +84,12 @@ type ManagedRegistry struct {
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	name() string
-	collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error)
-	removeStaleSeries(staleTimeMs int64)
+	// collectMetrics will collect metrics, if the value has not been seen for the staleness duration
+	// then that metric will be labelled as stale and removed. activeSeries will be series - stale series.
+	collectMetrics(appender storage.Appender, timeMs int64, staleTimeMs int64) (activeSeries int, err error)
 }
 
 const (
-	staleMarkerValue           = 0x7ff0000000000002
 	highestAggregationInterval = 1 * time.Minute
 )
 
@@ -98,8 +98,31 @@ var _ Registry = (*ManagedRegistry)(nil)
 // New creates a ManagedRegistry. This Registry will scrape itself, write samples into an appender
 // and remove stale series.
 func New(cfg *Config, overrides Overrides, tenant string, appendable storage.Appendable, logger log.Logger) *ManagedRegistry {
+	trigger := make(chan struct{})
 	instanceCtx, cancel := context.WithCancel(context.Background())
+	// setup job to trigger collection.
+	go job(instanceCtx, func(ctx context.Context) {
+		select {
+		case trigger <- struct{}{}:
+		case <-instanceCtx.Done():
+			return
+		}
+	}, func() time.Duration {
+		return collectionInterval(cfg, overrides, tenant)
+	})
+	return newWithTrigger(cfg, overrides, tenant, appendable, logger, trigger, instanceCtx, cancel)
+}
 
+// newWithTrigger is like new but allows fine tuned control over when collection triggers.
+func newWithTrigger(cfg *Config,
+	overrides Overrides,
+	tenant string,
+	appendable storage.Appendable,
+	logger log.Logger,
+	triggerCollection chan struct{},
+	instanceCtx context.Context,
+	cancel func(),
+) *ManagedRegistry {
 	externalLabels := make(map[string]string)
 	for k, v := range cfg.ExternalLabels {
 		externalLabels[k] = v
@@ -134,9 +157,16 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		metricFailedCollections:  metricFailedCollections.WithLabelValues(tenant),
 	}
 
-	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
-	go job(instanceCtx, r.removeStaleSeries, constantInterval(5*time.Minute))
-
+	go func() {
+		for {
+			select {
+			case <-triggerCollection:
+				r.CollectMetrics(instanceCtx)
+			case <-instanceCtx.Done():
+				return
+			}
+		}
+	}()
 	return r
 }
 
@@ -230,7 +260,7 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs)
+		active, err := m.collectMetrics(appender, collectionTimeMs, time.Now().Add(-1*r.cfg.StaleDuration).UnixMilli())
 		if err != nil {
 			return
 		}
@@ -259,25 +289,12 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	level.Info(r.logger).Log("msg", "collecting metrics", "active_series", activeSeries)
 }
 
-func (r *ManagedRegistry) collectionInterval() time.Duration {
-	interval := r.overrides.MetricsGeneratorCollectionInterval(r.tenant)
+func collectionInterval(cfg *Config, overrides Overrides, tenant string) time.Duration {
+	interval := overrides.MetricsGeneratorCollectionInterval(tenant)
 	if interval != 0 {
 		return interval
 	}
-	return r.cfg.CollectionInterval
-}
-
-func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
-	r.metricsMtx.RLock()
-	defer r.metricsMtx.RUnlock()
-
-	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
-
-	for _, m := range r.metrics {
-		m.removeStaleSeries(timeMs)
-	}
-
-	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())
+	return cfg.CollectionInterval
 }
 
 func (r *ManagedRegistry) Close() {
@@ -298,5 +315,5 @@ func getEndOfLastMinuteMs(timeMs int64) int64 {
 }
 
 func staleMarker() float64 {
-	return math.Float64frombits(staleMarkerValue)
+	return math.Float64frombits(value.StaleNaN)
 }

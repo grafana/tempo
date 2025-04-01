@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/prometheus/model/exemplar"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -66,8 +67,6 @@ type nativeHistogramSeries struct {
 	// classic
 	countLabels labels.Labels
 	sumLabels   labels.Labels
-	// bucketLabels []labels.Labels
-	stale *atomic.Bool
 }
 
 func (hs *nativeHistogramSeries) isNew() bool {
@@ -147,7 +146,6 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		}),
 		lastUpdated: 0,
 		firstSeries: atomic.NewBool(true),
-		stale:       atomic.NewBool(false),
 	}
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
@@ -188,26 +186,27 @@ func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, 
 		)
 	}
 	s.lastUpdated = time.Now().UnixMilli()
-	s.stale.Store(false)
 }
 
 func (h *nativeHistogram) name() string {
 	return h.metricName
 }
 
-func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
-	h.seriesMtx.RLock()
+func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64, staleTimeMs int64) (activeSeries int, err error) {
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
 
 	activeSeries = 0
 
-	for _, s := range h.series {
+	staleSeries := make([]uint64, 0)
+
+	for hash, s := range h.series {
 		// Extract histogram
 		encodedMetric := &dto.Metric{}
 
 		// Encode to protobuf representation
 		err = s.promHistogram.Write(encodedMetric)
 		if err != nil {
-			h.seriesMtx.RUnlock()
 			return activeSeries, err
 		}
 
@@ -221,7 +220,6 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if hasClassicHistograms(h.histogramOverride) {
 			classicSeries, classicErr := h.classicHistograms(appender, timeMs, s)
 			if classicErr != nil {
-				h.seriesMtx.RUnlock()
 				return activeSeries, classicErr
 			}
 			activeSeries += classicSeries
@@ -229,9 +227,8 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 		// If we are in "both" or "native" mode, also emit native histograms.
 		if hasNativeHistograms(h.histogramOverride) {
-			nativeErr := h.nativeHistograms(appender, s.labels, timeMs, s)
+			nativeErr := h.nativeHistograms(appender, s.labels, timeMs, s, staleTimeMs)
 			if nativeErr != nil {
-				h.seriesMtx.RUnlock()
 				return activeSeries, nativeErr
 			}
 		}
@@ -251,25 +248,19 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 				}
 				_, err = appender.AppendExemplar(0, s.labels, e)
 				if err != nil {
-					h.seriesMtx.RUnlock()
 					return activeSeries, err
 				}
 			}
 		}
-	}
-	h.seriesMtx.RUnlock()
-
-	return
-}
-
-func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
-	h.seriesMtx.RLock()
-	defer h.seriesMtx.RUnlock()
-	for _, s := range h.series {
 		if s.lastUpdated < staleTimeMs {
-			s.stale.Store(true)
+			staleSeries = append(staleSeries, hash)
 		}
 	}
+	// Remove the stale series after sending.
+	for _, hash := range staleSeries {
+		delete(h.series, hash)
+	}
+	return
 }
 
 func (h *nativeHistogram) activeSeriesPerHistogramSeries() uint32 {
@@ -277,7 +268,7 @@ func (h *nativeHistogram) activeSeriesPerHistogramSeries() uint32 {
 	return 1
 }
 
-func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls labels.Labels, timeMs int64, s *nativeHistogramSeries) (err error) {
+func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls labels.Labels, timeMs int64, s *nativeHistogramSeries, staleTimeMs int64) (err error) {
 	// Decode to Prometheus representation
 	hist := promhistogram.Histogram{
 		Schema:        s.histogram.GetSchema(),
@@ -306,7 +297,10 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 		}
 	}
 	hist.NegativeBuckets = s.histogram.NegativeDelta
-
+	// For native histograms the sum stores the staleness marker.
+	if s.lastUpdated < staleTimeMs {
+		hist.Sum = math.Float64frombits(value.StaleNaN)
+	}
 	_, err = appender.AppendHistogram(0, lbls, timeMs, &hist, nil)
 	if err != nil {
 		return err

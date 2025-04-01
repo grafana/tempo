@@ -12,6 +12,8 @@ import (
 	"github.com/prometheus/prometheus/storage"
 )
 
+const dontCheckStaleness = 0
+
 type noopAppender struct{}
 
 var (
@@ -56,6 +58,7 @@ type capturingAppender struct {
 	exemplars    []exemplarSample
 	isCommitted  bool
 	isRolledback bool
+	onCommit     chan []sample
 }
 
 type sample struct {
@@ -97,7 +100,15 @@ var (
 	_ storage.Appender   = (*capturingAppender)(nil)
 )
 
+func newCapturingAppender() *capturingAppender {
+	return &capturingAppender{
+		onCommit: make(chan []sample),
+	}
+}
+
 func (c *capturingAppender) Appender(context.Context) storage.Appender {
+	c.isCommitted = false
+	c.isRolledback = false
 	return c
 }
 
@@ -117,10 +128,13 @@ func (c *capturingAppender) AppendHistogram(ref storage.SeriesRef, _ labels.Labe
 
 func (c *capturingAppender) Commit() error {
 	c.isCommitted = true
+	c.onCommit <- c.samples
+	c.samples = make([]sample, 0)
 	return nil
 }
 
 func (c *capturingAppender) Rollback() error {
+	c.samples = make([]sample, 0)
 	c.isRolledback = true
 	return nil
 }
