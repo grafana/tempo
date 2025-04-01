@@ -12,8 +12,7 @@ type Provider interface {
 	Start(ctx context.Context) <-chan *work.Job
 }
 
-// Scheduler interface defines the methods providers need from the backend scheduler
+// Scheduler interface defines the methods providers need from the scheduler
 type Scheduler interface {
-	// Add only the methods providers need to call
 	ListJobs() []*work.Job
 }

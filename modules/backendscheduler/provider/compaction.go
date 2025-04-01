@@ -40,7 +40,6 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 
 type CompactionProvider struct {
 	cfg    CompactionConfig
-	sched  Scheduler
 	logger log.Logger
 
 	// Dependencies needed for compaction job selection
