@@ -311,7 +311,8 @@ func BenchmarkGauge_100ConcurrentWriters(b *testing.B) {
 	numWriters := 100
 	writesPerGoroutine := 1000
 
-	// BenchmarkGauge_100ConcurrentWriters-20    	     178	       100.0 num_series	    100000 total_writes
+	// main BenchmarkGauge_100ConcurrentWriters-20    	     170	       100.0 num_series	    100000 total_writes
+	// simplified locking BenchmarkGauge_100ConcurrentWriters-20    	     178	       100.0 num_series	    100000 total_writes
 	//
 	for b.Loop() {
 		g := newGauge("benchmark_gauge", nil, nil, nil)
@@ -352,7 +353,7 @@ func BenchmarkGauge_100ConcurrentWriters(b *testing.B) {
 		// Measure collection performance
 		appender := &noopAppender{}
 		timeMs := time.Now().UnixMilli()
-		_, err := g.collectMetrics(appender, timeMs, 0)
+		_, err := g.collectMetrics(appender, timeMs, dontCheckStaleness)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -361,58 +362,5 @@ func BenchmarkGauge_100ConcurrentWriters(b *testing.B) {
 		// Report number of series for context
 		b.ReportMetric(float64(numWriters), "num_series")
 		b.ReportMetric(float64(numWriters*writesPerGoroutine), "total_writes")
-	}
-}
-
-func BenchmarkGauge_ConcurrentWriteAndCollect(b *testing.B) {
-	numWriters := 100
-	collectionDuration := 500 * time.Millisecond
-
-	// BenchmarkGauge_ConcurrentWriteAndCollect-20    	       2	      5025 collections	     10050 collections_per_second
-	for b.Loop() {
-		g := newGauge("benchmark_gauge", nil, nil, nil)
-
-		// Channel to signal writers to stop
-		done := make(chan struct{})
-
-		// Launch concurrent writers
-		for w := 0; w < numWriters; w++ {
-			worker := w
-			go func() {
-				labelValueCombo := newLabelValueCombo([]string{"worker"}, []string{fmt.Sprintf("worker-%d", worker)})
-				for {
-					select {
-					case <-done:
-						return
-					default:
-						g.Inc(labelValueCombo, 1.0)
-					}
-				}
-			}()
-		}
-
-		// Run benchmark for collecting metrics while writes are ongoing
-		b.ResetTimer()
-		appender := &noopAppender{}
-		startTime := time.Now()
-		endTime := startTime.Add(collectionDuration)
-
-		var collections int
-		for time.Now().Before(endTime) {
-			timeMs := time.Now().UnixMilli()
-			_, err := g.collectMetrics(appender, timeMs, 0)
-			if err != nil {
-				b.Fatal(err)
-			}
-			collections++
-		}
-
-		// Stop writers and cleanup
-		close(done)
-		b.StopTimer()
-
-		// Report metrics
-		b.ReportMetric(float64(collections), "collections")
-		b.ReportMetric(float64(collections)/collectionDuration.Seconds(), "collections_per_second")
 	}
 }
