@@ -1,0 +1,32 @@
+package provider
+
+import (
+	"flag"
+	"time"
+
+	"github.com/grafana/tempo/pkg/util"
+)
+
+// Config contains configuration for all providers
+type Config struct {
+	Retention  RetentionConfig  `yaml:"retention"`
+	Compaction CompactionConfig `yaml:"compaction"`
+}
+
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	cfg.Retention.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
+	cfg.Compaction.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
+}
+
+// Default returns default provider configuration
+func DefaultConfig() Config {
+	return Config{
+		Retention: RetentionConfig{
+			Interval: time.Hour,
+		},
+		Compaction: CompactionConfig{
+			PollInterval: 100 * time.Millisecond,
+			BufferSize:   10,
+		},
+	}
+}

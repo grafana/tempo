@@ -1,0 +1,19 @@
+package provider
+
+import (
+	"context"
+
+	"github.com/grafana/tempo/modules/backendscheduler/work"
+)
+
+// Provider defines the interface for job providers
+type Provider interface {
+	// Start begins the provider's job generation and returns a channel of jobs
+	Start(ctx context.Context) <-chan *work.Job
+}
+
+// Scheduler interface defines the methods providers need from the backend scheduler
+type Scheduler interface {
+	// Add only the methods providers need to call
+	ListJobs() []*work.Job
+}
