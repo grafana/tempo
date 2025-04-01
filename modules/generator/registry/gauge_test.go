@@ -310,43 +310,45 @@ func Test_gauge_sendStaleMarkers(t *testing.T) {
 func BenchmarkGauge_100ConcurrentWriters(b *testing.B) {
 	numWriters := 100
 	writesPerGoroutine := 1000
-	
-	for i := 0; i < b.N; i++ {
+
+	// BenchmarkGauge_100ConcurrentWriters-20    	     178	       100.0 num_series	    100000 total_writes
+	//
+	for b.Loop() {
 		g := newGauge("benchmark_gauge", nil, nil, nil)
-		
+
 		// Create a wait group to coordinate goroutines
 		var wg sync.WaitGroup
 		wg.Add(numWriters)
-		
+
 		// Setup a start signal
 		start := make(chan struct{})
-		
+
 		// Launch workers
 		for w := 0; w < numWriters; w++ {
 			worker := w
 			go func() {
 				defer wg.Done()
-				
+
 				// Create a unique label value for this worker
 				labelValueCombo := newLabelValueCombo([]string{"worker"}, []string{fmt.Sprintf("worker-%d", worker)})
-				
+
 				// Wait for start signal
 				<-start
-				
+
 				// Perform writes
 				for j := 0; j < writesPerGoroutine; j++ {
 					g.Inc(labelValueCombo, 1.0)
 				}
 			}()
 		}
-		
+
 		// Start all workers simultaneously
 		b.ResetTimer()
 		close(start)
-		
+
 		// Wait for all workers to complete
 		wg.Wait()
-		
+
 		// Measure collection performance
 		appender := &noopAppender{}
 		timeMs := time.Now().UnixMilli()
@@ -355,7 +357,7 @@ func BenchmarkGauge_100ConcurrentWriters(b *testing.B) {
 			b.Fatal(err)
 		}
 		b.StopTimer()
-		
+
 		// Report number of series for context
 		b.ReportMetric(float64(numWriters), "num_series")
 		b.ReportMetric(float64(numWriters*writesPerGoroutine), "total_writes")
@@ -365,13 +367,14 @@ func BenchmarkGauge_100ConcurrentWriters(b *testing.B) {
 func BenchmarkGauge_ConcurrentWriteAndCollect(b *testing.B) {
 	numWriters := 100
 	collectionDuration := 500 * time.Millisecond
-	
-	for i := 0; i < b.N; i++ {
+
+	// BenchmarkGauge_ConcurrentWriteAndCollect-20    	       2	      5025 collections	     10050 collections_per_second
+	for b.Loop() {
 		g := newGauge("benchmark_gauge", nil, nil, nil)
-		
+
 		// Channel to signal writers to stop
 		done := make(chan struct{})
-		
+
 		// Launch concurrent writers
 		for w := 0; w < numWriters; w++ {
 			worker := w
@@ -387,13 +390,13 @@ func BenchmarkGauge_ConcurrentWriteAndCollect(b *testing.B) {
 				}
 			}()
 		}
-		
+
 		// Run benchmark for collecting metrics while writes are ongoing
 		b.ResetTimer()
 		appender := &noopAppender{}
 		startTime := time.Now()
 		endTime := startTime.Add(collectionDuration)
-		
+
 		var collections int
 		for time.Now().Before(endTime) {
 			timeMs := time.Now().UnixMilli()
@@ -403,11 +406,11 @@ func BenchmarkGauge_ConcurrentWriteAndCollect(b *testing.B) {
 			}
 			collections++
 		}
-		
+
 		// Stop writers and cleanup
 		close(done)
 		b.StopTimer()
-		
+
 		// Report metrics
 		b.ReportMetric(float64(collections), "collections")
 		b.ReportMetric(float64(collections)/collectionDuration.Seconds(), "collections_per_second")
