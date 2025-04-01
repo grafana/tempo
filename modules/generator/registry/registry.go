@@ -85,7 +85,9 @@ type ManagedRegistry struct {
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	name() string
-	collectMetrics(appender storage.Appender, timeMs int64, staleTime int64) (activeSeries int, err error)
+	// collectMetrics will collect metrics, if the value has not been seen for the staleness duration
+	// then that metric will be labelled as stale and removed. activeSeries will be series - stale series.
+	collectMetrics(appender storage.Appender, timeMs int64, staleTimeMs int64) (activeSeries int, err error)
 }
 
 const (
@@ -231,7 +233,6 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 }
 
 func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
-	println("CollectMetrics")
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
 		return
 	}
