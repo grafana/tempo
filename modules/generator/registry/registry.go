@@ -255,7 +255,7 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs, collectionTimeMs-r.cfg.StaleDuration.Milliseconds())
+		active, err := m.collectMetrics(appender, collectionTimeMs, time.Now().Add(-1*r.cfg.StaleDuration).UnixMilli())
 		if err != nil {
 			return
 		}
