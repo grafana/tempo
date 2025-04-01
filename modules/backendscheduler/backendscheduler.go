@@ -1,7 +1,6 @@
 package backendscheduler
 
 import (
-	"container/heap"
 	"context"
 	"errors"
 	"fmt"
@@ -12,18 +11,15 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/backendscheduler/provider"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
-	"github.com/grafana/tempo/modules/backendscheduler/work/tenantselector"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"google.golang.org/grpc/codes"
 )
@@ -45,12 +41,20 @@ type BackendScheduler struct {
 	reader backend.RawReader
 	writer backend.RawWriter
 
-	curPriority       *tenantselector.PriorityQueue
-	curTenant         *tenantselector.Item
-	curSelector       blockselector.CompactionBlockSelector
-	curTenantJobCount int
+	providers []struct {
+		provider provider.Provider
+		jobs     <-chan *work.Job
+	}
 
-	jobChan chan *work.Job
+	mergedJobs chan *work.Job
+}
+
+// Ensure BackendScheduler implements provider.Scheduler
+var _ provider.Scheduler = (*BackendScheduler)(nil)
+
+// ListJobs returns all jobs in the work cache
+func (s *BackendScheduler) ListJobs() []*work.Job {
+	return s.work.ListJobs()
 }
 
 // New creates a new BackendScheduler
@@ -61,14 +65,37 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 	}
 
 	s := &BackendScheduler{
-		cfg:         cfg,
-		store:       store,
-		overrides:   overrides,
-		work:        work.New(cfg.Work),
-		reader:      reader,
-		writer:      writer,
-		curPriority: tenantselector.NewPriorityQueue(),
-		jobChan:     make(chan *work.Job, 1),
+		cfg:        cfg,
+		store:      store,
+		overrides:  overrides,
+		work:       work.New(cfg.Work),
+		reader:     reader,
+		writer:     writer,
+		mergedJobs: make(chan *work.Job, 100),
+	}
+
+	// Initialize providers
+	s.providers = []struct {
+		provider provider.Provider
+		jobs     <-chan *work.Job
+	}{
+		{
+			provider: provider.NewCompactionProvider(
+				s.cfg.ProviderConfig.Compaction,
+				log.Logger,
+				s.store,
+				s.overrides,
+			),
+			jobs: nil, // Will be set in running
+		},
+		{
+			provider: provider.NewRetentionProvider(
+				s.cfg.ProviderConfig.Retention,
+				s,
+				log.Logger,
+			),
+			jobs: nil, // Will be set in running
+		},
 	}
 
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
@@ -76,6 +103,8 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 }
 
 func (s *BackendScheduler) starting(ctx context.Context) error {
+	level.Info(log.Logger).Log("msg", "backend scheduler starting")
+
 	if s.cfg.Poll {
 		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder)
 	}
@@ -85,22 +114,34 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to load work cache: %w", err)
 	}
 
+	go s.mergeJobs(ctx)
+
 	return nil
 }
 
 func (s *BackendScheduler) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
-	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantMeasurementInterval)
-	defer prioritizeTenantsTicker.Stop()
+	// Start providers and collect job channels
+	s.mergedJobs = make(chan *work.Job, len(s.providers))
+
+	for i := range s.providers {
+		s.providers[i].jobs = s.providers[i].provider.Start(ctx)
+
+		// Start a goroutine to forward jobs from each provider to the merged channel
+		go func(jobs <-chan *work.Job) {
+			for job := range jobs {
+				select {
+				case s.mergedJobs <- job:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(s.providers[i].jobs)
+	}
 
 	maintenanceTicker := time.NewTicker(s.cfg.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
-
-	retentionTicker := time.NewTicker(s.cfg.RetentionInterval)
-	defer retentionTicker.Stop()
-
-	s.measureTenants()
 
 	for {
 		select {
@@ -108,115 +149,19 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			return nil
 		case <-maintenanceTicker.C:
 			s.work.Prune()
-		case <-retentionTicker.C:
-			// Get a retention job if we don't already have one running.
-			j := s.nextRetentionJob(ctx)
-			if j == nil {
-				continue
-			}
-
-			select {
-			case s.jobChan <- &work.Job{
-				ID:   uuid.New().String(),
-				Type: tempopb.JobType_JOB_TYPE_RETENTION,
-				JobDetail: tempopb.JobDetail{
-					Retention: &tempopb.RetentionDetail{},
-				},
-			}:
-			default:
-			}
-		case <-prioritizeTenantsTicker.C:
-			s.measureTenants()
 		}
 	}
 }
 
 func (s *BackendScheduler) stopping(_ error) error {
-	close(s.jobChan)
-
-	return s.flushWorkCache(context.Background())
-}
-
-func (s *BackendScheduler) measureTenants() {
-	for _, tenant := range s.store.Tenants() {
-		window := s.overrides.MaxCompactionRange(tenant)
-
-		if window == 0 {
-			window = s.cfg.Compactor.MaxCompactionRange
-		}
-
-		blockSelector := blockselector.NewTimeWindowBlockSelector(
-			s.store.BlockMetas(tenant),
-			window,
-			s.cfg.Compactor.MaxCompactionObjects,
-			s.cfg.Compactor.MaxBlockBytes,
-			blockselector.DefaultMinInputBlocks,
-			blockselector.DefaultMaxInputBlocks,
-		)
-
-		tempodb.MeasureOutstandingBlocks(tenant, blockSelector, ownedYes)
-	}
-}
-
-// prioritizeTenants prioritizes tenants based on the number of outstanding blocks.
-func (s *BackendScheduler) prioritizeTenants() {
-	tenants := []tenantselector.Tenant{}
-
-	s.curPriority = tenantselector.NewPriorityQueue() // wipe and restart
-
-	for _, tenantID := range s.store.Tenants() {
-		if s.overrides.CompactionDisabled(tenantID) {
-			continue
-		}
-
-		var (
-			blocklist         = s.store.BlockMetas(tenantID)
-			window            = s.overrides.MaxCompactionRange(tenantID)
-			outstandingBlocks = 0
-			toBeCompacted     []*backend.BlockMeta
-		)
-
-		if window == 0 {
-			window = s.cfg.Compactor.MaxCompactionRange
-		}
-
-		// TODO: consider using a different blockselector for this
-		blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist,
-			window,
-			s.cfg.Compactor.MaxCompactionObjects,
-			s.cfg.Compactor.MaxBlockBytes,
-			blockselector.DefaultMinInputBlocks,
-			blockselector.DefaultMaxInputBlocks,
-		)
-
-		// Measure the outstanding blocks
-		for {
-			toBeCompacted, _ = blockSelector.BlocksToCompact()
-			if len(toBeCompacted) == 0 {
-				break
-			}
-
-			outstandingBlocks += len(toBeCompacted)
-		}
-
-		tenants = append(tenants, tenantselector.Tenant{
-			ID:                         tenantID,
-			BlocklistLength:            len(blocklist),
-			OutstandingBlocklistLength: outstandingBlocks,
-		})
+	err := s.flushWorkCache(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to flush work cache on shutdown: %w", err)
 	}
 
-	var (
-		ts       = tenantselector.NewBlockListWeightedTenantSelector(tenants)
-		item     *tenantselector.Item
-		priority int
-	)
-
-	for _, tenant := range tenants {
-		priority = ts.PriorityForTenant(tenant.ID)
-		item = tenantselector.NewItem(tenant.ID, priority)
-		heap.Push(s.curPriority, item)
-	}
+	level.Info(log.Logger).Log("msg", "backend scheduler stopping")
+	close(s.mergedJobs)
+	return nil
 }
 
 // Next implements the BackendSchedulerServer interface.  It returns the next queued job for a worker.
@@ -247,14 +192,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		return resp, nil
 	}
 
+	// Try to get a job from the merged channel
 	select {
-	case j = <-s.jobChan:
-	default:
-		// get the next comapction job
-		j = s.nextCompactionJob(ctx)
-	}
-
-	if j != nil && j.ID != "" {
+	case j := <-s.mergedJobs:
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
 			Type:   j.Type,
@@ -281,9 +221,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
 
 		return resp, nil
+	default:
+		return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
 	}
-
-	return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
 }
 
 // UpdateJob implements the BackendSchedulerServer interface
@@ -380,105 +320,34 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 	_, _ = io.WriteString(w, x.Render())
 }
 
-func (s *BackendScheduler) nextRetentionJob(_ context.Context) *work.Job {
-	// Check if we already have a retention job running
-	for _, j := range s.work.ListJobs() {
-		if j.GetType() == tempopb.JobType_JOB_TYPE_RETENTION && j.GetStatus() == tempopb.JobStatus_JOB_STATUS_RUNNING {
-			return nil
-		}
-	}
-
-	// Invent the next retention job
-	return &work.Job{
-		ID:   uuid.New().String(),
-		Type: tempopb.JobType_JOB_TYPE_RETENTION,
-		JobDetail: tempopb.JobDetail{
-			Retention: &tempopb.RetentionDetail{},
-		},
-	}
-}
-
-// returns the next compabeingBackendScheduler-0290053e1ction job. this could probably be rewritten cleverly to use yields
-// and fewer struct vars
-func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
-	var prioritized bool
-
-	reset := func() {
-		s.curSelector = nil
-		s.curTenant = nil
-		s.curTenantJobCount = 0
-	}
-
+func (s *BackendScheduler) mergeJobs(ctx context.Context) {
 	for {
-		// do we have an current tenant?
-		if s.curSelector != nil {
-
-			if s.curTenantJobCount >= s.cfg.MaxJobsPerTenant {
-				reset()
-				continue
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			jobFound := false
+			for _, p := range s.providers {
+				select {
+				case job, ok := <-p.jobs:
+					if !ok {
+						continue // Provider channel closed
+					}
+					select {
+					case s.mergedJobs <- job:
+						jobFound = true
+					default:
+						// Merged channel full, try next time
+					}
+				default:
+					// No job from this provider, try next one
+					continue
+				}
 			}
 
-			toBeCompacted, _ := s.curSelector.BlocksToCompact()
-			if len(toBeCompacted) == 0 {
-				// we have drained this selector to the next tenant!
-				reset()
-				continue
-			}
-
-			input := make([]string, 0, len(toBeCompacted))
-			for _, b := range toBeCompacted {
-				input = append(input, b.BlockID.String())
-			}
-
-			compaction := &tempopb.CompactionDetail{
-				Input: input,
-			}
-
-			s.curTenantJobCount++
-
-			return &work.Job{
-				ID:   uuid.New().String(),
-				Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-				JobDetail: tempopb.JobDetail{
-					Tenant:     s.curTenant.Value(),
-					Compaction: compaction,
-				},
+			if !jobFound {
+				time.Sleep(10 * time.Millisecond)
 			}
 		}
-
-		// we don't have a current tenant, get the next one
-
-		if s.curPriority.Len() == 0 {
-			if prioritized {
-				// no compactions are needed and we've already prioritized once
-				return nil
-			}
-			s.prioritizeTenants()
-			prioritized = true
-		}
-
-		if s.curPriority.Len() == 0 {
-			// no tenants = no jobs
-			return nil
-		}
-
-		s.curTenant = heap.Pop(s.curPriority).(*tenantselector.Item)
-		if s.curTenant == nil {
-			return nil
-		}
-
-		// set the block selector and go to the top to find a job for this tenant
-		s.curSelector = blockselector.NewTimeWindowBlockSelector(
-			s.store.BlockMetas(s.curTenant.Value()),
-			s.cfg.Compactor.MaxCompactionRange,
-			s.cfg.Compactor.MaxCompactionObjects,
-			s.cfg.Compactor.MaxBlockBytes,
-			blockselector.DefaultMinInputBlocks,
-			blockselector.DefaultMaxInputBlocks,
-		)
 	}
-}
-
-func ownedYes(_ string) bool {
-	return true
 }

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -16,6 +17,14 @@ type Config struct {
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Retention.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
 	cfg.Compaction.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
+}
+
+func ValidateConfig(cfg *Config) error {
+	if cfg.Compaction.MaxJobsPerTenant <= 0 {
+		return fmt.Errorf("max_jobs_per_tenant must be greater than 0")
+	}
+
+	return nil
 }
 
 // Default returns default provider configuration
