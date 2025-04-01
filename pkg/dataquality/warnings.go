@@ -10,6 +10,7 @@ const (
 	reasonBlockBuilderOutsideIngestionSlack = "blockbuilder_outside_ingestion_time_slack"
 	reasonDisconnectedTrace                 = "disconnected_trace"
 	reasonRootlessTrace                     = "rootless_trace"
+	reasonSpanInFuture                      = "span_in_future"
 
 	PhaseTraceFlushedToWal     = "_flushed_to_wal"
 	PhaseTraceWalToComplete    = "_wal_to_complete"
@@ -36,4 +37,8 @@ func WarnDisconnectedTrace(tenant string, phase string) {
 
 func WarnRootlessTrace(tenant string, phase string) {
 	metric.WithLabelValues(tenant, reasonRootlessTrace+phase).Inc()
+}
+
+func WarnSpanInFuture(tenant string) {
+	metric.WithLabelValues(tenant, reasonSpanInFuture).Inc()
 }
