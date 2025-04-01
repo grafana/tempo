@@ -388,6 +388,9 @@ outer:
 					b.enc)
 				init = true
 
+				// TODO(mapno): This call creates a link to the parent span in this trace.
+				//  While this creates a redundant self-reference in the trace visualization,
+				//  the functionality still works correctly. Low priority to fix.
 				span.AddLink(trace.LinkFromContext(rec.Context))
 			}
 
