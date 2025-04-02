@@ -6,15 +6,29 @@
 # command does not include "-m <n>" arg required for merge commits.
 name: Backport
 on:
-  pull_request_target:
+  pull_request:
     types:
       - closed
       - labeled
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   main:
-    runs-on: ubuntu-24.04
+    # skip it in all forks, only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
+    runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{secrets.APP_ID}}
+          private-key: ${{secrets.APP_PRIVATE_KEY}}
+          owner: ${{ github.repository_owner }}
+
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
@@ -28,6 +42,6 @@ jobs:
       - name: Run backport
         uses: ./actions/backport
         with:
-          token: ${{secrets.GITHUB_TOKEN}}
+          token: ${{ steps.app-token.outputs.token }}
           labelsToAdd: "backport"
           title: "[{{base}}] {{originalTitle}}"
