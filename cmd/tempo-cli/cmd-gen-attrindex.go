@@ -2,9 +2,12 @@ package main
 
 import (
 	"cmp"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -173,6 +176,7 @@ func (cmd *attrIndexCmd) printAttrStats(stats *fileStats) {
 	_, _ = fmt.Fprintf(w, tmpl, "Spans", stats.Spans)
 	_, _ = fmt.Fprintf(w, tmpl, "Events", stats.Events)
 	_, _ = fmt.Fprintf(w, tmpl, "Links", stats.Links)
+	_, _ = fmt.Fprintf(w, tmpl, "Arrays", stats.Arrays)
 	_ = w.Flush()
 
 	// sort attributes by scope and count
@@ -192,7 +196,7 @@ func (cmd *attrIndexCmd) printAttrStats(stats *fileStats) {
 	_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", "Name", "Scopes", "Count", "Cardinality")
 	tmpl = "%s\t%s\t%d\t%d\n"
 	for _, attr := range attrs {
-		_, _ = fmt.Fprintf(w, tmpl, attr.Key, attr.ScopeMask.String(), attr.Count, len(attr.ValuesString)+len(attr.ValuesInt64)+len(attr.ValuesFloat64)+len(attr.ValuesBool))
+		_, _ = fmt.Fprintf(w, tmpl, attr.Key, attr.ScopeMask.String(), attr.Count, len(attr.ValuesString)+len(attr.ValuesInt)+len(attr.ValuesFloat)+len(attr.ValuesBool))
 	}
 	_ = w.Flush()
 }
@@ -223,7 +227,7 @@ func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttri
 			}
 
 			sort.Slice(a.ValuesString, func(i, j int) bool {
-				return cmp.Compare(a.ValuesString[i].Value, a.ValuesString[j].Value) < 0
+				return cmpSlice(a.ValuesString[i].Value, a.ValuesString[j].Value) < 0
 			})
 
 			var valueCode int64 = 0
@@ -233,10 +237,10 @@ func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttri
 			}
 		}
 
-		if len(attr.ValuesInt64) > 0 {
-			a.ValuesInt64 = make([]indexedNumericValue[int64], 0, len(attr.ValuesInt64))
+		if len(attr.ValuesInt) > 0 {
+			a.ValuesInt64 = make([]indexedNumericValue[int64], 0, len(attr.ValuesInt))
 
-			for _, v := range attr.ValuesInt64 {
+			for _, v := range attr.ValuesInt {
 				a.ValuesInt64 = append(a.ValuesInt64, indexedNumericValue[int64]{
 					Value:      v.Value,
 					RowNumbers: v.RowNumbers,
@@ -244,14 +248,14 @@ func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttri
 			}
 
 			sort.Slice(a.ValuesInt64, func(i, j int) bool {
-				return a.ValuesInt64[i].Value < a.ValuesInt64[j].Value
+				return cmpSlice(a.ValuesInt64[i].Value, a.ValuesInt64[j].Value) < 0
 			})
 		}
 
-		if len(attr.ValuesFloat64) > 0 {
-			a.ValuesFloat64 = make([]indexedNumericValue[float64], 0, len(attr.ValuesFloat64))
+		if len(attr.ValuesFloat) > 0 {
+			a.ValuesFloat64 = make([]indexedNumericValue[float64], 0, len(attr.ValuesFloat))
 
-			for _, v := range attr.ValuesFloat64 {
+			for _, v := range attr.ValuesFloat {
 				a.ValuesFloat64 = append(a.ValuesFloat64, indexedNumericValue[float64]{
 					Value:      v.Value,
 					RowNumbers: v.RowNumbers,
@@ -259,7 +263,22 @@ func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttri
 			}
 
 			sort.Slice(a.ValuesFloat64, func(i, j int) bool {
-				return a.ValuesFloat64[i].Value < a.ValuesFloat64[j].Value
+				return cmpSlice(a.ValuesFloat64[i].Value, a.ValuesFloat64[j].Value) < 0
+			})
+		}
+
+		if len(attr.ValuesBool) > 0 {
+			a.ValuesBool = make([]indexedNumericValue[bool], 0, len(attr.ValuesBool))
+
+			for _, v := range attr.ValuesBool {
+				a.ValuesBool = append(a.ValuesBool, indexedNumericValue[bool]{
+					Value:      v.Value,
+					RowNumbers: v.RowNumbers,
+				})
+			}
+
+			sort.Slice(a.ValuesBool, func(i, j int) bool {
+				return cmpSliceBool(a.ValuesBool[i].Value, a.ValuesBool[j].Value) < 0
 			})
 		}
 
@@ -302,13 +321,13 @@ func (cmd *attrIndexCmd) writeAttributeIndex(index []indexedAttribute) error {
 }
 
 type indexedAttribute struct {
-	Key           string    `parquet:",snappy"`
-	KeyCode       int64     `parquet:",snappy,delta"`
-	ScopeMask     scopeMask `parquet:",snappy,delta"`
-	ValuesString  []indexedStringValue
-	ValuesInt64   []indexedNumericValue[int64]
-	ValuesFloat64 []indexedNumericValue[float64]
-	ValuesBool    []indexedNumericValue[bool]
+	Key           string                         `parquet:",snappy"`
+	KeyCode       int64                          `parquet:",snappy,delta"`
+	ScopeMask     scopeMask                      `parquet:",snappy,delta"`
+	ValuesString  []indexedStringValue           `parquet:",list"`
+	ValuesInt64   []indexedNumericValue[int64]   `parquet:",list"`
+	ValuesFloat64 []indexedNumericValue[float64] `parquet:",list"`
+	ValuesBool    []indexedNumericValue[bool]    `parquet:",list"`
 }
 
 type rowNumberBytes [16]byte
@@ -321,28 +340,28 @@ type rowNumberCols struct {
 }
 
 type indexedStringValue struct {
-	Value      string `parquet:",snappy"`
-	ValueCode  int64  `parquet:",snappy,delta"`
+	Value      []string `parquet:",snappy"`
+	ValueCode  int64    `parquet:",snappy,delta"`
 	RowNumbers []rowNumberCols
 }
 
 type indexedNumericValue[T comparable] struct {
-	Value      T `parquet:",snappy"`
+	Value      []T `parquet:",snappy"`
 	RowNumbers []rowNumberCols
 }
 
 type attributeInfo struct {
-	Key           string
-	ScopeMask     scopeMask
-	Count         int64
-	ValuesString  map[string]*valueInfo[string]
-	ValuesInt64   map[int64]*valueInfo[int64]
-	ValuesFloat64 map[float64]*valueInfo[float64]
-	ValuesBool    map[bool]*valueInfo[bool]
+	Key          string
+	ScopeMask    scopeMask
+	Count        int64
+	ValuesString map[uint64]*valueInfo[string]
+	ValuesInt    map[uint64]*valueInfo[int64]
+	ValuesFloat  map[uint64]*valueInfo[float64]
+	ValuesBool   map[uint64]*valueInfo[bool]
 }
 
 type valueInfo[T comparable] struct {
-	Value      T
+	Value      []T
 	RowNumbers []rowNumberCols
 }
 
@@ -352,6 +371,7 @@ type fileStats struct {
 	Spans      int
 	Events     int
 	Links      int
+	Arrays     int
 	Attributes map[string]*attributeInfo
 }
 
@@ -359,6 +379,7 @@ func (fs *fileStats) addAttributes(row pq.RowNumber, scope scopeMask, attrs []vp
 	for _, attr := range attrs {
 		if attr.IsArray {
 			fs.addAttribute(row, scope, attr.Key, attr.Value)
+			fs.Arrays++
 		} else if len(attr.Value) > 0 {
 			fs.addAttribute(row, scope, attr.Key, attr.Value[0])
 		} else if len(attr.ValueInt) > 0 {
@@ -409,21 +430,11 @@ func (fs *fileStats) addDedicatedAttributes(row pq.RowNumber, scope scopeMask, c
 }
 
 func (fs *fileStats) addAttribute(row pq.RowNumber, scope scopeMask, key string, value any) {
-	// TODO support array values
-	value = dereferenceAny(value)
-	if value == nil {
-		return
-	}
-
 	attr, ok := fs.Attributes[key]
 	if !ok {
 		attr = &attributeInfo{
-			Key:           key,
-			ScopeMask:     scope,
-			ValuesString:  make(map[string]*valueInfo[string]),
-			ValuesInt64:   make(map[int64]*valueInfo[int64]),
-			ValuesFloat64: make(map[float64]*valueInfo[float64]),
-			ValuesBool:    make(map[bool]*valueInfo[bool]),
+			Key:       key,
+			ScopeMask: scope,
 		}
 		fs.Attributes[key] = attr
 	}
@@ -432,45 +443,81 @@ func (fs *fileStats) addAttribute(row pq.RowNumber, scope scopeMask, key string,
 	attr.ScopeMask.Add(scope)
 
 	switch value := value.(type) {
-	case string:
-		v, ok := attr.ValuesString[value]
-		if !ok {
-			v = &valueInfo[string]{
-				Value:      value,
-				RowNumbers: make([]rowNumberCols, 0, 10),
-			}
-			attr.ValuesString[value] = v
+	case string, *string, []string:
+		s := toSlice[string](value)
+		if len(s) == 0 {
+			return
+		}
+		if attr.ValuesString == nil {
+			attr.ValuesString = make(map[uint64]*valueInfo[string])
 		}
 
-		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
-	case int64:
-		v, ok := attr.ValuesInt64[value]
+		sum := fnvStrings(s)
+		info, ok := attr.ValuesString[sum]
+		if !ok {
+			info = &valueInfo[string]{
+				Value:      s,
+				RowNumbers: make([]rowNumberCols, 0, 1),
+			}
+			attr.ValuesString[sum] = info
+		}
+
+		info.RowNumbers = append(info.RowNumbers, toRowNumberCols(row))
+	case int64, *int64, []int64:
+		s := toSlice[int64](value)
+		if len(s) == 0 {
+			return
+		}
+		if attr.ValuesInt == nil {
+			attr.ValuesInt = make(map[uint64]*valueInfo[int64])
+		}
+
+		sum := fnvInts(s)
+		v, ok := attr.ValuesInt[sum]
 		if !ok {
 			v = &valueInfo[int64]{
-				Value:      value,
-				RowNumbers: make([]rowNumberCols, 0, 10),
+				Value:      s,
+				RowNumbers: make([]rowNumberCols, 0, 1),
 			}
-			attr.ValuesInt64[value] = v
+			attr.ValuesInt[sum] = v
 		}
 		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
-	case float64:
-		v, ok := attr.ValuesFloat64[value]
+	case float64, *float64, []float64:
+		s := toSlice[float64](value)
+		if len(s) == 0 {
+			return
+		}
+		if attr.ValuesFloat == nil {
+			attr.ValuesFloat = make(map[uint64]*valueInfo[float64])
+		}
+
+		sum := fnvFloats(s)
+		v, ok := attr.ValuesFloat[sum]
 		if !ok {
 			v = &valueInfo[float64]{
-				Value:      value,
-				RowNumbers: make([]rowNumberCols, 0, 10),
+				Value:      s,
+				RowNumbers: make([]rowNumberCols, 0, 1),
 			}
-			attr.ValuesFloat64[value] = v
+			attr.ValuesFloat[sum] = v
 		}
 		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
-	case bool:
-		v, ok := attr.ValuesBool[value]
+	case bool, *bool, []bool:
+		s := toSlice[bool](value)
+		if len(s) == 0 {
+			return
+		}
+		if attr.ValuesBool == nil {
+			attr.ValuesBool = make(map[uint64]*valueInfo[bool])
+		}
+
+		sum := fnvBools(s)
+		v, ok := attr.ValuesBool[sum]
 		if !ok {
 			v = &valueInfo[bool]{
-				Value:      value,
-				RowNumbers: make([]rowNumberCols, 0, 10),
+				Value:      s,
+				RowNumbers: make([]rowNumberCols, 0, 1),
 			}
-			attr.ValuesBool[value] = v
+			attr.ValuesBool[sum] = v
 		}
 		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
 	}
@@ -565,4 +612,83 @@ func dereferenceAny(val any) any {
 		}
 		return v
 	}
+}
+
+func toSlice[T any](val any) []T {
+	switch v := val.(type) {
+	case []T:
+		return v
+	case T:
+		return []T{v}
+	case *T:
+		if v == nil {
+			return nil
+		}
+		return []T{*v}
+	default:
+		panic(fmt.Sprintf("unexpected type %T", v))
+	}
+}
+
+func fnvStrings(values []string) uint64 {
+	h := fnv.New64a()
+	for _, v := range values {
+		_, _ = h.Write(unsafe.Slice(unsafe.StringData(v), len(v)))
+	}
+	return h.Sum64()
+}
+
+func fnvInts(values []int64) uint64 {
+	h := fnv.New64a()
+	var buf [8]byte
+	for _, v := range values {
+		binary.LittleEndian.PutUint64(buf[:], uint64(v))
+		_, _ = h.Write(buf[:])
+	}
+	return h.Sum64()
+}
+
+func fnvFloats(values []float64) uint64 {
+	h := fnv.New64a()
+	var buf [8]byte
+	for _, v := range values {
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(v))
+		_, _ = h.Write(buf[:])
+	}
+	return h.Sum64()
+}
+
+func fnvBools(values []bool) uint64 {
+	h := fnv.New64a()
+	var buf [1]byte
+	for _, v := range values {
+		if v {
+			buf[0] = 1
+		} else {
+			buf[0] = 0
+		}
+		_, _ = h.Write(buf[:])
+	}
+	return h.Sum64()
+}
+
+func cmpSlice[T cmp.Ordered](a, b []T) int {
+	for i := range min(len(a), len(b)) {
+		if n := cmp.Compare(a[i], b[i]); n != 0 {
+			return n
+		}
+	}
+	return cmp.Compare(len(a), len(b))
+}
+
+func cmpSliceBool(a, b []bool) int {
+	for i := range min(len(a), len(b)) {
+		if a[i] == false && b[i] == true {
+			return -1
+		}
+		if a[i] == true && b[i] == false {
+			return 1
+		}
+	}
+	return cmp.Compare(len(a), len(b))
 }
