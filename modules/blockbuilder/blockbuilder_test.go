@@ -55,6 +55,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -94,6 +95,7 @@ func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T)
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{})
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -136,6 +138,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
@@ -197,6 +200,7 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 		}
 		return store.WriteBlock(ctx, block)
 	})
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
@@ -237,6 +241,7 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -324,6 +329,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
@@ -382,6 +388,7 @@ func TestBlockbuilder_retries_on_retriable_commit_error(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
@@ -440,6 +447,7 @@ func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
@@ -484,6 +492,7 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	// Set a shorter consume cycle duration
 	cfg.ConsumeCycleDuration = 500 * time.Millisecond
@@ -575,6 +584,7 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 				storageWrites.Inc()
 				return store.WriteBlock(ctx, block)
 			})
+			defer store.Shutdown()
 
 			cfg := blockbuilderConfig(t, address, []int32{0})
 			cfg.MaxBytesPerCycle = uint64(tc.maxBytesPerCycle)
@@ -656,6 +666,7 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 		}
 		return store.WriteBlock(ctx, block)
 	})
+	defer store.Shutdown()
 
 	// Create the block builder
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -718,6 +729,7 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
+	defer store.Shutdown()
 	cfg := blockbuilderConfig(t, address, []int32{0}) // Fix: Properly specify partition
 
 	// Start sending traces in the background
@@ -994,6 +1006,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 			},
 		}
 	)
+	defer store.Shutdown()
 
 	cfg.ConsumeCycleDuration = 1 * time.Hour
 
