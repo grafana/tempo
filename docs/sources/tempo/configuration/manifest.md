@@ -990,7 +990,7 @@ backend_scheduler:
         retention:
             interval: 1h0m0s
         compaction:
-            poll_interval: 100ms
+            poll_interval: 3s
             buffer_size: 10
             measure_interval: 1m0s
             compaction:
@@ -1006,6 +1006,10 @@ backend_scheduler:
                 max_time_per_tenant: 5m0s
                 compaction_cycle: 30s
             max_jobs_per_tenant: 1000
+            backoff:
+                min_period: 100ms
+                max_period: 1m0s
+                max_retries: 0
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600

@@ -9,6 +9,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/backendscheduler/work/tenantselector"
 	"github.com/grafana/tempo/modules/overrides"
@@ -26,13 +27,19 @@ type CompactionConfig struct {
 	MeasureInterval  time.Duration           `yaml:"measure_interval"`
 	Compactor        tempodb.CompactorConfig `yaml:"compaction"`
 	MaxJobsPerTenant int                     `yaml:"max_jobs_per_tenant"`
+	Backoff          backoff.Config          `yaml:"backoff"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.MeasureInterval, prefix+"backend-scheduler.compaction-provider.measure-interval", time.Minute, "Interval at which to metric tenant blocklist")
 	f.IntVar(&cfg.MaxJobsPerTenant, prefix+"backend-scheduler.max-jobs-per-tenant", 1000, "Maximum number of jobs to run per tenant before moving on to the next tenant")
-	f.DurationVar(&cfg.PollInterval, prefix+"backend-scheduler.compaction-provider.poll-interval", 100*time.Millisecond, "Interval at which to poll for compaction jobs")
+	f.DurationVar(&cfg.PollInterval, prefix+"backend-scheduler.compaction-provider.poll-interval", 3*time.Second, "Interval at which to poll for compaction jobs")
 	f.IntVar(&cfg.BufferSize, prefix+"backend-scheduler.compaction-provider.buffer-size", 10, "Buffer size for compaction jobs")
+
+	// Backoff
+	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
+	f.DurationVar(&cfg.Backoff.MaxBackoff, prefix+".backoff-max-period", time.Minute, "Maximum delay when backing off.")
+	f.IntVar(&cfg.Backoff.MaxRetries, prefix+".backoff-retries", 0, "Number of times to backoff and retry before failing.")
 
 	cfg.Compactor = tempodb.CompactorConfig{}
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
@@ -120,16 +127,19 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 }
 
 // returns the next compaction job for the tenant
-func (p *CompactionProvider) nextCompactionJob(_ context.Context) *work.Job {
+func (p *CompactionProvider) nextCompactionJob(ctx context.Context) *work.Job {
 	var prioritized bool
+
+	b := backoff.New(ctx, p.cfg.Backoff)
 
 	reset := func() {
 		p.curSelector = nil
 		p.curTenant = nil
 		p.curTenantJobCount = 0
+		b.Reset()
 	}
 
-	for {
+	for b.Ongoing() {
 		// do we have an current tenant?
 		if p.curSelector != nil {
 
@@ -170,6 +180,7 @@ func (p *CompactionProvider) nextCompactionJob(_ context.Context) *work.Job {
 
 		if p.curPriority.Len() == 0 {
 			if prioritized {
+				b.Wait()
 				// no compactions are needed and we've already prioritized once
 				return nil
 			}
@@ -178,12 +189,14 @@ func (p *CompactionProvider) nextCompactionJob(_ context.Context) *work.Job {
 		}
 
 		if p.curPriority.Len() == 0 {
+			b.Wait()
 			// no tenants = no jobs
 			return nil
 		}
 
 		p.curTenant = heap.Pop(p.curPriority).(*tenantselector.Item)
 		if p.curTenant == nil {
+			b.Wait()
 			return nil
 		}
 
@@ -197,6 +210,8 @@ func (p *CompactionProvider) nextCompactionJob(_ context.Context) *work.Job {
 			blockselector.DefaultMaxInputBlocks,
 		)
 	}
+
+	return nil
 }
 
 // prioritizeTenants prioritizes tenants based on the number of outstanding blocks.
