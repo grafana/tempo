@@ -206,7 +206,7 @@ type Overrides struct {
 	Global GlobalOverrides `yaml:"global,omitempty" json:"global,omitempty"`
 	// Storage enforced overrides.
 	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
-	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
+	CostAttribution CostAttributionOverrides `yaml:"cost_attribution" json:"cost_attribution"`
 }
 
 type Config struct {
