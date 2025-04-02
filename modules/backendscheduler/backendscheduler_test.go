@@ -34,6 +34,8 @@ func TestBackendScheduler(t *testing.T) {
 		TenantMeasurementInterval: 100 * time.Millisecond,
 	}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.ProviderConfig.Compaction.Backoff.MaxRetries = 1
+	cfg.ProviderConfig.Compaction.PollInterval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
 
