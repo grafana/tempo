@@ -26,6 +26,7 @@ import (
 
 type attrIndexCmd struct {
 	In            string   `arg:"" help:"The input parquet block to read from."`
+	AddIntrinsics bool     `help:"Add some intrinsic attributes to the index like name, kind, status, etc."`
 	dedicatedRes  []string `kong:"-"`
 	dedicatedSpan []string `kong:"-"`
 }
@@ -139,23 +140,36 @@ func (cmd *attrIndexCmd) collectAttributeStatsForTraces(stats *fileStats, traces
 
 				scope := ss.Scope
 				stats.Spans += len(ss.Spans)
+
 				stats.addAttributes(row, scopeScope, scope.Attrs)
-				// TODO maybe add scope.name and scope.version
+				if cmd.AddIntrinsics {
+					// adding scope to distinguish from span.name
+					stats.addAttribute(row, scopeScope, "scope.name", scope.Name)
+					stats.addAttribute(row, scopeScope, "version", scope.Version)
+				}
 				for _, sp := range ss.Spans {
 					row.Next(3, 3, 3)
 
 					stats.Events += len(sp.Events)
 					stats.Links += len(sp.Links)
+
 					stats.addAttributes(row, scopeSpan, sp.Attrs)
 					stats.addDedicatedAttributes(row, scopeSpan, cmd.dedicatedSpan, &sp.DedicatedAttributes)
-
 					stats.addAttribute(row, scopeSpan, "http.method", sp.HttpMethod)
 					stats.addAttribute(row, scopeSpan, "http.url", sp.HttpUrl)
 					stats.addAttribute(row, scopeSpan, "http.status_code", sp.HttpStatusCode)
-					// TODO maybe add span.kind, span.name, span.status.code, span.status
+					if cmd.AddIntrinsics {
+						stats.addAttribute(row, scopeSpan, "name", sp.Name)
+						stats.addAttribute(row, scopeSpan, "kind", sp.Kind)
+						stats.addAttribute(row, scopeSpan, "status.code", sp.StatusCode)
+						stats.addAttribute(row, scopeSpan, "status.message", sp.StatusMessage)
+					}
 					for _, ev := range sp.Events {
 						stats.addAttributes(row, scopeEvent, ev.Attrs)
-						// TODO maybe add event.name
+						if cmd.AddIntrinsics {
+							// adding scope to distinguish from span.name
+							stats.addAttribute(row, scopeEvent, "event.name", ev.Name)
+						}
 					}
 					for _, ln := range sp.Links {
 						stats.addAttributes(row, scopeLink, ln.Attrs)
