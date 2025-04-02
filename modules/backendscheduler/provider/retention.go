@@ -51,11 +51,6 @@ func (p *RetentionProvider) Start(ctx context.Context) <-chan *work.Job {
 				return
 			case <-ticker.C:
 				if job := p.nextRetentionJob(); job != nil {
-					level.Debug(p.logger).Log(
-						"msg", "scheduling retention job",
-						"job_id", job.ID,
-					)
-
 					select {
 					case jobs <- job:
 					default:

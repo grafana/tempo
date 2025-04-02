@@ -92,12 +92,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				p.measureTenants()
 			case <-pollTicker.C:
 				if job := p.nextCompactionJob(ctx); job != nil {
-					level.Debug(p.logger).Log(
-						"msg", "scheduling compaction job",
-						"job_id", job.ID,
-						"tenant", job.JobDetail.Tenant,
-					)
-
 					select {
 					case jobs <- job:
 					default:
