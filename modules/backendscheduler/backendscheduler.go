@@ -203,7 +203,6 @@ func (s *BackendScheduler) stopping(_ error) error {
 	}
 
 	level.Info(log.Logger).Log("msg", "backend scheduler stopping")
-	// close(s.mergedJobs)
 	return nil
 }
 
