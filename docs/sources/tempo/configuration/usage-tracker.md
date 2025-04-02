@@ -1,0 +1,56 @@
+---
+title: Usage tracker
+description: Learn how to configure the usage tracker for cost attribution.
+weight: 700
+aliases:
+- /docs/tempo/configuration/usage-tracker   
+---
+
+# Usage tracker
+
+The usage tracker is a feature that accurately tracks the amount of ingested traffic using a set of custom labels on a per-tenant basis, providing fine-grained control over your data.
+
+This feature has to be enabled first in the [distributor](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor):
+
+```
+ usage:
+        cost_attribution:
+            # Enables the "cost-attribution" usage tracker. Per-tenant attributes are configured in overrides.
+            [enabled: <boolean> | default = false]
+```
+
+It also needs to be configured to include the dimensions to break down your the usage data in [the standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides). ie:
+
+```
+# Overrides configuration block
+overrides:
+  # Global ingestion limits configurations
+  defaults:
+    # Cost attribution usage tracker configuration
+    cost_attribution:
+      dimensions: 
+        - service.name
+```
+
+This can be also configured per tenant in the [runtime-overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#runtime-overrides) or in the [user-configurable-overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#user-configurable-overrides)
+
+
+Once eveything is configured the usage metrics will be exposed in the distributor:
+
+
+```
+GET /usage_metrics
+```
+
+Example:
+```
+curl http://localhost:3200/usage_metrics
+# HELP tempo_usage_tracker_bytes_received_total bytes total received with these attributes
+# TYPE tempo_usage_tracker_bytes_received_total counter
+tempo_usage_tracker_bytes_received_total{service_name="article-service",tenant="single-tenant",tracker="cost-attribution"} 7327
+tempo_usage_tracker_bytes_received_total{service_name="auth-service",tenant="single-tenant",tracker="cost-attribution"} 8938
+tempo_usage_tracker_bytes_received_total{service_name="billing-service",tenant="single-tenant",tracker="cost-attribution"} 2401
+tempo_usage_tracker_bytes_received_total{service_name="cart-service",tenant="single-tenant",tracker="cost-attribution"} 4116
+tempo_usage_tracker_bytes_received_total{service_name="postgres",tenant="single-tenant",tracker="cost-attribution"} 3571
+tempo_usage_tracker_bytes_received_total{service_name="shop-backend",tenant="single-tenant",tracker="cost-attribution"} 17619
+```
