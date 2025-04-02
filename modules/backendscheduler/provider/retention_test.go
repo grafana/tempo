@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,8 +38,11 @@ func TestRetentionProvider(t *testing.T) {
 
 	var receivedJobs []*work.Job
 
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		for {
+		defer wg.Done()
+		for len(receivedJobs) < 1 {
 			select {
 			case <-ctx.Done():
 				break
@@ -58,6 +62,7 @@ func TestRetentionProvider(t *testing.T) {
 		}
 	}()
 
+	wg.Wait()
 	<-ctx.Done()
 
 	for _, job := range receivedJobs {
