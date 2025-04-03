@@ -23,6 +23,10 @@ import (
 	vp4 "github.com/grafana/tempo/tempodb/encoding/vparquet4"
 )
 
+// attrIndexCmd represents a command to generate attribute indices from a parquet block.
+//
+// This command is highly experimental and meant to facilitate experimentation with different
+// kinds of indexes.
 type attrIndexCmd struct {
 	In            string   `arg:"" help:"The input parquet block to read from."`
 	AddIntrinsics bool     `help:"Add some intrinsic attributes to the index like name, kind, status, etc."`
