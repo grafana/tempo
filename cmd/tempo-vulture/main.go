@@ -662,6 +662,7 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 
 	if len(resp.Series) == 0 {
 		tm.notFoundByMetrics++
+		logger.Error("failed to find trace by metrics", zap.Error(err))
 		return tm, fmt.Errorf("expected trace %s not found in metrics", hexID)
 	}
 
