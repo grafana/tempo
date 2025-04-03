@@ -168,7 +168,6 @@
       tempoOrgId: '',
       tempoRetentionDuration: '336h',
       tempoSearchBackoffDuration: '5s',
-      tempoMetricsBackoffDuration: '5s',
       tempoReadBackoffDuration: '10s',
       tempoWriteBackoffDuration: '10s',
     },
