@@ -45,7 +45,7 @@ overrides:
         - service.name
 ```
 
-This can be also configured per tenant in the [runtime-overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#runtime-overrides) or in the [user-configurable-overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#user-configurable-overrides)
+You can also configure per tenant in the [runtime-overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#runtime-overrides) or in the [user-configurable-overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#user-configurable-overrides).
 
 
 
