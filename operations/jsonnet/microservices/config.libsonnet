@@ -168,9 +168,9 @@
       tempoOrgId: '',
       tempoRetentionDuration: '336h',
       tempoSearchBackoffDuration: '5s',
-      tempoMetricsBackoffDuration: '5s',
       tempoReadBackoffDuration: '10s',
       tempoWriteBackoffDuration: '10s',
+      tempoMetricsBackoffDuration: '0s',  // TraceQL Metrics checks disabled
     },
     ballast_size_mbs: '1024',
     port: 3200,
