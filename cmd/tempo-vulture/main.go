@@ -43,6 +43,7 @@ var (
 	tempoReadBackoffDuration      time.Duration
 	tempoSearchBackoffDuration    time.Duration
 	tempoMetricsBackoffDuration   time.Duration
+	tempoMetricsTraceMinAge       time.Duration
 	tempoRetentionDuration        time.Duration
 	tempoPushTLS                  bool
 
@@ -75,6 +76,7 @@ type vultureConfiguration struct {
 	tempoReadBackoffDuration      time.Duration
 	tempoSearchBackoffDuration    time.Duration
 	tempoMetricsBackoffDuration   time.Duration
+	tempoMetricsTraceMinAge       time.Duration
 	tempoRetentionDuration        time.Duration
 	tempoPushTLS                  bool
 }
@@ -91,7 +93,8 @@ func init() {
 	flag.DurationVar(&tempoLongWriteBackoffDuration, "tempo-long-write-backoff-duration", 1*time.Minute, "The amount of time to pause between long write Tempo calls")
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
 	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls.  Set to 0s to disable search.")
-	flag.DurationVar(&tempoMetricsBackoffDuration, "tempo-metrics-backoff-duration", 0, "The amount of time to pause between TraceQL Metrics Tempo calls.  Set to 0s to disable.")
+	flag.DurationVar(&tempoMetricsBackoffDuration, "tempo-metrics-backoff-duration", 15*time.Minute, "The amount of time to pause between TraceQL Metrics Tempo calls. Set to 0s to disable.")
+	flag.DurationVar(&tempoMetricsTraceMinAge, "tempo-metrics-trace-min-age", 0, "Minimum age of a trace to be checked. Set to 0s to disable.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 }
 
@@ -343,7 +346,7 @@ func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, start
 	}
 	go func() {
 		for now := range ticker.C {
-			_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
+			_, seed := selectPastTimestamp(startTime, now.Add(-config.tempoMetricsTraceMinAge), interval, config.tempoRetentionDuration, r)
 			logger := l.With(
 				zap.String("org_id", config.tempoOrgID),
 				zap.Int64("seed", seed.Unix()),
