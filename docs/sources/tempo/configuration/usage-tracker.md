@@ -8,9 +8,14 @@ aliases:
 
 # Usage tracker
 
-The usage tracker is a feature that accurately tracks the amount of ingested traffic using a set of custom labels on a per-tenant basis, providing fine-grained control over your data.
+The usage tracker accurately tracks the amount of ingested traffic using a set of custom labels on a per-tenant basis, providing fine-grained control over your data.
 
-This feature has to be enabled first in the [distributor](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor):
+## Enable the usage tracker
+
+To use this feature, you need to enable it in the [distributor](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor) and configure the overrides to handle the data. 
+
+1. Open your configuration file, for example, `tempo.yaml`. 
+1. In the `#distributor` section, locate the `cost_attribution` line. If it is not present, then copy and paste the example below into your distributor section. 
 
 ```
  usage:
