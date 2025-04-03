@@ -170,6 +170,7 @@
       tempoSearchBackoffDuration: '5s',
       tempoReadBackoffDuration: '10s',
       tempoWriteBackoffDuration: '10s',
+      tempoLongWriteBackoffDuration: '1m',
     },
     ballast_size_mbs: '1024',
     port: 3200,

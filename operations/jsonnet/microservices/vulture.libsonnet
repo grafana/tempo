@@ -25,6 +25,7 @@
       else
         null,
       '-tempo-write-backoff-duration=' + $._config.vulture.tempoWriteBackoffDuration,
+      '-tempo-long-write-backoff-duration=' + $._config.vulture.tempoLongWriteBackoffDuration,
     ]) +
     k.util.resourcesRequests('50m', '100Mi') +
     k.util.resourcesLimits('100m', '500Mi'),
