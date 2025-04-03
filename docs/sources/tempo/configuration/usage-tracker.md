@@ -40,7 +40,10 @@ overrides:
 This can be also configured per tenant in the [runtime-overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#runtime-overrides) or in the [user-configurable-overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#user-configurable-overrides)
 
 
-Once eveything is configured the usage metrics will be exposed in the distributor:
+
+## Review usage metrics
+
+Once everything is configured, the usage metrics are exposed in the distributor:
 
 
 ```
