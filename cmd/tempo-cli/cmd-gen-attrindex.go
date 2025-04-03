@@ -10,7 +10,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -27,6 +26,7 @@ import (
 type attrIndexCmd struct {
 	In            string   `arg:"" help:"The input parquet block to read from."`
 	AddIntrinsics bool     `help:"Add some intrinsic attributes to the index like name, kind, status, etc."`
+	IndexTypes    []string `enum:"rows,codes" type:"string" help:"The type of index to generate."`
 	dedicatedRes  []string `kong:"-"`
 	dedicatedSpan []string `kong:"-"`
 }
@@ -49,15 +49,31 @@ func (cmd *attrIndexCmd) Run(ctx *globalOptions) error {
 	if err != nil {
 		return err
 	}
-	cmd.printAttrStats(stats)
+	stats.printStats()
 
-	index := cmd.generateAttributeIndex(stats)
-	err = cmd.writeAttributeIndex(index)
+	if len(cmd.IndexTypes) == 0 || len(cmd.IndexTypes) == 2 {
+		fmt.Println("Generating combined index with inverted index and key/value codes")
+
+		index := generateCombinedIndex(stats)
+		err = writeAttributeIndex(cmd.In, index)
+	} else if len(cmd.IndexTypes) == 1 {
+		if cmd.IndexTypes[0] == "rows" {
+			fmt.Println("Generating inverted index with rows")
+
+			index := generateRowsIndex(stats)
+			err = writeAttributeIndex(cmd.In, index)
+		} else if cmd.IndexTypes[0] == "codes" {
+			fmt.Println("Generating index with key/value codes")
+
+			index := generateCodesIndex(stats)
+			err = writeAttributeIndex(cmd.In, index)
+		}
+	}
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Successfully generated attribute index in %s/index.parquet\n", cmd.In)
+	fmt.Printf("\nSuccessfully generated attribute index in %s/index.parquet\n", cmd.In)
 	return nil
 }
 
@@ -180,22 +196,22 @@ func (cmd *attrIndexCmd) collectAttributeStatsForTraces(stats *fileStats, traces
 	}
 }
 
-func (cmd *attrIndexCmd) printAttrStats(stats *fileStats) {
+func (fs *fileStats) printStats() {
 	fmt.Println("File stats:")
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.DiscardEmptyColumns)
 	tmpl := "%s\t%d\n"
-	_, _ = fmt.Fprintf(w, tmpl, "Traces", stats.Traces)
-	_, _ = fmt.Fprintf(w, tmpl, "Resources", stats.Resources)
-	_, _ = fmt.Fprintf(w, tmpl, "Spans", stats.Spans)
-	_, _ = fmt.Fprintf(w, tmpl, "Events", stats.Events)
-	_, _ = fmt.Fprintf(w, tmpl, "Links", stats.Links)
-	_, _ = fmt.Fprintf(w, tmpl, "Arrays", stats.Arrays)
+	_, _ = fmt.Fprintf(w, tmpl, "Traces", fs.Traces)
+	_, _ = fmt.Fprintf(w, tmpl, "Resources", fs.Resources)
+	_, _ = fmt.Fprintf(w, tmpl, "Spans", fs.Spans)
+	_, _ = fmt.Fprintf(w, tmpl, "Events", fs.Events)
+	_, _ = fmt.Fprintf(w, tmpl, "Links", fs.Links)
+	_, _ = fmt.Fprintf(w, tmpl, "Arrays", fs.Arrays)
 	_ = w.Flush()
 
 	// sort attributes by scope and count
-	attrs := make([]*attributeInfo, 0, len(stats.Attributes))
-	for _, attr := range stats.Attributes {
+	attrs := make([]*attributeInfo, 0, len(fs.Attributes))
+	for _, attr := range fs.Attributes {
 		attrs = append(attrs, attr)
 	}
 	sort.Slice(attrs, func(i, j int) bool {
@@ -213,28 +229,30 @@ func (cmd *attrIndexCmd) printAttrStats(stats *fileStats) {
 		_, _ = fmt.Fprintf(w, tmpl, attr.Key, attr.ScopeMask.String(), attr.Count, len(attr.ValuesString)+len(attr.ValuesInt)+len(attr.ValuesFloat)+len(attr.ValuesBool))
 	}
 	_ = w.Flush()
+
+	fmt.Printf("\n\n")
 }
 
-func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttribute {
+func generateCombinedIndex(stats *fileStats) []indexedAttrCombined {
 	var (
-		index         = make([]indexedAttribute, 0, len(stats.Attributes))
+		index         = make([]indexedAttrCombined, 0, len(stats.Attributes))
 		keyCode int64 = 0
 	)
 
 	for _, attr := range stats.Attributes {
 		keyCode++
 
-		a := indexedAttribute{
+		a := indexedAttrCombined{
 			Key:       attr.Key,
 			KeyCode:   keyCode,
 			ScopeMask: attr.ScopeMask,
 		}
 
 		if len(attr.ValuesString) > 0 {
-			a.ValuesString = make([]indexedValue[string], 0, len(attr.ValuesString))
+			a.ValuesString = make([]indexedValCombined[string], 0, len(attr.ValuesString))
 
 			for _, v := range attr.ValuesString {
-				a.ValuesString = append(a.ValuesString, indexedValue[string]{
+				a.ValuesString = append(a.ValuesString, indexedValCombined[string]{
 					Value:      v.Value,
 					RowNumbers: v.RowNumbers,
 				})
@@ -252,10 +270,10 @@ func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttri
 		}
 
 		if len(attr.ValuesInt) > 0 {
-			a.ValuesInt = make([]indexedValue[int64], 0, len(attr.ValuesInt))
+			a.ValuesInt = make([]indexedValCombined[int64], 0, len(attr.ValuesInt))
 
 			for _, v := range attr.ValuesInt {
-				a.ValuesInt = append(a.ValuesInt, indexedValue[int64]{
+				a.ValuesInt = append(a.ValuesInt, indexedValCombined[int64]{
 					Value:      v.Value,
 					RowNumbers: v.RowNumbers,
 				})
@@ -273,10 +291,10 @@ func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttri
 		}
 
 		if len(attr.ValuesFloat) > 0 {
-			a.ValuesFloat = make([]indexedValue[float64], 0, len(attr.ValuesFloat))
+			a.ValuesFloat = make([]indexedValCombined[float64], 0, len(attr.ValuesFloat))
 
 			for _, v := range attr.ValuesFloat {
-				a.ValuesFloat = append(a.ValuesFloat, indexedValue[float64]{
+				a.ValuesFloat = append(a.ValuesFloat, indexedValCombined[float64]{
 					Value:      v.Value,
 					RowNumbers: v.RowNumbers,
 				})
@@ -294,10 +312,10 @@ func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttri
 		}
 
 		if len(attr.ValuesBool) > 0 {
-			a.ValuesBool = make([]indexedValue[bool], 0, len(attr.ValuesBool))
+			a.ValuesBool = make([]indexedValCombined[bool], 0, len(attr.ValuesBool))
 
 			for _, v := range attr.ValuesBool {
-				a.ValuesBool = append(a.ValuesBool, indexedValue[bool]{
+				a.ValuesBool = append(a.ValuesBool, indexedValCombined[bool]{
 					Value:      v.Value,
 					RowNumbers: v.RowNumbers,
 				})
@@ -320,19 +338,255 @@ func (cmd *attrIndexCmd) generateAttributeIndex(stats *fileStats) []indexedAttri
 	return index
 }
 
-func (cmd *attrIndexCmd) writeAttributeIndex(index []indexedAttribute) error {
-	stat, err := os.Stat(filepath.Join(cmd.In, "data.parquet"))
+func generateRowsIndex(stats *fileStats) []indexedAttrRows {
+	var (
+		index         = make([]indexedAttrRows, 0, len(stats.Attributes))
+		keyCode int64 = 0
+	)
+
+	for _, attr := range stats.Attributes {
+		keyCode++
+
+		a := indexedAttrRows{
+			Key:       attr.Key,
+			ScopeMask: attr.ScopeMask,
+		}
+
+		if len(attr.ValuesString) > 0 {
+			a.ValuesString = make([]indexedValRows[string], 0, len(attr.ValuesString))
+
+			for _, v := range attr.ValuesString {
+				a.ValuesString = append(a.ValuesString, indexedValRows[string]{
+					Value:      v.Value,
+					RowNumbers: v.RowNumbers,
+				})
+			}
+
+			sort.Slice(a.ValuesString, func(i, j int) bool {
+				return cmpSlice(a.ValuesString[i].Value, a.ValuesString[j].Value) < 0
+			})
+		}
+
+		if len(attr.ValuesInt) > 0 {
+			a.ValuesInt = make([]indexedValRows[int64], 0, len(attr.ValuesInt))
+
+			for _, v := range attr.ValuesInt {
+				a.ValuesInt = append(a.ValuesInt, indexedValRows[int64]{
+					Value:      v.Value,
+					RowNumbers: v.RowNumbers,
+				})
+			}
+
+			sort.Slice(a.ValuesInt, func(i, j int) bool {
+				return cmpSlice(a.ValuesInt[i].Value, a.ValuesInt[j].Value) < 0
+			})
+		}
+
+		if len(attr.ValuesFloat) > 0 {
+			a.ValuesFloat = make([]indexedValRows[float64], 0, len(attr.ValuesFloat))
+
+			for _, v := range attr.ValuesFloat {
+				a.ValuesFloat = append(a.ValuesFloat, indexedValRows[float64]{
+					Value:      v.Value,
+					RowNumbers: v.RowNumbers,
+				})
+			}
+
+			sort.Slice(a.ValuesFloat, func(i, j int) bool {
+				return cmpSlice(a.ValuesFloat[i].Value, a.ValuesFloat[j].Value) < 0
+			})
+		}
+
+		if len(attr.ValuesBool) > 0 {
+			a.ValuesBool = make([]indexedValRows[bool], 0, len(attr.ValuesBool))
+
+			for _, v := range attr.ValuesBool {
+				a.ValuesBool = append(a.ValuesBool, indexedValRows[bool]{
+					Value:      v.Value,
+					RowNumbers: v.RowNumbers,
+				})
+			}
+
+			sort.Slice(a.ValuesBool, func(i, j int) bool {
+				return cmpSliceBool(a.ValuesBool[i].Value, a.ValuesBool[j].Value) < 0
+			})
+		}
+
+		index = append(index, a)
+	}
+
+	return index
+}
+
+func generateCodesIndex(stats *fileStats) []indexedAttrCodes {
+	var (
+		index         = make([]indexedAttrCodes, 0, len(stats.Attributes))
+		keyCode int64 = 0
+	)
+
+	for _, attr := range stats.Attributes {
+		keyCode++
+
+		a := indexedAttrCodes{
+			Key:       attr.Key,
+			KeyCode:   keyCode,
+			ScopeMask: attr.ScopeMask,
+		}
+
+		if len(attr.ValuesString) > 0 {
+			a.ValuesString = make([]indexedValCodes[string], 0, len(attr.ValuesString))
+
+			for _, v := range attr.ValuesString {
+				a.ValuesString = append(a.ValuesString, indexedValCodes[string]{
+					Value: v.Value,
+				})
+			}
+
+			sort.Slice(a.ValuesString, func(i, j int) bool {
+				return cmpSlice(a.ValuesString[i].Value, a.ValuesString[j].Value) < 0
+			})
+
+			var valueCode int64 = 0
+			for i := range a.ValuesString {
+				valueCode++
+				a.ValuesString[i].ValueCode = valueCode
+			}
+		}
+
+		if len(attr.ValuesInt) > 0 {
+			a.ValuesInt = make([]indexedValCodes[int64], 0, len(attr.ValuesInt))
+
+			for _, v := range attr.ValuesInt {
+				a.ValuesInt = append(a.ValuesInt, indexedValCodes[int64]{
+					Value: v.Value,
+				})
+			}
+
+			sort.Slice(a.ValuesInt, func(i, j int) bool {
+				return cmpSlice(a.ValuesInt[i].Value, a.ValuesInt[j].Value) < 0
+			})
+
+			var valueCode int64 = 0
+			for i := range a.ValuesString {
+				valueCode++
+				a.ValuesInt[i].ValueCode = valueCode
+			}
+		}
+
+		if len(attr.ValuesFloat) > 0 {
+			a.ValuesFloat = make([]indexedValCodes[float64], 0, len(attr.ValuesFloat))
+
+			for _, v := range attr.ValuesFloat {
+				a.ValuesFloat = append(a.ValuesFloat, indexedValCodes[float64]{
+					Value: v.Value,
+				})
+			}
+
+			sort.Slice(a.ValuesFloat, func(i, j int) bool {
+				return cmpSlice(a.ValuesFloat[i].Value, a.ValuesFloat[j].Value) < 0
+			})
+
+			var valueCode int64 = 0
+			for i := range a.ValuesFloat {
+				valueCode++
+				a.ValuesFloat[i].ValueCode = valueCode
+			}
+		}
+
+		if len(attr.ValuesBool) > 0 {
+			a.ValuesBool = make([]indexedValCodes[bool], 0, len(attr.ValuesBool))
+
+			for _, v := range attr.ValuesBool {
+				a.ValuesBool = append(a.ValuesBool, indexedValCodes[bool]{
+					Value: v.Value,
+				})
+			}
+
+			sort.Slice(a.ValuesBool, func(i, j int) bool {
+				return cmpSliceBool(a.ValuesBool[i].Value, a.ValuesBool[j].Value) < 0
+			})
+
+			var valueCode int64 = 0
+			for i := range a.ValuesBool {
+				valueCode++
+				a.ValuesBool[i].ValueCode = valueCode
+			}
+		}
+
+		index = append(index, a)
+	}
+
+	return index
+}
+
+type indexedAttrCombined struct {
+	Key          string                        `parquet:",snappy"`
+	KeyCode      int64                         `parquet:",snappy,delta"`
+	ScopeMask    scopeMask                     `parquet:",snappy,delta"`
+	ValuesString []indexedValCombined[string]  `parquet:",list"`
+	ValuesInt    []indexedValCombined[int64]   `parquet:",list"`
+	ValuesFloat  []indexedValCombined[float64] `parquet:",list"`
+	ValuesBool   []indexedValCombined[bool]    `parquet:",list"`
+}
+
+type indexedValCombined[T comparable] struct {
+	Value      []T   `parquet:",snappy"`
+	ValueCode  int64 `parquet:",snappy,delta"`
+	RowNumbers []rowNumberCols
+}
+
+type indexedAttrRows struct {
+	Key          string                    `parquet:",snappy"`
+	ScopeMask    scopeMask                 `parquet:",snappy,delta"`
+	ValuesString []indexedValRows[string]  `parquet:",list"`
+	ValuesInt    []indexedValRows[int64]   `parquet:",list"`
+	ValuesFloat  []indexedValRows[float64] `parquet:",list"`
+	ValuesBool   []indexedValRows[bool]    `parquet:",list"`
+}
+
+type indexedValRows[T comparable] struct {
+	Value      []T `parquet:",snappy"`
+	RowNumbers []rowNumberCols
+}
+
+type indexedAttrCodes struct {
+	Key          string                     `parquet:",snappy"`
+	KeyCode      int64                      `parquet:",snappy,delta"`
+	ScopeMask    scopeMask                  `parquet:",snappy,delta"`
+	ValuesString []indexedValCodes[string]  `parquet:",list"`
+	ValuesInt    []indexedValCodes[int64]   `parquet:",list"`
+	ValuesFloat  []indexedValCodes[float64] `parquet:",list"`
+	ValuesBool   []indexedValCodes[bool]    `parquet:",list"`
+}
+
+type indexedValCodes[T comparable] struct {
+	Value     []T   `parquet:",snappy"`
+	ValueCode int64 `parquet:",snappy,delta"`
+}
+
+// rowNumberBytes no longer used since it takes up more space in index.parquet than rowNumberCols
+type rowNumberBytes [16]byte
+
+type rowNumberCols struct {
+	Lvl01 int64 `parquet:",snappy,delta"`
+	Lvl02 int64 `parquet:",snappy,delta"`
+	Lvl03 int64 `parquet:",snappy,delta"`
+	Lvl04 int64 `parquet:",snappy,delta"`
+}
+
+func writeAttributeIndex[T any](in string, index []T) error {
+	stat, err := os.Stat(filepath.Join(in, "data.parquet"))
 	if err != nil {
 		return err
 	}
 
-	out, err := os.OpenFile(filepath.Join(cmd.In, "index.parquet"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stat.Mode())
+	out, err := os.OpenFile(filepath.Join(in, "index.parquet"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stat.Mode())
 	if err != nil {
 		return err
 	}
 	defer out.Close()
 
-	writer := parquet.NewGenericWriter[indexedAttribute](out)
+	writer := parquet.NewGenericWriter[T](out)
 	defer writer.Close()
 
 	writeCount := 0
@@ -352,29 +606,14 @@ func (cmd *attrIndexCmd) writeAttributeIndex(index []indexedAttribute) error {
 	return nil
 }
 
-type indexedAttribute struct {
-	Key          string                  `parquet:",snappy"`
-	KeyCode      int64                   `parquet:",snappy,delta"`
-	ScopeMask    scopeMask               `parquet:",snappy,delta"`
-	ValuesString []indexedValue[string]  `parquet:",list"`
-	ValuesInt    []indexedValue[int64]   `parquet:",list"`
-	ValuesFloat  []indexedValue[float64] `parquet:",list"`
-	ValuesBool   []indexedValue[bool]    `parquet:",list"`
-}
-
-type rowNumberBytes [16]byte
-
-type rowNumberCols struct {
-	Lvl01 int64 `parquet:",snappy,delta"`
-	Lvl02 int64 `parquet:",snappy,delta"`
-	Lvl03 int64 `parquet:",snappy,delta"`
-	Lvl04 int64 `parquet:",snappy,delta"`
-}
-
-type indexedValue[T comparable] struct {
-	Value      []T   `parquet:",snappy"`
-	ValueCode  int64 `parquet:",snappy,delta"`
-	RowNumbers []rowNumberCols
+type fileStats struct {
+	Traces     int
+	Resources  int
+	Spans      int
+	Events     int
+	Links      int
+	Arrays     int
+	Attributes map[string]*attributeInfo
 }
 
 type attributeInfo struct {
@@ -390,16 +629,6 @@ type attributeInfo struct {
 type valueInfo[T comparable] struct {
 	Value      []T
 	RowNumbers []rowNumberCols
-}
-
-type fileStats struct {
-	Traces     int
-	Resources  int
-	Spans      int
-	Events     int
-	Links      int
-	Arrays     int
-	Attributes map[string]*attributeInfo
 }
 
 func (fs *fileStats) addAttributes(row pq.RowNumber, scope scopeMask, attrs []vp4.Attribute) {
@@ -593,51 +822,12 @@ func (s *scopeMask) String() string {
 	return strings.Join(s.Scopes(), " ")
 }
 
-func toRowNumberBytes(row pq.RowNumber) rowNumberBytes {
-	return *(*rowNumberBytes)(unsafe.Pointer(&row))
-}
-
 func toRowNumberCols(row pq.RowNumber) rowNumberCols {
 	return rowNumberCols{
 		Lvl01: int64(row[0]),
 		Lvl02: int64(row[1]),
 		Lvl03: int64(row[2]),
 		Lvl04: int64(row[3]),
-	}
-}
-
-func dereferenceAny(val any) any {
-	switch v := val.(type) {
-	case string, int64, float64, bool:
-		return v
-	case *string:
-		if v == nil {
-			return nil
-		}
-		return *v
-	case *int64:
-		if v == nil {
-			return nil
-		}
-		return *v
-	case *float64:
-		if v == nil {
-			return nil
-		}
-		return *v
-	case *bool:
-		if v == nil {
-			return nil
-		}
-		return *v
-	default:
-		if value := reflect.ValueOf(val); value.Kind() == reflect.Ptr {
-			if value.IsNil() {
-				return nil
-			}
-			return value.Elem().Interface()
-		}
-		return v
 	}
 }
 
