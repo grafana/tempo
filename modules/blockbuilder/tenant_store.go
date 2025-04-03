@@ -18,6 +18,8 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
@@ -89,7 +91,11 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 }
 
 func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error {
+	ctx, span := tracer.Start(ctx, "tenantStore.Flush", trace.WithAttributes(attribute.String("tenant", s.tenantID)))
+	defer span.End()
+
 	if s.liveTraces.Len() == 0 {
+		span.AddEvent("no live_traces to flush")
 		// This can happen if the tenant instance was created but
 		// no live traces were successfully pushed. i.e. all exceeded max trace size.
 		return nil
@@ -109,6 +115,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 				"tenant", s.tenantID,
 				"blockid", blockID,
 			)
+			span.AddEvent("marking existing block compacted", trace.WithAttributes(attribute.String("block_id", blockID.String())))
 			if err := c.MarkBlockCompacted(s.tenantID, blockID); err != nil {
 				return err
 			}
@@ -152,14 +159,17 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	}
 
 	if err := w.WriteBlock(ctx, NewWriteableBlock(newBlock, reader, writer)); err != nil {
+		span.RecordError(err)
 		return err
 	}
+	span.AddEvent("wrote block to backend", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
 
 	if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(newMeta.BlockID), s.tenantID); err != nil {
 		return err
 	}
+	span.AddEvent("cleared block from wal", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
 	level.Info(s.logger).Log(
 		"msg", "Flushed block",
