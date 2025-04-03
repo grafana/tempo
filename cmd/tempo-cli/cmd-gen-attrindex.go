@@ -30,12 +30,12 @@ import (
 type attrIndexCmd struct {
 	In            string   `arg:"" help:"The input parquet block to read from."`
 	AddIntrinsics bool     `help:"Add some intrinsic attributes to the index like name, kind, status, etc."`
-	IndexTypes    []string `enum:"rows,codes" type:"string" help:"The type of index to generate."`
+	IndexTypes    []string `enum:"rows,codes" help:"The type of index to generate (rows | codes | rows,codes)" default:"rows,codes"`
 	dedicatedRes  []string `kong:"-"`
 	dedicatedSpan []string `kong:"-"`
 }
 
-func (cmd *attrIndexCmd) Run(ctx *globalOptions) error {
+func (cmd *attrIndexCmd) Run(_ *globalOptions) error {
 	cmd.In = getPathToBlockDir(cmd.In)
 	fmt.Printf("Analyzing parquet block from %s\n", cmd.In)
 
@@ -567,9 +567,6 @@ type indexedValCodes[T comparable] struct {
 	Value     []T   `parquet:",snappy"`
 	ValueCode int64 `parquet:",snappy,delta"`
 }
-
-// rowNumberBytes no longer used since it takes up more space in index.parquet than rowNumberCols
-type rowNumberBytes [16]byte
 
 type rowNumberCols struct {
 	Lvl01 int64 `parquet:",snappy,delta"`
