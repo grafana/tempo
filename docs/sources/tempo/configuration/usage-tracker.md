@@ -24,7 +24,15 @@ To use this feature, you need to enable it in the [distributor](https://grafana.
             [enabled: <boolean> | default = false]
 ```
 
-It also needs to be configured to include the dimensions to break down your the usage data in [the standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides). ie:
+
+### Configure overrides 
+
+You also need to configure the dimensions to break down your the usage data in the standard overrides. 
+In the overrides section, you can define attributes to group ingested data by and you can rename and combine attributes. 
+
+For more information, refer to the [the standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) section of the Configuration documentation. 
+
+In this example, usage data is grouped by `service.name`. 
 
 ```
 # Overrides configuration block
