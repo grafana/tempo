@@ -94,7 +94,7 @@ func (cmd *attrIndexCmd) readDedicatedAttributes(meta *backend.BlockMeta) {
 
 func (cmd *attrIndexCmd) collectAttributeStats() (*fileStats, error) {
 	stats := fileStats{
-		Attributes: make(map[string]*attributeInfo, 200),
+		Attributes: make(map[string]attributeInfo, 200),
 	}
 
 	in, pf, err := openParquetFile(cmd.In)
@@ -214,7 +214,7 @@ func (fs *fileStats) printStats() {
 	_ = w.Flush()
 
 	// sort attributes by scope and count
-	attrs := make([]*attributeInfo, 0, len(fs.Attributes))
+	attrs := make([]attributeInfo, 0, len(fs.Attributes))
 	for _, attr := range fs.Attributes {
 		attrs = append(attrs, attr)
 	}
@@ -288,7 +288,7 @@ func generateCombinedIndex(stats *fileStats) []indexedAttrCombined {
 			})
 
 			var valueCode int64 = 0
-			for i := range a.ValuesString {
+			for i := range a.ValuesInt {
 				valueCode++
 				a.ValuesInt[i].ValueCode = valueCode
 			}
@@ -471,7 +471,7 @@ func generateCodesIndex(stats *fileStats) []indexedAttrCodes {
 			})
 
 			var valueCode int64 = 0
-			for i := range a.ValuesString {
+			for i := range a.ValuesInt {
 				valueCode++
 				a.ValuesInt[i].ValueCode = valueCode
 			}
@@ -614,17 +614,17 @@ type fileStats struct {
 	Events     int
 	Links      int
 	Arrays     int
-	Attributes map[string]*attributeInfo
+	Attributes map[string]attributeInfo
 }
 
 type attributeInfo struct {
 	Key          string
 	ScopeMask    scopeMask
 	Count        int64
-	ValuesString map[uint64]*valueInfo[string]
-	ValuesInt    map[uint64]*valueInfo[int64]
-	ValuesFloat  map[uint64]*valueInfo[float64]
-	ValuesBool   map[uint64]*valueInfo[bool]
+	ValuesString map[uint64]valueInfo[string]
+	ValuesInt    map[uint64]valueInfo[int64]
+	ValuesFloat  map[uint64]valueInfo[float64]
+	ValuesBool   map[uint64]valueInfo[bool]
 }
 
 type valueInfo[T comparable] struct {
@@ -689,11 +689,10 @@ func (fs *fileStats) addDedicatedAttributes(row pq.RowNumber, scope scopeMask, c
 func (fs *fileStats) addAttribute(row pq.RowNumber, scope scopeMask, key string, value any) {
 	attr, ok := fs.Attributes[key]
 	if !ok {
-		attr = &attributeInfo{
+		attr = attributeInfo{
 			Key:       key,
 			ScopeMask: scope,
 		}
-		fs.Attributes[key] = attr
 	}
 
 	attr.Count++
@@ -706,78 +705,80 @@ func (fs *fileStats) addAttribute(row pq.RowNumber, scope scopeMask, key string,
 			return
 		}
 		if attr.ValuesString == nil {
-			attr.ValuesString = make(map[uint64]*valueInfo[string])
+			attr.ValuesString = make(map[uint64]valueInfo[string], 10)
 		}
 
 		sum := fnvStrings(s)
 		info, ok := attr.ValuesString[sum]
 		if !ok {
-			info = &valueInfo[string]{
+			info = valueInfo[string]{
 				Value:      s,
 				RowNumbers: make([]rowNumberCols, 0, 1),
 			}
-			attr.ValuesString[sum] = info
 		}
 
 		info.RowNumbers = append(info.RowNumbers, toRowNumberCols(row))
+		attr.ValuesString[sum] = info
 	case int64, *int64, []int64:
 		s := toSlice[int64](value)
 		if len(s) == 0 {
 			return
 		}
 		if attr.ValuesInt == nil {
-			attr.ValuesInt = make(map[uint64]*valueInfo[int64])
+			attr.ValuesInt = make(map[uint64]valueInfo[int64], 10)
 		}
 
 		sum := fnvInts(s)
 		v, ok := attr.ValuesInt[sum]
 		if !ok {
-			v = &valueInfo[int64]{
+			v = valueInfo[int64]{
 				Value:      s,
 				RowNumbers: make([]rowNumberCols, 0, 1),
 			}
-			attr.ValuesInt[sum] = v
 		}
 		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
+		attr.ValuesInt[sum] = v
 	case float64, *float64, []float64:
 		s := toSlice[float64](value)
 		if len(s) == 0 {
 			return
 		}
 		if attr.ValuesFloat == nil {
-			attr.ValuesFloat = make(map[uint64]*valueInfo[float64])
+			attr.ValuesFloat = make(map[uint64]valueInfo[float64])
 		}
 
 		sum := fnvFloats(s)
 		v, ok := attr.ValuesFloat[sum]
 		if !ok {
-			v = &valueInfo[float64]{
+			v = valueInfo[float64]{
 				Value:      s,
 				RowNumbers: make([]rowNumberCols, 0, 1),
 			}
-			attr.ValuesFloat[sum] = v
 		}
 		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
+		attr.ValuesFloat[sum] = v
 	case bool, *bool, []bool:
 		s := toSlice[bool](value)
 		if len(s) == 0 {
 			return
 		}
 		if attr.ValuesBool == nil {
-			attr.ValuesBool = make(map[uint64]*valueInfo[bool])
+			attr.ValuesBool = make(map[uint64]valueInfo[bool])
 		}
 
 		sum := fnvBools(s)
 		v, ok := attr.ValuesBool[sum]
 		if !ok {
-			v = &valueInfo[bool]{
+			v = valueInfo[bool]{
 				Value:      s,
 				RowNumbers: make([]rowNumberCols, 0, 1),
 			}
-			attr.ValuesBool[sum] = v
 		}
 		v.RowNumbers = append(v.RowNumbers, toRowNumberCols(row))
+		attr.ValuesBool[sum] = v
 	}
+
+	fs.Attributes[key] = attr
 }
 
 type scopeMask int64
