@@ -26,7 +26,7 @@ type RetentionProvider struct {
 	logger kitlogger.Logger
 }
 
-func NewRetentionProvider(cfg RetentionConfig, scheduler Scheduler, logger kitlogger.Logger) *RetentionProvider {
+func NewRetentionProvider(cfg RetentionConfig, logger kitlogger.Logger, scheduler Scheduler) *RetentionProvider {
 	return &RetentionProvider{
 		cfg:    cfg,
 		sched:  scheduler,

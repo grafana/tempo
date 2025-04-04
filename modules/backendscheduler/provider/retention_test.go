@@ -30,8 +30,8 @@ func TestRetentionProvider(t *testing.T) {
 
 	p := NewRetentionProvider(
 		cfg,
-		w,
 		logger,
+		w,
 	)
 
 	jobChan := p.Start(ctx)

@@ -12,10 +12,9 @@ import (
 
 type Config struct {
 	TenantMeasurementInterval time.Duration `yaml:"tenant_measurement_interval"`
-	// Compactor                 tempodb.CompactorConfig `yaml:"compaction"`
-	Work                work.Config   `yaml:"work"`
-	Poll                bool          `yaml:"-"`
-	MaintenanceInterval time.Duration `yaml:"maintenance_interval"`
+	Work                      work.Config   `yaml:"work"`
+	Poll                      bool          `yaml:"-"`
+	MaintenanceInterval       time.Duration `yaml:"maintenance_interval"`
 
 	// Provider configs
 	ProviderConfig provider.Config `yaml:"provider"`

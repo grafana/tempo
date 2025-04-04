@@ -49,9 +49,6 @@ type BackendScheduler struct {
 	mergedJobs chan *work.Job
 }
 
-// Ensure BackendScheduler implements provider.Scheduler
-var _ provider.Scheduler = (*BackendScheduler)(nil)
-
 // ListJobs returns all jobs in the work cache
 func (s *BackendScheduler) ListJobs() []*work.Job {
 	return s.work.ListJobs()
@@ -92,8 +89,8 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 		{
 			provider: provider.NewRetentionProvider(
 				s.cfg.ProviderConfig.Retention,
-				s,
 				log.Logger,
+				s.work,
 			),
 			jobs: nil, // Will be set in running
 		},
