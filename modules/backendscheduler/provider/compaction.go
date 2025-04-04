@@ -45,10 +45,6 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
 }
 
-type workKeeper interface {
-	HasBlocks([]string) bool
-}
-
 type CompactionProvider struct {
 	cfg    CompactionConfig
 	logger log.Logger
@@ -57,13 +53,14 @@ type CompactionProvider struct {
 	store     storage.Store
 	overrides overrides.Interface
 
+	// Scheduler calls required for this provider
+	sched Scheduler
+
 	// Dependencies needed for tenant selection
 	curPriority       *tenantselector.PriorityQueue
 	curTenant         *tenantselector.Item
 	curSelector       blockselector.CompactionBlockSelector
 	curTenantJobCount int
-
-	workKeeper workKeeper
 }
 
 func NewCompactionProvider(
@@ -71,7 +68,7 @@ func NewCompactionProvider(
 	logger log.Logger,
 	store storage.Store,
 	overrides overrides.Interface,
-	workKeeper workKeeper,
+	scheduler Scheduler,
 ) *CompactionProvider {
 	return &CompactionProvider{
 		cfg:         cfg,
@@ -79,7 +76,7 @@ func NewCompactionProvider(
 		store:       store,
 		overrides:   overrides,
 		curPriority: tenantselector.NewPriorityQueue(),
-		workKeeper:  workKeeper,
+		sched:       scheduler,
 	}
 }
 
@@ -165,7 +162,7 @@ func (p *CompactionProvider) nextCompactionJob(ctx context.Context) *work.Job {
 
 			input := make([]string, 0, len(toBeCompacted))
 			for _, b := range toBeCompacted {
-				if p.workKeeper.HasBlocks([]string{b.BlockID.String()}) {
+				if p.sched.HasBlocks([]string{b.BlockID.String()}) {
 					continue
 				}
 
