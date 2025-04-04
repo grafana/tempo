@@ -102,7 +102,37 @@ dashboard_utils {
             { fieldConfig+: { defaults+: { unit: 'binBps' } } },
         )
     )
-     .addRow(
+    .addRow(
+      $.row('Flushed blocks')
+        .addPanel(
+            $.panel('Flushed blocks / sec')+
+            $.panelDescription(
+            'Block builder partition section duration',
+            'Overview of the partition section duration.',
+            ) +
+            $.queryPanel(
+            'sum (rate(tempo_block_builder_flushed_blocks{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) }, 'blocks'
+            )+
+            $.stack
+            +
+            { fieldConfig+: { defaults+: { unit: 'short' } } },
+        )
+        .addPanel(
+            $.timeseriesPanel('Per pod flushed blocks / sec')+
+            $.panelDescription(
+            'Block builder partition section duration',
+            'Overview of the partition section duration.',
+            ) +
+           $.queryPanel(
+            'sum by (pod) (rate(tempo_block_builder_flushed_blocks{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder)},
+            '{{pod}}'
+            ) +
+            $.stack
+            +
+            { fieldConfig+: { defaults+: { unit: 'short' } } },
+        )
+    )
+    .addRow(
       $.row('Partitions')
         .addPanel(
             $.timeseriesPanel('Lag of records by partition') +
@@ -118,7 +148,7 @@ dashboard_utils {
             { fieldConfig+: { defaults+: { unit: 'short' } } },
         )
          .addPanel(
-            $.timeseriesPanel('Lag by partition seconds') +
+            $.timeseriesPanel('Lag by partition (sec)') +
             $.panelDescription(
             'Kafka lag by partition in seconds',
             'Overview of the lag by partition in seconds.',
@@ -128,7 +158,50 @@ dashboard_utils {
             )+
             $.stack
             +
-            { fieldConfig+: { defaults+: { unit: 'short' } } },
+            { fieldConfig+: { defaults+: { unit: 's' } } },
+        )
+    )
+     .addRow(
+      $.row('Consumption time')
+        .addPanel(
+            $.panel('Partition section duration (sec)'){
+                type: 'heatmap'
+            } +
+            $.panelDescription(
+            'Block builder partition section duration',
+            'Overview of the partition section duration.',
+            ) +
+            $.queryPanel(
+            'sum(rate(tempo_block_builder_process_partition_section_duration_seconds{%(job)s}[$__rate_interval]))  by (partition)' % { job: $.jobMatcher($._config.jobs.block_builder) }, '{{partition}}'
+            )+
+            $.stack
+            +
+            { fieldConfig+: { defaults+: { unit: 's' } } },
+        )
+        .addPanel(
+            $.panel('Partition cycle duration (sec)'){
+                type: 'heatmap'
+            } +
+            $.panelDescription(
+            'Block builder partition cycle duration',
+            'Overview of the partition cycle duration.',
+            ) +
+            $.queryPanel(
+            'sum(rate(tempo_block_builder_consume_cycle_duration_seconds{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) }, 'cycle duration'
+            )+
+            $.stack
+            +
+            { fieldConfig+: { defaults+: { unit: 's' } } },
+        )
+    )
+
+    .addRow(
+      $.row('Resources')
+      .addPanel(
+          $.containerCPUUsagePanel('CPU', $._config.jobs.block_builder),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.block_builder),
         )
     )
   }
