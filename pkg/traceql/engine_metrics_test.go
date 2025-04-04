@@ -96,7 +96,7 @@ func TestIntervalOf(t *testing.T) {
 	}
 }
 
-func TestTrimToOverlap(t *testing.T) {
+func TestTrimToBlockOverlap(t *testing.T) {
 	tc := []struct {
 		start1, end1               string
 		step                       time.Duration
@@ -108,7 +108,7 @@ func TestTrimToOverlap(t *testing.T) {
 			// Fully overlapping
 			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
 			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
-			"2024-01-01 01:33:00", "2024-01-01 01:38:00", 5 * time.Minute,
+			"2024-01-01 01:33:00", "2024-01-01 01:38:01", 5 * time.Minute, // added 1 second to include the last second of the block
 		},
 		{
 			// Partially Overlapping
@@ -132,12 +132,13 @@ func TestTrimToOverlap(t *testing.T) {
 		start2, _ := time.Parse(time.DateTime, c.start2)
 		end2, _ := time.Parse(time.DateTime, c.end2)
 
-		actualStart, actualEnd, actualStep := TrimToOverlap(
+		actualStart, actualEnd, actualStep := TrimToBlockOverlap(
 			uint64(start1.UnixNano()),
 			uint64(end1.UnixNano()),
 			uint64(c.step.Nanoseconds()),
-			uint64(start2.UnixNano()),
-			uint64(end2.UnixNano()))
+			start2,
+			end2,
+		)
 
 		require.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
 		require.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))

@@ -86,20 +86,28 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	return IntervalOf(ts, start, end, step)
 }
 
-// TrimToOverlap returns the aligned overlap between the two given time ranges. If the request
-// is instant, then will return and updated step to match to the new time range.
-func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64, uint64) {
-	wasInstant := end1-start1 == step
+// TrimToBlockOverlap returns the aligned overlap between the given time and block ranges,
+// the block's borders are included.
+// If the request is instantaneous, it returns an updated step to match the new time range.
+// It assumes that blockEnd is aligned to seconds.
+func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
+	wasInstant := end-start == step
 
-	start1 = max(start1, start2)
-	end1 = min(end1, end2)
+	start2 := uint64(blockStart.UnixNano())
+	// Block's endTime is rounded down to the nearest second and considered inclusive.
+	// In order to include the right border with nanoseconds, we add 1 second
+	blockEnd = blockEnd.Add(time.Second)
+	end2 := uint64(blockEnd.UnixNano())
+
+	start = max(start, start2)
+	end = min(end, end2)
 
 	if wasInstant {
 		// Alter step to maintain instant nature
-		step = end1 - start1
+		step = end - start
 	}
 
-	return start1, end1, step
+	return start, end, step
 }
 
 // TrimToBefore shortens the query window to only include before the given time.
