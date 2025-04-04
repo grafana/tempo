@@ -239,8 +239,8 @@ func (fs *fileStats) printStats() {
 
 func generateCombinedIndex(stats *fileStats) []indexedAttrCombined {
 	var (
-		index         = make([]indexedAttrCombined, 0, len(stats.Attributes))
-		keyCode int64 = 0
+		index   = make([]indexedAttrCombined, 0, len(stats.Attributes))
+		keyCode int64
 	)
 
 	for _, attr := range stats.Attributes {
@@ -266,7 +266,7 @@ func generateCombinedIndex(stats *fileStats) []indexedAttrCombined {
 				return cmpSlice(a.ValuesString[i].Value, a.ValuesString[j].Value) < 0
 			})
 
-			var valueCode int64 = 0
+			var valueCode int64
 			for i := range a.ValuesString {
 				valueCode++
 				a.ValuesString[i].ValueCode = valueCode
@@ -287,7 +287,7 @@ func generateCombinedIndex(stats *fileStats) []indexedAttrCombined {
 				return cmpSlice(a.ValuesInt[i].Value, a.ValuesInt[j].Value) < 0
 			})
 
-			var valueCode int64 = 0
+			var valueCode int64
 			for i := range a.ValuesInt {
 				valueCode++
 				a.ValuesInt[i].ValueCode = valueCode
@@ -308,7 +308,7 @@ func generateCombinedIndex(stats *fileStats) []indexedAttrCombined {
 				return cmpSlice(a.ValuesFloat[i].Value, a.ValuesFloat[j].Value) < 0
 			})
 
-			var valueCode int64 = 0
+			var valueCode int64
 			for i := range a.ValuesFloat {
 				valueCode++
 				a.ValuesFloat[i].ValueCode = valueCode
@@ -329,7 +329,7 @@ func generateCombinedIndex(stats *fileStats) []indexedAttrCombined {
 				return cmpSliceBool(a.ValuesBool[i].Value, a.ValuesBool[j].Value) < 0
 			})
 
-			var valueCode int64 = 0
+			var valueCode int64
 			for i := range a.ValuesBool {
 				valueCode++
 				a.ValuesBool[i].ValueCode = valueCode
@@ -344,8 +344,8 @@ func generateCombinedIndex(stats *fileStats) []indexedAttrCombined {
 
 func generateRowsIndex(stats *fileStats) []indexedAttrRows {
 	var (
-		index         = make([]indexedAttrRows, 0, len(stats.Attributes))
-		keyCode int64 = 0
+		index   = make([]indexedAttrRows, 0, len(stats.Attributes))
+		keyCode int64
 	)
 
 	for _, attr := range stats.Attributes {
@@ -360,10 +360,7 @@ func generateRowsIndex(stats *fileStats) []indexedAttrRows {
 			a.ValuesString = make([]indexedValRows[string], 0, len(attr.ValuesString))
 
 			for _, v := range attr.ValuesString {
-				a.ValuesString = append(a.ValuesString, indexedValRows[string]{
-					Value:      v.Value,
-					RowNumbers: v.RowNumbers,
-				})
+				a.ValuesString = append(a.ValuesString, indexedValRows[string](v))
 			}
 
 			sort.Slice(a.ValuesString, func(i, j int) bool {
@@ -375,10 +372,7 @@ func generateRowsIndex(stats *fileStats) []indexedAttrRows {
 			a.ValuesInt = make([]indexedValRows[int64], 0, len(attr.ValuesInt))
 
 			for _, v := range attr.ValuesInt {
-				a.ValuesInt = append(a.ValuesInt, indexedValRows[int64]{
-					Value:      v.Value,
-					RowNumbers: v.RowNumbers,
-				})
+				a.ValuesInt = append(a.ValuesInt, indexedValRows[int64](v))
 			}
 
 			sort.Slice(a.ValuesInt, func(i, j int) bool {
@@ -390,10 +384,7 @@ func generateRowsIndex(stats *fileStats) []indexedAttrRows {
 			a.ValuesFloat = make([]indexedValRows[float64], 0, len(attr.ValuesFloat))
 
 			for _, v := range attr.ValuesFloat {
-				a.ValuesFloat = append(a.ValuesFloat, indexedValRows[float64]{
-					Value:      v.Value,
-					RowNumbers: v.RowNumbers,
-				})
+				a.ValuesFloat = append(a.ValuesFloat, indexedValRows[float64](v))
 			}
 
 			sort.Slice(a.ValuesFloat, func(i, j int) bool {
@@ -405,10 +396,7 @@ func generateRowsIndex(stats *fileStats) []indexedAttrRows {
 			a.ValuesBool = make([]indexedValRows[bool], 0, len(attr.ValuesBool))
 
 			for _, v := range attr.ValuesBool {
-				a.ValuesBool = append(a.ValuesBool, indexedValRows[bool]{
-					Value:      v.Value,
-					RowNumbers: v.RowNumbers,
-				})
+				a.ValuesBool = append(a.ValuesBool, indexedValRows[bool](v))
 			}
 
 			sort.Slice(a.ValuesBool, func(i, j int) bool {
@@ -424,8 +412,8 @@ func generateRowsIndex(stats *fileStats) []indexedAttrRows {
 
 func generateCodesIndex(stats *fileStats) []indexedAttrCodes {
 	var (
-		index         = make([]indexedAttrCodes, 0, len(stats.Attributes))
-		keyCode int64 = 0
+		index   = make([]indexedAttrCodes, 0, len(stats.Attributes))
+		keyCode int64
 	)
 
 	for _, attr := range stats.Attributes {
@@ -450,7 +438,7 @@ func generateCodesIndex(stats *fileStats) []indexedAttrCodes {
 				return cmpSlice(a.ValuesString[i].Value, a.ValuesString[j].Value) < 0
 			})
 
-			var valueCode int64 = 0
+			var valueCode int64
 			for i := range a.ValuesString {
 				valueCode++
 				a.ValuesString[i].ValueCode = valueCode
@@ -470,7 +458,7 @@ func generateCodesIndex(stats *fileStats) []indexedAttrCodes {
 				return cmpSlice(a.ValuesInt[i].Value, a.ValuesInt[j].Value) < 0
 			})
 
-			var valueCode int64 = 0
+			var valueCode int64
 			for i := range a.ValuesInt {
 				valueCode++
 				a.ValuesInt[i].ValueCode = valueCode
@@ -490,7 +478,7 @@ func generateCodesIndex(stats *fileStats) []indexedAttrCodes {
 				return cmpSlice(a.ValuesFloat[i].Value, a.ValuesFloat[j].Value) < 0
 			})
 
-			var valueCode int64 = 0
+			var valueCode int64
 			for i := range a.ValuesFloat {
 				valueCode++
 				a.ValuesFloat[i].ValueCode = valueCode
@@ -510,7 +498,7 @@ func generateCodesIndex(stats *fileStats) []indexedAttrCodes {
 				return cmpSliceBool(a.ValuesBool[i].Value, a.ValuesBool[j].Value) < 0
 			})
 
-			var valueCode int64 = 0
+			var valueCode int64
 			for i := range a.ValuesBool {
 				valueCode++
 				a.ValuesBool[i].ValueCode = valueCode
@@ -902,10 +890,10 @@ func cmpSlice[T cmp.Ordered](a, b []T) int {
 
 func cmpSliceBool(a, b []bool) int {
 	for i := range min(len(a), len(b)) {
-		if a[i] == false && b[i] == true {
+		if !a[i] && b[i] {
 			return -1
 		}
-		if a[i] == true && b[i] == false {
+		if a[i] && !b[i] {
 			return 1
 		}
 	}
