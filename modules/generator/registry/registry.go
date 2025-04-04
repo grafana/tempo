@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -87,7 +88,10 @@ type metric interface {
 	removeStaleSeries(staleTimeMs int64)
 }
 
-const highestAggregationInterval = 1 * time.Minute
+const (
+	staleMarkerValue           = 0x7ff0000000000002
+	highestAggregationInterval = 1 * time.Minute
+)
 
 var _ Registry = (*ManagedRegistry)(nil)
 
@@ -291,4 +295,8 @@ func hasClassicHistograms(s HistogramMode) bool {
 
 func getEndOfLastMinuteMs(timeMs int64) int64 {
 	return time.UnixMilli(timeMs).Truncate(highestAggregationInterval).Add(-1 * time.Second).UnixMilli()
+}
+
+func staleMarker() float64 {
+	return math.Float64frombits(staleMarkerValue)
 }
