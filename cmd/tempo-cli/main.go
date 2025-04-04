@@ -61,8 +61,9 @@ var cli struct {
 	} `cmd:""`
 
 	Gen struct {
-		Index indexCmd `cmd:"" help:"Generate index for a block"`
-		Bloom bloomCmd `cmd:"" help:"Generate bloom for a block"`
+		Index     indexCmd     `cmd:"" help:"Generate index for a block"`
+		Bloom     bloomCmd     `cmd:"" help:"Generate bloom for a block"`
+		AttrIndex attrIndexCmd `cmd:"" help:"Generate an attribute index for a parquet block (EXPERIMENTAL)"`
 	} `cmd:""`
 
 	Query struct {
