@@ -35,6 +35,12 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
 
+		// if a limit is being enforced in the system, honor the limit in the incoming request if it is less than the system limit
+		// else set it to system limit
+		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (req.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || req.MaxSeries == 0) {
+			req.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
+		}
+
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
 			Header: headers,
@@ -80,6 +86,12 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 
 		// parse request
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)
+
+		// if a limit is being enforced, honor the request if it is less than the limit
+		// else set it to max limit
+		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (queryRangeReq.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || queryRangeReq.MaxSeries == 0) {
+			queryRangeReq.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
+		}
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: parse search request failed", "err", err)
 			return &http.Response{

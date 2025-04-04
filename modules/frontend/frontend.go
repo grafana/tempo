@@ -46,17 +46,18 @@ type (
 )
 
 type QueryFrontend struct {
-	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler, MetricsSummaryHandler, MetricsQueryInstantHandler, MetricsQueryRangeHandler http.Handler
-	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler                                       http.Handler
-	cacheProvider                                                                                                                    cache.Provider
-	streamingSearch                                                                                                                  streamingSearchHandler
-	streamingTags                                                                                                                    streamingTagsHandler
-	streamingTagsV2                                                                                                                  streamingTagsV2Handler
-	streamingTagValues                                                                                                               streamingTagValuesHandler
-	streamingTagValuesV2                                                                                                             streamingTagValuesV2Handler
-	streamingQueryRange                                                                                                              streamingQueryRangeHandler
-	streamingQueryInstant                                                                                                            streamingQueryInstantHandler
-	logger                                                                                                                           log.Logger
+	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler, MetricsSummaryHandler                 http.Handler
+	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
+	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
+	cacheProvider                                                                              cache.Provider
+	streamingSearch                                                                            streamingSearchHandler
+	streamingTags                                                                              streamingTagsHandler
+	streamingTagsV2                                                                            streamingTagsV2Handler
+	streamingTagValues                                                                         streamingTagValuesHandler
+	streamingTagValuesV2                                                                       streamingTagValuesV2Handler
+	streamingQueryRange                                                                        streamingQueryRangeHandler
+	streamingQueryInstant                                                                      streamingQueryInstantHandler
+	logger                                                                                     log.Logger
 }
 
 var tracer = otel.Tracer("modules/frontend")

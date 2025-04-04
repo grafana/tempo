@@ -43,6 +43,11 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			End:   req.End,
 			Step:  req.End - req.Start,
 		}
+		// if a limit is being enforced, honor the request if it is less than the limit
+		// else set it to max limit
+		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (qr.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || qr.MaxSeries == 0) {
+			qr.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
+		}
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
 			Header: headers,
@@ -107,6 +112,11 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			Start: i.Start,
 			End:   i.End,
 			Step:  i.End - i.Start,
+		}
+		// if a limit is being enforced, honor the request if it is less than the limit
+		// else set it to max limit
+		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (qr.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || qr.MaxSeries == 0) {
+			qr.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
 		}
 
 		// Clone existing to keep it unaltered.
@@ -173,6 +183,8 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.QueryInstantResponse {
 	output := tempopb.QueryInstantResponse{
 		Metrics: input.Metrics,
+		Status:  input.Status,
+		Message: input.Message,
 	}
 	for _, series := range input.Series {
 		if len(series.Samples) == 0 {

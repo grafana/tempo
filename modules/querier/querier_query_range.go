@@ -47,6 +47,9 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	for _, result := range results {
 		resp := result.(*tempopb.QueryRangeResponse)
 		c.Combine(resp)
+		if c.MaxSeriesReached() {
+			break
+		}
 	}
 
 	return c.Response(), nil
@@ -112,7 +115,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return q.store.Fetch(ctx, meta, req, opts)
 	})
-	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()))
+	_, err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}
@@ -121,13 +124,19 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 
 	inspectedBytes, spansTotal, _ := eval.Metrics()
 
-	return &tempopb.QueryRangeResponse{
+	response := &tempopb.QueryRangeResponse{
 		Series: queryRangeTraceQLToProto(res, req),
 		Metrics: &tempopb.SearchMetrics{
 			InspectedBytes: inspectedBytes,
 			InspectedSpans: spansTotal,
 		},
-	}, nil
+	}
+
+	if len(res) > int(req.MaxSeries) {
+		response.Status = tempopb.PartialStatus_PARTIAL
+	}
+
+	return response, nil
 }
 
 func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
