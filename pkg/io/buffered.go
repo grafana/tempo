@@ -1,17 +1,19 @@
 package io
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"sync"
-
-	"go.uber.org/atomic"
 )
 
 // BufferedReaderAt implements io.ReaderAt but extends and buffers reads up to the given buffer size.
 // Subsequent reads are returned from the buffers. Additionally it supports concurrent readers
 // by maintaining multiple buffers at different offsets, and matching up reads with existing
 // buffers where possible. When needed the least-recently-used buffer is overwritten with new reads.
+//
+// Note that the locking effectively serializes reads to the underlying io.ReaderAt. This reader
+// is not suitable for high-concurrency workloads, but does nicely reduce memory usage and backend calls
+// for batch workloads.
 type BufferedReaderAt struct {
 	mtx     sync.Mutex
 	ra      io.ReaderAt
@@ -22,7 +24,6 @@ type BufferedReaderAt struct {
 }
 
 type readerBuffer struct {
-	mtx   sync.RWMutex
 	buf   []byte
 	off   int64
 	count int64
@@ -62,8 +63,16 @@ func (r *BufferedReaderAt) prep(buf *readerBuffer, offset, length int64) {
 }
 
 func (r *BufferedReaderAt) populate(buf *readerBuffer) (int, error) {
-	// Read
+	// read
 	n, err := r.ra.ReadAt(buf.buf, buf.off)
+
+	// if err is fatal we need to invalidate the buffer by setting it back to 0s (uninitialized)
+	if isFatalError(err) {
+		buf.buf = buf.buf[:0]
+		buf.count = 0
+		buf.off = 0
+	}
+
 	return n, err
 }
 
@@ -89,23 +98,10 @@ func calculateBounds(offset, length int64, bufferSize int, readerAtSize int64) (
 }
 
 func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
-	// There are two-levels of locking: the top-level governs the
-	// the reader and the arrangement and position of the buffers.
-	// Then each individual buffer has its own lock for populating
-	// and reading it.
-
-	// The main reason for this is to support concurrent activity
-	// while solving the stampeding herd issue for fresh reads:
-	// The first read will prep the offset/length of the buffer
-	// and then switch to the buffer's write-lock while populating it.
-	// The second read will inspect the offset/length and know
-	// that it will satisfy, but by taking the read-lock will
-	// wait until the first call has finished populating the buffer .
-
 	r.mtx.Lock()
+	defer r.mtx.Unlock()
 
 	if len(r.buffers) == 0 {
-		r.mtx.Unlock()
 		return r.ra.ReadAt(b, offset)
 	}
 
@@ -128,29 +124,19 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 		// No buffer satisfied read, overwrite least-recently-used
 		buf = lru
 
-		// Here we exchange the top-level lock for
-		// the buffer's individual write lock
-		buf.mtx.Lock()
-		defer buf.mtx.Unlock()
 		r.prep(buf, offset, int64(len(b)))
 		buf.count = r.count
-		r.mtx.Unlock()
 
-		if _, err := r.populate(buf); err != nil {
+		var err error
+		if _, err = r.populate(buf); isFatalError(err) {
 			return 0, err
 		}
 
 		r.read(buf, b, offset)
-		return len(b), nil
+		return len(b), err
 	}
 
-	// Here we exchange the top-level lock for
-	// the buffer's individual read lock
-	buf.mtx.RLock()
-	defer buf.mtx.RUnlock()
 	buf.count = r.count
-	r.mtx.Unlock()
-
 	r.read(buf, b, offset)
 	return len(b), nil
 }
@@ -158,6 +144,12 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 type BufferedWriter struct {
 	w   io.Writer
 	buf []byte
+}
+
+type BufferedWriteFlusher interface {
+	io.WriteCloser
+	Len() int
+	Flush() error
 }
 
 func NewBufferedWriter(w io.Writer) BufferedWriteFlusher {
@@ -190,96 +182,14 @@ func (b *BufferedWriter) Close() error {
 	return nil
 }
 
-type BufferedWriteFlusher interface {
-	io.WriteCloser
-	Len() int
-	Flush() error
-}
-
-// BufferedWriterWithQueue is an attempt at writing an async queue of outgoing data to the underlying writer.
-// As a tradeoff for removing flushes from the hot path, this writer does not provide guarantees about
-// bubbling up errors and takes a best effort approach to signal a failure.
-//
-// Note: This is not used at the moment due to concerns with error handling when writing async data to the backend.
-type BufferedWriterWithQueue struct {
-	w   io.Writer
-	buf []byte
-
-	flushCh chan []byte
-	doneCh  chan struct{}
-	err     atomic.Error
-}
-
-var _ BufferedWriteFlusher = (*BufferedWriterWithQueue)(nil)
-
-func NewBufferedWriterWithQueue(w io.Writer) BufferedWriteFlusher {
-	b := &BufferedWriterWithQueue{
-		w:       w,
-		buf:     nil,
-		flushCh: make(chan []byte, 10), // todo: guess better?
-		doneCh:  make(chan struct{}, 1),
+func isFatalError(err error) bool {
+	if err == nil {
+		return false
 	}
 
-	go b.flushLoop()
-
-	return b
-}
-
-func (b *BufferedWriterWithQueue) Write(p []byte) (n int, err error) {
-	b.buf = append(b.buf, p...)
-	return len(p), nil
-}
-
-func (b *BufferedWriterWithQueue) Len() int {
-	return len(b.buf)
-}
-
-func (b *BufferedWriterWithQueue) Flush() error {
-	if err := b.err.Load(); err != nil {
-		return fmt.Errorf("error in async write using buffered writer: %w", err)
+	if errors.Is(err, io.EOF) {
+		return false
 	}
 
-	bufCopy := make([]byte, 0, len(b.buf))
-	bufCopy = append(bufCopy, b.buf...)
-
-	// reset/resize buffer
-	b.buf = b.buf[:0]
-
-	// will only block if the entire buffered channel is full
-	b.flushCh <- bufCopy
-	return nil
-}
-
-func (b *BufferedWriterWithQueue) flushLoop() {
-	defer close(b.doneCh)
-
-	// for-range will exit once channel is closed
-	// https://dave.cheney.net/tag/golang-3
-	for buf := range b.flushCh {
-		_, err := b.w.Write(buf)
-		if err != nil {
-			b.err.Store(err)
-			return
-		}
-	}
-}
-
-func (b *BufferedWriterWithQueue) Close() error {
-	if err := b.err.Load(); err != nil {
-		return err
-	}
-
-	var flushErr error
-	if len(b.buf) > 0 {
-		flushErr = b.Flush()
-		b.buf = nil
-	}
-
-	// close out flushLoop
-	close(b.flushCh)
-
-	// blocking wait on doneCh
-	<-b.doneCh
-
-	return flushErr
+	return true
 }

@@ -13,7 +13,9 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
+// openForIteration opens and returns the parquet file. Note that this is currently only used for compaction and is tuned for this kind of workload.
+// In particular it uses the tempo_io.BufferedReaderAt which is slower but uses less memory and incurs fewer backend calls.
+func (b *backendBlock) openForIteration(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
 	// 128 MB memory buffering
@@ -36,7 +38,7 @@ func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader
 }
 
 func (b *backendBlock) rawIter(ctx context.Context, pool *rowPool) (*rawIterator, error) {
-	pf, r, err := b.open(ctx)
+	pf, r, err := b.openForIteration(ctx)
 	if err != nil {
 		return nil, err
 	}
