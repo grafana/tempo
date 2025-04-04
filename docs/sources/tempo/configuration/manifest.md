@@ -970,18 +970,6 @@ cache:
     caches: []
 backend_scheduler:
     tenant_measurement_interval: 1m0s
-    compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
-        compaction_window: 1h0m0s
-        max_compaction_objects: 6000000
-        max_block_bytes: 107374182400
-        block_retention: 336h0m0s
-        compacted_block_retention: 1h0m0s
-        retention_concurrency: 10
-        max_time_per_tenant: 5m0s
-        compaction_cycle: 30s
     work:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
