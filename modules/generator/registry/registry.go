@@ -143,30 +143,30 @@ func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *
 	return newLabelValueComboWithMax(labels, values, r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength)
 }
 
-func (r *ManagedRegistry) NewCounter(name string) Counter {
-	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
+func (r *ManagedRegistry) NewCounter(name string, help string, unit string) Counter {
+	c := newCounter(name, help, unit, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
 	r.registerMetric(c)
 	return c
 }
 
-func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogramOverride HistogramMode) (h Histogram) {
+func (r *ManagedRegistry) NewHistogram(name string, help string, unit string, buckets []float64, histogramOverride HistogramMode) (h Histogram) {
 	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
 
 	// TODO: Temporary switch: use the old implementation when native histograms
 	// are disabled, eventually the new implementation can handle all cases
 
 	if hasNativeHistograms(histogramOverride) {
-		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride, r.externalLabels)
+		h = newNativeHistogram(name, help, unit, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride, r.externalLabels)
 	} else {
-		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, r.externalLabels)
+		h = newHistogram(name, help, unit, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, r.externalLabels)
 	}
 
 	r.registerMetric(h)
 	return h
 }
 
-func (r *ManagedRegistry) NewGauge(name string) Gauge {
-	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
+func (r *ManagedRegistry) NewGauge(name string, help string, unit string) Gauge {
+	g := newGauge(name, help, unit, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
 	r.registerMetric(g)
 	return g
 }
