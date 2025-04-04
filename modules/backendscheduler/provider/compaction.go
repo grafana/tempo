@@ -45,6 +45,10 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
 }
 
+type workKeeper interface {
+	HasBlocks([]string) bool
+}
+
 type CompactionProvider struct {
 	cfg    CompactionConfig
 	logger log.Logger
@@ -58,6 +62,8 @@ type CompactionProvider struct {
 	curTenant         *tenantselector.Item
 	curSelector       blockselector.CompactionBlockSelector
 	curTenantJobCount int
+
+	workKeeper workKeeper
 }
 
 func NewCompactionProvider(
@@ -65,6 +71,7 @@ func NewCompactionProvider(
 	logger log.Logger,
 	store storage.Store,
 	overrides overrides.Interface,
+	workKeeper workKeeper,
 ) *CompactionProvider {
 	return &CompactionProvider{
 		cfg:         cfg,
@@ -72,6 +79,7 @@ func NewCompactionProvider(
 		store:       store,
 		overrides:   overrides,
 		curPriority: tenantselector.NewPriorityQueue(),
+		workKeeper:  workKeeper,
 	}
 }
 
@@ -157,7 +165,16 @@ func (p *CompactionProvider) nextCompactionJob(ctx context.Context) *work.Job {
 
 			input := make([]string, 0, len(toBeCompacted))
 			for _, b := range toBeCompacted {
+				if p.workKeeper.HasBlocks([]string{b.BlockID.String()}) {
+					continue
+				}
+
 				input = append(input, b.BlockID.String())
+			}
+
+			if len(input) < 2 {
+				// we need at least 2 blocks to compact
+				continue
 			}
 
 			compaction := &tempopb.CompactionDetail{

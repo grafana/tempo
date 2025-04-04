@@ -57,11 +57,14 @@ func TestCompactionProvider(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
+	w := work.New(work.Config{})
+
 	p := NewCompactionProvider(
 		cfg,
 		log.NewNopLogger(),
 		store,
 		limits,
+		w,
 	)
 
 	jobChan := p.Start(ctx)
