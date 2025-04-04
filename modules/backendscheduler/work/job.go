@@ -144,19 +144,34 @@ func (j *Job) GetCompactionInput() []string {
 	j.mtx.RLock()
 	defer j.mtx.RUnlock()
 
-	return j.JobDetail.Compaction.Input
+	switch j.Type {
+	case tempopb.JobType_JOB_TYPE_COMPACTION:
+		return j.JobDetail.Compaction.Input
+	default:
+		return nil
+	}
 }
 
 func (j *Job) GetCompactionOutput() []string {
 	j.mtx.Lock()
 	defer j.mtx.Unlock()
 
-	return j.JobDetail.Compaction.Output
+	switch j.Type {
+	case tempopb.JobType_JOB_TYPE_COMPACTION:
+		return j.JobDetail.Compaction.Output
+	default:
+		return nil
+	}
 }
 
 func (j *Job) SetCompactionOutput(blocks []string) {
 	j.mtx.Lock()
 	defer j.mtx.Unlock()
 
-	j.JobDetail.Compaction.Output = blocks
+	switch j.Type {
+	case tempopb.JobType_JOB_TYPE_COMPACTION:
+		j.JobDetail.Compaction.Output = blocks
+	default:
+		return
+	}
 }

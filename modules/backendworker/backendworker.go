@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
@@ -223,10 +224,6 @@ func (w *BackendWorker) running(ctx context.Context) error {
 	}
 }
 
-// TODO: implement processRetentionJobs
-// func (w *BackendWorker) processRetentionJobs(ctx context.Context) error {
-// }
-
 func (w *BackendWorker) processJobs(ctx context.Context) error {
 	var resp *tempopb.NextJobResponse
 	var err error
@@ -255,9 +252,20 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 
 	metricWorkerJobsTotal.WithLabelValues().Inc()
 
+	switch resp.Type {
+	case tempopb.JobType_JOB_TYPE_COMPACTION:
+		return w.processCompactionJob(ctx, resp)
+	case tempopb.JobType_JOB_TYPE_RETENTION:
+		return w.processRetentionJob(ctx, resp)
+	default:
+		return fmt.Errorf("unknown job type: %s", resp.Type.String())
+	}
+}
+
+func (w *BackendWorker) processCompactionJob(ctx context.Context, resp *tempopb.NextJobResponse) error {
 	if resp.Detail.Tenant == "" {
 		metricWorkerBadJobsReceived.WithLabelValues("no_tenant").Inc()
-		return w.failJob(ctx, resp.JobId, "received job with empty tenant")
+		return w.failJob(ctx, resp.JobId, "received compaction job with empty tenant")
 	}
 
 	level.Debug(log.Logger).Log("msg", "received job", "job_id", resp.JobId, "tenant", resp.Detail.Tenant)
@@ -275,7 +283,6 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 	}
 
 	// Execute compaction using existing logic
-	// err = w.store.Compact(ctx, sourceMetas, resp.Detail.Tenant)
 	newCompacted, err := w.compact(ctx, sourceMetas, resp.Detail.Tenant)
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error compacting blocks: %v", err))
@@ -294,6 +301,28 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 			Compaction: &tempopb.CompactionDetail{
 				Output: newIDs,
 			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
+	}
+
+	return nil
+}
+
+func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.NextJobResponse) error {
+	level.Debug(log.Logger).Log("msg", "received retention job", "job_id", resp.JobId, "tenant", resp.Detail.Tenant)
+	w.store.RetainWithConfig(ctx, &w.cfg.Compactor, ownsEverythingSharder{}, w)
+
+	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  resp.JobId,
+			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 		})
 		if err != nil {
 			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
@@ -515,4 +544,22 @@ func (w *BackendWorker) OnRingInstanceStopping(*ring.BasicLifecycler) {}
 // OnRingInstanceHeartbeat is called while the instance is updating its heartbeat
 // in the ring.
 func (w *BackendWorker) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
+}
+
+type ownsEverythingSharder struct {
+	w *BackendWorker
+}
+
+var _ tempodb.CompactorSharder = ownsEverythingSharder{}
+
+func (ownsEverythingSharder) Owns(_ string) bool {
+	return true
+}
+
+func (s ownsEverythingSharder) RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string, rootServiceName string) {
+	s.w.RecordDiscardedSpans(count, tenantID, traceID, rootSpanName, rootServiceName)
+}
+
+func (s ownsEverythingSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
+	return s.w.Combine(dataEncoding, tenantID, objs...)
 }

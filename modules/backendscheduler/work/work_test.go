@@ -62,6 +62,9 @@ func TestWorkLifecycle(t *testing.T) {
 
 	require.Len(t, w.ListJobs(), 0)
 	require.Equal(t, w.Len(), 0)
+
+	err = w.AddJob(nil)
+	require.Error(t, err)
 }
 
 func TestTenant(t *testing.T) {
@@ -151,19 +154,19 @@ func TestBlocks(t *testing.T) {
 	w := New(Config{PruneAge: 100 * time.Millisecond})
 	require.NotNil(t, w)
 
-	j := &Job{ID: "1", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"1"}}}}
+	j := &Job{ID: "1", Type: tempopb.JobType_JOB_TYPE_COMPACTION, JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"1"}}}}
 	err := w.AddJob(j)
 	require.NoError(t, err)
 	require.True(t, w.HasBlocks([]string{"1"}))
 	require.False(t, w.HasBlocks([]string{"2"}))
 
-	j = &Job{ID: "2", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"2"}, Output: []string{"3"}}}}
+	j = &Job{ID: "2", Type: tempopb.JobType_JOB_TYPE_COMPACTION, JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"2"}, Output: []string{"3"}}}}
 	err = w.AddJob(j)
 	require.NoError(t, err)
 	require.True(t, w.HasBlocks([]string{"3"}))
 
 	// test CompactionInput
-	j = &Job{ID: "3", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"4"}}}}
+	j = &Job{ID: "3", Type: tempopb.JobType_JOB_TYPE_COMPACTION, JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"4"}}}}
 	err = w.AddJob(j)
 	require.NoError(t, err)
 	require.Equal(t, j.GetCompactionInput(), []string{"4"})

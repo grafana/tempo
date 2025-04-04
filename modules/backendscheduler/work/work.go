@@ -27,6 +27,10 @@ func (q *Work) AddJob(j *Job) error {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
+	if j == nil {
+		return ErrJobNil
+	}
+
 	if _, ok := q.Jobs[j.ID]; ok {
 		return ErrJobAlreadyExists
 	}
