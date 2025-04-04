@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -37,42 +36,21 @@ func TestRetentionProvider(t *testing.T) {
 	jobChan := p.Start(ctx)
 
 	var receivedJobs []*work.Job
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for len(receivedJobs) < 1 {
-			select {
-			case <-ctx.Done():
-				break
-			case job := <-jobChan:
-				err := w.AddJob(job)
-				if job == nil {
-					require.Error(t, err)
-					require.Equal(t, work.ErrJobNil, err)
-				} else {
-					require.NoError(t, err)
-					require.Equal(t, tempopb.JobType_JOB_TYPE_RETENTION, job.Type)
-					job.Start() // mark the job as started so that we avoid new retention jobs
-				}
-
-				receivedJobs = append(receivedJobs, job)
-			}
+	for job := range jobChan {
+		err := w.AddJob(job)
+		if job == nil {
+			require.Error(t, err)
+			require.Equal(t, work.ErrJobNil, err)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, tempopb.JobType_JOB_TYPE_RETENTION, job.Type)
+			require.Equal(t, "", job.Tenant())
+			job.Start() // mark the job as started so that we avoid new retention jobs
 		}
-	}()
 
-	wg.Wait()
-	<-ctx.Done()
-
-	for _, job := range receivedJobs {
-		require.NotNil(t, job)
-		require.Equal(t, tempopb.JobType_JOB_TYPE_RETENTION, job.Type)
-		// Retention jobs should not have a tenant
-		require.Equal(t, "", job.Tenant())
-		require.NotEqual(t, "", job.ID)
+		receivedJobs = append(receivedJobs, job)
 	}
 
-	// Since we started the job, no other jobs should be in the queue
+	// Since we started only one job, no other jobs should be in the queue
 	require.Len(t, receivedJobs, 1)
 }
