@@ -15,7 +15,7 @@ The usage tracker accurately tracks the amount of ingested traffic using a set o
 To use this feature, you need to enable it in the [distributor](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor) and configure the overrides to handle the data. 
 
 1. Open your configuration file, for example, `tempo.yaml`. 
-1. In the `#distributor` section, locate the `cost_attribution` line. If it is not present, then copy and paste the example below into your distributor section. 
+1. In the `#distributor` section, locate the `cost_attribution` line. If it is not present, then copy and paste the example below into your distributor section and update the options. 
 
 ```
  usage:
