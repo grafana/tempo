@@ -1013,7 +1013,9 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
-	if fetcherStart > 0 && fetcherEnd > 0 {
+	if fetcherStart > 0 && fetcherEnd > 0 &&
+		// exclude special case for a block with the same start and end
+		fetcherStart != fetcherEnd {
 		// Dynamically decide whether to use the trace-level timestamp columns
 		// for filtering.
 		overlap := timeRangeOverlap(e.start, e.end, fetcherStart, fetcherEnd)
