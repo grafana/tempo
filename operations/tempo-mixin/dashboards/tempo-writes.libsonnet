@@ -71,9 +71,15 @@ dashboard_utils {
       .addRow(
         g.row('Distributor')
         .addPanel(
-          $.panel('Spans/Second') +
+          $.panel('Spans / sec') +
           $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused')
+        )
+        .addPanel(
+          $.panel('Bytes / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_bytes_received_total{%s}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.distributor), 'received') {
+            yaxes: $.yaxes('binBps'),
+          }
         )
         .addPanel(
           $.panel('Latency') +
