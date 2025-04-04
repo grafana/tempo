@@ -831,6 +831,11 @@
      "dashLength": 10,
      "dashes": false,
      "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "unit": "s"
+      }
+     },
      "fill": 1,
      "id": 10,
      "legend": {
@@ -861,7 +866,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
+       "expr": "rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "latency",

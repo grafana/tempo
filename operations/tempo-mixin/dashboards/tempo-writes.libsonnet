@@ -102,9 +102,10 @@ dashboard_utils {
           $.panel('Kafka write latency (sec)') {
             type: 'heatmap',
           } +
-          $.queryPanel('sum(rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'latency') {
+          $.queryPanel('rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])' % $.jobMatcher($._config.jobs.distributor), 'latency') {
             yaxes: $.yaxes('s'),
-          }
+          } +
+          { fieldConfig+: { defaults+: { unit: 's' } } },
         )
       )
 
