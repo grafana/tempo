@@ -1,4 +1,6 @@
 ## main / unreleased
+
+* [FEATURE] Add support for topk and bottomk functions for TraceQL metrics [#4646](https://github.com/grafana/tempo/pull/4646/) @electron0zero
 * [CHANGE] Update query range error message [#4929](https://github.com/grafana/tempo/pull/4929) (@joey-grafana)
 * [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1 [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
   The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`

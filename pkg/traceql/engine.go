@@ -27,10 +27,10 @@ func NewEngine() *Engine {
 	return &Engine{}
 }
 
-func Compile(query string) (*RootExpr, SpansetFilterFunc, metricsFirstStageElement, *FetchSpansRequest, error) {
+func Compile(query string) (*RootExpr, SpansetFilterFunc, firstStageElement, secondStageElement, *FetchSpansRequest, error) {
 	expr, err := Parse(query)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	req := &FetchSpansRequest{
@@ -40,17 +40,17 @@ func Compile(query string) (*RootExpr, SpansetFilterFunc, metricsFirstStageEleme
 
 	err = expr.validate()
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
-	return expr, expr.Pipeline.evaluate, expr.MetricsPipeline, req, nil
+	return expr, expr.Pipeline.evaluate, expr.MetricsPipeline, expr.MetricsSecondStage, req, nil
 }
 
 func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.End()
 
-	rootExpr, _, _, fetchSpansRequest, err := Compile(searchReq.Query)
+	rootExpr, _, _, _, fetchSpansRequest, err := Compile(searchReq.Query)
 	if err != nil {
 		return nil, err
 	}

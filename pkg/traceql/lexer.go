@@ -110,6 +110,8 @@ var tokens = map[string]int{
 	"quantile_over_time":  QUANTILE_OVER_TIME,
 	"histogram_over_time": HISTOGRAM_OVER_TIME,
 	"compare":             COMPARE,
+	"topk":                TOPK,
+	"bottomk":             BOTTOMK,
 	"with":                WITH,
 }
 
