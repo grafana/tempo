@@ -174,7 +174,9 @@ dashboard_utils {
           ) +
           $.queryPanel(
             'sum(rate(tempo_block_builder_process_partition_section_duration_seconds{%(job)s}[$__rate_interval]))  by (partition)' % { job: $.jobMatcher($._config.jobs.block_builder) }, '{{partition}}'
-          ) +
+          ) {
+            yaxes: $.yaxes('s'),
+          } +
           $.stack
           +
           { fieldConfig+: { defaults+: { unit: 's' } } },
@@ -189,7 +191,9 @@ dashboard_utils {
           ) +
           $.queryPanel(
             'sum(rate(tempo_block_builder_consume_cycle_duration_seconds{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) }, 'cycle duration'
-          ) +
+          ) {
+            yaxes: $.yaxes('s'),
+          } +
           $.stack
           +
           { fieldConfig+: { defaults+: { unit: 's' } } },
