@@ -54,6 +54,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Rhythm: retry on commit error [#4874](https://github.com/grafana/tempo/pull/4874) (@javiermolinar)
 * [ENHANCEMENT] Skip creating one span-traces for every pushed spans in metrics generator [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar)
 * [ENHANCEMENT] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
+* [ENHANCEMENT] Improve Tempo / Writes dashboard by adding  akafka panel [#4947](https://github.com/grafana/tempo/pull/4947) (@javiermolinar)
 * [ENHANCEMENT] metrics-generator: allow skipping localblocks and consuming from a different source of data [#4686](https://github.com/grafana/tempo/pull/4686) (@flxbk)
 * [ENHANCEMENT] compactor: restore dedicated columns logging for completed blocks [#4832](https://github.com/grafana/tempo/pull/4832) (@edgarkz)
 * [ENHANCEMENT] distributor: add IPv6 support [#4840](https://github.com/grafana/tempo/pull/4840) (@gjacquet)
