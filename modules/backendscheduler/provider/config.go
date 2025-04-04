@@ -3,7 +3,6 @@ package provider
 import (
 	"flag"
 	"fmt"
-	"time"
 
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -25,17 +24,4 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	return nil
-}
-
-// Default returns default provider configuration
-func DefaultConfig() Config {
-	return Config{
-		Retention: RetentionConfig{
-			Interval: time.Hour,
-		},
-		Compaction: CompactionConfig{
-			PollInterval: 100 * time.Millisecond,
-			BufferSize:   10,
-		},
-	}
 }
