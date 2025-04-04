@@ -43,6 +43,14 @@ grafana {
       ],
     },
 
+  panelDescription(title, description):: {
+    description: |||
+      ### %s
+      %s
+    ||| % [title, description],
+  },
+
+
   // hiddenLegendQueryPanel is a standard query panel designed to handle a large number of series.  it hides the legend, doesn't fill the series and
   //  sorts the tooltip descending
   hiddenLegendQueryPanel(queries, legends, legendLink=null)::
