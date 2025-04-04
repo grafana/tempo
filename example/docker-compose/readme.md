@@ -1,10 +1,10 @@
 ## Docker-compose
 
 So you found your way to the docker compose examples?  This is a great place to
-get started with Tempo, learn some basic configuration and learn about various
+get started with Tempo, learn some basic configuration, and learn about various
 trace discovery flows.
 
-See our [getting-started](https://grafana.com/docs/tempo/next/getting-started/docker-example/) docs for more detail.
+Refer to [getting-started](https://grafana.com/docs/tempo/next/getting-started/docker-example/) for a walk-through using the Local example.
 
 If you are interested in more complex configuration we would recommend the [tanka/jsonnet examples](../tk/readme.md).
 
@@ -12,22 +12,22 @@ If you are interested in more complex configuration we would recommend the [tank
 
 The easiest example to start with is [Local Storage](local/readme.md): this example will run Tempo as a single binary
 together with the synthetic-load-generator, to generate traces, and Grafana, to query Tempo.  Data is stored locally on
-disk. 
+disk.
 
 The following examples showcase specific features or integrations:
 
-- [Grafana Agent](agent/readme.md)  
-  Simple example using the Grafana Agent as a tracing pipeline.
-- [OpenTelemetry Collector](otel-collector/readme.md)  
+- [Grafana Alloy](alloy/readme.md)
+  Simple example using the Grafana Alloy as a tracing pipeline.
+- [OpenTelemetry Collector](otel-collector/readme.md)
   Simple example using the OpenTelemetry Collector as a tracing pipeline.
-- [OpenTelemetry Collector Multitenant](otel-collector-multitenant/readme.md)  
+- [OpenTelemetry Collector Multitenant](otel-collector-multitenant/readme.md)
   Uses the OpenTelemetry Collector in an advanced multitenant configuration.
 
 This example uses the `local` backend, suitable for local testing and development:
 
-- [Local Storage](local/readme.md)  
+- [Local storage](local/readme.md)
 
-### Build Images (Optional)
+### Build images (optional)
 
 This step is not necessary, but it can be nice for local testing.  For any of the above examples rebuilding these
 images will cause docker compose to use your local code when running the examples.
