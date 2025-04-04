@@ -14,8 +14,11 @@ dashboard_utils {
             'Kafka fetched records / sec',
             'Overview of per-second rate of records fetched from Kafka.',
             ) +
-            $.queryPanel(
-                'sum (rate(tempo_block_builder_fetch_records_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) }, 'records'
+            $.queryPanel([
+                'sum (rate(tempo_block_builder_fetch_records_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) },
+                'sum (rate(tempo_block_builder_fetch_errors_total{%(job)s}[$__rate_interval]))' % { job: $.jobMatcher($._config.jobs.block_builder) }
+            ], 
+            ['sucessful', 'read errors']
             ) +
             $.stack,
         )
