@@ -71,15 +71,44 @@ dashboard_utils {
       .addRow(
         g.row('Distributor')
         .addPanel(
-          $.panel('Spans/Second') +
+          $.panel('Spans / sec') +
           $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused')
+        )
+        .addPanel(
+          $.panel('Bytes / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_bytes_received_total{%s}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.distributor), 'received') {
+            yaxes: $.yaxes('binBps'),
+          }
         )
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_distributor_push_duration_seconds', '{%s}' % $.jobMatcher($._config.jobs.distributor))
         )
       )
+      .addRow(
+        g.row('')
+        .addPanel(
+          $.panel('Kafka appends / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_kafka_appends_total{%s}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.distributor), '{{status}}')
+        )
+        .addPanel(
+          $.panel('Kafka write bytes / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_kafka_write_bytes_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'writes') {
+            yaxes: $.yaxes('binBps'),
+          }
+        )
+        .addPanel(
+          $.panel('Kafka write latency (sec)') {
+            type: 'heatmap',
+          } +
+          $.queryPanel('rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])' % $.jobMatcher($._config.jobs.distributor), 'latency') {
+            yaxes: $.yaxes('s'),
+          } +
+          { fieldConfig+: { defaults+: { unit: 's' } } },
+        )
+      )
+
       .addRow(
         g.row('Ingester')
         .addPanel(
