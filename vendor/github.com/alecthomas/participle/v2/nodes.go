@@ -282,7 +282,8 @@ func (g *group) Parse(ctx *parseContext, parent reflect.Value) (out []reflect.Va
 	if matches >= MaxIterations {
 		return nil, Errorf(t.Pos, "too many iterations of %s (> %d)", g, MaxIterations)
 	}
-	if matches < min {
+	// avoid returning errors in parent nodes if the group is optional
+	if matches > 0 && matches < min {
 		return out, Errorf(t.Pos, "sub-expression %s must match at least once", g)
 	}
 	// The idea here is that something like "a"? is a successful match and that parsing should proceed.
@@ -596,8 +597,6 @@ func maybeRef(tmpl reflect.Type, strct reflect.Value) reflect.Value {
 // For all other types, an attempt will be made to convert the string to the corresponding
 // type (int, float32, etc.).
 func setField(tokens []lexer.Token, strct reflect.Value, field structLexerField, fieldValue []reflect.Value) (err error) { // nolint: gocognit
-	defer decorate(&err, func() string { return strct.Type().Name() + "." + field.Name })
-
 	f := strct.FieldByIndex(field.Index)
 
 	// Any kind of pointer, hydrate it first.
@@ -609,6 +608,11 @@ func setField(tokens []lexer.Token, strct reflect.Value, field structLexerField,
 		} else {
 			f = f.Elem()
 		}
+	}
+
+	var pos lexer.Position
+	if len(tokens) > 0 {
+		pos = tokens[0].Pos
 	}
 
 	if f.Type() == tokenType {
@@ -627,11 +631,15 @@ func setField(tokens []lexer.Token, strct reflect.Value, field structLexerField,
 			for _, v := range fieldValue {
 				ifv = append(ifv, v.Interface().(string))
 			}
-			return d.Capture(ifv)
+			err = d.Capture(ifv)
+			if err != nil {
+				return Wrapf(pos, err, "failed to capture")
+			}
+			return nil
 		} else if d, ok := f.Addr().Interface().(encoding.TextUnmarshaler); ok {
 			for _, v := range fieldValue {
 				if err := d.UnmarshalText([]byte(v.Interface().(string))); err != nil {
-					return err
+					return Wrapf(pos, err, "failed to unmarshal text")
 				}
 			}
 			return nil
@@ -647,7 +655,7 @@ func setField(tokens []lexer.Token, strct reflect.Value, field structLexerField,
 			for _, v := range fieldValue {
 				d := reflect.New(sliceElemType).Interface().(Capture)
 				if err := d.Capture([]string{v.Interface().(string)}); err != nil {
-					return err
+					return Wrapf(pos, err, "failed to capture")
 				}
 				eltValue := reflect.ValueOf(d)
 				if f.Type().Elem().Kind() != reflect.Ptr {
@@ -658,7 +666,7 @@ func setField(tokens []lexer.Token, strct reflect.Value, field structLexerField,
 		} else {
 			fieldValue, err = conform(sliceElemType, fieldValue)
 			if err != nil {
-				return err
+				return Wrapf(pos, err, "failed to conform")
 			}
 			f.Set(reflect.Append(f, fieldValue...))
 		}
@@ -669,7 +677,7 @@ func setField(tokens []lexer.Token, strct reflect.Value, field structLexerField,
 	if f.Kind() == reflect.String {
 		fieldValue, err = conform(f.Type(), fieldValue)
 		if err != nil {
-			return err
+			return Wrapf(pos, err, "failed to conform")
 		}
 		if len(fieldValue) == 0 {
 			return nil
@@ -694,7 +702,7 @@ func setField(tokens []lexer.Token, strct reflect.Value, field structLexerField,
 
 	fieldValue, err = conform(f.Type(), fieldValue)
 	if err != nil {
-		return err
+		return Wrapf(pos, err, "failed to conform")
 	}
 	if len(fieldValue) == 0 {
 		return nil // Nothing to capture, can happen when trying to get a partial parse tree
@@ -730,12 +738,12 @@ func setField(tokens []lexer.Token, strct reflect.Value, field structLexerField,
 			break
 		}
 		if fv.Type() != f.Type() {
-			return fmt.Errorf("value %q is not correct type %s", fv, f.Type())
+			return Errorf(pos, "value %q is not correct type %s", fv, f.Type())
 		}
 		f.Set(fv)
 
 	default:
-		return fmt.Errorf("unsupported field type %s for field %s", f.Type(), field.Name)
+		return Errorf(pos, "unsupported field type %s for field %s", f.Type(), field.Name)
 	}
 	return nil
 }
