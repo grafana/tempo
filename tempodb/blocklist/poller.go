@@ -175,7 +175,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 		if parentCtx.Err() != nil {
 			// Wait for our work to complete.
 			wg.Wait()
-			return nil, nil, nil
+			return nil, nil, parentCtx.Err()
 		}
 
 		// Exit early if we have exceeded our tolerance for number of failing tenants.

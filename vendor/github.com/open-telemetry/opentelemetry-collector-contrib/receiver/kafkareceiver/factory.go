@@ -7,88 +7,40 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/configkafka"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata"
 )
 
 const (
-	defaultTracesTopic       = "otlp_spans"
-	defaultMetricsTopic      = "otlp_metrics"
-	defaultLogsTopic         = "otlp_logs"
-	defaultEncoding          = "otlp_proto"
-	defaultBroker            = "localhost:9092"
-	defaultClientID          = "otel-collector"
-	defaultGroupID           = defaultClientID
-	defaultInitialOffset     = offsetLatest
-	defaultSessionTimeout    = 10 * time.Second
-	defaultHeartbeatInterval = 3 * time.Second
-
-	// default from sarama.NewConfig()
-	defaultMetadataRetryMax = 3
-	// default from sarama.NewConfig()
-	defaultMetadataRetryBackoff = time.Millisecond * 250
-	// default from sarama.NewConfig()
-	defaultMetadataFull = true
-
-	// default from sarama.NewConfig()
-	defaultAutoCommitEnable = true
-	// default from sarama.NewConfig()
-	defaultAutoCommitInterval = 1 * time.Second
-
-	// default from sarama.NewConfig()
-	defaultMinFetchSize = int32(1)
-	// default from sarama.NewConfig()
-	defaultDefaultFetchSize = int32(1048576)
-	// default from sarama.NewConfig()
-	defaultMaxFetchSize = int32(0)
+	defaultTracesTopic  = "otlp_spans"
+	defaultMetricsTopic = "otlp_metrics"
+	defaultLogsTopic    = "otlp_logs"
+	defaultEncoding     = "otlp_proto"
 )
 
 var errUnrecognizedEncoding = errors.New("unrecognized encoding")
 
-// FactoryOption applies changes to kafkaExporterFactory.
-type FactoryOption func(factory *kafkaReceiverFactory)
-
 // NewFactory creates Kafka receiver factory.
-func NewFactory(options ...FactoryOption) receiver.Factory {
-	f := &kafkaReceiverFactory{}
-	for _, o := range options {
-		o(f)
-	}
+func NewFactory() receiver.Factory {
 	return receiver.NewFactory(
 		metadata.Type,
 		createDefaultConfig,
-		receiver.WithTraces(f.createTracesReceiver, metadata.TracesStability),
-		receiver.WithMetrics(f.createMetricsReceiver, metadata.MetricsStability),
-		receiver.WithLogs(f.createLogsReceiver, metadata.LogsStability),
+		receiver.WithTraces(createTracesReceiver, metadata.TracesStability),
+		receiver.WithMetrics(createMetricsReceiver, metadata.MetricsStability),
+		receiver.WithLogs(createLogsReceiver, metadata.LogsStability),
 	)
 }
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Encoding:          defaultEncoding,
-		Brokers:           []string{defaultBroker},
-		ClientID:          defaultClientID,
-		GroupID:           defaultGroupID,
-		InitialOffset:     defaultInitialOffset,
-		SessionTimeout:    defaultSessionTimeout,
-		HeartbeatInterval: defaultHeartbeatInterval,
-		Metadata: kafkaexporter.Metadata{
-			Full: defaultMetadataFull,
-			Retry: kafkaexporter.MetadataRetry{
-				Max:     defaultMetadataRetryMax,
-				Backoff: defaultMetadataRetryBackoff,
-			},
-		},
-		AutoCommit: AutoCommit{
-			Enable:   defaultAutoCommitEnable,
-			Interval: defaultAutoCommitInterval,
-		},
+		ClientConfig:   configkafka.NewDefaultClientConfig(),
+		ConsumerConfig: configkafka.NewDefaultConsumerConfig(),
+		Encoding:       defaultEncoding,
 		MessageMarking: MessageMarking{
 			After:   false,
 			OnError: false,
@@ -96,15 +48,10 @@ func createDefaultConfig() component.Config {
 		HeaderExtraction: HeaderExtraction{
 			ExtractHeaders: false,
 		},
-		MinFetchSize:     defaultMinFetchSize,
-		DefaultFetchSize: defaultDefaultFetchSize,
-		MaxFetchSize:     defaultMaxFetchSize,
 	}
 }
 
-type kafkaReceiverFactory struct{}
-
-func (f *kafkaReceiverFactory) createTracesReceiver(
+func createTracesReceiver(
 	_ context.Context,
 	set receiver.Settings,
 	cfg component.Config,
@@ -122,7 +69,7 @@ func (f *kafkaReceiverFactory) createTracesReceiver(
 	return r, nil
 }
 
-func (f *kafkaReceiverFactory) createMetricsReceiver(
+func createMetricsReceiver(
 	_ context.Context,
 	set receiver.Settings,
 	cfg component.Config,
@@ -140,7 +87,7 @@ func (f *kafkaReceiverFactory) createMetricsReceiver(
 	return r, nil
 }
 
-func (f *kafkaReceiverFactory) createLogsReceiver(
+func createLogsReceiver(
 	_ context.Context,
 	set receiver.Settings,
 	cfg component.Config,

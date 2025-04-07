@@ -554,7 +554,7 @@ Examples:
 The `Decode` Converter takes a string or byte array encoded with the specified encoding and returns the decoded string.
 
 `value` is a valid encoded string or byte array.
-`encoding` is a valid encoding name included in the [IANA encoding index](https://www.iana.org/assignments/character-sets/character-sets.xhtml).
+`encoding` is a valid encoding name included in the [IANA encoding index](https://www.iana.org/assignments/character-sets/character-sets.xhtml) or one of `base64`, `base64-raw`, `base64-url` or `base64-raw-url`.
 
 Examples:
 

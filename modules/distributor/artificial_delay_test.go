@@ -14,37 +14,61 @@ func Test_outerMaybeDelayMiddleware(t *testing.T) {
 	tests := []struct {
 		name          string
 		userID        string
-		delay         time.Duration
+		delayCfg      time.Duration
+		delayOverride *time.Duration
 		reqDuration   time.Duration
 		expectedSleep time.Duration
 	}{
 		{
-			name:          "No delay configured",
-			userID:        "user1",
-			delay:         0,
+			name:   "No delay configured",
+			userID: "user1",
+			// delayOverride is nil
 			reqDuration:   50 * time.Millisecond,
 			expectedSleep: 0,
 		},
 		{
 			name:          "Delay configured but request took longer than delay",
 			userID:        "user2",
-			delay:         500 * time.Millisecond,
+			delayOverride: durationPtr(500 * time.Millisecond),
 			reqDuration:   750 * time.Millisecond,
 			expectedSleep: 0,
 		},
 		{
 			name:          "Delay configured and request took less than delay",
 			userID:        "user3",
-			delay:         500 * time.Millisecond,
+			delayOverride: durationPtr(500 * time.Millisecond),
 			reqDuration:   50 * time.Millisecond,
 			expectedSleep: 450 * time.Millisecond,
+		},
+		{
+			name:          "Global delay configured",
+			userID:        "user4",
+			delayCfg:      500 * time.Millisecond,
+			reqDuration:   50 * time.Millisecond,
+			expectedSleep: 450 * time.Millisecond,
+		},
+		{
+			name:          "Global delay is overridden",
+			userID:        "user4",
+			delayCfg:      500 * time.Millisecond,
+			delayOverride: durationPtr(600 * time.Millisecond),
+			reqDuration:   50 * time.Millisecond,
+			expectedSleep: 550 * time.Millisecond,
+		},
+		{
+			name:          "Override delay configured with 0",
+			userID:        "user4",
+			delayCfg:      500 * time.Millisecond,
+			delayOverride: durationPtr(0 * time.Millisecond),
+			reqDuration:   50 * time.Millisecond,
+			expectedSleep: 0,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			limits := overrides.Overrides{
 				Ingestion: overrides.IngestionOverrides{
-					ArtificialDelay: tc.delay,
+					ArtificialDelay: tc.delayOverride,
 				},
 			}
 			// Init limits overrides
@@ -61,6 +85,7 @@ func Test_outerMaybeDelayMiddleware(t *testing.T) {
 				overrides: overrides,
 				sleep:     timeSource.Sleep,
 				now:       timeSource.Now,
+				cfg:       Config{ArtificialDelay: tc.delayCfg},
 			}
 
 			// Add time spent on request
@@ -92,4 +117,8 @@ func (m *MockTimeSource) Sleep(d time.Duration) {
 
 func (m *MockTimeSource) Add(d time.Duration) {
 	m.CurrentTime = m.CurrentTime.Add(d)
+}
+
+func durationPtr(d time.Duration) *time.Duration {
+	return &d
 }

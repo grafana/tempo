@@ -149,10 +149,9 @@ func collectLabelKeysSummaryDataPoints(dhdp pmetric.SummaryDataPointSlice, keySe
 }
 
 func addLabelKeys(keySet map[string]struct{}, attributes pcommon.Map) {
-	attributes.Range(func(k string, _ pcommon.Value) bool {
+	for k := range attributes.All() {
 		keySet[k] = struct{}{}
-		return true
-	})
+	}
 }
 
 func descriptorTypeToOC(metric pmetric.Metric, allNumberDataPointValueInt bool) ocmetrics.MetricDescriptor_Type {
@@ -374,10 +373,9 @@ func exemplarToOC(filteredLabels pcommon.Map, value float64, timestamp pcommon.T
 	var labels map[string]string
 	if filteredLabels.Len() != 0 {
 		labels = make(map[string]string, filteredLabels.Len())
-		filteredLabels.Range(func(k string, v pcommon.Value) bool {
+		for k, v := range filteredLabels.All() {
 			labels[k] = v.AsString()
-			return true
-		})
+		}
 	}
 
 	return &ocmetrics.DistributionValue_Exemplar{
@@ -401,7 +399,7 @@ func attributeValuesToOC(labels pcommon.Map, labelKeys *labelKeysAndType) []*ocm
 	}
 
 	// Visit all defined labels in the point and override defaults with actual values
-	labels.Range(func(k string, v pcommon.Value) bool {
+	for k, v := range labels.All() {
 		// Find the appropriate label value that we need to update
 		keyIndex := labelKeys.keyIndices[k]
 		labelValue := labelValues[keyIndex]
@@ -409,8 +407,7 @@ func attributeValuesToOC(labels pcommon.Map, labelKeys *labelKeysAndType) []*ocm
 		// Update label value
 		labelValue.Value = v.AsString()
 		labelValue.HasValue = true
-		return true
-	})
+	}
 
 	return labelValues
 }

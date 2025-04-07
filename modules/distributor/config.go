@@ -58,6 +58,9 @@ type Config struct {
 	factory ring_client.PoolAddrFunc `yaml:"-"`
 
 	MaxAttributeBytes int `yaml:"max_attribute_bytes"`
+
+	// ArtificialDelay is an optional duration to introduce a delay for artificial processing in the distributor.
+	ArtificialDelay time.Duration `yaml:"artificial_delay,omitempty"`
 }
 
 type LogSpansConfig struct {

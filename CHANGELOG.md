@@ -1,4 +1,5 @@
 ## main / unreleased
+* [CHANGE] Update query range error message [#4929](https://github.com/grafana/tempo/pull/4929) (@joey-grafana)
 * [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1 [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
   The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
@@ -21,12 +22,14 @@
   Renamed max_span_attr_byte to max_attribute_bytes
   [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
 * [CHANGE] Update to go 1.24.1 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov) [#4793](https://github.com/grafana/tempo/pull/4793) (@javiermolinar)
-* [CHANGE]  **BREAKING CHANGE** Removed otel jaeger exporter. [#4926](https://github.com/grafana/tempo/pull/4926) (@javiermolinar)
+* [CHANGE] **BREAKING CHANGE** Removed otel jaeger exporter. [#4926](https://github.com/grafana/tempo/pull/4926) (@javiermolinar)
+* [CHANGE] Tempo Query: replace opentracing-contrib/go-grpc by otelgrpc. [#4958](https://github.com/grafana/tempo/pull/4958) (@javiermolinar)
 * [CHANGE] Finish polling current tenants on poller shutdown [#4897](https://github.com/grafana/tempo/pull/4897) (@zalegrala)
+* [CHANGE] Set querier default level to INFO [#4943](https://github.com/grafana/tempo/pull/4943) (@javiermolinar)
 * [FEATURE] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
-* [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) (@yvrhdn)
+* [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) (@yvrhdn, @mapno)
 * [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
 * [ENHANCEMENT] Improve Tempo build options [#4755](https://github.com/grafana/tempo/pull/4755) (@stoewer)
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
@@ -70,6 +73,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Rhythm - fix adjustment of the start and end range for livetraces blocks [#4746](https://github.com/grafana/tempo/pull/4746) (@javiermolinar)
 * [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
 * [BUGFIX] Fix flaky test [#4787](https://github.com/grafana/tempo/pull/4787) (@javiermolinar)
+* [BUGFIX] Include cost attribution when converting from default config to legacy one [#4787](https://github.com/grafana/tempo/pull/4937) (@javiermolinar)
 * [BUGFIX] Fix memcached settings for docker compose example [#4346](https://github.com/grafana/tempo/pull/4695) (@ruslan-mikhailov)
 * [BUGFIX] Fix setting processors in user configurations overrides via API [#4741](https://github.com/grafana/tempo/pull/4741) (@ruslan-mikhailov)
 * [BUGFIX] Fix panic on startup [#4744](https://github.com/grafana/tempo/pull/4744) (@ruslan-mikhailov)

@@ -100,7 +100,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	// range internally to satisfy the query.
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(req.End-req.Start)*time.Nanosecond > maxDuration {
-		err = fmt.Errorf("range specified by start and end (%s) exceeds %s. received start=%d end=%d", time.Duration(req.End-req.Start), maxDuration, req.Start, req.End)
+		err = fmt.Errorf("metrics query time range exceeds the maximum allowed duration of %s", maxDuration)
 		return pipeline.NewBadRequest(err), nil
 	}
 

@@ -27,8 +27,10 @@ var defaultContextInferPriority = []string{
 
 // contextInferrer is an interface used to infer the OTTL context from statements.
 type contextInferrer interface {
-	// infer returns the OTTL context inferred from the given statements.
-	infer(statements []string) (string, error)
+	// inferFromStatements returns the OTTL context inferred from the given statements.
+	inferFromStatements(statements []string) (string, error)
+	// inferFromConditions returns the OTTL context inferred from the given conditions.
+	inferFromConditions(conditions []string) (string, error)
 }
 
 type priorityContextInferrer struct {
@@ -81,11 +83,22 @@ func withContextInferrerPriorities(priorities []string) priorityContextInferrerO
 	}
 }
 
-func (s *priorityContextInferrer) infer(statements []string) (inferredContext string, err error) {
-	s.telemetrySettings.Logger.Debug("Inferring context from statements",
+func (s *priorityContextInferrer) inferFromConditions(conditions []string) (inferredContext string, err error) {
+	return s.infer(conditions, s.getConditionHints)
+}
+
+func (s *priorityContextInferrer) inferFromStatements(statements []string) (inferredContext string, err error) {
+	return s.infer(statements, s.getStatementHints)
+}
+
+// hinterFunc is used by the infer function to generate the hints (paths, functions, enums, etc.) for the given OTTL.
+type hinterFunc func(string) ([]path, map[string]struct{}, map[enumSymbol]struct{}, error)
+
+func (s *priorityContextInferrer) infer(ottls []string, hinter hinterFunc) (inferredContext string, err error) {
+	s.telemetrySettings.Logger.Debug("Inferring context from OTTL",
 		zap.Strings("candidates", maps.Keys(s.contextCandidate)),
 		zap.Any("priority", s.contextPriority),
-		zap.Strings("statements", statements),
+		zap.Strings("values", ottls),
 	)
 
 	defer func() {
@@ -100,14 +113,12 @@ func (s *priorityContextInferrer) infer(statements []string) (inferredContext st
 	requiredEnums := map[enumSymbol]struct{}{}
 
 	var inferredContextPriority int
-	for _, statement := range statements {
-		parsed, err := parseStatement(statement)
+	for _, ottl := range ottls {
+		ottlPaths, ottlFunctions, ottlEnums, err := hinter(ottl)
 		if err != nil {
 			return "", err
 		}
-
-		statementPaths, statementFunctions, statementEnums := s.getParsedStatementHints(parsed)
-		for _, p := range statementPaths {
+		for _, p := range ottlPaths {
 			candidate := p.Context
 			candidatePriority, ok := s.contextPriority[candidate]
 			if !ok {
@@ -118,16 +129,16 @@ func (s *priorityContextInferrer) infer(statements []string) (inferredContext st
 				inferredContextPriority = candidatePriority
 			}
 		}
-		for function := range statementFunctions {
+		for function := range ottlFunctions {
 			requiredFunctions[function] = struct{}{}
 		}
-		for enum := range statementEnums {
+		for enum := range ottlEnums {
 			requiredEnums[enum] = struct{}{}
 		}
 	}
 	// No inferred context or nothing left to verify.
 	if inferredContext == "" || (len(requiredFunctions) == 0 && len(requiredEnums) == 0) {
-		s.telemetrySettings.Logger.Debug("No context candidate found in the statements")
+		s.telemetrySettings.Logger.Debug("No context candidate found in the ottls")
 		return inferredContext, nil
 	}
 	ok := s.validateContextCandidate(inferredContext, requiredFunctions, requiredEnums)
@@ -213,16 +224,34 @@ func (s *priorityContextInferrer) sortContextCandidates(candidates []string) {
 	})
 }
 
-// getParsedStatementHints extracts all path, function names (editor and converter), and enumSymbol
-// from the given parsed statements. These values are used by the context inferrer as hints to
+// getConditionHints extracts all path, function names (editor and converter), and enumSymbol
+// from the given condition. These values are used by the context inferrer as hints to
 // select a context in which the function/enum are supported.
-func (s *priorityContextInferrer) getParsedStatementHints(parsed *parsedStatement) ([]path, map[string]struct{}, map[enumSymbol]struct{}) {
+func (s *priorityContextInferrer) getConditionHints(condition string) ([]path, map[string]struct{}, map[enumSymbol]struct{}, error) {
+	parsed, err := parseCondition(condition)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	visitor := newGrammarContextInferrerVisitor()
+	parsed.accept(&visitor)
+	return visitor.paths, visitor.functions, visitor.enumsSymbols, nil
+}
+
+// getStatementHints extracts all path, function names (editor and converter), and enumSymbol
+// from the given statement. These values are used by the context inferrer as hints to
+// select a context in which the function/enum are supported.
+func (s *priorityContextInferrer) getStatementHints(statement string) ([]path, map[string]struct{}, map[enumSymbol]struct{}, error) {
+	parsed, err := parseStatement(statement)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	visitor := newGrammarContextInferrerVisitor()
 	parsed.Editor.accept(&visitor)
 	if parsed.WhereClause != nil {
 		parsed.WhereClause.accept(&visitor)
 	}
-	return visitor.paths, visitor.functions, visitor.enumsSymbols
+	return visitor.paths, visitor.functions, visitor.enumsSymbols, nil
 }
 
 // priorityContextInferrerHintsVisitor is a grammarVisitor implementation that collects

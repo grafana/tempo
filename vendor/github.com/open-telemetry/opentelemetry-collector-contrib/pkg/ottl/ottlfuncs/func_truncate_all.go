@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
-
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
@@ -44,13 +42,12 @@ func TruncateAll[K any](target ottl.PMapGetter[K], limit int64) (ottl.ExprFunc[K
 		if err != nil {
 			return nil, err
 		}
-		val.Range(func(_ string, value pcommon.Value) bool {
+		for _, value := range val.All() {
 			stringVal := value.Str()
 			if int64(len(stringVal)) > limit {
 				value.SetStr(stringVal[:limit])
 			}
-			return true
-		})
+		}
 		// TODO: Write log when truncation is performed
 		// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/9730
 		return nil, nil

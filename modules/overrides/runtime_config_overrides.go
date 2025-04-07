@@ -330,8 +330,12 @@ func (o *runtimeConfigOverridesManager) IngestionMaxAttributeBytes(userID string
 	return o.getOverridesForUser(userID).Ingestion.MaxAttributeBytes
 }
 
-func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) time.Duration {
-	return o.getOverridesForUser(userID).Ingestion.ArtificialDelay
+func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) (time.Duration, bool) {
+	artificialDelay := o.getOverridesForUser(userID).Ingestion.ArtificialDelay
+	if artificialDelay != nil {
+		return *artificialDelay, true
+	}
+	return 0, false
 }
 
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
