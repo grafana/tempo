@@ -35,7 +35,6 @@ func TestBackendScheduler(t *testing.T) {
 	}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.ProviderConfig.Compaction.Backoff.MaxRetries = 1
-	cfg.ProviderConfig.Compaction.PollInterval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
 
@@ -292,7 +291,6 @@ func TestProviderBasedScheduling(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.TenantMeasurementInterval = 100 * time.Millisecond
 	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
-	cfg.ProviderConfig.Compaction.PollInterval = 50 * time.Millisecond
 	cfg.ProviderConfig.Compaction.BufferSize = 10
 
 	tmpDir := t.TempDir()
