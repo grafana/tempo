@@ -30,8 +30,10 @@ func TestCompactionProvider(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.MaxJobsPerTenant = 2
 	cfg.MeasureInterval = 100 * time.Millisecond
-	cfg.BufferSize = 10
-	cfg.PollInterval = 100 * time.Millisecond
+	cfg.BufferSize = 1
+	cfg.Backoff.MinBackoff = 1 * time.Millisecond
+	cfg.Backoff.MaxBackoff = 10 * time.Millisecond
+	cfg.Backoff.MaxRetries = 1
 
 	tmpDir := t.TempDir()
 
@@ -67,17 +69,13 @@ func TestCompactionProvider(t *testing.T) {
 		w,
 	)
 
+	time.Sleep(100 * time.Millisecond)
+
 	jobChan := p.Start(ctx)
 
 	var receivedJobs []*work.Job
-	for len(receivedJobs) < 10 {
-		select {
-		case <-ctx.Done():
-			break
-
-		case job := <-jobChan:
-			receivedJobs = append(receivedJobs, job)
-		}
+	for job := range jobChan {
+		receivedJobs = append(receivedJobs, job)
 	}
 
 	for _, job := range receivedJobs {
