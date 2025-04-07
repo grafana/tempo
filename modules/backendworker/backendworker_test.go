@@ -72,7 +72,7 @@ func setupDependencies(ctx context.Context, t *testing.T, limits overrides.Confi
 	workerConfig.BackendSchedulerAddr = "localhost:1234"
 	workerConfig.Ring.KVStore.Store = "inmemory"
 	workerConfig.Ring.KVStore.Mock = nil
-	workerConfig.Ring.InstanceInterfaceNames = []string{"eth0", "en0", "lo0", "enp102s0f4u1u3"}
+	workerConfig.Ring.InstanceInterfaceNames = []string{"eth0", "en0", "lo0", "enp102s0f4u1u3", "eno1"}
 
 	overrides, err := overrides.NewOverrides(limits, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
