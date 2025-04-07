@@ -1057,7 +1057,8 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		e.mtx.Lock()
 
-		for _, s := range ss.Spans {
+		filteredSpansIndex := make([]int, 0, len(ss.Spans)) // optimistic preallocation
+		for i, s := range ss.Spans {
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
 				if st < e.start || st >= e.end {
@@ -1066,12 +1067,14 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 			}
 
 			e.spansTotal++
+			filteredSpansIndex = append(filteredSpansIndex, i)
 
 			e.metricsPipeline.observe(s)
 		}
 
-		if len(ss.Spans) > 0 && e.sampleExemplar(ss.TraceID) {
-			e.metricsPipeline.observeExemplar(ss.Spans[rand.Intn(len(ss.Spans))])
+		if len(filteredSpansIndex) > 0 && e.sampleExemplar(ss.TraceID) {
+			i := filteredSpansIndex[rand.Intn(len(filteredSpansIndex))]
+			e.metricsPipeline.observeExemplar(ss.Spans[i])
 		}
 
 		e.mtx.Unlock()
