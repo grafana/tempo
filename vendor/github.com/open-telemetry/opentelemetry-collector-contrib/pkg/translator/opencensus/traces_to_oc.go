@@ -102,10 +102,9 @@ func attributesMapToOCAttributeMap(attributes pcommon.Map) map[string]*octrace.A
 	}
 
 	ocAttributes := make(map[string]*octrace.AttributeValue, attributes.Len())
-	attributes.Range(func(k string, v pcommon.Value) bool {
+	for k, v := range attributes.All() {
 		ocAttributes[k] = attributeValueToOC(v)
-		return true
-	})
+	}
 	return ocAttributes
 }
 

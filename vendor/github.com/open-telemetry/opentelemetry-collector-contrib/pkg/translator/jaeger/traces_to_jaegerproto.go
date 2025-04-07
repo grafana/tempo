@@ -97,13 +97,12 @@ func appendTagsFromResourceAttributes(dest []model.KeyValue, attrs pcommon.Map) 
 		return dest
 	}
 
-	attrs.Range(func(key string, attr pcommon.Value) bool {
+	for key, attr := range attrs.All() {
 		if key == conventions.AttributeServiceName {
-			return true
+			continue
 		}
 		dest = append(dest, attributeToJaegerProtoTag(key, attr))
-		return true
-	})
+	}
 	return dest
 }
 
@@ -111,10 +110,9 @@ func appendTagsFromAttributes(dest []model.KeyValue, attrs pcommon.Map) []model.
 	if attrs.Len() == 0 {
 		return dest
 	}
-	attrs.Range(func(key string, attr pcommon.Value) bool {
+	for key, attr := range attrs.All() {
 		dest = append(dest, attributeToJaegerProtoTag(key, attr))
-		return true
-	})
+	}
 	return dest
 }
 

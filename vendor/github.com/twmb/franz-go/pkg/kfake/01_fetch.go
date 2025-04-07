@@ -51,7 +51,7 @@ func (c *Cluster) handleFetch(creq *clientReq, w *watchFetch) (kmsg.Response, er
 				if !ok || pd.createdAt.After(creq.at) {
 					continue
 				}
-				if pd.leader != creq.cc.b {
+				if pd.leader != creq.cc.b && !pd.followers.has(creq.cc.b) {
 					returnEarly = true // NotLeaderForPartition
 					break out
 				}
@@ -162,7 +162,7 @@ full:
 				}
 				continue
 			}
-			if pd.leader != creq.cc.b {
+			if pd.leader != creq.cc.b && !pd.followers.has(creq.cc.b) {
 				p := donep(rt.Topic, rt.TopicID, rp.Partition, kerr.NotLeaderForPartition.Code)
 				p.CurrentLeader.LeaderID = pd.leader.node
 				p.CurrentLeader.LeaderEpoch = pd.epoch

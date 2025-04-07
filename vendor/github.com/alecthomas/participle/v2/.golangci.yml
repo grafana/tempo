@@ -52,6 +52,11 @@ linters:
     - maintidx
     - unused # Does not work with type parameters
     - dupword
+    - depguard
+    - mnd
+    - recvcheck
+    - perfsprint
+    - predeclared
 
 linters-settings:
   govet:
