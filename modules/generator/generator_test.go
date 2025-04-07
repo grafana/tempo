@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -63,7 +64,12 @@ overrides:
 	generatorConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	generatorConfig.Storage.Path = t.TempDir()
 	generatorConfig.Ring.KVStore.Store = "inmemory"
-	generatorConfig.Ring.InstanceInterfaceNames = []string{"eth0", "en0", "lo0", "enp102s0f4u1u3", "eno1"}
+	ifaces, err := net.Interfaces()
+	netWorkInteraces := make([]string, len(ifaces))
+	for i, iface := range ifaces {
+		netWorkInteraces[i] = iface.Name
+	}
+	generatorConfig.Ring.InstanceInterfaceNames = netWorkInteraces
 	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, newTestLogger(t))
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
