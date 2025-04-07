@@ -1,5 +1,11 @@
 package kong
 
+// BeforeReset is a documentation-only interface describing hooks that run before defaults values are applied.
+type BeforeReset interface {
+	// This is not the correct signature - see README for details.
+	BeforeReset(args ...any) error
+}
+
 // BeforeResolve is a documentation-only interface describing hooks that run before resolvers are applied.
 type BeforeResolve interface {
 	// This is not the correct signature - see README for details.

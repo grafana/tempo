@@ -71,6 +71,8 @@ type Kong struct {
 	postBuildOptions []Option
 	embedded         []embedded
 	dynamicCommands  []*dynamicCommand
+
+	hooks map[string][]reflect.Value
 }
 
 // New creates a new Kong parser on grammar.
@@ -84,6 +86,7 @@ func New(grammar any, options ...Option) (*Kong, error) {
 		registry:      NewRegistry().RegisterDefaults(),
 		vars:          Vars{},
 		bindings:      bindings{},
+		hooks:         make(map[string][]reflect.Value),
 		helpFormatter: DefaultHelpValueFormatter,
 		ignoreFields:  make([]*regexp.Regexp, 0),
 		flagNamer: func(s string) string {
@@ -270,6 +273,11 @@ func (k *Kong) interpolateValue(value *Value, vars Vars) (err error) {
 		if len(value.Flag.Envs) != 0 {
 			updatedVars["env"] = value.Flag.Envs[0]
 		}
+
+		value.Flag.PlaceHolder, err = interpolate(value.Flag.PlaceHolder, vars, updatedVars)
+		if err != nil {
+			return fmt.Errorf("placeholder value for %s: %s", value.Summary(), err)
+		}
 	}
 	value.Help, err = interpolate(value.Help, vars, updatedVars)
 	if err != nil {
@@ -361,7 +369,7 @@ func (k *Kong) applyHook(ctx *Context, name string) error {
 		default:
 			panic("unsupported Path")
 		}
-		for _, method := range getMethods(value, name) {
+		for _, method := range k.getMethods(value, name) {
 			binds := k.bindings.clone()
 			binds.add(ctx, trace)
 			binds.add(trace.Node().Vars().CloneWith(k.vars))
@@ -373,6 +381,16 @@ func (k *Kong) applyHook(ctx *Context, name string) error {
 	}
 	// Path[0] will always be the app root.
 	return k.applyHookToDefaultFlags(ctx, ctx.Path[0].Node(), name)
+}
+
+func (k *Kong) getMethods(value reflect.Value, name string) []reflect.Value {
+	return append(
+		// Identify callbacks by reflecting on value
+		getMethods(value, name),
+
+		// Identify callbacks that were registered with a kong.Option
+		k.hooks[name]...,
+	)
 }
 
 // Call hook on any unset flags with default values.
