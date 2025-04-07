@@ -3,6 +3,7 @@ package traceql
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -307,6 +308,7 @@ var _ firstStageElement = (*MetricsAggregate)(nil)
 // and produces metrics so we need to rename that to make things clear and avoid confusion.
 type secondStageElement interface {
 	Element
+	init(length int)
 	process(input SeriesSet) SeriesSet
 }
 
@@ -331,8 +333,9 @@ func (op SecondStageOp) String() string {
 
 // TopKBottomK handles second stage topK/bottomK operations
 type TopKBottomK struct {
-	op    SecondStageOp
-	limit int
+	op     SecondStageOp
+	limit  int
+	length int
 }
 
 func newTopKBottomK(op SecondStageOp, limit int) *TopKBottomK {
@@ -350,6 +353,10 @@ func (m *TopKBottomK) validate() error {
 	return nil
 }
 
+func (m *TopKBottomK) init(length int) {
+	m.length = length
+}
+
 func (m *TopKBottomK) process(input SeriesSet) SeriesSet {
 	// if input size is less than limit, return input as is
 	if len(input) <= m.limit {
@@ -362,11 +369,21 @@ func (m *TopKBottomK) process(input SeriesSet) SeriesSet {
 		return SeriesSet{}
 	}
 
+	// remove internal series from the input series
+	// FIXME: this is a hack to remove internal series from the input,
+	// this should be done in first stage and not here.
+	for seriesName := range input {
+		// remove internal labels series from the series
+		if strings.Contains(seriesName, internalLabelMetaType) {
+			delete(input, seriesName)
+		}
+	}
+
 	switch m.op {
 	case OpTopK:
-		return processTopK(input, m.limit)
+		return processTopK(input, m.length, m.limit)
 	case OpBottomK:
-		return processBottomK(input, m.limit)
+		return processBottomK(input, m.length, m.limit)
 	default:
 		// unknown operation, return empty SeriesSet, we shouldn't reach here
 		return SeriesSet{}

@@ -791,6 +791,9 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	}
 
 	metricsPipeline.init(req, mode)
+	if metricsSecondStage != nil {
+		metricsSecondStage.init(IntervalCount(req.Start, req.End, req.Step))
+	}
 
 	return &MetricsFrontendEvaluator{
 		metricsPipeline:    metricsPipeline,
@@ -816,7 +819,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		return nil, fmt.Errorf("step required")
 	}
 
-	expr, eval, metricsPipeline, metricsSecondStage, storageReq, err := Compile(req.Query)
+	expr, eval, metricsPipeline, _, storageReq, err := Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -833,12 +836,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	metricsPipeline.init(req, AggregateModeRaw)
 
 	me := &MetricsEvaluator{
-		storageReq:         storageReq,
-		metricsPipeline:    metricsPipeline,
-		metricsSecondStage: metricsSecondStage,
-		timeOverlapCutoff:  timeOverlapCutoff,
-		maxExemplars:       exemplars,
-		exemplarMap:        make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+		storageReq:        storageReq,
+		metricsPipeline:   metricsPipeline,
+		timeOverlapCutoff: timeOverlapCutoff,
+		maxExemplars:      exemplars,
+		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
 	// Span start time (always required)
@@ -988,7 +990,6 @@ type MetricsEvaluator struct {
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 firstStageElement
-	metricsSecondStage              secondStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
 }
@@ -1088,14 +1089,12 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvaluator) Results() SeriesSet {
-	results := e.metricsPipeline.result()
-	if e.metricsSecondStage != nil {
-		// if we have metrics second stage, pass first stage results through
-		// second stage for further processing.
-		results = e.metricsSecondStage.process(results)
-	}
-
-	return results
+	// NOTE: skip processing of second stage because not all first stage functions can't be pushed down.
+	// for example: if query has avg_over_time(), then we can't push it down to second stage, and second stage
+	// can only be processed on the frontend.
+	// we could do this but it would require knowing if the first stage functions
+	// can be pushed down to second stage or not so we are skipping it for now, and will handle it later.
+	return e.metricsPipeline.result()
 }
 
 func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
@@ -1526,13 +1525,7 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 }
 
 // processTopK implements TopKBottomK topk method
-func processTopK(input SeriesSet, limit int) SeriesSet {
-	var valueLength int
-	for _, series := range input {
-		valueLength = len(series.Values)
-		break
-	}
-
+func processTopK(input SeriesSet, valueLength, limit int) SeriesSet {
 	result := make(SeriesSet)
 
 	// process each timestamp
@@ -1586,13 +1579,7 @@ func processTopK(input SeriesSet, limit int) SeriesSet {
 }
 
 // processBottomK implements TopKBottomK bottomk method
-func processBottomK(input SeriesSet, limit int) SeriesSet {
-	var valueLength int
-	for _, series := range input {
-		valueLength = len(series.Values)
-		break
-	}
-
+func processBottomK(input SeriesSet, valueLength, limit int) SeriesSet {
 	result := make(SeriesSet)
 
 	// Process each timestamp
@@ -1641,8 +1628,6 @@ func processBottomK(input SeriesSet, limit int) SeriesSet {
 			result[sv.key].Values[i] = input[sv.key].Values[i]
 		}
 	}
-
-	fmt.Printf("result: %v\n", result)
 
 	return result
 }

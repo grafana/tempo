@@ -759,6 +759,46 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 }
 
+func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(1)",
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(500),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(200),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(300),
+	}
+
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
+
+	// We cannot compare with require.Equal because NaN != NaN
+	assert.True(t, math.IsNaN(fooBaz.Values[0]))
+	assert.True(t, math.IsNaN(fooBaz.Values[1]))
+	assert.Equal(t, 200., fooBaz.Values[2]*float64(time.Second))
+
+	assert.Equal(t, 100., fooBar.Values[0]*float64(time.Second))
+	assert.Equal(t, 200., fooBar.Values[1]*float64(time.Second))
+	assert.True(t, math.IsNaN(fooBar.Values[2]))
+}
+
 func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
@@ -1359,6 +1399,31 @@ func TestSecondStageTopK(t *testing.T) {
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
 }
 
+func TestSecondStageTopKAverage(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(8 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(2)",
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	resultBar := result[`{"span.foo"="bar"}`]
+	val1 := 0.000000512
+	require.Equal(t, []float64{val1, val1, val1, val1, val1, val1, val1, val1}, resultBar.Values)
+	resultBaz := result[`{"span.foo"="baz"}`]
+	val2 := 0.00000038400000000000005
+	require.Equal(t, []float64{val2, val2, val2, val2, val2, val2, val2, val2}, resultBaz.Values)
+}
+
 func TestSecondStageBottomK(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
@@ -1521,7 +1586,7 @@ func TestProcessTopK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := processTopK(tt.input, tt.limit)
+			result := processTopK(tt.input, 3, tt.limit)
 			expectSeriesSet(t, tt.expected, result)
 		})
 	}
@@ -1655,7 +1720,7 @@ func TestProcessBottomK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := processBottomK(tt.input, tt.limit)
+			result := processBottomK(tt.input, 3, tt.limit)
 			expectSeriesSet(t, tt.expected, result)
 		})
 	}
