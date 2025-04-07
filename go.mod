@@ -1,6 +1,7 @@
 module github.com/grafana/tempo
 
 go 1.24.1
+
 require (
 	cloud.google.com/go/storage v1.51.0
 	github.com/alecthomas/kong v1.9.0
@@ -68,7 +69,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/sync v0.12.0
+	golang.org/x/sync v0.13.0
 	golang.org/x/time v0.11.0
 	google.golang.org/api v0.228.0
 	google.golang.org/grpc v1.71.0
