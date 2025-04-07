@@ -64,10 +64,10 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	)
 
 	maxSeries := int(req.MaxSeries)
-	totalSeriesCount := int32(0)
+	totalRawResultsSeriesCount := int32(0)
 
 	if p.headBlock != nil && withinRange(p.headBlock.BlockMeta()) {
-		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalSeriesCount) < int32(maxSeries)) {
+		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalRawResultsSeriesCount) < int32(maxSeries)) {
 			wg.Add(1)
 			go func(w common.WALBlock) {
 				defer wg.Done()
@@ -75,7 +75,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 				if err != nil {
 					jobErr.Store(err)
 				}
-				syncAtomic.AddInt32(&totalSeriesCount, int32(seriesCount))
+				syncAtomic.AddInt32(&totalRawResultsSeriesCount, int32(seriesCount))
 			}(p.headBlock)
 		}
 	}
@@ -89,7 +89,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalSeriesCount) < int32(maxSeries)) {
+		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalRawResultsSeriesCount) < int32(maxSeries)) {
 			wg.Add(1)
 			go func(w common.WALBlock) {
 				defer wg.Done()
@@ -97,7 +97,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 				if err != nil {
 					jobErr.Store(err)
 				}
-				syncAtomic.AddInt32(&totalSeriesCount, int32(seriesCount))
+				syncAtomic.AddInt32(&totalRawResultsSeriesCount, int32(seriesCount))
 			}(w)
 		}
 	}
@@ -111,7 +111,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalSeriesCount) < int32(maxSeries)) {
+		if maxSeries == 0 || (int(syncAtomic.LoadInt32(&totalRawResultsSeriesCount))+jobEval.Length() < maxSeries) {
 			wg.Add(1)
 			go func(b *ingester.LocalBlock) {
 				defer wg.Done()
@@ -121,8 +121,6 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 					return
 				}
 				jobEval.ObserveSeries(resp)
-				seriesCount := jobEval.Length()
-				syncAtomic.AddInt32(&totalSeriesCount, int32(seriesCount))
 			}(b)
 		}
 	}
