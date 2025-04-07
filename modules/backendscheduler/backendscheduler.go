@@ -126,13 +126,35 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		// Start a goroutine to forward jobs from each provider to the merged channel
 		go func(jobs <-chan *work.Job) {
 			defer wg.Done()
-			for job := range jobs {
+
+			var job *work.Job
+
+			for {
 				select {
-				case s.mergedJobs <- job:
-					metricProviderJobsMerged.WithLabelValues(fmt.Sprintf("%d", i)).Inc()
 				case <-ctx.Done():
-					level.Info(log.Logger).Log("msg", "stopping provider forwarder", "provider", i)
-					return
+					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
+				default:
+					// If the job is nil, let's try to receive a job from the provider
+					if job == nil {
+						select {
+						case job = <-jobs:
+						default:
+							time.Sleep(100 * time.Millisecond)
+							continue
+						}
+					}
+
+					// If we have a job, try and send it to the merged channel
+					if job != nil {
+						// try to send the job to the merged channel
+						select {
+						case s.mergedJobs <- job:
+							metricProviderJobsMerged.WithLabelValues(fmt.Sprintf("%d", i)).Inc()
+							job = nil
+						default:
+							continue
+						}
+					}
 				}
 			}
 		}(s.providers[i].jobs)
