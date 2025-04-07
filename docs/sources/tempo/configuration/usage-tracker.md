@@ -25,6 +25,11 @@ To use this feature, you need to enable it in the [distributor](https://grafana.
         cost_attribution:
             # Enables the "cost-attribution" usage tracker. Per-tenant attributes are configured in overrides.
             [enabled: <boolean> | default = false]
+            # Maximum number of series per tenant.
+            [max_cardinality: <int> | default = 10000]
+            # Interval after which a series is considered stale and will be deleted from the registry.
+            # Once a metrics series is deleted, it won't be emitted anymore, keeping active series low.
+            [stale_duration: <duration> | default = 15m0s]
 ```
 
 
