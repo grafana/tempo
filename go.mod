@@ -35,8 +35,8 @@ require (
 	github.com/minio/minio-go/v7 v7.0.89
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/olekukonko/tablewriter v0.0.5
-  github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.123.0
-	github.com/opentracing-contrib/go-grpc v0.1.1 // indirect	
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.123.0
+	github.com/opentracing-contrib/go-grpc v0.1.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pkg/errors v0.9.1
@@ -72,7 +72,7 @@ require (
 	golang.org/x/sync v0.13.0
 	golang.org/x/time v0.11.0
 	google.golang.org/api v0.228.0
-	google.golang.org/grpc v1.71.0
+	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
