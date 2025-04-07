@@ -158,7 +158,7 @@ test-integration-poller: tools ## Run poller integration tests
 
 # runs only ingest integration tests
 .PHONY: test-e2e-ingest
-test-e2e-ingest: tools ## Run end to end tests for ingest
+test-e2e-ingest: tools docker-tempo ## Run end to end tests for ingest
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/ingest
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
