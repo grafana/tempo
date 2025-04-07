@@ -1576,7 +1576,9 @@ func processTopK(input SeriesSet, limit int) SeriesSet {
 		// empty the heap and record these series in result set
 		for h.Len() > 0 {
 			sv := heap.Pop(h).(seriesValue)
-			result[sv.key] = input[sv.key]
+			initSeriesInResult(result, sv.key, input, valueLength)
+			// Set only this timestamp's value
+			result[sv.key].Values[i] = input[sv.key].Values[i]
 		}
 	}
 
@@ -1634,9 +1636,34 @@ func processBottomK(input SeriesSet, limit int) SeriesSet {
 		// empty the heap and record these series in result set
 		for h.Len() > 0 {
 			sv := heap.Pop(h).(seriesValue)
-			result[sv.key] = input[sv.key]
+			initSeriesInResult(result, sv.key, input, valueLength)
+			// Set only this timestamp's value
+			result[sv.key].Values[i] = input[sv.key].Values[i]
 		}
 	}
 
+	fmt.Printf("result: %v\n", result)
+
 	return result
+}
+
+// initSeriesInResult ensures that a series exists in the result map, and
+// initializes it with NaN values if it doesn't exist in the result set.
+func initSeriesInResult(result SeriesSet, key string, input SeriesSet, valueLength int) {
+	if _, exists := result[key]; exists {
+		// series already exists, no need to initialize
+		return
+	}
+	// series doesn't exist, initialize it
+	// Copy the series labels and exemplars from the input
+	result[key] = TimeSeries{
+		Labels:    input[key].Labels,
+		Values:    make([]float64, valueLength),
+		Exemplars: input[key].Exemplars,
+	}
+
+	// Initialize all values to NaN because we only want to set values for this timestamp
+	for j := range result[key].Values {
+		result[key].Values[j] = math.NaN()
+	}
 }
