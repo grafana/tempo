@@ -8,9 +8,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
-	otgrpc "github.com/opentracing-contrib/go-grpc"
-	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	google_grpc "google.golang.org/grpc"
@@ -55,8 +54,7 @@ func main() {
 	}
 
 	grpcOpts := []google_grpc.ServerOption{
-		google_grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer())),
-		google_grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer())),
+		google_grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	}
 
 	if cfg.TLSServerEnabeld {
