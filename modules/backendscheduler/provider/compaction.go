@@ -197,7 +197,7 @@ func (p *CompactionProvider) nextCompactionJob(ctx context.Context) *work.Job {
 	for resetCount <= len(p.store.Tenants()) {
 		// do we have an current tenant?
 		if p.curSelector == nil {
-			if !p.prepareNextTenant(ctx, span) {
+			if !p.prepareNextTenant(ctx) {
 				return nil
 			}
 			continue
@@ -229,7 +229,7 @@ func (p *CompactionProvider) nextCompactionJob(ctx context.Context) *work.Job {
 	return nil
 }
 
-func (p *CompactionProvider) prepareNextTenant(ctx context.Context, span trace.Span) bool {
+func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 	if p.curPriority.Len() == 0 {
 		p.prioritizeTenants(ctx)
 		if p.curPriority.Len() == 0 {
@@ -252,7 +252,7 @@ func (p *CompactionProvider) createJob(ctx context.Context) *work.Job {
 
 	span.SetAttributes(attribute.String("tenant_id", p.curTenant.Value()))
 
-	input, ok := p.acumulateEnoughBlockIDs(ctx)
+	input, ok := p.getNextBlockIDs(ctx)
 	if !ok {
 		span.AddEvent("not-enough-input-blocks", trace.WithAttributes(
 			attribute.Int("input_blocks", len(input)),
@@ -271,7 +271,7 @@ func (p *CompactionProvider) createJob(ctx context.Context) *work.Job {
 	}
 }
 
-func (p *CompactionProvider) acumulateEnoughBlockIDs(ctx context.Context) ([]string, bool) {
+func (p *CompactionProvider) getNextBlockIDs(_ context.Context) ([]string, bool) {
 	ids := make([]string, 0, blockselector.DefaultMaxInputBlocks)
 
 	toBeCompacted, _ := p.curSelector.BlocksToCompact()
@@ -352,12 +352,6 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 
 func (p *CompactionProvider) measureTenants() {
 	for _, tenant := range p.store.Tenants() {
-		window := p.overrides.MaxCompactionRange(tenant)
-
-		if window == 0 {
-			window = p.cfg.Compactor.MaxCompactionRange
-		}
-
 		blockSelector, _ := p.newBlockSelector(tenant)
 
 		yes := func(_ string) bool {
@@ -375,6 +369,9 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		blocklist     = make([]*backend.BlockMeta, 0, len(fullBlocklist))
 	)
 
+	// NOTE: we want to skip blocks which have already been oeprated on based on
+	// the scheduler.  This is required because the blocklist may not have been
+	// updated yet.
 	for _, b := range fullBlocklist {
 		if p.sched.HasBlocks([]string{b.BlockID.String()}) {
 			continue
@@ -389,7 +386,7 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 
 	return blockselector.NewTimeWindowBlockSelector(
 		blocklist,
-		p.cfg.Compactor.MaxCompactionRange,
+		window,
 		p.cfg.Compactor.MaxCompactionObjects,
 		p.cfg.Compactor.MaxBlockBytes,
 		blockselector.DefaultMinInputBlocks,
