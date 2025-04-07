@@ -3,6 +3,7 @@ package vparquet4
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 
 	"go.uber.org/atomic"
@@ -42,11 +43,11 @@ func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) 
 		Role: role,
 		Meta: b.meta,
 	})
-	if err != nil {
+	if isFatalError(err) {
 		return 0, err
 	}
 	b.bytesRead.Add(uint64(len(p)))
-	return len(p), nil
+	return len(p), err
 }
 
 func (b *BackendReaderAt) BytesRead() uint64 {
@@ -147,13 +148,23 @@ func (wr *walReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	// ReadAt can read less than len(p) bytes in some cases
 	wr.bytesRead.Add(uint64(n))
 
-	if err != nil {
+	if isFatalError(err) {
 		return 0, err
 	}
 
-	return n, nil
+	return n, err
 }
 
 func (wr *walReaderAt) BytesRead() uint64 {
 	return wr.bytesRead.Load()
+}
+
+// isFatalError is a helper function to determine if an error is fatal or not. ReaderAt interfaces are expected to
+// to return io.EOF and valid data simultaneously.
+func isFatalError(err error) bool {
+	if err == nil || errors.Is(err, io.EOF) {
+		return false
+	}
+
+	return true
 }
