@@ -8,7 +8,7 @@ status:
   - core
   - contrib
   codeowners:
-    active: [pavolloffay, MovieStoreGuy]
+    active: [pavolloffay, MovieStoreGuy, axw]
 
 # TODO: Update the receiver to pass the tests
 tests:
