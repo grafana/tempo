@@ -21,10 +21,12 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 )
 
-// var tracer = otel.Tracer("modules/backendscheduler")
+var tracer = otel.Tracer("modules/backendscheduler")
 
 // BackendScheduler manages scheduling and execution of backend jobs
 type BackendScheduler struct {
@@ -127,51 +129,19 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 			for job := range jobs {
 				select {
 				case s.mergedJobs <- job:
+					metricProviderJobsMerged.WithLabelValues(fmt.Sprintf("%d", i)).Inc()
 				case <-ctx.Done():
+					level.Info(log.Logger).Log("msg", "stopping provider forwarder", "provider", i)
 					return
 				}
 			}
 		}(s.providers[i].jobs)
 	}
 
-	wg.Add(1)
-	// Start a goroutine to merge jobs from all providers
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				jobFound := false
-				for _, p := range s.providers {
-					select {
-					case job, ok := <-p.jobs:
-						if !ok {
-							continue // Provider channel closed
-						}
-						select {
-						case s.mergedJobs <- job:
-							jobFound = true
-						default:
-							// Merged channel full, try next time
-						}
-					default:
-						// No job from this provider, try next one
-						continue
-					}
-				}
-
-				if !jobFound {
-					time.Sleep(100 * time.Millisecond)
-				}
-			}
-		}
-	}()
-
 	// Start a goroutine to close the merged channel when all providers are done
 	go func() {
 		wg.Wait()
+		level.Info(log.Logger).Log("msg", "all providers stopped")
 		close(s.mergedJobs)
 	}()
 
@@ -209,6 +179,11 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	ctx, span := tracer.Start(ctx, "Next")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("worker_id", req.WorkerId))
+
 	// Find jobs that already exist for this worker
 	j := s.work.GetJobForWorker(req.WorkerId)
 	if j != nil {
@@ -225,6 +200,8 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
+		span.SetAttributes(attribute.String("job_id", j.ID))
+
 		metricJobsRetry.WithLabelValues(j.JobDetail.Tenant, j.GetType().String(), j.GetWorkerID()).Inc()
 
 		level.Info(log.Logger).Log("msg", "assigned previous job to worker", "job_id", j.ID, "worker", req.WorkerId)
@@ -235,6 +212,12 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	// Try to get a job from the merged channel
 	select {
 	case j := <-s.mergedJobs:
+		if j == nil {
+			// Channel closed, no jobs available
+			metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
+			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrNilJob.Error())
+		}
+
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
 			Type:   j.Type,
@@ -256,12 +239,17 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
+		span.SetAttributes(attribute.String("job_id", j.ID))
+
 		metricJobsCreated.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 
 		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
 
 		return resp, nil
 	default:
+		span.SetAttributes(attribute.Int("job_q_depth", len(s.mergedJobs)))
+		metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
+
 		return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
 	}
 }
