@@ -170,6 +170,8 @@
       tempoSearchBackoffDuration: '5s',
       tempoReadBackoffDuration: '10s',
       tempoWriteBackoffDuration: '10s',
+      tempoMetricsBackoffDuration: '0s',  // TraceQL Metrics checks disabled
+      tempoLongWriteBackoffDuration: '50s',
     },
     ballast_size_mbs: '1024',
     port: 3200,
