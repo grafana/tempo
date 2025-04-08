@@ -131,7 +131,7 @@ func (c *RedisCache) Stop() {
 	_ = c.redis.Close()
 }
 
-func (c *RedisCache) Release(buf []byte) {
+func (c *RedisCache) Release(_ []byte) {
 	// buffer pooling unimplemented in redis
 }
 
