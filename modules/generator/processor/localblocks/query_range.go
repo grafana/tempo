@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	syncAtomic "sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,21 +58,24 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	}
 
 	var (
-		wg     = boundedwaitgroup.New(concurrency)
-		jobErr = atomic.Error{}
+		wg               = boundedwaitgroup.New(concurrency)
+		jobErr           = atomic.Error{}
+		maxSeriesReached = atomic.Bool{}
 	)
 
 	maxSeries := int(req.MaxSeries)
-	totalRawResultsSeriesCount := int32(0)
 
 	if p.headBlock != nil && withinRange(p.headBlock.BlockMeta()) {
-		if maxSeries == 0 || rawEval.Length() < maxSeries {
+		if maxSeries == 0 || !maxSeriesReached.Load() {
 			wg.Add(1)
 			go func(w common.WALBlock) {
 				defer wg.Done()
 				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
+				}
+				if rawEval.Length() > maxSeries {
+					maxSeriesReached.Store(true)
 				}
 			}(p.headBlock)
 		}
@@ -88,13 +90,16 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		if maxSeries == 0 || rawEval.Length() < maxSeries {
+		if maxSeries == 0 || !maxSeriesReached.Load() {
 			wg.Add(1)
 			go func(w common.WALBlock) {
 				defer wg.Done()
 				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
+				}
+				if rawEval.Length() > maxSeries {
+					maxSeriesReached.Store(true)
 				}
 			}(w)
 		}
@@ -109,7 +114,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		if maxSeries == 0 || (int(syncAtomic.LoadInt32(&totalRawResultsSeriesCount))+jobEval.Length() < maxSeries) {
+		if maxSeries == 0 || !maxSeriesReached.Load() {
 			wg.Add(1)
 			go func(b *ingester.LocalBlock) {
 				defer wg.Done()
@@ -119,6 +124,9 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 					return
 				}
 				jobEval.ObserveSeries(resp)
+				if jobEval.Length() > maxSeries {
+					maxSeriesReached.Store(true)
+				}
 			}(b)
 		}
 	}

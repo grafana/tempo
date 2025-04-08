@@ -774,7 +774,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
-						_, err := eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano()), int(req.MaxSeries))
+						err := eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano()), int(req.MaxSeries))
 						require.NoError(b, err)
 					}
 
