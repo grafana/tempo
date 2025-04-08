@@ -1057,7 +1057,11 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		e.mtx.Lock()
 
-		filteredSpansIndex := make([]int, 0, len(ss.Spans)) // optimistic preallocation
+		var validSpansCount int
+		var randomSpanIndex int
+
+		needExemplar := e.maxExemplars > 0 && e.sampleExemplar(ss.TraceID)
+
 		for i, s := range ss.Spans {
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
@@ -1066,15 +1070,23 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 				}
 			}
 
-			e.spansTotal++
-			filteredSpansIndex = append(filteredSpansIndex, i)
-
+			validSpansCount++
 			e.metricsPipeline.observe(s)
-		}
 
-		if len(filteredSpansIndex) > 0 && e.sampleExemplar(ss.TraceID) {
-			i := filteredSpansIndex[rand.Intn(len(filteredSpansIndex))]
-			e.metricsPipeline.observeExemplar(ss.Spans[i])
+			if !needExemplar {
+				continue
+			}
+
+			// Reservoir sampling - select a random span for exemplar
+			// Each span has a 1/validSpansCount probability of being selected
+			if validSpansCount == 1 || rand.Intn(validSpansCount) == 0 {
+				randomSpanIndex = i
+			}
+		}
+		e.spansTotal += uint64(validSpansCount)
+
+		if needExemplar && validSpansCount > 0 {
+			e.metricsPipeline.observeExemplar(ss.Spans[randomSpanIndex])
 		}
 
 		e.mtx.Unlock()
