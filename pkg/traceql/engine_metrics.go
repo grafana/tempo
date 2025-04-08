@@ -1527,13 +1527,12 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 // processTopK implements TopKBottomK topk method
 func processTopK(input SeriesSet, valueLength, limit int) SeriesSet {
 	result := make(SeriesSet)
+	// Min heap for top-k (smallest values at top for easy replacement)
+	h := &seriesHeap{}
+	heap.Init(h)
 
 	// process each timestamp
 	for i := 0; i < valueLength; i++ {
-		// Min heap for top-k (smallest values at top for easy replacement)
-		h := &seriesHeap{}
-		heap.Init(h)
-
 		// process each series for this timestamp
 		for key, series := range input {
 			if i >= len(series.Values) {
@@ -1582,12 +1581,12 @@ func processTopK(input SeriesSet, valueLength, limit int) SeriesSet {
 func processBottomK(input SeriesSet, valueLength, limit int) SeriesSet {
 	result := make(SeriesSet)
 
+	// Max heap for bottom-k (largest values at top for easy replacement)
+	h := &reverseSeriesHeap{}
+	heap.Init(h)
+
 	// Process each timestamp
 	for i := 0; i < valueLength; i++ {
-		// Max heap for bottom-k (largest values at top for easy replacement)
-		h := &reverseSeriesHeap{}
-		heap.Init(h)
-
 		// Process each series for this timestamp
 		for key, series := range input {
 			if i >= len(series.Values) {

@@ -358,15 +358,9 @@ func (m *TopKBottomK) init(length int) {
 }
 
 func (m *TopKBottomK) process(input SeriesSet) SeriesSet {
-	// if input size is less than limit, return input as is
+	// if input size is less or equal to limit, return input as is
 	if len(input) <= m.limit {
 		return input
-	}
-
-	// limit can't be zero or negative and will fail query validation
-	// if input is empty, return empty SeriesSet
-	if len(input) == 0 {
-		return SeriesSet{}
 	}
 
 	// remove internal series from the input series
@@ -385,8 +379,8 @@ func (m *TopKBottomK) process(input SeriesSet) SeriesSet {
 	case OpBottomK:
 		return processBottomK(input, m.length, m.limit)
 	default:
-		// unknown operation, return empty SeriesSet, we shouldn't reach here
-		return SeriesSet{}
+		// unknown operation, return input SeriesSet, we shouldn't reach here
+		return input
 	}
 }
 
