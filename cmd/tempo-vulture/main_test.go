@@ -828,8 +828,8 @@ func TestQueryMetrics(t *testing.T) {
 				Series: make([]*tempopb.TimeSeries, 1),
 			},
 			expectedMetrics: traceMetrics{
-				requested:       1,
-				incorrectResult: 1,
+				requested:              1,
+				incorrectMetricsResult: 1,
 			},
 			expectedError: "expected time series, got nil",
 		},
@@ -839,8 +839,8 @@ func TestQueryMetrics(t *testing.T) {
 				Series: make([]*tempopb.TimeSeries, 2),
 			},
 			expectedMetrics: traceMetrics{
-				requested:       1,
-				incorrectResult: 1,
+				requested:              1,
+				incorrectMetricsResult: 1,
 			},
 			expectedError: "expected exactly 1 series, got 2",
 		},

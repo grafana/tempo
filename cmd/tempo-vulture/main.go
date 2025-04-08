@@ -54,6 +54,7 @@ var (
 
 type traceMetrics struct {
 	incorrectResult         int
+	incorrectMetricsResult  int
 	missingSpans            int
 	notFoundByID            int
 	notFoundSearch          int
@@ -403,6 +404,7 @@ func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, start
 func pushVultureMetrics(metrics traceMetrics) {
 	metricTracesInspected.Add(float64(metrics.requested))
 	metricTracesErrors.WithLabelValues("incorrectresult").Add(float64(metrics.incorrectResult))
+	metricTracesErrors.WithLabelValues("incorrect_metrics_result").Add(float64(metrics.incorrectMetricsResult))
 	metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 	metricTracesErrors.WithLabelValues("notfound_search").Add(float64(metrics.notFoundSearch))
 	metricTracesErrors.WithLabelValues("notfound_traceql").Add(float64(metrics.notFoundTraceQL))
@@ -700,12 +702,12 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 	}
 
 	if len(resp.Series) > 1 {
-		tm.incorrectResult++
+		tm.incorrectMetricsResult++
 		return tm, fmt.Errorf("expected exactly 1 series, got %d", len(resp.Series))
 	}
 	timeSeries := resp.Series[0]
 	if timeSeries == nil {
-		tm.incorrectResult++
+		tm.incorrectMetricsResult++
 		return tm, errors.New("expected time series, got nil")
 	}
 
