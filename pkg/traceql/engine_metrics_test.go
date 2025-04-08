@@ -516,7 +516,7 @@ func TestQuantileOverTime(t *testing.T) {
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 	require.Equal(t, out, result)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 }
 
 func percentileHelper(q float64, values ...float64) float64 {
@@ -573,7 +573,7 @@ func TestCountOverTime(t *testing.T) {
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 	require.Equal(t, out, result)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 }
 
 func TestMinOverTimeForDuration(t *testing.T) {
@@ -616,7 +616,7 @@ func TestMinOverTimeForDuration(t *testing.T) {
 	assert.Equal(t, 128/float64(time.Second), fooBar.Values[0])
 	assert.Equal(t, 8/float64(time.Second), fooBar.Values[1])
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 }
 
 func TestMinOverTimeWithNoMatch(t *testing.T) {
@@ -650,7 +650,7 @@ func TestMinOverTimeWithNoMatch(t *testing.T) {
 	ts := result.ToProto(req)
 
 	assert.True(t, len(ts) == 0)
-	assert.Equal(t, 0, seriesCount)
+	require.Equal(t, 0, seriesCount)
 }
 
 func TestMinOverTimeForSpanAttribute(t *testing.T) {
@@ -704,7 +704,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	assert.Equal(t, 204.0, fooBaz.Values[0])
 	assert.True(t, math.IsNaN(fooBaz.Values[1]))
 	assert.Equal(t, 200.0, fooBaz.Values[2])
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	// foo.bar = (100,200, NaN)
 	assert.Equal(t, 100.0, fooBar.Values[0])
@@ -751,7 +751,7 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -832,7 +832,7 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	avg := result[`{__name__="avg_over_time"}`]
 
@@ -882,7 +882,7 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -938,7 +938,7 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
@@ -1047,7 +1047,7 @@ func TestMaxOverTimeForDuration(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1090,7 +1090,7 @@ func TestMaxOverTimeWithNoMatch(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
@@ -1140,7 +1140,7 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1196,7 +1196,7 @@ func TestSumOverTimeForDuration(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1256,7 +1256,7 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1312,7 +1312,7 @@ func TestSumOverTimeWithNoMatch(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
 
@@ -1389,7 +1389,7 @@ func TestHistogramOverTime(t *testing.T) {
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 	require.Equal(t, out, result)
-	assert.Equal(t, len(result), seriesCount)
+	require.Equal(t, len(result), seriesCount)
 }
 
 func TestSecondStageTopK(t *testing.T) {

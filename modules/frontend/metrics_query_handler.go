@@ -43,11 +43,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			End:   req.End,
 			Step:  req.End - req.Start,
 		}
-		// if a limit is being enforced, honor the request if it is less than the limit
-		// else set it to max limit
-		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (qr.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || qr.MaxSeries == 0) {
-			qr.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
-		}
+
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
 			Header: headers,
@@ -56,7 +52,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		httpReq = httpReq.Clone(ctx)
 
 		var finalResponse *tempopb.QueryInstantResponse
-		c, err := combiner.NewTypedQueryRange(qr)
+		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
 			return err
 		}
@@ -113,18 +109,13 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			End:   i.End,
 			Step:  i.End - i.Start,
 		}
-		// if a limit is being enforced, honor the request if it is less than the limit
-		// else set it to max limit
-		if cfg.Metrics.Sharder.MaxResponseSeries > 0 && (qr.MaxSeries > uint32(cfg.Metrics.Sharder.MaxResponseSeries) || qr.MaxSeries == 0) {
-			qr.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
-		}
 
 		// Clone existing to keep it unaltered.
 		req = req.Clone(req.Context())
 		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
 		req = api.BuildQueryRangeRequest(req, qr, "") // dedicated cols are never passed from the caller
 
-		combiner, err := combiner.NewTypedQueryRange(qr)
+		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
 			level.Error(logger).Log("msg", "query instant: query range combiner failed", "err", err)
 			return &http.Response{

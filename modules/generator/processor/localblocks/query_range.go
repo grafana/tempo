@@ -67,15 +67,14 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	totalRawResultsSeriesCount := int32(0)
 
 	if p.headBlock != nil && withinRange(p.headBlock.BlockMeta()) {
-		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalRawResultsSeriesCount) < int32(maxSeries)) {
+		if maxSeries == 0 || rawEval.Length() < maxSeries {
 			wg.Add(1)
 			go func(w common.WALBlock) {
 				defer wg.Done()
-				seriesCount, err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
 				}
-				syncAtomic.AddInt32(&totalRawResultsSeriesCount, int32(seriesCount))
 			}(p.headBlock)
 		}
 	}
@@ -89,15 +88,14 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		if maxSeries == 0 || (syncAtomic.LoadInt32(&totalRawResultsSeriesCount) < int32(maxSeries)) {
+		if maxSeries == 0 || rawEval.Length() < maxSeries {
 			wg.Add(1)
 			go func(w common.WALBlock) {
 				defer wg.Done()
-				seriesCount, err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
 				}
-				syncAtomic.AddInt32(&totalRawResultsSeriesCount, int32(seriesCount))
 			}(w)
 		}
 	}
@@ -134,7 +132,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	return nil
 }
 
-func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) (int, error) {
+func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) error {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "Processor.QueryRange.WALBlock", trace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -186,7 +184,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return b.Fetch(ctx, req, common.DefaultSearchOptions())
 	})
-	_, err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
+	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}

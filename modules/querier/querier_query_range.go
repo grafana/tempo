@@ -30,7 +30,8 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
 	}
 
-	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum)
+	// correct max series limit logic should've been set by the query-frontend sharder
+	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +115,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return q.store.Fetch(ctx, meta, req, opts)
 	})
-	_, err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
+	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}

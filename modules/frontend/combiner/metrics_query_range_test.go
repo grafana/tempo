@@ -527,7 +527,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		MaxSeries: 4,
 	}
 
-	queryRangeCombiner, err := NewQueryRange(req)
+	queryRangeCombiner, err := NewQueryRange(req, 4)
 	require.NoError(t, err)
 
 	// add 3 series, should not quit
