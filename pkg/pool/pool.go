@@ -13,16 +13,12 @@ import (
 )
 
 var (
-	metricAllocOutPool *prometheus.CounterVec
-)
-
-func init() { // jpe - init necessary?
 	metricAllocOutPool = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "buffer_pool_miss_bytes_total",
 		Help:      "The total number of alloc'ed bytes that missed the sync pools.",
 	}, []string{"name", "direction"})
-}
+)
 
 // Pool is a linearly bucketed pool for variably sized byte slices.
 type Pool struct {

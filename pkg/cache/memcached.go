@@ -25,6 +25,10 @@ func (cfg *MemcachedConfig) RegisterFlagsWithPrefix(prefix, description string, 
 	f.DurationVar(&cfg.Expiration, prefix+"memcached.expiration", 0, description+"How long keys stay in the memcache.")
 }
 
+var cacheBufAllocator = &allocator{
+	pool: pool.New("cache", 0, 100, 40*1024),
+}
+
 // Memcached type caches chunks in memcached
 type Memcached struct {
 	cfg             MemcachedConfig
@@ -33,8 +37,6 @@ type Memcached struct {
 	maxItemSize     int
 	requestDuration *instr.HistogramCollector
 	logger          log.Logger
-
-	allocator *allocator // jpe - should i make this global?
 }
 
 // NewMemcached makes a new Memcached.
@@ -58,9 +60,6 @@ func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, maxI
 				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
-		allocator: &allocator{
-			pool: pool.New("cache-"+name, 0, 100, 4096),
-		},
 	}
 	return c
 }
@@ -86,12 +85,12 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 }
 
 // FetchKey gets a single key from the cache
-func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found bool) { // jpe, remove named returns
+func (c *Memcached) FetchKey(ctx context.Context, key string) ([]byte, bool) {
 	const method = "Memcache.Get"
 	var item *memcache.Item
 	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 		var err error
-		item, err = c.memcache.Get(key, memcache.WithAllocator(c.allocator))
+		item, err = c.memcache.Get(key, memcache.WithAllocator(cacheBufAllocator))
 		if err != nil {
 			if errors.Is(err, memcache.ErrCacheMiss) {
 				level.Debug(c.logger).Log("msg", "Failed to get key from memcached", "err", err, "key", key)
@@ -102,7 +101,7 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found
 		return err
 	})
 	if err != nil {
-		return buf, false
+		return nil, false
 	}
 	return item.Value, true
 }
@@ -160,7 +159,7 @@ func (c *Memcached) MaxItemSize() int {
 }
 
 func (c *Memcached) Release(buf []byte) {
-	c.allocator.Put(&buf)
+	cacheBufAllocator.Put(&buf)
 }
 
 // allocator is a thin wrapper around pool.Pool to satisfy the memcache allocator interface

@@ -58,6 +58,7 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 			} else {
 				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptProtobuf)
 			}
+			c.cache.c.Release(body)
 			return resp, nil
 		}
 	}
