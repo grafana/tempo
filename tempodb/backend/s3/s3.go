@@ -608,7 +608,7 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 		return nil
 	}
 
-	return fmt.Errorf("error in range read from s3 backend: %w", err)
+	return err
 }
 
 func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
