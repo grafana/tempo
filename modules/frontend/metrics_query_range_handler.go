@@ -80,7 +80,6 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 
 		// parse request
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)
-
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: parse search request failed", "err", err)
 			return &http.Response{
