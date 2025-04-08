@@ -65,6 +65,7 @@ overrides:
 	generatorConfig.Storage.Path = t.TempDir()
 	generatorConfig.Ring.KVStore.Store = "inmemory"
 	ifaces, err := net.Interfaces()
+	require.NoError(t, err)
 	netWorkInteraces := make([]string, len(ifaces))
 	for i, iface := range ifaces {
 		netWorkInteraces[i] = iface.Name

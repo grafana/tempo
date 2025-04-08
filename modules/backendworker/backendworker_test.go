@@ -74,6 +74,7 @@ func setupDependencies(ctx context.Context, t *testing.T, limits overrides.Confi
 	workerConfig.Ring.KVStore.Store = "inmemory"
 	workerConfig.Ring.KVStore.Mock = nil
 	ifaces, err := net.Interfaces()
+	require.NoError(t, err)
 	netWorkInteraces := make([]string, len(ifaces))
 	for i, iface := range ifaces {
 		netWorkInteraces[i] = iface.Name
