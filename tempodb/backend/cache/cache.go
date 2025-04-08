@@ -118,6 +118,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 		b, found := cache.FetchKey(ctx, k)
 		if found {
 			copy(buffer, b)
+			cache.Release(b)
 			return nil
 		}
 	}

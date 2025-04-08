@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log/level"
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
+	"github.com/grafana/tempo/pkg/pool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -32,6 +33,8 @@ type Memcached struct {
 	maxItemSize     int
 	requestDuration *instr.HistogramCollector
 	logger          log.Logger
+
+	allocator *allocator // jpe - should i make this global?
 }
 
 // NewMemcached makes a new Memcached.
@@ -55,6 +58,9 @@ func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, maxI
 				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
+		allocator: &allocator{
+			pool: pool.New("cache-"+name, 0, 100, 4096),
+		},
 	}
 	return c
 }
@@ -80,12 +86,12 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 }
 
 // FetchKey gets a single key from the cache
-func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found bool) {
+func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found bool) { // jpe, remove named returns
 	const method = "Memcache.Get"
 	var item *memcache.Item
 	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 		var err error
-		item, err = c.memcache.Get(key)
+		item, err = c.memcache.Get(key, memcache.WithAllocator(c.allocator))
 		if err != nil {
 			if errors.Is(err, memcache.ErrCacheMiss) {
 				level.Debug(c.logger).Log("msg", "Failed to get key from memcached", "err", err, "key", key)
@@ -151,4 +157,22 @@ func (c *Memcached) Stop() {
 
 func (c *Memcached) MaxItemSize() int {
 	return c.maxItemSize
+}
+
+func (c *Memcached) Release(buf []byte) {
+	c.allocator.Put(&buf)
+}
+
+// allocator is a thin wrapper around pool.Pool to satisfy the memcache allocator interface
+type allocator struct {
+	pool *pool.Pool
+}
+
+func (a *allocator) Get(sz int) *[]byte {
+	buffer := a.pool.Get(sz)
+	return &buffer
+}
+
+func (a *allocator) Put(b *[]byte) {
+	a.pool.Put(*b)
 }
