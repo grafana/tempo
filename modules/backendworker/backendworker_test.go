@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"flag"
+	"net"
 	"testing"
 	"time"
 
@@ -72,7 +73,13 @@ func setupDependencies(ctx context.Context, t *testing.T, limits overrides.Confi
 	workerConfig.BackendSchedulerAddr = "localhost:1234"
 	workerConfig.Ring.KVStore.Store = "inmemory"
 	workerConfig.Ring.KVStore.Mock = nil
-	workerConfig.Ring.InstanceInterfaceNames = []string{"eth0", "en0", "lo0", "enp102s0f4u1u3"}
+	ifaces, err := net.Interfaces()
+	require.NoError(t, err)
+	netWorkInteraces := make([]string, len(ifaces))
+	for i, iface := range ifaces {
+		netWorkInteraces[i] = iface.Name
+	}
+	workerConfig.Ring.InstanceInterfaceNames = netWorkInteraces
 
 	overrides, err := overrides.NewOverrides(limits, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
