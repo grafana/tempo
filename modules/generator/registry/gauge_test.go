@@ -17,7 +17,7 @@ func Test_gaugeInc(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", "", "", onAdd, nil, nil)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -52,7 +52,7 @@ func TestGaugeDifferentLabels(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", "", "", onAdd, nil, nil)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
@@ -74,7 +74,7 @@ func Test_gaugeSet(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", "", "", onAdd, nil, nil)
 
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -109,7 +109,7 @@ func Test_gauge_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", "", "", onAdd, nil, nil)
 
 	// allow adding new series
 	canAdd = true
@@ -145,7 +145,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	c := newGauge("my_gauge", nil, onRemove, nil)
+	c := newGauge("my_gauge", "", "", nil, onRemove, nil)
 
 	timeMs := time.Now().UnixMilli()
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
@@ -180,7 +180,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 }
 
 func Test_gauge_externalLabels(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, map[string]string{"external_label": "external_value"})
+	c := newGauge("my_gauge", "", "", nil, nil, map[string]string{"external_label": "external_value"})
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -194,7 +194,7 @@ func Test_gauge_externalLabels(t *testing.T) {
 }
 
 func Test_gauge_concurrencyDataRace(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, nil)
+	c := newGauge("my_gauge", "", "", nil, nil, nil)
 
 	end := make(chan struct{})
 
@@ -240,7 +240,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_gauge_concurrencyCorrectness(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, nil)
+	c := newGauge("my_gauge", "", "", nil, nil, nil)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})

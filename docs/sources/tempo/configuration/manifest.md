@@ -647,6 +647,8 @@ metrics_generator:
                 - k8s.node.name
                 - host.id
             metric_name: traces_host_info
+            help: ""
+            unit: ""
     registry:
         collection_interval: 15s
         stale_duration: 15m0s

@@ -18,6 +18,8 @@ import (
 
 type nativeHistogram struct {
 	metricName string
+	unit       string
+	help       string
 
 	// TODO we can also switch to a HistrogramVec and let prometheus handle the labels. This would remove the series map
 	//  and all locking around it.
@@ -82,7 +84,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string) *nativeHistogram {
+func newNativeHistogram(name string, help string, unit string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -98,6 +100,8 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 
 	return &nativeHistogram{
 		metricName:        name,
+		help:              help,
+		unit:              unit,
 		series:            make(map[uint64]*nativeHistogramSeries),
 		onAddSerie:        onAddSeries,
 		onRemoveSerie:     onRemoveSeries,
