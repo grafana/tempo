@@ -112,7 +112,7 @@ func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, b
 
 	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 		var err error
-		items, err = c.memcache.GetMulti(keys)
+		items, err = c.memcache.GetMulti(keys, memcache.WithAllocator(cacheBufAllocator))
 		if err != nil {
 			level.Error(c.logger).Log("msg", "Failed to get keys from memcached", "err", err)
 		}
