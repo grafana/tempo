@@ -31,6 +31,7 @@ var debugMode = false
 func TestQueryRangeExemplars(t *testing.T) {
 	t.Parallel()
 
+	maxExemplars := 1
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
@@ -77,19 +78,21 @@ sendLoop:
 		"{status != error} | count_over_time() by (status)",
 	} {
 		t.Run(query, func(t *testing.T) {
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, maxExemplars, debugMode)
 			require.NotNil(t, queryRangeRes)
 			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
 			exemplarCount := 0
 			for _, series := range queryRangeRes.GetSeries() {
-				exemplarCount += len(series.GetExemplars())
+				exemplars := len(series.GetExemplars())
+				exemplarCount += exemplars
+				assert.LessOrEqual(t, exemplars, maxExemplars)
 			}
-			require.GreaterOrEqual(t, exemplarCount, 1)
+			assert.GreaterOrEqual(t, exemplarCount, 1)
 		})
 	}
 
 	// invalid query
-	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}")
+	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}", maxExemplars)
 	require.Equal(t, 400, res.StatusCode)
 
 	// query with empty results
@@ -100,7 +103,7 @@ sendLoop:
 		`{span.randomattr = "doesnotexist"} | count_over_time()`,
 	} {
 		t.Run(query, func(t *testing.T) {
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, maxExemplars, debugMode)
 			require.NotNil(t, queryRangeRes)
 			// it has time series but they are empty and has no exemplars
 			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
@@ -140,7 +143,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 
 	// Query the trace by count. As we have only one trace, we should get one dot with value 1
 	query := "{} | count_over_time()"
-	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, 100, debugMode)
 	require.NotNil(t, queryRangeRes)
 	require.Equal(t, len(queryRangeRes.GetSeries()), 1)
 
@@ -218,8 +221,8 @@ sendLoop:
 	require.Equal(t, 3, len(queryRangeRes.GetSeries()))
 }
 
-func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempopb.QueryRangeResponse {
-	res := doRequest(t, endpoint, query)
+func callQueryRange(t *testing.T, endpoint, query string, exemplars int, printBody bool) tempopb.QueryRangeResponse {
+	res := doRequest(t, endpoint, query, exemplars)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Read body and print it
@@ -234,8 +237,8 @@ func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempop
 	return queryRangeRes
 }
 
-func doRequest(t *testing.T, endpoint, query string) *http.Response {
-	url := buildURL(endpoint, fmt.Sprintf("%s with(exemplars=true)", query))
+func doRequest(t *testing.T, endpoint, query string, exemplars int) *http.Response {
+	url := buildURL(endpoint, fmt.Sprintf("%s with(exemplars=true)", query), exemplars)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 
@@ -244,13 +247,14 @@ func doRequest(t *testing.T, endpoint, query string) *http.Response {
 	return res
 }
 
-func buildURL(endpoint, query string) string {
+func buildURL(endpoint, query string, exemplars int) string {
 	return fmt.Sprintf(
-		"http://%s/api/metrics/query_range?query=%s&start=%d&end=%d&step=%s",
+		"http://%s/api/metrics/query_range?query=%s&start=%d&end=%d&step=%s&exemplars=%d",
 		endpoint,
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
 		time.Now().Add(time.Minute).UnixNano(),
 		"5s",
+		exemplars,
 	)
 }
