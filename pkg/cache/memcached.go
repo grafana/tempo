@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-kit/log"
@@ -25,8 +27,16 @@ func (cfg *MemcachedConfig) RegisterFlagsWithPrefix(prefix, description string, 
 	f.DurationVar(&cfg.Expiration, prefix+"memcached.expiration", 0, description+"How long keys stay in the memcache.")
 }
 
-var cacheBufAllocator = &allocator{
-	pool: pool.New("cache", 0, 100, 40*1024),
+var cacheBufAllocator *allocator
+
+func init() {
+	bktSize := intFromEnv("CACHE_BKT_SIZE", 40*1024)
+	numBuckets := intFromEnv("CACHE_NUM_BUCKETS", 100)
+	minBucket := intFromEnv("CACHE_MIN_BUCKET", 0)
+
+	cacheBufAllocator = &allocator{
+		pool: pool.New("cache", minBucket, numBuckets, bktSize),
+	}
 }
 
 // Memcached type caches chunks in memcached
@@ -174,4 +184,20 @@ func (a *allocator) Get(sz int) *[]byte {
 
 func (a *allocator) Put(b *[]byte) {
 	a.pool.Put(*b)
+}
+
+func intFromEnv(env string, defaultValue int) int {
+	// get the value from the environment
+	val, ok := os.LookupEnv(env)
+	if !ok {
+		return defaultValue
+	}
+
+	// try to parse the value
+	intVal, err := strconv.Atoi(val)
+	if err != nil {
+		panic("failed to parse " + env + " as int")
+	}
+
+	return intVal
 }
