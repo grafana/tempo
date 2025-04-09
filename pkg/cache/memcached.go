@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
+	"github.com/grafana/tempo/pkg/pool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -22,6 +25,18 @@ type MemcachedConfig struct {
 // RegisterFlagsWithPrefix adds the flags required to config this to the given FlagSet
 func (cfg *MemcachedConfig) RegisterFlagsWithPrefix(prefix, description string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.Expiration, prefix+"memcached.expiration", 0, description+"How long keys stay in the memcache.")
+}
+
+var cacheBufAllocator *allocator
+
+func init() {
+	bktSize := intFromEnv("CACHE_BKT_SIZE", 40*1024)
+	numBuckets := intFromEnv("CACHE_NUM_BUCKETS", 100)
+	minBucket := intFromEnv("CACHE_MIN_BUCKET", 0)
+
+	cacheBufAllocator = &allocator{
+		pool: pool.New("cache", minBucket, numBuckets, bktSize),
+	}
 }
 
 // Memcached type caches chunks in memcached
@@ -80,12 +95,12 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 }
 
 // FetchKey gets a single key from the cache
-func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found bool) {
+func (c *Memcached) FetchKey(ctx context.Context, key string) ([]byte, bool) {
 	const method = "Memcache.Get"
 	var item *memcache.Item
 	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 		var err error
-		item, err = c.memcache.Get(key)
+		item, err = c.memcache.Get(key, memcache.WithAllocator(cacheBufAllocator))
 		if err != nil {
 			if errors.Is(err, memcache.ErrCacheMiss) {
 				level.Debug(c.logger).Log("msg", "Failed to get key from memcached", "err", err, "key", key)
@@ -96,7 +111,7 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found
 		return err
 	})
 	if err != nil {
-		return buf, false
+		return nil, false
 	}
 	return item.Value, true
 }
@@ -107,7 +122,7 @@ func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, b
 
 	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 		var err error
-		items, err = c.memcache.GetMulti(keys)
+		items, err = c.memcache.GetMulti(keys, memcache.WithAllocator(cacheBufAllocator))
 		if err != nil {
 			level.Error(c.logger).Log("msg", "Failed to get keys from memcached", "err", err)
 		}
@@ -151,4 +166,38 @@ func (c *Memcached) Stop() {
 
 func (c *Memcached) MaxItemSize() int {
 	return c.maxItemSize
+}
+
+func (c *Memcached) Release(buf []byte) {
+	cacheBufAllocator.Put(&buf)
+}
+
+// allocator is a thin wrapper around pool.Pool to satisfy the memcache allocator interface
+type allocator struct {
+	pool *pool.Pool
+}
+
+func (a *allocator) Get(sz int) *[]byte {
+	buffer := a.pool.Get(sz)
+	return &buffer
+}
+
+func (a *allocator) Put(b *[]byte) {
+	a.pool.Put(*b)
+}
+
+func intFromEnv(env string, defaultValue int) int {
+	// get the value from the environment
+	val, ok := os.LookupEnv(env)
+	if !ok {
+		return defaultValue
+	}
+
+	// try to parse the value
+	intVal, err := strconv.Atoi(val)
+	if err != nil {
+		panic("failed to parse " + env + " as int")
+	}
+
+	return intVal
 }

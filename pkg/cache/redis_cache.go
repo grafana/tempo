@@ -131,6 +131,10 @@ func (c *RedisCache) Stop() {
 	_ = c.redis.Close()
 }
 
+func (c *RedisCache) Release(_ []byte) {
+	// buffer pooling unimplemented in redis
+}
+
 // redis doesn't have a max item size. todo: add
 func (c *RedisCache) MaxItemSize() int {
 	return 0

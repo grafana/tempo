@@ -10,7 +10,7 @@ import (
 )
 
 func TestPoolGet(t *testing.T) {
-	testPool := New(5, 2, 7)
+	testPool := New("foo", 5, 2, 7)
 	cases := []struct {
 		size        int
 		expectedCap int
@@ -56,7 +56,7 @@ func TestPoolGet(t *testing.T) {
 }
 
 func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
-	testPool := New(100, 200, 5)
+	testPool := New("foo", 100, 200, 5)
 
 	for i := 0; i < 10000; i++ {
 		size := rand.Intn(1000)
@@ -73,7 +73,7 @@ func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
 }
 
 func TestBucketFor(t *testing.T) {
-	testPool := New(5, 10, 5)
+	testPool := New("foo", 5, 10, 5)
 	cases := []struct {
 		size     int
 		expected int
