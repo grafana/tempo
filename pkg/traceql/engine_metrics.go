@@ -275,6 +275,12 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 			exemplars = make([]tempopb.Exemplar, 0, len(s.Exemplars))
 		}
 		for _, e := range s.Exemplars {
+			// skip exemplars that has NaN value
+			i := IntervalOfMs(int64(e.TimestampMs), start, end, req.Step)
+			if math.IsNaN(s.Values[i]) {
+				continue
+			}
+
 			labels := make([]commonv1proto.KeyValue, 0, len(e.Labels))
 			for _, label := range e.Labels {
 				labels = append(labels,
@@ -791,14 +797,18 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	}
 
 	metricsPipeline.init(req, mode)
-	if metricsSecondStage != nil {
-		metricsSecondStage.init(IntervalCount(req.Start, req.End, req.Step))
+	mfe := &MetricsFrontendEvaluator{
+		metricsPipeline: metricsPipeline,
 	}
 
-	return &MetricsFrontendEvaluator{
-		metricsPipeline:    metricsPipeline,
-		metricsSecondStage: metricsSecondStage,
-	}, nil
+	// only run metrics second stage if we have second stage and query mode = final,
+	// as we are not sharding them now in lower layers.
+	if metricsSecondStage != nil && mode == AggregateModeFinal {
+		metricsSecondStage.init(req)
+		mfe.metricsSecondStage = metricsSecondStage
+	}
+
+	return mfe, nil
 }
 
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
@@ -1138,6 +1148,7 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	results := m.metricsPipeline.result()
 
 	if m.metricsSecondStage != nil {
+		// metrics second stage is only set when query has second stage function and mode = final
 		// if we have metrics second stage, pass first stage results through
 		// second stage for further processing.
 		results = m.metricsSecondStage.process(results)

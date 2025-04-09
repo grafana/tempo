@@ -3,7 +3,6 @@ package traceql
 import (
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -308,7 +307,7 @@ var _ firstStageElement = (*MetricsAggregate)(nil)
 // and produces metrics so we need to rename that to make things clear and avoid confusion.
 type secondStageElement interface {
 	Element
-	init(length int)
+	init(req *tempopb.QueryRangeRequest)
 	process(input SeriesSet) SeriesSet
 }
 
@@ -353,24 +352,14 @@ func (m *TopKBottomK) validate() error {
 	return nil
 }
 
-func (m *TopKBottomK) init(length int) {
-	m.length = length
+func (m *TopKBottomK) init(req *tempopb.QueryRangeRequest) {
+	m.length = IntervalCount(req.Start, req.End, req.Step)
 }
 
 func (m *TopKBottomK) process(input SeriesSet) SeriesSet {
 	// if input size is less or equal to limit, return input as is
 	if len(input) <= m.limit {
 		return input
-	}
-
-	// remove internal series from the input series
-	// FIXME: this is a hack to remove internal series from the input,
-	// this should be done in first stage and not here.
-	for seriesName := range input {
-		// remove internal labels series from the series
-		if strings.Contains(seriesName, internalLabelMetaType) {
-			delete(input, seriesName)
-		}
 	}
 
 	switch m.op {
