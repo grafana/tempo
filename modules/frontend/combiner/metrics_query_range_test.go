@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,11 +19,13 @@ func TestAttachExemplars(t *testing.T) {
 	start := uint64(10 * time.Second)
 	end := uint64(20 * time.Second)
 	step := traceql.DefaultQueryRangeStep(start, end)
+	exemplars := uint32(2)
 
 	req := &tempopb.QueryRangeRequest{
-		Start: start,
-		End:   end,
-		Step:  step,
+		Start:     start,
+		End:       end,
+		Step:      step,
+		Exemplars: exemplars,
 	}
 
 	tcs := []struct {
@@ -49,10 +52,11 @@ func TestAttachExemplars(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, expectedSeries := buildSeriesForExemplarTest(start, end, step, tc.include)
+			resp, expectedSeries := buildSeriesForExemplarTest(start, end, step, exemplars, tc.include)
 
 			attachExemplars(req, resp)
 			require.Equal(t, expectedSeries, resp.Series)
+			assert.LessOrEqual(t, len(resp.Series[0].Exemplars), int(exemplars), "exemplars should be capped")
 		})
 	}
 }
@@ -61,14 +65,16 @@ func BenchmarkAttachExemplars(b *testing.B) {
 	start := uint64(1 * time.Second)
 	end := uint64(10000 * time.Second)
 	step := uint64(time.Second)
+	exemplars := uint32(100)
 
 	req := &tempopb.QueryRangeRequest{
-		Start: start,
-		End:   end,
-		Step:  step,
+		Start:     start,
+		End:       end,
+		Step:      step,
+		Exemplars: exemplars,
 	}
 
-	resp, _ := buildSeriesForExemplarTest(start, end, step, func(_ int) bool { return true })
+	resp, _ := buildSeriesForExemplarTest(start, end, step, exemplars, func(_ int) bool { return true })
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -76,7 +82,7 @@ func BenchmarkAttachExemplars(b *testing.B) {
 	}
 }
 
-func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) bool) (*tempopb.QueryRangeResponse, []*tempopb.TimeSeries) {
+func buildSeriesForExemplarTest(start, end, step uint64, exemplars uint32, include func(i int) bool) (*tempopb.QueryRangeResponse, []*tempopb.TimeSeries) {
 	resp := &tempopb.QueryRangeResponse{
 		Series: []*tempopb.TimeSeries{
 			{},
@@ -120,6 +126,9 @@ func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) boo
 		if includeExemplar {
 			expectedSeries[0].Exemplars = append(expectedSeries[0].Exemplars, valExamplar)
 		}
+	}
+	if len(resp.Series[0].Exemplars) > int(exemplars) {
+		expectedSeries[0].Exemplars = expectedSeries[0].Exemplars[len(expectedSeries[0].Exemplars)-int(exemplars):]
 	}
 
 	return resp, expectedSeries
