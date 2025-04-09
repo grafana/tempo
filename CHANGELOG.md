@@ -59,6 +59,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] compactor: restore dedicated columns logging for completed blocks [#4832](https://github.com/grafana/tempo/pull/4832) (@edgarkz)
 * [ENHANCEMENT] distributor: add IPv6 support [#4840](https://github.com/grafana/tempo/pull/4840) (@gjacquet)
 * [ENHANCEMENT] Support TraceQL Metrics checks in Vulture [#4886](https://github.com/grafana/tempo/pull/4886) (@ruslan-mikhailov)
+* [ENHANCEMENT] Query-frontend: logs add msg to the log line [#4975](https://github.com/grafana/tempo/pull/4975) (@jmichalek132)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Make comparison to nil symmetric [#4869](https://github.com/grafana/tempo/pull/4869) (@stoewer)
