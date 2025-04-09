@@ -3,14 +3,12 @@ package querier
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -123,73 +121,10 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	inspectedBytes, spansTotal, _ := eval.Metrics()
 
 	return &tempopb.QueryRangeResponse{
-		Series: queryRangeTraceQLToProto(res, req),
+		Series: res.ToProto(req),
 		Metrics: &tempopb.SearchMetrics{
 			InspectedBytes: inspectedBytes,
 			InspectedSpans: spansTotal,
 		},
 	}, nil
-}
-
-func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
-	resp := make([]*tempopb.TimeSeries, 0, len(set))
-
-	for promLabels, s := range set {
-		labels := make([]v1.KeyValue, 0, len(s.Labels))
-		for _, label := range s.Labels {
-			labels = append(labels,
-				v1.KeyValue{
-					Key:   label.Name,
-					Value: label.Value.AsAnyValue(),
-				},
-			)
-		}
-
-		intervals := traceql.IntervalCount(req.Start, req.End, req.Step)
-		samples := make([]tempopb.Sample, 0, intervals)
-		for i, value := range s.Values {
-
-			ts := traceql.TimestampOf(uint64(i), req.Start, req.Step)
-
-			samples = append(samples, tempopb.Sample{
-				TimestampMs: time.Unix(0, int64(ts)).UnixMilli(),
-				Value:       value,
-			})
-		}
-
-		exemplars := make([]tempopb.Exemplar, 0, len(s.Exemplars))
-		for _, e := range s.Exemplars {
-			// skip exemplars that has NaN value
-			i := traceql.IntervalOfMs(int64(e.TimestampMs), req.Start, req.End, req.Step)
-			if i < 0 || i >= len(s.Values) || math.IsNaN(s.Values[i]) { // strict bounds check
-				continue
-			}
-
-			lbls := make([]v1.KeyValue, 0, len(e.Labels))
-			for _, label := range e.Labels {
-				lbls = append(lbls,
-					v1.KeyValue{
-						Key:   label.Name,
-						Value: label.Value.AsAnyValue(),
-					},
-				)
-			}
-			exemplars = append(exemplars, tempopb.Exemplar{
-				Labels:      lbls,
-				TimestampMs: int64(e.TimestampMs),
-				Value:       e.Value,
-			})
-		}
-
-		ss := &tempopb.TimeSeries{
-			PromLabels: promLabels,
-			Labels:     labels,
-			Samples:    samples,
-			Exemplars:  exemplars,
-		}
-
-		resp = append(resp, ss)
-	}
-
-	return resp
 }
