@@ -38,6 +38,9 @@ func (r RootExpr) validate() error {
 		}
 	}
 
+	// TODO(suraj): do extra validations here to disallow compare() with second stage functions
+	// it doesn't make sense to allow a query like `{} | compare() | topk(10)` so we should fail validation
+
 	return nil
 }
 
