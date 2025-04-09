@@ -212,7 +212,7 @@ These functions are similar to their equivalent PromQL functions. For example:
 - `{ } | rate() by(resource.service.name) | bottomk(5)`
 - `{ } | rate() by(resource.service.name) | topk(5)`
 
-When a query response is larger than the maximum, you can use to return only the specified number
+When a query response is larger than the maximum, you can use these functions to return only the specified number
 from 1 through `k` of the number of the top or bottom results.
 
 For example: `{ resource.service.name = "foo" } | rate() by (span.http.url)  | topk(10)`
@@ -235,8 +235,7 @@ Because it's evaluated at each data point, you'll get the top series for each da
 The `compare` function is used to split a set of spans into two groups: a selection and a baseline.
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
 
-This is a powerful function that's best understood by using the [**Comparison
-** tab in Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/#comparison).
+This powerful function is best understood by using the [**Comparison** tab in Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/#comparison).
 You can also under this function by looking at example outputs below.
 
 The function is used like other metrics functions: when it's placed after any trace query, it converts the query into a
