@@ -3,6 +3,7 @@ package querier
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -158,6 +159,12 @@ func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequ
 
 		exemplars := make([]tempopb.Exemplar, 0, len(s.Exemplars))
 		for _, e := range s.Exemplars {
+			// skip exemplars that has NaN value
+			i := traceql.IntervalOfMs(int64(e.TimestampMs), req.Start, req.End, req.Step)
+			if math.IsNaN(s.Values[i]) {
+				continue
+			}
+
 			lbls := make([]v1.KeyValue, 0, len(e.Labels))
 			for _, label := range e.Labels {
 				lbls = append(lbls,
