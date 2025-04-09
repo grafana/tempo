@@ -1554,20 +1554,6 @@ func TestProcessTopK(t *testing.T) {
 				"b": {2, 6, 2},
 			}),
 		},
-		// FIXME: this test case is flaky, needs to be handled better
-		// {
-		// 	name: "test ties at a timestamp",
-		// 	input: createSeriesSet(map[string][]float64{
-		// 		"a": {10, 5, 3},
-		// 		"b": {10, 4, 2},
-		// 		"c": {10, 3, 1},
-		// 	}),
-		// 	limit: 2,
-		// 	expected: createSeriesSet(map[string][]float64{
-		// 		"a": {10, 5, 3}, // tie at timestamp 0, top 2 at timestamp 1, 2
-		// 		"b": {10, 4, 2}, // tie at timestamp 0, top 2 at timestamp 1, 2
-		// 	}),
-		// },
 		{
 			name: "negative and infinity values",
 			input: createSeriesSet(map[string][]float64{
@@ -1659,21 +1645,6 @@ func TestProcessBottomK(t *testing.T) {
 				"c": {math.NaN(), 1, 1}, // Bottom-2 at timestamps 1, 2
 			}),
 		},
-		// FIXME: this case is flaky, need to handle it better
-		// {
-		// 	name: "test ties at a timestamp",
-		// 	input: createSeriesSet(map[string][]float64{
-		// 		"a": {10, 5, 3},
-		// 		"b": {10, 4, 2},
-		// 		"c": {10, 3, 1},
-		// 	}),
-		// 	limit: 2,
-		// 	expected: createSeriesSet(map[string][]float64{
-		// 		"a": {10, math.NaN(), math.NaN()},
-		// 		"b": {10, 4, 2},
-		// 		"c": {math.NaN(), 3, 1},
-		// 	}),
-		// },
 		{
 			name: "all series with NaN values",
 			input: createSeriesSet(map[string][]float64{
@@ -1720,10 +1691,47 @@ func TestProcessBottomK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			fmt.Printf("input: %v\n", tt.input)
 			result := processBottomK(tt.input, 3, tt.limit)
+			fmt.Printf("result: %v\n", result)
 			expectSeriesSet(t, tt.expected, result)
 		})
 	}
+}
+
+func TestTiesInTopK(t *testing.T) {
+	input := createSeriesSet(map[string][]float64{
+		"a": {10, 5, 1},
+		"b": {10, 4, 2},
+		"c": {10, 3, 3},
+	})
+	result := processTopK(input, 3, 2)
+	fmt.Printf("result: %v\n", result)
+
+	// because of ties, we can have different result at index 0
+	// "a" can be [10, 5, NaN] OR [NaN, 5, NaN]
+	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
+	// "c" can be [10, NaN, 3] OR [NaN, NaN, 3]
+	checkEqualForTies(t, result[`{label="a"}`].Values, []float64{10, 5, math.NaN()})
+	checkEqualForTies(t, result[`{label="b"}`].Values, []float64{10, 4, 2})
+	checkEqualForTies(t, result[`{label="c"}`].Values, []float64{10, math.NaN(), 3})
+}
+
+func TestTiesInBottomK(t *testing.T) {
+	input := createSeriesSet(map[string][]float64{
+		"a": {10, 5, 1},
+		"b": {10, 4, 2},
+		"c": {10, 3, 3},
+	})
+	result := processBottomK(input, 3, 2)
+
+	// because of ties, we can have different result at index 0
+	// "a" can be [10, NaN, 1] OR [NaN, NaN, 1]
+	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
+	// "c" can be [10, 3, NaN] OR [NaN, 3, NaN]
+	checkEqualForTies(t, result[`{label="a"}`].Values, []float64{10, math.NaN(), 1})
+	checkEqualForTies(t, result[`{label="b"}`].Values, []float64{10, 4, 2})
+	checkEqualForTies(t, result[`{label="c"}`].Values, []float64{10, 3, math.NaN()})
 }
 
 func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, error) {
@@ -1808,6 +1816,23 @@ func expectSeriesSet(t *testing.T, expected, result SeriesSet) {
 				require.True(t, math.IsNaN(resultSeries.Values[i]), "expected NaN at index %d", i)
 			} else {
 				require.Equal(t, expectedValue, resultSeries.Values[i])
+			}
+		}
+	}
+}
+
+func checkEqualForTies(t *testing.T, result, expected []float64) {
+	for i := range result {
+		switch i {
+		// at index 0, we have a tie so it can be sometimes NaN
+		case 0:
+			require.True(t, math.IsNaN(result[0]) || result[0] == expected[0],
+				"index 0: expected NaN or %v, got %v", expected[0], result[0])
+		default:
+			if math.IsNaN(expected[i]) {
+				require.True(t, math.IsNaN(result[i]), "index %d: expected NaN, got %v", i, result[i])
+			} else {
+				require.Equal(t, expected[i], result[i], "index %d: expected %v", i, expected[i])
 			}
 		}
 	}
