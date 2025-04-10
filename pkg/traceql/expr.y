@@ -29,7 +29,8 @@ import (
     wrappedScalarPipeline Pipeline
     scalarPipeline Pipeline
     aggregate Aggregate
-    metricsAggregation metricsFirstStageElement
+    metricsAggregation firstStageElement
+    metricsSecondStage secondStageElement
 
     fieldExpression FieldExpression
     static Static
@@ -64,6 +65,7 @@ import (
 %type <scalarFilter> scalarFilter
 %type <scalarFilterOperation> scalarFilterOperation
 %type <metricsAggregation> metricsAggregation
+%type <metricsSecondStage> metricsSecondStage
 
 %type <scalarPipelineExpressionFilter> scalarPipelineExpressionFilter
 %type <scalarPipelineExpression> scalarPipelineExpression
@@ -101,6 +103,7 @@ import (
                         BY COALESCE SELECT
                         END_ATTRIBUTE
                         RATE COUNT_OVER_TIME MIN_OVER_TIME MAX_OVER_TIME AVG_OVER_TIME SUM_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME COMPARE
+                        TOPK BOTTOMK
                         WITH
 
 // Operators are listed with increasing precedence.
@@ -121,6 +124,8 @@ root:
   | spansetPipelineExpression                   { yylex.(*lexer).expr = newRootExpr($1) }
   | scalarPipelineExpressionFilter              { yylex.(*lexer).expr = newRootExpr($1) } 
   | spansetPipeline PIPE metricsAggregation     { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
+  // note: would only work for single metrics pipeline and not for multiple metrics pipelines before the fucntions
+  | spansetPipeline PIPE metricsAggregation PIPE metricsSecondStage  { yylex.(*lexer).expr = newRootExprWithMetricsTwoStage($1, $3, $5) }
   | root hints                                  { yylex.(*lexer).expr.withHints($2) }
   ;
 
@@ -292,6 +297,7 @@ aggregate:
 
 // **********************
 // Metrics
+// TODO: rename metricsAggregation -> metricsFirstStage
 // **********************
 metricsAggregation:
       RATE            OPEN_PARENS CLOSE_PARENS                                                                          { $$ = newMetricsAggregate(metricsAggregateRate, nil) }
@@ -313,6 +319,14 @@ metricsAggregation:
     | COMPARE OPEN_PARENS spansetFilter CLOSE_PARENS                                                                    { $$ = newMetricsCompare($3, 10, 0, 0)}
     | COMPARE OPEN_PARENS spansetFilter COMMA INTEGER CLOSE_PARENS                                                      { $$ = newMetricsCompare($3, $5, 0, 0)}
     | COMPARE OPEN_PARENS spansetFilter COMMA INTEGER COMMA INTEGER COMMA INTEGER CLOSE_PARENS                          { $$ = newMetricsCompare($3, $5, $7, $9)}
+  ;
+
+// **********************
+// Metrics Second Stage Functions
+// **********************
+metricsSecondStage:
+    TOPK OPEN_PARENS INTEGER CLOSE_PARENS                        { $$ = newTopKBottomK(OpTopK, $3) }
+    | BOTTOMK OPEN_PARENS INTEGER CLOSE_PARENS                   { $$ = newTopKBottomK(OpBottomK, $3) }
   ;
 
 // **********************
