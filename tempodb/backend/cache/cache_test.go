@@ -25,6 +25,14 @@ func TestCacheFor(t *testing.T) {
 
 	rw := reader.(*readerWriter)
 
+	// test.MockProvider will return the same cache for all requests. we need
+	// to override individual caches so that the test can validate the cache returned
+	rw.footerCache = test.NewMockClient()
+	rw.columnIdxCache = test.NewMockClient()
+	rw.offsetIdxCache = test.NewMockClient()
+	rw.traceIDIdxCache = test.NewMockClient()
+	rw.bloomCache = test.NewMockClient()
+
 	testCases := []struct {
 		name          string
 		cacheInfo     *backend.CacheInfo
