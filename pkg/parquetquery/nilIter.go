@@ -191,7 +191,6 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 				// check if we've already returned this row so we can properly next()
 				if !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) {
 					c.lastRowNumberReturned = c.syncIterator.curr
-					fmt.Printf("this one does not have the attribute! %v\n", c.syncIterator.curr)
 					return c.syncIterator.curr, v, nil
 				}
 
@@ -199,7 +198,7 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
-			c.syncIterator.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
+			c.syncIterator.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.syncIterator.maxDefinitionLevel)
 			c.syncIterator.currBufN++
 			c.syncIterator.currPageN++
 
@@ -214,7 +213,6 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 			// if this is the last value then check here
 			if c.lastBuff && c.syncIterator.currBufN == len(c.syncIterator.currBuf) && !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) {
 				c.lastRowNumberReturned = c.syncIterator.curr
-				fmt.Printf("this one does not have the attribute! %v\n", c.syncIterator.curr)
 				return c.syncIterator.curr, v, nil
 			}
 			continue
