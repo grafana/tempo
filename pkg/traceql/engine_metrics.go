@@ -277,7 +277,7 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 		for _, e := range s.Exemplars {
 			// skip exemplars that has NaN value
 			i := IntervalOfMs(int64(e.TimestampMs), start, end, req.Step)
-			if math.IsNaN(s.Values[i]) {
+			if i < 0 || i >= len(s.Values) || math.IsNaN(s.Values[i]) { // strict bounds check
 				continue
 			}
 

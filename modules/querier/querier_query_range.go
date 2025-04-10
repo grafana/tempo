@@ -161,7 +161,7 @@ func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequ
 		for _, e := range s.Exemplars {
 			// skip exemplars that has NaN value
 			i := traceql.IntervalOfMs(int64(e.TimestampMs), req.Start, req.End, req.Step)
-			if math.IsNaN(s.Values[i]) {
+			if i < 0 || i >= len(s.Values) || math.IsNaN(s.Values[i]) { // strict bounds check
 				continue
 			}
 
