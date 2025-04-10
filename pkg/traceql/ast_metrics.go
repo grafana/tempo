@@ -16,6 +16,7 @@ type firstStageElement interface {
 	observeExemplar(Span)
 	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result() SeriesSet
+	length() int
 }
 
 type getExemplar func(Span) (float64, uint64)
@@ -259,6 +260,14 @@ func (a *MetricsAggregate) result() SeriesSet {
 	// In the frontend-version the results come from
 	// the job-level aggregator
 	return a.seriesAgg.Results()
+}
+
+func (a *MetricsAggregate) length() int {
+	if a.agg != nil {
+		return a.agg.Length()
+	}
+
+	return a.seriesAgg.Length()
 }
 
 func (a *MetricsAggregate) validate() error {

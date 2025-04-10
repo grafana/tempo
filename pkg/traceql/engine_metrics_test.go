@@ -790,8 +790,9 @@ func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(300),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1406,8 +1407,9 @@ func TestSecondStageTopK(t *testing.T) {
 	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
 	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	// bar and baz have more spans so they should be the top 2
 	resultBar := result[`{"span.foo"="bar"}`]
@@ -1430,8 +1432,9 @@ func TestSecondStageTopKAverage(t *testing.T) {
 	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
 	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	resultBar := result[`{"span.foo"="bar"}`]
 	val1 := 0.000000512
@@ -1455,8 +1458,9 @@ func TestSecondStageBottomK(t *testing.T) {
 	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
 	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	// quax and baz have the lowest spans so they should be the bottom 2
 	resultBar := result[`{"span.foo"="quax"}`]

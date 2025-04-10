@@ -227,6 +227,9 @@ func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds f
 		"inspected_bytes", resp.Metrics.InspectedBytes,
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
+		"partial_status", resp.Status,
+		"partial_message", resp.Message,
+		"num_response_series", len(resp.Series),
 		"error", err)
 }
 
