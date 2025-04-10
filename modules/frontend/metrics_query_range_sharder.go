@@ -250,7 +250,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
 			// cache the response for that, we want only the few minutes time range for this block. This has
 			// size savings but the main thing is that the response is reuseable for any overlapping query.
-			start, end, step := traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+			start, end, step := traceql.TrimToBlockOverlap(searchReq.Start, searchReq.End, searchReq.Step, m.StartTime, m.EndTime)
 			if start == end || step == 0 {
 				level.Warn(s.logger).Log("msg", "invalid start/step end. skipping", "start", start, "end", end, "step", step, "blockStart", m.StartTime.UnixNano(), "blockEnd", m.EndTime.UnixNano())
 				continue

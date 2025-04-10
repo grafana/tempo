@@ -86,20 +86,28 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	return IntervalOf(ts, start, end, step)
 }
 
-// TrimToOverlap returns the aligned overlap between the two given time ranges. If the request
-// is instant, then will return and updated step to match to the new time range.
-func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64, uint64) {
-	wasInstant := end1-start1 == step
+// TrimToBlockOverlap returns the aligned overlap between the given time and block ranges,
+// the block's borders are included.
+// If the request is instantaneous, it returns an updated step to match the new time range.
+// It assumes that blockEnd is aligned to seconds.
+func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
+	wasInstant := end-start == step
 
-	start1 = max(start1, start2)
-	end1 = min(end1, end2)
+	start2 := uint64(blockStart.UnixNano())
+	// Block's endTime is rounded down to the nearest second and considered inclusive.
+	// In order to include the right border with nanoseconds, we add 1 second
+	blockEnd = blockEnd.Add(time.Second)
+	end2 := uint64(blockEnd.UnixNano())
+
+	start = max(start, start2)
+	end = min(end, end2)
 
 	if wasInstant {
 		// Alter step to maintain instant nature
-		step = end1 - start1
+		step = end - start
 	}
 
-	return start1, end1, step
+	return start, end, step
 }
 
 // TrimToBefore shortens the query window to only include before the given time.
@@ -1005,7 +1013,9 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
-	if fetcherStart > 0 && fetcherEnd > 0 {
+	if fetcherStart > 0 && fetcherEnd > 0 &&
+		// exclude special case for a block with the same start and end
+		fetcherStart != fetcherEnd {
 		// Dynamically decide whether to use the trace-level timestamp columns
 		// for filtering.
 		overlap := timeRangeOverlap(e.start, e.end, fetcherStart, fetcherEnd)
@@ -1047,7 +1057,12 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		e.mtx.Lock()
 
-		for _, s := range ss.Spans {
+		var validSpansCount int
+		var randomSpanIndex int
+
+		needExemplar := e.maxExemplars > 0 && e.sampleExemplar(ss.TraceID)
+
+		for i, s := range ss.Spans {
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
 				if st < e.start || st >= e.end {
@@ -1055,13 +1070,23 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 				}
 			}
 
-			e.spansTotal++
-
+			validSpansCount++
 			e.metricsPipeline.observe(s)
-		}
 
-		if len(ss.Spans) > 0 && e.sampleExemplar(ss.TraceID) {
-			e.metricsPipeline.observeExemplar(ss.Spans[rand.Intn(len(ss.Spans))])
+			if !needExemplar {
+				continue
+			}
+
+			// Reservoir sampling - select a random span for exemplar
+			// Each span has a 1/validSpansCount probability of being selected
+			if validSpansCount == 1 || rand.Intn(validSpansCount) == 0 {
+				randomSpanIndex = i
+			}
+		}
+		e.spansTotal += uint64(validSpansCount)
+
+		if needExemplar && validSpansCount > 0 {
+			e.metricsPipeline.observeExemplar(ss.Spans[randomSpanIndex])
 		}
 
 		e.mtx.Unlock()
