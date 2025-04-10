@@ -15,7 +15,14 @@ import (
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (Combiner, error) {
+func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner, error) {
+	// if a limit is being enforced, honor the request if it is less than the limit
+	// else set it to max limit
+	maxSeries := int(req.MaxSeries)
+	if maxSeriesLimit > 0 && int(req.MaxSeries) > maxSeriesLimit || req.MaxSeries == 0 {
+		maxSeries = maxSeriesLimit
+	}
+	
 	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal, maxSeries)
 	if err != nil {
 		return nil, err

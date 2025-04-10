@@ -337,17 +337,10 @@ func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, m
 		return nil, err
 	}
 
-	// if a limit is being enforced, honor the request if it is less than the limit
-	// else set it to max limit
-	maxSeries := int(req.MaxSeries)
-	if maxSeriesLimit > 0 && int(req.MaxSeries) > maxSeriesLimit || req.MaxSeries == 0 {
-		maxSeries = maxSeriesLimit
-	}
-
 	return &QueryRangeCombiner{
 		req:       req,
 		eval:      eval,
-		maxSeries: maxSeries,
+		maxSeries: maxSeriesLimit,
 		metrics:   &tempopb.SearchMetrics{},
 	}, nil
 }
