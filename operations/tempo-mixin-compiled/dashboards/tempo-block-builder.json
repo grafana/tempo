@@ -1,0 +1,1329 @@
+{
+ "annotations": {
+  "list": [
+
+  ]
+ },
+ "editable": true,
+ "gnetId": null,
+ "graphTooltip": 0,
+ "hideControls": false,
+ "links": [
+  {
+   "asDropdown": true,
+   "icon": "external link",
+   "includeVars": true,
+   "keepTime": true,
+   "tags": [
+    "tempo"
+   ],
+   "targetBlank": false,
+   "title": "Tempo Dashboards",
+   "type": "dashboards"
+  }
+ ],
+ "refresh": "",
+ "rows": [
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "description": "### Kafka fetched records / sec\nOverview of per-second rate of records fetched from Kafka.\n",
+     "fill": 10,
+     "id": 1,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum (rate(tempo_block_builder_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "sucessful",
+       "legendLink": null
+      },
+      {
+       "expr": "sum (rate(tempo_block_builder_fetch_errors_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "read errors",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Kafka fetched records / sec",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Per pod Kafka fetched records / sec\nOverview of per-second rate of records fetched from Kafka split by pods.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 2,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 4,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "sum by (pod) (rate(tempo_block_builder_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{pod}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Per pod Kafka fetched records / sec",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Per partition Kafka fetched records / sec\nOverview of per-second rate of records fetched from Kafka split by partition.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 3,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 4,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "sum by (partition) (rate(tempo_block_builder_fetch_records_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{partition}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Per partition Kafka fetched records / sec",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Fetched records",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "description": "### Kafka read bytes / sec\nOverview of per-second rate of bytes readed from Kafka.\n",
+     "fieldConfig": {
+      "defaults": {
+       "unit": "binBps"
+      }
+     },
+     "fill": 10,
+     "id": 4,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum (rate(tempo_block_builder_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "readed",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Kafka read bytes / sec",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "binBps",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Per pod Kafka read bytes / sec\nOverview of per-second rate of bytes readed from Kafka split by pods.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "binBps"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 5,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 4,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "sum by (pod) (rate(tempo_block_builder_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{pod}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Per pod Kafka read bytes / sec",
+     "type": "timeseries",
+     "yaxes": [
+      {
+       "format": "binBps",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Per partition Kafka read bytes / sec\nOverview of per-second rate of bytes readed from Kafka split by partition.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "binBps"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 6,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 4,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "sum by (partition) (rate(tempo_block_builder_fetch_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{partition}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Per partition Kafka read bytes / sec",
+     "type": "timeseries",
+     "yaxes": [
+      {
+       "format": "binBps",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Read bytes",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "description": "### Block builder partition section duration\nOverview of the partition section duration.\n",
+     "fieldConfig": {
+      "defaults": {
+       "unit": "short"
+      }
+     },
+     "fill": 10,
+     "id": 7,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum (rate(tempo_block_builder_flushed_blocks{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "blocks",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Flushed blocks / sec",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Block builder partition section duration\nOverview of the partition section duration.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 8,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 6,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "sum by (pod) (rate(tempo_block_builder_flushed_blocks{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{pod}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Per pod flushed blocks / sec",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Flushed blocks",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### Kafka lag by partition records\nOverview of the lag by partition in records.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 9,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 6,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "max(tempo_ingest_group_partition_lag{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}) by (partition)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{partition}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Lag of records by partition",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Kafka lag by partition in seconds\nOverview of the lag by partition in seconds.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 10,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 6,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "max(tempo_ingest_group_partition_lag_seconds{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}) by (partition)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{partition}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Lag by partition (sec)",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Partitions",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "description": "### Block builder partition section duration\nOverview of the partition section duration.\n",
+     "fieldConfig": {
+      "defaults": {
+       "unit": "s"
+      }
+     },
+     "fill": 10,
+     "id": 11,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_block_builder_process_partition_section_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))  by (partition)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{partition}}",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Partition section duration (sec)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "heatmap",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "description": "### Block builder partition cycle duration\nOverview of the partition cycle duration.\n",
+     "fieldConfig": {
+      "defaults": {
+       "unit": "s"
+      }
+     },
+     "fill": 10,
+     "id": 12,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_block_builder_consume_cycle_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "cycle duration",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Partition cycle duration (sec)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "heatmap",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Consumption time",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 13,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+      {
+       "alias": "limit",
+       "color": "#E02F44",
+       "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
+      }
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{pod}}",
+       "legendLink": null
+      },
+      {
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "limit",
+       "legendLink": null
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "request",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "CPU",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 14,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+      {
+       "alias": "limit",
+       "color": "#E02F44",
+       "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
+      }
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{pod}}",
+       "legendLink": null
+      },
+      {
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "limit",
+       "legendLink": null
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "request",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Memory (workingset)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "bytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Resources",
+   "titleSize": "h6"
+  }
+ ],
+ "schemaVersion": 14,
+ "style": "dark",
+ "tags": [
+  "tempo"
+ ],
+ "templating": {
+  "list": [
+   {
+    "current": {
+     "text": "default",
+     "value": "default"
+    },
+    "hide": 0,
+    "label": "Data source",
+    "name": "datasource",
+    "options": [
+
+    ],
+    "query": "prometheus",
+    "refresh": 1,
+    "regex": "",
+    "type": "datasource"
+   },
+   {
+    "allValue": null,
+    "current": {
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": "$datasource",
+    "hide": 0,
+    "includeAll": true,
+    "label": "cluster",
+    "multi": true,
+    "name": "cluster",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_build_info, cluster)",
+    "refresh": 1,
+    "regex": "",
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   },
+   {
+    "allValue": null,
+    "current": {
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": "$datasource",
+    "hide": 0,
+    "includeAll": true,
+    "label": "namespace",
+    "multi": true,
+    "name": "namespace",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_build_info{cluster=~'$cluster'}, namespace)",
+    "refresh": 1,
+    "regex": "",
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   }
+  ]
+ },
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "timepicker": {
+  "refresh_intervals": [
+   "5s",
+   "10s",
+   "30s",
+   "1m",
+   "5m",
+   "15m",
+   "30m",
+   "1h",
+   "2h",
+   "1d"
+  ],
+  "time_options": [
+   "5m",
+   "15m",
+   "1h",
+   "6h",
+   "12h",
+   "24h",
+   "2d",
+   "7d",
+   "30d"
+  ]
+ },
+ "timezone": "utc",
+ "title": "Tempo / Block builder",
+ "uid": "",
+ "version": 0
+}

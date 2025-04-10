@@ -112,7 +112,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	level.Info(log.Logger).Log("msg", "Starting Tempo", "version", version.Info())
+	level.Info(log.Logger).Log(
+		"msg", "Starting Tempo",
+		"version", version.Info(),
+		"target", config.Target,
+	)
 
 	if err := t.Run(); err != nil {
 		level.Error(log.Logger).Log("msg", "error running Tempo", "err", err)

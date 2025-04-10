@@ -6,7 +6,7 @@
 | Stability     | [beta]: metrics, logs, traces   |
 | Distributions | [core], [contrib] |
 | Issues        | [![Open issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aopen%20label%3Areceiver%2Fkafka%20&label=open&color=orange&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aopen+is%3Aissue+label%3Areceiver%2Fkafka) [![Closed issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aclosed%20label%3Areceiver%2Fkafka%20&label=closed&color=blue&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aclosed+is%3Aissue+label%3Areceiver%2Fkafka) |
-| [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@pavolloffay](https://www.github.com/pavolloffay), [@MovieStoreGuy](https://www.github.com/MovieStoreGuy) |
+| [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@pavolloffay](https://www.github.com/pavolloffay), [@MovieStoreGuy](https://www.github.com/MovieStoreGuy), [@axw](https://www.github.com/axw) |
 
 [beta]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/component-stability.md#beta
 [core]: https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol
@@ -19,13 +19,12 @@ Note that metrics and logs only support OTLP.
 
 ## Getting Started
 
-The following settings are required:
-
-- `protocol_version` (no default): Kafka protocol version e.g. 2.0.0
+There are no required settings.
 
 The following settings can be optionally configured:
 
-- `brokers` (default = localhost:9092): The list of kafka brokers
+- `brokers` (default = localhost:9092): The list of kafka brokers.
+- `protocol_version` (default = 2.1.0): Kafka protocol version.
 - `resolve_canonical_bootstrap_servers_only` (default = false): Whether to resolve then reverse-lookup broker IPs during startup
 - `topic` (default = otlp_spans for traces, otlp_metrics for metrics, otlp_logs for logs): The name of the kafka topic to read from.
   Only one telemetry type may be used for a given topic.
@@ -50,12 +49,12 @@ The following settings can be optionally configured:
 - `default_fetch_size` (default = `1048576`): The default number of message bytes to fetch in a request, defaults to 1MB.
 - `max_fetch_size` (default = `0`): The maximum number of message bytes to fetch in a request, defaults to unlimited.
 - `auth`
-  - `plain_text`
+  - `plain_text` (Deprecated in v0.123.0: use sasl with mechanism set to PLAIN instead.)
     - `username`: The username to use.
     - `password`: The password to use
   - `sasl`
     - `username`: The username to use.
-    - `password`: The password to use
+    - `password`: The password to use.
     - `mechanism`: The sasl mechanism to use (SCRAM-SHA-256, SCRAM-SHA-512, AWS_MSK_IAM, AWS_MSK_IAM_OAUTHBEARER or PLAIN)
     - `aws_msk.region`: AWS Region in case of AWS_MSK_IAM or AWS_MSK_IAM_OAUTHBEARER mechanism
     - `aws_msk.broker_addr`: MSK Broker address in case of AWS_MSK_IAM mechanism

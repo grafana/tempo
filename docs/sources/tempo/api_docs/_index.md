@@ -30,6 +30,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
 | [Ingest traces](#ingest) | Distributor |  - | See section for details |
 | [Querying traces by id](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
+| [Querying traces by id V2](#query-v2) | Query-frontend |  HTTP | `GET /api/v2/traces/<traceID>` |
 | [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
 | [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
 | [Search tag names V2](#search-tags-v2) | Query-frontend | HTTP | `GET /api/v2/search/tags` |

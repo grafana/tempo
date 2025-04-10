@@ -1,9 +1,18 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:base"
-  ],
-  automerge: true,
-  automergeType: 'branch',
-  separateMinorPatch: false,
+	$schema: "https://docs.renovatebot.com/renovate-schema.json",
+	extends: [
+		"config:recommended",
+		":semanticCommits",
+		":semanticCommitTypeAll(chore)",
+		":semanticCommitScope(deps)",
+		"group:allNonMajor",
+		"schedule:earlyMondays", // Run once a week.
+	],
+	packageRules: [
+		{
+			matchPackageNames: ["golangci-lint"],
+			matchManagers: ["hermit"],
+			enabled: false,
+		},
+	],
 }

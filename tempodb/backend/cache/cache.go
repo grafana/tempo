@@ -100,7 +100,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 
 	b, err := tempo_io.ReadAllWithEstimate(object, size)
 	if err == nil && cache != nil {
-		store(ctx, cache, cacheInfo.Role, k, b)
+		cache.Store(ctx, []string{k}, [][]byte{b})
 	}
 
 	return io.NopCloser(bytes.NewReader(b)), size, err
@@ -118,6 +118,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 		b, found := cache.FetchKey(ctx, k)
 		if found {
 			copy(buffer, b)
+			cache.Release(b)
 			return nil
 		}
 	}
@@ -126,7 +127,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 	// todo: reevaluate. should we pass the cacheInfo forward?
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, nil)
 	if err == nil && cache != nil {
-		store(ctx, cache, cacheInfo.Role, k, buffer)
+		cache.Store(ctx, []string{k}, [][]byte{buffer})
 	}
 
 	return err
@@ -216,20 +217,4 @@ func (r *readerWriter) cacheFor(cacheInfo *backend.CacheInfo) cache.Cache {
 	}
 
 	return nil
-}
-
-func store(ctx context.Context, cache cache.Cache, role cache.Role, key string, val []byte) {
-	write := val
-	if needsCopy(role) {
-		write = make([]byte, len(val))
-		copy(write, val)
-	}
-
-	cache.Store(ctx, []string{key}, [][]byte{write})
-}
-
-// needsCopy returns true if the role should be copied into a new buffer before being written to the cache
-// todo: should this be signalled through cacheinfo instead?
-func needsCopy(role cache.Role) bool {
-	return role == cache.RoleParquetPage // parquet pages are reused by the library. if we don't copy them then the buffer may be reused before written to cache
 }

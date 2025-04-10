@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -42,6 +43,7 @@ var (
 	tempoLongWriteBackoffDuration time.Duration
 	tempoReadBackoffDuration      time.Duration
 	tempoSearchBackoffDuration    time.Duration
+	tempoMetricsBackoffDuration   time.Duration
 	tempoRetentionDuration        time.Duration
 	tempoPushTLS                  bool
 
@@ -52,10 +54,13 @@ var (
 
 type traceMetrics struct {
 	incorrectResult         int
+	incorrectMetricsResult  int
 	missingSpans            int
 	notFoundByID            int
 	notFoundSearch          int
 	notFoundTraceQL         int
+	notFoundByMetrics       int
+	inaccurateMetrics       int
 	requested               int
 	requestFailed           int
 	notFoundSearchAttribute int
@@ -73,6 +78,7 @@ type vultureConfiguration struct {
 	tempoLongWriteBackoffDuration time.Duration
 	tempoReadBackoffDuration      time.Duration
 	tempoSearchBackoffDuration    time.Duration
+	tempoMetricsBackoffDuration   time.Duration
 	tempoRetentionDuration        time.Duration
 	tempoPushTLS                  bool
 }
@@ -115,6 +121,7 @@ func init() {
 	flag.DurationVar(&tempoLongWriteBackoffDuration, "tempo-long-write-backoff-duration", 1*time.Minute, "The amount of time to pause between long write Tempo calls")
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
 	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls.  Set to 0s to disable search.")
+	flag.DurationVar(&tempoMetricsBackoffDuration, "tempo-metrics-backoff-duration", 0, "The amount of time to pause between TraceQL Metrics Tempo calls.  Set to 0s to disable.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
@@ -140,6 +147,7 @@ func main() {
 		tempoLongWriteBackoffDuration: tempoLongWriteBackoffDuration,
 		tempoReadBackoffDuration:      tempoReadBackoffDuration,
 		tempoSearchBackoffDuration:    tempoSearchBackoffDuration,
+		tempoMetricsBackoffDuration:   tempoMetricsBackoffDuration,
 		tempoRetentionDuration:        tempoRetentionDuration,
 		tempoPushTLS:                  tempoPushTLS,
 	}
@@ -154,7 +162,12 @@ func main() {
 		httpClient.SetQueryParam(api.URLParamRF1After, rf1After.Format(time.RFC3339))
 	}
 
-	tickerWrite, tickerRead, tickerSearch, err := initTickers(vultureConfig.tempoWriteBackoffDuration, vultureConfig.tempoReadBackoffDuration, vultureConfig.tempoSearchBackoffDuration)
+	tickerWrite, tickerRead, tickerSearch, tickerMetrics, err := initTickers(
+		vultureConfig.tempoWriteBackoffDuration,
+		vultureConfig.tempoReadBackoffDuration,
+		vultureConfig.tempoSearchBackoffDuration,
+		vultureConfig.tempoMetricsBackoffDuration,
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -165,6 +178,7 @@ func main() {
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
 	doRead(httpClient, tickerRead, startTime, interval, r, vultureConfig, logger)
 	doSearch(httpClient, tickerSearch, startTime, interval, r, vultureConfig, logger)
+	doMetrics(httpClient, tickerMetrics, startTime, interval, r, vultureConfig, logger)
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
@@ -183,9 +197,20 @@ func getGRPCEndpoint(endpoint string) (string, error) {
 	return dialAddress, nil
 }
 
-func initTickers(tempoWriteBackoffDuration time.Duration, tempoReadBackoffDuration time.Duration, tempoSearchBackoffDuration time.Duration) (tickerWrite *time.Ticker, tickerRead *time.Ticker, tickerSearch *time.Ticker, err error) {
+func initTickers(
+	tempoWriteBackoffDuration time.Duration,
+	tempoReadBackoffDuration time.Duration,
+	tempoSearchBackoffDuration time.Duration,
+	tempoMetricsBackoffDuration time.Duration,
+) (
+	tickerWrite *time.Ticker,
+	tickerRead *time.Ticker,
+	tickerSearch *time.Ticker,
+	tickerMetrics *time.Ticker,
+	err error,
+) {
 	if tempoWriteBackoffDuration <= 0 {
-		return nil, nil, nil, errors.New("tempo-write-backoff-duration must be greater than 0")
+		return nil, nil, nil, nil, errors.New("tempo-write-backoff-duration must be greater than 0")
 	}
 	tickerWrite = time.NewTicker(tempoWriteBackoffDuration)
 	if tempoReadBackoffDuration > 0 {
@@ -194,10 +219,13 @@ func initTickers(tempoWriteBackoffDuration time.Duration, tempoReadBackoffDurati
 	if tempoSearchBackoffDuration > 0 {
 		tickerSearch = time.NewTicker(tempoSearchBackoffDuration)
 	}
-	if tickerRead == nil && tickerSearch == nil {
-		return nil, nil, nil, errors.New("at least one of tempo-search-backoff-duration or tempo-read-backoff-duration must be set")
+	if tempoMetricsBackoffDuration > 0 {
+		tickerMetrics = time.NewTicker(tempoMetricsBackoffDuration)
 	}
-	return tickerWrite, tickerRead, tickerSearch, nil
+	if tickerRead == nil && tickerSearch == nil && tickerMetrics == nil {
+		return nil, nil, nil, nil, errors.New("at least one of tempo-search-backoff-duration, tempo-read-backoff-duration or tempo-metrics-backoff-duration must be set")
+	}
+	return tickerWrite, tickerRead, tickerSearch, tickerMetrics, nil
 }
 
 // Don't attempt to read on the first iteration if we can't reasonably
@@ -298,7 +326,7 @@ func doRead(httpClient httpclient.TempoHTTPClient, tickerRead *time.Ticker, star
 						zap.Error(err),
 					)
 				}
-				pushMetrics(queryMetrics)
+				pushVultureMetrics(queryMetrics)
 			}
 		}()
 	}
@@ -329,7 +357,7 @@ func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, 
 						zap.Error(err),
 					)
 				}
-				pushMetrics(searchMetrics)
+				pushVultureMetrics(searchMetrics)
 
 				// traceql query
 				traceqlSearchMetrics, err := searchTraceql(httpClient, seed, config, l)
@@ -339,19 +367,50 @@ func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, 
 						zap.Error(err),
 					)
 				}
-				pushMetrics(traceqlSearchMetrics)
+				pushVultureMetrics(traceqlSearchMetrics)
 			}
 		}()
 	}
 }
 
-func pushMetrics(metrics traceMetrics) {
+func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+	if ticker == nil {
+		return
+	}
+	go func() {
+		for now := range ticker.C {
+			_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
+			logger := l.With(
+				zap.String("org_id", config.tempoOrgID),
+				zap.Int64("seed", seed.Unix()),
+			)
+
+			info := util.NewTraceInfo(seed, config.tempoOrgID)
+
+			if !traceIsReady(info, now, startTime,
+				config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
+				continue
+			}
+
+			m, err := queryMetrics(httpClient, seed, config, l)
+			if err != nil {
+				logger.Error("query metrics failed", zap.Error(err))
+			}
+			pushVultureMetrics(m)
+		}
+	}()
+}
+
+func pushVultureMetrics(metrics traceMetrics) {
 	metricTracesInspected.Add(float64(metrics.requested))
 	metricTracesErrors.WithLabelValues("incorrectresult").Add(float64(metrics.incorrectResult))
+	metricTracesErrors.WithLabelValues("incorrect_metrics_result").Add(float64(metrics.incorrectMetricsResult))
 	metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 	metricTracesErrors.WithLabelValues("notfound_search").Add(float64(metrics.notFoundSearch))
 	metricTracesErrors.WithLabelValues("notfound_traceql").Add(float64(metrics.notFoundTraceQL))
 	metricTracesErrors.WithLabelValues("notfound_byid").Add(float64(metrics.notFoundByID))
+	metricTracesErrors.WithLabelValues("notfound_metrics").Add(float64(metrics.notFoundByMetrics))
+	metricTracesErrors.WithLabelValues("inaccurate_metrics").Add(float64(metrics.inaccurateMetrics))
 	metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
 	metricTracesErrors.WithLabelValues("notfound_search_attribute").Add(float64(metrics.notFoundSearchAttribute))
 }
@@ -440,7 +499,7 @@ func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vulture
 	// Get the expected
 	expected, err := info.ConstructTraceFromEpoch()
 	if err != nil {
-		logger.Error("unable to construct trace from epoch", zap.Error(err))
+		l.Error("unable to construct trace from epoch", zap.Error(err))
 		return traceMetrics{}, err
 	}
 
@@ -584,6 +643,124 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 			}
 		}
 		return tm, nil
+	}
+
+	return tm, nil
+}
+
+// queryMetrics performs a TraceQL metrics query and verifies the results.
+// It is a basic smoke test to ensure that the traceql query is working.
+// It randomly selects an attribute from an expected trace and queries for its presence
+// in the metrics API within a time window around the seed time.
+func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
+	tm := traceMetrics{
+		requested: 1,
+	}
+
+	info := util.NewTraceInfo(seed, config.tempoOrgID)
+	hexID := info.HexID()
+
+	expected, err := info.ConstructTraceFromEpoch()
+	if err != nil {
+		err = fmt.Errorf("unable to construct trace from epoch: %w", err)
+		return traceMetrics{}, err
+	}
+
+	attr := util.RandomAttrFromTrace(expected)
+	if attr == nil {
+		tm.notFoundSearchAttribute++
+		return tm, fmt.Errorf("no search attr selected from trace")
+	}
+
+	logger := l.With(
+		zap.Int64("seed", seed.Unix()),
+		zap.String("hexID", hexID),
+		zap.Duration("ago", time.Since(seed)),
+		zap.String("key", attr.Key),
+		zap.String("value", util.StringifyAnyValue(attr.Value)),
+	)
+	logger.Info("searching Tempo via metrics")
+
+	// Use the API to find details about the expected trace. give an hour range around the seed.
+	start := seed.Add(-30 * time.Minute).Unix()
+	end := seed.Add(30 * time.Minute).Unix()
+
+	resp, err := client.MetricsQueryRange(
+		fmt.Sprintf(`{.%s = "%s"} | count_over_time()`, attr.Key, util.StringifyAnyValue(attr.Value)),
+		int(start), int(end), "1m", 0,
+	)
+	if err != nil {
+		logger.Error("failed to query metrics", zap.Error(err))
+		tm.requestFailed++
+		return tm, err
+	}
+
+	if len(resp.Series) == 0 {
+		tm.notFoundByMetrics++
+		logger.Error("failed to find trace by metrics", zap.Error(err))
+		return tm, fmt.Errorf("expected trace %s not found in metrics", hexID)
+	}
+
+	if len(resp.Series) > 1 {
+		tm.incorrectMetricsResult++
+		return tm, fmt.Errorf("expected exactly 1 series, got %d", len(resp.Series))
+	}
+	timeSeries := resp.Series[0]
+	if timeSeries == nil {
+		tm.incorrectMetricsResult++
+		return tm, errors.New("expected time series, got nil")
+	}
+
+	var sum float64
+	for _, sample := range timeSeries.Samples {
+		sum += sample.Value
+	}
+
+	if sum < 1 {
+		tm.notFoundByMetrics++
+		logger.Error("failed to find trace by metrics", zap.Error(err))
+		return tm, fmt.Errorf("expected trace %s not found in metrics", hexID)
+	}
+
+	// Advanced check: ensure metric results are accurate
+	// by checking actual number of spans
+	// skip if search check is disabled
+	if config.tempoSearchBackoffDuration == 0 {
+		return tm, nil
+	}
+	searchResp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
+		tm.requestFailed++
+		return tm, err
+	}
+
+	var spansCount int
+	var traces []*tempopb.TraceSearchMetadata
+	if searchResp != nil {
+		traces = searchResp.Traces
+	}
+	for _, trace := range traces {
+		if trace == nil {
+			continue
+		}
+		for _, spanSet := range trace.SpanSets {
+			if spanSet == nil {
+				continue
+			}
+			spansCount += int(spanSet.Matched)
+		}
+	}
+
+	const delta = 1e-6
+	// if number of traces is not equal to the sum of metric values
+	if math.Abs(float64(spansCount)-sum) > delta {
+		tm.inaccurateMetrics++
+		err = fmt.Errorf(
+			"TraceQL Metrics results are inaccurate: metric count sum=%f, actual span count=%d",
+			sum, spansCount,
+		)
+		return tm, err
 	}
 
 	return tm, nil

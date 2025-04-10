@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"testing"
@@ -121,62 +122,81 @@ func TestEqualTraces(t *testing.T) {
 
 func TestInitTickers(t *testing.T) {
 	tests := []struct {
-		name                                        string
-		writeDuration, readDuration, searchDuration time.Duration
-		expectedWriteTicker                         bool
-		expectedReadTicker                          bool
-		expectedSearchTicker                        bool
-		expectedError                               string
+		name                            string
+		writeDuration, readDuration     time.Duration
+		searchDuration, metricsDuration time.Duration
+		expectedWriteTicker             bool
+		expectedReadTicker              bool
+		expectedSearchTicker            bool
+		expectedMetricsTicker           bool
+		expectedError                   string
 	}{
 		{
-			name:                 "Valid write and read durations",
-			writeDuration:        1 * time.Second,
-			readDuration:         2 * time.Second,
-			searchDuration:       0,
-			expectedWriteTicker:  true,
-			expectedReadTicker:   true,
-			expectedSearchTicker: false,
-			expectedError:        "",
+			name:                  "Valid write and read durations",
+			writeDuration:         1 * time.Second,
+			readDuration:          2 * time.Second,
+			searchDuration:        0,
+			expectedWriteTicker:   true,
+			expectedReadTicker:    true,
+			expectedSearchTicker:  false,
+			expectedMetricsTicker: false,
+			expectedError:         "",
 		},
 		{
-			name:                 "Invalid write duration (zero)",
-			writeDuration:        0,
-			readDuration:         0,
-			searchDuration:       0,
-			expectedWriteTicker:  false,
-			expectedReadTicker:   false,
-			expectedSearchTicker: false,
-			expectedError:        "tempo-write-backoff-duration must be greater than 0",
+			name:                  "Invalid write duration (zero)",
+			writeDuration:         0,
+			readDuration:          0,
+			searchDuration:        0,
+			expectedWriteTicker:   false,
+			expectedReadTicker:    false,
+			expectedSearchTicker:  false,
+			expectedMetricsTicker: false,
+			expectedError:         "tempo-write-backoff-duration must be greater than 0",
 		},
 		{
-			name:                 "No read durations set",
-			writeDuration:        1 * time.Second,
-			readDuration:         0,
-			searchDuration:       1 * time.Second,
-			expectedWriteTicker:  true,
-			expectedReadTicker:   false,
-			expectedSearchTicker: true,
-			expectedError:        "",
+			name:                  "No read durations set",
+			writeDuration:         1 * time.Second,
+			readDuration:          0,
+			searchDuration:        1 * time.Second,
+			expectedWriteTicker:   true,
+			expectedReadTicker:    false,
+			expectedSearchTicker:  true,
+			expectedMetricsTicker: false,
+			expectedError:         "",
 		},
 		{
-			name:                 "No read or search durations set",
-			writeDuration:        1 * time.Second,
-			readDuration:         0,
-			searchDuration:       0,
-			expectedWriteTicker:  false,
-			expectedReadTicker:   false,
-			expectedSearchTicker: false,
-			expectedError:        "at least one of tempo-search-backoff-duration or tempo-read-backoff-duration must be set",
+			name:                  "Valid metrics duration",
+			writeDuration:         1 * time.Second,
+			readDuration:          0,
+			searchDuration:        0,
+			metricsDuration:       1 * time.Second,
+			expectedWriteTicker:   true,
+			expectedReadTicker:    false,
+			expectedSearchTicker:  false,
+			expectedMetricsTicker: true,
+			expectedError:         "",
+		},
+		{
+			name:                  "No read or search durations set",
+			writeDuration:         1 * time.Second,
+			readDuration:          0,
+			searchDuration:        0,
+			expectedWriteTicker:   false,
+			expectedReadTicker:    false,
+			expectedSearchTicker:  false,
+			expectedMetricsTicker: false,
+			expectedError:         "at least one of tempo-search-backoff-duration, tempo-read-backoff-duration or tempo-metrics-backoff-duration must be set",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tickerWrite, tickerRead, tickerSearch, err := initTickers(tt.writeDuration, tt.readDuration, tt.searchDuration)
+			tickerWrite, tickerRead, tickerSearch, tickerMetrics, err := initTickers(tt.writeDuration, tt.readDuration, tt.searchDuration, tt.metricsDuration)
 
 			assert.Equal(t, tt.expectedWriteTicker, tickerWrite != nil, "TickerWrite")
 			assert.Equal(t, tt.expectedReadTicker, tickerRead != nil, "TickerRead")
 			assert.Equal(t, tt.expectedSearchTicker, tickerSearch != nil, "TickerSearch")
+			assert.Equal(t, tt.expectedMetricsTicker, tickerMetrics != nil, "TickerMetrics")
 
 			if tt.expectedError != "" {
 				assert.NotNil(t, err, "Expected error but got nil")
@@ -678,4 +698,244 @@ func TestNewJaegerGRPCClient(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, client)
+}
+
+func TestQueryMetrics(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	config := vultureConfiguration{
+		tempoOrgID:                 "orgID",
+		tempoWriteBackoffDuration:  time.Second,
+		tempoSearchBackoffDuration: time.Second,
+	}
+
+	info := util.NewTraceInfo(seed, config.tempoOrgID)
+	hexID := info.HexID()
+
+	successMetricsResponse := &tempopb.QueryRangeResponse{
+		Series: []*tempopb.TimeSeries{
+			{
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: seed.UnixMilli(),
+						Value:       2.0,
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		response        *tempopb.QueryRangeResponse
+		searchResponse  []*tempopb.TraceSearchMetadata
+		err             error
+		expectedMetrics traceMetrics
+		expectedError   string
+	}{
+		{
+			name:     "successful metrics query: 1 trace, 2 spans",
+			response: successMetricsResponse,
+			searchResponse: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Matched: 2,
+						},
+					},
+				},
+			},
+			expectedMetrics: traceMetrics{
+				requested: 1,
+			},
+		},
+		{
+			name:     "successful metrics query: 2 traces, 1 span each",
+			response: successMetricsResponse,
+			searchResponse: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Matched: 1,
+						},
+					},
+				},
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Matched: 1,
+						},
+					},
+				},
+			},
+			expectedMetrics: traceMetrics{
+				requested: 1,
+			},
+		},
+		{
+			name:     "Less than expected",
+			response: successMetricsResponse,
+			searchResponse: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Matched: 4,
+						},
+					},
+				},
+			},
+			expectedMetrics: traceMetrics{
+				inaccurateMetrics: 1,
+				requested:         1,
+			},
+			expectedError: "TraceQL Metrics results are inaccurate: metric count sum=2.000000, actual span count=4",
+		},
+		{
+			name:           "No traces",
+			response:       successMetricsResponse,
+			searchResponse: make([]*tempopb.TraceSearchMetadata, 0),
+			expectedMetrics: traceMetrics{
+				inaccurateMetrics: 1,
+				requested:         1,
+			},
+			expectedError: "TraceQL Metrics results are inaccurate: metric count sum=2.000000, actual span count=0",
+		},
+		{
+			name: "no series in response",
+			response: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{},
+			},
+			expectedMetrics: traceMetrics{
+				requested:         1,
+				notFoundByMetrics: 1,
+			},
+			expectedError: fmt.Sprintf("expected trace %s not found in metrics", hexID),
+		},
+		{
+			name: "no series in response (nil)",
+			response: &tempopb.QueryRangeResponse{
+				Series: nil,
+			},
+			expectedMetrics: traceMetrics{
+				requested:         1,
+				notFoundByMetrics: 1,
+			},
+			expectedError: fmt.Sprintf("expected trace %s not found in metrics", hexID),
+		},
+		{
+			name: "invalid series data",
+			response: &tempopb.QueryRangeResponse{
+				Series: make([]*tempopb.TimeSeries, 1),
+			},
+			expectedMetrics: traceMetrics{
+				requested:              1,
+				incorrectMetricsResult: 1,
+			},
+			expectedError: "expected time series, got nil",
+		},
+		{
+			name: "too many series",
+			response: &tempopb.QueryRangeResponse{
+				Series: make([]*tempopb.TimeSeries, 2),
+			},
+			expectedMetrics: traceMetrics{
+				requested:              1,
+				incorrectMetricsResult: 1,
+			},
+			expectedError: "expected exactly 1 series, got 2",
+		},
+		{
+			name:     "query error",
+			response: nil,
+			err:      errors.New("metrics query failed"),
+			expectedMetrics: traceMetrics{
+				requested:     1,
+				requestFailed: 1,
+			},
+			expectedError: "metrics query failed",
+		},
+	}
+
+	logger = zap.NewNop()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockHTTPClient := &MockHTTPClient{
+				err:            tt.err,
+				metricsResp:    tt.response,
+				searchResponse: tt.searchResponse,
+			}
+
+			metrics, err := queryMetrics(mockHTTPClient, seed, config, logger)
+			assert.Equal(t, tt.expectedMetrics, metrics)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDoMetrics(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
+	interval := time.Second
+
+	config := vultureConfiguration{
+		tempoOrgID: "orgID",
+		// This is a hack to ensure the trace is "ready"
+		tempoWriteBackoffDuration: -time.Hour * 10000,
+		tempoRetentionDuration:    time.Second * 10,
+	}
+
+	logger = zap.NewNop()
+	r := rand.New(rand.NewSource(startTime.Unix()))
+
+	tests := []struct {
+		name          string
+		ticker        *time.Ticker
+		expectedCalls int
+	}{
+		{
+			name:          "nil ticker",
+			ticker:        nil,
+			expectedCalls: 0,
+		},
+		{
+			name:          "active ticker",
+			ticker:        time.NewTicker(10 * time.Millisecond),
+			expectedCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockHTTPClient := &MockHTTPClient{
+				err: nil,
+				metricsResp: &tempopb.QueryRangeResponse{
+					Series: []*tempopb.TimeSeries{
+						{
+							Samples: []tempopb.Sample{
+								{
+									TimestampMs: seed.UnixMilli(),
+									Value:       1.0,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			doMetrics(mockHTTPClient, tt.ticker, startTime, interval, r, config, logger)
+
+			if tt.ticker != nil {
+				time.Sleep(20 * time.Millisecond)
+				tt.ticker.Stop()
+			}
+			assert.Equal(t, mockHTTPClient.GetMetricsCount(), tt.expectedCalls)
+		})
+	}
 }
