@@ -8,7 +8,6 @@ import (
 	"os"
 	"reflect"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/drone/envsubst"
@@ -60,6 +59,7 @@ func main() {
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Enable mutex profiling.")
+	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Enable block profiling.")
 
 	config, configVerify, err := loadConfig()
 	if err != nil {
@@ -99,7 +99,7 @@ func main() {
 		defer shutdownTracer()
 	}
 
-	setMutexBlockProfiling(*mutexProfileFraction)
+	setMutexBlockProfiling(*mutexProfileFraction, *blockProfileThreshold)
 
 	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
 	ballast := make([]byte, *ballastMBs*1024*1024)
@@ -283,32 +283,17 @@ func (f otelErrorHandlerFunc) Handle(err error) {
 	f(err)
 }
 
-func setMutexBlockProfiling(mutexFraction int) {
-	mutexPercent := os.Getenv("PPROF_MUTEX_PROFILING_PERCENT")
+func setMutexBlockProfiling(mutexFraction int, blockThreshold int) {
 	// This is for backwards compatibility and allow the flag to override the env var.
 	if mutexFraction > 0 {
+		// The this is evaluated as 1/mutexFraction sampling, so 1 is 100%.
 		runtime.SetMutexProfileFraction(mutexFraction)
-	} else if mutexPercent != "" {
-		rate, err := strconv.Atoi(mutexPercent)
-		if err == nil && rate > 0 {
-			// The 100/rate is because the value is interpreted as 1/rate. So 50 would be 100/50 = 2 and become 1/2 or 50%.
-			runtime.SetMutexProfileFraction(100 / rate)
-		} else {
-			// This is 1/1000 sampling rate.
-			runtime.SetMutexProfileFraction(1000)
-		}
 	} else {
 		// Why 1000 because that is what istio defaults to and that seemed reasonable to start with.
 		runtime.SetMutexProfileFraction(1000)
 	}
-	blockRate := os.Getenv("PPROF_BLOCK_PROFILING_RATE")
-	if blockRate != "" {
-		rate, err := strconv.Atoi(blockRate)
-		if err == nil && rate > 0 {
-			runtime.SetBlockProfileRate(rate)
-		} else {
-			runtime.SetBlockProfileRate(10_000)
-		}
+	if blockThreshold > 0 {
+		runtime.SetBlockProfileRate(blockThreshold)
 	} else {
 		// This should have a negligible impact. This will track anything over 10_000ns, and will randomly sample shorter durations.
 		runtime.SetBlockProfileRate(10_000)
