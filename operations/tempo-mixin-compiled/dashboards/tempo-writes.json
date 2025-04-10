@@ -866,14 +866,14 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
+       "expr": "histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "50th percentile",
        "legendLink": null
       },
       {
-       "expr": "histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
+       "expr": "histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "99th percentile",
