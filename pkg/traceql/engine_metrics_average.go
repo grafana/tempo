@@ -431,20 +431,19 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 	}
 }
 
-func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) int {
+func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
 	interval := IntervalOf(span.StartTimeUnixNanos(), g.start, g.end, g.step)
 	if interval == -1 {
-		return 0
+		return
 	}
 
 	inc := g.getSpanAttValue(span)
 	if math.IsNaN(inc) {
-		return 0
+		return
 	}
 
 	s := g.getSeries(span)
 	s.average.addIncrementMean(interval, inc)
-	return len(g.series)
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {

@@ -124,6 +124,19 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 
 	inspectedBytes, spansTotal, _ := eval.Metrics()
 
+	if len(res) > int(req.MaxSeries) {
+		limitedRes := make(traceql.SeriesSet)
+		count := 0
+		for k, v := range res {
+			if count >= int(req.MaxSeries) {
+				break
+			}
+			limitedRes[k] = v
+			count++
+		}
+		res = limitedRes
+	}
+
 	response := &tempopb.QueryRangeResponse{
 		Series: res.ToProto(req),
 		Metrics: &tempopb.SearchMetrics{

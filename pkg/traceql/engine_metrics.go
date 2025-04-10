@@ -337,7 +337,7 @@ type RangeAggregator interface {
 
 // SpanAggregator sorts spans into series
 type SpanAggregator interface {
-	Observe(Span) int
+	Observe(Span)
 	ObserveExemplar(Span, float64, uint64)
 	Series() SeriesSet
 	Length() int
@@ -660,14 +660,13 @@ func (g *GroupingAggregator[F, S]) getSeries() aggregatorWitValues[S] {
 
 // Observe the span by looking up its group-by attributes, mapping to the series,
 // and passing to the inner aggregate.  This is a critical hot path.
-func (g *GroupingAggregator[F, S]) Observe(span Span) int {
+func (g *GroupingAggregator[F, S]) Observe(span Span) {
 	if !g.getGroupingValues(span) {
-		return 0
+		return
 	}
 
 	s := g.getSeries()
 	s.agg.Observe(span)
-	return len(g.series)
 }
 
 func (g *GroupingAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
@@ -763,9 +762,8 @@ type UngroupedAggregator struct {
 
 var _ SpanAggregator = (*UngroupedAggregator)(nil)
 
-func (u *UngroupedAggregator) Observe(span Span) int {
+func (u *UngroupedAggregator) Observe(span Span) {
 	u.innerAgg.Observe(span)
-	return 0
 }
 
 func (u *UngroupedAggregator) ObserveExemplar(span Span, value float64, ts uint64) {

@@ -563,7 +563,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	maxSeries := int(req.MaxSeries)
 	if maxSeries > 0 && len(rr) > maxSeries {
 		return &tempopb.QueryRangeResponse{
-			Series: rr,
+			Series: rr[:maxSeries],
 			Status: tempopb.PartialStatus_PARTIAL,
 		}, nil
 	}
