@@ -87,11 +87,18 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('')
+        g.row('Kafka produced records')
         .addPanel(
-          $.panel('Kafka appends / sec') +
-          $.queryPanel('sum(rate(tempo_distributor_kafka_appends_total{%s}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.distributor), '{{status}}')
+          $.panel('Kafka append records / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_kafka_appends_total{%s, status="success"}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'appends')
         )
+        .addPanel(
+          $.panel('Kafka failed append records / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_kafka_appends_total{%s, status="fail"}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'failed')
+        )
+      )
+      .addRow(
+        g.row('Kafka writes')
         .addPanel(
           $.panel('Kafka write bytes / sec') +
           $.queryPanel('sum(rate(tempo_distributor_kafka_write_bytes_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'writes') {

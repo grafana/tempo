@@ -358,7 +358,7 @@ jsonnet-test: tools-image ## Test jsonnet
 	$(TOOLS_CMD) make -C operations/jsonnet/microservices test
 
 ### tempo-mixin
-.PHONY: tempo-mixin tempo-mixin-check
+.PHONY: jsonnetfmt tempo-mixin tempo-mixin-check
 tempo-mixin: tools-image
 	$(TOOLS_CMD) make -C operations/tempo-mixin all
 
