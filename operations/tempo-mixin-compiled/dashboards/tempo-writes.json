@@ -866,10 +866,24 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])",
+       "expr": "histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
-       "legendFormat": "latency",
+       "legendFormat": "50th percentile",
+       "legendLink": null
+      },
+      {
+       "expr": "histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "99th percentile",
+       "legendLink": null
+      },
+      {
+       "expr": "sum(rate(tempo_distributor_kafka_write_latency_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) / sum(rate(tempo_distributor_kafka_write_latency_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "average",
        "legendLink": null
       }
      ],
@@ -884,7 +898,7 @@
       "sort": 2,
       "value_type": "individual"
      },
-     "type": "heatmap",
+     "type": "graph",
      "xaxis": {
       "buckets": null,
       "mode": "time",

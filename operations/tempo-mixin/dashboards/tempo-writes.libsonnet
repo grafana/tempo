@@ -99,10 +99,13 @@ dashboard_utils {
           }
         )
         .addPanel(
-          $.panel('Kafka write latency (sec)') {
-            type: 'heatmap',
-          } +
-          $.queryPanel('rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])' % $.jobMatcher($._config.jobs.distributor), 'latency') {
+          $.panel('Kafka write latency (sec)') +
+          $.queryPanel([
+            'histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])))' % $.jobMatcher($._config.jobs.distributor),
+            'histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])))' % $.jobMatcher($._config.jobs.distributor),
+            'sum(rate(tempo_distributor_kafka_write_latency_seconds_sum{%s}[$__rate_interval])) / sum(rate(tempo_distributor_kafka_write_latency_seconds_count{%s}[$__rate_interval]))' % [$.jobMatcher($._config.jobs.distributor),
+            $.jobMatcher($._config.jobs.distributor)],
+          ], ['50th percentile', '99th percentile', 'average']) {
             yaxes: $.yaxes('s'),
           } +
           { fieldConfig+: { defaults+: { unit: 's' } } },
