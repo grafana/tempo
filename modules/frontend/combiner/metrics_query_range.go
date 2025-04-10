@@ -22,7 +22,6 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 	if maxSeriesLimit > 0 && int(req.MaxSeries) > maxSeriesLimit || req.MaxSeries == 0 {
 		maxSeries = maxSeriesLimit
 	}
-	
 	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal, maxSeries)
 	if err != nil {
 		return nil, err
