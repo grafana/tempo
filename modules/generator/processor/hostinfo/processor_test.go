@@ -43,10 +43,10 @@ func TestHostInfo(t *testing.T) {
 	lbls0 := labels.FromMap(map[string]string{
 		hostIdentifierAttr: "test0",
 	})
-	assert.Equal(t, 1.0, testRegistry.Query(hostInfoMetric, lbls0))
+	assert.Equal(t, 1.0, testRegistry.Query(defaultHostInfoMetric, lbls0))
 
 	lbls1 := labels.FromMap(map[string]string{
 		hostIdentifierAttr: "test1",
 	})
-	assert.Equal(t, 1.0, testRegistry.Query(hostInfoMetric, lbls1))
+	assert.Equal(t, 1.0, testRegistry.Query(defaultHostInfoMetric, lbls1))
 }

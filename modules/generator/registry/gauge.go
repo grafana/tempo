@@ -32,6 +32,7 @@ type gaugeSeries struct {
 	labels      labels.Labels
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
+	stale       *atomic.Bool
 }
 
 var (
@@ -78,33 +79,43 @@ func (g *gauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64
 func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string, updateIfAlreadyExist bool) {
 	hash := labelValueCombo.getHash()
 
+	// check if the series exists under read lock
 	g.seriesMtx.RLock()
 	s, ok := g.series[hash]
 	g.seriesMtx.RUnlock()
 
 	if ok {
-		// target_info will always be 1 so if the series exists, we don't need to go through this loop
-		if !updateIfAlreadyExist {
-			return
+		// update to existing series removes staleness
+		s.stale.Store(false)
+
+		// if update is needed, modify the value
+		if updateIfAlreadyExist {
+			g.updateSeriesValue(s, value, operation)
 		}
-		g.updateSeriesValue(s, value, operation)
 		return
 	}
 
+	// if it doesn't exist, call onAddSeries
 	if !g.onAddSeries(1) {
 		return
 	}
 
 	newSeries := g.newSeries(labelValueCombo, value)
 
+	// acquire full lock and recheck before adding
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
 
-	s, ok = g.series[hash]
-	if ok {
-		g.updateSeriesValue(s, value, operation)
+	// check again in case another goroutine already added the series
+	if s, ok := g.series[hash]; ok {
+		s.stale.Store(false)
+		if updateIfAlreadyExist {
+			g.updateSeriesValue(s, value, operation)
+		}
 		return
 	}
+
+	// create and add new series
 	g.series[hash] = newSeries
 }
 
@@ -126,6 +137,7 @@ func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaug
 		labels:      lb.Labels(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+		stale:       atomic.NewBool(false),
 	}
 }
 
@@ -144,30 +156,54 @@ func (g *gauge) name() string {
 
 func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
 	g.seriesMtx.RLock()
-	defer g.seriesMtx.RUnlock()
-
 	activeSeries = len(g.series)
+	staleSeries := []uint64{}
 
-	for _, s := range g.series {
+	for hash, s := range g.series {
 		t := time.UnixMilli(timeMs)
+
+		if s.stale.Load() {
+			_, err = appender.Append(0, s.labels, t.UnixMilli(), staleMarker())
+			if err != nil {
+				g.seriesMtx.RUnlock()
+				return
+			}
+			staleSeries = append(staleSeries, hash)
+			continue
+		}
 		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
 		if err != nil {
+			g.seriesMtx.RUnlock()
 			return
 		}
-		// TODO: support exemplars
+	}
+	g.seriesMtx.RUnlock()
+
+	// only acquire write lock if there are stale series to remove
+	if len(staleSeries) > 0 {
+		g.seriesMtx.Lock()
+		defer g.seriesMtx.Unlock()
+
+		for _, hash := range staleSeries {
+			if s, ok := g.series[hash]; ok && s.stale.Load() {
+				delete(g.series, hash)
+			}
+		}
+
+		g.onRemoveSeries(uint32(len(staleSeries)))
+
 	}
 
 	return
 }
 
 func (g *gauge) removeStaleSeries(staleTimeMs int64) {
-	g.seriesMtx.Lock()
-	defer g.seriesMtx.Unlock()
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
 
-	for hash, s := range g.series {
+	for _, s := range g.series {
 		if s.lastUpdated.Load() < staleTimeMs {
-			delete(g.series, hash)
-			g.onRemoveSeries(1)
+			s.stale.Store(true)
 		}
 	}
 }

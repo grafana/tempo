@@ -38,6 +38,7 @@ var (
 		spanmetrics.Count.String(),
 		spanmetrics.Latency.String(),
 		spanmetrics.Size.String(),
+		hostinfo.Name,
 	}
 
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
