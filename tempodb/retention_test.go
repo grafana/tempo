@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"os"
 	"path"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -218,4 +220,107 @@ func TestBlockRetentionOverride(t *testing.T) {
 	r.(*readerWriter).doRetention(ctx)
 	rw.pollBlocklist(ctx)
 	require.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
+}
+
+func TestRetainWithConfig(t *testing.T) {
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testRetainWithConfig(t, version)
+		})
+	}
+}
+
+func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
+	tempDir := t.TempDir()
+
+	logger := log.NewLogfmtLogger(os.Stderr)
+
+	r, w, c, err := New(
+		&Config{
+			Backend: backend.Local,
+			Pool: &pool.Config{
+				MaxWorkers: 10,
+				QueueDepth: 100,
+			},
+			Local: &local.Config{
+				Path: path.Join(tempDir, "traces"),
+			},
+			Block: &common.BlockConfig{
+				IndexDownsampleBytes: 11,
+				BloomFP:              .01,
+				BloomShardSizeBytes:  100_000,
+				Version:              targetBlockVersion,
+				Encoding:             backend.EncNone,
+				IndexPageSizeBytes:   1000,
+			},
+			WAL: &wal.Config{
+				Filepath: path.Join(tempDir, "wal"),
+			},
+			BlocklistPoll: 100 * time.Millisecond,
+		}, nil,
+		// log.NewNopLogger()
+		logger,
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r.EnablePolling(ctx, &mockJobSharder{})
+
+	blocks := cutTestBlocks(t, w, testTenantID, 10, 10)
+
+	metas := make([]*backend.BlockMeta, 0)
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	time.Sleep(time.Second)
+
+	compactorCfg := &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          time.Nanosecond,
+		CompactedBlockRetention: time.Nanosecond,
+		MaxCompactionObjects:    1000,
+		MaxBlockBytes:           100_000_000, // Needs to be sized appropriately for the test data
+		RetentionConcurrency:    1,
+	}
+
+	var (
+		rw    = r.(*readerWriter)
+		preM  = rw.blocklist.Metas(testTenantID)
+		preCm = rw.blocklist.CompactedMetas(testTenantID)
+	)
+
+	require.Len(t, preM, 10)
+	require.Len(t, preCm, 0)
+
+	_, err = c.CompactWithConfig(ctx, metas, testTenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	var (
+		postM  = rw.blocklist.Metas(testTenantID)
+		postCm = rw.blocklist.CompactedMetas(testTenantID)
+	)
+
+	require.Less(t, len(postM), len(preM))
+	require.Greater(t, len(postCm), len(preCm))
+
+	require.Len(t, rw.blocklist.Metas(testTenantID), 1)
+	require.Len(t, rw.blocklist.CompactedMetas(testTenantID), 10)
+
+	c.RetainWithConfig(ctx,
+		compactorCfg,
+		&mockSharder{},
+		&mockOverrides{},
+	)
+
+	time.Sleep(100 * time.Millisecond)
+
+	require.Empty(t, rw.blocklist.Metas(testTenantID))
+	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID))
 }

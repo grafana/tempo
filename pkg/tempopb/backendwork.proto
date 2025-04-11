@@ -18,9 +18,7 @@ service BackendScheduler {
 enum JobType {
   JOB_TYPE_UNSPECIFIED = 0;
   JOB_TYPE_COMPACTION = 1;
-  // Future job types can be added here
-  // JOB_TYPE_RETENTION = 2;
-  // JOB_TYPE_CLEANUP = 3;
+  JOB_TYPE_RETENTION = 2;
 }
 
 enum JobStatus {
@@ -38,6 +36,10 @@ message CompactionDetail {
   repeated string input = 1;  // block IDs for compaction
   repeated string output = 2;  // block IDs resulting from compaction
 }
+message RetentionDetail {
+  option (gogoproto.equal) = true;
+  option (gogoproto.compare) = true;
+}
 
 // JobDetail contains the specific details for each job type
 message JobDetail {
@@ -46,8 +48,7 @@ message JobDetail {
   string tenant = 1;
   // oneof detail {
     CompactionDetail compaction = 2;
-    // Future job details can be added here
-    // RetentionDetail retention = 3;
+    RetentionDetail retention = 3;
     // CleanupDetail cleanup = 4;
   // }
 }

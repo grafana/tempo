@@ -34,7 +34,7 @@ func TestBackendScheduler(t *testing.T) {
 		TenantMeasurementInterval: 100 * time.Millisecond,
 	}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	cfg.MaxJobsPerTenant = 2
+	cfg.ProviderConfig.Compaction.Backoff.MaxRetries = 1
 
 	tmpDir := t.TempDir()
 
@@ -83,6 +83,24 @@ func TestBackendScheduler(t *testing.T) {
 	t.Run("jobs need doing", func(t *testing.T) {
 		s, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
+
+		// Start the scheduler
+		err = s.starting(ctx)
+		require.NoError(t, err)
+
+		go func() {
+			// Start a goroutine to run the service
+			err = s.running(ctx)
+			require.NoError(t, err)
+		}()
+
+		defer func() {
+			err := s.stopping(nil)
+			require.NoError(t, err)
+		}()
+
+		// Let the providers start
+		time.Sleep(200 * time.Millisecond)
 
 		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
@@ -266,4 +284,96 @@ type ownsEverythingSharder struct{}
 
 func (ownsEverythingSharder) Owns(_ string) bool {
 	return true
+}
+
+func TestProviderBasedScheduling(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.TenantMeasurementInterval = 100 * time.Millisecond
+	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
+
+	tmpDir := t.TempDir()
+
+	var (
+		ctx, cancel   = context.WithCancel(context.Background())
+		store, rr, ww = newStore(ctx, t, tmpDir)
+	)
+
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	// Push some data to a few tenants
+	tenantCount := 3
+	for i := 0; i < tenantCount; i++ {
+		testTenant := tenant + strconv.Itoa(i)
+		writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	// Start the service
+	err = s.starting(ctx)
+	require.NoError(t, err)
+
+	// Start a goroutine to run the service
+	go func() {
+		// Start a goroutine to run the service
+		err = s.running(ctx)
+		require.NoError(t, err)
+	}()
+
+	defer func() {
+		err := s.stopping(nil)
+		require.NoError(t, err)
+	}()
+
+	// Wait for providers to start and generate jobs
+	time.Sleep(200 * time.Millisecond)
+
+	// Request jobs and verify they're coming from providers
+	var compactionJobs, retentionJobs int
+	for i := 0; i < 10; i++ {
+		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
+			WorkerId: "test-worker-" + strconv.Itoa(i),
+		})
+		if err != nil {
+			statusErr, ok := status.FromError(err)
+			require.True(t, ok)
+			if statusErr.Code() == codes.NotFound {
+				// No more jobs, break
+				break
+			}
+			require.NoError(t, err)
+		}
+
+		require.NotNil(t, resp)
+		require.NotEmpty(t, resp.JobId)
+
+		switch resp.Type {
+		case tempopb.JobType_JOB_TYPE_COMPACTION:
+			compactionJobs++
+		case tempopb.JobType_JOB_TYPE_RETENTION:
+			retentionJobs++
+		}
+
+		// Complete the job
+		updateResp, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  resp.JobId,
+			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updateResp)
+	}
+
+	// We should have at least one retention job and some compaction jobs
+	require.GreaterOrEqual(t, retentionJobs, 1)
+	require.GreaterOrEqual(t, compactionJobs, 1)
 }

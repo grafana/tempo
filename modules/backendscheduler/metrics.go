@@ -28,7 +28,17 @@ var (
 	}, []string{"tenant", "job_type"})
 	metricJobsRetry = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "backend_scheduler_jobs_retry",
+		Name:      "backend_scheduler_jobs_retry_total",
 		Help:      "The number of jobs which have been retried",
 	}, []string{"tenant", "job_type", "worker_id"})
+	metricJobsNotFound = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_jobs_not_found_total",
+		Help:      "The number of calls to get a job that were not found",
+	}, []string{"worker_id"})
+	metricProviderJobsMerged = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_provider_jobs_merged_total",
+		Help:      "The number of jobs merged from providers",
+	}, []string{"id"})
 )

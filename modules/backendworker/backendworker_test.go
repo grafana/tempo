@@ -231,9 +231,3 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 	err = b.Append(id, b2, start, end, true)
 	require.NoError(t, err, "unexpected error writing req")
 }
-
-type ownsEverythingSharder struct{}
-
-func (ownsEverythingSharder) Owns(_ string) bool {
-	return true
-}
