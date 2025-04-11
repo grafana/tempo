@@ -2019,3 +2019,59 @@ func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {
 	}
 	return ring.NewPartitionRing(desc)
 }
+
+func TestCheckForRateLimits(t *testing.T) {
+	tests := []struct {
+		name           string
+		tracesSize     int
+		rateLimitBytes int
+		expectError    string
+		errCode        codes.Code
+	}{
+		{
+			name:           "size under rate limit",
+			tracesSize:     100,
+			rateLimitBytes: 200,
+			expectError:    "",
+			errCode:        codes.OK,
+		},
+		{
+			name:           "size exactly at rate limit",
+			tracesSize:     200,
+			rateLimitBytes: 200,
+			expectError:    "",
+			errCode:        codes.OK,
+		},
+		{
+			name:           "size over rate limit",
+			tracesSize:     300,
+			rateLimitBytes: 200,
+			expectError:    "RATE_LIMITED: traces size exceeded ingestion rate limit (local: 200 bytes, global: 0 bytes) while adding 300 bytes for user test-user",
+			errCode:        codes.ResourceExhausted,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			overridesConfig := overrides.Config{
+				Defaults: overrides.Overrides{
+					Ingestion: overrides.IngestionOverrides{
+						RateStrategy:   overrides.LocalIngestionRateStrategy,
+						RateLimitBytes: tc.rateLimitBytes,
+						BurstSizeBytes: tc.rateLimitBytes,
+					},
+				},
+			}
+
+			// Create distributor with the overrides
+			logger := kitlog.NewNopLogger()
+			d, _ := prepare(t, overridesConfig, logger)
+
+			err := d.checkForRateLimits(tc.tracesSize, 100, "test-user")
+			s, ok := status.FromError(err)
+			require.True(t, ok)
+			require.Equal(t, tc.errCode, s.Code())
+			require.Equal(t, s.Message(), tc.expectError)
+		})
+	}
+}
