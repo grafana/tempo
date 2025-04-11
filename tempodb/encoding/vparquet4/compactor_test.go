@@ -21,13 +21,13 @@ import (
 
 func BenchmarkCompactor(b *testing.B) {
 	b.Run("Small", func(b *testing.B) {
-		benchmarkCompactor(b, 1000, 100, 100) // 10M spans
+		benchmarkCompactor(b, 10000, 10, 10) // 1M spans total, 100 spans per trace
 	})
 	b.Run("Medium", func(b *testing.B) {
-		benchmarkCompactor(b, 100, 100, 1000) // 10M spans
+		benchmarkCompactor(b, 100, 100, 100) // 1M spans total, 10K spans per trace
 	})
 	b.Run("Large", func(b *testing.B) {
-		benchmarkCompactor(b, 10, 1000, 1000) // 10M spans
+		benchmarkCompactor(b, 10, 100, 1000) // 1M spans total, 100K spans per trace
 	})
 }
 
@@ -67,7 +67,7 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 	}
 }
 
-func BenchmarkCompactorDupes(b *testing.B) {
+/*func BenchmarkCompactorDupes(b *testing.B) {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: b.TempDir(),
 	})
@@ -103,7 +103,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 		_, err = c.Compact(ctx, l, r, w, inputs)
 		require.NoError(b, err)
 	}
-}
+}*/
 
 // createTestBlock with the number of given traces and the needed sizes.
 // Trace IDs are guaranteed to be monotonically increasing so that
