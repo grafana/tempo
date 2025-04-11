@@ -58,7 +58,8 @@ func init() {
 func main() {
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
-	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Enable mutex profiling.")
+	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Override default mutex profiling fraction.")
+	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Override default block profiling threshold.")
 
 	config, configVerify, err := loadConfig()
 	if err != nil {
@@ -98,9 +99,7 @@ func main() {
 		defer shutdownTracer()
 	}
 
-	if *mutexProfileFraction > 0 {
-		runtime.SetMutexProfileFraction(*mutexProfileFraction)
-	}
+	setMutexBlockProfiling(*mutexProfileFraction, *blockProfileThreshold)
 
 	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
 	ballast := make([]byte, *ballastMBs*1024*1024)
@@ -282,4 +281,20 @@ type otelErrorHandlerFunc func(error)
 // Handle implements otel.ErrorHandler
 func (f otelErrorHandlerFunc) Handle(err error) {
 	f(err)
+}
+
+func setMutexBlockProfiling(mutexFraction int, blockThreshold int) {
+	if mutexFraction > 0 {
+		// The this is evaluated as 1/mutexFraction sampling, so 1 is 100%.
+		runtime.SetMutexProfileFraction(mutexFraction)
+	} else {
+		// Why 1000 because that is what istio defaults to and that seemed reasonable to start with.
+		runtime.SetMutexProfileFraction(1000)
+	}
+	if blockThreshold > 0 {
+		runtime.SetBlockProfileRate(blockThreshold)
+	} else {
+		// This should have a negligible impact. This will track anything over 10_000ns, and will randomly sample shorter durations.
+		runtime.SetBlockProfileRate(10_000)
+	}
 }
