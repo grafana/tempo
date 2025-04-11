@@ -31,7 +31,7 @@ type TraceByIDCombiner struct {
 	code          int
 	statusMessage string
 
-	mc *collector.MetricsCollector
+	mc *collector.SimpleMetricsCollector
 }
 
 // NewTraceByID returns a trace id combiner. The trace by id combiner has a few different behaviors then the others
@@ -44,7 +44,7 @@ func NewTraceByID(maxBytes int, contentType string) Combiner {
 		c:           trace.NewCombiner(maxBytes, false),
 		code:        http.StatusNotFound,
 		contentType: contentType,
-		mc:          collector.NewMetricsCollector(),
+		mc:          collector.NewSimpleMetricsCollector(),
 	}
 }
 

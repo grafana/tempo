@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -20,6 +21,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 		return nil, err
 	}
 
+	metricsCollector := collector.NewSimpleMetricsCollector()
 	var prevResp *tempopb.QueryRangeResponse
 
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
@@ -34,6 +36,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 				if partial.Metrics.TotalJobs == 0 {
 					partial.Metrics.CompletedJobs = 1
 				}
+				metricsCollector.Add(partial.Metrics.InspectedBytes)
 			}
 
 			combiner.Combine(partial)
@@ -47,6 +50,12 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			}
 			sortResponse(resp)
 			attachExemplars(req, resp)
+
+			// Attach metrics using the collector
+			if resp.Metrics == nil {
+				resp.Metrics = &tempopb.SearchMetrics{}
+			}
+			resp.Metrics.InspectedBytes = metricsCollector.TotalValue()
 
 			return resp, nil
 		},
@@ -63,12 +72,16 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			// store resp for next diff
 			prevResp = resp
 
+			// Apply metrics from the collector to the diff response
+			if diff.Metrics == nil {
+				diff.Metrics = &tempopb.SearchMetrics{}
+			}
+			diff.Metrics.InspectedBytes = metricsCollector.TotalValue()
+
 			return diff, nil
 		},
 	}
-
 	initHTTPCombiner(c, api.HeaderAcceptJSON)
-
 	return c, nil
 }
 
