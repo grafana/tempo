@@ -978,7 +978,6 @@ backend_scheduler:
         retention:
             interval: 1h0m0s
         compaction:
-            buffer_size: 10
             measure_interval: 1m0s
             compaction:
                 v2_in_buffer_bytes: 5242880

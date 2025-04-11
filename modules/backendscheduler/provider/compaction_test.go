@@ -30,7 +30,6 @@ func TestCompactionProvider(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.MaxJobsPerTenant = 2
 	cfg.MeasureInterval = 100 * time.Millisecond
-	cfg.BufferSize = 1
 	cfg.Backoff.MinBackoff = 1 * time.Millisecond
 	cfg.Backoff.MaxBackoff = 10 * time.Millisecond
 	cfg.Backoff.MaxRetries = 1

@@ -27,7 +27,6 @@ import (
 var tracer = otel.Tracer("modules/backendscheduler/provider/compaction")
 
 type CompactionConfig struct {
-	BufferSize       int                     `yaml:"buffer_size"`
 	MeasureInterval  time.Duration           `yaml:"measure_interval"`
 	Compactor        tempodb.CompactorConfig `yaml:"compaction"`
 	MaxJobsPerTenant int                     `yaml:"max_jobs_per_tenant"`
@@ -37,7 +36,6 @@ type CompactionConfig struct {
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.MeasureInterval, prefix+"backend-scheduler.compaction-provider.measure-interval", time.Minute, "Interval at which to metric tenant blocklist")
 	f.IntVar(&cfg.MaxJobsPerTenant, prefix+"backend-scheduler.max-jobs-per-tenant", 1000, "Maximum number of jobs to run per tenant before moving on to the next tenant")
-	f.IntVar(&cfg.BufferSize, prefix+"backend-scheduler.compaction-provider.buffer-size", 10, "Buffer size for compaction jobs")
 
 	// Backoff
 	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
@@ -84,7 +82,7 @@ func NewCompactionProvider(
 }
 
 func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
-	jobs := make(chan *work.Job, p.cfg.BufferSize)
+	jobs := make(chan *work.Job, 1)
 
 	go func() {
 		defer close(jobs)
@@ -117,7 +115,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 				attributes := []attribute.KeyValue{
 					attribute.Int("max_jobs_per_tenant", p.cfg.MaxJobsPerTenant),
-					attribute.Int("buffer_size", p.cfg.BufferSize),
 					attribute.Int("jobs_in_queue", len(jobs)),
 					attribute.Int("jobs_in_scheduler", len(p.sched.ListJobs())),
 				}
@@ -149,7 +146,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 							attribute.String("job_type", job.Type.String()),
 							attribute.Int("jobs_in_queue", len(jobs)),
 							attribute.Int("jobs_in_scheduler", len(p.sched.ListJobs())),
-							attribute.Int("buffer_size", p.cfg.BufferSize),
 						)
 
 						span.AddEvent("channel-full")
@@ -157,20 +153,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 					}
 				}
 				span.End()
-			}
-		}
-	}()
-
-	// Measure the tenants in a separate goroutine
-	go func() {
-		measureTicker := time.NewTicker(p.cfg.MeasureInterval)
-		defer measureTicker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-measureTicker.C:
-				p.measureTenants()
 			}
 		}
 	}()

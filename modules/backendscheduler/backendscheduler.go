@@ -70,7 +70,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 		work:       work.New(cfg.Work),
 		reader:     reader,
 		writer:     writer,
-		mergedJobs: make(chan *work.Job, 100),
+		mergedJobs: make(chan *work.Job, 1),
 	}
 
 	// Initialize providers
@@ -127,34 +127,22 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		go func(jobs <-chan *work.Job) {
 			defer wg.Done()
 
-			var job *work.Job
-
 			for {
+				var job *work.Job
+
 				select {
+				case job = <-jobs:
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
-				default:
-					// If the job is nil, let's try to receive a job from the provider
-					if job == nil {
-						select {
-						case job = <-jobs:
-						default:
-							time.Sleep(100 * time.Millisecond)
-							continue
-						}
-					}
+					return
+				}
 
-					// If we have a job, try and send it to the merged channel
-					if job != nil {
-						// try to send the job to the merged channel
-						select {
-						case s.mergedJobs <- job:
-							metricProviderJobsMerged.WithLabelValues(fmt.Sprintf("%d", i)).Inc()
-							job = nil
-						default:
-							continue
-						}
-					}
+				select {
+				case s.mergedJobs <- job:
+					metricProviderJobsMerged.WithLabelValues(fmt.Sprintf("%d", i)).Inc()
+				case <-ctx.Done():
+					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
+					return
 				}
 			}
 		}(s.providers[i].jobs)
