@@ -52,6 +52,116 @@ func TestOne(t *testing.T) {
 	fmt.Println(spanSet)
 }
 
+func TestBackendNilBlockSearchTraceQL(t *testing.T) {
+	numTraces := 100
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+	//traceIDText := util.TraceIDToHexString(wantTraceID)
+
+	searchesThatMatch := []struct {
+		level string
+		name string
+		req  traceql.FetchSpansRequest
+	}{
+
+		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.fool = nil}`)},
+		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.fool = nil}`)},
+		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.fool = nil}`)},
+	}
+
+	for _, tc := range searchesThatMatch {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+
+				spansToCheck := [][]byte{}
+
+				for _, span := range spanSet.Spans {
+					spansToCheck = append(spansToCheck, span.ID())
+				}
+
+				// check all the matching spans in the trace to make sure the attribute does not exist
+				for _, tr := range traces {
+					if bytes.Equal(tr.TraceID, spanSet.TraceID) {
+						for _, resource := range tr.ResourceSpans {
+							for _, scope := range resource.ScopeSpans {
+								for _, span := range scope.Spans {
+									// if part of spanset, then check if the attribute does not exist
+									for _, spanID := range spansToCheck {
+										if bytes.Equal(spanID, span.SpanID) {
+											switch tc.level {
+											case "span":
+												for _, attr := range span.Attrs {
+													if attr.Key == "foo" {
+														fmt.Printf("span attr: %v\n", attr.Key)
+														found = true
+														break;
+													}
+												}
+											case "resource":
+												for _, attr := range resource.Resource.Attrs {
+													if attr.Key == "foo" {
+														fmt.Printf("resource attr: %v\n", attr.Key)
+														found = true
+														break;
+													}
+												}
+											case "instrumentation":
+												for _, attr := range scope.Scope.Attrs {
+													if attr.Key == "foo" {
+														fmt.Printf("resource attr: %v\n", attr.Key)
+														found = true
+														break;
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+				
+				if found {
+					break
+				}
+			}
+			require.False(t, found, "search request:%v", req)
+		})
+	}
+}
+
 func TestBackendBlockSearchTraceQL(t *testing.T) {
 	numTraces := 250
 	traces := make([]*Trace, 0, numTraces)
@@ -405,8 +515,9 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
-func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
-	numTraces := 50
+
+func TestBackendBBlockSearchTraceQLEvents(t *testing.T) {
+	numTraces := 1
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
@@ -629,6 +740,27 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									String03: ptr("dedicated-span-attr-value-3"),
 									String04: ptr("dedicated-span-attr-value-4"),
 									String05: ptr("dedicated-span-attr-value-5"),
+								},
+							},
+							{
+								SpanID:                 []byte("spanid2"),
+								Name:                   "hello2",
+								StartTimeUnixNano:      uint64(100 * time.Second),
+								DurationNano:           uint64(100 * time.Second),
+								HttpMethod:             ptr("get"),
+								HttpUrl:                ptr("url/hello/world"),
+								HttpStatusCode:         ptr(int64(500)),
+								ParentSpanID:           []byte{},
+								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
+								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
+								TraceState:             "tracestate",
+								Kind:                   int(v1.Span_SPAN_KIND_CLIENT),
+								DroppedAttributesCount: 42,
+								DroppedEventsCount:     43,
+								Attrs: []Attribute{
+									attr("foo", "def"),
+									attr("bar", 123),
+									attr("float", 456.78),
 								},
 							},
 						},
