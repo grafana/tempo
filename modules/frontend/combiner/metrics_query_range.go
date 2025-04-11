@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"sort"
@@ -14,13 +15,20 @@ import (
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
-	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal)
+func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner, error) {
+	// if a limit is being enforced, honor the request if it is less than the limit
+	// else set it to max limit
+	maxSeries := int(req.MaxSeries)
+	if maxSeriesLimit > 0 && int(req.MaxSeries) > maxSeriesLimit || req.MaxSeries == 0 {
+		maxSeries = maxSeriesLimit
+	}
+	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal, maxSeries)
 	if err != nil {
 		return nil, err
 	}
 
 	var prevResp *tempopb.QueryRangeResponse
+	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
@@ -45,7 +53,15 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
+
 			sortResponse(resp)
+			if combiner.MaxSeriesReached() {
+				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
+				// it's possible that the last response pushed us over the max series limit.
+				resp.Series = resp.Series[:maxSeries]
+				resp.Status = tempopb.PartialStatus_PARTIAL
+				resp.Message = maxSeriesReachedErrorMsg
+			}
 			attachExemplars(req, resp)
 
 			return resp, nil
@@ -55,7 +71,13 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
+
 			sortResponse(resp)
+			if combiner.MaxSeriesReached() {
+				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
+				// it's possible that the last response pushed us over the max series limit.
+				resp.Series = resp.Series[:maxSeries]
+			}
 			attachExemplars(req, resp)
 
 			// compare with prev resp and only return diffs
@@ -63,7 +85,15 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			// store resp for next diff
 			prevResp = resp
 
+			if combiner.MaxSeriesReached() {
+				diff.Status = tempopb.PartialStatus_PARTIAL
+				diff.Message = maxSeriesReachedErrorMsg
+			}
+
 			return diff, nil
+		},
+		quit: func(_ *tempopb.QueryRangeResponse) bool {
+			return combiner.MaxSeriesReached()
 		},
 	}
 
@@ -72,8 +102,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 	return c, nil
 }
 
-func NewTypedQueryRange(req *tempopb.QueryRangeRequest) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
-	c, err := NewQueryRange(req)
+func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
+	c, err := NewQueryRange(req, maxSeries)
 	if err != nil {
 		return nil, err
 	}

@@ -55,13 +55,13 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 	actualResp := &tempopb.TraceByIDResponse{}
 	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
 	require.NoError(t, err)
-	assert.Equal(t, actualResp.Status, tempopb.TraceByIDResponse_PARTIAL)
+	assert.Equal(t, actualResp.Status, tempopb.PartialStatus_PARTIAL)
 }
 
 func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *testing.T) {
 	traceResponse := &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
-		Status:  tempopb.TraceByIDResponse_PARTIAL,
+		Status:  tempopb.PartialStatus_PARTIAL,
 		Metrics: &tempopb.TraceByIDMetrics{},
 	}
 	resBytes, err := proto.Marshal(traceResponse)
@@ -83,7 +83,7 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 	actualResp := &tempopb.TraceByIDResponse{}
 	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
 	require.NoError(t, err)
-	assert.Equal(t, actualResp.Status, tempopb.TraceByIDResponse_PARTIAL)
+	assert.Equal(t, actualResp.Status, tempopb.PartialStatus_PARTIAL)
 }
 
 func TestNewTraceByIDV2(t *testing.T) {

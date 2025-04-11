@@ -285,6 +285,10 @@ func (m *MetricsCompare) result() SeriesSet {
 	return ss
 }
 
+func (m *MetricsCompare) length() int {
+	return len(m.baselines) + len(m.selections) + len(m.baselineTotals) + len(m.selectionTotals)
+}
+
 func (m *MetricsCompare) validate() error {
 	err := m.f.validate()
 	if err != nil {
@@ -491,6 +495,10 @@ func (b *BaselineAggregator) Results() SeriesSet {
 	}
 
 	return output
+}
+
+func (b *BaselineAggregator) Length() int {
+	return len(b.baseline) + len(b.selection) + len(b.baselineTotals) + len(b.selectionTotals)
 }
 
 var _ SeriesAggregator = (*BaselineAggregator)(nil)

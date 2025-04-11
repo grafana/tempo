@@ -81,6 +81,13 @@ func (a *averageOverTimeAggregator) result() SeriesSet {
 	return ss
 }
 
+func (a *averageOverTimeAggregator) length() int {
+	if a.agg != nil {
+		return a.agg.Length()
+	}
+	return a.seriesAgg.Length()
+}
+
 func (a *averageOverTimeAggregator) extractConditions(request *FetchSpansRequest) {
 	// For metrics aggregators based on a span attribute we have to include it
 	includeAttribute := a.attr != (Attribute{}) && !request.HasAttribute(a.attr)
@@ -332,6 +339,10 @@ func (b *averageOverTimeSeriesAggregator) Results() SeriesSet {
 	return ss
 }
 
+func (b *averageOverTimeSeriesAggregator) Length() int {
+	return len(b.weightedAverageSeries)
+}
+
 // Accumulated results of average over time
 type avgOverTimeSeries[S StaticVals] struct {
 	average         averageSeries
@@ -457,6 +468,10 @@ func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float
 		TimestampMs: ts,
 	})
 	g.series[g.buf.fast] = s
+}
+
+func (g *avgOverTimeSpanAggregator[F, S]) Length() int {
+	return len(g.series)
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S) (Labels, string) {
