@@ -1338,14 +1338,33 @@
    "type": "table"
   },
   {
-   "aliasColors": {
-
-   },
-   "bars": false,
-   "dashLength": 10,
-   "dashes": false,
    "datasource": "$datasource",
-   "fill": 1,
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 1,
+      "lineWidth": 1,
+      "pointSize": 5,
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      }
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+
+      ]
+     },
+     "unit": "s"
+    },
+    "overrides": [
+
+    ]
+   },
    "gridPos": {
     "h": 8,
     "w": 8,
@@ -1353,32 +1372,18 @@
     "y": 8
    },
    "id": 12,
-   "legend": {
-    "avg": false,
-    "current": false,
-    "max": false,
-    "min": false,
-    "show": true,
-    "total": false,
-    "values": false
-   },
-   "lines": true,
-   "linewidth": 1,
    "links": [
 
    ],
-   "nullPointMode": "null as zero",
-   "percentage": false,
-   "pointradius": 5,
-   "points": false,
-   "renderer": "flot",
-   "seriesOverrides": [
-
-   ],
-   "spaceLength": 10,
-   "span": 6,
-   "stack": false,
-   "steppedLine": false,
+   "options": {
+    "legend": {
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "single",
+     "sort": "none"
+    }
+   },
    "targets": [
     {
      "expr": "1 - (\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"} offset 24h))[1h:])\n  /\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}))[1h:])\n)\n",
@@ -1395,27 +1400,8 @@
      "legendLink": null
     }
    ],
-   "thresholds": [
-
-   ],
-   "timeFrom": null,
-   "timeShift": null,
    "title": "Latency vs 24h ago",
-   "tooltip": {
-    "shared": true,
-    "sort": 2,
-    "value_type": "individual"
-   },
-   "type": "graph",
-   "xaxis": {
-    "buckets": null,
-    "mode": "time",
-    "name": null,
-    "show": true,
-    "values": [
-
-    ]
-   },
+   "type": "timeseries",
    "yaxes": [
     {
      "format": "percentunit",

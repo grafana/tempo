@@ -282,7 +282,7 @@ local filename = 'tempo-rollout-progress.json';
         //
         // Performance comparison with 24h ago
         //
-        $.panel('Latency vs 24h ago') +
+        $.timeseriesPanel('Latency vs 24h ago') +
         $.queryPanel([|||
           1 - (
             avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"} offset 24h))[1h:])
