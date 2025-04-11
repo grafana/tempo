@@ -104,7 +104,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Server.GRPCServerMinTimeBetweenPings = 10 * time.Second
 	c.Server.GRPCServerPingWithoutStreamAllowed = true
 
-	f.IntVar(&c.Server.HTTPListenPort, "server.http-listen-port", 80, "HTTP server listen port.")
+	f.IntVar(&c.Server.HTTPListenPort, "server.http-listen-port", 3200, "HTTP server listen port.")
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
 
 	// Memberlist settings

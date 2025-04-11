@@ -906,7 +906,7 @@ func TestDoMetrics(t *testing.T) {
 		},
 		{
 			name:          "active ticker",
-			ticker:        time.NewTicker(10 * time.Millisecond),
+			ticker:        time.NewTicker(100 * time.Millisecond),
 			expectedCalls: 1,
 		},
 	}
@@ -932,10 +932,10 @@ func TestDoMetrics(t *testing.T) {
 			doMetrics(mockHTTPClient, tt.ticker, startTime, interval, r, config, logger)
 
 			if tt.ticker != nil {
-				time.Sleep(20 * time.Millisecond)
+				time.Sleep(170 * time.Millisecond)
 				tt.ticker.Stop()
 			}
-			assert.Equal(t, mockHTTPClient.GetMetricsCount(), tt.expectedCalls)
+			assert.Equal(t, tt.expectedCalls, mockHTTPClient.GetMetricsCount())
 		})
 	}
 }

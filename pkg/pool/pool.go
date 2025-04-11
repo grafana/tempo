@@ -5,37 +5,31 @@
 package pool
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var (
-	metricMissOver  prometheus.Counter
-	metricMissUnder prometheus.Counter
-)
-
-func init() {
-	metricAllocOutPool := promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "ingester_prealloc_miss_bytes_total",
-		Help:      "The total number of alloc'ed bytes that missed the sync pools.",
-	}, []string{"direction"})
-
-	metricMissOver = metricAllocOutPool.WithLabelValues("over")
-	metricMissUnder = metricAllocOutPool.WithLabelValues("under")
-}
+var metricAllocOutPool = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "buffer_pool_miss_bytes_total",
+	Help:      "The total number of alloc'ed bytes that missed the sync pools.",
+}, []string{"name", "direction"})
 
 // Pool is a linearly bucketed pool for variably sized byte slices.
 type Pool struct {
 	buckets   []sync.Pool
 	bktSize   int
 	minBucket int
+
+	metricMissOver  prometheus.Counter
+	metricMissUnder prometheus.Counter
 }
 
 // New returns a new Pool with size buckets for minSize to maxSize
-func New(minBucket, numBuckets, bktSize int) *Pool {
+func New(name string, minBucket, numBuckets, bktSize int) *Pool {
 	if minBucket < 0 {
 		panic("invalid min bucket size")
 	}
@@ -47,28 +41,30 @@ func New(minBucket, numBuckets, bktSize int) *Pool {
 	}
 
 	return &Pool{
-		buckets:   make([]sync.Pool, numBuckets),
-		bktSize:   bktSize,
-		minBucket: minBucket,
+		buckets:         make([]sync.Pool, numBuckets),
+		bktSize:         bktSize,
+		minBucket:       minBucket,
+		metricMissOver:  metricAllocOutPool.WithLabelValues(name, "over"),
+		metricMissUnder: metricAllocOutPool.WithLabelValues(name, "under"),
 	}
 }
 
 // Get returns a new byte slices that fits the given size.
 func (p *Pool) Get(sz int) []byte {
 	if sz < 0 {
-		panic("requested negative size")
+		panic(fmt.Sprintf("invalid buffer size %d", sz))
 	}
 
 	// Find the right bucket.
 	bkt := p.bucketFor(sz)
 
 	if bkt < 0 {
-		metricMissUnder.Add(float64(sz))
+		p.metricMissUnder.Add(float64(sz))
 		return make([]byte, 0, sz)
 	}
 
 	if bkt >= len(p.buckets) {
-		metricMissOver.Add(float64(sz))
+		p.metricMissOver.Add(float64(sz))
 		return make([]byte, 0, sz)
 	}
 

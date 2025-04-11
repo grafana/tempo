@@ -31,7 +31,7 @@ To configure Tempo with Grafana:
 1. Point the Grafana data source at your Tempo query frontend (or monolithic mode Tempo).
 1. Enter the URL: `http://<tempo hostname>:<http port number>`. For most of [the Tempo examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) the following works.
 
-The port of 3200 is a common port used in our examples. Tempo default HTTP port is 80.
+The port of 3200 is a common port used in our examples. Tempo default HTTP port is 3200.
 
 ## Query the data source
 

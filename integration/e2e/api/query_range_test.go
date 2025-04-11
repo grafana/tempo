@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,6 +23,8 @@ const configQueryRange = "config-query-range.yaml"
 var debugMode = false
 
 func TestQueryRangeExemplars(t *testing.T) {
+	t.Parallel()
+
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
@@ -101,6 +104,47 @@ sendLoop:
 			require.Equal(t, 0, exemplarCount)
 		})
 	}
+}
+
+// TestQueryRangeSingleTrace checks count for a single trace
+// Single trace creates a block with startTime == endTime
+// which covers a few edge cases under the hood.
+func TestQueryRangeSingleTrace(t *testing.T) {
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_single_trace")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configQueryRange, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, jaegerClient)
+
+	// Emit a single trace
+	require.NoError(t, jaegerClient.EmitBatch(context.Background(), util.MakeThriftBatch()))
+
+	// Wait for traces to be flushed to blocks
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
+
+	// Query the trace by count. As we have only one trace, we should get one dot with value 1
+	query := "{} | count_over_time()"
+	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+	require.NotNil(t, queryRangeRes)
+	require.Equal(t, len(queryRangeRes.GetSeries()), 1)
+
+	series := queryRangeRes.GetSeries()[0]
+	assert.Equal(t, len(series.GetExemplars()), 1)
+
+	var sum float64
+	for _, sample := range series.GetSamples() {
+		sum += sample.Value
+	}
+	require.InDelta(t, sum, 1, 0.000001)
 }
 
 func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempopb.QueryRangeResponse {

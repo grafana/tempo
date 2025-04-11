@@ -472,8 +472,8 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	if d.kafkaProducer != nil {
 		err := d.sendToKafka(ctx, userID, keys, rebatchedTraces)
 		if err != nil {
-			// TODO: Handle error
 			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err)
+			return nil, err
 		}
 	} else {
 		// See if we need to send to the generators

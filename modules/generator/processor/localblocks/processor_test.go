@@ -104,6 +104,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 
 	p, err := New(cfg, tenant, wal, &mockWriter{}, overrides)
 	require.NoError(t, err)
+	defer p.Shutdown(t.Context())
 
 	qr := &tempopb.QueryRangeRequest{
 		Query: "{} | rate() by (resource.service.name)",
@@ -200,7 +201,6 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	// Cleanup
 	close(end)
 	wg.Wait()
-	p.Shutdown(ctx)
 }
 
 func TestReplicationFactor(t *testing.T) {
@@ -232,6 +232,7 @@ func TestReplicationFactor(t *testing.T) {
 
 	p, err := New(cfg, "fake", wal, mockWriter, &mockOverrides{})
 	require.NoError(t, err)
+	defer p.Shutdown(t.Context())
 
 	tr := test.MakeTrace(10, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
 	p.PushSpans(context.TODO(), &tempopb.PushSpansRequest{
@@ -330,8 +331,9 @@ func TestBadBlocks(t *testing.T) {
 		},
 	}
 
-	_, err = New(cfg, "test-tenant", wal, nil, &mockOverrides{})
+	p, err := New(cfg, "test-tenant", wal, nil, &mockOverrides{})
 	require.NoError(t, err)
+	p.Shutdown(t.Context())
 }
 
 func TestProcessorWithNonEmptyWAL(t *testing.T) {
@@ -373,8 +375,9 @@ func TestProcessorWithNonEmptyWAL(t *testing.T) {
 		},
 	}
 
-	_, err = New(cfg, tenantID, wal, nil, &mockOverrides{})
+	p, err := New(cfg, tenantID, wal, nil, &mockOverrides{})
 	require.NoError(t, err)
+	p.Shutdown(t.Context())
 }
 
 func writeBadJSON(t *testing.T, path string) {
