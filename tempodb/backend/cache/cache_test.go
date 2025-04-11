@@ -25,6 +25,14 @@ func TestCacheFor(t *testing.T) {
 
 	rw := reader.(*readerWriter)
 
+	// test.MockProvider will return the same cache for all requests. we need
+	// to override individual caches so that the test can validate the cache returned
+	rw.footerCache = test.NewMockClient()
+	rw.columnIdxCache = test.NewMockClient()
+	rw.offsetIdxCache = test.NewMockClient()
+	rw.traceIDIdxCache = test.NewMockClient()
+	rw.bloomCache = test.NewMockClient()
+
 	testCases := []struct {
 		name          string
 		cacheInfo     *backend.CacheInfo
@@ -259,4 +267,41 @@ func TestList(t *testing.T) {
 			assert.Equal(t, tt.expectedCache, list)
 		})
 	}
+}
+
+func TestCacheKeys(t *testing.T) {
+	provider := test.NewMockProvider()
+	reader, _, err := NewCache(&BloomConfig{
+		CacheMaxBlockAge:        time.Hour,
+		CacheMinCompactionLevel: 1,
+	}, nil, nil, provider, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	role := cache.RoleParquetFooter // role doesn't matter b/c the mock provider always returns the same cache
+
+	// Read : seed data at expected key
+	expectedKey := "bar:baz:foo" // keypath + object name
+	expectedData := []byte("test-read")
+	provider.CacheFor(role).Store(ctx, []string{expectedKey}, [][]byte{expectedData})
+
+	// make request and confirm it returns
+	actualReader, actualBytes, err := reader.Read(ctx, "foo", backend.KeyPath{"bar", "baz"}, &backend.CacheInfo{Role: role})
+	require.NoError(t, err)
+	require.Equal(t, len(expectedData), int(actualBytes))
+
+	actualData, err := io.ReadAll(actualReader)
+	require.NoError(t, err)
+	require.Equal(t, expectedData, actualData)
+
+	// ReadRange : seed data at expected key
+	expectedKey = "bar:baz:foo:10:10" // keypath + object name + offset + length
+	expectedData = []byte("test-range")
+	provider.CacheFor(role).Store(ctx, []string{expectedKey}, [][]byte{expectedData})
+
+	// make request and confirm it returns
+	actualBuffer := make([]byte, 10)
+	err = reader.ReadRange(ctx, "foo", backend.KeyPath{"bar", "baz"}, 10, actualBuffer, &backend.CacheInfo{Role: role})
+	require.NoError(t, err)
+	require.Equal(t, expectedData, actualBuffer)
 }
