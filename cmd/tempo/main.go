@@ -58,8 +58,8 @@ func init() {
 func main() {
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
-	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Enable mutex profiling.")
-	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Enable block profiling.")
+	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Override default mutex profiling fraction.")
+	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Override default block profiling threshold.")
 
 	config, configVerify, err := loadConfig()
 	if err != nil {
