@@ -61,6 +61,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Improve memcached memory usage by pooling buffers [#4970](https://github.com/grafana/tempo/pull/4970) (@joe-elliott)
 * [ENHANCEMENT] metrics-generator: allow skipping localblocks and consuming from a different source of data [#4686](https://github.com/grafana/tempo/pull/4686) (@flxbk)
 * [ENHANCEMENT] compactor: restore dedicated columns logging for completed blocks [#4832](https://github.com/grafana/tempo/pull/4832) (@edgarkz)
+* [ENHANCEMENT] Compactor: pooling changes to reduce memory usage [#4985](https://github.com/grafana/tempo/pull/4985) (@mdisibio)
 * [ENHANCEMENT] distributor: add IPv6 support [#4840](https://github.com/grafana/tempo/pull/4840) (@gjacquet)
 * [ENHANCEMENT] Support TraceQL Metrics checks in Vulture [#4886](https://github.com/grafana/tempo/pull/4886) (@ruslan-mikhailov)
 * [ENHANCEMENT] Query-frontend: logs add msg to the log line [#4975](https://github.com/grafana/tempo/pull/4975) (@jmichalek132)
