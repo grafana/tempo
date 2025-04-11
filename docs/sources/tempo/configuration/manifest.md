@@ -20,7 +20,7 @@ http_api_prefix: ""
 server:
     http_listen_network: tcp
     http_listen_address: ""
-    http_listen_port: 80
+    http_listen_port: 3200
     http_listen_conn_limit: 0
     grpc_listen_network: tcp
     grpc_listen_address: ""
