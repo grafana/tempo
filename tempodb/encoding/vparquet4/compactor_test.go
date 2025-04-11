@@ -67,7 +67,7 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 	}
 }
 
-/*func BenchmarkCompactorDupes(b *testing.B) {
+func BenchmarkCompactorDupes(b *testing.B) {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: b.TempDir(),
 	})
@@ -103,7 +103,7 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 		_, err = c.Compact(ctx, l, r, w, inputs)
 		require.NoError(b, err)
 	}
-}*/
+}
 
 // createTestBlock with the number of given traces and the needed sizes.
 // Trace IDs are guaranteed to be monotonically increasing so that
