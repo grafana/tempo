@@ -284,7 +284,6 @@ func (f otelErrorHandlerFunc) Handle(err error) {
 }
 
 func setMutexBlockProfiling(mutexFraction int, blockThreshold int) {
-	// This is for backwards compatibility and allow the flag to override the env var.
 	if mutexFraction > 0 {
 		// The this is evaluated as 1/mutexFraction sampling, so 1 is 100%.
 		runtime.SetMutexProfileFraction(mutexFraction)
