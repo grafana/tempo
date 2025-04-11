@@ -270,7 +270,7 @@ func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue
 }
 
 // upsertDatabaseRequest handles the logic of adding a database edge on the
-// graph.  If we have a db.name or db.system attribute, we assume this is a
+// graph.  If we have a db.name or db.system or db.system.name attribute, we assume this is a
 // database request.  The name of the edge is determined by the following
 // order:
 //
@@ -294,12 +294,21 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 
 	// Check for db.system only if we don't have db.name above
 	if !isDatabase {
-		if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+		if name, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+			dbName = name
 			isDatabase = true
 		}
 	}
 
-	// If neither db.system nor db.name are present, we can't determine if this is a database request
+	// Check for db.system.name if neither above is found
+	if !isDatabase {
+		if name, ok := processor_util.FindAttributeValue(string(semconv.DBSystemNameKey), resourceAttr, span.Attributes); ok {
+			dbName = name
+			isDatabase = true
+		}
+	}
+
+	// If neither db.system nor db.name nor db.system.name are present, we can't determine if this is a database request
 	if !isDatabase {
 		return
 	}
