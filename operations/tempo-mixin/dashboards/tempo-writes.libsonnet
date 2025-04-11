@@ -71,15 +71,56 @@ dashboard_utils {
       .addRow(
         g.row('Distributor')
         .addPanel(
-          $.panel('Spans/Second') +
+          $.panel('Spans / sec') +
           $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused')
+        )
+        .addPanel(
+          $.panel('Bytes / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_bytes_received_total{%s}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.distributor), 'received') {
+            yaxes: $.yaxes('binBps'),
+          }
         )
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_distributor_push_duration_seconds', '{%s}' % $.jobMatcher($._config.jobs.distributor))
         )
       )
+      .addRow(
+        g.row('Kafka produced records')
+        .addPanel(
+          $.panel('Kafka append records / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_kafka_appends_total{%s, status="success"}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'appends')
+        )
+        .addPanel(
+          $.panel('Kafka failed append records / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_kafka_appends_total{%s, status="fail"}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'failed')
+        )
+      )
+      .addRow(
+        g.row('Kafka writes')
+        .addPanel(
+          $.panel('Kafka write bytes / sec') +
+          $.queryPanel('sum(rate(tempo_distributor_kafka_write_bytes_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'writes') {
+            yaxes: $.yaxes('binBps'),
+          }
+        )
+        .addPanel(
+          $.panel('Kafka write latency (sec)') +
+          $.queryPanel([
+            'histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])))' % $.jobMatcher($._config.jobs.distributor),
+            'histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])))' % $.jobMatcher($._config.jobs.distributor),
+            'sum(rate(tempo_distributor_kafka_write_latency_seconds_sum{%s}[$__rate_interval])) / sum(rate(tempo_distributor_kafka_write_latency_seconds_count{%s}[$__rate_interval]))' % [
+              $.jobMatcher($._config.jobs.distributor),
+              $.jobMatcher($._config.jobs.distributor),
+            ],
+          ], ['50th percentile', '99th percentile', 'average']) {
+            yaxes: $.yaxes('s'),
+          } +
+          { fieldConfig+: { defaults+: { unit: 's' } } },
+        )
+      )
+
       .addRow(
         g.row('Ingester')
         .addPanel(

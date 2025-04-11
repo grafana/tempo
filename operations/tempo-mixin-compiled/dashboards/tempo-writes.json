@@ -392,7 +392,7 @@
 
      ],
      "spaceLength": 10,
-     "span": 6,
+     "span": 4,
      "stack": false,
      "steppedLine": false,
      "targets": [
@@ -416,7 +416,7 @@
      ],
      "timeFrom": null,
      "timeShift": null,
-     "title": "Spans/Second",
+     "title": "Spans / sec",
      "tooltip": {
       "shared": true,
       "sort": 2,
@@ -484,7 +484,92 @@
 
      ],
      "spaceLength": 10,
-     "span": 6,
+     "span": 4,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_distributor_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by (status)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "received",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Bytes / sec",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "binBps",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 7,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 4,
      "stack": false,
      "steppedLine": false,
      "targets": [
@@ -570,6 +655,389 @@
    "panels": [
     {
      "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 8,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_distributor_kafka_appends_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\", status=\"success\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "appends",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Kafka append records / sec",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 9,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_distributor_kafka_appends_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\", status=\"fail\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "failed",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Kafka failed append records / sec",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Kafka produced records",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 10,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_distributor_kafka_write_bytes_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "writes",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Kafka write bytes / sec",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "binBps",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "unit": "s"
+      }
+     },
+     "fill": 1,
+     "id": 11,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "50th percentile",
+       "legendLink": null
+      },
+      {
+       "expr": "histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "99th percentile",
+       "legendLink": null
+      },
+      {
+       "expr": "sum(rate(tempo_distributor_kafka_write_latency_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) / sum(rate(tempo_distributor_kafka_write_latency_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "average",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Kafka write latency (sec)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Kafka writes",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
       "1xx": "#EAB839",
       "2xx": "#7EB26D",
       "3xx": "#6ED0E0",
@@ -585,7 +1053,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 7,
+     "id": 12,
      "legend": {
       "avg": false,
       "current": false,
@@ -670,7 +1138,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 8,
+     "id": 13,
      "legend": {
       "avg": false,
       "current": false,
@@ -795,7 +1263,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 9,
+     "id": 14,
      "legend": {
       "avg": false,
       "current": false,
@@ -880,7 +1348,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 10,
+     "id": 15,
      "legend": {
       "avg": false,
       "current": false,
@@ -1005,7 +1473,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 11,
+     "id": 16,
      "legend": {
       "avg": false,
       "current": false,
@@ -1090,7 +1558,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 12,
+     "id": 17,
      "legend": {
       "avg": false,
       "current": false,
@@ -1215,7 +1683,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 13,
+     "id": 18,
      "legend": {
       "avg": false,
       "current": false,
@@ -1300,7 +1768,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 14,
+     "id": 19,
      "legend": {
       "avg": false,
       "current": false,
@@ -1425,7 +1893,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 15,
+     "id": 20,
      "legend": {
       "avg": false,
       "current": false,
@@ -1510,7 +1978,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 16,
+     "id": 21,
      "legend": {
       "avg": false,
       "current": false,
