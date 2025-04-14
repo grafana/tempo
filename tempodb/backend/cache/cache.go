@@ -125,7 +125,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 	// todo: reevaluate. should we pass the cacheInfo forward?
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, nil)
 	if err == nil && cache != nil {
-		store(ctx, cache, cacheInfo.Role, k, b)
+		store(ctx, cache, cacheInfo.Role, k, buffer)
 	}
 
 	return err
