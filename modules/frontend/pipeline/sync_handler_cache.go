@@ -46,6 +46,9 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 				Body:       io.NopCloser(bytes.NewBuffer(body)),
 			}
 
+			// Add cache hit header
+			resp.Header.Add("X-Tempo-Cache", "HIT")
+
 			// We aren't capturing the original content type in the cache, just the raw bytes.
 			// Detect it and readd it, so the upstream code can parse the body.
 			// TODO - Cache should capture all of the relevant parts of the
@@ -63,6 +66,12 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	}
 
 	resp, err := c.next.RoundTrip(req)
+
+	// Add cache miss header immediately for all responses that weren't from cache
+	if resp != nil && resp.Header != nil {
+		resp.Header.Add("X-Tempo-Cache", "MISS")
+	}
+
 	// do not cache if there was an error
 	if err != nil {
 		return resp, err
