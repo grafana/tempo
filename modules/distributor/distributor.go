@@ -787,9 +787,12 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				// increase span count for trace
 				existingTrace.spanCount = existingTrace.spanCount + 1
 
-				// Count spans with future timestamps
-				if start > currentTime || end > currentTime {
-					dataquality.WarnSpanInFuture(userID)
+				// Count spans with timestamps in the future or in the past.
+				if end > currentTime {
+					dataquality.MetricSpanInFuture.WithLabelValues(userID).Observe(float64(end - currentTime))
+				}
+				if start < currentTime {
+					dataquality.MetricSpanInPast.WithLabelValues(userID).Observe(float64(currentTime - start))
 				}
 			}
 		}
