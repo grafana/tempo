@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"slices"
 	"testing"
 	"time"
 
@@ -129,9 +128,7 @@ func callJaegerQuerySearchServicesAssert(t *testing.T, tempo, svc *e2e.HTTPServi
 		// parse response
 		var response servicesOrOpJaegerQueryResponse
 		require.NoError(t, json.Unmarshal(body, &response))
-		slices.Sort(expected.Data)
-		slices.Sort(response.Data)
-		return assert.Equal(t, expected, response)
+		return assert.ElementsMatch(t, expected, response)
 	}, 1*time.Minute, 5*time.Second)
 }
 
@@ -154,9 +151,7 @@ func callJaegerQuerySearchOperationAssert(t *testing.T, svc *e2e.HTTPService, op
 	// parse response
 	var response servicesOrOpJaegerQueryResponse
 	require.NoError(t, json.Unmarshal(body, &response))
-	slices.Sort(expected.Data)
-	slices.Sort(response.Data)
-	require.Equal(t, expected, response)
+	require.ElementsMatch(t, expected, response)
 }
 
 func callJaegerQuerySearchTraceAssert(t *testing.T, svc *e2e.HTTPService, operation, service string) {
