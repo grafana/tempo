@@ -59,7 +59,7 @@ Tempo provides various command-line flags to configure its behavior when startin
 
 ## Module configuration
 
-Additional flags exist for configuring individual Tempo modules (distributor, ingester, querier, etc.) and their components. These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
+You can use additional flags to configuring individual Tempo modules, such as the distributor, ingester, querier, and their components. These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
 
 For a comprehensive list of all configuration options, it's recommended to use the configuration file approach described in the [Configuration documentation](../configuration/).
 
