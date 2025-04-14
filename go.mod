@@ -98,7 +98,7 @@ require (
 	github.com/parquet-go/parquet-go v0.25.0
 	github.com/stoewer/parquet-cli v0.0.10
 	github.com/twmb/franz-go v1.18.1
-	github.com/twmb/franz-go/pkg/kadm v1.15.0
+	github.com/twmb/franz-go/pkg/kadm v1.16.0
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20250320172111-35ab5e5f5327
 	github.com/twmb/franz-go/pkg/kmsg v1.9.0
 	github.com/twmb/franz-go/plugin/kotel v1.5.0
