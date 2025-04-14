@@ -10,7 +10,6 @@ const (
 	reasonBlockBuilderOutsideIngestionSlack = "blockbuilder_outside_ingestion_time_slack"
 	reasonDisconnectedTrace                 = "disconnected_trace"
 	reasonRootlessTrace                     = "rootless_trace"
-	reasonSpanInFuture                      = "span_in_future"
 
 	PhaseTraceFlushedToWal     = "_flushed_to_wal"
 	PhaseTraceWalToComplete    = "_wal_to_complete"
@@ -39,6 +38,16 @@ func WarnRootlessTrace(tenant string, phase string) {
 	metric.WithLabelValues(tenant, reasonRootlessTrace+phase).Inc()
 }
 
-func WarnSpanInFuture(tenant string) {
-	metric.WithLabelValues(tenant, reasonSpanInFuture).Inc()
-}
+var MetricSpanInFuture = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "tempo",
+	Name:      "span_in_future_total",
+	Help:      "The total number of span in future per tenant.",
+	Buckets:   []float64{300, 1800, 3600}, // 5m, 30m, 1h
+}, []string{"tenant"})
+
+var MetricSpanInPast = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "tempo",
+	Name:      "span_in_past_total",
+	Help:      "The total number of span in past per tenant.",
+	Buckets:   []float64{300, 1800, 3600}, // 5m, 30m, 1h
+}, []string{"tenant"})
