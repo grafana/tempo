@@ -498,7 +498,6 @@ func (p NilStringEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 }
 
 func (p NilStringEqualPredicate) KeepPage(page pq.Page) bool {
-
 	return true
 }
 
