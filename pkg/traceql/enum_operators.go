@@ -40,7 +40,7 @@ const (
 	OpSpansetUnionSibling
 	OpSpansetUnionAncestor
 	OpSpansetUnionDescendant
-	OpNotExists // jpe - different than others. not parseable. what else do i need to make this real?
+	OpExists // OpNotExists is not parseable directly in the grammar. span.foo != nil and nil != span.foo are rewritten to something like exists(span.foo). this distinguishes it from when span.foo is nil in an expression like span.foo != "bar"
 )
 
 func (op Operator) isBoolean() bool {
@@ -54,7 +54,8 @@ func (op Operator) isBoolean() bool {
 		op == OpGreaterEqual ||
 		op == OpLess ||
 		op == OpLessEqual ||
-		op == OpNot
+		op == OpNot ||
+		op == OpExists
 }
 
 func (op Operator) binaryTypesValid(lhsT StaticType, rhsT StaticType) bool {
@@ -111,8 +112,8 @@ func (op Operator) unaryTypesValid(t StaticType) bool {
 		return t.isNumeric()
 	case OpNot:
 		return t == TypeBoolean
-	case OpNotExists:
-		return true // not exists can execute on any type
+	case OpExists:
+		return true
 	}
 
 	return false

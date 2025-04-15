@@ -966,13 +966,14 @@ func TestAttributeNameErrors(t *testing.T) {
 	}
 }
 
-// TestBinaryAndUnaryOperationsCollapseToStatics tests code in the newBinaryOperation and newUnaryOperation functions
+// TestBinaryAndUnaryOperationsRewrites tests code in the newBinaryOperation and newUnaryOperation functions
 // that attempts to simplify combinations of static values where possible.
-func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
+func TestBinaryAndUnaryOperationsRewrites(t *testing.T) {
 	tests := []struct {
 		in       string
 		expected FieldExpression
 	}{
+		// collapse to statics
 		{in: "{ duration > 1 + 2}", expected: newBinaryOperation(OpGreater, NewIntrinsic(IntrinsicDuration), NewStaticInt(3))},
 		{in: "{ -1 }", expected: NewStaticInt(-1)},
 		{in: "{ 1 + 1 > 1 }", expected: NewStaticBool(true)},
@@ -981,6 +982,9 @@ func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
 		{in: "{ .1 + 1 }", expected: NewStaticFloat(1.1)},
 		{in: "{ 1 * -1 = -1 }", expected: NewStaticBool(true)},
 		{in: "{ .foo * -1. = -1 }", expected: newBinaryOperation(OpEqual, newBinaryOperation(OpMult, NewAttribute("foo"), NewStaticFloat(-1)), NewStaticInt(-1))},
+		// rewrite != nil to existence
+		{in: "{ .foo != nil }", expected: newUnaryOperation(OpExists, NewAttribute("foo"))},
+		{in: "{ nil != .foo }", expected: newUnaryOperation(OpExists, NewAttribute("foo"))},
 	}
 
 	test := func(t *testing.T, q string, expected FieldExpression) {

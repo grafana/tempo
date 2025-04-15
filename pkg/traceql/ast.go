@@ -491,12 +491,12 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 		}
 	}
 
-	// rewrite != nil and nil != to be just existence
-	if binop.Op == OpNotEqual && !binop.LHS.referencesSpan() && binop.LHS.impliedType() == TypeNil { // jpe better nil check?
-		return newUnaryOperation(OpNotExists, binop.RHS)
+	// rewrite != nil and nil != to be a unary existence
+	if binop.Op == OpNotEqual && !binop.LHS.referencesSpan() && binop.LHS.impliedType() == TypeNil {
+		return newUnaryOperation(OpExists, binop.RHS)
 	}
-	if binop.Op == OpNotEqual && !binop.RHS.referencesSpan() && binop.RHS.impliedType() == TypeNil { // jpe better nil check?
-		return newUnaryOperation(OpNotExists, binop.LHS)
+	if binop.Op == OpNotEqual && !binop.RHS.referencesSpan() && binop.RHS.impliedType() == TypeNil {
+		return newUnaryOperation(OpExists, binop.LHS)
 	}
 
 	if (op == OpAnd || op == OpOr) && binop.referencesSpan() {
@@ -553,11 +553,11 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 func (UnaryOperation) __fieldExpression() {}
 
 func (o UnaryOperation) impliedType() StaticType {
-	if o.Op == OpNotExists {
+	if o.Op == OpExists {
 		return TypeBoolean
 	}
 
-	// both operators (opPower and opNot) will just be based on the operand type
+	// opPower and opNot will just be based on the operand type
 	return o.Expression.impliedType()
 }
 
@@ -780,7 +780,7 @@ func (s Static) Equals(o *Static) bool {
 	}
 }
 
-func (s Static) NotEquals(o *Static) bool { // jpe - test
+func (s Static) NotEquals(o *Static) bool {
 	if s.Type == TypeNil || o.Type == TypeNil {
 		return false
 	}

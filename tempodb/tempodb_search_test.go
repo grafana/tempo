@@ -1263,6 +1263,12 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 			},
 		},
 		{
+			req: &tempopb.SearchRequest{Query: "{ nil != span.foo }", Limit: 10},
+			expected: expected{
+				key: "foo",
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{ name != nil }", Limit: 10},
 			expected: expected{
 				key: intrinsicName,
@@ -1330,11 +1336,16 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 				case "duration":
 					require.NotNil(t, span.DurationNanos)
 				default:
+					found := false
 					for _, attribute := range span.Attributes {
-						if attribute.Key == "service.name" {
-							require.NotNil(t, attribute.Value) // jpe - do i need more code here to look for foo?
+						if attribute.Key == tc.expected.key {
+							require.NotNil(t, attribute.Value)
+							found = true
+							break
 						}
 					}
+
+					require.True(t, found, "attribute %s not found", tc.expected.key)
 				}
 			}
 		}
