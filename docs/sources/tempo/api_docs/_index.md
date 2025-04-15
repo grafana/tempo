@@ -7,6 +7,8 @@ weight: 800
 
 # Tempo HTTP API
 
+<!-- The API docs are mounted into GET in the website repository. -->
+
 <!-- vale Grafana.GooglePassive = NO -->
 <!-- vale Grafana.Parentheses = NO -->
 
