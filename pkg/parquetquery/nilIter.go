@@ -7,76 +7,31 @@ import (
 	"io"
 
 	pq "github.com/parquet-go/parquet-go"
-
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
-
-
 
 // NilAttributeIterator copies all functions of the sync iterator with just the next() function being different
 type NilAttributeIterator struct {
-	syncIterator SyncIterator
+	syncIterator          SyncIterator
 	lastRowNumberReturned RowNumber
 	attrFound             bool
-	lastBuff			  bool
+	lastBuff              bool
 }
 
 var _ Iterator = (*NilAttributeIterator)(nil)
 
-func NewNilAttributeIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, opts ...SyncIteratorOpt) *NilAttributeIterator {
-	// Assign row group bounds.
-	// Lower bound is inclusive
-	// Upper bound is exclusive, points at the first row of the next group
-	rn := EmptyRowNumber()
-	rgsMin := make([]RowNumber, len(rgs))
-	rgsMax := make([]RowNumber, len(rgs))
-	for i, rg := range rgs {
-		rgsMin[i] = rn
-		rgsMax[i] = rn
-		rgsMax[i].Skip(rg.NumRows() + 1)
-		rn.Skip(rg.NumRows())
-	}
-
-	_, span := tracer.Start(ctx, "NilAttributeIterator", trace.WithAttributes(
-		attribute.Int("columnIndex", column),
-		attribute.String("column", columnName),
-	))
-
-	at := IteratorResult{}
-	if selectAs != "" {
-		// Preallocate 1 entry with the given name.
-		at.Entries = []struct {
-			Key   string
-			Value pq.Value
-		}{
-			{Key: selectAs},
-		}
-	}
-
+func NewNilAttributeIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, maxDefinitionLevel int, opts ...SyncIteratorOpt) *NilAttributeIterator {
 	// Create the sync iterator
-	syncIterator := &SyncIterator{
-		span:       span,
-		column:     column,
-		columnName: columnName,
-		rgs:        rgs,
-		readSize:   readSize,
-		rgsMin:     rgsMin,
-		rgsMax:     rgsMax,
-		filter:     filter,
-		curr:       EmptyRowNumber(),
-		at:         at,
-	}
+	syncIterator := NewSyncIterator(ctx, rgs, column, columnName, readSize, filter, selectAs, maxDefinitionLevel, opts...)
 	// Apply options
 	for _, opt := range opts {
 		opt(syncIterator)
 	}
 
 	i := &NilAttributeIterator{
-		syncIterator: *syncIterator,
+		syncIterator:          *syncIterator,
 		lastRowNumberReturned: EmptyRowNumber(),
-		attrFound: false,
-		lastBuff: false,
+		attrFound:             false,
+		lastBuff:              false,
 	}
 
 	return i
@@ -112,7 +67,6 @@ func (c *NilAttributeIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber)
 func (c *NilAttributeIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done bool) {
 	return c.syncIterator.seekRowGroup(seekTo, definitionLevel)
 }
-
 
 func (c *NilAttributeIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bool, err error) {
 	return c.syncIterator.seekPages(seekTo, definitionLevel)
@@ -181,19 +135,15 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 			}
 		}
 
+		attrKeys := make([]string, 0, 10)
+
 		// Consume current buffer until empty
 		for c.syncIterator.currBufN < len(c.syncIterator.currBuf) {
 			v := &c.syncIterator.currBuf[c.syncIterator.currBufN]
 
 			if v.RepetitionLevel() < v.DefinitionLevel() {
-				// moving on to the next level higher than attribute level
-				// so if we haven't seen the attribute yet, it is nil
-				// check if we've already returned this row so we can properly next()
-				if !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) {
-					c.lastRowNumberReturned = c.syncIterator.curr
-					return c.syncIterator.curr, v, nil
-				}
-
+				// new level reset
+				c.attrFound = false
 			}
 
 			// Inspect all values to track the current row number,
@@ -204,17 +154,33 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 
 			if c.syncIterator.filter != nil && c.syncIterator.filter.KeepValue(*v) {
 				c.attrFound = true
+				attrKeys = attrKeys[:0]
+				continue
 			}
 
-			// check the next value if we've moved on to a new span
-			if c.syncIterator.currBufN < len(c.syncIterator.currBuf) {
-			}
+			attrKeys = append(attrKeys, fmt.Sprintf("%v %s", c.syncIterator.curr, v.String()))
 
 			// if this is the last value then check here
 			if c.lastBuff && c.syncIterator.currBufN == len(c.syncIterator.currBuf) && !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) {
 				c.lastRowNumberReturned = c.syncIterator.curr
 				return c.syncIterator.curr, v, nil
 			}
+
+			// if not last value then check if the next value puts us at a higher level
+			if c.syncIterator.currBufN < len(c.syncIterator.currBuf) {
+				nextV := &c.syncIterator.currBuf[c.syncIterator.currBufN]
+				if nextV.RepetitionLevel() < nextV.DefinitionLevel() {
+					// moving on to the next level higher than attribute level
+					// so if we haven't seen the attribute yet, it is nil
+					// check if we've already returned this row so we can properly next()
+					if !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) {
+						c.lastRowNumberReturned = c.syncIterator.curr
+						return c.syncIterator.curr, v, nil
+					}
+
+				}
+			}
+
 			continue
 		}
 	}

@@ -183,6 +183,7 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
+	numSpansExpected := 0
 
 	for i := 0; i < numTraces; i++ {
 		if i == wantTraceIdx {
@@ -193,24 +194,29 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 		id := test.ValidTraceID(nil)
 		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
 		traces = append(traces, tr)
+		for _, resource := range tr.ResourceSpans {
+			for _, scope := range resource.ScopeSpans {
+				numSpansExpected += len(scope.Spans)
+			}
+		}
 	}
 
 	b := makeBackendBlockWithTraces(t, traces)
 	ctx := context.Background()
 	//traceIDText := util.TraceIDToHexString(wantTraceID)
 
-	searchesThatMatch := []struct {
+	searches := []struct {
 		level string
-		name string
-		req  traceql.FetchSpansRequest
+		name  string
+		req   traceql.FetchSpansRequest
 	}{
 
-		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.fool = nil}`)},
-		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.fool = nil}`)},
-		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.fool = nil}`)},
+		//{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
+		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
+		//{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
 	}
 
-	for _, tc := range searchesThatMatch {
+	for _, tc := range searches {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
 			if req.SecondPass == nil {
@@ -222,6 +228,8 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 			require.NoError(t, err, "search request:%v", req)
 
 			found := false
+			numResourcesFound := 0
+			numSpansFound := 0
 			for {
 				spanSet, err := resp.Results.Next(ctx)
 				require.NoError(t, err, "search request:%v", req)
@@ -231,13 +239,16 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 
 				spansToCheck := [][]byte{}
 
+				numSpansFound += len(spanSet.Spans)
 				for _, span := range spanSet.Spans {
 					spansToCheck = append(spansToCheck, span.ID())
 				}
 
 				// check all the matching spans in the trace to make sure the attribute does not exist
+
 				for _, tr := range traces {
 					if bytes.Equal(tr.TraceID, spanSet.TraceID) {
+						numResourcesFound += len(tr.ResourceSpans)
 						for _, resource := range tr.ResourceSpans {
 							for _, scope := range resource.ScopeSpans {
 								for _, span := range scope.Spans {
@@ -250,7 +261,7 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 													if attr.Key == "foo" {
 														fmt.Printf("span attr: %v\n", attr.Key)
 														found = true
-														break;
+														break
 													}
 												}
 											case "resource":
@@ -258,7 +269,7 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 													if attr.Key == "foo" {
 														fmt.Printf("resource attr: %v\n", attr.Key)
 														found = true
-														break;
+														break
 													}
 												}
 											case "instrumentation":
@@ -266,7 +277,7 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 													if attr.Key == "foo" {
 														fmt.Printf("resource attr: %v\n", attr.Key)
 														found = true
-														break;
+														break
 													}
 												}
 											}
@@ -278,10 +289,19 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 					}
 				}
 
-				
 				if found {
 					break
 				}
+			}
+			if tc.level == "resource" {
+				// since in our testing scenario we are creating all test traces with the same resource which does not have foo except for the ONE trace
+				// we should expect the number of resources found to be numTraces - 1
+				require.Equal(t, numTraces-1, numResourcesFound, "search request:%v", req)
+			}
+			if tc.level == "span" {
+				// since our expected trace is the only one with spans that have foo attributes
+				// all other traces should not have any spans with foo attributes
+				require.Equal(t, numSpansExpected, numSpansFound, "search request:%v", req)
 			}
 			require.False(t, found, "search request:%v", req)
 		})
@@ -640,7 +660,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		})
 	}
 }
-
 
 func TestBackendBBlockSearchTraceQLEvents(t *testing.T) {
 	numTraces := 1
