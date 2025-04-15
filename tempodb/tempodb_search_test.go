@@ -1257,6 +1257,12 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 
 	searchesThatMatch := []*test{
 		{
+			req: &tempopb.SearchRequest{Query: "{ span.foo != nil }", Limit: 10},
+			expected: expected{
+				key: "foo",
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{ name != nil }", Limit: 10},
 			expected: expected{
 				key: intrinsicName,
@@ -1287,8 +1293,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 			},
 		},
 	}
-	// TODO re-enable commented searches after fixing structural operator bugs in vParquet3
-	//      https://github.com/grafana/tempo/issues/2674
+
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		{Query: "{ name = nil }"},
 		{Query: "{ duration = nil }"},
@@ -1306,6 +1311,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 		}
 
 		require.NoError(t, err, "search request: %+v", tc)
+		require.GreaterOrEqual(t, len(res.Traces), 1, "search request: %+v", tc)
 
 		// the actual spanset is impossible to predict since it's chosen randomly from the Spansets slice
 		// so set it to nil here and just test the slice using the testcases above
@@ -1326,7 +1332,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 				default:
 					for _, attribute := range span.Attributes {
 						if attribute.Key == "service.name" {
-							require.NotNil(t, attribute.Value)
+							require.NotNil(t, attribute.Value) // jpe - do i need more code here to look for foo?
 						}
 					}
 				}
