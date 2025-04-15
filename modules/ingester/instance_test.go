@@ -749,24 +749,28 @@ func TestInstanceClearOldBlocks(t *testing.T) {
 				require.NoError(t, ingester.AwaitTerminated(ctx))
 			})
 
-			request := makeRequest([]byte{})
-			instance.PushBytesRequest(ctx, request)
+			// Create several complete blocks.
+			numBlocks := 3
+			for i := 0; i < numBlocks; i++ {
+				request := makeRequest([]byte{})
+				instance.PushBytesRequest(ctx, request)
 
-			err := instance.CutCompleteTraces(0, true)
-			require.NoError(t, err)
+				err := instance.CutCompleteTraces(0, true)
+				require.NoError(t, err)
 
-			blockID, err := instance.CutBlockIfReady(0, 0, true)
-			require.NoError(t, err)
-			require.NotEqual(t, blockID, uuid.Nil)
+				blockID, err := instance.CutBlockIfReady(0, 0, true)
+				require.NoError(t, err)
+				require.NotEqual(t, blockID, uuid.Nil)
 
-			err = instance.CompleteBlock(ctx, blockID)
-			require.NoError(t, err)
+				err = instance.CompleteBlock(ctx, blockID)
+				require.NoError(t, err)
+			}
 
-			err = instance.ClearOldBlocks(tc.flushObjectStorage, tc.completeBlockTimeout)
+			err := instance.ClearOldBlocks(tc.flushObjectStorage, tc.completeBlockTimeout)
 			require.NoError(t, err)
 
 			if tc.expectCompleteBlocks {
-				require.Equal(t, 1, len(instance.completeBlocks))
+				require.Equal(t, numBlocks, len(instance.completeBlocks))
 			} else {
 				require.Equal(t, 0, len(instance.completeBlocks))
 			}
