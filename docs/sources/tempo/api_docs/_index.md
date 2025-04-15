@@ -113,7 +113,7 @@ If you are using Grafana Enterprise Traces (GET), then it only supports OpenTele
 |  Protocol | Type | Docs |
 |  -------- | ---- | ---- |
 |  OpenTelemetry | gRPC | [Link](https://opentelemetry.io/docs/specs/otlp/) |
-|  OpenTelemetry | HTTP | [Link](hhttps://opentelemetry.io/docs/specs/otlp/) |
+|  OpenTelemetry | HTTP | [Link](https://opentelemetry.io/docs/specs/otlp/) |
 
 ### Query
 
