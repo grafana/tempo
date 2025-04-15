@@ -135,8 +135,6 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 			}
 		}
 
-		attrKeys := make([]string, 0, 10)
-
 		// Consume current buffer until empty
 		for c.syncIterator.currBufN < len(c.syncIterator.currBuf) {
 			v := &c.syncIterator.currBuf[c.syncIterator.currBufN]
@@ -154,11 +152,8 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 
 			if c.syncIterator.filter != nil && c.syncIterator.filter.KeepValue(*v) {
 				c.attrFound = true
-				attrKeys = attrKeys[:0]
 				continue
 			}
-
-			attrKeys = append(attrKeys, fmt.Sprintf("%v %s", c.syncIterator.curr, v.String()))
 
 			// if this is the last value then check here
 			if c.lastBuff && c.syncIterator.currBufN == len(c.syncIterator.currBuf) && !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) {
