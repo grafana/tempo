@@ -577,7 +577,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	case OpEqual:
 		return NewStaticBool(lhs.Equals(&rhs)), nil
 	case OpNotEqual:
-		return NewStaticBool(!lhs.Equals(&rhs)), nil
+		return NewStaticBool(lhs.NotEquals(&rhs)), nil
 	default:
 		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
 	}
@@ -635,7 +635,7 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	case OpEqual:
 		return lhs.Equals(&rhs), nil
 	case OpNotEqual:
-		return !lhs.Equals(&rhs), nil
+		return lhs.NotEquals(&rhs), nil
 	}
 
 	return false, errors.New("unexpected operator " + op.String())

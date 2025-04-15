@@ -944,6 +944,29 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 				},
 			},
 		},
+		{
+			req: &tempopb.SearchRequest{Query: "{} >> { span.foo != `baz` }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{
@@ -970,6 +993,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		{Query: "{} &>> {.broken}"},
 		{Query: "{} &> {.broken}"},
 		{Query: "{} &~ {.broken}"},
+		{Query: "{} >> { span.does-not-exist != `bar`}"},
 	}
 
 	for _, tc := range searchesThatMatch {

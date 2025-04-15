@@ -721,6 +721,15 @@ func (s Static) MapKey() StaticMapKey {
 }
 
 func (s Static) Equals(o *Static) bool {
+	if s.Type == TypeNil && o.Type == TypeNil {
+		return true
+	}
+
+	// if one is nil, they are not equal
+	if s.Type == TypeNil || o.Type == TypeNil {
+		return false
+	}
+
 	switch s.Type {
 	case TypeInt, TypeDuration:
 		switch o.Type {
@@ -751,12 +760,18 @@ func (s Static) Equals(o *Static) bool {
 		return s.Type == o.Type && bytes.Equal(s.valBytes, o.valBytes)
 	case TypeStringArray:
 		return s.Type == o.Type && slices.Equal(s.valStrings, o.valStrings)
-	case TypeNil:
-		return o.Type == TypeNil
 	default:
 		// should not be reached
 		return false
 	}
+}
+
+func (s Static) NotEquals(o *Static) bool { // jpe - test
+	if s.Type == TypeNil || o.Type == TypeNil {
+		return false
+	}
+
+	return !s.Equals(o)
 }
 
 func (s Static) StrictEquals(o *Static) bool {
