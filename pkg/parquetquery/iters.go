@@ -744,6 +744,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
 			c.currBufN++
 			c.currPageN++
+
 			if c.filter != nil && !c.filter.KeepValue(*v) {
 				continue
 			}
