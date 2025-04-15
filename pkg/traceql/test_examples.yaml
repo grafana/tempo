@@ -151,6 +151,17 @@ valid:
   - '{} | avg_over_time(duration) by (span.http.path)'
   - '{} | sum_over_time(duration) by (span.http.path)'
   - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path)'
+  # second stage on metrics
+  - '{} | rate() | topk(10)'
+  - '{} | rate() by (span.client_ip) | topk(10)'
+  - '{} | count_over_time() by (name) | topk(10) with(sample=0.1)'
+  - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path) | topk(10)'
+  - '{} | avg_over_time(duration) by (span:name) | topk(10)'
+  - '{} | rate() by (span.client_ip) | bottomk(10)'
+  - '{} | rate() | bottomk(10)'
+  - '{} | count_over_time() by (name) | bottomk(10) with(sample=0.1)'
+  - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path) | bottomk(10)'
+  - '{} | avg_over_time(duration) by (span:name) | bottomk(10)'
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
   - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'
@@ -219,6 +230,14 @@ parse_fails:
   - '{ trace:name = "a" }'
   - '{ trace:rootServiceName = "a" }' # should be trace:rootService only 
   - '{ span:rootName = "bar" }'
+  # invalid metrics second stage functions
+  - '{} | topk(10)'
+  - '{} | topk(10) with(sample=0.1)'
+  - '{} | bottomk(10)'
+  - '{} | bottomk(10) with(sample=0.1)'
+  - '{} | rate() | topk(-1)'
+  - '{} | rate() | bottomk(-1)'
+
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
@@ -281,6 +300,14 @@ validate_fails:
   - '{ nestedSetLeft = "foo" }'
   - '{ nestedSetRight = false }'
   - '{ nestedSetParent > "foo" }'
+  # invalid metrics second stage functions
+  - '{} | rate() | topk(0)'
+  - '{} | rate() | topk(0) with(sample=0.1)'
+  - '{} | rate() | bottomk(0)'
+  - '{} | rate() | bottomk(0) with(sample=0.1)'
+  # compare function with second stage functions is not valid
+  - '{} | compare({status=error}) | topk(10)'
+  - '{} | compare({status=error}) | bottomk(10)'
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:

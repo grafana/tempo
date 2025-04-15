@@ -7,7 +7,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -47,7 +47,7 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
 
-	callJaegerQuerySearchServicesAssert(t, jaegerQuery, servicesOrOpJaegerQueryResponse{
+	callJaegerQuerySearchServicesAssert(t, tempo, jaegerQuery, servicesOrOpJaegerQueryResponse{
 		Data: []string{
 			"frontend",
 			"backend",
@@ -101,14 +101,7 @@ func TestSearchUsingBackendTagsService(t *testing.T) {
 	batch = makeThriftBatchWithSpanCountForServiceAndOp(2, "request", "frontend")
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
-
-	util.CallFlush(t, tempo)
-	time.Sleep(time.Second * 1)
-	util.CallFlush(t, tempo)
-
-	callJaegerQuerySearchServicesAssert(t, jaegerQuery, servicesOrOpJaegerQueryResponse{
+	callJaegerQuerySearchServicesAssert(t, tempo, jaegerQuery, servicesOrOpJaegerQueryResponse{
 		Data: []string{
 			"frontend",
 			"backend",
@@ -117,26 +110,30 @@ func TestSearchUsingBackendTagsService(t *testing.T) {
 	})
 }
 
-func callJaegerQuerySearchServicesAssert(t *testing.T, svc *e2e.HTTPService, expected servicesOrOpJaegerQueryResponse) {
-	// search for tag values
-	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(16686)+"/api/services", nil)
-	require.NoError(t, err)
+func callJaegerQuerySearchServicesAssert(t *testing.T, tempo, svc *e2e.HTTPService, expected servicesOrOpJaegerQueryResponse) {
+	assert.Eventually(t, func() bool {
+		util.CallFlush(t, tempo)
+		// search for tag values
+		req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(16686)+"/api/services", nil)
+		require.NoError(t, err)
 
-	res, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
-	// read body and print it
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	defer res.Body.Close()
+		// read body and print it
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		defer res.Body.Close()
 
-	// parse response
-	var response servicesOrOpJaegerQueryResponse
-	require.NoError(t, json.Unmarshal(body, &response))
-	sort.Slice(expected.Data, func(i, j int) bool { return expected.Data[i] < expected.Data[j] })
-	sort.Slice(response.Data, func(i, j int) bool { return response.Data[i] < response.Data[j] })
-	require.Equal(t, expected, response)
+		// parse response
+		var response servicesOrOpJaegerQueryResponse
+		require.NoError(t, json.Unmarshal(body, &response))
+		slices.Sort(expected.Data)
+		slices.Sort(response.Data)
+
+		return assert.Equal(t, expected, response)
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func callJaegerQuerySearchOperationAssert(t *testing.T, svc *e2e.HTTPService, operation string, expected servicesOrOpJaegerQueryResponse) {
@@ -158,8 +155,8 @@ func callJaegerQuerySearchOperationAssert(t *testing.T, svc *e2e.HTTPService, op
 	// parse response
 	var response servicesOrOpJaegerQueryResponse
 	require.NoError(t, json.Unmarshal(body, &response))
-	sort.Slice(expected.Data, func(i, j int) bool { return expected.Data[i] < expected.Data[j] })
-	sort.Slice(response.Data, func(i, j int) bool { return response.Data[i] < response.Data[j] })
+	slices.Sort(expected.Data)
+	slices.Sort(response.Data)
 	require.Equal(t, expected, response)
 }
 

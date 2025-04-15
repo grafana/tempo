@@ -39,6 +39,7 @@ const (
 	urlParamSince           = "since"
 	urlParamExemplars       = "exemplars"
 	URLParamRF1After        = "rf1After"
+	urlMaxSeries            = "maxSeries"
 
 	// backend search querier
 	urlParamStartPage        = "startPage"
@@ -423,6 +424,11 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 		req.Exemplars = uint32(exemplars)
 	}
 
+	maxSeries, _ := extractQueryParam(vals, urlMaxSeries)
+	if maxSeries, err := strconv.Atoi(maxSeries); err == nil {
+		req.MaxSeries = uint32(maxSeries)
+	}
+
 	return req, nil
 }
 
@@ -486,6 +492,7 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	}
 
 	qb.addParam(urlParamExemplars, strconv.FormatUint(uint64(searchReq.Exemplars), 10))
+	qb.addParam(urlMaxSeries, strconv.Itoa(int(searchReq.MaxSeries)))
 
 	req.URL.RawQuery = qb.query()
 

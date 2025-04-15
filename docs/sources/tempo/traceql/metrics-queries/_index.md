@@ -26,7 +26,8 @@ refs:
 TraceQL metrics is an experimental feature in Grafana Tempo that creates metrics from traces.
 
 Metric queries extend trace queries by applying a function to trace query results.
-This powerful feature allows for ad hoc aggregation of any existing TraceQL query by any dimension available in your traces, much in the same way that LogQL metric queries create metrics from logs.
+This powerful feature allows for ad hoc aggregation of any existing TraceQL query by any dimension available in your
+traces, much in the same way that LogQL metric queries create metrics from logs.
 
 Traces are a unique observability signal that contain causal relationships between the components in your system.
 
@@ -38,7 +39,8 @@ TraceQL metrics can help answer questions like this:
 
 TraceQL metrics can help you answer these questions by parsing your traces in aggregate.
 
-TraceQL metrics are powered by the [TraceQL metrics API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
+TraceQL metrics are powered by
+the [TraceQL metrics API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
 
 ![Metrics visualization in Grafana](/media/docs/tempo/metrics-explore-sample-2.4.png)
 
@@ -50,16 +52,19 @@ RED is an acronym for three types of metrics:
 - Errors, the number of those requests that are failing
 - Duration, the amount of time those requests take
 
-For more information about the RED method, refer to [The RED Method: how to instrument your services](/blog/2018/08/02/the-red-method-how-to-instrument-your-services/).
+For more information about the RED method, refer
+to [The RED Method: how to instrument your services](/blog/2018/08/02/the-red-method-how-to-instrument-your-services/).
 
 You can write TraceQL metrics queries to compute rate, errors, and durations over different groups of spans.
 
-For more information on how to use TraceQL metrics to investigate issues, refer to [Solve problems with metrics queries](ref:solve-problems-mq).
+For more information on how to use TraceQL metrics to investigate issues, refer
+to [Solve problems with metrics queries](ref:solve-problems-mq).
 
 ## Enable and use TraceQL metrics
 
 To use TraceQL metrics, you need to enable them on your Tempo database.
-Refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) for more information.
+Refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) for
+more information.
 
 From there, you can either query the TraceQL metrics API directly (for example, with `curl`) or using Grafana
 (recommended).
@@ -71,8 +76,12 @@ Refer to [Solve problems using metrics queries](ref:solve-problems-mq) for some 
 
 ### Functions
 
-TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`, `count_over_time`, `sum_over_time`, `max_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare`.
+TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`,
+`count_over_time`, `sum_over_time`, `max_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`,
+`histogram_over_time`, and `compare`.
 These functions can be added as an operator at the end of any TraceQL query.
+
+The `topk` and `bottomk` functions are supported on TraceQL metrics functions.
 
 For detailed information and example queries for each function, refer to [TraceQL metrics functions](ref:mq-functions).
 
@@ -83,7 +92,8 @@ They allow you to see an exact trace that contributed to a given metric value.
 This is particularly useful when you want to understand why a given metric is high or low.
 
 Exemplars are available in TraceQL metrics for all range queries.
-To get exemplars, you need to configure it in the query-frontend with the parameter `query_frontend.metrics.max_exemplars`,
+To get exemplars, you need to configure it in the query-frontend with the parameter
+`query_frontend.metrics.max_exemplars`,
 or pass a query hint in your query.
 
 Example:

@@ -46,7 +46,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c, err := combiner.NewTypedQueryRange(req)
+		c, err := combiner.NewTypedQueryRange(req, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		// build and use roundtripper
-		combiner, err := combiner.NewTypedQueryRange(queryRangeReq)
+		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
 			return &http.Response{
@@ -147,6 +147,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 		"tenant", tenantID,
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
+		"max_series", req.MaxSeries,
 		"duration_seconds", durationSeconds,
 		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
 		"total_requests", resp.Metrics.TotalJobs,
@@ -156,6 +157,9 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 		"inspected_bytes", resp.Metrics.InspectedBytes,
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
+		"partial_status", resp.Status,
+		"partial_message", resp.Message,
+		"num_response_series", len(resp.Series),
 		"error", err)
 }
 

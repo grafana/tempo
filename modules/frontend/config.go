@@ -106,6 +106,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
 			MaxExemplars:          100,
+			MaxResponseSeries:     1000,
 		},
 		SLO: slo,
 	}

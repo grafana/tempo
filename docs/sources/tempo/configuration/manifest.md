@@ -20,7 +20,7 @@ http_api_prefix: ""
 server:
     http_listen_network: tcp
     http_listen_address: ""
-    http_listen_port: 80
+    http_listen_port: 3200
     http_listen_conn_limit: 0
     grpc_listen_network: tcp
     grpc_listen_address: ""
@@ -350,6 +350,7 @@ query_frontend:
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
+        max_response_series: 1000
     multi_tenant_queries_enabled: true
     response_consumers: 10
     weights:
@@ -970,23 +971,32 @@ cache:
     caches: []
 backend_scheduler:
     tenant_measurement_interval: 1m0s
-    compaction:
-        v2_in_buffer_bytes: 5242880
-        v2_out_buffer_bytes: 20971520
-        v2_prefetch_traces_count: 1000
-        compaction_window: 1h0m0s
-        max_compaction_objects: 6000000
-        max_block_bytes: 107374182400
-        block_retention: 336h0m0s
-        compacted_block_retention: 1h0m0s
-        retention_concurrency: 10
-        max_time_per_tenant: 5m0s
-        compaction_cycle: 30s
     work:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
-    max_jobs_per_tenant: 1000
     maintenance_interval: 1m0s
+    provider:
+        retention:
+            interval: 1h0m0s
+        compaction:
+            measure_interval: 1m0s
+            compaction:
+                v2_in_buffer_bytes: 5242880
+                v2_out_buffer_bytes: 20971520
+                v2_prefetch_traces_count: 1000
+                compaction_window: 1h0m0s
+                max_compaction_objects: 6000000
+                max_block_bytes: 107374182400
+                block_retention: 336h0m0s
+                compacted_block_retention: 1h0m0s
+                retention_concurrency: 10
+                max_time_per_tenant: 5m0s
+                compaction_cycle: 30s
+            max_jobs_per_tenant: 1000
+            backoff:
+                min_period: 100ms
+                max_period: 10s
+                max_retries: 0
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600

@@ -164,6 +164,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 						Read: ReadOverrides{
 							MaxSearchDuration: model.Duration(16 * time.Second),
 						},
+						CostAttribution: CostAttributionOverrides{Dimensions: map[string]string{"foo": "bar"}},
 					},
 				},
 			},

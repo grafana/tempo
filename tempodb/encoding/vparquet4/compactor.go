@@ -28,6 +28,20 @@ type Compactor struct {
 	opts common.CompactionOptions
 }
 
+// pool is a global rowPool to reuse parquet.Row buffers while compacting.
+// This setup has been experimentally found to have much better performance and resource usage
+// in a high volume multitenant setup.  But this isn't necessarily the best possible and could use
+// more investigation. Findings:
+// (1) Previously we initialzied the pool with a setting based on the tenant's MaxBytesPerTrace.
+// But this led to unstable memory usage, with high memory spikes and OOMs. Removing pooling altogether
+// reduced memory usage by over half.
+// (2) However some amount of pooling is needed to keep GC's low and compaction throughput high. 1M is
+// large enough for most traces but doesn't attempt to pool for large traces (we don't repool slices that
+// weren't created by the pool).
+// (3) Using a global pool is an additional small but worthwhile improvement over a pool per compaction, and possible since
+// it is no longer based on the tenant's MaxBytesPerTrace.
+var pool = newRowPool(1_000_000)
+
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
 	var (
 		compactionLevel uint32
@@ -35,9 +49,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
 		bookmarks       = make([]*bookmark[parquet.Row], 0, len(inputs))
-		// MaxBytesPerTrace is the largest trace that can be expected, and assumes 1 byte per value on average (same as flushing).
-		// Divide by 4 to presumably require 2 slice allocations if we ever see a trace this large
-		pool = newRowPool(c.opts.MaxBytesPerTrace / 4)
 	)
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
@@ -294,10 +305,12 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 
 type rowPool struct {
 	pool sync.Pool
+	size int
 }
 
 func newRowPool(defaultRowSize int) *rowPool {
 	return &rowPool{
+		size: defaultRowSize,
 		pool: sync.Pool{
 			New: func() any {
 				return make(parquet.Row, 0, defaultRowSize)
@@ -311,12 +324,14 @@ func (r *rowPool) Get() parquet.Row {
 }
 
 func (r *rowPool) Put(row parquet.Row) {
+	if cap(row) != r.size {
+		// Dont' repool slices that weren't created by this pool.
+		return
+	}
 	// Clear before putting into the pool.
 	// This is important so that pool entries don't hang
 	// onto the underlying buffers.
-	for i := range row {
-		row[i] = parquet.Value{}
-	}
+	clear(row)
 	r.pool.Put(row[:0]) //nolint:all //SA6002
 }
 

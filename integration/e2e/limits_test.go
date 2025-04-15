@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -236,8 +237,11 @@ func TestQueryLimits(t *testing.T) {
 	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
 	querierClient := httpclient.New("http://"+tempo.Endpoint(3200)+"/querier", tempoUtil.FakeTenantID)
 
-	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
+	require.Eventually(t, func() bool {
+		_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
+		return strings.Contains(err.Error(), trace.ErrTraceTooLarge.Error())
+	}, time.Minute, time.Second)
+
 	require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
 
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))

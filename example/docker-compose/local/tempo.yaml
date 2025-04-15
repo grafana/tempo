@@ -23,7 +23,7 @@ query_frontend:
   trace_by_id:
     duration_slo: 100ms
   metrics:
-    max_duration: 120h                # maximum duration of a metrics query, increase for local setups
+    max_duration: 200h                # maximum duration of a metrics query, increase for local setups
     query_backend_after: 5m
     duration_slo: 5s
     throughput_bytes_slo: 1.073741824e+09
@@ -56,7 +56,7 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 24h                # overall Tempo trace retention. set for demo purposes
+    block_retention: 720h                # overall Tempo trace retention. set for demo purposes
 
 metrics_generator:
   registry:

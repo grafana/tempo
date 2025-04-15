@@ -964,7 +964,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 			eval, err := e.CompileMetricsQueryRange(tc.req, 0, 0, false)
 			require.NoError(t, err)
 
-			err = eval.Do(ctx, f, 0, 0)
+			err = eval.Do(ctx, f, 0, 0, 0)
 			require.NoError(t, err)
 
 			actual := eval.Results().ToProto(tc.req)
@@ -1021,7 +1021,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
 		require.NoError(t, err)
 
-		err = eval.Do(ctx, f, 0, 0)
+		err = eval.Do(ctx, f, 0, 0, 0)
 		require.NoError(t, err)
 
 		actual := eval.Results().ToProto(req)

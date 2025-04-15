@@ -21,13 +21,13 @@ import (
 
 func BenchmarkCompactor(b *testing.B) {
 	b.Run("Small", func(b *testing.B) {
-		benchmarkCompactor(b, 1000, 100, 100) // 10M spans
+		benchmarkCompactor(b, 10000, 10, 10) // 1M spans total, 100 spans per trace
 	})
 	b.Run("Medium", func(b *testing.B) {
-		benchmarkCompactor(b, 100, 100, 1000) // 10M spans
+		benchmarkCompactor(b, 100, 100, 100) // 1M spans total, 10K spans per trace
 	})
 	b.Run("Large", func(b *testing.B) {
-		benchmarkCompactor(b, 10, 1000, 1000) // 10M spans
+		benchmarkCompactor(b, 10, 100, 1000) // 1M spans total, 100K spans per trace
 	})
 }
 

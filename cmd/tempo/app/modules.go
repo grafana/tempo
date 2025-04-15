@@ -686,9 +686,11 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 		t.cfg.BackendScheduler.Poll = true
 	}
 
-	var err error
-	var reader backend.RawReader
-	var writer backend.RawWriter
+	var (
+		err    error
+		reader backend.RawReader
+		writer backend.RawWriter
+	)
 
 	switch t.cfg.StorageConfig.Trace.Backend {
 	case backend.Local:

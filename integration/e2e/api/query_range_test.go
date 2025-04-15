@@ -7,21 +7,30 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const configQueryRange = "config-query-range.yaml"
+const (
+	configQueryRange          = "config-query-range.yaml"
+	configQueryRangeMaxSeries = "config-query-range-max-series.yaml"
+)
 
 // Set debugMode to true to print the response body
 var debugMode = false
 
 func TestQueryRangeExemplars(t *testing.T) {
+	t.Parallel()
+
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
@@ -36,8 +45,9 @@ func TestQueryRangeExemplars(t *testing.T) {
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
+	// send one batch every 500ms for 10 seconds
 sendLoop:
 	for {
 		select {
@@ -101,6 +111,111 @@ sendLoop:
 			require.Equal(t, 0, exemplarCount)
 		})
 	}
+}
+
+// TestQueryRangeSingleTrace checks count for a single trace
+// Single trace creates a block with startTime == endTime
+// which covers a few edge cases under the hood.
+func TestQueryRangeSingleTrace(t *testing.T) {
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_single_trace")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configQueryRange, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, jaegerClient)
+
+	// Emit a single trace
+	require.NoError(t, jaegerClient.EmitBatch(context.Background(), util.MakeThriftBatch()))
+
+	// Wait for traces to be flushed to blocks
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
+
+	// Query the trace by count. As we have only one trace, we should get one dot with value 1
+	query := "{} | count_over_time()"
+	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+	require.NotNil(t, queryRangeRes)
+	require.Equal(t, len(queryRangeRes.GetSeries()), 1)
+
+	series := queryRangeRes.GetSeries()[0]
+	assert.Equal(t, len(series.GetExemplars()), 1)
+
+	var sum float64
+	for _, sample := range series.GetSamples() {
+		sum += sample.Value
+	}
+	require.InDelta(t, sum, 1, 0.000001)
+}
+
+func TestQueryRangeMaxSeries(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configQueryRangeMaxSeries, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, jaegerClient)
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+sendLoop:
+	for {
+		select {
+		case <-ticker.C:
+			require.NoError(t, jaegerClient.EmitBatch(context.Background(), util.MakeThriftBatch()))
+		case <-timer.C:
+			break sendLoop
+		}
+	}
+
+	// Wait for traces to be flushed to blocks
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
+
+	query := "{} | rate() by (span:id)"
+	url := fmt.Sprintf(
+		"http://%s/api/metrics/query_range?q=%s&start=%d&end=%d&step=%s",
+		tempo.Endpoint(3200),
+		url.QueryEscape(query),
+		time.Now().Add(-5*time.Minute).UnixNano(),
+		time.Now().Add(time.Minute).UnixNano(),
+		"5s",
+	)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	// Read body and print it
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	fmt.Println(string(body))
+
+	queryRangeRes := &tempopb.QueryRangeResponse{}
+	readBody := strings.NewReader(string(body))
+	err = new(jsonpb.Unmarshaler).Unmarshal(readBody, queryRangeRes)
+	require.NoError(t, err)
+	require.NotNil(t, queryRangeRes)
+
+	// max series is 3 so we should get a partial response with 3 series
+	require.Equal(t, tempopb.PartialStatus_PARTIAL, queryRangeRes.GetStatus())
+	require.Equal(t, "Response exceeds maximum series limit of 3, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", queryRangeRes.GetMessage())
+	require.Equal(t, 3, len(queryRangeRes.GetSeries()))
 }
 
 func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempopb.QueryRangeResponse {

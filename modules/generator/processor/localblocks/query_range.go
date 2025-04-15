@@ -54,23 +54,31 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	withinRange := func(m *backend.BlockMeta) bool {
 		start := uint64(m.StartTime.UnixNano())
 		end := uint64(m.EndTime.UnixNano())
-		return req.Start < end && req.End > start
+		return req.Start <= end && req.End >= start
 	}
 
 	var (
-		wg     = boundedwaitgroup.New(concurrency)
-		jobErr = atomic.Error{}
+		wg               = boundedwaitgroup.New(concurrency)
+		jobErr           = atomic.Error{}
+		maxSeriesReached = atomic.Bool{}
 	)
 
+	maxSeries := int(req.MaxSeries)
+
 	if p.headBlock != nil && withinRange(p.headBlock.BlockMeta()) {
-		wg.Add(1)
-		go func(w common.WALBlock) {
-			defer wg.Done()
-			err := p.queryRangeWALBlock(ctx, w, rawEval)
-			if err != nil {
-				jobErr.Store(err)
-			}
-		}(p.headBlock)
+		if maxSeries == 0 || !maxSeriesReached.Load() {
+			wg.Add(1)
+			go func(w common.WALBlock) {
+				defer wg.Done()
+				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				if err != nil {
+					jobErr.Store(err)
+				}
+				if rawEval.Length() > maxSeries {
+					maxSeriesReached.Store(true)
+				}
+			}(p.headBlock)
+		}
 	}
 
 	for _, w := range p.walBlocks {
@@ -82,14 +90,19 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		wg.Add(1)
-		go func(w common.WALBlock) {
-			defer wg.Done()
-			err := p.queryRangeWALBlock(ctx, w, rawEval)
-			if err != nil {
-				jobErr.Store(err)
-			}
-		}(w)
+		if maxSeries == 0 || !maxSeriesReached.Load() {
+			wg.Add(1)
+			go func(w common.WALBlock) {
+				defer wg.Done()
+				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				if err != nil {
+					jobErr.Store(err)
+				}
+				if rawEval.Length() > maxSeries {
+					maxSeriesReached.Store(true)
+				}
+			}(w)
+		}
 	}
 
 	for _, b := range p.completeBlocks {
@@ -101,17 +114,21 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			continue
 		}
 
-		wg.Add(1)
-		go func(b *ingester.LocalBlock) {
-			defer wg.Done()
-			resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
-			if err != nil {
-				jobErr.Store(err)
-				return
-			}
-
-			jobEval.ObserveSeries(resp)
-		}(b)
+		if maxSeries == 0 || !maxSeriesReached.Load() {
+			wg.Add(1)
+			go func(b *ingester.LocalBlock) {
+				defer wg.Done()
+				resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
+				if err != nil {
+					jobErr.Store(err)
+					return
+				}
+				jobEval.ObserveSeries(resp)
+				if jobEval.Length() > maxSeries {
+					maxSeriesReached.Store(true)
+				}
+			}(b)
+		}
 	}
 
 	wg.Wait()
@@ -123,7 +140,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	return nil
 }
 
-func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator) error {
+func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) error {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "Processor.QueryRange.WALBlock", trace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -135,7 +152,7 @@ func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, e
 		return b.Fetch(ctx, req, common.DefaultSearchOptions())
 	})
 
-	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
 func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool, exemplars int) ([]*tempopb.TimeSeries, error) {
@@ -149,7 +166,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
 	// cache the response for that, we want only the few minutes time range for this block. This has
 	// size savings but the main thing is that the response is reuseable for any overlapping query.
-	req.Start, req.End, req.Step = traceql.TrimToOverlap(req.Start, req.End, req.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+	req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, m.StartTime, m.EndTime)
 
 	if req.Start >= req.End {
 		// After alignment there is no overlap or something else isn't right
@@ -175,7 +192,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return b.Fetch(ctx, req, common.DefaultSearchOptions())
 	})
-	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}

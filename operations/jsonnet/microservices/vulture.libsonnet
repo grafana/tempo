@@ -20,7 +20,9 @@
       '-tempo-retention-duration=' + $._config.vulture.tempoRetentionDuration,
       '-tempo-search-backoff-duration=' + $._config.vulture.tempoSearchBackoffDuration,
       '-tempo-read-backoff-duration=' + $._config.vulture.tempoReadBackoffDuration,
+      '-tempo-metrics-backoff-duration=' + $._config.vulture.tempoMetricsBackoffDuration,
       '-tempo-write-backoff-duration=' + $._config.vulture.tempoWriteBackoffDuration,
+      '-tempo-long-write-backoff-duration=' + $._config.vulture.tempoLongWriteBackoffDuration,
     ]) +
     k.util.resourcesRequests('50m', '100Mi') +
     k.util.resourcesLimits('100m', '500Mi'),

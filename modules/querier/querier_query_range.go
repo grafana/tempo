@@ -9,7 +9,6 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -31,7 +30,8 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
 	}
 
-	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum)
+	// correct max series limit logic should've been set by the query-frontend sharder
+	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +47,9 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	for _, result := range results {
 		resp := result.(*tempopb.QueryRangeResponse)
 		c.Combine(resp)
+		if c.MaxSeriesReached() {
+			break
+		}
 	}
 
 	return c.Response(), nil
@@ -112,7 +115,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return q.store.Fetch(ctx, meta, req, opts)
 	})
-	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()))
+	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}
@@ -121,68 +124,30 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 
 	inspectedBytes, spansTotal, _ := eval.Metrics()
 
-	return &tempopb.QueryRangeResponse{
-		Series: queryRangeTraceQLToProto(res, req),
+	if len(res) > int(req.MaxSeries) {
+		limitedRes := make(traceql.SeriesSet)
+		count := 0
+		for k, v := range res {
+			if count >= int(req.MaxSeries) {
+				break
+			}
+			limitedRes[k] = v
+			count++
+		}
+		res = limitedRes
+	}
+
+	response := &tempopb.QueryRangeResponse{
+		Series: res.ToProto(req),
 		Metrics: &tempopb.SearchMetrics{
 			InspectedBytes: inspectedBytes,
 			InspectedSpans: spansTotal,
 		},
-	}, nil
-}
-
-func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
-	resp := make([]*tempopb.TimeSeries, 0, len(set))
-
-	for promLabels, s := range set {
-		labels := make([]v1.KeyValue, 0, len(s.Labels))
-		for _, label := range s.Labels {
-			labels = append(labels,
-				v1.KeyValue{
-					Key:   label.Name,
-					Value: label.Value.AsAnyValue(),
-				},
-			)
-		}
-
-		intervals := traceql.IntervalCount(req.Start, req.End, req.Step)
-		samples := make([]tempopb.Sample, 0, intervals)
-		for i, value := range s.Values {
-
-			ts := traceql.TimestampOf(uint64(i), req.Start, req.Step)
-
-			samples = append(samples, tempopb.Sample{
-				TimestampMs: time.Unix(0, int64(ts)).UnixMilli(),
-				Value:       value,
-			})
-		}
-
-		exemplars := make([]tempopb.Exemplar, 0, len(s.Exemplars))
-		for _, e := range s.Exemplars {
-			lbls := make([]v1.KeyValue, 0, len(e.Labels))
-			for _, label := range e.Labels {
-				lbls = append(lbls,
-					v1.KeyValue{
-						Key:   label.Name,
-						Value: label.Value.AsAnyValue(),
-					},
-				)
-			}
-			exemplars = append(exemplars, tempopb.Exemplar{
-				Labels:      lbls,
-				TimestampMs: int64(e.TimestampMs),
-				Value:       e.Value,
-			})
-		}
-
-		ss := &tempopb.TimeSeries{
-			PromLabels: promLabels,
-			Labels:     labels,
-			Samples:    samples,
-			Exemplars:  exemplars,
-		}
-
-		resp = append(resp, ss)
 	}
 
-	return resp
+	if len(res) > int(req.MaxSeries) {
+		response.Status = tempopb.PartialStatus_PARTIAL
+	}
+
+	return response, nil
 }

@@ -45,7 +45,7 @@ type Map pcommon.Map
 func (m Map) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	mm := pcommon.Map(m)
 	var err error
-	mm.Range(func(k string, v pcommon.Value) bool {
+	for k, v := range mm.All() {
 		switch v.Type() {
 		case pcommon.ValueTypeStr:
 			encoder.AddString(k, v.Str())
@@ -62,8 +62,7 @@ func (m Map) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 		case pcommon.ValueTypeBytes:
 			encoder.AddByteString(k, v.Bytes().AsRaw())
 		}
-		return true
-	})
+	}
 	return nil
 }
 

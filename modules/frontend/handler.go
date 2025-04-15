@@ -72,6 +72,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	elapsed := time.Since(start)
 
 	logMessage := []interface{}{
+		"msg", "query stats",
 		"tenant", orgID,
 		"method", r.Method,
 		"traceID", traceID,

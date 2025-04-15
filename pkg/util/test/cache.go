@@ -53,6 +53,9 @@ func (m *mockClient) MaxItemSize() int {
 func (m *mockClient) Stop() {
 }
 
+func (m *mockClient) Release([]byte) {
+}
+
 // NewMockClient makes a new mockClient.
 func NewMockClient() cache.Cache {
 	return &mockClient{

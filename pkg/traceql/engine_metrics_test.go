@@ -96,7 +96,7 @@ func TestIntervalOf(t *testing.T) {
 	}
 }
 
-func TestTrimToOverlap(t *testing.T) {
+func TestTrimToBlockOverlap(t *testing.T) {
 	tc := []struct {
 		start1, end1               string
 		step                       time.Duration
@@ -108,7 +108,7 @@ func TestTrimToOverlap(t *testing.T) {
 			// Fully overlapping
 			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
 			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
-			"2024-01-01 01:33:00", "2024-01-01 01:38:00", 5 * time.Minute,
+			"2024-01-01 01:33:00", "2024-01-01 01:38:01", 5 * time.Minute, // added 1 second to include the last second of the block
 		},
 		{
 			// Partially Overlapping
@@ -132,12 +132,13 @@ func TestTrimToOverlap(t *testing.T) {
 		start2, _ := time.Parse(time.DateTime, c.start2)
 		end2, _ := time.Parse(time.DateTime, c.end2)
 
-		actualStart, actualEnd, actualStep := TrimToOverlap(
+		actualStart, actualEnd, actualStep := TrimToBlockOverlap(
 			uint64(start1.UnixNano()),
 			uint64(end1.UnixNano()),
 			uint64(c.step.Nanoseconds()),
-			uint64(start2.UnixNano()),
-			uint64(end2.UnixNano()))
+			start2,
+			end2,
+		)
 
 		require.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
 		require.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
@@ -512,9 +513,10 @@ func TestQuantileOverTime(t *testing.T) {
 		},
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 	require.Equal(t, out, result)
+	require.Equal(t, len(result), seriesCount)
 }
 
 func percentileHelper(q float64, values ...float64) float64 {
@@ -568,9 +570,10 @@ func TestCountOverTime(t *testing.T) {
 		},
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 	require.Equal(t, out, result)
+	require.Equal(t, len(result), seriesCount)
 }
 
 func TestMinOverTimeForDuration(t *testing.T) {
@@ -597,7 +600,7 @@ func TestMinOverTimeForDuration(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
@@ -613,6 +616,7 @@ func TestMinOverTimeForDuration(t *testing.T) {
 	assert.Equal(t, 128/float64(time.Second), fooBar.Values[0])
 	assert.Equal(t, 8/float64(time.Second), fooBar.Values[1])
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
+	require.Equal(t, len(result), seriesCount)
 }
 
 func TestMinOverTimeWithNoMatch(t *testing.T) {
@@ -639,13 +643,14 @@ func TestMinOverTimeWithNoMatch(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
 
 	assert.True(t, len(ts) == 0)
+	require.Equal(t, 0, seriesCount)
 }
 
 func TestMinOverTimeForSpanAttribute(t *testing.T) {
@@ -688,7 +693,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400).WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in, in2)
+	result, seriesCount, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
@@ -699,6 +704,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	assert.Equal(t, 204.0, fooBaz.Values[0])
 	assert.True(t, math.IsNaN(fooBaz.Values[1]))
 	assert.Equal(t, 200.0, fooBaz.Values[2])
+	require.Equal(t, len(result), seriesCount)
 
 	// foo.bar = (100,200, NaN)
 	assert.Equal(t, 100.0, fooBar.Values[0])
@@ -743,8 +749,50 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(300),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
+
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
+
+	// We cannot compare with require.Equal because NaN != NaN
+	assert.True(t, math.IsNaN(fooBaz.Values[0]))
+	assert.True(t, math.IsNaN(fooBaz.Values[1]))
+	assert.Equal(t, 200., fooBaz.Values[2]*float64(time.Second))
+
+	assert.Equal(t, 100., fooBar.Values[0]*float64(time.Second))
+	assert.Equal(t, 200., fooBar.Values[1]*float64(time.Second))
+	assert.True(t, math.IsNaN(fooBar.Values[2]))
+}
+
+func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(1)",
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(500),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(200),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(300),
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -783,8 +831,9 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "bar").WithDuration(300),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	avg := result[`{__name__="avg_over_time"}`]
 
@@ -832,8 +881,9 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 200).WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in, in2)
+	result, seriesCount, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -887,8 +937,9 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
@@ -995,8 +1046,9 @@ func TestMaxOverTimeForDuration(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1037,8 +1089,9 @@ func TestMaxOverTimeWithNoMatch(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
@@ -1086,8 +1139,9 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400).WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in, in2)
+	result, seriesCount, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1141,8 +1195,9 @@ func TestSumOverTimeForDuration(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(100),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1200,8 +1255,9 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("kafka.lag", 400).WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in, in2)
+	result, seriesCount, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 
 	fooBaz := result[`{"span.foo"="baz"}`]
 	fooBar := result[`{"span.foo"="bar"}`]
@@ -1255,8 +1311,9 @@ func TestSumOverTimeWithNoMatch(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
+	require.Equal(t, len(result), seriesCount)
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
 
@@ -1330,28 +1387,388 @@ func TestHistogramOverTime(t *testing.T) {
 		},
 	}
 
-	result, err := runTraceQLMetric(req, in)
+	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 	require.Equal(t, out, result)
+	require.Equal(t, len(result), seriesCount)
 }
 
-func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, error) {
+func TestSecondStageTopK(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(8 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | rate() by (span.foo) | topk(2)",
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	result, _, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	// bar and baz have more spans so they should be the top 2
+	resultBar := result[`{"span.foo"="bar"}`]
+	require.Equal(t, []float64{7, 7, 7, 7, 7, 7, 7, 7}, resultBar.Values)
+	resultBaz := result[`{"span.foo"="baz"}`]
+	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
+}
+
+func TestSecondStageTopKAverage(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(8 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(2)",
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	result, _, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	resultBar := result[`{"span.foo"="bar"}`]
+	val1 := 0.000000512
+	require.Equal(t, []float64{val1, val1, val1, val1, val1, val1, val1, val1}, resultBar.Values)
+	resultBaz := result[`{"span.foo"="baz"}`]
+	val2 := 0.00000038400000000000005
+	require.Equal(t, []float64{val2, val2, val2, val2, val2, val2, val2, val2}, resultBaz.Values)
+}
+
+func TestSecondStageBottomK(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(8 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | rate() by (span.foo) | bottomk(2)",
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	result, _, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	// quax and baz have the lowest spans so they should be the bottom 2
+	resultBar := result[`{"span.foo"="quax"}`]
+	require.Equal(t, []float64{3, 3, 3, 3, 3, 3, 3, 3}, resultBar.Values)
+	resultBaz := result[`{"span.foo"="baz"}`]
+	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
+}
+
+func TestProcessTopK(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    SeriesSet
+		limit    int
+		expected SeriesSet
+	}{
+		{
+			name: "topk selection",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3},
+				"b": {2, 6, 2},
+				"c": {3, 1, 1},
+				"d": {4, 2, 4},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {math.NaN(), 5, 3},          // Top-2 at timestamp 1, 2
+				"b": {math.NaN(), 6, math.NaN()}, // Top-2 at timestamp 1
+				"c": {3, math.NaN(), math.NaN()}, // Top-2 at timestamp 0
+				"d": {4, math.NaN(), 4},          // Top-2 at timestamps 0, 2
+			}),
+		},
+		{
+			name: "topk selection at each timestamp",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, 2, 3},
+				"b": {2, 3, 4},
+				"c": {3, 4, 5},
+				"d": {1, 1, 1},
+				"e": {0.5, 2, 1},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"b": {2, 3, 4}, // Top-2 at all timestamps
+				"c": {3, 4, 5}, // Top-2 at all timestamps
+			}),
+		},
+		{
+			name: "select single highest value at specific timestamp",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, 6, 3},
+				"b": {4, 5, 1},
+				"c": {2, 3, 7},
+			}),
+			limit: 1,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {math.NaN(), 6, math.NaN()}, // top at timestamp 1
+				"b": {4, math.NaN(), math.NaN()}, // top at timestamp 0
+				"c": {math.NaN(), math.NaN(), 7}, // top at timestamp 2
+			}),
+		},
+		{
+			name: "with NaN values",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, math.NaN(), 3},
+				"b": {2, 6, math.NaN()},
+				"c": {3, 1, 1},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {math.NaN(), math.NaN(), 3}, // Top-2 at timestamp 2
+				"b": {2, 6, math.NaN()},          // Top-2 at timestamp 0, 1
+				"c": {3, 1, 1},                   // Top-2 at timestamp 0, 2
+			}),
+		},
+		{
+			name: "series with all NaN values is skipped",
+			input: createSeriesSet(map[string][]float64{
+				"a": {math.NaN(), math.NaN(), math.NaN()},
+				"b": {2, 6, math.NaN()},
+				"c": {3, 1, 1},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"b": {2, 6, math.NaN()},
+				"c": {3, 1, 1},
+			}),
+		},
+		{
+			name: "all series with all NaN values",
+			input: createSeriesSet(map[string][]float64{
+				"a": {math.NaN(), math.NaN(), math.NaN()},
+				"b": {math.NaN(), math.NaN(), math.NaN()},
+			}),
+			limit:    2,
+			expected: SeriesSet{},
+		},
+		{
+			name:     "empty input",
+			input:    SeriesSet{},
+			limit:    2,
+			expected: SeriesSet{},
+		},
+		{
+			name: "limit larger than series count",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3},
+				"b": {2, 6, 2},
+			}),
+			limit: 5,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3},
+				"b": {2, 6, 2},
+			}),
+		},
+		{
+			name: "negative and infinity values",
+			input: createSeriesSet(map[string][]float64{
+				"a": {-1, 5, math.Inf(-1)},
+				"b": {-2, 6, math.Inf(1)},
+				"c": {-3, 7, 1},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {-1, math.NaN(), math.NaN()}, // Top-2 at timestamp 0
+				"b": {-2, 6, math.Inf(1)},         // Top-2 at timestamps 1, 2
+				"c": {math.NaN(), 7, 1},           // Top-2 at timestamp 1
+			}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := processTopK(tt.input, 3, tt.limit)
+			expectSeriesSet(t, tt.expected, result)
+		})
+	}
+}
+
+func TestProcessBottomK(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    SeriesSet
+		limit    int
+		expected SeriesSet
+	}{
+		{
+			name: "bottomk selection",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3},
+				"b": {2, 6, 2},
+				"c": {3, 1, 1},
+				"d": {4, 2, 4},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {1, math.NaN(), math.NaN()}, // Bottom-2 at timestamp 0
+				"b": {2, math.NaN(), 2},          // Bottom-2 at timestamps 0, 2
+				"c": {math.NaN(), 1, 1},          // Bottom-2 at timestamps 1, 2
+				"d": {math.NaN(), 2, math.NaN()}, // Bottom-2 at timestamp 1
+			}),
+		},
+		{
+			name: "bottomk selection at each timestamp",
+			input: createSeriesSet(map[string][]float64{
+				"a": {5, 4, 3},
+				"b": {6, 5, 4},
+				"c": {7, 6, 1},
+				"d": {3, 3, 3},
+				"e": {4, 2, 2},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"c": {math.NaN(), math.NaN(), 1}, // bottom 2 at timestamp 2
+				"d": {3, 3, math.NaN()},          // bottom 2 at timestamp 0, 1
+				"e": {4, 2, 2},                   // bottom 2 at timestamp 0, 1, 2
+			}),
+		},
+		{
+			name: "select single lowest value at specific timestamp",
+			input: createSeriesSet(map[string][]float64{
+				"a": {3, 1, 5},
+				"b": {1, 2, 3},
+				"c": {4, 5, 1},
+			}),
+			limit: 1,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {math.NaN(), 1, math.NaN()}, // Lowest at timestamp 1
+				"b": {1, math.NaN(), math.NaN()}, // Lowest at timestamp 0
+				"c": {math.NaN(), math.NaN(), 1}, // Lowest at timestamp 2
+			}),
+		},
+		{
+			name: "with NaN values",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, math.NaN(), 3},
+				"b": {4, 6, math.NaN()},
+				"c": {5, 1, 1},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {1, math.NaN(), 3}, // Bottom-2 at timestamp 0
+				"b": {4, 6, math.NaN()}, // NaN values are skipped in comparison
+				"c": {math.NaN(), 1, 1}, // Bottom-2 at timestamps 1, 2
+			}),
+		},
+		{
+			name: "all series with NaN values",
+			input: createSeriesSet(map[string][]float64{
+				"a": {math.NaN(), math.NaN(), math.NaN()},
+				"b": {math.NaN(), math.NaN(), math.NaN()},
+				"c": {math.NaN(), math.NaN(), math.NaN()},
+			}),
+			limit:    2,
+			expected: SeriesSet{},
+		},
+		{
+			name:     "empty input",
+			input:    SeriesSet{},
+			limit:    2,
+			expected: SeriesSet{},
+		},
+		{
+			name: "limit larger than series count",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3},
+				"b": {2, 6, 2},
+			}),
+			limit: 5,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3},
+				"b": {2, 6, 2},
+			}),
+		},
+		{
+			name: "negative and infinity values",
+			input: createSeriesSet(map[string][]float64{
+				"a": {-1, 5, math.Inf(-1)},
+				"b": {-2, 6, math.Inf(1)},
+				"c": {-3, 7, 1},
+			}),
+			limit: 2,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {math.NaN(), 5, math.Inf(-1)}, // Bottom-2 at timestamp 2
+				"b": {-2, 6, math.NaN()},           // Bottom-2 at timestamp 0
+				"c": {-3, math.NaN(), 1},           // Bottom-2 at timestamps 0, 2
+			}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fmt.Printf("input: %v\n", tt.input)
+			result := processBottomK(tt.input, 3, tt.limit)
+			fmt.Printf("result: %v\n", result)
+			expectSeriesSet(t, tt.expected, result)
+		})
+	}
+}
+
+func TestTiesInTopK(t *testing.T) {
+	input := createSeriesSet(map[string][]float64{
+		"a": {10, 5, 1},
+		"b": {10, 4, 2},
+		"c": {10, 3, 3},
+	})
+	result := processTopK(input, 3, 2)
+	fmt.Printf("result: %v\n", result)
+
+	// because of ties, we can have different result at index 0
+	// "a" can be [10, 5, NaN] OR [NaN, 5, NaN]
+	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
+	// "c" can be [10, NaN, 3] OR [NaN, NaN, 3]
+	checkEqualForTies(t, result[`{label="a"}`].Values, []float64{10, 5, math.NaN()})
+	checkEqualForTies(t, result[`{label="b"}`].Values, []float64{10, 4, 2})
+	checkEqualForTies(t, result[`{label="c"}`].Values, []float64{10, math.NaN(), 3})
+}
+
+func TestTiesInBottomK(t *testing.T) {
+	input := createSeriesSet(map[string][]float64{
+		"a": {10, 5, 1},
+		"b": {10, 4, 2},
+		"c": {10, 3, 3},
+	})
+	result := processBottomK(input, 3, 2)
+
+	// because of ties, we can have different result at index 0
+	// "a" can be [10, NaN, 1] OR [NaN, NaN, 1]
+	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
+	// "c" can be [10, 3, NaN] OR [NaN, 3, NaN]
+	checkEqualForTies(t, result[`{label="a"}`].Values, []float64{10, math.NaN(), 1})
+	checkEqualForTies(t, result[`{label="b"}`].Values, []float64{10, 4, 2})
+	checkEqualForTies(t, result[`{label="c"}`].Values, []float64{10, 3, math.NaN()})
+}
+
+func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, int, error) {
 	e := NewEngine()
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	for _, spanSet := range inSpans {
 		layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		for _, s := range spanSet {
 			layer1.metricsPipeline.observe(s)
@@ -1366,9 +1783,10 @@ func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (Series
 	// These are summed counts over time by bucket
 	res := layer2.Results()
 	layer3.ObserveSeries(res.ToProto(req))
+	seriesCount := layer3.Length()
 	// Layer 3 final results
 
-	return layer3.Results(), nil
+	return layer3.Results(), seriesCount, nil
 }
 
 func randInt(minimum, maximum int) int {
@@ -1377,6 +1795,66 @@ func randInt(minimum, maximum int) int {
 
 func randFloat(minimum, maximum float64) float64 {
 	return rand.Float64()*(maximum-minimum) + minimum
+}
+
+func generateSpans(count int, startTimes []int, value string) []Span {
+	spans := make([]Span, 0)
+	for i := 0; i < count; i++ {
+		for _, t := range startTimes {
+			sTime := uint64(time.Duration(t) * time.Second)
+			spans = append(spans, newMockSpan(nil).WithStartTime(sTime).WithSpanString("foo", value).WithDuration(128*uint64(i+1)))
+		}
+	}
+	return spans
+}
+
+// createSeriesSet to create a SeriesSet from a map of values
+func createSeriesSet(data map[string][]float64) SeriesSet {
+	seriesSet := SeriesSet{}
+	labelName := "label"
+	for key, values := range data {
+		seriesSet[fmt.Sprintf(`{%s="%s"}`, labelName, key)] = TimeSeries{
+			Values: values,
+			Labels: Labels{Label{Name: labelName, Value: NewStaticString(key)}},
+		}
+	}
+	return seriesSet
+}
+
+// expectSeriesSet validates SeriesSet equality, and also considers NaN values
+func expectSeriesSet(t *testing.T, expected, result SeriesSet) {
+	for expectedKey, expectedSeries := range expected {
+		resultSeries, ok := result[expectedKey]
+		require.True(t, ok, "expected series %s to be in result", expectedKey)
+		require.Equal(t, expectedSeries.Labels, resultSeries.Labels)
+
+		// check values, including NaN values
+		require.Equal(t, len(expectedSeries.Values), len(resultSeries.Values))
+		for i, expectedValue := range expectedSeries.Values {
+			if math.IsNaN(expectedValue) {
+				require.True(t, math.IsNaN(resultSeries.Values[i]), "expected NaN at index %d", i)
+			} else {
+				require.Equal(t, expectedValue, resultSeries.Values[i])
+			}
+		}
+	}
+}
+
+func checkEqualForTies(t *testing.T, result, expected []float64) {
+	for i := range result {
+		switch i {
+		// at index 0, we have a tie so it can be sometimes NaN
+		case 0:
+			require.True(t, math.IsNaN(result[0]) || result[0] == expected[0],
+				"index 0: expected NaN or %v, got %v", expected[0], result[0])
+		default:
+			if math.IsNaN(expected[i]) {
+				require.True(t, math.IsNaN(result[i]), "index %d: expected NaN, got %v", i, result[i])
+			} else {
+				require.Equal(t, expected[i], result[i], "index %d: expected %v", i, expected[i])
+			}
+		}
+	}
 }
 
 func BenchmarkSumOverTime(b *testing.B) {
@@ -1402,6 +1880,6 @@ func BenchmarkSumOverTime(b *testing.B) {
 		Query: "{ } | sum_over_time(span.kafka.lag) by (span.foo)",
 	}
 	for b.Loop() {
-		_, _ = runTraceQLMetric(req, in, in2)
+		_, _, _ = runTraceQLMetric(req, in, in2)
 	}
 }

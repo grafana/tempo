@@ -353,7 +353,7 @@ to always return to the previous state.
 As a special case, regexes containing backrefs in the form `\N` (where `N` is
 a digit) will match the corresponding capture group from the immediate parent
 group. This can be used to parse, among other things, heredocs. See the
-[tests](https://github.com/alecthomas/participle/blob/master/lexer/stateful/stateful_test.go#L59)
+[tests](https://github.com/alecthomas/participle/blob/master/lexer/stateful_test.go#L59)
 for an example of this, among others.
 
 ### Example stateful lexer
@@ -395,7 +395,7 @@ own _stateless_ lexer using the `lexer.MustSimple()` and
 For example, the lexer for a form of BASIC:
 
 ```go
-var basicLexer = stateful.MustSimple([]stateful.SimpleRule{
+var basicLexer = lexer.MustSimple([]lexer.SimpleRule{
     {"Comment", `(?i)rem[^\n]*`},
     {"String", `"(\\"|[^"])*"`},
     {"Number", `[-+]?(\d*\.)?\d+`},
@@ -526,12 +526,12 @@ type Value struct {
 }
 
 var (
-	graphQLLexer = lexer.MustSimple([]lexer.Rule{
-		{"Comment", `(?:#|//)[^\n]*\n?`, nil},
-		{"Ident", `[a-zA-Z]\w*`, nil},
-		{"Number", `(?:\d*\.)?\d+`, nil},
-		{"Punct", `[-[!@#$%^&*()+_={}\|:;"'<,>.?/]|]`, nil},
-		{"Whitespace", `[ \t\n\r]+`, nil},
+	graphQLLexer = lexer.MustSimple([]lexer.SimpleRule{
+		{"Comment", `(?:#|//)[^\n]*\n?`},
+		{"Ident", `[a-zA-Z]\w*`},
+		{"Number", `(?:\d*\.)?\d+`},
+		{"Punct", `[-[!@#$%^&*()+_={}\|:;"'<,>.?/]|]`},
+		{"Whitespace", `[ \t\n\r]+`},
 	})
 	parser = participle.MustBuild[File](
 		participle.Lexer(graphQLLexer),

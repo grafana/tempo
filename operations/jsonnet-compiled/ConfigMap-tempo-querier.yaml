@@ -20,7 +20,6 @@ data:
             frontend_address: query-frontend-discovery.tracing.svc.cluster.local.:9095
     server:
         http_listen_port: 3200
-        log_level: debug
     storage:
         trace:
             azure:

@@ -44,6 +44,8 @@ type Cache interface {
 	// Remove(ctx context.Context, key []string)
 	Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missing []string)
 	FetchKey(ctx context.Context, key string) (buf []byte, found bool)
+	// Release allows compliant implementations to reclaim buffers back into a pool for memory efficiency
+	Release([]byte)
 	Stop()
 }
 

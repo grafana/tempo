@@ -331,7 +331,7 @@ func EnableParserCollectionModifiedPathsLogging[R any](enabled bool) ParserColle
 // Experimental: *NOTE* this API is subject to change or removal in the future.
 func (pc *ParserCollection[R]) ParseStatements(statements StatementsGetter) (R, error) {
 	statementsValues := statements.GetStatements()
-	inferredContext, err := pc.contextInferrer.infer(statementsValues)
+	inferredContext, err := pc.contextInferrer.inferFromStatements(statementsValues)
 	if err != nil {
 		return *new(R), err
 	}
@@ -386,7 +386,7 @@ func (pc *ParserCollection[R]) ParseStatementsWithContext(context string, statem
 // Experimental: *NOTE* this API is subject to change or removal in the future.
 func (pc *ParserCollection[R]) ParseConditions(conditions ConditionsGetter) (R, error) {
 	conditionsValues := conditions.GetConditions()
-	inferredContext, err := pc.contextInferrer.infer(conditionsValues)
+	inferredContext, err := pc.contextInferrer.inferFromConditions(conditionsValues)
 	if err != nil {
 		return *new(R), err
 	}

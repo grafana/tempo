@@ -200,3 +200,83 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 	err = jsonpb.Unmarshal(bytes.NewReader(bufs[0]), actualCache)
 	require.NoError(t, err)
 }
+
+func TestQueryRangeHandlerV2MaxSeries(t *testing.T) {
+	resp := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  1,
+		},
+		Series: []*tempopb.TimeSeries{
+			{
+				PromLabels: "foo",
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: 1200_000,
+						Value:       2,
+					},
+					{
+						TimestampMs: 1100_000,
+						Value:       1,
+					},
+				},
+			},
+
+			{
+				PromLabels: "abc",
+				Labels: []v1.KeyValue{
+					{Key: "abc", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "xyz"}}},
+				},
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: 1200_000,
+						Value:       2,
+					},
+					{
+						TimestampMs: 1100_000,
+						Value:       1,
+					},
+				},
+			},
+		},
+	}
+
+	maxSeries := 1
+
+	f := frontendWithSettings(t, &mockRoundTripper{
+		responseFn: func() proto.Message {
+			return resp
+		},
+	}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+		c.Metrics.Sharder.Interval = time.Hour
+		c.Metrics.Sharder.MaxResponseSeries = maxSeries
+	})
+
+	tenant := "foo"
+
+	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
+	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
+		Query: "{} | rate()",
+		Start: uint64(1100 * time.Second),
+		End:   uint64(1200 * time.Second),
+		Step:  uint64(100 * time.Second),
+	}, "")
+
+	ctx := user.InjectOrgID(httpReq.Context(), tenant)
+	httpReq = httpReq.WithContext(ctx)
+
+	httpResp := httptest.NewRecorder()
+
+	f.MetricsQueryRangeHandler.ServeHTTP(httpResp, httpReq)
+
+	require.Equal(t, 200, httpResp.Code)
+
+	actualResp := &tempopb.QueryRangeResponse{}
+	err := jsonpb.Unmarshal(httpResp.Body, actualResp)
+	require.NoError(t, err)
+	require.Equal(t, maxSeries, len(actualResp.Series))
+	require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
+}

@@ -514,6 +514,111 @@ func TestDiffExemplars(t *testing.T) {
 	}
 }
 
+func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
+	start := uint64(1100 * time.Second)
+	end := uint64(1300 * time.Second)
+	step := traceql.DefaultQueryRangeStep(start, end)
+
+	req := &tempopb.QueryRangeRequest{
+		Query:     "{} | rate()",
+		Start:     start,
+		End:       end,
+		Step:      step,
+		MaxSeries: 4,
+	}
+
+	queryRangeCombiner, err := NewQueryRange(req, 4)
+	require.NoError(t, err)
+
+	// add 3 series, should not quit
+	resp := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  1,
+		},
+		Series: []*tempopb.TimeSeries{
+			{
+				PromLabels: "foo",
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: 1200_000,
+						Value:       2,
+					},
+				},
+			},
+			{
+				PromLabels: "boo",
+				Labels: []v1.KeyValue{
+					{Key: "boo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: 1200_000,
+						Value:       2,
+					},
+				},
+			},
+			{
+				PromLabels: "moo",
+				Labels: []v1.KeyValue{
+					{Key: "moo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: 1200_000,
+						Value:       2,
+					},
+				},
+			},
+		},
+	}
+
+	err = queryRangeCombiner.AddResponse(toHTTPResponse(t, resp, 200))
+	require.NoError(t, err)
+	require.False(t, queryRangeCombiner.ShouldQuit())
+
+	// add 4th & 5th series, should quit
+	secondResp := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  1,
+		},
+		Series: []*tempopb.TimeSeries{
+			{
+				PromLabels: "goo",
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: 1200_000,
+						Value:       2,
+					},
+				},
+			},
+			{
+				PromLabels: "poo",
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: 1200_000,
+						Value:       2,
+					},
+				},
+			},
+		},
+	}
+
+	err = queryRangeCombiner.AddResponse(toHTTPResponse(t, secondResp, 200))
+	require.NoError(t, err)
+	require.True(t, queryRangeCombiner.ShouldQuit())
+}
+
 func BenchmarkDiffSeriesAndMarshal(b *testing.B) {
 	prev, curr := seriesWithTenPercentDiff()
 

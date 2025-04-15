@@ -25,7 +25,26 @@ func (r RootExpr) validate() error {
 	}
 
 	if r.MetricsPipeline != nil {
-		return r.MetricsPipeline.validate()
+		err := r.MetricsPipeline.validate()
+		if err != nil {
+			return err
+		}
+	}
+
+	if r.MetricsSecondStage != nil {
+		err := r.MetricsSecondStage.validate()
+		if err != nil {
+			return err
+		}
+	}
+
+	// extra validation to disallow compare() with second stage functions
+	// for example: `{} | compare({status=error}) | topk(10)` doesn't make sense
+	if r.MetricsPipeline != nil && r.MetricsSecondStage != nil {
+		// cast and check if the first stage is a compare operation
+		if _, ok := r.MetricsPipeline.(*MetricsCompare); ok {
+			return fmt.Errorf("`compare()` cannot be used with second stage functions")
+		}
 	}
 
 	return nil
