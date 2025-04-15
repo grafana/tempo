@@ -669,8 +669,11 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 			return NewStaticDuration(-1 * d), nil
 		}
 	}
+	if o.Op == OpNotExists {
+		return NewStaticBool(static.Type != TypeNil), nil
+	}
 
-	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
+	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub") // jpe - err msg
 }
 
 func (s Static) execute(Span) (Static, error) {

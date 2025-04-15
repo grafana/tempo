@@ -40,6 +40,7 @@ const (
 	OpSpansetUnionSibling
 	OpSpansetUnionAncestor
 	OpSpansetUnionDescendant
+	OpNotExists // jpe - different than others. not parseable. what else do i need to make this real?
 )
 
 func (op Operator) isBoolean() bool {
@@ -110,6 +111,8 @@ func (op Operator) unaryTypesValid(t StaticType) bool {
 		return t.isNumeric()
 	case OpNot:
 		return t == TypeBoolean
+	case OpNotExists:
+		return true // not exists can execute on any type
 	}
 
 	return false
