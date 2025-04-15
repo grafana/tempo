@@ -1712,7 +1712,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 					if err != nil {
 						return nil, err
 					}
-					eventIters =  append(eventIters, makeNilIter(columnPathEventAttrKey, pred, columnPathEventAttrKey))
+					eventIters = append(eventIters, makeNilIter(columnPathEventAttrKey, pred, columnPathEventAttrKey))
 				}
 				continue
 			}
@@ -1802,7 +1802,7 @@ func createLinkIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.C
 					if err != nil {
 						return nil, err
 					}
-					linkIters =  append(linkIters, makeNilIter(columnPathLinkAttrKey, pred, columnPathLinkAttrKey))
+					linkIters = append(linkIters, makeNilIter(columnPathLinkAttrKey, pred, columnPathLinkAttrKey))
 				}
 				continue
 			}
@@ -2058,7 +2058,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 					if err != nil {
 						return nil, err
 					}
-					iters =  append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
+					iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
 				}
 				continue
 			}
@@ -2200,7 +2200,7 @@ func createInstrumentationIterator(makeIter, makeNilIter makeIterFn, spanIterato
 					if err != nil {
 						return nil, err
 					}
-					iters =  append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, columnPathInstrumentationAttrKey))
+					iters = append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, columnPathInstrumentationAttrKey))
 				}
 				continue
 			}
@@ -2325,7 +2325,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 					if err != nil {
 						return nil, err
 					}
-					iters =  append(iters, makeNilIter(columnPathResourceAttrKey, pred, columnPathResourceAttrKey))
+					iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, columnPathResourceAttrKey))
 				}
 				continue
 			}
