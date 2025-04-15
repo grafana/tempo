@@ -211,9 +211,9 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 		req   traceql.FetchSpansRequest
 	}{
 
-		//{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
+		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
 		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
-		//{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
+		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
 	}
 
 	for _, tc := range searches {
