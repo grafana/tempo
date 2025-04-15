@@ -88,6 +88,7 @@ func (m *mockReader) FetchTagNames(context.Context, *backend.BlockMeta, traceql.
 }
 
 func (m *mockReader) EnablePolling(context.Context, blocklist.JobSharder) {}
+func (m *mockReader) PollNow(context.Context)                             {}
 func (m *mockReader) Shutdown()                                           {}
 
 //nolint:all deprecated
