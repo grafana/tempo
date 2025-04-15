@@ -600,6 +600,7 @@ func defaultIngesterTestConfig() Config {
 
 	cfg.FlushOpTimeout = 99999 * time.Hour
 	cfg.FlushCheckPeriod = 99999 * time.Hour
+	cfg.FlushObjectStorage = true
 	cfg.MaxTraceIdle = 99999 * time.Hour
 	cfg.ConcurrentFlushes = 1
 	cfg.LifecyclerConfig.RingConfig.KVStore.Mock = mockStore

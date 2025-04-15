@@ -376,27 +376,33 @@ func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *LocalBlock {
 	return nil
 }
 
-func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error {
+func (i *instance) ClearOldBlocks(flushObjectStorage bool, completeBlockTimeout time.Duration) error {
 	var err error
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
+	cutoff := time.Now().Add(-completeBlockTimeout)
+
 	for idx, b := range i.completeBlocks {
-		flushedTime := b.FlushedTime()
-		if flushedTime.IsZero() {
+		// If we are flushing to object storage, never delete blocks that have not been flushed.
+		if flushObjectStorage && b.FlushedTime().IsZero() {
 			continue
 		}
 
-		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
-			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
-
-			err = i.local.ClearBlock((uuid.UUID)(b.BlockMeta().BlockID), i.instanceID)
-			if err == nil {
-				metricBlocksClearedTotal.Inc()
-			}
-			break
+		// If the block contains data within retention, keep it.
+		if b.BlockMeta().EndTime.After(cutoff) {
+			continue
 		}
+
+		// This block can be deleted.
+		i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
+		err = i.local.ClearBlock((uuid.UUID)(b.BlockMeta().BlockID), i.instanceID)
+		if err != nil {
+			return err
+		}
+
+		metricBlocksClearedTotal.Inc()
 	}
 
 	return err
