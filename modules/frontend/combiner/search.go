@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -43,7 +42,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
 	completedThroughTracker := &ShardCompletionTracker{}
-	metricsCollector := collector.NewSimpleMetricsCollector()
+	var inspectedBytes uint64
 
 	c := &genericCombiner[*tempopb.SearchResponse]{
 		httpStatusCode: 200,
@@ -64,7 +63,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 
 			if partial.Metrics != nil {
 				final.Metrics.CompletedJobs++
-				metricsCollector.Add(partial.Metrics.InspectedBytes)
+				inspectedBytes += partial.Metrics.InspectedBytes
 				final.Metrics.InspectedTraces += partial.Metrics.InspectedTraces
 			}
 
@@ -87,11 +86,10 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 			// metrics are already combined on the passed in final
 			final.Traces = metadataCombiner.Metadata()
 
-			// Apply metrics from collector
 			if final.Metrics == nil {
 				final.Metrics = &tempopb.SearchMetrics{}
 			}
-			final.Metrics.InspectedBytes = metricsCollector.TotalValue()
+			final.Metrics.InspectedBytes = inspectedBytes
 
 			addRootSpanNotReceivedText(final.Traces)
 			return final, nil
@@ -103,11 +101,10 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 				Metrics: current.Metrics,
 			}
 
-			// Apply metrics from collector to the diff result
 			if diff.Metrics == nil {
 				diff.Metrics = &tempopb.SearchMetrics{}
 			}
-			diff.Metrics.InspectedBytes = metricsCollector.TotalValue()
+			diff.Metrics.InspectedBytes = inspectedBytes
 
 			metadataFn := metadataCombiner.Metadata
 			if keepMostRecent {

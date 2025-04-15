@@ -27,23 +27,3 @@ func (mc *MetricsCollector) Add(value uint64) {
 func (mc *MetricsCollector) TotalValue() uint64 {
 	return mc.totalValue.Load()
 }
-
-// SimpleMetricsCollector is a collector that uses a basic uint64 without thread safety
-type SimpleMetricsCollector struct {
-	totalValue uint64
-}
-
-func NewSimpleMetricsCollector() *SimpleMetricsCollector {
-	return &SimpleMetricsCollector{
-		totalValue: 0,
-	}
-}
-
-func (mc *SimpleMetricsCollector) Add(value uint64) {
-	// Note: this is not thread-safe.
-	mc.totalValue += value
-}
-
-func (mc *SimpleMetricsCollector) TotalValue() uint64 {
-	return mc.totalValue
-}

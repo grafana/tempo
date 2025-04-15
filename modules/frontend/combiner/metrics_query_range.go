@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -28,7 +27,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 		return nil, err
 	}
 
-	metricsCollector := collector.NewSimpleMetricsCollector()
+	var inspectedBytes uint64
 	var prevResp *tempopb.QueryRangeResponse
 	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
@@ -44,7 +43,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				if partial.Metrics.TotalJobs == 0 {
 					partial.Metrics.CompletedJobs = 1
 				}
-				metricsCollector.Add(partial.Metrics.InspectedBytes)
+				inspectedBytes += partial.Metrics.InspectedBytes
 			}
 
 			combiner.Combine(partial)
@@ -67,11 +66,10 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 			attachExemplars(req, resp)
 
-			// Attach metrics using the collector
 			if resp.Metrics == nil {
 				resp.Metrics = &tempopb.SearchMetrics{}
 			}
-			resp.Metrics.InspectedBytes = metricsCollector.TotalValue()
+			resp.Metrics.InspectedBytes = inspectedBytes
 
 			return resp, nil
 		},
@@ -99,11 +97,10 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				diff.Message = maxSeriesReachedErrorMsg
 			}
 
-			// Apply metrics from the collector to the diff response
 			if diff.Metrics == nil {
 				diff.Metrics = &tempopb.SearchMetrics{}
 			}
-			diff.Metrics.InspectedBytes = metricsCollector.TotalValue()
+			diff.Metrics.InspectedBytes = inspectedBytes
 
 			return diff, nil
 		},

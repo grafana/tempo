@@ -3,7 +3,6 @@ package combiner
 import (
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -15,7 +14,7 @@ func NewTypedTraceByIDV2(maxBytes int, marshalingFormat string) GRPCCombiner[*te
 func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
-	metricsCollector := collector.NewSimpleMetricsCollector()
+	var inspectedBytes uint64
 
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, _ PipelineResponse) error {
@@ -23,7 +22,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 				partialTrace = true
 			}
 			if partial.Metrics != nil {
-				metricsCollector.Add(partial.Metrics.InspectedBytes)
+				inspectedBytes += partial.Metrics.InspectedBytes
 			}
 			_, err := combiner.Consume(partial.Trace)
 			return err
@@ -38,7 +37,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 			deduper := newDeduper()
 			traceResult = deduper.dedupe(traceResult)
 			resp.Trace = traceResult
-			resp.Metrics = &tempopb.TraceByIDMetrics{InspectedBytes: metricsCollector.TotalValue()}
+			resp.Metrics = &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes}
 
 			if partialTrace || combiner.IsPartialTrace() {
 				resp.Status = tempopb.PartialStatus_PARTIAL

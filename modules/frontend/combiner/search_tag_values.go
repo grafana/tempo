@@ -14,7 +14,7 @@ var (
 func NewSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueThreshold uint32) Combiner {
 	// Distinct collector with no limit
 	d := collector.NewDistinctStringWithDiff(maxDataBytes, maxTagsValues, staleValueThreshold)
-	metricsCollector := collector.NewSimpleMetricsCollector()
+	var inspectedBytes uint64
 
 	c := &genericCombiner[*tempopb.SearchTagValuesResponse]{
 		httpStatusCode: 200,
@@ -25,18 +25,17 @@ func NewSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueThresh
 				d.Collect(v)
 			}
 			if partial.Metrics != nil {
-				metricsCollector.Add(partial.Metrics.InspectedBytes)
+				inspectedBytes += partial.Metrics.InspectedBytes
 			}
 			return nil
 		},
 		finalize: func(final *tempopb.SearchTagValuesResponse) (*tempopb.SearchTagValuesResponse, error) {
 			final.TagValues = d.Strings()
 
-			// Attach metrics using the collector
 			if final.Metrics == nil {
 				final.Metrics = &tempopb.MetadataMetrics{}
 			}
-			final.Metrics.InspectedBytes = metricsCollector.TotalValue()
+			final.Metrics.InspectedBytes = inspectedBytes
 
 			return final, nil
 		},
@@ -50,11 +49,10 @@ func NewSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueThresh
 			}
 			response.TagValues = resp
 
-			// Apply metrics from the collector to the diff response
 			if response.Metrics == nil {
 				response.Metrics = &tempopb.MetadataMetrics{}
 			}
-			response.Metrics.InspectedBytes = metricsCollector.TotalValue()
+			response.Metrics.InspectedBytes = inspectedBytes
 
 			return response, nil
 		},
@@ -70,7 +68,7 @@ func NewTypedSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueT
 func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThreshold uint32) Combiner {
 	// Distinct collector with no limit and diff enabled
 	d := collector.NewDistinctValueWithDiff(maxDataBytes, maxTagsValues, staleValueThreshold, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
-	metricsCollector := collector.NewSimpleMetricsCollector()
+	var inspectedBytes uint64
 
 	c := &genericCombiner[*tempopb.SearchTagValuesV2Response]{
 		httpStatusCode: 200,
@@ -81,7 +79,7 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 				d.Collect(*v)
 			}
 			if partial.Metrics != nil {
-				metricsCollector.Add(partial.Metrics.InspectedBytes)
+				inspectedBytes += partial.Metrics.InspectedBytes
 			}
 			return nil
 		},
@@ -93,11 +91,10 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 				final.TagValues = append(final.TagValues, &v2)
 			}
 
-			// Attach metrics using the collector
 			if final.Metrics == nil {
 				final.Metrics = &tempopb.MetadataMetrics{}
 			}
-			final.Metrics.InspectedBytes = metricsCollector.TotalValue()
+			final.Metrics.InspectedBytes = inspectedBytes
 
 			return final, nil
 		},
@@ -115,11 +112,10 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 				response.TagValues = append(response.TagValues, &v2)
 			}
 
-			// Apply metrics from the collector to the diff response
 			if response.Metrics == nil {
 				response.Metrics = &tempopb.MetadataMetrics{}
 			}
-			response.Metrics.InspectedBytes = metricsCollector.TotalValue()
+			response.Metrics.InspectedBytes = inspectedBytes
 
 			return response, nil
 		},
