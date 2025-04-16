@@ -1958,7 +1958,7 @@ func TestSpansetExistence(t *testing.T) {
 					NewAttribute("float"): NewStaticFloat(2.0),
 				},
 			},
-			matches: true,
+			matches: false,
 		},
 		{
 			query: `{ nil != nil }`,

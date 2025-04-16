@@ -491,14 +491,6 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 		}
 	}
 
-	// rewrite != nil and nil != to be a unary existence
-	if binop.Op == OpNotEqual && !binop.LHS.referencesSpan() && binop.LHS.impliedType() == TypeNil {
-		return newUnaryOperation(OpExists, binop.RHS)
-	}
-	if binop.Op == OpNotEqual && !binop.RHS.referencesSpan() && binop.RHS.impliedType() == TypeNil {
-		return newUnaryOperation(OpExists, binop.LHS)
-	}
-
 	if (op == OpAnd || op == OpOr) && binop.referencesSpan() {
 		binop.b = newBranchPredictor(2, 1000)
 	}
