@@ -672,8 +672,8 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	// Check that the offset was committed correctly (lastRec.Offset + 1)
 	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 
-	// Sleep to let the poller cycle
-	time.Sleep(100 * time.Millisecond)
+	// Repoll flushed blocks.
+	store.PollNow(ctx)
 
 	// Verify that each tenant only has 1 active block
 	require.Equal(t, 1, len(store.BlockMetas(goodTenantID)))
