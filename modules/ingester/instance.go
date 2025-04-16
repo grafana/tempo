@@ -376,30 +376,36 @@ func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *LocalBlock {
 	return nil
 }
 
-func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error {
-	var err error
-
+func (i *instance) ClearOldBlocks(flushObjectStorage bool, completeBlockTimeout time.Duration) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	for idx, b := range i.completeBlocks {
-		flushedTime := b.FlushedTime()
-		if flushedTime.IsZero() {
+	cutoff := time.Now().Add(-completeBlockTimeout)
+	for idx, numBlocks := 0, len(i.completeBlocks); idx < numBlocks; idx++ {
+		b := i.completeBlocks[idx]
+
+		// Keep blocks awaiting flush if we are flushing to object storage.
+		if flushObjectStorage && b.FlushedTime().IsZero() {
 			continue
 		}
 
-		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
-			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
-
-			err = i.local.ClearBlock((uuid.UUID)(b.BlockMeta().BlockID), i.instanceID)
-			if err == nil {
-				metricBlocksClearedTotal.Inc()
-			}
-			break
+		// Keep blocks within retention.
+		if b.BlockMeta().EndTime.After(cutoff) {
+			continue
 		}
+
+		// This block can be deleted.
+		err := i.local.ClearBlock((uuid.UUID)(b.BlockMeta().BlockID), i.instanceID)
+		if err != nil {
+			return err
+		}
+		i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
+		idx--
+		numBlocks--
+		metricBlocksClearedTotal.Inc()
 	}
 
-	return err
+	return nil
 }
 
 func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTrace bool) (*tempopb.TraceByIDResponse, error) {

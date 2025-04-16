@@ -79,6 +79,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] TraceQL results caching bug for floats ending in .0 [#4539](https://github.com/grafana/tempo/pull/4539) (@carles-grafana)
 * [BUGFIX] Rhythm: fix sorting order for partition consumption [#4747](https://github.com/grafana/tempo/pull/4747) (@javiermolinar)
 * [BUGFIX] Rhythm: fix block builder to not reuse a block ID if it was already flushed, to prevent read errors [#4872](https://github.com/grafana/tempo/pull/4872) (@mdisibio)
+* [BUGFIX] Rhythm: fix ingester to still clear old blocks when not flushing to object storage [#5005](https://github.com/grafana/tempo/pull/5005) (@mdisibio)
 * [BUGFIX] Fix rare panic during compaction. [#4915](https://github.com/grafana/tempo/pull/4915) (@joe-elliott)
 * [BUGFIX] Fix metrics streaming for all non-trivial metrics [#4624](https://github.com/grafana/tempo/pull/4624) (@joe-elliott)
 * [BUGFIX] Fix starting consuming log [#4539](https://github.com/grafana/tempo/pull/4539) (@javiermolinar)

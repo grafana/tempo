@@ -204,7 +204,7 @@ func (i *Ingester) cutOneInstanceToWal(instance *instance, immediate bool) {
 	}
 
 	// dump any blocks that have been flushed for awhile
-	err = instance.ClearFlushedBlocks(i.cfg.CompleteBlockTimeout)
+	err = instance.ClearOldBlocks(i.cfg.FlushObjectStorage, i.cfg.CompleteBlockTimeout)
 	if err != nil {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to complete block", "err", err)
 	}

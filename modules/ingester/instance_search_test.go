@@ -684,7 +684,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		err = i.ClearFlushedBlocks(0)
+		err = i.ClearOldBlocks(ingester.cfg.FlushObjectStorage, 0)
 		require.NoError(t, err)
 	})
 

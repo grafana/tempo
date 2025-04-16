@@ -65,11 +65,11 @@ func TestInstance(t *testing.T) {
 	err = ingester.store.WriteBlock(context.Background(), block)
 	require.NoError(t, err)
 
-	err = i.ClearFlushedBlocks(30 * time.Hour)
+	err = i.ClearOldBlocks(ingester.cfg.FlushObjectStorage, 30*time.Hour)
 	require.NoError(t, err)
 	require.Len(t, i.completeBlocks, 1)
 
-	err = i.ClearFlushedBlocks(0)
+	err = i.ClearOldBlocks(ingester.cfg.FlushObjectStorage, 0)
 	require.NoError(t, err)
 	require.Len(t, i.completeBlocks, 0)
 
@@ -158,32 +158,39 @@ func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) 
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
-	i, ingester := defaultInstance(t)
-	end := make(chan struct{})
+	var (
+		i, ingester = defaultInstance(t)
+		end         = make(chan struct{})
+		wg          = sync.WaitGroup{}
+	)
 
 	concurrent := func(f func()) {
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
-	go concurrent(func() {
+	concurrent(func() {
 		request := makeRequest([]byte{})
 		response := i.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
 		require.False(t, errored)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := i.CutCompleteTraces(0, true)
 		require.NoError(t, err, "error cutting complete traces")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		blockID, _ := i.CutBlockIfReady(0, 0, false)
 		if blockID != uuid.Nil {
 			err := i.CompleteBlock(context.Background(), blockID)
@@ -195,12 +202,12 @@ func TestInstanceDoesNotRace(t *testing.T) {
 		}
 	})
 
-	go concurrent(func() {
-		err := i.ClearFlushedBlocks(0)
+	concurrent(func() {
+		err := i.ClearOldBlocks(ingester.cfg.FlushObjectStorage, 0)
 		require.NoError(t, err, "error clearing flushed blocks")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		if i == nil {
 			require.FailNow(t, "instance is nil")
 		}
@@ -212,7 +219,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	close(end)
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 }
 
 func TestInstanceLimits(t *testing.T) {
@@ -713,6 +720,64 @@ func TestSortByteSlices(t *testing.T) {
 	assert.Equal(t, traceBytes, traceBytes2)
 }
 
+func TestInstanceClearOldBlocks(t *testing.T) {
+	ctx := context.Background()
+
+	testCases := []struct {
+		name                 string
+		flushObjectStorage   bool
+		completeBlockTimeout time.Duration
+		expectCompleteBlocks bool
+	}{
+		{name: "no_flush/outside_retention", flushObjectStorage: false, completeBlockTimeout: 0, expectCompleteBlocks: false},
+		{name: "no_flush/inside_retention", flushObjectStorage: false, completeBlockTimeout: time.Hour, expectCompleteBlocks: true},
+		{name: "flush/outside_retention", flushObjectStorage: true, completeBlockTimeout: 0, expectCompleteBlocks: true},
+		{name: "flush/inside_retention", flushObjectStorage: true, completeBlockTimeout: time.Hour, expectCompleteBlocks: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := []ingesterTestOption{
+				func(cfg *Config, _ *overrides.Config) {
+					cfg.FlushObjectStorage = tc.flushObjectStorage
+				},
+			}
+
+			ingester, instance := testInstance(t, opts...)
+			t.Cleanup(func() {
+				ingester.StopAsync()
+				require.NoError(t, ingester.AwaitTerminated(ctx))
+			})
+
+			// Create several complete blocks.
+			numBlocks := 3
+			for i := 0; i < numBlocks; i++ {
+				request := makeRequest([]byte{})
+				instance.PushBytesRequest(ctx, request)
+
+				err := instance.CutCompleteTraces(0, true)
+				require.NoError(t, err)
+
+				blockID, err := instance.CutBlockIfReady(0, 0, true)
+				require.NoError(t, err)
+				require.NotEqual(t, blockID, uuid.Nil)
+
+				err = instance.CompleteBlock(ctx, blockID)
+				require.NoError(t, err)
+			}
+
+			err := instance.ClearOldBlocks(tc.flushObjectStorage, tc.completeBlockTimeout)
+			require.NoError(t, err)
+
+			if tc.expectCompleteBlocks {
+				require.Equal(t, numBlocks, len(instance.completeBlocks))
+			} else {
+				require.Equal(t, 0, len(instance.completeBlocks))
+			}
+		})
+	}
+}
+
 func defaultInstance(t testing.TB) (*instance, *Ingester) {
 	instance, ingester, _ := defaultInstanceAndTmpDir(t)
 	return instance, ingester
@@ -726,6 +791,38 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *Ingester, string) {
 	require.NoError(t, err, "unexpected error creating new instance")
 
 	return instance, ingester, tmpDir
+}
+
+type ingesterTestOption func(*Config, *overrides.Config)
+
+func testInstance(t testing.TB, opts ...ingesterTestOption) (*Ingester, *instance) {
+	var (
+		ctx    = context.Background()
+		tmpDir = t.TempDir()
+		cfg    = defaultIngesterTestConfig()
+		o      = overrides.Config{}
+	)
+
+	for _, opt := range opts {
+		opt(&cfg, &o)
+	}
+
+	limits, err := overrides.NewOverrides(o, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err, "unexpected error creating overrides")
+
+	s := defaultIngesterStore(t, tmpDir)
+
+	ingester, err := New(cfg, s, limits, prometheus.NewPedanticRegistry(), false)
+	require.NoError(t, err, "unexpected error creating ingester")
+	ingester.replayJitter = false
+
+	err = ingester.starting(ctx)
+	require.NoError(t, err, "unexpected error starting ingester")
+
+	instance, err := ingester.getOrCreateInstance(testTenantID)
+	require.NoError(t, err, "unexpected error creating new instance")
+
+	return ingester, instance
 }
 
 func BenchmarkInstancePush(b *testing.B) {
@@ -924,7 +1021,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 	})
 
 	go concurrent(func() {
-		err := i.ClearFlushedBlocks(0)
+		err := i.ClearOldBlocks(ingester.cfg.FlushObjectStorage, 0)
 		require.NoError(t, err, "error clearing flushed blocks")
 		retentions++
 	})
