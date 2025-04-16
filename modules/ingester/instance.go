@@ -381,7 +381,7 @@ func (i *instance) ClearOldBlocks(flushObjectStorage bool, completeBlockTimeout 
 	defer i.blocksMtx.Unlock()
 
 	cutoff := time.Now().Add(-completeBlockTimeout)
-	for idx, max := 0, len(i.completeBlocks); idx < max; idx++ {
+	for idx, numBlocks := 0, len(i.completeBlocks); idx < numBlocks; idx++ {
 		b := i.completeBlocks[idx]
 
 		// Keep blocks awaiting flush if we are flushing to object storage.
@@ -401,7 +401,7 @@ func (i *instance) ClearOldBlocks(flushObjectStorage bool, completeBlockTimeout 
 		}
 		i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
 		idx--
-		max--
+		numBlocks--
 		metricBlocksClearedTotal.Inc()
 	}
 
