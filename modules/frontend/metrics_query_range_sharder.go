@@ -293,7 +293,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			startTime := time.Unix(0, int64(searchReq.Start)) // start/end are in nanoseconds
 			endTime := time.Unix(0, int64(searchReq.End))
 			// TODO: Handle sampling rate
-			key := queryRangeCacheKey(tenantID, queryHash, startTime, endTime, m, int(step), pages)
+			key := queryRangeCacheKey(tenantID, queryHash, startTime, endTime, m, startPage, pages)
 			if len(key) > 0 {
 				pipelineR.SetCacheKey(key)
 			}
