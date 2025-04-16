@@ -924,6 +924,10 @@ func TestSpansetFilterOperators(t *testing.T) {
 
 		// existence
 		{in: "{ .a != nil }", expected: newUnaryOperation(OpExists, NewAttribute("a")), alsoTestWithoutSpace: true},
+
+		// nil comparisons
+		{in: "{ nil != nil }", expected: NewStaticBool(false)},
+		{in: "{ nil = nil }", expected: NewStaticBool(false)},
 	}
 
 	test := func(q string, expected FieldExpression) {

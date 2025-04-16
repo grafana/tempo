@@ -727,10 +727,6 @@ func (s Static) MapKey() StaticMapKey {
 }
 
 func (s Static) Equals(o *Static) bool {
-	if s.Type == TypeNil && o.Type == TypeNil {
-		return true
-	}
-
 	// if one is nil, they are not equal
 	if s.Type == TypeNil || o.Type == TypeNil {
 		return false

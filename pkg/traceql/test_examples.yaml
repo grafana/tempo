@@ -165,6 +165,10 @@ valid:
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
   - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'
+  # nil comparisons
+  - '{ nil != nil }'
+  - '{ nil = nil }'
+  - '{ .foo != nil }'
 
 # parse_fails throw an error when parsing
 parse_fails:

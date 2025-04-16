@@ -500,22 +500,16 @@ func TestStatic_Equals(t *testing.T) {
 		lhs, rhs Static
 	}{
 		{NewStaticInt(1), NewStaticInt(2)},
-		{NewStaticInt(1), StaticNil},
-		{StaticNil, NewStaticInt(1)},
 		{NewStaticBool(true), NewStaticBool(false)},
 		{NewStaticBool(true), NewStaticInt(1)},
 		{NewStaticInt(1), NewStaticBool(true)},
 		{NewStaticString("foo"), NewStaticString("bar")},
-		{NewStaticString(""), StaticNil},
-		{StaticNil, NewStaticString("")},
 		{NewStaticKind(KindClient), NewStaticKind(KindConsumer)},
 		{NewStaticStatus(StatusError), NewStaticStatus(StatusOk)},
 		{NewStaticStatus(StatusOk), NewStaticStatus(StatusUnset)},
 		{NewStaticStatus(StatusOk), NewStaticKind(KindInternal)},
 		{NewStaticStatus(StatusError), NewStaticFloat(0)},
 		{NewStaticFloat(0), NewStaticStatus(StatusError)},
-		{NewStaticStatus(StatusError), StaticNil},
-		{StaticNil, NewStaticStatus(StatusError)},
 		{NewStaticIntArray([]int{}), NewStaticIntArray([]int{0})},
 		{NewStaticIntArray([]int{111, 11}), NewStaticIntArray([]int{11, 111})},
 		{NewStaticFloatArray([]float64{}), NewStaticFloatArray([]float64{0.0})},
@@ -525,6 +519,13 @@ func TestStatic_Equals(t *testing.T) {
 		{NewStaticBooleanArray([]bool{}), NewStaticBooleanArray([]bool{true})},
 		{NewStaticBooleanArray([]bool{true, false}), NewStaticBooleanArray([]bool{false, true})},
 	}
+	allNilComparisonsAreFalse := []struct {
+		lhs, rhs Static
+	}{
+		{NewStaticInt(1), StaticNil},
+		{NewStaticString(""), StaticNil},
+		{NewStaticStatus(StatusError), StaticNil},
+	}
 	for _, tt := range areEqual {
 		t.Run(fmt.Sprintf("%s==%s", testName(tt.rhs), testName(tt.rhs)), func(t *testing.T) {
 			assert.True(t, tt.lhs.Equals(&tt.rhs))
@@ -533,8 +534,16 @@ func TestStatic_Equals(t *testing.T) {
 	}
 	for _, tt := range areNotEqual {
 		t.Run(fmt.Sprintf("%s!=%s", testName(tt.lhs), testName(tt.rhs)), func(t *testing.T) {
+			assert.True(t, tt.lhs.NotEquals(&tt.rhs))
+			assert.True(t, tt.rhs.NotEquals(&tt.lhs))
+		})
+	}
+	for _, tt := range allNilComparisonsAreFalse {
+		t.Run(fmt.Sprintf("%s==%s", testName(tt.lhs), testName(tt.rhs)), func(t *testing.T) {
 			assert.False(t, tt.lhs.Equals(&tt.rhs))
 			assert.False(t, tt.rhs.Equals(&tt.lhs))
+			assert.False(t, tt.lhs.NotEquals(&tt.rhs))
+			assert.False(t, tt.rhs.NotEquals(&tt.lhs))
 		})
 	}
 }
