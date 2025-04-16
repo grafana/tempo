@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -673,8 +672,8 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	// Check that the offset was committed correctly (lastRec.Offset + 1)
 	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 
-	// Sleep to let the poller cycle
-	time.Sleep(100 * time.Millisecond)
+	// Repoll flushed blocks.
+	store.PollNow(ctx)
 
 	// Verify that each tenant only has 1 active block
 	require.Equal(t, 1, len(store.BlockMetas(goodTenantID)))
@@ -702,18 +701,17 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
-	var cycleState atomic.Bool
-	var consumeCycle sync.WaitGroup
+	chConsumeStarted := make(chan struct{})
+	chConsumeDone := make(chan struct{})
+	chStopDone := make(chan struct{})
 
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		cycleState.Store(false)
-		consumeCycle.Done()
+		close(chConsumeDone)
 		return nil, nil, false
 	})
 
 	k.ControlKey(kmsg.OffsetFetch, func(kmsg.Request) (kmsg.Response, error, bool) {
-		cycleState.Store(true)
-		consumeCycle.Add(1)
+		close(chConsumeStarted)
 		return nil, nil, false
 	})
 
@@ -730,26 +728,21 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 
 	// Wait for cycle to be ongoing
-	require.Eventually(t, func() bool { return cycleState.Load() }, cfg.ConsumeCycleDuration*2, time.Second)
+	select {
+	case <-chConsumeStarted:
+	case <-time.After(cfg.ConsumeCycleDuration * 2):
+		t.Fatal("Consume cycle didn't start")
+	}
 
-	// Start the shutdown process
-	stopDone := make(chan struct{})
 	go func() {
-		defer close(stopDone)
+		defer close(chStopDone)
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
-	}()
-
-	// Wait until cycle is complete
-	cycleDone := make(chan struct{})
-	go func() {
-		defer close(cycleDone)
-		consumeCycle.Wait()
 	}()
 
 	// Check if shutdown waits for consume cycle to finish
 	select {
-	case <-cycleDone:
-	case <-stopDone:
+	case <-chConsumeDone:
+	case <-chStopDone:
 		t.Fatal("Shutdown completed before consume cycle finished - not graceful!")
 	case <-time.After(10 * time.Second):
 		t.Fatal("Timed out waiting for consume cycle to finish")
@@ -757,7 +750,7 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 
 	// Now wait for the shutdown to complete after we've verified it's graceful
 	select {
-	case <-stopDone:
+	case <-chStopDone:
 		// Good, shutdown completed after we checked
 	case <-time.After(5 * time.Second):
 		t.Fatal("Shutdown didn't complete after consume cycle finished")

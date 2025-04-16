@@ -94,8 +94,14 @@ type Reader interface {
 
 	BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
-	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
+
 	Tenants() []string
+
+	// EnablePolling in the background of the blocklists, with the given ownership of tenants.
+	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
+
+	// PollNow does an immediate poll of the blocklist and is for testing purposes. Must have already called EnablePolling.
+	PollNow(ctx context.Context)
 
 	Shutdown()
 }
@@ -633,6 +639,10 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 	rw.pollBlocklist(ctx)
 
 	go rw.pollingLoop(ctx)
+}
+
+func (rw *readerWriter) PollNow(ctx context.Context) {
+	rw.pollBlocklist(ctx)
 }
 
 func (rw *readerWriter) pollingLoop(ctx context.Context) {
