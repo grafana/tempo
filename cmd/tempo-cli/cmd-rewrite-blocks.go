@@ -46,67 +46,51 @@ func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
 		return err
 	}
 
-	type pair struct {
-		traceIDs  []common.ID
-		blockMeta *backend.BlockMeta
-	}
-	tracesByBlock := map[backend.UUID]pair{}
-
 	// Group trace IDs by blocks
 	ids := strings.Split(cmd.TraceIDs, ",")
+	traceIDs := make([]common.ID, len(ids))
 	for _, id := range ids {
 		traceID, err := util.HexStringToTraceID(id)
 		if err != nil {
 			return err
 		}
 
-		// It might be significantly improved if common.BackendBlock supported bulk searches.
-		blocks, err := blocksWithTraceID(ctx, r, cmd.TenantID, traceID)
-		if err != nil {
-			return err
-		}
+		traceIDs = append(traceIDs, traceID)
+	}
 
-		if len(blocks) == 0 {
-			fmt.Printf("\ntrace %s not found in any block. skipping\n", util.TraceIDToHexString(traceID))
-		}
-		for _, block := range blocks {
-			p, ok := tracesByBlock[block.BlockID]
-			if !ok {
-				p = pair{blockMeta: block}
-			}
-			p.traceIDs = append(p.traceIDs, traceID)
-			tracesByBlock[block.BlockID] = p
-		}
+	// It might be significantly improved if common.BackendBlock supported bulk searches.
+	blocks, err := blocksWithAnyTraceID(ctx, r, cmd.TenantID, traceIDs...)
+	if err != nil {
+		return err
+	}
+
+	if len(blocks) == 0 {
+		fmt.Printf("\ntraces %s not found in any block. skipping\n", cmd.TraceIDs)
 	}
 
 	// Remove traces from blocks
-	for _, p := range tracesByBlock {
+	for _, block := range blocks {
 		// print out trace IDs to be removed in the block
-		strTraceIDs := make([]string, len(p.traceIDs))
-		for i, tid := range p.traceIDs {
-			strTraceIDs[i] = util.TraceIDToHexString(tid)
-		}
-		fmt.Printf("\nFound %d traces: %v in block: %v\n", len(strTraceIDs), strTraceIDs, p.blockMeta.BlockID)
-		fmt.Printf("blockInfo: ID: %v, Size: %d Total Traces: %d\n", p.blockMeta.BlockID, p.blockMeta.Size_, p.blockMeta.TotalObjects)
+		fmt.Printf("blockInfo: ID: %v, Size: %d Total Traces: %d\n", block.BlockID, block.Size_, block.TotalObjects)
 
 		if !cmd.DropTrace {
 			fmt.Println("**not dropping trace, use --drop-trace to actually drop**")
 			continue
 		}
 
-		fmt.Printf("  rewriting %v\n", p.blockMeta.BlockID)
-		newMeta, err := rewriteBlock(ctx, r, w, p.blockMeta, p.traceIDs)
+		fmt.Printf("  rewriting %v\n", block.BlockID)
+		newMeta, err := rewriteBlock(ctx, r, w, block, traceIDs)
 		if err != nil {
 			return err
 		}
 		if newMeta == nil {
-			fmt.Printf("  block %v was removed\n", p.blockMeta.BlockID)
+			fmt.Printf("  block %v was removed\n", block.BlockID)
 		} else {
 			fmt.Printf("  rewrote to new block: %v\n", newMeta.BlockID)
 		}
 
-		fmt.Printf("  marking %v compacted\n", p.blockMeta.BlockID)
-		err = c.MarkBlockCompacted((uuid.UUID)(p.blockMeta.BlockID), p.blockMeta.TenantID)
+		fmt.Printf("  marking %v compacted\n", block.BlockID)
+		err = c.MarkBlockCompacted((uuid.UUID)(block.BlockID), block.TenantID)
 		if err != nil {
 			return err
 		}
@@ -158,6 +142,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 		DropObject: func(id common.ID) bool {
 			for _, tid := range traceIDs {
 				if bytes.Equal(id, tid) {
+					fmt.Printf("dropping trace %s\n", util.TraceIDToHexString(id))
 					return true
 				}
 			}
@@ -182,6 +167,10 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 		return nil, err
 	}
 
+	if len(out) == 0 {
+		return nil, nil
+	}
+
 	if len(out) != 1 {
 		if meta.TotalObjects == int64(len(traceIDs)) {
 			// we removed all traces from the block
@@ -193,13 +182,17 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 	newMeta := out[0]
 
 	if newMeta.TotalObjects != meta.TotalObjects-int64(len(traceIDs)) {
-		return nil, fmt.Errorf("expected output to have one less object then in. out: %d in: %d", newMeta.TotalObjects, meta.TotalObjects)
+		fmt.Printf("expected output to have one less object then in. out: %d in: %d", newMeta.TotalObjects, meta.TotalObjects)
 	}
 
 	return newMeta, nil
 }
 
-func blocksWithTraceID(ctx context.Context, r backend.Reader, tenantID string, traceID common.ID) ([]*backend.BlockMeta, error) {
+// blocksWithAnyTraceID returns all blocks that contain any of the trace IDs.
+// It is enough to know if a block contains one of the trace IDs since we will
+// open each block and skip any of the trace IDs which are passed into the
+// command.
+func blocksWithAnyTraceID(ctx context.Context, r backend.Reader, tenantID string, traceIDs ...common.ID) ([]*backend.BlockMeta, error) {
 	blockIDs, _, err := r.Blocks(ctx, tenantID)
 	if err != nil {
 		return nil, err
@@ -216,7 +209,7 @@ func blocksWithTraceID(ctx context.Context, r backend.Reader, tenantID string, t
 			defer wg.Done()
 
 			// search here
-			meta, err := isInBlock(ctx, r, blockNum2, id2, tenantID, traceID)
+			meta, err := isInBlock(ctx, r, blockNum2, id2, tenantID, traceIDs...)
 			if err != nil {
 				fmt.Println("\nError querying block:", err)
 				return
@@ -239,7 +232,7 @@ func blocksWithTraceID(ctx context.Context, r backend.Reader, tenantID string, t
 	return results, nil
 }
 
-func isInBlock(ctx context.Context, r backend.Reader, blockNum int, id uuid.UUID, tenantID string, traceID common.ID) (*backend.BlockMeta, error) {
+func isInBlock(ctx context.Context, r backend.Reader, blockNum int, id uuid.UUID, tenantID string, traceIDs ...common.ID) (*backend.BlockMeta, error) {
 	fmt.Print(".")
 	if blockNum%100 == 0 {
 		fmt.Print(strconv.Itoa(blockNum))
@@ -264,16 +257,20 @@ func isInBlock(ctx context.Context, r backend.Reader, blockNum int, id uuid.UUID
 	searchOpts := common.SearchOptions{}
 	tempodb.SearchConfig{}.ApplyToOptions(&searchOpts)
 
-	// technically we could do something even more efficient here by just testing to see if the trace id is in the block w/o
-	// marshalling the whole thing. todo: do that.
-	trace, err := block.FindTraceByID(ctx, traceID, searchOpts)
-	if err != nil {
-		return nil, err
+	for _, traceID := range traceIDs {
+		// technically we could do something even more efficient here by just testing to see if the trace id is in the block w/o
+		// marshalling the whole thing. todo: do that.
+		trace, err := block.FindTraceByID(ctx, traceID, searchOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		if trace == nil {
+			continue
+		}
+
+		return meta, nil
 	}
 
-	if trace == nil {
-		return nil, nil
-	}
-
-	return meta, nil
+	return nil, nil
 }
