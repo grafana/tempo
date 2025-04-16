@@ -98,6 +98,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Correctly cache frontend jobs for query range (TraceQL Metrics). [#4771](https://github.com/grafana/tempo/pull/4771) (@joe-elliott)
 * [BUGFIX] Various edge case fixes for query range (TraceQL Metrics) [#4962](https://github.com/grafana/tempo/pull/4962) (@ruslan-mikhailov)
 * [BUGFIX] Fix `TempoBlockListRisingQuickly` alert grouping. [#4876](https://github.com/grafana/tempo/pull/4876) (@mapno)
+* [BUGFIX] Fix panic when aggregating avg_over_time metrics with truncated timeseries [#5016](https://github.com/grafana/tempo/pull/5016) (@ie-pham)
 
 # v2.7.2
 
