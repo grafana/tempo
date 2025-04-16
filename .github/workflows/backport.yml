@@ -4,16 +4,12 @@
 # will only check a few things and detect that the PR is not yet merged. 
 # At this time only squashed PRs are supported since the cherry-pick 
 # command does not include "-m <n>" arg required for merge commits.
-name: Backport
+name: Backport PR Creator
 on:
-  pull_request:
+  pull_request_target:
     types:
       - closed
       - labeled
-
-permissions:
-  contents: read
-  id-token: write
 
 jobs:
   main:
@@ -21,25 +17,22 @@ jobs:
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
-      - name: Generate GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: tempo
-
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
           repository: "grafana/grafana-github-actions"
           path: ./actions
           ref: main
-
       - name: Install Actions
         run: npm install --production --prefix ./actions
-
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@3ff1caaa28b64c9cc276ce0a02e2ff584f3900c5 # v2.0.2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: tempo
       - name: Run backport
         uses: ./actions/backport
         with:
