@@ -7,6 +7,8 @@ weight: 800
 
 # Tempo HTTP API
 
+<!-- The API docs are mounted into GET in the website repository. -->
+
 <!-- vale Grafana.GooglePassive = NO -->
 <!-- vale Grafana.Parentheses = NO -->
 
@@ -98,15 +100,22 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 
 |  Protocol | Type | Docs |
 |  -------- | ---- | ---- |
-|  OpenTelemetry | gRPC | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
-|  OpenTelemetry | HTTP | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
+|  OpenTelemetry | gRPC | [Link](https://opentelemetry.io/docs/specs/otlp/) |
+|  OpenTelemetry | HTTP | [Link](https://opentelemetry.io/docs/specs/otlp/) |
 |  Jaeger | Thrift Compact | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Jaeger | Thrift Binary | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Jaeger | Thrift HTTP |  [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Jaeger | gRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
+For information on how to use the OTLP endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
+
+If you are using Grafana Enterprise Traces (GET), then it only supports OpenTelemetry (OTLP):
+
+|  Protocol | Type | Docs |
+|  -------- | ---- | ---- |
+|  OpenTelemetry | gRPC | [Link](https://opentelemetry.io/docs/specs/otlp/) |
+|  OpenTelemetry | HTTP | [Link](https://opentelemetry.io/docs/specs/otlp/) |
 
 ### Query
 
