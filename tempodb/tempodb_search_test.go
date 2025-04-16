@@ -1363,8 +1363,8 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 	}
 
 	// these tests confirm that nil comparisons are handled consistently at the fetch and engine levels. it does this by running conditions in two different ways:
-	// { <condition> && .parent }
-	// { .child } < { <condition> && .parent }
+	// { <condition> }
+	// { .child } < { <condition> }
 	// the first is asserted by the fetch layer. the second is asserted by the engine layer. we need these to always return or fail to return the same result.
 	conditions := []struct {
 		condition        string
@@ -1381,8 +1381,8 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 
 	for _, tc := range conditions {
 		t.Run(tc.condition, func(t *testing.T) {
-			engineQuery := fmt.Sprintf("{ .child } < { %s && .parent }", tc.condition)
-			fetchQuery := fmt.Sprintf("{ %s && .parent }", tc.condition)
+			engineQuery := fmt.Sprintf("{ .child } < { %s }", tc.condition)
+			fetchQuery := fmt.Sprintf("{ %s }", tc.condition)
 
 			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
