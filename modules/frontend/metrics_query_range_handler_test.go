@@ -167,7 +167,7 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 	hash := hashForQueryRangeRequest(&tempopb.QueryRangeRequest{Query: query, Step: uint64(step)})
 	startNS := 10 * time.Second
 	endNS := 20 * time.Second
-	cacheKey := queryRangeCacheKey(tenant, hash, time.Unix(0, int64(startNS)), time.Unix(0, int64(endNS)), meta, step, 1)
+	cacheKey := queryRangeCacheKey(tenant, hash, time.Unix(0, int64(startNS)), time.Unix(0, int64(endNS)), meta, 0, 1)
 
 	// confirm cache key coesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
