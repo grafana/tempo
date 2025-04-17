@@ -98,11 +98,31 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 		)
 
 		reset := func() {
-			job = nil
-			b.Reset()
+			p.curSelector = nil
+			p.curTenant = nil
+			p.curTenantJobCount = 0
 		}
 
 		for {
+			if p.curSelector == nil {
+				if !p.prepareNextTenant(ctx) {
+					b.Wait()
+				}
+				continue
+			}
+
+			if p.curTenantJobCount >= p.cfg.MaxJobsPerTenant {
+				reset()
+				continue
+			}
+
+			job = p.createJob(ctx)
+			if job == nil {
+				// we don't have a job, reset the curTenant and try again
+				reset()
+				continue
+			}
+
 			select {
 			case <-ctx.Done():
 				level.Info(p.logger).Log("msg", "compaction provider stopping")
@@ -110,105 +130,13 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			case <-measureTicker.C:
 				// Measure the tenants to get their current compaction status
 				p.measureTenants()
-			default:
-				ctx, span := tracer.Start(ctx, "compaction-provider-poll")
-
-				attributes := []attribute.KeyValue{
-					attribute.Int("max_jobs_per_tenant", p.cfg.MaxJobsPerTenant),
-					attribute.Int("jobs_in_queue", len(jobs)),
-					attribute.Int("jobs_in_scheduler", len(p.sched.ListJobs())),
-				}
-
-				span.SetAttributes(attributes...)
-
-				if job == nil {
-					// we don't have a job, get the next one
-					job = p.nextCompactionJob(ctx)
-					if job == nil {
-						span.AddEvent("backoff")
-						b.Wait()
-					}
-				}
-
-				if job != nil {
-					span.SetAttributes(attribute.String("job_id", job.ID))
-					// we have a job that we need to send
-					select {
-					case jobs <- job:
-						// job sent, reset the job
-						span.AddEvent("job-sent")
-						reset()
-					default:
-						// Channel full, try again next tick
-
-						span.SetAttributes(
-							attribute.String("job_id", job.ID),
-							attribute.String("job_type", job.Type.String()),
-							attribute.Int("jobs_in_queue", len(jobs)),
-							attribute.Int("jobs_in_scheduler", len(p.sched.ListJobs())),
-						)
-
-						span.AddEvent("channel-full")
-						b.Wait()
-					}
-				}
-				span.End()
+			case jobs <- job:
+				b.Reset()
 			}
 		}
 	}()
 
 	return jobs
-}
-
-// returns the next compaction job for the tenant
-func (p *CompactionProvider) nextCompactionJob(ctx context.Context) *work.Job {
-	resetCount := 0
-
-	ctx, span := tracer.Start(ctx, "next-compaction-job")
-	defer span.End()
-
-	reset := func() {
-		resetCount++
-		p.curSelector = nil
-		p.curTenant = nil
-		p.curTenantJobCount = 0
-		span.AddEvent("reset")
-	}
-
-	// Only reset up to the number of tenants to ensure we visit them all at least once.
-	for resetCount <= len(p.store.Tenants()) {
-		// do we have an current tenant?
-		if p.curSelector == nil {
-			if !p.prepareNextTenant(ctx) {
-				return nil
-			}
-			continue
-		}
-
-		if p.curTenantJobCount >= p.cfg.MaxJobsPerTenant {
-			reset()
-			continue
-		}
-
-		job := p.createJob(ctx)
-		if job == nil {
-			// we don't have a job, reset the curTenant
-			// and try again
-			span.AddEvent("no-job-created")
-			reset()
-			continue
-		}
-
-		if job != nil {
-			// we have a job, return it
-			span.SetAttributes(attribute.String("job_id", job.ID))
-			span.AddEvent("job-created")
-			return job
-		}
-
-	}
-
-	return nil
 }
 
 func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
@@ -243,6 +171,7 @@ func (p *CompactionProvider) createJob(ctx context.Context) *work.Job {
 	}
 
 	p.curTenantJobCount++
+
 	return &work.Job{
 		ID:   uuid.New().String(),
 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
@@ -263,10 +192,6 @@ func (p *CompactionProvider) getNextBlockIDs(_ context.Context) ([]string, bool)
 	}
 
 	for _, b := range toBeCompacted {
-		if p.sched.HasBlocks([]string{b.BlockID.String()}) {
-			continue
-		}
-
 		ids = append(ids, b.BlockID.String())
 	}
 

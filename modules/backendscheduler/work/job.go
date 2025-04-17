@@ -120,13 +120,19 @@ func (j *Job) GetWorkerID() string {
 func (j *Job) OnBlock(id string) bool {
 	for _, b := range j.GetCompactionInput() {
 		if b == id {
-			return true
+			switch j.GetStatus() {
+			case tempopb.JobStatus_JOB_STATUS_RUNNING, tempopb.JobStatus_JOB_STATUS_UNSPECIFIED:
+				return true
+			}
 		}
 	}
 
 	for _, b := range j.GetCompactionOutput() {
 		if b == id {
-			return true
+			switch j.GetStatus() {
+			case tempopb.JobStatus_JOB_STATUS_RUNNING, tempopb.JobStatus_JOB_STATUS_UNSPECIFIED:
+				return true
+			}
 		}
 	}
 
