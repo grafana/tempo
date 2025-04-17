@@ -159,8 +159,8 @@ func (j *Job) GetCompactionInput() []string {
 }
 
 func (j *Job) GetCompactionOutput() []string {
-	j.mtx.Lock()
-	defer j.mtx.Unlock()
+	j.mtx.RLock()
+	defer j.mtx.RUnlock()
 
 	switch j.Type {
 	case tempopb.JobType_JOB_TYPE_COMPACTION:
