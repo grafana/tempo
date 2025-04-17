@@ -127,9 +127,9 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		go func(jobs <-chan *work.Job) {
 			defer wg.Done()
 
-			for {
-				var job *work.Job
+			var job *work.Job
 
+			for {
 				select {
 				case job = <-jobs:
 				case <-ctx.Done():
@@ -219,6 +219,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		return resp, nil
 	}
 
+	timeoutCtx, cancel := context.WithTimeout(ctx, s.cfg.JobTimeout)
+	defer cancel()
+
 	// Try to get a job from the merged channel
 	select {
 	case j := <-s.mergedJobs:
@@ -256,7 +259,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
 
 		return resp, nil
-	default:
+	case <-timeoutCtx.Done():
 		span.SetAttributes(attribute.Int("job_q_depth", len(s.mergedJobs)))
 		metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
 
