@@ -763,7 +763,8 @@ query_frontend:
         [max_exemplars: <int> | default = 100 ]
 
         # Maximum number of time series returned for a metrics query.
-        [max_response_series: <int> | default = 1000]
+        # Default is 0, which means there is no limit
+        [max_response_series: <int> | default = 0]
 
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
