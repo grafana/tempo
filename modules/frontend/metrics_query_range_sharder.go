@@ -366,9 +366,11 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	// forces the query into a canonical form
 	query := ast.String()
 
-	// add the query, limit and spss to the hash
+	// add the query and other fields that change the response to the hash
 	hash := fnv1a.HashString64(query)
 	hash = fnv1a.AddUint64(hash, req.Step)
+	hash = fnv1a.AddUint64(hash, uint64(req.MaxSeries))
+	hash = fnv1a.AddUint64(hash, uint64(req.Exemplars))
 
 	return hash
 }
