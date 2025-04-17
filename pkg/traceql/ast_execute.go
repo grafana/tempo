@@ -577,7 +577,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	case OpEqual:
 		return NewStaticBool(lhs.Equals(&rhs)), nil
 	case OpNotEqual:
-		return NewStaticBool(!lhs.Equals(&rhs)), nil
+		return NewStaticBool(lhs.NotEquals(&rhs)), nil
 	default:
 		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
 	}
@@ -635,7 +635,7 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	case OpEqual:
 		return lhs.Equals(&rhs), nil
 	case OpNotEqual:
-		return !lhs.Equals(&rhs), nil
+		return lhs.NotEquals(&rhs), nil
 	}
 
 	return false, errors.New("unexpected operator " + op.String())
@@ -669,8 +669,11 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 			return NewStaticDuration(-1 * d), nil
 		}
 	}
+	if o.Op == OpExists {
+		return NewStaticBool(static.Type != TypeNil), nil
+	}
 
-	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
+	return NewStaticNil(), fmt.Errorf("UnaryOperation has invalid operator %v", o.Op)
 }
 
 func (s Static) execute(Span) (Static, error) {

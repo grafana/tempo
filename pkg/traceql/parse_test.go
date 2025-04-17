@@ -868,7 +868,6 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ statusMessage }", expected: NewIntrinsic(IntrinsicStatusMessage)},
 		{in: "{ 4321 }", expected: NewStaticInt(4321)},
 		{in: "{ 1.234 }", expected: NewStaticFloat(1.234)},
-		{in: "{ nil }", expected: NewStaticNil()},
 		{in: "{ 3h }", expected: NewStaticDuration(3 * time.Hour)},
 		{in: "{ 1.5m }", expected: NewStaticDuration(1*time.Minute + 30*time.Second)},
 		{in: "{ error }", expected: NewStaticStatus(StatusError)},
@@ -924,8 +923,11 @@ func TestSpansetFilterOperators(t *testing.T) {
 		{in: "{ .a = true }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticBool(true)), alsoTestWithoutSpace: true},
 
 		// existence
-		{in: "{ .a != nil }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a"), NewStaticNil()), alsoTestWithoutSpace: true},
-		{in: "{ .a = nil }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticNil()), alsoTestWithoutSpace: true},
+		{in: "{ .a != nil }", expected: newUnaryOperation(OpExists, NewAttribute("a")), alsoTestWithoutSpace: true},
+
+		// nil comparisons
+		{in: "{ nil != nil }", expected: NewStaticBool(false)},
+		{in: "{ nil = nil }", expected: NewStaticBool(false)},
 	}
 
 	test := func(q string, expected FieldExpression) {
@@ -966,13 +968,14 @@ func TestAttributeNameErrors(t *testing.T) {
 	}
 }
 
-// TestBinaryAndUnaryOperationsCollapseToStatics tests code in the newBinaryOperation and newUnaryOperation functions
+// TestBinaryAndUnaryOperationsRewrites tests code in the newBinaryOperation and newUnaryOperation functions
 // that attempts to simplify combinations of static values where possible.
-func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
+func TestBinaryAndUnaryOperationsRewrites(t *testing.T) {
 	tests := []struct {
 		in       string
 		expected FieldExpression
 	}{
+		// collapse to statics
 		{in: "{ duration > 1 + 2}", expected: newBinaryOperation(OpGreater, NewIntrinsic(IntrinsicDuration), NewStaticInt(3))},
 		{in: "{ -1 }", expected: NewStaticInt(-1)},
 		{in: "{ 1 + 1 > 1 }", expected: NewStaticBool(true)},
@@ -981,6 +984,9 @@ func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
 		{in: "{ .1 + 1 }", expected: NewStaticFloat(1.1)},
 		{in: "{ 1 * -1 = -1 }", expected: NewStaticBool(true)},
 		{in: "{ .foo * -1. = -1 }", expected: newBinaryOperation(OpEqual, newBinaryOperation(OpMult, NewAttribute("foo"), NewStaticFloat(-1)), NewStaticInt(-1))},
+		// rewrite != nil to existence
+		{in: "{ .foo != nil }", expected: newUnaryOperation(OpExists, NewAttribute("foo"))},
+		{in: "{ nil != .foo }", expected: newUnaryOperation(OpExists, NewAttribute("foo"))},
 	}
 
 	test := func(t *testing.T, q string, expected FieldExpression) {

@@ -83,6 +83,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Fix rare panic during compaction. [#4915](https://github.com/grafana/tempo/pull/4915) (@joe-elliott)
 * [BUGFIX] Fix metrics streaming for all non-trivial metrics [#4624](https://github.com/grafana/tempo/pull/4624) (@joe-elliott)
 * [BUGFIX] Fix starting consuming log [#4539](https://github.com/grafana/tempo/pull/4539) (@javiermolinar)
+* [BUGFIX] TraceQL: Fix behavior of {} >> { span.attr-that-doesnt-exist != "foo" } [#5007](https://github.com/grafana/tempo/pull/5007) (@joe-elliott)
 * [BUGFIX] Rhythm - fix adjustment of the start and end range for livetraces blocks [#4746](https://github.com/grafana/tempo/pull/4746) (@javiermolinar)
 * [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
 * [BUGFIX] Fix flaky test [#4787](https://github.com/grafana/tempo/pull/4787) [#4995](https://github.com/grafana/tempo/pull/4995) (@javiermolinar)

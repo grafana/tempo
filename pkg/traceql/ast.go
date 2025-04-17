@@ -484,6 +484,7 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 		RHS: rhs,
 	}
 
+	// AST rewrite for simplification
 	if !binop.referencesSpan() && binop.validate() == nil {
 		if simplified, err := binop.execute(nil); err == nil {
 			return simplified
@@ -530,6 +531,7 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 		Expression: e,
 	}
 
+	// AST rewrite for simplification
 	if !unop.referencesSpan() && unop.validate() == nil {
 		if simplified, err := unop.execute(nil); err == nil {
 			return simplified
@@ -543,7 +545,11 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 func (UnaryOperation) __fieldExpression() {}
 
 func (o UnaryOperation) impliedType() StaticType {
-	// both operators (opPower and opNot) will just be based on the operand type
+	if o.Op == OpExists {
+		return TypeBoolean
+	}
+
+	// opPower and opNot will just be based on the operand type
 	return o.Expression.impliedType()
 }
 
@@ -721,6 +727,11 @@ func (s Static) MapKey() StaticMapKey {
 }
 
 func (s Static) Equals(o *Static) bool {
+	// if one is nil, they are not equal
+	if s.Type == TypeNil || o.Type == TypeNil {
+		return false
+	}
+
 	switch s.Type {
 	case TypeInt, TypeDuration:
 		switch o.Type {
@@ -751,12 +762,18 @@ func (s Static) Equals(o *Static) bool {
 		return s.Type == o.Type && bytes.Equal(s.valBytes, o.valBytes)
 	case TypeStringArray:
 		return s.Type == o.Type && slices.Equal(s.valStrings, o.valStrings)
-	case TypeNil:
-		return o.Type == TypeNil
 	default:
 		// should not be reached
 		return false
 	}
+}
+
+func (s Static) NotEquals(o *Static) bool {
+	if s.Type == TypeNil || o.Type == TypeNil {
+		return false
+	}
+
+	return !s.Equals(o)
 }
 
 func (s Static) StrictEquals(o *Static) bool {

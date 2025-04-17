@@ -114,6 +114,7 @@ import (
 %left <binOp> NOT
 %left <binOp> MUL DIV MOD
 %right <binOp> POW
+%nonassoc NIL
 %%
 
 // **********************
@@ -350,7 +351,8 @@ hintList:
 // FieldExpressions
 // **********************
 fieldExpression:
-    OPEN_PARENS fieldExpression CLOSE_PARENS { $$ = $2 }                                   
+    OPEN_PARENS fieldExpression CLOSE_PARENS { $$ = $2 }      
+  // Binary operations                             
   | fieldExpression ADD fieldExpression      { $$ = newBinaryOperation(OpAdd, $1, $3) }
   | fieldExpression SUB fieldExpression      { $$ = newBinaryOperation(OpSub, $1, $3) }
   | fieldExpression MUL fieldExpression      { $$ = newBinaryOperation(OpMult, $1, $3) }
@@ -367,6 +369,12 @@ fieldExpression:
   | fieldExpression POW fieldExpression      { $$ = newBinaryOperation(OpPower, $1, $3) }
   | fieldExpression AND fieldExpression      { $$ = newBinaryOperation(OpAnd, $1, $3) }
   | fieldExpression OR fieldExpression       { $$ = newBinaryOperation(OpOr, $1, $3) }
+  // NIL handling
+  | fieldExpression NEQ NIL                  { $$ = newUnaryOperation(OpExists, $1) }
+  | NIL NEQ fieldExpression                  { $$ = newUnaryOperation(OpExists, $3) }
+  | NIL NEQ NIL                              { $$ = NewStaticBool(false) }
+  | NIL EQ NIL                               { $$ = NewStaticBool(false) }
+  // Unary operations
   | SUB fieldExpression                      { $$ = newUnaryOperation(OpSub, $2) }
   | NOT fieldExpression                      { $$ = newUnaryOperation(OpNot, $2) }
   | static                                   { $$ = $1 }
@@ -384,7 +392,6 @@ static:
   | FLOAT            { $$ = NewStaticFloat($1)            }
   | TRUE             { $$ = NewStaticBool(true)           }
   | FALSE            { $$ = NewStaticBool(false)          }
-  | NIL              { $$ = NewStaticNil()                }
   | DURATION         { $$ = NewStaticDuration($1)         }
   | STATUS_OK        { $$ = NewStaticStatus(StatusOk)     }
   | STATUS_ERROR     { $$ = NewStaticStatus(StatusError)  }

@@ -944,6 +944,29 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 				},
 			},
 		},
+		{
+			req: &tempopb.SearchRequest{Query: "{} >> { span.foo != `baz` }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{
@@ -970,6 +993,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		{Query: "{} &>> {.broken}"},
 		{Query: "{} &> {.broken}"},
 		{Query: "{} &~ {.broken}"},
+		{Query: "{} >> { span.does-not-exist != `bar`}"},
 	}
 
 	for _, tc := range searchesThatMatch {
@@ -1233,6 +1257,18 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 
 	searchesThatMatch := []*test{
 		{
+			req: &tempopb.SearchRequest{Query: "{ span.foo != nil }", Limit: 10},
+			expected: expected{
+				key: "foo",
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ nil != span.foo }", Limit: 10},
+			expected: expected{
+				key: "foo",
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{ name != nil }", Limit: 10},
 			expected: expected{
 				key: intrinsicName,
@@ -1253,22 +1289,19 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 		{
 			req: &tempopb.SearchRequest{Query: "{ resource.service.name != nil }", Limit: 10},
 			expected: expected{
-				key: "resource.service.name",
+				key: "service.name",
 			},
 		},
 		{
 			req: &tempopb.SearchRequest{Query: "{ nil != resource.service.name }", Limit: 10},
 			expected: expected{
-				key: "resource.service.name",
+				key: "service.name",
 			},
 		},
 	}
-	// TODO re-enable commented searches after fixing structural operator bugs in vParquet3
-	//      https://github.com/grafana/tempo/issues/2674
+
 	searchesThatDontMatch := []*tempopb.SearchRequest{
-		{Query: "{ name = nil }"},
-		{Query: "{ duration = nil }"},
-		{Query: "{ .not_an_attribute = nil }"},
+		{Query: "{ .not_an_attribute != nil }"},
 	}
 
 	for _, tc := range searchesThatMatch {
@@ -1282,6 +1315,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 		}
 
 		require.NoError(t, err, "search request: %+v", tc)
+		require.GreaterOrEqual(t, len(res.Traces), 1, "search request: %+v", tc)
 
 		// the actual spanset is impossible to predict since it's chosen randomly from the Spansets slice
 		// so set it to nil here and just test the slice using the testcases above
@@ -1300,11 +1334,16 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 				case "duration":
 					require.NotNil(t, span.DurationNanos)
 				default:
+					found := false
 					for _, attribute := range span.Attributes {
-						if attribute.Key == "service.name" {
+						if attribute.Key == tc.expected.key {
 							require.NotNil(t, attribute.Value)
+							found = true
+							break
 						}
 					}
+
+					require.True(t, found, "attribute %s not found", tc.expected.key)
 				}
 			}
 		}
@@ -1315,11 +1354,60 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		_, err := e.ExecuteSearch(ctx, tc, fetcher)
+		res, err := e.ExecuteSearch(ctx, tc, fetcher)
 		if errors.Is(err, common.ErrUnsupported) {
 			continue
 		}
-		require.Error(t, err, "search request: %+v", tc)
+		require.NoError(t, err, "search request: %+v", tc)
+		require.Equal(t, 0, len(res.Traces), "search request: %+v", tc)
+	}
+
+	// these tests confirm that nil comparisons are handled consistently at the fetch and engine levels. it does this by running conditions in two different ways:
+	// { <condition> }
+	// { .child } < { <condition> }
+	// the first is asserted by the fetch layer. the second is asserted by the engine layer. we need these to always return or fail to return the same result.
+	conditions := []struct {
+		condition        string
+		containsRootSpan bool
+	}{
+		{condition: " .foo != nil ", containsRootSpan: true},
+		{condition: " .foo != .bar ", containsRootSpan: false},
+		{condition: " .dne != .bar ", containsRootSpan: false},
+		{condition: " .foo != `` ", containsRootSpan: true},
+		{condition: " .dne != `` ", containsRootSpan: false},
+		{condition: " nil = nil ", containsRootSpan: false},
+		{condition: " nil != nil ", containsRootSpan: false},
+	}
+
+	for _, tc := range conditions {
+		t.Run(tc.condition, func(t *testing.T) {
+			engineQuery := fmt.Sprintf("{ .child } < { %s }", tc.condition)
+			fetchQuery := fmt.Sprintf("{ %s }", tc.condition)
+
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+			})
+
+			engineRes, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: engineQuery}, fetcher)
+			require.NoError(t, err)
+
+			fetchRes, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: fetchQuery}, fetcher)
+			require.NoError(t, err)
+
+			containsRootSpan := func(res *tempopb.SearchResponse) bool {
+				for _, trace := range res.Traces {
+					for _, span := range trace.SpanSet.Spans {
+						if span.SpanID == "0000000000040506" { // root span
+							return true
+						}
+					}
+				}
+				return false
+			}
+
+			require.Equal(t, containsRootSpan(engineRes), tc.containsRootSpan)
+			require.Equal(t, containsRootSpan(engineRes), containsRootSpan(fetchRes)) // they either need to both contain the root span or both not contain it
+		})
 	}
 }
 

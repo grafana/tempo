@@ -1951,6 +1951,24 @@ func TestSpansetExistence(t *testing.T) {
 			},
 			matches: true,
 		},
+		{
+			query: `{ nil = nil }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("float"): NewStaticFloat(2.0),
+				},
+			},
+			matches: false,
+		},
+		{
+			query: `{ nil != nil }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("float"): NewStaticFloat(2.0),
+				},
+			},
+			matches: false,
+		},
 	}
 	for _, tt := range tests {
 		// create a evalTC and use testEvaluator
