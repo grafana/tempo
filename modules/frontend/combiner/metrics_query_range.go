@@ -58,7 +58,9 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			if combiner.MaxSeriesReached() {
 				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
 				// it's possible that the last response pushed us over the max series limit.
-				resp.Series = resp.Series[:maxSeries]
+				if len(resp.Series) > maxSeries {
+					resp.Series = resp.Series[:maxSeries]
+				}
 				resp.Status = tempopb.PartialStatus_PARTIAL
 				resp.Message = maxSeriesReachedErrorMsg
 			}
@@ -73,7 +75,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 
 			sortResponse(resp)
-			if combiner.MaxSeriesReached() {
+			if len(resp.Series) > maxSeries {
 				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
 				// it's possible that the last response pushed us over the max series limit.
 				resp.Series = resp.Series[:maxSeries]
