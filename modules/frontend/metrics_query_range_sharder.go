@@ -293,7 +293,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			startTime := time.Unix(0, int64(searchReq.Start)) // start/end are in nanoseconds
 			endTime := time.Unix(0, int64(searchReq.End))
 			// TODO: Handle sampling rate
-			key := queryRangeCacheKey(tenantID, queryHash, startTime, endTime, m, int(step), pages)
+			key := queryRangeCacheKey(tenantID, queryHash, startTime, endTime, m, startPage, pages)
 			if len(key) > 0 {
 				pipelineR.SetCacheKey(key)
 			}
@@ -366,9 +366,11 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	// forces the query into a canonical form
 	query := ast.String()
 
-	// add the query, limit and spss to the hash
+	// add the query and other fields that change the response to the hash
 	hash := fnv1a.HashString64(query)
 	hash = fnv1a.AddUint64(hash, req.Step)
+	hash = fnv1a.AddUint64(hash, uint64(req.MaxSeries))
+	hash = fnv1a.AddUint64(hash, uint64(req.Exemplars))
 
 	return hash
 }
