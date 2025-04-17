@@ -354,7 +354,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	q.eval.ObserveSeries(resp.Series)
 	seriesCount := q.eval.Length()
 
-	if (q.maxSeries > 0 && seriesCount >= q.maxSeries) || resp.Status == tempopb.PartialStatus_PARTIAL {
+	if q.maxSeries > 0 && (seriesCount >= q.maxSeries || resp.Status == tempopb.PartialStatus_PARTIAL) {
 		q.maxSeriesReached = true
 	}
 
