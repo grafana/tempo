@@ -209,8 +209,13 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 // have NaNs, and we can't attach them until the very end.
 func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResponse) {
 	for _, ss := range res.Series {
+		if ss == nil {
+			continue
+		}
+		if len(ss.Exemplars) > int(req.Exemplars) {
+			ss.Exemplars = ss.Exemplars[len(ss.Exemplars)-int(req.Exemplars):]
+		}
 		for i, e := range ss.Exemplars {
-
 			// Only needed for NaNs
 			if !math.IsNaN(e.Value) {
 				continue
