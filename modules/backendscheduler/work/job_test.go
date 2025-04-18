@@ -66,12 +66,14 @@ func TestCompactionDetail(t *testing.T) {
 
 func TestOnBlock(t *testing.T) {
 	j := &Job{
-		ID:   uuid.NewString(),
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Tenant:     tenant,
-			Compaction: &tempopb.CompactionDetail{},
-		},
+		ID: uuid.NewString(),
+	}
+
+	require.False(t, j.OnBlock("block1"))
+	j.Type = tempopb.JobType_JOB_TYPE_COMPACTION
+	j.JobDetail = tempopb.JobDetail{
+		Tenant:     tenant,
+		Compaction: &tempopb.CompactionDetail{},
 	}
 
 	idOne := uuid.NewString()
