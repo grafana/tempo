@@ -186,9 +186,6 @@ func (s *BackendScheduler) stopping(_ error) error {
 
 // Next implements the BackendSchedulerServer interface.  It returns the next queued job for a worker.
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	ctx, span := tracer.Start(ctx, "Next")
 	defer span.End()
 
@@ -269,9 +266,6 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 // UpdateJob implements the BackendSchedulerServer interface
 func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	j := s.work.GetJob(req.JobId)
 	if j == nil {
 		return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.NotFound, work.ErrJobNotFound.Error())
