@@ -15,6 +15,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
 	var inspectedBytes uint64
+
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, _ PipelineResponse) error {
 			if partial.Status == tempopb.PartialStatus_PARTIAL {

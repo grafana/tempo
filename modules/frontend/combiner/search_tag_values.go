@@ -4,7 +4,6 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"go.uber.org/atomic"
 )
 
 var (
@@ -15,7 +14,7 @@ var (
 func NewSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueThreshold uint32) Combiner {
 	// Distinct collector with no limit
 	d := collector.NewDistinctStringWithDiff(maxDataBytes, maxTagsValues, staleValueThreshold)
-	inspectedBytes := atomic.NewUint64(0)
+	var inspectedBytes uint64
 
 	c := &genericCombiner[*tempopb.SearchTagValuesResponse]{
 		httpStatusCode: 200,
@@ -26,15 +25,18 @@ func NewSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueThresh
 				d.Collect(v)
 			}
 			if partial.Metrics != nil {
-				inspectedBytes.Add(partial.Metrics.InspectedBytes)
+				inspectedBytes += partial.Metrics.InspectedBytes
 			}
 			return nil
 		},
 		finalize: func(final *tempopb.SearchTagValuesResponse) (*tempopb.SearchTagValuesResponse, error) {
 			final.TagValues = d.Strings()
-			// return metrics in final response
-			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
-			final.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
+
+			if final.Metrics == nil {
+				final.Metrics = &tempopb.MetadataMetrics{}
+			}
+			final.Metrics.InspectedBytes = inspectedBytes
+
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagValuesResponse) bool {
@@ -46,9 +48,12 @@ func NewSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueThresh
 				return nil, err
 			}
 			response.TagValues = resp
-			// also return latest metrics along with diff
-			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
-			response.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
+
+			if response.Metrics == nil {
+				response.Metrics = &tempopb.MetadataMetrics{}
+			}
+			response.Metrics.InspectedBytes = inspectedBytes
+
 			return response, nil
 		},
 	}
@@ -63,7 +68,7 @@ func NewTypedSearchTagValues(maxDataBytes int, maxTagsValues uint32, staleValueT
 func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThreshold uint32) Combiner {
 	// Distinct collector with no limit and diff enabled
 	d := collector.NewDistinctValueWithDiff(maxDataBytes, maxTagsValues, staleValueThreshold, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
-	inspectedBytes := atomic.NewUint64(0)
+	var inspectedBytes uint64
 
 	c := &genericCombiner[*tempopb.SearchTagValuesV2Response]{
 		httpStatusCode: 200,
@@ -74,7 +79,7 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 				d.Collect(*v)
 			}
 			if partial.Metrics != nil {
-				inspectedBytes.Add(partial.Metrics.InspectedBytes)
+				inspectedBytes += partial.Metrics.InspectedBytes
 			}
 			return nil
 		},
@@ -85,9 +90,12 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 				v2 := v
 				final.TagValues = append(final.TagValues, &v2)
 			}
-			// load Inspected Bytes here and return along with final response
-			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
-			final.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
+
+			if final.Metrics == nil {
+				final.Metrics = &tempopb.MetadataMetrics{}
+			}
+			final.Metrics.InspectedBytes = inspectedBytes
+
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagValuesV2Response) bool {
@@ -103,9 +111,12 @@ func NewSearchTagValuesV2(maxDataBytes int, maxTagsValues uint32, staleValueThre
 				v2 := v
 				response.TagValues = append(response.TagValues, &v2)
 			}
-			// also return metrics along with diffs
-			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
-			response.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
+
+			if response.Metrics == nil {
+				response.Metrics = &tempopb.MetadataMetrics{}
+			}
+			response.Metrics.InspectedBytes = inspectedBytes
+
 			return response, nil
 		},
 	}

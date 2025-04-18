@@ -27,6 +27,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 		return nil, err
 	}
 
+	var inspectedBytes uint64
 	var prevResp *tempopb.QueryRangeResponse
 	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
@@ -42,6 +43,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				if partial.Metrics.TotalJobs == 0 {
 					partial.Metrics.CompletedJobs = 1
 				}
+				inspectedBytes += partial.Metrics.InspectedBytes
 			}
 
 			combiner.Combine(partial)
@@ -63,6 +65,11 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				resp.Message = maxSeriesReachedErrorMsg
 			}
 			attachExemplars(req, resp)
+
+			if resp.Metrics == nil {
+				resp.Metrics = &tempopb.SearchMetrics{}
+			}
+			resp.Metrics.InspectedBytes = inspectedBytes
 
 			return resp, nil
 		},
@@ -90,15 +97,18 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				diff.Message = maxSeriesReachedErrorMsg
 			}
 
+			if diff.Metrics == nil {
+				diff.Metrics = &tempopb.SearchMetrics{}
+			}
+			diff.Metrics.InspectedBytes = inspectedBytes
+
 			return diff, nil
 		},
 		quit: func(_ *tempopb.QueryRangeResponse) bool {
 			return combiner.MaxSeriesReached()
 		},
 	}
-
 	initHTTPCombiner(c, api.HeaderAcceptJSON)
-
 	return c, nil
 }
 

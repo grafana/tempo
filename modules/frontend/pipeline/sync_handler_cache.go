@@ -3,14 +3,30 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
+	tempopb "github.com/grafana/tempo/pkg/tempopb"
+)
+
+type CacheableRespType int
+
+const (
+	RespTypeUncacheable CacheableRespType = iota
+	RespTypeSearch
+	RespTypeTags
+	RespTypeTagValues
+	RespTypeQueryRange
+	RespTypeQueryInstant
 )
 
 func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {
@@ -39,30 +55,48 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	if len(key) > 0 {
 		body := c.cache.fetchBytes(req.Context(), key)
 		if len(body) > 0 {
-			resp := &http.Response{
-				Header:     http.Header{},
-				StatusCode: http.StatusOK,
-				Status:     http.StatusText(http.StatusOK),
-				Body:       io.NopCloser(bytes.NewBuffer(body)),
-			}
+			responseType := determineResponseType(req)
 
-			// We aren't capturing the original content type in the cache, just the raw bytes.
-			// Detect it and readd it, so the upstream code can parse the body.
+			// Determine content type based on first byte
+			var contentType string
 			// TODO - Cache should capture all of the relevant parts of the
 			// original response including both content-type and content-length headers, possibly more.
 			// But upgrading the cache format requires migration/detection of previous format either way.
 			// It's tempting to use https://pkg.go.dev/net/http#DetectContentType but it doesn't detect
 			// json or proto.
 			if body[0] == '{' {
-				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptJSON)
+				contentType = api.HeaderAcceptJSON
 			} else {
-				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptProtobuf)
+				contentType = api.HeaderAcceptProtobuf
 			}
+
+			if newBody, err := resetMetricsInResponse(body, responseType, contentType); err == nil {
+				body = newBody
+			}
+
+			resp := &http.Response{
+				Header:        http.Header{},
+				StatusCode:    http.StatusOK,
+				Status:        http.StatusText(http.StatusOK),
+				Body:          io.NopCloser(bytes.NewBuffer(body)),
+				ContentLength: int64(len(body)),
+			}
+
+			resp.Header.Add(api.HeaderContentType, contentType)
+
+			resp.Header.Add("X-Tempo-Cache", "HIT")
+
 			return resp, nil
 		}
 	}
 
 	resp, err := c.next.RoundTrip(req)
+
+	// Add cache miss header for all responses that weren't from cache
+	if resp != nil && resp.Header != nil {
+		resp.Header.Add("X-Tempo-Cache", "MISS")
+	}
+
 	// do not cache if there was an error
 	if err != nil {
 		return resp, err
@@ -98,6 +132,120 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+func resetMetricsInResponse(body []byte, responseType CacheableRespType, contentType string) ([]byte, error) {
+	if responseType == RespTypeUncacheable {
+		return body, nil
+	}
+
+	if contentType == api.HeaderAcceptJSON {
+		switch responseType {
+		case RespTypeSearch:
+			var resp tempopb.SearchResponse
+			if err := json.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return json.Marshal(&resp)
+
+		case RespTypeTags:
+			var resp tempopb.SearchTagsResponse
+			if err := json.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return json.Marshal(&resp)
+
+		case RespTypeTagValues:
+			var resp tempopb.SearchTagValuesResponse
+			if err := json.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return json.Marshal(&resp)
+
+		case RespTypeQueryRange:
+			var resp tempopb.QueryRangeResponse
+			if err := json.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return json.Marshal(&resp)
+
+		case RespTypeQueryInstant:
+			var resp tempopb.QueryInstantResponse
+			if err := json.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return json.Marshal(&resp)
+		}
+	} else if contentType == api.HeaderAcceptProtobuf {
+		switch responseType {
+		case RespTypeSearch:
+			var resp tempopb.SearchResponse
+			if err := proto.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return proto.Marshal(&resp)
+
+		case RespTypeTags:
+			var resp tempopb.SearchTagsResponse
+			if err := proto.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return proto.Marshal(&resp)
+
+		case RespTypeTagValues:
+			var resp tempopb.SearchTagValuesResponse
+			if err := proto.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return proto.Marshal(&resp)
+
+		case RespTypeQueryRange:
+			var resp tempopb.QueryRangeResponse
+			if err := proto.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return proto.Marshal(&resp)
+
+		case RespTypeQueryInstant:
+			var resp tempopb.QueryInstantResponse
+			if err := proto.Unmarshal(body, &resp); err != nil {
+				return body, err
+			}
+			if resp.Metrics != nil {
+				resp.Metrics.Reset()
+			}
+			return proto.Marshal(&resp)
+		}
+	}
+
+	return body, nil
 }
 
 func shouldCache(statusCode int) bool {
@@ -158,4 +306,34 @@ func (c *frontendCache) fetchBytes(ctx context.Context, key string) []byte {
 	}
 
 	return buf
+}
+
+func determineResponseType(req Request) CacheableRespType {
+	if req == nil || req.HTTPRequest() == nil {
+		return RespTypeUncacheable
+	}
+
+	path := req.HTTPRequest().URL.Path
+
+	if strings.Contains(path, api.PathSearch) {
+		return RespTypeSearch
+	}
+
+	if strings.Contains(path, api.PathSearchTags) || strings.Contains(path, api.PathSearchTagsV2) {
+		return RespTypeTags
+	}
+
+	if regexp.MustCompile(`^/api(/v2)?/search/tag/[^/]+/values`).MatchString(path) {
+		return RespTypeTagValues
+	}
+
+	if strings.Contains(path, api.PathMetricsQueryRange) {
+		return RespTypeQueryRange
+	}
+
+	if strings.Contains(path, api.PathMetricsQueryInstant) {
+		return RespTypeQueryInstant
+	}
+
+	return RespTypeUncacheable
 }
