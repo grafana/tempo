@@ -389,7 +389,6 @@ require (
 )
 
 replace (
-	github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
 	k8s.io/api => k8s.io/api v0.25.0
 	k8s.io/client-go => k8s.io/client-go v0.25.0
 )
