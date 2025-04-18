@@ -124,7 +124,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 
 	inspectedBytes, spansTotal, _ := eval.Metrics()
 
-	if len(res) > int(req.MaxSeries) {
+	if req.MaxSeries > 0 && len(res) > int(req.MaxSeries) {
 		limitedRes := make(traceql.SeriesSet)
 		count := 0
 		for k, v := range res {
@@ -145,7 +145,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		},
 	}
 
-	if len(res) > int(req.MaxSeries) {
+	if req.MaxSeries > 0 && len(res) > int(req.MaxSeries) {
 		response.Status = tempopb.PartialStatus_PARTIAL
 	}
 
