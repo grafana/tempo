@@ -24,7 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"github.com/segmentio/fasthash/fnv1a"
-	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc/codes"
@@ -645,8 +644,6 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 			return err
 		}
 
-		startTime := time.Now()
-
 		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes)
 		if err != nil {
 			return fmt.Errorf("failed to encode PushSpansRequest: %w", err)
@@ -654,39 +651,32 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		metricKafkaRecordsPerRequest.Observe(float64(len(records)))
 
+		startTime := time.Now()
 		produceResults := d.kafkaProducer.ProduceSync(localCtx, records)
+		metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
 
 		partitionLabel := fmt.Sprintf("partition_%d", partitionID)
-		if count, sizeBytes := successfulProduceRecordsStats(produceResults); count > 0 {
-			metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
-			metricKafkaWriteBytesTotal.WithLabelValues(partitionLabel).Add(float64(sizeBytes))
-			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)
-		}
-
-		var finalErr error
+		count := 0
+		sizeBytes := 0
 		for _, result := range produceResults {
 			if result.Err != nil {
 				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
 				metricKafkaAppends.WithLabelValues(partitionLabel, "fail").Inc()
-				finalErr = result.Err
 			} else {
-				metricKafkaAppends.WithLabelValues(partitionLabel, "success").Inc()
+				count++
+				sizeBytes += len(result.Record.Value)
 			}
 		}
 
-		return finalErr
-	}, ring.DoBatchOptions{})
-}
-
-func successfulProduceRecordsStats(results kgo.ProduceResults) (count, sizeBytes int) {
-	for _, res := range results {
-		if res.Err == nil && res.Record != nil {
-			count++
-			sizeBytes += len(res.Record.Value)
+		if count > 0 {
+			metricKafkaWriteBytesTotal.WithLabelValues(partitionLabel).Add(float64(sizeBytes))
+			metricKafkaAppends.WithLabelValues(partitionLabel, "success").Add(float64(count))
 		}
-	}
 
-	return count, sizeBytes
+		_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)
+
+		return produceResults.FirstErr()
+	}, ring.DoBatchOptions{})
 }
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
