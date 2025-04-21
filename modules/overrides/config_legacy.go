@@ -54,20 +54,27 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:                        c.MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod,
 		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:                         c.MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod,
 		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:                    c.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
+		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
+		MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
 		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
 
-		BlockRetention:   c.Compaction.BlockRetention,
-		CompactionWindow: c.Compaction.CompactionWindow,
+		BlockRetention:     c.Compaction.BlockRetention,
+		CompactionWindow:   c.Compaction.CompactionWindow,
+		CompactionDisabled: c.Compaction.CompactionDisabled,
 
 		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
 		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
 		MaxSearchDuration:          c.Read.MaxSearchDuration,
+		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
 		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
 		DedicatedColumns: c.Storage.DedicatedColumns,
-		CostAttribution:  c.CostAttribution,
+		CostAttribution: CostAttributionOverrides{
+			Dimensions:     c.CostAttribution.Dimensions,
+			MaxCardinality: c.CostAttribution.MaxCardinality,
+		},
 	}
 }
 
@@ -225,7 +232,8 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			DedicatedColumns: l.DedicatedColumns,
 		},
 		CostAttribution: CostAttributionOverrides{
-			Dimensions: l.CostAttribution.Dimensions,
+			Dimensions:     l.CostAttribution.Dimensions,
+			MaxCardinality: l.CostAttribution.MaxCardinality,
 		},
 	}
 }
