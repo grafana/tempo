@@ -134,7 +134,7 @@ func (mp *propertiesMatcher) Eval(_ context.Context, tCtx ottlspan.TransformCont
 		return false, nil
 	}
 
-	return mp.PropertiesMatcher.Match(tCtx.GetSpan().Attributes(), tCtx.GetResource(), tCtx.GetInstrumentationScope()), nil
+	return mp.Match(tCtx.GetSpan().Attributes(), tCtx.GetResource(), tCtx.GetInstrumentationScope()), nil
 }
 
 // serviceNameForResource gets the service name for a specified Resource.

@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createUnixMilliFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	args, ok := oArgs.(*UnixMilliArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("UnixMilliFactory args must be of type *UnixMilliArguments[K]")
+		return nil, errors.New("UnixMilliFactory args must be of type *UnixMilliArguments[K]")
 	}
 
 	return UnixMilli(args.Time)

@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/gobwas/glob"
@@ -33,7 +34,7 @@ func createReplaceAllMatchesFunction[K any](_ ottl.FunctionContext, oArgs ottl.A
 	args, ok := oArgs.(*ReplaceAllMatchesArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ReplaceAllMatchesFactory args must be of type *ReplaceAllMatchesArguments[K]")
+		return nil, errors.New("ReplaceAllMatchesFactory args must be of type *ReplaceAllMatchesArguments[K]")
 	}
 
 	return replaceAllMatches(args.Target, args.Pattern, args.Replacement, args.Function, args.ReplacementFormat)
@@ -67,7 +68,7 @@ func replaceAllMatches[K any](target ottl.PMapGetter[K], pattern string, replace
 			}
 			replacementValStr, ok := replacementValRaw.(string)
 			if !ok {
-				return nil, fmt.Errorf("replacement value is not a string")
+				return nil, errors.New("replacement value is not a string")
 			}
 			replacementVal, err = applyReplaceFormat(ctx, tCtx, replacementFormat, replacementValStr)
 			if err != nil {

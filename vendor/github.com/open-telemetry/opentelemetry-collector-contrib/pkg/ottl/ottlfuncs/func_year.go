@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createYearFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ot
 	args, ok := oArgs.(*YearArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("YearFactory args must be of type *YearArguments[K]")
+		return nil, errors.New("YearFactory args must be of type *YearArguments[K]")
 	}
 
 	return Year(args.Time)

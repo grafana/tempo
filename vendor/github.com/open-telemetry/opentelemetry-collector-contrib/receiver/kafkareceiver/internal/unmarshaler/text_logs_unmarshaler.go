@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
+package unmarshaler // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/unmarshaler"
 import (
 	"errors"
 	"time"
@@ -13,15 +13,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/textutils"
 )
 
-type textLogsUnmarshaler struct {
+var _ plog.Unmarshaler = (*TextLogsUnmarshaler)(nil)
+
+type TextLogsUnmarshaler struct {
 	decoder *encoding.Decoder
 }
 
-func newTextLogsUnmarshaler() LogsUnmarshalerWithEnc {
-	return &textLogsUnmarshaler{}
+func NewTextLogsUnmarshaler(encodingName string) (*TextLogsUnmarshaler, error) {
+	encoding, err := textutils.LookupEncoding(encodingName)
+	if err != nil {
+		return nil, err
+	}
+	return &TextLogsUnmarshaler{decoder: encoding.NewDecoder()}, nil
 }
 
-func (r *textLogsUnmarshaler) Unmarshal(buf []byte) (plog.Logs, error) {
+func (r *TextLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 	if r.decoder == nil {
 		return plog.Logs{}, errors.New("encoding not set")
 	}
@@ -35,19 +41,4 @@ func (r *textLogsUnmarshaler) Unmarshal(buf []byte) (plog.Logs, error) {
 	l.SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 	l.Body().SetStr(decoded)
 	return p, nil
-}
-
-func (r *textLogsUnmarshaler) Encoding() string {
-	return "text"
-}
-
-func (r *textLogsUnmarshaler) WithEnc(encodingName string) (LogsUnmarshalerWithEnc, error) {
-	var err error
-	enc, err := textutils.LookupEncoding(encodingName)
-	if err != nil {
-		return nil, err
-	}
-	return &textLogsUnmarshaler{
-		decoder: enc.NewDecoder(),
-	}, nil
 }

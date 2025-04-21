@@ -3,6 +3,7 @@
 
 package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
 import (
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -25,7 +26,7 @@ func createKeepMatchingKeysFunction[K any](_ ottl.FunctionContext, oArgs ottl.Ar
 	args, ok := oArgs.(*KeepMatchingKeysArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("KeepMatchingKeysFactory args must be of type *KeepMatchingKeysArguments[K")
+		return nil, errors.New("KeepMatchingKeysFactory args must be of type *KeepMatchingKeysArguments[K")
 	}
 
 	return keepMatchingKeys(args.Target, args.Pattern)

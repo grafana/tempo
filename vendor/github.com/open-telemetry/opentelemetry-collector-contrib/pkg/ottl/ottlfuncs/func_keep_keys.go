@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -25,7 +25,7 @@ func createKeepKeysFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments)
 	args, ok := oArgs.(*KeepKeysArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("KeepKeysFactory args must be of type *KeepKeysArguments[K]")
+		return nil, errors.New("KeepKeysFactory args must be of type *KeepKeysArguments[K]")
 	}
 
 	return keepKeys(args.Target, args.Keys), nil

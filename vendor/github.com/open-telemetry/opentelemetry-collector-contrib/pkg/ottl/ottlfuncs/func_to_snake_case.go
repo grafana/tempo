@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/iancoleman/strcase"
 
@@ -24,7 +24,7 @@ func createToSnakeCaseFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argumen
 	args, ok := oArgs.(*ToSnakeCaseArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ToSnakeCaseFactory args must be of type *ToSnakeCaseArguments[K]")
+		return nil, errors.New("ToSnakeCaseFactory args must be of type *ToSnakeCaseArguments[K]")
 	}
 
 	return toSnakeCase(args.Target), nil

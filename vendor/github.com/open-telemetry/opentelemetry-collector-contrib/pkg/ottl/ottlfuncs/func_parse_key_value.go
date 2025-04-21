@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -27,7 +28,7 @@ func createParseKeyValueFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argum
 	args, ok := oArgs.(*ParseKeyValueArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ParseKeyValueFactory args must be of type *ParseKeyValueArguments[K]")
+		return nil, errors.New("ParseKeyValueFactory args must be of type *ParseKeyValueArguments[K]")
 	}
 
 	return parseKeyValue[K](args.Target, args.Delimiter, args.PairDelimiter)
@@ -37,7 +38,7 @@ func parseKeyValue[K any](target ottl.StringGetter[K], d ottl.Optional[string], 
 	delimiter := "="
 	if !d.IsEmpty() {
 		if d.Get() == "" {
-			return nil, fmt.Errorf("delimiter cannot be set to an empty string")
+			return nil, errors.New("delimiter cannot be set to an empty string")
 		}
 		delimiter = d.Get()
 	}
@@ -45,7 +46,7 @@ func parseKeyValue[K any](target ottl.StringGetter[K], d ottl.Optional[string], 
 	pairDelimiter := " "
 	if !p.IsEmpty() {
 		if p.Get() == "" {
-			return nil, fmt.Errorf("pair delimiter cannot be set to an empty string")
+			return nil, errors.New("pair delimiter cannot be set to an empty string")
 		}
 		pairDelimiter = p.Get()
 	}
@@ -61,7 +62,7 @@ func parseKeyValue[K any](target ottl.StringGetter[K], d ottl.Optional[string], 
 		}
 
 		if source == "" {
-			return nil, fmt.Errorf("cannot parse from empty target")
+			return nil, errors.New("cannot parse from empty target")
 		}
 
 		pairs, err := parseutils.SplitString(source, pairDelimiter)

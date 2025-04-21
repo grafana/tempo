@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -35,7 +36,7 @@ func createReplaceAllPatternsFunction[K any](_ ottl.FunctionContext, oArgs ottl.
 	args, ok := oArgs.(*ReplaceAllPatternsArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ReplaceAllPatternsFactory args must be of type *ReplaceAllPatternsArguments[K]")
+		return nil, errors.New("ReplaceAllPatternsFactory args must be of type *ReplaceAllPatternsArguments[K]")
 	}
 
 	return replaceAllPatterns(args.Target, args.Mode, args.RegexPattern, args.Replacement, args.Function, args.ReplacementFormat)
@@ -83,11 +84,11 @@ func replaceAllPatterns[K any](target ottl.PMapGetter[K], mode string, regexPatt
 			case modeKey:
 				if compiledPattern.MatchString(key) {
 					if !fn.IsEmpty() {
-						updatedString, err := applyOptReplaceFunction(ctx, tCtx, compiledPattern, fn, key, replacementVal, replacementFormat)
+						updatedKey, err := applyOptReplaceFunction(ctx, tCtx, compiledPattern, fn, key, replacementVal, replacementFormat)
 						if err != nil {
 							break AttributeLoop
 						}
-						updated.PutStr(key, updatedString)
+						originalValue.CopyTo(updated.PutEmpty(updatedKey))
 					} else {
 						updatedKey := compiledPattern.ReplaceAllString(key, replacementVal)
 						originalValue.CopyTo(updated.PutEmpty(updatedKey))

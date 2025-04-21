@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createDayFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ott
 	args, ok := oArgs.(*DayArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("DayFactory args must be of type *DayArguments[K]")
+		return nil, errors.New("DayFactory args must be of type *DayArguments[K]")
 	}
 
 	return Day(args.Time)

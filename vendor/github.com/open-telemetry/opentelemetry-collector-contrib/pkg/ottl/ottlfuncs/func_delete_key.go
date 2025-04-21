@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -23,7 +23,7 @@ func createDeleteKeyFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	args, ok := oArgs.(*DeleteKeyArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("DeleteKeysFactory args must be of type *DeleteKeyArguments[K]")
+		return nil, errors.New("DeleteKeysFactory args must be of type *DeleteKeyArguments[K]")
 	}
 
 	return deleteKey(args.Target, args.Key), nil

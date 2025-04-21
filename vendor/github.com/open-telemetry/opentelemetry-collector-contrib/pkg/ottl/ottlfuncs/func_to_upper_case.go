@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -23,7 +23,7 @@ func createToUpperCaseFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argumen
 	args, ok := oArgs.(*ToUpperCaseArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ToUpperCaseFactory args must be of type *ToUpperCaseArguments[K]")
+		return nil, errors.New("ToUpperCaseFactory args must be of type *ToUpperCaseArguments[K]")
 	}
 
 	return toUpperCase(args.Target), nil

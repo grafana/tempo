@@ -6,7 +6,6 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -25,7 +24,7 @@ func createSpanIDFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 	args, ok := oArgs.(*SpanIDArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("SpanIDFactory args must be of type *SpanIDArguments[K]")
+		return nil, errors.New("SpanIDFactory args must be of type *SpanIDArguments[K]")
 	}
 
 	return spanID[K](args.Bytes)

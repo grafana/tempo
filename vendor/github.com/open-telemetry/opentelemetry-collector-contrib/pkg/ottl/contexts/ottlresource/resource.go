@@ -5,7 +5,6 @@ package ottlresource // import "github.com/open-telemetry/opentelemetry-collecto
 
 import (
 	"errors"
-	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -50,15 +49,6 @@ func NewTransformContext(resource pcommon.Resource, schemaURLItem ctxcommon.Sche
 		opt(&tc)
 	}
 	return tc
-}
-
-// Experimental: *NOTE* this option is subject to change or removal in the future.
-func WithCache(cache *pcommon.Map) TransformContextOption {
-	return func(p *TransformContext) {
-		if cache != nil {
-			p.cache = *cache
-		}
-	}
 }
 
 func (tCtx TransformContext) GetResource() pcommon.Resource {
@@ -127,7 +117,7 @@ func NewParser(
 }
 
 func parseEnum(_ *ottl.EnumSymbol) (*ottl.Enum, error) {
-	return nil, fmt.Errorf("resource context does not provide Enum support")
+	return nil, errors.New("resource context does not provide Enum support")
 }
 
 func getCache(tCtx TransformContext) pcommon.Map {

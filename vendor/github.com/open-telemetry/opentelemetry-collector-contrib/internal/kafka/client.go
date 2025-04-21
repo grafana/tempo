@@ -5,6 +5,7 @@ package kafka // import "github.com/open-telemetry/opentelemetry-collector-contr
 
 import (
 	"context"
+	"crypto/tls"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -27,7 +28,7 @@ var saramaInitialOffsets = map[string]int64{
 
 // NewSaramaClient returns a new Kafka client with the given configuration.
 func NewSaramaClient(ctx context.Context, config configkafka.ClientConfig) (sarama.Client, error) {
-	saramaConfig, err := NewSaramaClientConfig(ctx, config)
+	saramaConfig, err := newSaramaClientConfig(ctx, config)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +37,7 @@ func NewSaramaClient(ctx context.Context, config configkafka.ClientConfig) (sara
 
 // NewSaramaClusterAdminClient returns a new Kafka cluster admin client with the given configuration.
 func NewSaramaClusterAdminClient(ctx context.Context, config configkafka.ClientConfig) (sarama.ClusterAdmin, error) {
-	saramaConfig, err := NewSaramaClientConfig(ctx, config)
+	saramaConfig, err := newSaramaClientConfig(ctx, config)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func NewSaramaConsumerGroup(
 	clientConfig configkafka.ClientConfig,
 	consumerConfig configkafka.ConsumerConfig,
 ) (sarama.ConsumerGroup, error) {
-	saramaConfig, err := NewSaramaClientConfig(ctx, clientConfig)
+	saramaConfig, err := newSaramaClientConfig(ctx, clientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +76,7 @@ func NewSaramaSyncProducer(
 	producerConfig configkafka.ProducerConfig,
 	producerTimeout time.Duration,
 ) (sarama.SyncProducer, error) {
-	saramaConfig, err := NewSaramaClientConfig(ctx, clientConfig)
+	saramaConfig, err := newSaramaClientConfig(ctx, clientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +90,8 @@ func NewSaramaSyncProducer(
 	return sarama.NewSyncProducer(clientConfig.Brokers, saramaConfig)
 }
 
-// NewSaramaClientConfig returns a Sarama client config, based on the given config.
-func NewSaramaClientConfig(ctx context.Context, config configkafka.ClientConfig) (*sarama.Config, error) {
+// newSaramaClientConfig returns a Sarama client config, based on the given config.
+func newSaramaClientConfig(ctx context.Context, config configkafka.ClientConfig) (*sarama.Config, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Metadata.Full = config.Metadata.Full
 	saramaConfig.Metadata.RefreshFrequency = config.Metadata.RefreshInterval
@@ -105,8 +106,22 @@ func NewSaramaClientConfig(ctx context.Context, config configkafka.ClientConfig)
 			return nil, err
 		}
 	}
-	if err := ConfigureSaramaAuthentication(ctx, config.Authentication, saramaConfig); err != nil {
-		return nil, err
+
+	tlsConfig := config.TLS
+	if tlsConfig == nil {
+		tlsConfig = config.Authentication.TLS
 	}
+	if tlsConfig != nil {
+		if tlsConfig, err := tlsConfig.LoadTLSConfig(ctx); err != nil {
+			return nil, err
+		} else if tlsConfig != nil {
+			saramaConfig.Net.TLS.Config = tlsConfig
+			saramaConfig.Net.TLS.Enable = true
+		}
+	} else if config.Authentication.SASL != nil && config.Authentication.SASL.Mechanism == "AWS_MSK_IAM_OAUTHBEARER" {
+		saramaConfig.Net.TLS.Config = &tls.Config{}
+		saramaConfig.Net.SASL.Enable = true
+	}
+	configureSaramaAuthentication(ctx, config.Authentication, saramaConfig)
 	return saramaConfig, nil
 }

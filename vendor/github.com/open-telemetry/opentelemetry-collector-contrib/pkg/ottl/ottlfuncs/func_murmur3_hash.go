@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
+	"errors"
 
 	"github.com/twmb/murmur3"
 
@@ -26,7 +26,7 @@ func createMurmur3HashFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argumen
 	args, ok := oArgs.(*Murmur3HashArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("Murmur3HashFactory args must be of type *Murmur3HashArguments[K]")
+		return nil, errors.New("Murmur3HashFactory args must be of type *Murmur3HashArguments[K]")
 	}
 
 	return murmur3Hash(args.Target), nil

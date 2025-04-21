@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createIsBoolFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 	args, ok := oArgs.(*IsBoolArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("IsBoolFactory args must be of type *IsBoolArguments[K]")
+		return nil, errors.New("IsBoolFactory args must be of type *IsBoolArguments[K]")
 	}
 
 	return isBool(args.Target), nil

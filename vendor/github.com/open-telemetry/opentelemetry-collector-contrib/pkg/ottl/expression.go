@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -91,13 +92,13 @@ func (g exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 			case pcommon.Map:
 				val, ok := r.Get(*k.String)
 				if !ok {
-					return nil, fmt.Errorf("key not found in map")
+					return nil, errors.New("key not found in map")
 				}
 				result = ottlcommon.GetValue(val)
 			case map[string]any:
 				val, ok := r[*k.String]
 				if !ok {
-					return nil, fmt.Errorf("key not found in map")
+					return nil, errors.New("key not found in map")
 				}
 				result = val
 			default:
@@ -144,7 +145,7 @@ func (g exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 				return nil, fmt.Errorf("type, %T, does not support int indexing", result)
 			}
 		default:
-			return nil, fmt.Errorf("neither map nor slice index were set; this is an error in OTTL")
+			return nil, errors.New("neither map nor slice index were set; this is an error in OTTL")
 		}
 	}
 	return result, nil
@@ -380,7 +381,7 @@ type StandardFunctionGetter[K any] struct {
 // wants to pass to the function, an error is returned.
 func (g StandardFunctionGetter[K]) Get(args Arguments) (Expr[K], error) {
 	if g.Fact == nil {
-		return Expr[K]{}, fmt.Errorf("undefined function")
+		return Expr[K]{}, errors.New("undefined function")
 	}
 	fArgs := g.Fact.CreateDefaultArguments()
 	if reflect.TypeOf(fArgs).Kind() != reflect.Pointer {
@@ -827,7 +828,7 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 
 	if val.MathExpression == nil {
 		// In practice, can't happen since the DSL grammar guarantees one is set
-		return nil, fmt.Errorf("no value field set. This is a bug in the OpenTelemetry Transformation Language")
+		return nil, errors.New("no value field set. This is a bug in the OpenTelemetry Transformation Language")
 	}
 	return p.evaluateMathExpression(val.MathExpression)
 }

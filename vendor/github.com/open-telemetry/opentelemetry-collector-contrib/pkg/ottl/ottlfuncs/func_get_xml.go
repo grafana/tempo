@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/antchfx/xmlquery"
 
@@ -25,7 +25,7 @@ func createGetXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 	args, ok := oArgs.(*GetXMLArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("GetXML args must be of type *GetXMLAguments[K]")
+		return nil, errors.New("GetXML args must be of type *GetXMLAguments[K]")
 	}
 
 	if err := validateXPath(args.XPath); err != nil {

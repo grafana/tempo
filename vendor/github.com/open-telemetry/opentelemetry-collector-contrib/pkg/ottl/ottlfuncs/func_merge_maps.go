@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -30,7 +31,7 @@ func createMergeMapsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	args, ok := oArgs.(*MergeMapsArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("MergeMapsFactory args must be of type *MergeMapsArguments[K]")
+		return nil, errors.New("MergeMapsFactory args must be of type *MergeMapsArguments[K]")
 	}
 
 	return mergeMaps(args.Target, args.Source, args.Strategy)

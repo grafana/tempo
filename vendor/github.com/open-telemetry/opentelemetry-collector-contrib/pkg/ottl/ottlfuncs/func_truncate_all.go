@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -23,7 +24,7 @@ func createTruncateAllFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argumen
 	args, ok := oArgs.(*TruncateAllArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("TruncateAllFactory args must be of type *TruncateAllArguments[K]")
+		return nil, errors.New("TruncateAllFactory args must be of type *TruncateAllArguments[K]")
 	}
 
 	return TruncateAll(args.Target, args.Limit)

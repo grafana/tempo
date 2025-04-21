@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -29,7 +30,7 @@ func createExtractGrokPatternsFunction[K any](_ ottl.FunctionContext, oArgs ottl
 	args, ok := oArgs.(*ExtractGrokPatternsArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ExtractGrokPatternsFactory args must be of type *ExtractGrokPatternsArguments[K]")
+		return nil, errors.New("ExtractGrokPatternsFactory args must be of type *ExtractGrokPatternsArguments[K]")
 	}
 
 	return extractGrokPatterns(args.Target, args.Pattern, args.NamedCapturesOnly, args.PatternDefinitions)
@@ -70,7 +71,7 @@ func extractGrokPatterns[K any](target ottl.StringGetter[K], pattern string, nco
 	}
 
 	if namedCapturesOnly && !g.HasCaptureGroups() {
-		return nil, fmt.Errorf("at least 1 named capture group must be supplied in the given regex")
+		return nil, errors.New("at least 1 named capture group must be supplied in the given regex")
 	}
 
 	return func(ctx context.Context, tCtx K) (any, error) {

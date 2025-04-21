@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"reflect"
+	"strconv"
 )
 
 // The return type of the XPath expression.
@@ -1364,19 +1365,23 @@ func getHashCode(n NodeNavigator) uint64 {
 	var sb bytes.Buffer
 	switch n.NodeType() {
 	case AttributeNode, TextNode, CommentNode:
-		sb.WriteString(fmt.Sprintf("%s=%s", n.LocalName(), n.Value()))
+		sb.WriteString(n.LocalName())
+		sb.WriteByte('=')
+		sb.WriteString(n.Value())
 		// https://github.com/antchfx/htmlquery/issues/25
 		d := 1
 		for n.MoveToPrevious() {
 			d++
 		}
-		sb.WriteString(fmt.Sprintf("-%d", d))
+		sb.WriteByte('-')
+		sb.WriteString(strconv.Itoa(d))
 		for n.MoveToParent() {
 			d = 1
 			for n.MoveToPrevious() {
 				d++
 			}
-			sb.WriteString(fmt.Sprintf("-%d", d))
+			sb.WriteByte('-')
+			sb.WriteString(strconv.Itoa(d))
 		}
 	case ElementNode:
 		sb.WriteString(n.Prefix() + n.LocalName())
@@ -1384,14 +1389,16 @@ func getHashCode(n NodeNavigator) uint64 {
 		for n.MoveToPrevious() {
 			d++
 		}
-		sb.WriteString(fmt.Sprintf("-%d", d))
+		sb.WriteByte('-')
+		sb.WriteString(strconv.Itoa(d))
 
 		for n.MoveToParent() {
 			d = 1
 			for n.MoveToPrevious() {
 				d++
 			}
-			sb.WriteString(fmt.Sprintf("-%d", d))
+			sb.WriteByte('-')
+			sb.WriteString(strconv.Itoa(d))
 		}
 	}
 	h := fnv.New64a()

@@ -5,6 +5,7 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -133,7 +134,7 @@ func performOpTime(x time.Time, y any, op mathOp) (any, error) {
 			return nil, fmt.Errorf("time.Time or time.Duration must be subtracted from time.Time; found %v instead", y)
 		}
 	}
-	return nil, fmt.Errorf("only addition and subtraction supported for time.Time and time.Duration")
+	return nil, errors.New("only addition and subtraction supported for time.Time and time.Duration")
 }
 
 func performOpDuration(x time.Duration, y any, op mathOp) (any, error) {
@@ -158,7 +159,7 @@ func performOpDuration(x time.Duration, y any, op mathOp) (any, error) {
 			return nil, fmt.Errorf("time.Duration must be subtracted from time.Duration; found %v instead", y)
 		}
 	}
-	return nil, fmt.Errorf("only addition and subtraction supported for time.Time and time.Duration")
+	return nil, errors.New("only addition and subtraction supported for time.Time and time.Duration")
 }
 
 func performOp[N int64 | float64](x N, y N, op mathOp) (N, error) {
@@ -171,7 +172,7 @@ func performOp[N int64 | float64](x N, y N, op mathOp) (N, error) {
 		return x * y, nil
 	case div:
 		if y == 0 {
-			return 0, fmt.Errorf("attempted to divide by 0")
+			return 0, errors.New("attempted to divide by 0")
 		}
 		return x / y, nil
 	}

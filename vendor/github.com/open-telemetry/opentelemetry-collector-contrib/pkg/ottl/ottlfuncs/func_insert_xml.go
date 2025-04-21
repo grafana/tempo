@@ -27,7 +27,7 @@ func createInsertXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	args, ok := oArgs.(*InsertXMLArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("InsertXML args must be of type *InsertXMLAguments[K]")
+		return nil, errors.New("InsertXML args must be of type *InsertXMLAguments[K]")
 	}
 
 	if err := validateXPath(args.XPath); err != nil {

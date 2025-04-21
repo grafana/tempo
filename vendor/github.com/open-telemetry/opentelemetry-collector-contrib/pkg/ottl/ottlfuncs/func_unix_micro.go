@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createUnixMicroFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	args, ok := oArgs.(*UnixMicroArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("UnixMicroFactory args must be of type *UnixMicroArguments[K]")
+		return nil, errors.New("UnixMicroFactory args must be of type *UnixMicroArguments[K]")
 	}
 
 	return UnixMicro(args.Time)

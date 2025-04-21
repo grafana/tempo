@@ -28,7 +28,7 @@ func createParseXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments)
 	args, ok := oArgs.(*ParseXMLArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ParseXMLFactory args must be of type *ParseXMLArguments[K]")
+		return nil, errors.New("ParseXMLFactory args must be of type *ParseXMLArguments[K]")
 	}
 
 	return parseXML(args.Target), nil

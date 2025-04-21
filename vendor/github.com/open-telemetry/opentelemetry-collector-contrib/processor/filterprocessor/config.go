@@ -267,13 +267,13 @@ var _ component.Config = (*Config)(nil)
 // Validate checks if the processor configuration is valid
 func (cfg *Config) Validate() error {
 	if (cfg.Traces.SpanConditions != nil || cfg.Traces.SpanEventConditions != nil) && (cfg.Spans.Include != nil || cfg.Spans.Exclude != nil) {
-		return fmt.Errorf("cannot use ottl conditions and include/exclude for spans at the same time")
+		return errors.New("cannot use ottl conditions and include/exclude for spans at the same time")
 	}
 	if (cfg.Metrics.MetricConditions != nil || cfg.Metrics.DataPointConditions != nil) && (cfg.Metrics.Include != nil || cfg.Metrics.Exclude != nil) {
-		return fmt.Errorf("cannot use ottl conditions and include/exclude for metrics at the same time")
+		return errors.New("cannot use ottl conditions and include/exclude for metrics at the same time")
 	}
 	if cfg.Logs.LogConditions != nil && (cfg.Logs.Include != nil || cfg.Logs.Exclude != nil) {
-		return fmt.Errorf("cannot use ottl conditions and include/exclude for logs at the same time")
+		return errors.New("cannot use ottl conditions and include/exclude for logs at the same time")
 	}
 
 	var errors error

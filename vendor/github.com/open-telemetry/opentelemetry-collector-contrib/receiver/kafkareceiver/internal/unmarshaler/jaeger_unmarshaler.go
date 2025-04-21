@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
+package unmarshaler // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/unmarshaler"
 
 import (
 	"bytes"
@@ -13,11 +13,14 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
-type jaegerProtoSpanUnmarshaler struct{}
+var (
+	_ ptrace.Unmarshaler = JaegerProtoSpanUnmarshaler{}
+	_ ptrace.Unmarshaler = JaegerJSONSpanUnmarshaler{}
+)
 
-var _ TracesUnmarshaler = (*jaegerProtoSpanUnmarshaler)(nil)
+type JaegerProtoSpanUnmarshaler struct{}
 
-func (j jaegerProtoSpanUnmarshaler) Unmarshal(bytes []byte) (ptrace.Traces, error) {
+func (j JaegerProtoSpanUnmarshaler) UnmarshalTraces(bytes []byte) (ptrace.Traces, error) {
 	span := &jaegerproto.Span{}
 	err := span.Unmarshal(bytes)
 	if err != nil {
@@ -26,25 +29,15 @@ func (j jaegerProtoSpanUnmarshaler) Unmarshal(bytes []byte) (ptrace.Traces, erro
 	return jaegerSpanToTraces(span)
 }
 
-func (j jaegerProtoSpanUnmarshaler) Encoding() string {
-	return "jaeger_proto"
-}
+type JaegerJSONSpanUnmarshaler struct{}
 
-type jaegerJSONSpanUnmarshaler struct{}
-
-var _ TracesUnmarshaler = (*jaegerJSONSpanUnmarshaler)(nil)
-
-func (j jaegerJSONSpanUnmarshaler) Unmarshal(data []byte) (ptrace.Traces, error) {
+func (j JaegerJSONSpanUnmarshaler) UnmarshalTraces(data []byte) (ptrace.Traces, error) {
 	span := &jaegerproto.Span{}
 	err := jsonpb.Unmarshal(bytes.NewReader(data), span)
 	if err != nil {
 		return ptrace.NewTraces(), err
 	}
 	return jaegerSpanToTraces(span)
-}
-
-func (j jaegerJSONSpanUnmarshaler) Encoding() string {
-	return "jaeger_json"
 }
 
 func jaegerSpanToTraces(span *jaegerproto.Span) (ptrace.Traces, error) {

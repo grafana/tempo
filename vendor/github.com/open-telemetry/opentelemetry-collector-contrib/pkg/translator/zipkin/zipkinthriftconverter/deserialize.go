@@ -28,7 +28,7 @@ func SerializeThrift(ctx context.Context, spans []*zipkincore.Span) ([]byte, err
 	if err := p.WriteListEnd(ctx); err != nil {
 		return nil, err
 	}
-	return t.Buffer.Bytes(), nil
+	return t.Bytes(), nil
 }
 
 // DeserializeThrift decodes Thrift bytes to a list of spans.

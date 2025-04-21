@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/antchfx/xmlquery"
 
@@ -26,7 +26,7 @@ func createConvertTextToElementsXMLFunction[K any](_ ottl.FunctionContext, oArgs
 	args, ok := oArgs.(*ConvertTextToElementsXMLArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ConvertTextToElementsXML args must be of type *ConvertTextToElementsXMLAguments[K]")
+		return nil, errors.New("ConvertTextToElementsXML args must be of type *ConvertTextToElementsXMLAguments[K]")
 	}
 
 	xPath := args.XPath.Get()
@@ -75,10 +75,11 @@ func convertTextToElementsForNode(parent *xmlquery.Node, elementName string) {
 	// Convert any child nodes and count text and element nodes.
 	var valueCount, elementCount int
 	for child := parent.FirstChild; child != nil; child = child.NextSibling {
-		if child.Type == xmlquery.ElementNode {
+		switch child.Type {
+		case xmlquery.ElementNode:
 			convertTextToElementsForNode(child, elementName)
 			elementCount++
-		} else if child.Type == xmlquery.TextNode {
+		case xmlquery.TextNode:
 			valueCount++
 		}
 	}

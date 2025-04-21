@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/pprofile"
 )
 
 func ParseSpanID(spanIDStr string) (pcommon.SpanID, error) {
@@ -30,6 +31,18 @@ func ParseTraceID(traceIDStr string) (pcommon.TraceID, error) {
 	_, err := hex.Decode(id[:], []byte(traceIDStr))
 	if err != nil {
 		return pcommon.TraceID{}, err
+	}
+	return id, nil
+}
+
+func ParseProfileID(profileIDStr string) (pprofile.ProfileID, error) {
+	var id pprofile.ProfileID
+	if hex.DecodedLen(len(profileIDStr)) != len(id) {
+		return pprofile.ProfileID{}, errors.New("profile ids must be 32 hex characters")
+	}
+	_, err := hex.Decode(id[:], []byte(profileIDStr))
+	if err != nil {
+		return pprofile.ProfileID{}, err
 	}
 	return id, nil
 }

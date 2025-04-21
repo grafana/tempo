@@ -297,8 +297,8 @@ func CreateMetricMatchPropertiesFromDefault(properties *MatchProperties) (*Metri
 	}
 
 	return &MetricMatchProperties{
-		MatchType:          MetricMatchType(properties.Config.MatchType),
-		RegexpConfig:       properties.Config.RegexpConfig,
+		MatchType:          MetricMatchType(properties.MatchType),
+		RegexpConfig:       properties.RegexpConfig,
 		MetricNames:        properties.MetricNames,
 		ResourceAttributes: properties.Resources,
 	}, nil

@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/parseutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -22,7 +22,7 @@ func NewURLFactory[K any]() ottl.Factory[K] {
 func createURIFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*URLArguments[K])
 	if !ok {
-		return nil, fmt.Errorf("URLFactory args must be of type *URLArguments[K]")
+		return nil, errors.New("URLFactory args must be of type *URLArguments[K]")
 	}
 
 	return url(args.URI), nil //revive:disable-line:var-naming
@@ -36,7 +36,7 @@ func url[K any](uriSource ottl.StringGetter[K]) ottl.ExprFunc[K] { //revive:disa
 		}
 
 		if urlString == "" {
-			return nil, fmt.Errorf("url cannot be empty")
+			return nil, errors.New("url cannot be empty")
 		}
 
 		return parseutils.ParseURI(urlString, true)

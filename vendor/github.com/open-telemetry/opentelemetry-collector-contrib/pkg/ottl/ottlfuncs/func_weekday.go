@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createWeekdayFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) 
 	args, ok := oArgs.(*WeekdayArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("WeekdayFactory args must be of type *WeekdayArguments[K]")
+		return nil, errors.New("WeekdayFactory args must be of type *WeekdayArguments[K]")
 	}
 
 	return Weekday(args.Time)

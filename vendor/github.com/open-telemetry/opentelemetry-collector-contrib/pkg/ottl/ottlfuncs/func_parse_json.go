@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/goccy/go-json"
@@ -25,7 +26,7 @@ func createParseJSONFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	args, ok := oArgs.(*ParseJSONArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ParseJSONFactory args must be of type *ParseJSONArguments[K]")
+		return nil, errors.New("ParseJSONFactory args must be of type *ParseJSONArguments[K]")
 	}
 
 	return parseJSON(args.Target), nil

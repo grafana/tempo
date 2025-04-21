@@ -6,7 +6,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -23,7 +23,7 @@ func createHexFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ott
 	args, ok := oArgs.(*HexArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("HexFactory args must be of type *HexArguments[K]")
+		return nil, errors.New("HexFactory args must be of type *HexArguments[K]")
 	}
 
 	return Hex(args.Target)

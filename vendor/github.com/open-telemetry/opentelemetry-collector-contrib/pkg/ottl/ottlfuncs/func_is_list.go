@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -27,7 +27,7 @@ func createIsListFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 	args, ok := oArgs.(*IsListArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("IsListFactory args must be of type *IsListArguments[K]")
+		return nil, errors.New("IsListFactory args must be of type *IsListArguments[K]")
 	}
 
 	return isList(args.Target), nil

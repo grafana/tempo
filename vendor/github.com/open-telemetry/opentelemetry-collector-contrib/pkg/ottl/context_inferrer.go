@@ -5,6 +5,7 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -20,9 +21,9 @@ var defaultContextInferPriority = []string{
 	"metric",
 	"spanevent",
 	"span",
-	"resource",
 	"scope",
 	"instrumentation_scope",
+	"resource",
 }
 
 // contextInferrer is an interface used to infer the OTTL context from statements.
@@ -105,7 +106,7 @@ func (s *priorityContextInferrer) infer(ottls []string, hinter hinterFunc) (infe
 		if inferredContext != "" {
 			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Inferred context: "%s"`, inferredContext))
 		} else {
-			s.telemetrySettings.Logger.Debug("Unable to infer context from statements")
+			s.telemetrySettings.Logger.Debug("Unable to infer context from statements", zap.Error(err))
 		}
 	}()
 
@@ -114,9 +115,9 @@ func (s *priorityContextInferrer) infer(ottls []string, hinter hinterFunc) (infe
 
 	var inferredContextPriority int
 	for _, ottl := range ottls {
-		ottlPaths, ottlFunctions, ottlEnums, err := hinter(ottl)
-		if err != nil {
-			return "", err
+		ottlPaths, ottlFunctions, ottlEnums, hinterErr := hinter(ottl)
+		if hinterErr != nil {
+			return "", hinterErr
 		}
 		for _, p := range ottlPaths {
 			candidate := p.Context
@@ -141,11 +142,13 @@ func (s *priorityContextInferrer) infer(ottls []string, hinter hinterFunc) (infe
 		s.telemetrySettings.Logger.Debug("No context candidate found in the ottls")
 		return inferredContext, nil
 	}
-	ok := s.validateContextCandidate(inferredContext, requiredFunctions, requiredEnums)
-	if ok {
+	if err = s.validateContextCandidate(inferredContext, requiredFunctions, requiredEnums); err == nil {
 		return inferredContext, nil
 	}
-	return s.inferFromLowerContexts(inferredContext, requiredFunctions, requiredEnums), nil
+	if inferredFromLowerContexts, lowerContextErr := s.inferFromLowerContexts(inferredContext, requiredFunctions, requiredEnums); lowerContextErr == nil {
+		return inferredFromLowerContexts, nil
+	}
+	return "", err
 }
 
 // validateContextCandidate checks if the given context candidate has all required functions names
@@ -154,29 +157,26 @@ func (s *priorityContextInferrer) validateContextCandidate(
 	context string,
 	requiredFunctions map[string]struct{},
 	requiredEnums map[enumSymbol]struct{},
-) bool {
+) error {
 	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Validating selected context candidate: "%s"`, context))
 	candidate, ok := s.contextCandidate[context]
 	if !ok {
-		s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Context "%s" is not a valid candidate`, context))
-		return false
+		return fmt.Errorf(`inferred context "%s" is not a valid candidate`, context)
 	}
 	if len(requiredFunctions) == 0 && len(requiredEnums) == 0 {
-		return true
+		return nil
 	}
 	for function := range requiredFunctions {
 		if !candidate.hasFunctionName(function) {
-			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Context "%s" does not meet the function requirement: "%s"`, context, function))
-			return false
+			return fmt.Errorf(`inferred context "%s" does not support the function "%s"`, context, function)
 		}
 	}
 	for enum := range requiredEnums {
 		if !candidate.hasEnumSymbol((*EnumSymbol)(&enum)) {
-			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Context "%s" does not meet the enum requirement: "%s"`, context, string(enum)))
-			return false
+			return fmt.Errorf(`inferred context "%s" does not support the enum symbol "%s"`, context, string(enum))
 		}
 	}
-	return true
+	return nil
 }
 
 // inferFromLowerContexts returns the first lower context that supports all required functions
@@ -187,26 +187,33 @@ func (s *priorityContextInferrer) inferFromLowerContexts(
 	context string,
 	requiredFunctions map[string]struct{},
 	requiredEnums map[enumSymbol]struct{},
-) string {
+) (inferredContext string, err error) {
 	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Trying to infer context using "%s" lower contexts`, context))
+
+	defer func() {
+		if err != nil {
+			s.telemetrySettings.Logger.Debug("Unable to infer context from lower contexts", zap.Error(err))
+		}
+	}()
+
 	inferredContextCandidate, ok := s.contextCandidate[context]
 	if !ok {
-		return ""
+		return "", fmt.Errorf(`context "%s" is not a valid candidate`, context)
 	}
 
 	lowerContextCandidates := inferredContextCandidate.getLowerContexts(context)
 	if len(lowerContextCandidates) == 0 {
-		return ""
+		return "", fmt.Errorf(`context "%s" has no lower contexts candidates`, context)
 	}
 
 	s.sortContextCandidates(lowerContextCandidates)
 	for _, lowerCandidate := range lowerContextCandidates {
-		ok = s.validateContextCandidate(lowerCandidate, requiredFunctions, requiredEnums)
-		if ok {
-			return lowerCandidate
+		if candidateErr := s.validateContextCandidate(lowerCandidate, requiredFunctions, requiredEnums); candidateErr == nil {
+			return lowerCandidate, nil
 		}
+		s.telemetrySettings.Logger.Debug(fmt.Sprintf(`lower context "%s" is not a valid candidate`, lowerCandidate), zap.Error(err))
 	}
-	return ""
+	return "", errors.New("no valid lower context found")
 }
 
 // sortContextCandidates sorts the slice candidates using the priorityContextInferrer.contextsPriority order.

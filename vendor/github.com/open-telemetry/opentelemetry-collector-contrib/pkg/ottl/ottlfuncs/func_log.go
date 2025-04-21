@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -23,7 +24,7 @@ func createLogFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ott
 	args, ok := oArgs.(*LogArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("LogFactory args must be of type *LogArguments[K]")
+		return nil, errors.New("LogFactory args must be of type *LogArguments[K]")
 	}
 
 	return logFunc(args.Target), nil
