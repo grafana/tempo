@@ -98,6 +98,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 		)
 
 		reset := func() {
+			metricTenantReset.WithLabelValues(p.curTenant.Value()).Inc()
 			p.curSelector = nil
 			p.curTenant = nil
 			p.curTenantJobCount = 0
@@ -131,6 +132,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				// Measure the tenants to get their current compaction status
 				p.measureTenants()
 			case jobs <- job:
+				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
 				b.Reset()
 			}
 		}

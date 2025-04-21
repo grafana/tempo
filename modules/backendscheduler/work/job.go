@@ -118,24 +118,28 @@ func (j *Job) GetWorkerID() string {
 
 // OnBlock returns true if the job is operating on a block.
 func (j *Job) OnBlock(id string) bool {
-	for _, b := range j.GetCompactionInput() {
-		if b == id {
-			switch j.GetStatus() {
-			case tempopb.JobStatus_JOB_STATUS_RUNNING, tempopb.JobStatus_JOB_STATUS_UNSPECIFIED:
+	switch j.GetType() {
+	case tempopb.JobType_JOB_TYPE_COMPACTION:
+
+		status := j.GetStatus()
+		if status != tempopb.JobStatus_JOB_STATUS_RUNNING && status != tempopb.JobStatus_JOB_STATUS_UNSPECIFIED {
+			return false
+		}
+
+		for _, b := range j.GetCompactionInput() {
+			if b == id {
 				return true
 			}
 		}
-	}
 
-	for _, b := range j.GetCompactionOutput() {
-		if b == id {
-			switch j.GetStatus() {
-			case tempopb.JobStatus_JOB_STATUS_RUNNING, tempopb.JobStatus_JOB_STATUS_UNSPECIFIED:
+		for _, b := range j.GetCompactionOutput() {
+			if b == id {
 				return true
 			}
 		}
+	default:
+		return false
 	}
-
 	return false
 }
 
@@ -159,8 +163,8 @@ func (j *Job) GetCompactionInput() []string {
 }
 
 func (j *Job) GetCompactionOutput() []string {
-	j.mtx.Lock()
-	defer j.mtx.Unlock()
+	j.mtx.RLock()
+	defer j.mtx.RUnlock()
 
 	switch j.Type {
 	case tempopb.JobType_JOB_TYPE_COMPACTION:
