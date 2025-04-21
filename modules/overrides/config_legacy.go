@@ -21,6 +21,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxLocalTracesPerUser:      c.Ingestion.MaxLocalTracesPerUser,
 		MaxGlobalTracesPerUser:     c.Ingestion.MaxGlobalTracesPerUser,
 		IngestionMaxAttributeBytes: c.Ingestion.MaxAttributeBytes,
+		IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
 
 		Forwarders: c.Forwarders,
 
@@ -74,12 +75,12 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 // limits via flags, or per-user limits via yaml config.
 type LegacyOverrides struct {
 	// Distributor enforced limits.
-	IngestionRateStrategy      string        `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
-	IngestionRateLimitBytes    int           `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
-	IngestionBurstSizeBytes    int           `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
-	IngestionTenantShardSize   int           `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
-	IngestionMaxAttributeBytes int           `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
-	IngestionArtificialDelay   time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
+	IngestionRateStrategy      string         `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
+	IngestionRateLimitBytes    int            `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
+	IngestionBurstSizeBytes    int            `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
+	IngestionTenantShardSize   int            `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
+	IngestionMaxAttributeBytes int            `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
+	IngestionArtificialDelay   *time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
 
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
@@ -156,6 +157,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxGlobalTracesPerUser: l.MaxGlobalTracesPerUser,
 			TenantShardSize:        l.IngestionTenantShardSize,
 			MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
+			ArtificialDelay:        l.IngestionArtificialDelay,
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
