@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -24,7 +25,7 @@ func createSubstringFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	args, ok := oArgs.(*SubstringArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("SubstringFactory args must be of type *SubstringArguments[K]")
+		return nil, errors.New("SubstringFactory args must be of type *SubstringArguments[K]")
 	}
 
 	return substring(args.Target, args.Start, args.Length), nil

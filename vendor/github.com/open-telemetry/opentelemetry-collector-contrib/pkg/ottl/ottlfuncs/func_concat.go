@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -24,7 +25,7 @@ func createConcatFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 	args, ok := oArgs.(*ConcatArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ConcatFactory args must be of type *ConcatArguments[K]")
+		return nil, errors.New("ConcatFactory args must be of type *ConcatArguments[K]")
 	}
 
 	return concat(args.Vals, args.Delimiter), nil

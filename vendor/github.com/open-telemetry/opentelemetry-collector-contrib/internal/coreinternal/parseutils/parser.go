@@ -4,6 +4,7 @@
 package parseutils // import "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/parseutils"
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -51,7 +52,7 @@ func SplitString(input, delimiter string) ([]string, error) {
 	}
 
 	if quoteChar != "" { // check for closed quotes
-		return nil, fmt.Errorf("never reached the end of a quoted value")
+		return nil, errors.New("never reached the end of a quoted value")
 	}
 	if current != "" { // avoid adding empty value bc of a trailing delimiter
 		return append(result, current), nil

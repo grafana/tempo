@@ -6,6 +6,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -26,7 +27,7 @@ func NewDecodeFactory[K any]() ottl.Factory[K] {
 func createDecodeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*DecodeArguments[K])
 	if !ok {
-		return nil, fmt.Errorf("DecodeFactory args must be of type *DecodeArguments[K]")
+		return nil, errors.New("DecodeFactory args must be of type *DecodeArguments[K]")
 	}
 
 	return Decode(args.Target, args.Encoding)

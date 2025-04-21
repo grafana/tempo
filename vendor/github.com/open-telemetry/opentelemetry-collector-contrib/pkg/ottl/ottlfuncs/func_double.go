@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createDoubleFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 	args, ok := oArgs.(*DoubleArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("DoubleFactory args must be of type *DoubleArguments[K]")
+		return nil, errors.New("DoubleFactory args must be of type *DoubleArguments[K]")
 	}
 
 	return doubleFunc(args.Target), nil

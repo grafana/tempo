@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/antchfx/xmlquery"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -25,7 +25,7 @@ func createParseSimplifiedXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.
 	args, ok := oArgs.(*ParseSimplifiedXMLArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ParseSimplifiedXML args must be of type *ParseSimplifiedXMLAguments[K]")
+		return nil, errors.New("ParseSimplifiedXML args must be of type *ParseSimplifiedXMLAguments[K]")
 	}
 
 	return parseSimplifiedXML(args.Target), nil

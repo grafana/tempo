@@ -126,5 +126,5 @@ func (mp *propertiesMatcher) Eval(_ context.Context, tCtx ottllog.TransformConte
 		return false, nil
 	}
 
-	return mp.PropertiesMatcher.Match(lr.Attributes(), tCtx.GetResource(), tCtx.GetInstrumentationScope()), nil
+	return mp.Match(lr.Attributes(), tCtx.GetResource(), tCtx.GetInstrumentationScope()), nil
 }

@@ -6,7 +6,6 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -25,7 +24,7 @@ func createTraceIDFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) 
 	args, ok := oArgs.(*TraceIDArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("TraceIDFactory args must be of type *TraceIDArguments[K]")
+		return nil, errors.New("TraceIDFactory args must be of type *TraceIDArguments[K]")
 	}
 
 	return traceID[K](args.Bytes)

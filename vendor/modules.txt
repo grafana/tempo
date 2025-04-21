@@ -162,7 +162,7 @@ github.com/andybalholm/brotli/matchfinder
 # github.com/antchfx/xmlquery v1.4.4
 ## explicit; go 1.14
 github.com/antchfx/xmlquery
-# github.com/antchfx/xpath v1.3.3
+# github.com/antchfx/xpath v1.3.4
 ## explicit; go 1.14
 github.com/antchfx/xpath
 # github.com/apache/thrift v0.21.0
@@ -260,7 +260,7 @@ github.com/aws/aws-sdk-go-v2/internal/timeconv
 # github.com/aws/aws-sdk-go-v2/config v1.28.2
 ## explicit; go 1.21
 github.com/aws/aws-sdk-go-v2/config
-# github.com/aws/aws-sdk-go-v2/credentials v1.17.64
+# github.com/aws/aws-sdk-go-v2/credentials v1.17.66
 ## explicit; go 1.22
 github.com/aws/aws-sdk-go-v2/credentials
 github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds
@@ -288,17 +288,17 @@ github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding
 # github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15
 ## explicit; go 1.22
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url
-# github.com/aws/aws-sdk-go-v2/service/sso v1.25.2
+# github.com/aws/aws-sdk-go-v2/service/sso v1.25.3
 ## explicit; go 1.22
 github.com/aws/aws-sdk-go-v2/service/sso
 github.com/aws/aws-sdk-go-v2/service/sso/internal/endpoints
 github.com/aws/aws-sdk-go-v2/service/sso/types
-# github.com/aws/aws-sdk-go-v2/service/ssooidc v1.29.2
+# github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1
 ## explicit; go 1.22
 github.com/aws/aws-sdk-go-v2/service/ssooidc
 github.com/aws/aws-sdk-go-v2/service/ssooidc/internal/endpoints
 github.com/aws/aws-sdk-go-v2/service/ssooidc/types
-# github.com/aws/aws-sdk-go-v2/service/sts v1.33.17
+# github.com/aws/aws-sdk-go-v2/service/sts v1.33.18
 ## explicit; go 1.22
 github.com/aws/aws-sdk-go-v2/service/sts
 github.com/aws/aws-sdk-go-v2/service/sts/internal/endpoints
@@ -1028,11 +1028,11 @@ github.com/oklog/ulid
 # github.com/olekukonko/tablewriter v0.0.5
 ## explicit; go 1.12
 github.com/olekukonko/tablewriter
-# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter/internal/metadata
-# github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/parseutils
@@ -1041,7 +1041,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/timeutils/internal/ctimefmt
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil
-# github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig
@@ -1054,18 +1054,18 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filter
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/regexp
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/strict
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterspan
-# github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/awsmsk
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/configkafka
-# github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxcache
@@ -1089,45 +1089,46 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottl
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspanevent
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlcommon
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinthriftconverter
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2
-# github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor/internal/metadata
-# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.124.1
 ## explicit; go 1.23.7
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver/thriftudp
-# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata
-# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.123.0
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/unmarshaler
+# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver/internal/metadata
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver/internal/ocmetrics
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver/internal/octrace
-# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.123.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.124.1
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver/internal/metadata
@@ -1719,7 +1720,7 @@ go.opentelemetry.io/collector/pipeline/xpipeline
 ## explicit; go 1.23.0
 go.opentelemetry.io/collector/processor
 go.opentelemetry.io/collector/processor/internal
-# go.opentelemetry.io/collector/processor/processorhelper v0.123.0
+# go.opentelemetry.io/collector/processor/processorhelper v0.124.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/collector/processor/processorhelper
 go.opentelemetry.io/collector/processor/processorhelper/internal/metadata

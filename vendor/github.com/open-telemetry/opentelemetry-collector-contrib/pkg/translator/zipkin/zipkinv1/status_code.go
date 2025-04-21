@@ -4,7 +4,7 @@
 package zipkinv1 // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1"
 
 import (
-	"fmt"
+	"errors"
 	"math"
 	"strconv"
 
@@ -130,7 +130,7 @@ func (m *statusMapper) fromAttribute(key string, attrib pcommon.Value) bool {
 func attribToStatusCode(attr pcommon.Value) (int32, error) {
 	switch attr.Type() {
 	case pcommon.ValueTypeEmpty:
-		return 0, fmt.Errorf("nil attribute")
+		return 0, errors.New("nil attribute")
 	case pcommon.ValueTypeInt:
 		return toInt32(attr.Int())
 	case pcommon.ValueTypeStr:
@@ -140,14 +140,14 @@ func attribToStatusCode(attr pcommon.Value) (int32, error) {
 		}
 		return toInt32(i)
 	}
-	return 0, fmt.Errorf("invalid attribute type")
+	return 0, errors.New("invalid attribute type")
 }
 
 func toInt32(i int64) (int32, error) {
 	if i <= math.MaxInt32 && i >= math.MinInt32 {
 		return int32(i), nil
 	}
-	return 0, fmt.Errorf("outside of the int32 range")
+	return 0, errors.New("outside of the int32 range")
 }
 
 // statusCodeFromHTTP takes an HTTP status code and return the appropriate OpenTelemetry status code

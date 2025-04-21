@@ -333,7 +333,7 @@ func (pc *ParserCollection[R]) ParseStatements(statements StatementsGetter) (R, 
 	statementsValues := statements.GetStatements()
 	inferredContext, err := pc.contextInferrer.inferFromStatements(statementsValues)
 	if err != nil {
-		return *new(R), err
+		return *new(R), fmt.Errorf("unable to infer a valid context (%+q) from statements %+q: %w", pc.supportedContextNames(), statementsValues, err)
 	}
 
 	if inferredContext == "" {

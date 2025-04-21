@@ -6,6 +6,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -33,7 +34,7 @@ func createSortFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ot
 	args, ok := oArgs.(*SortArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("SortFactory args must be of type *SortArguments[K]")
+		return nil, errors.New("SortFactory args must be of type *SortArguments[K]")
 	}
 
 	order := sortAsc

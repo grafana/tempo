@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createUnixNanoFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments)
 	args, ok := oArgs.(*UnixNanoArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("UnixNanoFactory args must be of type *UnixNanoArguments[K]")
+		return nil, errors.New("UnixNanoFactory args must be of type *UnixNanoArguments[K]")
 	}
 
 	return UnixNano(args.Time)

@@ -82,15 +82,6 @@ func NewTransformContext(dataPoint any, metric pmetric.Metric, metrics pmetric.M
 	return tc
 }
 
-// Experimental: *NOTE* this option is subject to change or removal in the future.
-func WithCache(cache *pcommon.Map) TransformContextOption {
-	return func(p *TransformContext) {
-		if cache != nil {
-			p.cache = *cache
-		}
-	}
-}
-
 func (tCtx TransformContext) GetDataPoint() any {
 	return tCtx.dataPoint
 }
@@ -188,7 +179,7 @@ func parseEnum(val *ottl.EnumSymbol) (*ottl.Enum, error) {
 		}
 		return nil, fmt.Errorf("enum symbol, %s, not found", *val)
 	}
-	return nil, fmt.Errorf("enum symbol not provided")
+	return nil, errors.New("enum symbol not provided")
 }
 
 func getCache(tCtx TransformContext) pcommon.Map {

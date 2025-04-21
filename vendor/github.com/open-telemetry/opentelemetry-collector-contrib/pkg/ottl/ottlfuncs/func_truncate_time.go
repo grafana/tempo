@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -23,7 +23,7 @@ func createTruncateTimeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argume
 	args, ok := oArgs.(*TruncateTimeArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("TimeFactory args must be of type *TruncateTimeArguments[K]")
+		return nil, errors.New("TimeFactory args must be of type *TruncateTimeArguments[K]")
 	}
 
 	return TruncateTime(args.Time, args.Duration)

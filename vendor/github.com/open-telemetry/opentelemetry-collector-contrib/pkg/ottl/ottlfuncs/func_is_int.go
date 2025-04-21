@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createIsIntFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (o
 	args, ok := oArgs.(*IsIntArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("IsIntFactory args must be of type *IsIntArguments[K]")
+		return nil, errors.New("IsIntFactory args must be of type *IsIntArguments[K]")
 	}
 
 	return isInt(args.Target), nil

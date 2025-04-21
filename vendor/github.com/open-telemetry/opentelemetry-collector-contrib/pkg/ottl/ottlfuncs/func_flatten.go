@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -36,7 +37,7 @@ func createFlattenFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) 
 	args, ok := oArgs.(*FlattenArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("FlattenFactory args must be of type *FlattenArguments[K]")
+		return nil, errors.New("FlattenFactory args must be of type *FlattenArguments[K]")
 	}
 
 	return flatten(args.Target, args.Prefix, args.Depth, args.ResolveConflicts)

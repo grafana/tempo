@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -26,7 +27,7 @@ func createDeleteMatchingKeysFunction[K any](_ ottl.FunctionContext, oArgs ottl.
 	args, ok := oArgs.(*DeleteMatchingKeysArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("DeleteMatchingKeysFactory args must be of type *DeleteMatchingKeysArguments[K]")
+		return nil, errors.New("DeleteMatchingKeysFactory args must be of type *DeleteMatchingKeysArguments[K]")
 	}
 
 	return deleteMatchingKeys(args.Target, args.Pattern)

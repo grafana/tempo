@@ -69,15 +69,6 @@ func NewTransformContext(spanEvent ptrace.SpanEvent, span ptrace.Span, instrumen
 	return tc
 }
 
-// Experimental: *NOTE* this option is subject to change or removal in the future.
-func WithCache(cache *pcommon.Map) TransformContextOption {
-	return func(p *TransformContext) {
-		if cache != nil {
-			p.cache = *cache
-		}
-	}
-}
-
 // WithEventIndex sets the index of the SpanEvent within the span, to make it accessible via the event_index property of its context.
 // The index must be greater than or equal to zero, otherwise the given val will not be applied.
 func WithEventIndex(eventIndex int64) TransformContextOption {
@@ -189,7 +180,7 @@ func parseEnum(val *ottl.EnumSymbol) (*ottl.Enum, error) {
 		}
 		return nil, fmt.Errorf("enum symbol, %s, not found", *val)
 	}
-	return nil, fmt.Errorf("enum symbol not provided")
+	return nil, errors.New("enum symbol not provided")
 }
 
 func getCache(tCtx TransformContext) pcommon.Map {

@@ -7,42 +7,31 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/sha512"
-	"crypto/tls"
-	"fmt"
 
 	"github.com/IBM/sarama"
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
-	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/awsmsk"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/configkafka"
 )
 
-// ConfigureSaramaAuthentication configures authentication in sarama.Config.
+// configureSaramaAuthentication configures authentication in sarama.Config.
 //
 // The provided config is assumed to have been validated.
-func ConfigureSaramaAuthentication(
+func configureSaramaAuthentication(
 	ctx context.Context,
 	config configkafka.AuthenticationConfig,
 	saramaConfig *sarama.Config,
-) error {
+) {
 	if config.PlainText != nil {
 		configurePlaintext(*config.PlainText, saramaConfig)
 	}
-	if config.TLS != nil {
-		if err := configureTLS(ctx, *config.TLS, saramaConfig); err != nil {
-			return err
-		}
-	}
 	if config.SASL != nil {
-		if err := configureSASL(ctx, *config.SASL, saramaConfig); err != nil {
-			return err
-		}
+		configureSASL(ctx, *config.SASL, saramaConfig)
 	}
 	if config.Kerberos != nil {
 		configureKerberos(*config.Kerberos, saramaConfig)
 	}
-	return nil
 }
 
 func configurePlaintext(config configkafka.PlainTextConfig, saramaConfig *sarama.Config) {
@@ -51,7 +40,7 @@ func configurePlaintext(config configkafka.PlainTextConfig, saramaConfig *sarama
 	saramaConfig.Net.SASL.Password = config.Password
 }
 
-func configureSASL(ctx context.Context, config configkafka.SASLConfig, saramaConfig *sarama.Config) error {
+func configureSASL(ctx context.Context, config configkafka.SASLConfig, saramaConfig *sarama.Config) {
 	saramaConfig.Net.SASL.Enable = true
 	saramaConfig.Net.SASL.User = config.Username
 	saramaConfig.Net.SASL.Password = config.Password
@@ -74,21 +63,7 @@ func configureSASL(ctx context.Context, config configkafka.SASLConfig, saramaCon
 	case "AWS_MSK_IAM_OAUTHBEARER":
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeOAuth
 		saramaConfig.Net.SASL.TokenProvider = &awsMSKTokenProvider{ctx: ctx, region: config.AWSMSK.Region}
-		tlsConfig := tls.Config{}
-		saramaConfig.Net.TLS.Enable = true
-		saramaConfig.Net.TLS.Config = &tlsConfig
 	}
-	return nil
-}
-
-func configureTLS(ctx context.Context, config configtls.ClientConfig, saramaConfig *sarama.Config) error {
-	tlsConfig, err := config.LoadTLSConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("error loading tls config: %w", err)
-	}
-	saramaConfig.Net.TLS.Enable = true
-	saramaConfig.Net.TLS.Config = tlsConfig
-	return nil
 }
 
 func configureKerberos(config configkafka.KerberosConfig, saramaConfig *sarama.Config) {

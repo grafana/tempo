@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -24,7 +25,7 @@ func createIsMatchFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) 
 	args, ok := oArgs.(*IsMatchArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("IsMatchFactory args must be of type *IsMatchArguments[K]")
+		return nil, errors.New("IsMatchFactory args must be of type *IsMatchArguments[K]")
 	}
 
 	return isMatch(args.Target, args.Pattern)

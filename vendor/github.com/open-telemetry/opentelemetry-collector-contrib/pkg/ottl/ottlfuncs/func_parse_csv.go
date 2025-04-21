@@ -57,7 +57,7 @@ func NewParseCSVFactory[K any]() ottl.Factory[K] {
 func createParseCSVFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*ParseCSVArguments[K])
 	if !ok {
-		return nil, fmt.Errorf("ParseCSVFactory args must be of type *ParseCSVArguments[K]")
+		return nil, errors.New("ParseCSVFactory args must be of type *ParseCSVArguments[K]")
 	}
 
 	if err := args.validate(); err != nil {

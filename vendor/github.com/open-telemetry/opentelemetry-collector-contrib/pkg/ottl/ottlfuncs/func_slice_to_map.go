@@ -3,6 +3,7 @@
 
 package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
 import (
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -24,7 +25,7 @@ func NewSliceToMapFactory[K any]() ottl.Factory[K] {
 func sliceToMapFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*SliceToMapArguments[K])
 	if !ok {
-		return nil, fmt.Errorf("SliceToMapFactory args must be of type *SliceToMapArguments[K")
+		return nil, errors.New("SliceToMapFactory args must be of type *SliceToMapArguments[K")
 	}
 
 	return getSliceToMapFunc(args.Target, args.KeyPath, args.ValuePath)
@@ -32,7 +33,7 @@ func sliceToMapFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ot
 
 func getSliceToMapFunc[K any](target ottl.Getter[K], keyPath []string, valuePath ottl.Optional[[]string]) (ottl.ExprFunc[K], error) {
 	if len(keyPath) == 0 {
-		return nil, fmt.Errorf("key path must contain at least one element")
+		return nil, errors.New("key path must contain at least one element")
 	}
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)
@@ -65,7 +66,7 @@ func sliceToMap(v []any, keyPath []string, valuePath ottl.Optional[[]string]) (a
 
 		key, ok := extractedKey.(string)
 		if !ok {
-			return nil, fmt.Errorf("extracted key attribute is not of type string")
+			return nil, errors.New("extracted key attribute is not of type string")
 		}
 
 		if valuePath.IsEmpty() {
@@ -88,7 +89,7 @@ func sliceToMap(v []any, keyPath []string, valuePath ottl.Optional[[]string]) (a
 
 func extractValue(v map[string]any, path []string) (any, error) {
 	if len(path) == 0 {
-		return nil, fmt.Errorf("must provide at least one path item")
+		return nil, errors.New("must provide at least one path item")
 	}
 	obj, ok := v[path[0]]
 	if !ok {

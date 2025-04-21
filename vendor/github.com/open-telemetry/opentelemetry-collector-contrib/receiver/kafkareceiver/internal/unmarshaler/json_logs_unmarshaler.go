@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
+package unmarshaler // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/unmarshaler"
 import (
 	"time"
 
@@ -10,13 +10,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
-type jsonLogsUnmarshaler struct{}
+var _ plog.Unmarshaler = JSONLogsUnmarshaler{}
 
-func newJSONLogsUnmarshaler() LogsUnmarshaler {
-	return &jsonLogsUnmarshaler{}
-}
+type JSONLogsUnmarshaler struct{}
 
-func (r *jsonLogsUnmarshaler) Unmarshal(buf []byte) (plog.Logs, error) {
+func (JSONLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 	// create a new Logs struct to be populated with log data and returned
 	p := plog.NewLogs()
 
@@ -35,8 +33,4 @@ func (r *jsonLogsUnmarshaler) Unmarshal(buf []byte) (plog.Logs, error) {
 		return p, err
 	}
 	return p, nil
-}
-
-func (r *jsonLogsUnmarshaler) Encoding() string {
-	return "json"
 }

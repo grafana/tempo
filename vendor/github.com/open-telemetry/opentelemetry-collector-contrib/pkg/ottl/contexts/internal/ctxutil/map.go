@@ -5,6 +5,7 @@ package ctxutil // import "github.com/open-telemetry/opentelemetry-collector-con
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -14,7 +15,7 @@ import (
 
 func GetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.Key[K]) (any, error) {
 	if len(keys) == 0 {
-		return nil, fmt.Errorf("cannot get map value without keys")
+		return nil, errors.New("cannot get map value without keys")
 	}
 
 	s, err := keys[0].String(ctx, tCtx)
@@ -39,7 +40,7 @@ func GetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.
 
 func SetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.Key[K], val any) error {
 	if len(keys) == 0 {
-		return fmt.Errorf("cannot set map value without key")
+		return errors.New("cannot set map value without key")
 	}
 
 	s, err := keys[0].String(ctx, tCtx)
@@ -67,7 +68,7 @@ func FetchValueFromExpression[K any, T int64 | string](ctx context.Context, tCtx
 		return nil, err
 	}
 	if p == nil {
-		return nil, fmt.Errorf("invalid key type")
+		return nil, errors.New("invalid key type")
 	}
 	res, err := p.Get(ctx, tCtx)
 	if err != nil {

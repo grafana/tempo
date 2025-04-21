@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -22,7 +22,7 @@ func createSecondsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) 
 	args, ok := oArgs.(*SecondsArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("SecondsFactory args must be of type *SecondsArguments[K]")
+		return nil, errors.New("SecondsFactory args must be of type *SecondsArguments[K]")
 	}
 
 	return Seconds(args.Duration)

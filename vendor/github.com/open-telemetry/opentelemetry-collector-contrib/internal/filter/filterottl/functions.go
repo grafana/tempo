@@ -5,7 +5,7 @@ package filterottl // import "github.com/open-telemetry/opentelemetry-collector-
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
@@ -69,7 +69,7 @@ func createHasAttributeOnDatapointFunction(_ ottl.FunctionContext, oArgs ottl.Ar
 	args, ok := oArgs.(*hasAttributeOnDatapointArguments)
 
 	if !ok {
-		return nil, fmt.Errorf("hasAttributeOnDatapointFactory args must be of type *hasAttributeOnDatapointArguments")
+		return nil, errors.New("hasAttributeOnDatapointFactory args must be of type *hasAttributeOnDatapointArguments")
 	}
 
 	return hasAttributeOnDatapoint(args.Key, args.ExpectedVal)
@@ -93,7 +93,7 @@ func createHasAttributeKeyOnDatapointFunction(_ ottl.FunctionContext, oArgs ottl
 	args, ok := oArgs.(*hasAttributeKeyOnDatapointArguments)
 
 	if !ok {
-		return nil, fmt.Errorf("hasAttributeKeyOnDatapointFactory args must be of type *hasAttributeOnDatapointArguments")
+		return nil, errors.New("hasAttributeKeyOnDatapointFactory args must be of type *hasAttributeOnDatapointArguments")
 	}
 
 	return hasAttributeKeyOnDatapoint(args.Key)
@@ -120,7 +120,7 @@ func checkDataPoints(tCtx ottlmetric.TransformContext, key string, expectedVal *
 	case pmetric.MetricTypeSummary:
 		return checkSummaryDataPointSlice(metric.Summary().DataPoints(), key, expectedVal), nil
 	}
-	return nil, fmt.Errorf("unknown metric type")
+	return nil, errors.New("unknown metric type")
 }
 
 func checkNumberDataPointSlice(dps pmetric.NumberDataPointSlice, key string, expectedVal *string) bool {

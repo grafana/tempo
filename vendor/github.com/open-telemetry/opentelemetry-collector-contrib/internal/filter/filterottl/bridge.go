@@ -4,6 +4,7 @@
 package filterottl // import "github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterottl"
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -381,7 +382,7 @@ func createMetricStatement(mp filterconfig.MetricMatchProperties) (*string, erro
 		if len(mp.Expressions) == 0 {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("expressions configuration cannot be converted to OTTL - see https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor#configuration for OTTL configuration")
+		return nil, errors.New("expressions configuration cannot be converted to OTTL - see https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor#configuration for OTTL configuration")
 	}
 
 	if len(mp.MetricNames) == 0 {

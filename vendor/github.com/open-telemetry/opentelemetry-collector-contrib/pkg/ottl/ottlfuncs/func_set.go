@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -23,7 +23,7 @@ func createSetFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ott
 	args, ok := oArgs.(*SetArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("SetFactory args must be of type *SetArguments[K]")
+		return nil, errors.New("SetFactory args must be of type *SetArguments[K]")
 	}
 
 	return set(args.Target, args.Value), nil

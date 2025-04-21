@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,7 +27,7 @@ func createConvertCaseFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argumen
 	args, ok := oArgs.(*ConvertCaseArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ConvertCaseFactory args must be of type *ConvertCaseArguments[K]")
+		return nil, errors.New("ConvertCaseFactory args must be of type *ConvertCaseArguments[K]")
 	}
 
 	return convertCase(args.Target, args.ToCase)

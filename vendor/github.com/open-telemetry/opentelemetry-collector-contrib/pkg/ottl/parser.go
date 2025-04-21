@@ -77,7 +77,7 @@ func NewParser[K any](
 	options ...Option[K],
 ) (Parser[K], error) {
 	if settings.Logger == nil {
-		return Parser[K]{}, fmt.Errorf("logger cannot be nil")
+		return Parser[K]{}, errors.New("logger cannot be nil")
 	}
 	p := Parser[K]{
 		functions:  functions,

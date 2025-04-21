@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -22,7 +23,7 @@ func NewFormatFactory[K any]() ottl.Factory[K] {
 func createFormatFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*FormatArguments[K])
 	if !ok {
-		return nil, fmt.Errorf("FormatFactory args must be of type *FormatArguments[K]")
+		return nil, errors.New("FormatFactory args must be of type *FormatArguments[K]")
 	}
 
 	return format(args.Format, args.Vals), nil

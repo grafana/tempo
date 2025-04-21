@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -24,7 +24,7 @@ func createTrimFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ot
 	args, ok := oArgs.(*TrimArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("TrimFactory args must be of type *TrimArguments[K]")
+		return nil, errors.New("TrimFactory args must be of type *TrimArguments[K]")
 	}
 
 	return trim(args.Target, args.Replacement), nil

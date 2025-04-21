@@ -5,7 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -23,7 +23,7 @@ func createToLowerCaseFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argumen
 	args, ok := oArgs.(*ToLowerCaseArguments[K])
 
 	if !ok {
-		return nil, fmt.Errorf("ToLowerCaseFactory args must be of type *ToLowerCaseArguments[K]")
+		return nil, errors.New("ToLowerCaseFactory args must be of type *ToLowerCaseArguments[K]")
 	}
 
 	return toLowerCase(args.Target), nil
