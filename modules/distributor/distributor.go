@@ -640,7 +640,7 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		}
 
 		// The partition ID is stored in the ring.InstanceDesc ID.
-		partitionID, err := strconv.ParseInt(partition.Id, 10, 31)
+		partitionID, err := strconv.ParseInt(partition.Id, 10, 32)
 		if err != nil {
 			return err
 		}
