@@ -619,6 +619,198 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 	require.True(t, queryRangeCombiner.ShouldQuit())
 }
 
+func TestTruncateResponse(t *testing.T) {
+	type testCase struct {
+		name           string
+		query          string
+		series         []*tempopb.TimeSeries
+		maxSeries      int
+		expectedSeries []*tempopb.TimeSeries
+	}
+
+	defaultSeries := func(series int) []*tempopb.TimeSeries {
+		randomValues := []string{"bar", "baz", "bat", "cat", "dog", "cow", "pig", "hen", "boo", "moo"}
+		seriesList := make([]*tempopb.TimeSeries, series)
+		for i := 0; i < series; i++ {
+			seriesList[i] = &tempopb.TimeSeries{
+				PromLabels: "foo=" + randomValues[i],
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: randomValues[i]}}},
+				},
+			}
+		}
+		return seriesList
+	}
+
+	tcs := []testCase{
+		{
+			name:           "Less than max series",
+			query:          "{} | rate()",
+			series:         defaultSeries(3),
+			maxSeries:      4,
+			expectedSeries: defaultSeries(3),
+		},
+		{
+			name:           "More than max series",
+			query:          "{} | rate()",
+			series:         defaultSeries(10),
+			maxSeries:      4,
+			expectedSeries: defaultSeries(4),
+		},
+		{
+			name:           "No limit",
+			query:          "{} | rate()",
+			series:         defaultSeries(10),
+			maxSeries:      0,
+			expectedSeries: defaultSeries(10),
+		},
+		{
+			name:  "Compare less than max series",
+			query: "{} | compare({status=error})",
+			series: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+			maxSeries: 4,
+			expectedSeries: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+		},
+		{
+			name:  "Compare more than max series with extra count series same key",
+			query: "{} | compare({status=error})",
+			series: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection", "resource.service.name", "odd", false), // will be removed after truncate
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+			maxSeries: 4,
+			expectedSeries: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+		},
+		{
+			name:  "Compare more than max series with extra total baseline series diff key",
+			query: "{} | compare({status=error})",
+			series: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("baseline_total", "namespace", "<nil>", true), // will be removed bc no matching count series
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+			maxSeries: 4,
+			expectedSeries: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+		},
+		{
+			name:  "Compare more than max series with extra total selection series diff key",
+			query: "{} | compare({status=error})",
+			series: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection_total", "namespace", "<nil>", true), // will be removed bc no matching count series
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+			maxSeries: 4,
+			expectedSeries: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+		},
+		{
+			name:  "Compare more than max series with extra count selection series diff key",
+			query: "{} | compare({status=error})",
+			series: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "namespace", "even", false), // will be removed bc no matching total series
+			},
+			maxSeries: 4,
+			expectedSeries: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+		},
+		{
+			name:  "Compare more than max series with extra count baseline series diff key",
+			query: "{} | compare({status=error})",
+			series: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("baseline", "namespace", "even", false), // will be removed bc no matching total series
+			},
+			maxSeries: 4,
+			expectedSeries: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "resource.service.name", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "resource.service.name", "<nil>", true),
+			},
+		},
+		{
+			name:  "Compare more than max series with zero matching series",
+			query: "{} | compare({status=error})",
+			series: []*tempopb.TimeSeries{
+				makeCompareSeries("baseline", "resource.service.name", "odd", false),
+				makeCompareSeries("baseline_total", "namespace", "<nil>", true),
+				makeCompareSeries("selection", "resource.service.name", "even", false),
+				makeCompareSeries("selection_total", "foo", "<nil>", true),
+				makeCompareSeries("baseline", "evenodd", "even", false),
+			},
+			maxSeries:      4,
+			expectedSeries: []*tempopb.TimeSeries{},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     tc.query,
+				Start:     0,
+				End:       1000,
+				Step:      1,
+				MaxSeries: uint32(tc.maxSeries),
+			}
+
+			resp := &tempopb.QueryRangeResponse{
+				Series: tc.series,
+			}
+			expectedResp := &tempopb.QueryRangeResponse{
+				Series: tc.expectedSeries,
+			}
+			truncateResponse(resp, tc.maxSeries, req)
+
+			sortResponse(resp)
+			sortResponse(expectedResp)
+			require.Equal(t, tc.expectedSeries, resp.Series)
+		})
+	}
+}
+
 func BenchmarkDiffSeriesAndMarshal(b *testing.B) {
 	prev, curr := seriesWithTenPercentDiff()
 
@@ -702,4 +894,26 @@ func ts(samples []tempopb.Sample, exemplars []tempopb.Exemplar, kvs ...string) *
 	}
 
 	return ts
+}
+
+func makeCompareSeries(meta, key, value string, total bool) *tempopb.TimeSeries {
+	Labels := []v1.KeyValue{
+		tempopb.MakeKeyValueString("__meta_type", meta),
+		tempopb.MakeKeyValueString(key, value),
+	}
+
+	PromLabels := `{__meta_type="` + meta + `", "` + key + `"="` + value + `"}`
+
+	if total {
+		Labels = []v1.KeyValue{
+			tempopb.MakeKeyValueString("__meta_type", "meta"),
+			tempopb.MakeKeyValueString(key, "nil"),
+		}
+		PromLabels = `{__meta_type="` + meta + `", "` + key + `"="<nil>"}`
+	}
+
+	return &tempopb.TimeSeries{
+		PromLabels: PromLabels,
+		Labels:     Labels,
+	}
 }

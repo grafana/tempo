@@ -329,6 +329,7 @@ type QueryRangeCombiner struct {
 
 	maxSeries        int
 	maxSeriesReached bool
+	partial          bool
 }
 
 func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, maxSeriesLimit int) (*QueryRangeCombiner, error) {
@@ -354,8 +355,13 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	q.eval.ObserveSeries(resp.Series)
 	seriesCount := q.eval.Length()
 
-	if q.maxSeries > 0 && (seriesCount >= q.maxSeries || resp.Status == tempopb.PartialStatus_PARTIAL) {
+	if q.maxSeries > 0 && seriesCount >= q.maxSeries {
 		q.maxSeriesReached = true
+	}
+
+	// limit is reached at either querier and/or generator
+	if resp.Status == tempopb.PartialStatus_PARTIAL {
+		q.partial = true
 	}
 
 	if resp.Metrics != nil {
@@ -374,7 +380,7 @@ func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 		Series:  q.eval.Results().ToProto(q.req),
 		Metrics: q.metrics,
 	}
-	if q.maxSeriesReached {
+	if q.maxSeriesReached || q.partial {
 		response.Status = tempopb.PartialStatus_PARTIAL
 	}
 	return response
@@ -382,4 +388,8 @@ func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 
 func (q *QueryRangeCombiner) MaxSeriesReached() bool {
 	return q.maxSeriesReached
+}
+
+func (q *QueryRangeCombiner) Partial() bool {
+	return q.partial
 }

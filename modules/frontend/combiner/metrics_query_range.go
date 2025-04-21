@@ -55,12 +55,12 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 
 			sortResponse(resp)
-			if combiner.MaxSeriesReached() {
-				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
-				// it's possible that the last response pushed us over the max series limit.
-				if len(resp.Series) > maxSeries && maxSeries > 0 {
-					resp.Series = resp.Series[:maxSeries]
-				}
+			truncateResponse(resp, maxSeries, req)
+
+			// partial is when the max series is reached either in the querier or generators
+			// since it might have been truncated - we need to add the warning the it may be inaccurate
+			// max series reached is when the max series is actually reached at the query-frontend level
+			if combiner.MaxSeriesReached() || combiner.Partial() {
 				resp.Status = tempopb.PartialStatus_PARTIAL
 				resp.Message = maxSeriesReachedErrorMsg
 			}
@@ -75,11 +75,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 
 			sortResponse(resp)
-			if len(resp.Series) > maxSeries && maxSeries > 0 {
-				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
-				// it's possible that the last response pushed us over the max series limit.
-				resp.Series = resp.Series[:maxSeries]
-			}
+			truncateResponse(resp, maxSeries, req)
 			attachExemplars(req, resp)
 
 			// compare with prev resp and only return diffs
@@ -87,7 +83,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			// store resp for next diff
 			prevResp = resp
 
-			if combiner.MaxSeriesReached() {
+			if combiner.Partial() || combiner.MaxSeriesReached() {
 				diff.Status = tempopb.PartialStatus_PARTIAL
 				diff.Message = maxSeriesReachedErrorMsg
 			}
@@ -234,4 +230,93 @@ func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResp
 			}
 		}
 	}
+}
+
+func truncateResponse(resp *tempopb.QueryRangeResponse, maxSeries int, req *tempopb.QueryRangeRequest) {
+	if maxSeries == 0 || len(resp.Series) <= maxSeries {
+		return
+	}
+	rootexpr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return
+	}
+	// if this query is a compare, we need make sure there is one total series per key
+	// only include if both total series and corresponding count series exist
+	const (
+		baselinePrefix       = "baseline"
+		selectionPrefix      = "selection"
+		baselineTotalPrefix  = "baseline_total"
+		selectionTotalPrefix = "selection_total"
+		metaTypePrefix       = "__meta_type"
+	)
+	if _, ok := rootexpr.MetricsPipeline.(*traceql.MetricsCompare); ok {
+		baselineCountMap := make(map[string][]int) // count is one single series for each key/value pair
+		baselineTotalMap := make(map[string]int)   // total is always a single series for each key
+		selectionCountMap := make(map[string][]int)
+		selectionTotalMap := make(map[string]int)
+		results := make([]*tempopb.TimeSeries, maxSeries)
+		resultsIdx := 0
+
+		for i, series := range resp.Series {
+			for _, label := range series.Labels {
+				if label.Key != metaTypePrefix {
+					// record the corresponding index
+					if strings.Contains(series.PromLabels, baselineTotalPrefix) {
+						baselineTotalMap[label.Key] = i
+						continue
+					}
+					// if it's not baselineTotal but has baseline it's baselineCount
+					if strings.Contains(series.PromLabels, baselinePrefix) {
+						baselineCountMap[label.Key] = append(baselineCountMap[label.Key], i)
+						continue
+					}
+					if strings.Contains(series.PromLabels, selectionTotalPrefix) {
+						selectionTotalMap[label.Key] = i
+						continue
+					}
+					// if it's not selectionTotal but has selection it's selectionCount
+					if strings.Contains(series.PromLabels, selectionPrefix) {
+						selectionCountMap[label.Key] = append(selectionCountMap[label.Key], i)
+						continue
+					}
+				}
+			}
+		}
+
+		// do baseline first,
+		// the total is more important so just check total first
+		for a, i := range baselineTotalMap {
+			// check if we have a count for this total
+			if _, ok := baselineCountMap[a]; ok && resultsIdx < maxSeries {
+				results[resultsIdx] = resp.Series[i]
+				resultsIdx++
+				for _, series := range baselineCountMap[a] {
+					if resultsIdx >= maxSeries {
+						break
+					}
+					results[resultsIdx] = resp.Series[series]
+					resultsIdx++
+				}
+			}
+		}
+		// then do selection
+		for a, i := range selectionTotalMap {
+			// check if we have a count for this total
+			if _, ok := selectionCountMap[a]; ok && resultsIdx < maxSeries {
+				results[resultsIdx] = resp.Series[i]
+				resultsIdx++
+				for _, series := range selectionCountMap[a] {
+					if resultsIdx >= maxSeries {
+						break
+					}
+					results[resultsIdx] = resp.Series[series]
+					resultsIdx++
+				}
+			}
+		}
+		resp.Series = results[:resultsIdx]
+		return
+	}
+	// otherwise just truncate
+	resp.Series = resp.Series[:maxSeries]
 }
