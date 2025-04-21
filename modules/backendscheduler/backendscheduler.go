@@ -38,8 +38,6 @@ type BackendScheduler struct {
 
 	work *work.Work
 
-	mtx sync.Mutex
-
 	reader backend.RawReader
 	writer backend.RawWriter
 

@@ -12,9 +12,6 @@ import (
 )
 
 func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	b, err := s.work.Marshal()
 	if err != nil {
 		return fmt.Errorf("failed to marshal work cache: %w", err)
