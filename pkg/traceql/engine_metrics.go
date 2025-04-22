@@ -1023,7 +1023,7 @@ type MetricsEvaluator struct {
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 firstStageElement
 	spansTotal, spansDeduped, bytes uint64
-	mtx                             sync.Mutex
+	mtx                             sync.RWMutex
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -1140,12 +1140,14 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 }
 
 func (e *MetricsEvaluator) Length() int {
+	e.mtx.RLock()
+	defer e.mtx.RUnlock()
 	return e.metricsPipeline.length()
 }
 
 func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
+	e.mtx.RLock()
+	defer e.mtx.RUnlock()
 
 	return e.bytes, e.spansTotal, e.spansDeduped
 }
