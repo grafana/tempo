@@ -32,7 +32,7 @@
 * [FEATURE] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
-* [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) (@yvrhdn, @mapno)
+* [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) [#5035](https://github.com/grafana/tempo/pull/5035) (@yvrhdn, @mapno)
 * [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
 * [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham) 
 * [ENHANCEMENT] Improve Tempo build options [#4755](https://github.com/grafana/tempo/pull/4755) (@stoewer)
