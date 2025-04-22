@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -341,8 +342,8 @@ func ensureAllFieldsPopulated(t *testing.T, o LegacyOverrides) {
 		fieldName := structType.Field(i).Name
 
 		// Skip certain fields that can be zero in valid configs
-		switch fieldName {
-		case "IngestionArtificialDelay": // Can legitimately be nil
+		skip := []string{"IngestionArtificialDelay"}
+		if slices.Contains(skip, fieldName) {
 			continue
 		}
 
