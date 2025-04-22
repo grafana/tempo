@@ -257,6 +257,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		resps := make(chan *frontendv1pb.ClientToFrontend, 1)
 		errs := make(chan error, 1)
 		go func() {
+			var err error
 			// todo: we are still sending the old Type_HTTP_REQUEST for backwards compat
 			// with queriers that don't support the new Type_HTTP_REQUEST_BATCH. this feature
 			// was introduced in 2.2. We should remove this in a few versions
