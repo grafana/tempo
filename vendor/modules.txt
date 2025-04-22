@@ -1444,7 +1444,7 @@ github.com/twmb/franz-go/pkg/kadm
 # github.com/twmb/franz-go/pkg/kfake v0.0.0-20250320172111-35ab5e5f5327
 ## explicit; go 1.21
 github.com/twmb/franz-go/pkg/kfake
-# github.com/twmb/franz-go/pkg/kmsg v1.11.1
+# github.com/twmb/franz-go/pkg/kmsg v1.11.2
 ## explicit; go 1.21
 github.com/twmb/franz-go/pkg/kmsg
 github.com/twmb/franz-go/pkg/kmsg/internal/kbin

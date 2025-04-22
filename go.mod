@@ -100,7 +100,7 @@ require (
 	github.com/twmb/franz-go v1.18.1
 	github.com/twmb/franz-go/pkg/kadm v1.16.0
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20250320172111-35ab5e5f5327
-	github.com/twmb/franz-go/pkg/kmsg v1.11.1
+	github.com/twmb/franz-go/pkg/kmsg v1.11.2
 	github.com/twmb/franz-go/plugin/kotel v1.5.0
 	github.com/twmb/franz-go/plugin/kprom v1.2.0
 	go.opentelemetry.io/collector/client v1.30.0
