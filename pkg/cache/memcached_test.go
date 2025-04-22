@@ -15,6 +15,8 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 )
 
+// jpe - test
+
 func TestMemcached(t *testing.T) {
 	t.Run("unbatched", func(t *testing.T) {
 		client := newMockMemcache()
