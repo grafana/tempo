@@ -96,7 +96,30 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 		return
 	default:
 	}
-	found, bufs, missed = c.fetch(ctx, keys)
+
+	var items map[string]*memcache.Item
+	const method = "Memcache.GetMulti"
+
+	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
+		var err error
+		items, err = c.memcache.GetMulti(keys, memcache.WithAllocator(cacheBufAllocator))
+		if err != nil {
+			level.Error(c.logger).Log("msg", "Failed to get keys from memcached", "err", err)
+		}
+		return err
+	})
+	if err != nil {
+		return found, bufs, keys
+	}
+	for _, key := range keys {
+		item, ok := items[key]
+		if ok {
+			found = append(found, key)
+			bufs = append(bufs, item.Value)
+		} else {
+			missed = append(missed, key)
+		}
+	}
 	return
 }
 
@@ -126,33 +149,6 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) ([]byte, bool) {
 		return nil, false
 	}
 	return item.Value, true
-}
-
-func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
-	var items map[string]*memcache.Item
-	const method = "Memcache.GetMulti"
-
-	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
-		var err error
-		items, err = c.memcache.GetMulti(keys, memcache.WithAllocator(cacheBufAllocator))
-		if err != nil {
-			level.Error(c.logger).Log("msg", "Failed to get keys from memcached", "err", err)
-		}
-		return err
-	})
-	if err != nil {
-		return found, bufs, keys
-	}
-	for _, key := range keys {
-		item, ok := items[key]
-		if ok {
-			found = append(found, key)
-			bufs = append(bufs, item.Value)
-		} else {
-			missed = append(missed, key)
-		}
-	}
-	return
 }
 
 // Store stores the key in the cache.
