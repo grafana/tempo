@@ -75,6 +75,12 @@ var (
 		Name:      "fetch_errors_total",
 		Help:      "Total number of errors while fetching by the consumer.",
 	}, []string{"partition"})
+	metricConsumeErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "consume_errors_total",
+		Help:      "Total number of consumption errors.",
+	})
 	metricOwnedPartitions = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
@@ -222,6 +228,7 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 
 		if err != nil {
 			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
+			metricConsumeErrors.Inc()
 		}
 
 		select {
