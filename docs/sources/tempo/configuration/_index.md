@@ -1699,7 +1699,7 @@ overrides:
       # Per-user compaction window. If this value is set to 0 (default),
       # then block_retention in the compactor configuration is used.
       [compaction_window: <duration> | default = 0s]
-      # Allow compaction to be deactivated on a per-tenant basis. Default value
+      # Allow compaction and retention to be deactivated on a per-tenant basis. Default value
       # is false (compaction active). Useful to perform operations on the backend
       # that require compaction to be disabled for a period of time.
       [compaction_disabled: <bool> | default = false]
