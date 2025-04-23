@@ -30,6 +30,7 @@
 * [CHANGE] Finish polling current tenants on poller shutdown [#4897](https://github.com/grafana/tempo/pull/4897) (@zalegrala)
 * [CHANGE] Set querier default level to INFO [#4943](https://github.com/grafana/tempo/pull/4943) (@javiermolinar)
 * [CHANGE] Change retention to honor compactor disablement [#5044](https://github.com/grafana/tempo/pull/5044) (@zalegrala)
+* [CHANGE] Continue on error in tempo-cli rewrite-blocks [#5043](https://github.com/grafana/tempo/pull/5043) (@zalegrala)
 * [FEATURE] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
