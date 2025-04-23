@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -23,23 +24,23 @@ import (
 type dropTracesCmd struct {
 	backendOptions
 
-	TenantID  string `arg:"" help:"tenant ID to search"`
-	TraceIDs  string `arg:"" help:"Trace IDs to drop"`
-	DropTrace bool   `name:"drop-trace" help:"actually attempt to drop the trace" default:"false"`
+	TenantID   string `arg:"" help:"tenant ID to search"`
+	TraceIDs   string `arg:"" help:"Trace IDs to drop"`
+	DropTrace  bool   `name:"drop-trace" help:"actually attempt to drop the trace" default:"false"`
+	Background bool   `name:"background" help:"run in background mode" default:"false"`
 }
 
 func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
-	fmt.Printf("beginning process to drop traces %v from tenant %v\n", cmd.TraceIDs, cmd.TenantID)
-	fmt.Println("**warning**: compaction must be disabled or a compactor may duplicate a block as this process is rewriting it")
-	fmt.Println("")
-	if cmd.DropTrace {
-		fmt.Println("************************************************************************")
-		fmt.Println("**this is not a dry run. blocks will be rewritten and marked compacted**")
-		fmt.Println("************************************************************************")
-		fmt.Println("")
-	}
+	var (
+		logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+		ctx    = context.Background()
+	)
 
-	ctx := context.Background()
+	logger.Info("beginning process to drop traces", "traces", cmd.TraceIDs, "tenant", cmd.TenantID)
+	logger.Warn("compaction must be disabled or a compactor may duplicate a block as this process is rewriting it")
+	if cmd.DropTrace {
+		logger.Warn("this is not a dry run. blocks will be rewritten and marked compacted")
+	}
 
 	r, w, c, err := loadBackend(&cmd.backendOptions, opts)
 	if err != nil {
@@ -59,50 +60,48 @@ func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
 	}
 
 	// It might be significantly improved if common.BackendBlock supported bulk searches.
-	blocks, err := blocksWithAnyTraceID(ctx, r, cmd.TenantID, traceIDs...)
+	blocks, err := cmd.blocksWithAnyTraceID(ctx, r, logger, cmd.TenantID, traceIDs...)
 	if err != nil {
 		return err
 	}
 
 	if len(blocks) == 0 {
-		fmt.Printf("\ntraces %s not found in any block. skipping\n", cmd.TraceIDs)
+		logger.Info("traces not found in any block", "traces", cmd.TraceIDs)
 	}
 
 	// Remove traces from blocks
 	for _, block := range blocks {
-		// print out trace IDs to be removed in the block
-		fmt.Printf("blockInfo: ID: %v, Size: %d Total Traces: %d\n", block.BlockID, block.Size_, block.TotalObjects)
-
 		if !cmd.DropTrace {
-			fmt.Println("**not dropping trace, use --drop-trace to actually drop**")
+			logger.Warn("not dropping trace, use --drop-trace to actually drop")
 			continue
 		}
 
-		fmt.Printf("  rewriting %v\n", block.BlockID)
-		newMeta, err := rewriteBlock(ctx, r, w, block, traceIDs)
+		logger.Info("rewriting block", "block", block.BlockID, "size", block.Size_, "totalTraces", block.TotalObjects)
+		newMeta, err := rewriteBlock(ctx, r, w, block, traceIDs, logger)
 		if err != nil {
-			return err
+			logger.Error("error rewriting block", "block", block.BlockID, "err", err)
+			continue
 		}
 		if newMeta == nil {
-			fmt.Printf("  block %v was removed\n", block.BlockID)
+			logger.Info("block removed", "block", block.BlockID)
 		} else {
-			fmt.Printf("  rewrote to new block: %v\n", newMeta.BlockID)
+			logger.Info("rewrote block", "block", block.BlockID, "newBlock", newMeta.BlockID)
 		}
 
-		fmt.Printf("  marking %v compacted\n", block.BlockID)
+		logger.Info("marking block compacted", "block", block.BlockID)
 		err = c.MarkBlockCompacted((uuid.UUID)(block.BlockID), block.TenantID)
 		if err != nil {
-			return err
+			logger.Error("error marking block compacted", "block", block.BlockID, "err", err)
 		}
 	}
 	if cmd.DropTrace {
-		fmt.Printf("successfully rewrote blocks dropping requested traces: %v from tenant: %v\n", cmd.TraceIDs, cmd.TenantID)
+		logger.Info("successfully rewrote blocks dropping requested traces", "traces", cmd.TraceIDs, "tenant", cmd.TenantID)
 	}
 
 	return nil
 }
 
-func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta *backend.BlockMeta, traceIDs []common.ID) (*backend.BlockMeta, error) {
+func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta *backend.BlockMeta, traceIDs []common.ID, logger *slog.Logger) (*backend.BlockMeta, error) {
 	enc, err := encoding.FromVersion(meta.Version)
 	if err != nil {
 		return nil, fmt.Errorf("error getting encoder: %w", err)
@@ -142,7 +141,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 		DropObject: func(id common.ID) bool {
 			for _, tid := range traceIDs {
 				if bytes.Equal(id, tid) {
-					fmt.Printf("dropping trace %s\n", util.TraceIDToHexString(id))
+					logger.Info("dropping trace", "traceID", util.TraceIDToHexString(id))
 					return true
 				}
 			}
@@ -160,9 +159,12 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 	}
 
 	compactor := enc.NewCompactor(opts)
-	fmt.Println("--beginning compaction logs--")
-	out, err := compactor.Compact(ctx, log.NewLogfmtLogger(os.Stdout), r, w, []*backend.BlockMeta{meta})
-	fmt.Println("--ending compaction logs--")
+
+	slog.Info("beginning compaction logs")
+	compactionLogger := log.NewLogfmtLogger(os.Stdout)
+	compactionLogger = log.With(compactionLogger, "compactor", "redaction", "block", meta.BlockID, "tenant", meta.TenantID)
+	out, err := compactor.Compact(ctx, compactionLogger, r, w, []*backend.BlockMeta{meta})
+	slog.Info("ending compaction logs")
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +184,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 	newMeta := out[0]
 
 	if newMeta.TotalObjects != meta.TotalObjects-int64(len(traceIDs)) {
-		fmt.Printf("expected output to have one less object then in. out: %d in: %d", newMeta.TotalObjects, meta.TotalObjects)
+		slog.Warn("expected output to have one less object then in", "out", newMeta.TotalObjects, "in", meta.TotalObjects)
 	}
 
 	return newMeta, nil
@@ -192,7 +194,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 // It is enough to know if a block contains one of the trace IDs since we will
 // open each block and skip any of the trace IDs which are passed into the
 // command.
-func blocksWithAnyTraceID(ctx context.Context, r backend.Reader, tenantID string, traceIDs ...common.ID) ([]*backend.BlockMeta, error) {
+func (cmd *dropTracesCmd) blocksWithAnyTraceID(ctx context.Context, r backend.Reader, logger *slog.Logger, tenantID string, traceIDs ...common.ID) ([]*backend.BlockMeta, error) {
 	blockIDs, _, err := r.Blocks(ctx, tenantID)
 	if err != nil {
 		return nil, err
@@ -209,9 +211,9 @@ func blocksWithAnyTraceID(ctx context.Context, r backend.Reader, tenantID string
 			defer wg.Done()
 
 			// search here
-			meta, err := isInBlock(ctx, r, blockNum2, id2, tenantID, traceIDs...)
+			meta, err := isInBlock(ctx, r, cmd.Background, blockNum2, id2, tenantID, traceIDs...)
 			if err != nil {
-				fmt.Println("\nError querying block:", err)
+				logger.Error("error querying block", "block", id2, "err", err)
 				return
 			}
 
@@ -232,10 +234,12 @@ func blocksWithAnyTraceID(ctx context.Context, r backend.Reader, tenantID string
 	return results, nil
 }
 
-func isInBlock(ctx context.Context, r backend.Reader, blockNum int, id uuid.UUID, tenantID string, traceIDs ...common.ID) (*backend.BlockMeta, error) {
-	fmt.Print(".")
-	if blockNum%100 == 0 {
-		fmt.Print(strconv.Itoa(blockNum))
+func isInBlock(ctx context.Context, r backend.Reader, background bool, blockNum int, id uuid.UUID, tenantID string, traceIDs ...common.ID) (*backend.BlockMeta, error) {
+	if !background {
+		fmt.Print(".")
+		if blockNum%100 == 0 {
+			fmt.Print(strconv.Itoa(blockNum))
+		}
 	}
 
 	meta, err := r.BlockMeta(ctx, id, tenantID)
