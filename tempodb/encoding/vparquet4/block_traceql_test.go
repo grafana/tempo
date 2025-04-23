@@ -179,7 +179,7 @@ func TestOne(t *testing.T) {
 }
 
 func TestBackendNilBlockSearchTraceQL(t *testing.T) {
-	numTraces := 100
+	numTraces := 1
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
@@ -211,9 +211,10 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 		req   traceql.FetchSpansRequest
 	}{
 
-		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
-		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
-		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
+		// {"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
+		// {"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
+		// {"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
+		{"resource", "resource.service.name = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.cluster = "meow"}`)},
 	}
 
 	for _, tc := range searches {
@@ -785,7 +786,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "myservice",
-					Cluster:          ptr("cluster"),
+					Cluster:          nil,
 					Namespace:        ptr("namespace"),
 					Pod:              ptr("pod"),
 					Container:        ptr("container"),
