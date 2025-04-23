@@ -375,7 +375,7 @@ func (r *ctxReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
 	return r.readerAt.ReadAt(p, off)
 }
 
-func createFileWith[T any](t testing.TB, ctx context.Context, rows []T) *parquet.File {
+func createFileWith[T any](t testing.TB, ctx context.Context, rows []T) *parquet.File { //nolint:revive
 	f, err := os.CreateTemp(t.TempDir(), "data.parquet")
 	require.NoError(t, err)
 
