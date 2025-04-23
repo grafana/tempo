@@ -701,9 +701,9 @@ func (p StringEqualPredicate) String() string {
 }
 
 func (p StringEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	if d := c.Dictionary(); d != nil {
-		return keepDictionary(d, p.KeepValue)
-	}
+	// if d := c.Dictionary(); d != nil {
+	// 	return keepDictionary(d, p.KeepValue)
+	// }
 
 	return true
 }
@@ -714,7 +714,12 @@ func (p StringEqualPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (p StringEqualPredicate) KeepValue(v pq.Value) bool {
+	v.Kind()
+	if v.IsNull() {
+		fmt.Printf("v is null\n")
+	}
 	vv := v.ByteArray()
+	fmt.Printf("vv: %s\n", vv)
 	return bytes.Equal(vv, p.value)
 }
 
