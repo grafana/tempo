@@ -74,47 +74,6 @@ func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, maxI
 	return c
 }
 
-// Fetch gets keys from the cache. The keys that are found must be in the order of the keys requested. jpe - just remove
-func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
-	select {
-	case <-ctx.Done():
-		found = nil
-		bufs = nil
-		missed = keys
-		return
-	default:
-	}
-	found, bufs, missed = c.fetch(ctx, keys)
-	return
-}
-
-func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
-	var items map[string]*memcache.Item
-	const method = "Memcache.GetMulti"
-
-	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
-		var err error
-		items, err = c.memcache.GetMulti(keys, memcache.WithAllocator(cacheBufAllocator))
-		if err != nil {
-			level.Error(c.logger).Log("msg", "Failed to get keys from memcached", "err", err)
-		}
-		return err
-	})
-	if err != nil {
-		return found, bufs, keys
-	}
-	for _, key := range keys {
-		item, ok := items[key]
-		if ok {
-			found = append(found, key)
-			bufs = append(bufs, item.Value)
-		} else {
-			missed = append(missed, key)
-		}
-	}
-	return
-}
-
 func memcacheStatusCode(err error) string {
 	// See https://godoc.org/github.com/bradfitz/gomemcache/memcache#pkg-variables
 	if errors.Is(err, memcache.ErrCacheMiss) {
@@ -127,6 +86,18 @@ func memcacheStatusCode(err error) string {
 		return "500"
 	}
 	return "200"
+}
+
+// Fetch gets keys from the cache. The keys that are found must be in the order of the keys requested.
+func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
+	select {
+	case <-ctx.Done():
+		missed = keys
+		return
+	default:
+	}
+	found, bufs, missed = c.fetch(ctx, keys)
+	return
 }
 
 // FetchKey gets a single key from the cache
@@ -155,6 +126,33 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) ([]byte, bool) {
 		return nil, false
 	}
 	return item.Value, true
+}
+
+func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
+	var items map[string]*memcache.Item
+	const method = "Memcache.GetMulti"
+
+	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
+		var err error
+		items, err = c.memcache.GetMulti(keys, memcache.WithAllocator(cacheBufAllocator))
+		if err != nil {
+			level.Error(c.logger).Log("msg", "Failed to get keys from memcached", "err", err)
+		}
+		return err
+	})
+	if err != nil {
+		return found, bufs, keys
+	}
+	for _, key := range keys {
+		item, ok := items[key]
+		if ok {
+			found = append(found, key)
+			bufs = append(bufs, item.Value)
+		} else {
+			missed = append(missed, key)
+		}
+	}
+	return
 }
 
 // Store stores the key in the cache.
