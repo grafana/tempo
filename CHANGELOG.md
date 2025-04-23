@@ -96,6 +96,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Use canonical bytesize when parsing partition.id in the distributor [#5033](https://github.com/grafana/tempo/pull/5033) (@javiermolinar)
 * [BUGFIX] Measure the write latency on append errors [#5034](https://github.com/grafana/tempo/pull/5034) (@javiermolinar)
 * [BUGFIX] Correctly cache frontend jobs for query range (TraceQL Metrics). [#4771](https://github.com/grafana/tempo/pull/4771) (@joe-elliott)
+* [BUGFIX] Fix error propagation in the SyncIterator. [#5045](https://github.com/grafana/tempo/pull/5045) (@joe-elliott)
 * [BUGFIX] Various edge case fixes for query range (TraceQL Metrics) [#4962](https://github.com/grafana/tempo/pull/4962) (@ruslan-mikhailov)
 * [BUGFIX] Fix `TempoBlockListRisingQuickly` alert grouping. [#4876](https://github.com/grafana/tempo/pull/4876) (@mapno)
 
