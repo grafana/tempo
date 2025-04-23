@@ -217,8 +217,26 @@ func TestSyncIteratorPropagatesErrors(t *testing.T) {
 		rows = append(rows, T{i})
 	}
 
-	pf := createFileWith(t, rows)
+	ctx, cancel := context.WithCancel(context.Background())
 
+	pf := createFileWith(t, ctx, rows)
+
+	idx, _, _ := GetColumnIndexByPath(pf, "A")
+	iter := NewSyncIterator(ctx, pf.RowGroups(), idx, "", 1, nil, "A", MaxDefinitionLevel)
+
+	_, err := iter.Next()
+	require.NoError(t, err)
+
+	cancel()
+
+	// iterate until we get an error and confirm it's because of the context cancellation
+	for {
+		_, err = iter.Next()
+		if err != nil {
+			break
+		}
+	}
+	require.ErrorContains(t, err, "context canceled")
 }
 
 func TestColumnIteratorExitEarly(t *testing.T) {
@@ -230,7 +248,7 @@ func TestColumnIteratorExitEarly(t *testing.T) {
 		rows = append(rows, T{i})
 	}
 
-	pf := createFileWith(t, rows)
+	pf := createFileWith(t, context.Background(), rows)
 	idx, _, _ := GetColumnIndexByPath(pf, "A")
 	readSize := 1000
 
@@ -341,7 +359,7 @@ func createTestFile(t testing.TB, count int) *parquet.File {
 		rows = append(rows, T{i})
 	}
 
-	pf := createFileWith(t, rows)
+	pf := createFileWith(t, context.Background(), rows)
 	return pf
 }
 
@@ -357,7 +375,7 @@ func (r *ctxReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
 	return r.readerAt.ReadAt(p, off)
 }
 
-func createFileWith[T any](t testing.TB, rows []T) *parquet.File {
+func createFileWith[T any](t testing.TB, ctx context.Context, rows []T) *parquet.File {
 
 	f, err := os.CreateTemp(t.TempDir(), "data.parquet")
 	require.NoError(t, err)
@@ -378,7 +396,10 @@ func createFileWith[T any](t testing.TB, rows []T) *parquet.File {
 	stat, err := f.Stat()
 	require.NoError(t, err)
 
-	pf, err := parquet.OpenFile(f, stat.Size())
+	pf, err := parquet.OpenFile(&ctxReaderAt{
+		readerAt: f,
+		ctx:      ctx,
+	}, stat.Size(), parquet.FileReadMode(parquet.ReadModeSync))
 	require.NoError(t, err)
 
 	return pf
