@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"context"
+	"io"
 	"math"
 	"os"
 	"strconv"
@@ -207,6 +208,19 @@ func testColumnIteratorPredicate(t *testing.T, makeIter makeTestIterFn) {
 	}
 }
 
+func TestSyncIteratorPropagatesErrors(t *testing.T) {
+	type T struct{ A int }
+
+	rows := []T{}
+	count := 10_000
+	for i := 0; i < count; i++ {
+		rows = append(rows, T{i})
+	}
+
+	pf := createFileWith(t, rows)
+
+}
+
 func TestColumnIteratorExitEarly(t *testing.T) {
 	type T struct{ A int }
 
@@ -331,7 +345,20 @@ func createTestFile(t testing.TB, count int) *parquet.File {
 	return pf
 }
 
+type ctxReaderAt struct {
+	readerAt io.ReaderAt
+	ctx      context.Context
+}
+
+func (r *ctxReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.readerAt.ReadAt(p, off)
+}
+
 func createFileWith[T any](t testing.TB, rows []T) *parquet.File {
+
 	f, err := os.CreateTemp(t.TempDir(), "data.parquet")
 	require.NoError(t, err)
 
