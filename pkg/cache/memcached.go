@@ -153,13 +153,13 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) ([]byte, bool) {
 
 // Store stores the key in the cache.
 func (c *Memcached) Store(ctx context.Context, keys []string, bufs [][]byte) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-
 	for i := range keys {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		err := measureRequest(ctx, "Memcache.Put", c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 			item := memcache.Item{
 				Key:        keys[i],
