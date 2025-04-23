@@ -376,7 +376,6 @@ func (r *ctxReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
 }
 
 func createFileWith[T any](t testing.TB, ctx context.Context, rows []T) *parquet.File {
-
 	f, err := os.CreateTemp(t.TempDir(), "data.parquet")
 	require.NoError(t, err)
 
