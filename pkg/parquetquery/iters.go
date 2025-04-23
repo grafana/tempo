@@ -699,13 +699,13 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 
 		if c.currPage == nil {
 			pg, err := c.currChunk.NextPage()
+			if err != nil && !errors.Is(err, io.EOF) {
+				return EmptyRowNumber(), nil, err
+			}
 			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
 				c.closeCurrRowGroup()
 				continue
-			}
-			if err != nil {
-				return EmptyRowNumber(), nil, err
 			}
 			if c.filter != nil && !c.filter.KeepPage(pg) {
 				// This page filtered out
