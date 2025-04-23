@@ -51,9 +51,9 @@ linters:
     - gosimple
     - govet
     - ineffassign
-    - megacheck
     - misspell
     - revive
+    - staticcheck
     - typecheck
     - unconvert
     - unparam
