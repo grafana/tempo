@@ -36,10 +36,10 @@ func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
 		ctx    = context.Background()
 	)
 
-	level.Info(logger).Log("beginning process to drop traces", "traces", cmd.TraceIDs, "tenant", cmd.TenantID)
-	level.Warn(logger).Log("compaction must be disabled or a compactor may duplicate a block as this process is rewriting it")
+	level.Info(logger).Log("msg", "beginning process to drop traces", "traces", cmd.TraceIDs, "tenant", cmd.TenantID)
+	level.Warn(logger).Log("msg", "compaction must be disabled or a compactor may duplicate a block as this process is rewriting it")
 	if cmd.DropTrace {
-		level.Warn(logger).Log("this is not a dry run. blocks will be rewritten and marked compacted")
+		level.Warn(logger).Log("msg", "this is not a dry run. blocks will be rewritten and marked compacted")
 	}
 
 	r, w, c, err := loadBackend(&cmd.backendOptions, opts)
@@ -66,36 +66,36 @@ func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
 	}
 
 	if len(blocks) == 0 {
-		level.Info(logger).Log("traces not found in any block", "traces", cmd.TraceIDs)
+		level.Info(logger).Log("msg", "traces not found in any block", "traces", cmd.TraceIDs)
 	}
 
 	// Remove traces from blocks
 	for _, block := range blocks {
 		if !cmd.DropTrace {
-			level.Warn(logger).Log("not dropping trace, use --drop-trace to actually drop")
+			level.Warn(logger).Log("msg", "not dropping trace, use --drop-trace to actually drop")
 			continue
 		}
 
-		level.Info(logger).Log("rewriting block", "block", block.BlockID, "size", block.Size_, "totalTraces", block.TotalObjects)
+		level.Info(logger).Log("msg", "rewriting block", "block", block.BlockID, "size", block.Size_, "totalTraces", block.TotalObjects)
 		newMeta, err := rewriteBlock(ctx, r, w, block, traceIDs, logger)
 		if err != nil {
-			level.Error(logger).Log("error rewriting block", "block", block.BlockID, "err", err)
+			level.Error(logger).Log("msg", "error rewriting block", "block", block.BlockID, "err", err)
 			continue
 		}
 		if newMeta == nil {
-			level.Info(logger).Log("block removed", "block", block.BlockID)
+			level.Info(logger).Log("msg", "block removed", "block", block.BlockID)
 		} else {
-			level.Info(logger).Log("rewrote block", "block", block.BlockID, "newBlock", newMeta.BlockID)
+			level.Info(logger).Log("msg", "rewrote block", "block", block.BlockID, "newBlock", newMeta.BlockID)
 		}
 
-		level.Info(logger).Log("marking block compacted", "block", block.BlockID)
+		level.Info(logger).Log("msg", "marking block compacted", "block", block.BlockID)
 		err = c.MarkBlockCompacted((uuid.UUID)(block.BlockID), block.TenantID)
 		if err != nil {
-			level.Error(logger).Log("error marking block compacted", "block", block.BlockID, "err", err)
+			level.Error(logger).Log("msg", "error marking block compacted", "block", block.BlockID, "err", err)
 		}
 	}
 	if cmd.DropTrace {
-		level.Info(logger).Log("successfully rewrote blocks dropping requested traces", "traces", cmd.TraceIDs, "tenant", cmd.TenantID)
+		level.Info(logger).Log("msg", "successfully rewrote blocks dropping requested traces", "traces", cmd.TraceIDs, "tenant", cmd.TenantID)
 	}
 
 	return nil
@@ -141,7 +141,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 		DropObject: func(id common.ID) bool {
 			for _, tid := range traceIDs {
 				if bytes.Equal(id, tid) {
-					level.Info(logger).Log("dropping trace", "traceID", util.TraceIDToHexString(id))
+					level.Info(logger).Log("msg", "dropping trace", "traceID", util.TraceIDToHexString(id))
 					return true
 				}
 			}
@@ -160,9 +160,9 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 
 	compactor := enc.NewCompactor(opts)
 
-	level.Info(logger).Log("beginning compaction logs")
+	level.Info(logger).Log("msg", "beginning compaction logs")
 	out, err := compactor.Compact(ctx, logger, r, w, []*backend.BlockMeta{meta})
-	level.Info(logger).Log("ending compaction logs")
+	level.Info(logger).Log("msg", "ending compaction logs")
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 	newMeta := out[0]
 
 	if newMeta.TotalObjects != meta.TotalObjects-int64(len(traceIDs)) {
-		level.Warn(logger).Log("expected output to have one less object then in", "out", newMeta.TotalObjects, "in", meta.TotalObjects)
+		level.Warn(logger).Log("msg", "expected output to have one less object then in", "out", newMeta.TotalObjects, "in", meta.TotalObjects)
 	}
 
 	return newMeta, nil
@@ -211,7 +211,7 @@ func (cmd *dropTracesCmd) blocksWithAnyTraceID(ctx context.Context, r backend.Re
 			// search here
 			meta, err := isInBlock(ctx, r, cmd.Background, blockNum2, id2, tenantID, traceIDs...)
 			if err != nil {
-				level.Error(logger).Log("error querying block", "block", id2, "err", err)
+				level.Error(logger).Log("msg", "error querying block", "block", id2, "err", err)
 				return
 			}
 
