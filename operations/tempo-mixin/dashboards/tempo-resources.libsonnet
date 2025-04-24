@@ -98,9 +98,6 @@ dashboard_utils {
         .addPanel(
           $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.memcached),
         )
-        .addPanel(
-          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.memcached)),
-        )
       )
       .addRow(
         g.row('Block builder')
