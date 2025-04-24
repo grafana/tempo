@@ -42,7 +42,7 @@ TraceQL metrics can help you answer these questions by parsing your traces in ag
 TraceQL metrics are powered by
 the [TraceQL metrics API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
 
-![Metrics visualization in Grafana](/media/docs/tempo/metrics-explore-sample-2.4.png)
+![Metrics visualization in Grafana](/media/docs/tempo/metrics-explore-sapmle-v2.7.png)
 
 ## RED metrics, TraceQL, and PromQL
 
