@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"strconv"
 	"time"
 
@@ -37,9 +36,6 @@ const (
 	KindServer      = "server"
 	KindProducer    = "producer"
 	KindConsumer    = "consumer"
-
-	EnvVarAsyncIteratorName  = "VPARQUET_ASYNC_ITERATOR"
-	EnvVarAsyncIteratorValue = "1"
 )
 
 var StatusCodeMapping = map[string]int{
@@ -354,17 +350,11 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator
 
 func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
-	async := os.Getenv(EnvVarAsyncIteratorName) == EnvVarAsyncIteratorValue
-
 	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
 		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
 		if index == -1 {
 			// TODO - don't panic, error instead
 			panic("column not found in parquet file:" + name)
-		}
-
-		if async {
-			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs, maxDef)
 		}
 
 		var opts []pq.SyncIteratorOpt

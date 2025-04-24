@@ -18,9 +18,6 @@ var iterTestCases = []struct {
 	name     string
 	makeIter makeTestIterFn
 }{
-	{"async", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
-		return NewColumnIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs, MaxDefinitionLevel)
-	}},
 	{"sync", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
 		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs, MaxDefinitionLevel)
 	}},
@@ -237,86 +234,6 @@ func TestSyncIteratorPropagatesErrors(t *testing.T) {
 		}
 	}
 	require.ErrorContains(t, err, "context canceled")
-}
-
-func TestColumnIteratorExitEarly(t *testing.T) {
-	type T struct{ A int }
-
-	rows := []T{}
-	count := 10_000
-	for i := 0; i < count; i++ {
-		rows = append(rows, T{i})
-	}
-
-	pf := createFileWith(t, context.Background(), rows)
-	idx, _, _ := GetColumnIndexByPath(pf, "A")
-	readSize := 1000
-
-	readIter := func(iter Iterator) (int, error) {
-		received := 0
-		for {
-			res, err := iter.Next()
-			if err != nil {
-				return received, err
-			}
-			if res == nil {
-				break
-			}
-			received++
-		}
-		return received, nil
-	}
-
-	t.Run("cancelledEarly", func(t *testing.T) {
-		// Cancel before iterating
-		ctx, cancel := context.WithCancel(context.TODO())
-		cancel()
-		iter := NewColumnIterator(ctx, pf.RowGroups(), idx, "", readSize, nil, "A", MaxDefinitionLevel)
-		count, err := readIter(iter)
-		require.ErrorContains(t, err, "context canceled")
-		require.Equal(t, 0, count)
-	})
-
-	t.Run("cancelledPartial", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.TODO())
-		iter := NewColumnIterator(ctx, pf.RowGroups(), idx, "", readSize, nil, "A", MaxDefinitionLevel)
-
-		// Read some results
-		_, err := iter.Next()
-		require.NoError(t, err)
-
-		// Then cancel
-		cancel()
-
-		// Read again = context cancelled
-		_, err = readIter(iter)
-		require.ErrorContains(t, err, "context canceled")
-	})
-
-	t.Run("closedEarly", func(t *testing.T) {
-		// Close before iterating
-		iter := NewColumnIterator(context.TODO(), pf.RowGroups(), idx, "", readSize, nil, "A", MaxDefinitionLevel)
-		iter.Close()
-		count, err := readIter(iter)
-		require.NoError(t, err)
-		require.Equal(t, 0, count)
-	})
-
-	t.Run("closedPartial", func(t *testing.T) {
-		iter := NewColumnIterator(context.TODO(), pf.RowGroups(), idx, "", readSize, nil, "A", MaxDefinitionLevel)
-
-		// Read some results
-		_, err := iter.Next()
-		require.NoError(t, err)
-
-		// Then close
-		iter.Close()
-
-		// Read again = should close early
-		res2, err := readIter(iter)
-		require.NoError(t, err)
-		require.Less(t, readSize+res2, count)
-	})
 }
 
 func BenchmarkColumnIterator(b *testing.B) {
