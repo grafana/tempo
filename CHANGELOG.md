@@ -67,6 +67,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Compactor: pooling changes to reduce memory usage [#4985](https://github.com/grafana/tempo/pull/4985) (@mdisibio)
 * [ENHANCEMENT] distributor: add IPv6 support [#4840](https://github.com/grafana/tempo/pull/4840) (@gjacquet)
 * [ENHANCEMENT] Support TraceQL Metrics checks in Vulture [#4886](https://github.com/grafana/tempo/pull/4886) (@ruslan-mikhailov)
+* [ENHANCEMENT] Add memcached to the resources dashboard [#5049](https://github.com/grafana/tempo/pull/5049) (@javiermolinar)
 * [ENHANCEMENT] Query-frontend: logs add msg to the log line [#4975](https://github.com/grafana/tempo/pull/4975) (@jmichalek132)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
