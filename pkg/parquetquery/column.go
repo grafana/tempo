@@ -18,6 +18,19 @@ func (h *ColumnChunkHelper) Dictionary() parquet.Dictionary {
 		h.pages = h.ColumnChunk.Pages()
 	}
 
+	type dictReader interface {
+		ReadDictionary() (parquet.Dictionary, error)
+	}
+
+	if dr, ok := h.pages.(dictReader); ok {
+		dict, err := dr.ReadDictionary()
+		if err != nil {
+			h.err = err
+			return nil
+		}
+		return dict
+	}
+
 	if h.firstPage == nil {
 		h.firstPage, h.err = h.pages.ReadPage()
 	}
