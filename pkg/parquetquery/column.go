@@ -18,12 +18,12 @@ func (h *ColumnChunkHelper) Dictionary() parquet.Dictionary {
 		h.pages = h.ColumnChunk.Pages()
 	}
 
-	type dictReader interface {
-		ReadDictionary() (parquet.Dictionary, error)
-	}
-
-	if dr, ok := h.pages.(dictReader); ok {
-		dict, err := dr.ReadDictionary()
+	// The FilePages struct in parquet-go exposes a ReadDictionary method that
+	// will return the dictionary w/o decoding the first "real" page of the column chunk.
+	// If the dictionary allows us to skip the column chunk, this prevents the unnecessary decoding
+	// of the first page.
+	if fp, ok := h.pages.(*parquet.FilePages); ok {
+		dict, err := fp.ReadDictionary()
 		if err != nil {
 			h.err = err
 			return nil
