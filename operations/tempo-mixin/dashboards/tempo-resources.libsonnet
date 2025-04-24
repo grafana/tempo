@@ -91,7 +91,7 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Block builder')
+        g.row('Memcached')
         .addPanel(
           $.containerCPUUsagePanel('CPU', $._config.jobs.block_builder),
         )
@@ -100,6 +100,18 @@ dashboard_utils {
         )
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.block_builder)),
+        )
+      )
+      .addRow(
+        g.row('Block builder')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $._config.jobs.memcached),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.memcached),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.memcached)),
         )
       ),
   },
