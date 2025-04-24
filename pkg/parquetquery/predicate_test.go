@@ -239,7 +239,7 @@ func testPredicate(t *testing.T, tc predicateTestCase) {
 
 	p := InstrumentedPredicate{Pred: tc.predicate}
 
-	i := NewColumnIterator(context.TODO(), r.RowGroups(), 0, "test", 100, &p, "", MaxDefinitionLevel)
+	i := NewSyncIterator(context.TODO(), r.RowGroups(), 0, "test", 100, &p, "", MaxDefinitionLevel)
 	for {
 		res, err := i.Next()
 		require.NoError(t, err)
