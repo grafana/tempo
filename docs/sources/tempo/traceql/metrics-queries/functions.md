@@ -105,10 +105,10 @@ By default, `step` automatically chooses a dynamic value based on the query star
 
 Any value used for `step` needs to include a duration value, such as `30s` for `s`econds or `1m` for `m`inutes.
 
-You can configure this parameter using using Grafana Explore or using the Tempo API.
+You can configure this parameter using Grafana Explore or using the Tempo API.
 Refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics) for information about using the API.
 
-To check or change the `step` value, open Grafana Explore:
+To check or change the `step` value using Grafana Explore:
 1. Select your Tempo data source.
 1. Select either the **Search** or **TraceQL** query type tab.
 1. Expand the **Metrics options** to view the **Step** value.
