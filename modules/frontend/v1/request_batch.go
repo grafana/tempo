@@ -88,6 +88,10 @@ func (b *requestBatch) doneChan(stop <-chan struct{}) <-chan struct{} {
 		// tests each request context and only closes done if all are done.
 		// technically it is only testing one a time, but the loop will only complete
 		// if all are done.
+		// NOTE: The function has race conditions, but the impact is negligible.
+		// This occurs when all responses or an error are already received.
+		// In such cases, pipelineRequests can be modified during the loop iteration
+		// but will exit immediately afterward as the stop channel will be closed.
 		for _, r := range b.pipelineRequests {
 			select {
 			case <-r.OriginalContext().Done():
