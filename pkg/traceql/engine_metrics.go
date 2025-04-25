@@ -900,7 +900,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	me.end = req.End
 
 	if me.maxExemplars > 0 {
-		cb := func() bool { return me.exemplarCount < me.maxExemplars }
+		cb := func() bool {
+			me.mtx.RLock()
+			defer me.mtx.RUnlock()
+			return me.exemplarCount < me.maxExemplars
+		}
 		meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
 		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 	}
