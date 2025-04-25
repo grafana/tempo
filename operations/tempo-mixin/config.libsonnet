@@ -14,6 +14,7 @@
       distributor: 'distributor',
       compactor: 'compactor',
       block_builder: 'block-builder',
+      memcached: 'memcached',
     },
     alerts: {
       compactions_per_hour_failed: 2,
