@@ -71,7 +71,10 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		var err error
 
 		// if the combiner is complete for the block's end time, we can skip searching it
-		if combiner.IsCompleteFor(uint32(blockMeta.EndTime.Unix())) {
+		searchMtx.Lock()
+		isComplete := combiner.IsCompleteFor(uint32(blockMeta.EndTime.Unix()))
+		searchMtx.Unlock()
+		if isComplete {
 			return
 		}
 
