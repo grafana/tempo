@@ -33,7 +33,7 @@ func TestCrossClusterReads(t *testing.T) {
 	_, tempoQueryFrontendB := createCluster(t, s, "b")
 
 	// write to cluster A
-	c, err := util.NewJaegerGRPCClient(tempoDistributorA.Endpoint(14250))
+	c, err := util.NewOtlpJaegerClient(tempoDistributorA.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
