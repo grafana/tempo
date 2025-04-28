@@ -5,15 +5,15 @@ on:
       - 'v*'
 
 # Needed to login to DockerHub
-permissions:
-  contents: read
-  id-token: write
-
+permissions: {}
 jobs:
 
   release:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     env:
       NFPM_SIGNING_KEY_FILE: /tmp/nfpm-private-key.key
     steps:
