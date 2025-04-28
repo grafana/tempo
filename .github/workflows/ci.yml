@@ -177,7 +177,7 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
 
       - name: Check vendor
         run: make vendor-check
