@@ -65,7 +65,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			bytesProcessed = finalResponse.Metrics.InspectedBytes
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
-		logQueryRangeResult(logger, tenant, duration.Seconds(), req, finalResponse, err)
+		logQueryRangeResult(logger, tenant, duration.Seconds(), req, finalResponse, cfg.Metrics.Sharder.MaxResponseSeries, err)
 		return err
 	}
 }
@@ -115,12 +115,12 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logQueryRangeResult(logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, err)
+		logQueryRangeResult(logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, cfg.Metrics.Sharder.MaxResponseSeries, err)
 		return resp, err
 	})
 }
 
-func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) {
+func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, maxSeries int, err error) {
 	if resp == nil {
 		level.Info(logger).Log(
 			"msg", "query range response - no resp",
@@ -147,7 +147,8 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 		"tenant", tenantID,
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
-		"max_series", req.MaxSeries,
+		"max_series_req", req.MaxSeries,
+		"max_series_config", maxSeries,
 		"duration_seconds", durationSeconds,
 		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
 		"total_requests", resp.Metrics.TotalJobs,

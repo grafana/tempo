@@ -286,6 +286,9 @@ func (m *MetricsCompare) result() SeriesSet {
 }
 
 func (m *MetricsCompare) length() int {
+	if m.seriesAgg != nil {
+		return m.seriesAgg.Length()
+	}
 	return len(m.baselines) + len(m.selections) + len(m.baselineTotals) + len(m.selectionTotals)
 }
 
