@@ -16,8 +16,8 @@ permissions: {}
 
 jobs:
   main:
-    # skip it in all forks and only run it for merged PRs
-    if: {{ ! github.event.pull_request.head.repo.fork && github.event.pull_request.merged == true }}  
+    # skip it in all forks, only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
