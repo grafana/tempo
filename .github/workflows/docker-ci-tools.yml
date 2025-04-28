@@ -13,7 +13,6 @@ env:
 # Needed to login to DockerHub
 permissions:
   contents: read
-  id-token: write
 
 jobs:
 
@@ -37,6 +36,8 @@ jobs:
       matrix:
         runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
+    permissions:
+      id-token: write
     env:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
@@ -56,6 +57,8 @@ jobs:
     if: github.repository == 'grafana/tempo'
     needs: ['get-image-tag', 'docker-ci-tools']
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     env:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
