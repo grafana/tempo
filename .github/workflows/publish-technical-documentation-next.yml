@@ -1,5 +1,7 @@
 name: publish-technical-documentation-next
 
+permissions: {}
+
 on:
   push:
     branches:
