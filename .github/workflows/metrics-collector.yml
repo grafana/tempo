@@ -3,6 +3,8 @@ on:
   schedule:
     - cron: "*/30 * * * *"
 
+permissions: {}
+
 jobs:
   main:
     # this action keeps failing in all forks, only run in grafana/tempo.

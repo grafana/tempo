@@ -1,5 +1,7 @@
 name: syft-sbom-ci
 
+permissions: {}
+
 on:
   release:
     types: [created]

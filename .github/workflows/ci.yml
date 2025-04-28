@@ -16,6 +16,8 @@ concurrency:
   group: "${{ github.ref_name }}-${{ github.head_ref }}"
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
   lint:
     name: Lint
