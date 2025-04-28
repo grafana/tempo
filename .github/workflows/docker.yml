@@ -10,7 +10,6 @@ on:
 # Needed to login to DockerHub
 permissions:
   contents: read
-  id-token: write
 
 jobs:
 
@@ -40,6 +39,8 @@ jobs:
         component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
         runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
+    permissions:
+      id-token: write
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
     steps:
@@ -71,6 +72,8 @@ jobs:
   manifest:
     if: github.repository == 'grafana/tempo'
     needs: ['get-tag', 'docker']
+    permissions:
+      id-token: write
     strategy:
       matrix:
         component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
@@ -106,6 +109,8 @@ jobs:
     if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     needs: manifest
+    permissions:
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
