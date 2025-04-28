@@ -4,7 +4,9 @@ on:
   # Triggers the workflow on when an issue is milestoned.
   issues:
     types: [milestoned]
-    
+
+permissions: {}
+
 jobs:
   build:
     # only run in grafana/tempo.

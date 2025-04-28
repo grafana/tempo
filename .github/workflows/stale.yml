@@ -1,4 +1,5 @@
 name: Stale check
+
 on:
   workflow_dispatch: {}
   schedule:
