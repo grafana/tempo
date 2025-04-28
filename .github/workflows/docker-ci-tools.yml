@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - id: get-tag
         run: |
@@ -42,6 +44,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Login to DockerHub
         uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.1
@@ -61,6 +65,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Login to DockerHub
         uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.1
