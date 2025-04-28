@@ -9,4 +9,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: grafana/writers-toolkit/update-make-docs@update-make-docs/v1

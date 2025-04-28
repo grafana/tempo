@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       - uses: grafana/writers-toolkit/publish-technical-documentation-release@publish-technical-documentation-release/v1
         with:
