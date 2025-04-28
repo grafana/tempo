@@ -48,6 +48,8 @@ jobs:
           key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
 
       - name: lint
+        # using env instead of template expansions to avoid template injection
+        # https://woodruffw.github.io/zizmor/audits/#template-injection
         run: |
           make lint base=origin/${BASE_REF}
           sudo chown -R $(id -u):$(id -g) .cache/golangci-lint  # needed to archive cache
