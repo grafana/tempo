@@ -136,10 +136,10 @@ jobs:
       - name: Get Vault secrets
         uses: grafana/shared-workflows/actions/get-vault-secrets@28361cdb22223e5f1e34358c86c20908e7248760 # get-vault-secrets-v1.1.0
         with:
-          common_secrets: |
-            GITHUB_APP_ID=updater-app:app-id
-            GITHUB_APP_INSTALLATION_ID=updater-app:app-installation-id
-            GITHUB_APP_PRIVATE_KEY=updater-app:private-key
+          repo_secrets: |
+            GITHUB_APP_ID=github-app:app-id
+            GITHUB_APP_INSTALLATION_ID=github-app:app-installation-id
+            GITHUB_APP_PRIVATE_KEY=github-app:private-key
 
       - name: Update jsonnet
         run: |
