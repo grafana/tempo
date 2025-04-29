@@ -1,16 +1,18 @@
 name: Stale check
+
 on:
   workflow_dispatch: {}
   schedule:
     - cron: '0 0 * * *'
-permissions:
-  issues: write
-  pull-requests: write
+permissions: {}
 jobs:
   stale:
     # only run in grafana/tempo.
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/stale@v9.1.0
         with:

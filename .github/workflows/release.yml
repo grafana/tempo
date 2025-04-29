@@ -5,27 +5,29 @@ on:
       - 'v*'
 
 # Needed to login to DockerHub
-permissions:
-  contents: read
-  id-token: write
-
+permissions: {}
 jobs:
 
   release:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     env:
       NFPM_SIGNING_KEY_FILE: /tmp/nfpm-private-key.key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: fetch tags
         run: git fetch --tags
 
       - id: "get-secrets"
         name: "get nfpm signing keys"
-        uses: "grafana/shared-workflows/actions/get-vault-secrets@main"
+        uses: "grafana/shared-workflows/actions/get-vault-secrets@28361cdb22223e5f1e34358c86c20908e7248760" # get-vault-secrets-v1.1.0
         with:
           common_secrets: |
             NFPM_SIGNING_KEY=packages-gpg:private-key
