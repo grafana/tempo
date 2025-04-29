@@ -17,5 +17,3 @@ jobs:
       security-events: write
 
     uses: grafana/shared-workflows/.github/workflows/reusable-zizmor.yml@c0944351c68e107649cb9c9a86204b400b607564
-    with:
-      fail-severity: high
