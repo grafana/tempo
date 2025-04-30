@@ -719,14 +719,12 @@ func TestLimitExemplars(t *testing.T) {
 		exemplars         []tempopb.Exemplar
 		limit             int
 		expectedExemplars []tempopb.Exemplar
-		expectedRemaining int
 	}{
 		{
 			name:              "no exemplars",
 			exemplars:         []tempopb.Exemplar{},
 			limit:             5,
 			expectedExemplars: []tempopb.Exemplar{},
-			expectedRemaining: 5,
 		},
 		{
 			name: "fewer exemplars than limit",
@@ -741,7 +739,6 @@ func TestLimitExemplars(t *testing.T) {
 				{TimestampMs: 2000, Value: 2.0},
 				{TimestampMs: 3000, Value: 3.0},
 			},
-			expectedRemaining: 2,
 		},
 		{
 			name: "equal exemplars to limit",
@@ -756,7 +753,6 @@ func TestLimitExemplars(t *testing.T) {
 				{TimestampMs: 2000, Value: 2.0},
 				{TimestampMs: 3000, Value: 3.0},
 			},
-			expectedRemaining: 0,
 		},
 		{
 			name: "more exemplars than limit, keeps most recent",
@@ -773,7 +769,6 @@ func TestLimitExemplars(t *testing.T) {
 				{TimestampMs: 4000, Value: 4.0},
 				{TimestampMs: 5000, Value: 5.0},
 			},
-			expectedRemaining: 0,
 		},
 		{
 			name: "zero limit",
@@ -783,7 +778,6 @@ func TestLimitExemplars(t *testing.T) {
 			},
 			limit:             0,
 			expectedExemplars: []tempopb.Exemplar{},
-			expectedRemaining: 0,
 		},
 	}
 
@@ -793,10 +787,99 @@ func TestLimitExemplars(t *testing.T) {
 			series := &tempopb.TimeSeries{
 				Exemplars: tc.exemplars,
 			}
-			remaining := limitExemplars(series, tc.limit)
+			limitExemplars(series, tc.limit)
 
 			assert.Equal(t, tc.expectedExemplars, series.Exemplars, "exemplars should be limited correctly")
-			assert.Equal(t, tc.expectedRemaining, remaining, "remaining count should match expected value")
+		})
+	}
+}
+
+func TestFairLimit(t *testing.T) {
+	tests := []struct {
+		name     string
+		arrLens  []int
+		limit    int
+		expected []int
+	}{
+		{
+			name:     "no arrays",
+			arrLens:  []int{},
+			limit:    10,
+			expected: []int{},
+		},
+		{
+			name:     "no arrays, zero limit",
+			arrLens:  []int{},
+			limit:    0,
+			expected: []int{},
+		},
+		{
+			name:     "zero limit",
+			arrLens:  []int{3, 2, 4},
+			limit:    0,
+			expected: []int{0, 0, 0},
+		},
+		{
+			name:     "total under limit",
+			arrLens:  []int{3, 2, 4},
+			limit:    20,
+			expected: []int{3, 2, 4},
+		},
+		{
+			name:     "total equal to limit",
+			arrLens:  []int{3, 2, 4},
+			limit:    9,
+			expected: []int{3, 2, 4},
+		},
+		{
+			name:     "fair distribution",
+			arrLens:  []int{50, 70, 20},
+			limit:    100,
+			expected: []int{40, 40, 20},
+		},
+		{
+			name:     "uneven distribution with remaining capacity",
+			arrLens:  []int{10, 5, 10},
+			limit:    15,
+			expected: []int{5, 5, 5},
+		},
+		{
+			name:     "tiny limit forces one per series",
+			arrLens:  []int{3, 3, 3},
+			limit:    3,
+			expected: []int{1, 1, 1},
+		},
+		{
+			name:     "tiny limit forces one series empty",
+			arrLens:  []int{3, 3, 3},
+			limit:    2,
+			expected: []int{1, 1, 0},
+		},
+		{
+			name:     "very small limit with uneven series",
+			arrLens:  []int{5, 2, 4},
+			limit:    5,
+			expected: []int{2, 2, 1},
+		},
+		{
+			name:     "one array gets all",
+			arrLens:  []int{0, 0, 10},
+			limit:    5,
+			expected: []int{0, 0, 5},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := fairLimit(tt.arrLens, tt.limit)
+			assert.Equal(t, tt.expected, result, "limited lengths don't match expected")
+
+			// Check that we're not exceeding the limit
+			total := 0
+			for _, l := range result {
+				total += l
+			}
+			assert.LessOrEqual(t, total, tt.limit, "total should not exceed limit")
 		})
 	}
 }

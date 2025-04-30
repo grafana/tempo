@@ -208,12 +208,18 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()
 // have NaNs, and we can't attach them until the very end.
 func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResponse) {
-	limit := int(req.Exemplars)
-	for _, ss := range res.Series {
+	arrLens := make([]int, len(res.Series))
+	for i, ss := range res.Series {
+		if ss != nil {
+			arrLens[i] = len(ss.Exemplars)
+		}
+	}
+	arrLens = fairLimit(arrLens, int(req.Exemplars))
+	for i, ss := range res.Series {
 		if ss == nil {
 			continue
 		}
-		limit = limitExemplars(ss, limit)
+		limitExemplars(ss, arrLens[i])
 		for i, e := range ss.Exemplars {
 			// Only needed for NaNs
 			if !math.IsNaN(e.Value) {
@@ -240,10 +246,99 @@ func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResp
 
 // limitExemplars limits the number of exemplars to the given limit
 // giving favor to the most recent exemplars
-// and returns remaining number of exemplars that can be added
-func limitExemplars(ss *tempopb.TimeSeries, limit int) int {
+func limitExemplars(ss *tempopb.TimeSeries, limit int) {
 	if len(ss.Exemplars) > limit {
 		ss.Exemplars = ss.Exemplars[len(ss.Exemplars)-limit:]
 	}
-	return limit - len(ss.Exemplars)
+}
+
+// fairLimit having an array of lengths, distributes the limit evenly across the arrays
+func fairLimit(arrLens []int, limit int) []int {
+	n := len(arrLens)
+	if n == 0 {
+		return []int{}
+	}
+
+	// Calculate total elements across all arrays
+	totalElements := 0
+	for _, length := range arrLens {
+		totalElements += length
+	}
+
+	// If total elements don't exceed the limit, no need to limit
+	if totalElements <= limit {
+		return arrLens
+	}
+
+	// Calculate fair share (the equal portion each array would get)
+	fairShare := limit / n
+
+	result := make([]int, n)
+	allocated := 0 // track how many elements we've allocated
+
+	// First pass: give each array up to its fair share
+	for i, length := range arrLens {
+		if length <= fairShare {
+			// This array is already under or at fair share, keep all elements
+			result[i] = length
+			allocated += length
+		} else {
+			// This array exceeds fair share, limit it to fair share for now
+			result[i] = fairShare
+			allocated += fairShare
+		}
+	}
+
+	// Calculate remaining capacity after first allocation
+	remaining := limit - allocated
+
+	// If we still have remaining capacity, distribute it proportionally
+	// among arrays that were limited (i.e., those that exceed fairShare)
+	if remaining > 0 {
+		// Count arrays that need more than fair share
+		needMore := 0
+		for i, length := range arrLens {
+			if length > result[i] {
+				needMore++
+			}
+		}
+
+		// If some arrays need more elements
+		for needMore > 0 && remaining > 0 {
+			// Calculate additional fair share for remaining capacity
+			additionalShare := remaining / needMore
+			if additionalShare == 0 {
+				additionalShare = 1 // Ensure we make progress
+			}
+
+			// Distribute additional elements
+			newNeedMore := 0
+			for i := 0; i < n && remaining > 0; i++ {
+				if arrLens[i] > result[i] {
+					// Calculate how much more this array can take
+					canTake := min(additionalShare, arrLens[i]-result[i])
+					canTake = min(canTake, remaining)
+
+					// Allocate additional elements
+					result[i] += canTake
+					remaining -= canTake
+
+					// Check if this array still needs more after this allocation
+					if arrLens[i] > result[i] {
+						newNeedMore++
+					}
+				}
+			}
+
+			// Update needMore for next iteration
+			needMore = newNeedMore
+
+			// Break if we can't allocate any more (to avoid infinite loop)
+			if additionalShare == 0 {
+				break
+			}
+		}
+	}
+
+	return result
 }
