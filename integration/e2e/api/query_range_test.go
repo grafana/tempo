@@ -85,11 +85,10 @@ sendLoop:
 			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
 			exemplarCount := 0
 			for _, series := range queryRangeRes.GetSeries() {
-				exemplars := len(series.GetExemplars())
-				exemplarCount += exemplars
-				assert.LessOrEqual(t, exemplars, maxExemplars)
+				exemplarCount += len(series.GetExemplars())
 			}
-			assert.GreaterOrEqual(t, exemplarCount, 1)
+			assert.LessOrEqual(t, exemplarCount, maxExemplars, "should have at most %d exemplars", maxExemplars)
+			assert.GreaterOrEqual(t, exemplarCount, 1, "should have at least one exemplar")
 		})
 	}
 

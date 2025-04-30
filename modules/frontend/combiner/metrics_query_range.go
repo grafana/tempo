@@ -208,13 +208,12 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()
 // have NaNs, and we can't attach them until the very end.
 func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResponse) {
+	limit := int(req.Exemplars)
 	for _, ss := range res.Series {
 		if ss == nil {
 			continue
 		}
-		if len(ss.Exemplars) > int(req.Exemplars) {
-			ss.Exemplars = ss.Exemplars[len(ss.Exemplars)-int(req.Exemplars):]
-		}
+		limit = limitExemplars(ss, limit)
 		for i, e := range ss.Exemplars {
 			// Only needed for NaNs
 			if !math.IsNaN(e.Value) {
@@ -237,4 +236,14 @@ func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResp
 			}
 		}
 	}
+}
+
+// limitExemplars limits the number of exemplars to the given limit
+// giving favor to the most recent exemplars
+// and returns remaining number of exemplars that can be added
+func limitExemplars(ss *tempopb.TimeSeries, limit int) int {
+	if len(ss.Exemplars) > limit {
+		ss.Exemplars = ss.Exemplars[len(ss.Exemplars)-limit:]
+	}
+	return limit - len(ss.Exemplars)
 }

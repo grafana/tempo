@@ -712,3 +712,91 @@ func ts(samples []tempopb.Sample, exemplars []tempopb.Exemplar, kvs ...string) *
 
 	return ts
 }
+
+func TestLimitExemplars(t *testing.T) {
+	tcs := []struct {
+		name              string
+		exemplars         []tempopb.Exemplar
+		limit             int
+		expectedExemplars []tempopb.Exemplar
+		expectedRemaining int
+	}{
+		{
+			name:              "no exemplars",
+			exemplars:         []tempopb.Exemplar{},
+			limit:             5,
+			expectedExemplars: []tempopb.Exemplar{},
+			expectedRemaining: 5,
+		},
+		{
+			name: "fewer exemplars than limit",
+			exemplars: []tempopb.Exemplar{
+				{TimestampMs: 1000, Value: 1.0},
+				{TimestampMs: 2000, Value: 2.0},
+				{TimestampMs: 3000, Value: 3.0},
+			},
+			limit: 5,
+			expectedExemplars: []tempopb.Exemplar{
+				{TimestampMs: 1000, Value: 1.0},
+				{TimestampMs: 2000, Value: 2.0},
+				{TimestampMs: 3000, Value: 3.0},
+			},
+			expectedRemaining: 2,
+		},
+		{
+			name: "equal exemplars to limit",
+			exemplars: []tempopb.Exemplar{
+				{TimestampMs: 1000, Value: 1.0},
+				{TimestampMs: 2000, Value: 2.0},
+				{TimestampMs: 3000, Value: 3.0},
+			},
+			limit: 3,
+			expectedExemplars: []tempopb.Exemplar{
+				{TimestampMs: 1000, Value: 1.0},
+				{TimestampMs: 2000, Value: 2.0},
+				{TimestampMs: 3000, Value: 3.0},
+			},
+			expectedRemaining: 0,
+		},
+		{
+			name: "more exemplars than limit, keeps most recent",
+			exemplars: []tempopb.Exemplar{
+				{TimestampMs: 1000, Value: 1.0},
+				{TimestampMs: 2000, Value: 2.0},
+				{TimestampMs: 3000, Value: 3.0},
+				{TimestampMs: 4000, Value: 4.0},
+				{TimestampMs: 5000, Value: 5.0},
+			},
+			limit: 3,
+			expectedExemplars: []tempopb.Exemplar{
+				{TimestampMs: 3000, Value: 3.0},
+				{TimestampMs: 4000, Value: 4.0},
+				{TimestampMs: 5000, Value: 5.0},
+			},
+			expectedRemaining: 0,
+		},
+		{
+			name: "zero limit",
+			exemplars: []tempopb.Exemplar{
+				{TimestampMs: 1000, Value: 1.0},
+				{TimestampMs: 2000, Value: 2.0},
+			},
+			limit:             0,
+			expectedExemplars: []tempopb.Exemplar{},
+			expectedRemaining: 0,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a TimeSeries with the test exemplars
+			series := &tempopb.TimeSeries{
+				Exemplars: tc.exemplars,
+			}
+			remaining := limitExemplars(series, tc.limit)
+
+			assert.Equal(t, tc.expectedExemplars, series.Exemplars, "exemplars should be limited correctly")
+			assert.Equal(t, tc.expectedRemaining, remaining, "remaining count should match expected value")
+		})
+	}
+}
