@@ -1,5 +1,7 @@
 name: publish-technical-documentation-next
 
+permissions: {}
+
 on:
   push:
     branches:
@@ -16,11 +18,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: grafana/writers-toolkit/publish-technical-documentation@publish-technical-documentation/v1
+        with:
+          persist-credentials: false
+      - uses: grafana/writers-toolkit/publish-technical-documentation@19a847eb688082d8a3cedd27aeda1e42ad3ed1fe
         with:
           source_directory: docs/sources/tempo
           website_directory: content/docs/tempo/next
-      - uses: grafana/writers-toolkit/publish-technical-documentation@publish-technical-documentation/v1
+      - uses: grafana/writers-toolkit/publish-technical-documentation@19a847eb688082d8a3cedd27aeda1e42ad3ed1fe
         with:
           source_directory: docs/sources/helm-charts/tempo-distributed
           website_directory: content/docs/helm-charts/tempo-distributed/next

@@ -10,11 +10,11 @@ dashboard_utils {
         g.row('Gateway')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="opentelemetry_proto_collector_trace_v1_traceservice_export"}' % $.jobMatcher($._config.jobs.gateway))
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)"}' % $.jobMatcher($._config.jobs.gateway))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s, route="opentelemetry_proto_collector_trace_v1_traceservice_export"}' % $.jobMatcher($._config.jobs.gateway))
+          $.latencyPanel('tempo_request_duration_seconds', '{%s, route=~"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)"}' % $.jobMatcher($._config.jobs.gateway))
         )
       )
       .addRow(

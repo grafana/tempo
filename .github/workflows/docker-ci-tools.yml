@@ -13,7 +13,6 @@ env:
 # Needed to login to DockerHub
 permissions:
   contents: read
-  id-token: write
 
 jobs:
 
@@ -25,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - id: get-tag
         run: |
@@ -37,14 +38,18 @@ jobs:
       matrix:
         runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
+    permissions:
+      id-token: write
     env:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@13fb504e3bfe323c1188bf244970d94b2d336e86 # dockerhub-login-v1.0.1
 
       - name: docker-build-and-push
         run: |
@@ -56,14 +61,18 @@ jobs:
     if: github.repository == 'grafana/tempo'
     needs: ['get-image-tag', 'docker-ci-tools']
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     env:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@13fb504e3bfe323c1188bf244970d94b2d336e86 # dockerhub-login-v1.0.1
 
       - name: docker-manifest-create-and-push
         run: |
