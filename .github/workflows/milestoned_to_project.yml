@@ -14,12 +14,19 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      - name: Get Github App secrets from vault
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@5d7e361bc7e0a183cde8afe9899fb7b596d2659b #get-vault-secrets 1.2.0
+        with:
+          repo_secrets: |
+            APP_ID=tempo-ci-app:app-id
+            PRIVATE_KEY=tempo-ci-app:private-key
       - name: Get app token
         uses: actions/create-github-app-token@3ff1caaa28b64c9cc276ce0a02e2ff584f3900c5 # v2.0.2
         id: get-github-app-token
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ fromJSON(steps.get-secrets.outputs.secrets).APP_ID }}
+          private-key: ${{ fromJSON(steps.get-secrets.outputs.secrets).PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
       - uses: actions/add-to-project@v1.0.2
         with:
