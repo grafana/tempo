@@ -141,7 +141,9 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 	defer func() {
 		diff := time.Since(start).Seconds()
 		metricBlocklistPollDuration.Observe(diff)
-		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
+		if parentCtx.Err() == nil {
+			level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
+		}
 		backend.ClearDedicatedColumns()
 	}()
 
