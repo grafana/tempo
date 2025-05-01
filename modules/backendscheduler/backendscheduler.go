@@ -291,10 +291,11 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		var (
 			metas     = s.store.BlockMetas(j.Tenant())
 			oldBlocks []*backend.BlockMeta
+			bb        uuid.UUID
 		)
 
 		for _, b := range j.GetCompactionInput() {
-			bb := (uuid.UUID)(backend.MustParse(b))
+			bb = (uuid.UUID)(backend.MustParse(b))
 
 			for _, m := range metas {
 				if (uuid.UUID)(m.BlockID) == bb {
