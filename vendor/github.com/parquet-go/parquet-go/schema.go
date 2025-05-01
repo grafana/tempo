@@ -130,7 +130,7 @@ func (v *onceValue[T]) load(f func() *T) *T {
 //	}
 //
 // The schema name is the Go type name of the value.
-func SchemaOf(model interface{}) *Schema {
+func SchemaOf(model any) *Schema {
 	return schemaOf(dereference(reflect.TypeOf(model)))
 }
 
@@ -262,7 +262,7 @@ func (s *Schema) GoType() reflect.Type { return s.root.GoType() }
 //
 // The method panics is the structure of the go value does not match the
 // parquet schema.
-func (s *Schema) Deconstruct(row Row, value interface{}) Row {
+func (s *Schema) Deconstruct(row Row, value any) Row {
 	state := s.lazyLoadState()
 	funcs := s.lazyLoadFuncs()
 	columns := make([][]Value, len(state.columns))
@@ -291,7 +291,7 @@ func (s *Schema) Deconstruct(row Row, value interface{}) Row {
 //
 // The method panics if the structure of the go value and parquet row do not
 // match.
-func (s *Schema) Reconstruct(value interface{}, row Row) error {
+func (s *Schema) Reconstruct(value any, row Row) error {
 	v := reflect.ValueOf(value)
 	if !v.IsValid() {
 		panic("cannot reconstruct row into go value of type <nil>")
@@ -349,7 +349,7 @@ func (v *valuesSliceBuffer) release() {
 }
 
 var valuesSliceBufferPool = &sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &valuesSliceBuffer{
 			// use 64 as a cache friendly base estimate of max column numbers we will be
 			// reading.
