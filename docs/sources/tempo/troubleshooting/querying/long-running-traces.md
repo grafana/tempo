@@ -26,15 +26,36 @@ different blocks, which can lead to inconsistency in a few ways:
    that for a single block the conditions may evaluate to false, but to
    consider all parts of the trace from all blocks would evaluate true.
 
+
 You can tune the `ingester.trace_idle_period` configuration to allow for
-greater control about when traces are written to a block. Extending this beyond
-the default `10s` can allow for long running trace to be co-located in the same
+greater control about when traces are written to a block.
+Extending this beyond the default `10s` can allow for long running trace to be co-located in the same
 block, but take into account other considerations around memory consumption on
-the ingesters. Currently this setting isn't per-tenant, and so adjusting
+the ingesters.
+Currently, this setting isn't per-tenant, and so adjusting
 affects all ingester instances.
 
+### Data quality metrics
+
 Tempo publishes a `tempo_warnings_total` metric from several components, which
-can aid in understanding when this situation arises. In particular, the following query can be used to know what percentage of traces which are flushed to the wall are connected.
+can aid in understanding when this situation arises.
+
+When a trace is flushed to the WAL, it's marshalled in the Parquet format which makes it available for TraceQL metrics and search.
+The more complete a trace is at this moment, the more accurate complex queries are.
+The `disconnected_trace_flushed_to_wal` and `rootless_trace_flushed_to_wal` metrics help operators measure how reliable their trace data pipeline is.
+
+* `disconnected_trace_flushed_to_wal`: Incremented when a trace is flushed that has a span with parent id that cannot be found.
+* `rootless_trace_flushed_to_wal`: incremented when a trace is flushed that doesn't have a root span. A root span is a span with all `0` parent id.
+
+You might see these data quality metrics if you use a Prometheus query like this to explore Tempo warnings:
+
+```
+sum(rate(tempo_warnings_total{}[5m])) by (reason)
+```
+
+This example helps determine the `%age` of complete traces flushed. This metric can help you optimize your instrumentation and traces pipeline and understand the impact it has on Tempo data quality.
+
+In particular, the following query can be used to know what percentage of traces which are flushed to the wall are connected.
 
 ```
 1 - sum(rate(tempo_warnings_total{reason="disconnected_trace_flushed_to_wal"}[5m])) / sum(rate(tempo_ingester_traces_created_total{}[5m]))
