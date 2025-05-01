@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"

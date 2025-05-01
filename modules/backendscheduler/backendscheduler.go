@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/backendscheduler/provider"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
@@ -293,8 +294,10 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		)
 
 		for _, b := range j.GetCompactionInput() {
+			bb := (uuid.UUID)(backend.MustParse(b))
+
 			for _, m := range metas {
-				if m.BlockID.String() == b {
+				if (uuid.UUID)(m.BlockID) == bb {
 					oldBlocks = append(oldBlocks, m)
 				}
 			}
