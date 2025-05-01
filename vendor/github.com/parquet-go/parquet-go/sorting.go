@@ -60,6 +60,7 @@ func NewSortingWriter[T any](output io.Writer, sortRowCount int64, options ...Wr
 			Schema:               config.Schema,
 			Compression:          config.Compression,
 			Sorting:              config.Sorting,
+			Encodings:            config.Encodings,
 		}),
 		output:  NewGenericWriter[T](output, config),
 		maxRows: sortRowCount,
