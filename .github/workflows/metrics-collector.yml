@@ -27,6 +27,7 @@ jobs:
           app-id: ${{ fromJSON(steps.get-secrets.outputs.secrets).APP_ID }}
           private-key: ${{ fromJSON(steps.get-secrets.outputs.secrets).PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: tempo
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
