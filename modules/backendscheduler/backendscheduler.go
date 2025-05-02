@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/backendscheduler/provider"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
@@ -291,7 +290,6 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		var (
 			metas     = s.store.BlockMetas(j.Tenant())
 			oldBlocks []*backend.BlockMeta
-			bb        uuid.UUID
 			u         backend.UUID
 		)
 
@@ -302,10 +300,8 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 				continue
 			}
 
-			bb = (uuid.UUID)(u)
-
 			for _, m := range metas {
-				if (uuid.UUID)(m.BlockID) == bb {
+				if m.BlockID == u {
 					oldBlocks = append(oldBlocks, m)
 				}
 			}
