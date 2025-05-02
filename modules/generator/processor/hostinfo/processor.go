@@ -13,7 +13,7 @@ const (
 	Name = "host-info"
 
 	hostInfoMetric     = "traces_host_info"
-	hostIdentifierAttr = "grafana.host.id"
+	hostIdentifierAttr = "grafana_host_id"
 )
 
 type Processor struct {
