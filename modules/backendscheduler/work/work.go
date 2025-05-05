@@ -63,12 +63,14 @@ func (q *Work) RemoveJob(id string) {
 
 func (q *Work) ListJobs() []*Job {
 	q.mtx.RLock()
-	defer q.mtx.RUnlock()
 
 	jobs := make([]*Job, 0, len(q.Jobs))
 	for _, j := range q.Jobs {
 		jobs = append(jobs, j)
 	}
+
+	// Not defered to unlock while sorting
+	q.mtx.RUnlock()
 
 	// sort jobs by creation time
 	sort.Slice(jobs, func(i, j int) bool {
