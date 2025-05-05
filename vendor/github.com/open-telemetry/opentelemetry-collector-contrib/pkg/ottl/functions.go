@@ -590,6 +590,16 @@ func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 			return nil, err
 		}
 		return StandardIntLikeGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "PMapGetSetter"):
+		if argVal.Literal == nil || argVal.Literal.Path == nil {
+			return nil, errors.New("must be a path")
+		}
+		pathGetSetter, err := p.buildGetSetterFromPath(argVal.Literal.Path)
+		if err != nil {
+			return nil, err
+		}
+		stdMapGetter := StandardPMapGetter[K]{Getter: pathGetSetter.Get}
+		return StandardPMapGetSetter[K]{Getter: stdMapGetter.Get, Setter: pathGetSetter.Set}, nil
 	case strings.HasPrefix(name, "PMapGetter"):
 		arg, err := p.newGetter(argVal)
 		if err != nil {
