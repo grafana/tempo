@@ -312,7 +312,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	}, nil
 }
 
-func (s *BackendScheduler) reloadBlocklistJobs() {
+func (s *BackendScheduler) replayWorkOnBlocklist() {
 	var (
 		err           error
 		tenant        string
