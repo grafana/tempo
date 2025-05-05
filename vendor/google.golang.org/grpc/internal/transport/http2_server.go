@@ -35,7 +35,6 @@ import (
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
-	"google.golang.org/grpc/internal"
 	"google.golang.org/grpc/internal/grpclog"
 	"google.golang.org/grpc/internal/grpcutil"
 	"google.golang.org/grpc/internal/pretty"
@@ -598,22 +597,6 @@ func (t *http2Server) operateHeaders(ctx context.Context, frame *http2.MetaHeade
 	t.activeStreams[streamID] = s
 	if len(t.activeStreams) == 1 {
 		t.idle = time.Time{}
-	}
-	// Start a timer to close the stream on reaching the deadline.
-	if timeoutSet {
-		// We need to wait for s.cancel to be updated before calling
-		// t.closeStream to avoid data races.
-		cancelUpdated := make(chan struct{})
-		timer := internal.TimeAfterFunc(timeout, func() {
-			<-cancelUpdated
-			t.closeStream(s, true, http2.ErrCodeCancel, false)
-		})
-		oldCancel := s.cancel
-		s.cancel = func() {
-			oldCancel()
-			timer.Stop()
-		}
-		close(cancelUpdated)
 	}
 	t.mu.Unlock()
 	if channelz.IsOn() {
@@ -1291,6 +1274,7 @@ func (t *http2Server) Close(err error) {
 
 // deleteStream deletes the stream s from transport's active streams.
 func (t *http2Server) deleteStream(s *ServerStream, eosReceived bool) {
+
 	t.mu.Lock()
 	if _, ok := t.activeStreams[s.id]; ok {
 		delete(t.activeStreams, s.id)
@@ -1340,10 +1324,7 @@ func (t *http2Server) closeStream(s *ServerStream, rst bool, rstCode http2.ErrCo
 	// called to interrupt the potential blocking on other goroutines.
 	s.cancel()
 
-	oldState := s.swapState(streamDone)
-	if oldState == streamDone {
-		return
-	}
+	s.swapState(streamDone)
 	t.deleteStream(s, eosReceived)
 
 	t.controlBuf.put(&cleanupStream{

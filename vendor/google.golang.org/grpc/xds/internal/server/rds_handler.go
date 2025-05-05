@@ -19,7 +19,6 @@
 package server
 
 import (
-	"fmt"
 	"sync"
 
 	igrpclog "google.golang.org/grpc/internal/grpclog"
@@ -31,9 +30,8 @@ import (
 // updates for later use and also determines whether all the rdsWatcher updates
 // needed have been received or not.
 type rdsHandler struct {
-	xdsC      XDSClient
-	xdsNodeID string
-	logger    *igrpclog.PrefixLogger
+	xdsC   XDSClient
+	logger *igrpclog.PrefixLogger
 
 	callback func(string, rdsWatcherUpdate)
 
@@ -52,15 +50,13 @@ type rdsHandler struct {
 // resources. listenerWrapper updates the list of route names to watch by
 // calling updateRouteNamesToWatch() upon receipt of new Listener configuration.
 func newRDSHandler(cb func(string, rdsWatcherUpdate), xdsC XDSClient, logger *igrpclog.PrefixLogger) *rdsHandler {
-	r := &rdsHandler{
+	return &rdsHandler{
 		xdsC:     xdsC,
 		logger:   logger,
 		callback: cb,
 		updates:  make(map[string]rdsWatcherUpdate),
 		cancels:  make(map[string]func()),
 	}
-	r.xdsNodeID = xdsC.BootstrapConfig().Node().GetId()
-	return r
 }
 
 // updateRouteNamesToWatch handles a list of route names to watch for a given
@@ -187,8 +183,9 @@ func (rw *rdsWatcher) OnResourceDoesNotExist(onDone xdsresource.OnDoneFunc) {
 		return
 	}
 	rw.mu.Unlock()
-	rw.logger.Warningf("RDS watch for resource %q reported resource-does-not-exist error", rw.routeName)
+	if rw.logger.V(2) {
+		rw.logger.Infof("RDS watch for resource %q reported resource-does-not-exist error: %v", rw.routeName)
+	}
 	err := xdsresource.NewErrorf(xdsresource.ErrorTypeResourceNotFound, "resource name %q of type RouteConfiguration not found in received response", rw.routeName)
-	err = fmt.Errorf("[xDS node id: %v]: %w", rw.parent.xdsNodeID, err)
 	rw.parent.handleRouteUpdate(rw.routeName, rdsWatcherUpdate{err: err})
 }
