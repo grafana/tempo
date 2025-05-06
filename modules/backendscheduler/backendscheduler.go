@@ -365,6 +365,7 @@ func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*wor
 			for _, m := range metas {
 				if m.BlockID == u {
 					oldBlocks = append(oldBlocks, m)
+					break
 				}
 			}
 		}
