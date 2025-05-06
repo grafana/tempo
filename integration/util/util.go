@@ -499,7 +499,7 @@ func SearchAndAsserTagsBackend(t *testing.T, client *httpclient.Client, start, e
 	// There are no tags in recent data
 	resp, err := client.SearchTags()
 	require.NoError(t, err)
-	require.Equal(t, len(resp.TagNames), 0)
+	require.Equal(t, 0, len(resp.TagNames))
 
 	// There are additional tags in the backend
 	resp, err = client.SearchTagsWithRange(start, end)

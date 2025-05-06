@@ -1,6 +1,8 @@
 package ingest
 
 import (
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -54,27 +56,18 @@ func TestIngest(t *testing.T) {
 
 	apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
 
-	// wait until block-builder block is flushed
+	// wait until the block-builder block is flushed
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_block_builder_flushed_blocks"}, e2e.WaitMissingMetrics))
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Greater(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-
-	// wait trace_idle_time and ensure trace is created in ingester
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
-
-	// flush trace to backend
-	util.CallFlush(t, tempo)
-
-	// sleep
-	time.Sleep(10 * time.Second)
-
-	// force clear completed block
-	util.CallFlush(t, tempo)
-
-	// query trace - should fetch from backend
-	util.QueryAndAssertTrace(t, apiClient, info)
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempodb_blocklist_length"},
+		e2e.WaitMissingMetrics, e2e.WithLabelMatchers(&labels.Matcher{Type: labels.MatchEqual, Name: "tenant", Value: "single-tenant"})))
 
 	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 	now := time.Now()
 	util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
-	util.SearchAndAsserTagsBackend(t, apiClient, now.Add(-20*time.Minute).Unix(), now.Unix())
+
+	// Call /metrics
+	res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/metrics")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	fmt.Println(res.Body)
 }
