@@ -290,11 +290,18 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		var (
 			metas     = s.store.BlockMetas(j.Tenant())
 			oldBlocks []*backend.BlockMeta
+			u         backend.UUID
 		)
 
 		for _, b := range j.GetCompactionInput() {
+			u, err = backend.ParseUUID(b)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "failed to parse block ID", "block_id", b, "error", err)
+				continue
+			}
+
 			for _, m := range metas {
-				if m.BlockID.String() == b {
+				if m.BlockID == u {
 					oldBlocks = append(oldBlocks, m)
 				}
 			}

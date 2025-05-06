@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -128,6 +129,16 @@ func TestBackendScheduler(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updateResp)
+
+		t.Run("the store does not contain the metas which have been compacted", func(t *testing.T) {
+			metas := store.BlockMetas(resp.Detail.Tenant)
+
+			for _, m := range metas {
+				for _, b := range resp.Detail.Compaction.Input {
+					require.NotContains(t, m.BlockID.String(), b)
+				}
+			}
+		})
 
 		resp, err = s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
