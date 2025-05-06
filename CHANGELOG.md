@@ -59,7 +59,6 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Update dskit to latest version [#4681](https://github.com/grafana/tempo/pull/4681) (@javiermolinar) [#4865](https://github.com/grafana/tempo/pull/4865) (@javiermolinar)
 * [ENHANCEMENT] Increase query-frontend default batch size [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar) 
 * [ENHANCEMENT] Improve TraceQL perf by reverting EqualRowNumber to an inlineable function.[#4705](https://github.com/grafana/tempo/pull/4705) (@joe-elliott)
-* [ENHANCEMENT] Improve TraceQL perf by preventing unnecessary decode of the first page in a column chunk.[#5050](https://github.com/grafana/tempo/pull/5050) (@joe-elliott)
 * [ENHANCEMENT] Rhythm: Implement MaxBytesPerCycle [#4835](https://github.com/grafana/tempo/pull/4835) (@javiermolinar)
 * [ENHANCEMENT] Rhythm: fair partition consumption in blockbuilders [#4655](https://github.com/grafana/tempo/pull/4655) (@javiermolinar)
 * [ENHANCEMENT] Rhythm: retry on commit error [#4874](https://github.com/grafana/tempo/pull/4874) (@javiermolinar)
