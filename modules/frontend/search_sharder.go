@@ -374,6 +374,10 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 	if m.Size_ == 0 || m.TotalRecords == 0 {
 		return 0
 	}
+	// if the block is smaller than the bytesPerRequest, we can search the entire block
+	if m.Size_ < uint64(bytesPerRequest) {
+		return int(m.TotalRecords)
+	}
 
 	bytesPerPage := m.Size_ / uint64(m.TotalRecords)
 	if bytesPerPage == 0 {
