@@ -1,5 +1,11 @@
 package traceql
 
+import (
+	"fmt"
+	"strings"
+	"unsafe"
+)
+
 func (r RootExpr) extractConditions(request *FetchSpansRequest) {
 	r.Pipeline.extractConditions(request)
 	if r.MetricsPipeline != nil {
@@ -44,10 +50,16 @@ func (o SelectOperation) extractConditions(request *FetchSpansRequest) {
 
 func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	// TODO we can further optimise this by attempting to execute every FieldExpression, if they only contain statics it should resolve
+
 	switch o.LHS.(type) {
 	case Attribute:
 		switch o.RHS.(type) {
 		case Static:
+			// left pad spanIDs with 0s
+			if (o.LHS.(Attribute).Intrinsic == IntrinsicSpanID || o.LHS.(Attribute).Intrinsic == IntrinsicLinkSpanID || o.LHS.(Attribute).Intrinsic == IntrinsicParentID) && o.RHS.(Static).Type == TypeString {
+				o.RHS = padStaticStringSpanID(o.RHS.(Static))
+			}
+
 			if (o.RHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
 					Attribute: o.LHS.(Attribute),
@@ -94,6 +106,9 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 			// 2 statics, don't need to send any conditions
 			return
 		case Attribute:
+			if (o.RHS.(Attribute).Intrinsic == IntrinsicSpanID || o.RHS.(Attribute).Intrinsic == IntrinsicLinkSpanID || o.RHS.(Attribute).Intrinsic == IntrinsicParentID) && o.LHS.(Static).Type == TypeString {
+				o.LHS = padStaticStringSpanID(o.LHS.(Static))
+			}
 			if (o.LHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
 					Attribute: o.RHS.(Attribute),
@@ -138,4 +153,16 @@ func (a Attribute) extractConditions(request *FetchSpansRequest) {
 		Op:        OpNone,
 		Operands:  nil,
 	})
+}
+
+func padStaticStringSpanID(spanID Static) Static {
+	var str string
+	if len(spanID.valBytes) > 0 {
+		str = unsafe.String(unsafe.SliceData(spanID.valBytes), len(spanID.valBytes))
+	}
+	if len(str) < 16 {
+		str = strings.TrimLeft(str, "0")
+		str = fmt.Sprintf("%016s", str)
+	}
+	return NewStaticString(str)
 }

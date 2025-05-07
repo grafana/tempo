@@ -486,7 +486,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 
 func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 	linkTraceID, _ := util.HexStringToTraceID("1234567890abcdef1234567890abcdef")
-	linkSpanID, _ := util.HexStringToSpanID("1234567890abcdef")
+	linkSpanID, _ := util.HexStringToNonTraceID("1234567890abcdef")
 	parentID := []byte{}
 	if parentIDTest {
 		parentID = []byte("parentid")

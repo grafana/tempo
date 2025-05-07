@@ -1,7 +1,6 @@
 package vparquet3
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -1486,7 +1485,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
 			if err != nil {
 				return nil, err
 			}
@@ -1495,7 +1494,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			continue
 
 		case traceql.IntrinsicParentID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
 			if err != nil {
 				return nil, err
 			}
@@ -1872,7 +1871,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicTraceID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
 			if err != nil {
 				return nil, err
 			}
@@ -2001,7 +2000,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	}
 }
 
-func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan bool) (parquetquery.Predicate, error) {
+func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isTraceID bool) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -2011,23 +2010,35 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return nil, fmt.Errorf("operand is not string: %s", s)
 	}
 
-	var id []byte
-	id, err := util.HexStringToTraceID(s)
-	if isSpan {
-		id, err = util.HexStringToSpanID(s)
+	// trace id is sanitized at ingestion to left pad to 16 bytes
+	// can benefit from ranged conditions
+	if isTraceID {
+		id, err := util.HexStringToTraceID(s)
+		if err != nil {
+			return nil, nil
+		}
+
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewByteEqualPredicate(id), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewByteNotEqualPredicate(id), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		}
 	}
 
+	// every other IDs are not standardized and the range conditions do not work
+	id, err := util.HexStringToNonTraceID(s)
 	if err != nil {
 		return nil, nil
 	}
 
-	id = bytes.TrimLeft(id, "\x00")
-
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewByteEqualPredicate(id), nil
+		return parquetquery.NewNoRangeByteEqualPredicate(id), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewByteNotEqualPredicate(id), nil
+		return parquetquery.NewNoRangeByteNotEqualPredicate(id), nil
 	default:
 		return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
 	}
