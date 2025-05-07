@@ -166,10 +166,10 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 }
 
 func (s *queryRangeSharder) exemplarsPerShard(total uint32, exemplars uint32) uint32 {
-	if exemplars == 0 {
+	if exemplars == 0 || total == 0 {
 		return 0
 	}
-	return uint32(math.Ceil(float64(exemplars)*1.2)) / total
+	return max(uint32(math.Ceil(float64(exemplars)*1.2))/total, 1) // require at least 1 exemplar per shard
 }
 
 func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
