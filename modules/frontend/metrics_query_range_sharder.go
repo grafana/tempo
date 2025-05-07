@@ -244,7 +244,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		if exemplars > 0 {
 			// Scale the number of exemplars per block to match the size
 			// of each sub request on this block. For very small blocks or other edge cases, return at least 1.
-			exemplars = max(uint32(float64(exemplars)*float64(m.TotalRecords)/float64(pages)), 1)
+			exemplars = max(uint32(float64(exemplars)*float64(pages)/float64(m.TotalRecords)), 1)
 		}
 
 		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
