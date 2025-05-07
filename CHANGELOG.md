@@ -3,6 +3,7 @@
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
+* [BUGFIX] Fix various race conditions [#5113](https://github.com/grafana/tempo/pull/5113) (@ruslan-mikhailov)
 
 # v2.8.0-rc.0
 
