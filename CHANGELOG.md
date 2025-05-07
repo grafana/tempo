@@ -23,7 +23,6 @@
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
   Renamed max_span_attr_byte to max_attribute_bytes
   [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
-* [CHANGE] Update to go 1.24.1 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov) [#4793](https://github.com/grafana/tempo/pull/4793) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Removed otel jaeger exporter. [#4926](https://github.com/grafana/tempo/pull/4926) (@javiermolinar)
 * [CHANGE] Tempo Query: replace opentracing-contrib/go-grpc by otelgrpc. [#4958](https://github.com/grafana/tempo/pull/4958) (@javiermolinar)
 * [CHANGE] Improve parquet readers io.ReaderAt compatibility [#4963](https://github.com/grafana/tempo/pull/4963) (@joe-elliott)
@@ -32,7 +31,9 @@
 * [CHANGE] Change retention to honor compactor disablement [#5044](https://github.com/grafana/tempo/pull/5044) (@zalegrala)
 * [CHANGE] Continue on error in tempo-cli rewrite-blocks [#5043](https://github.com/grafana/tempo/pull/5043) (@zalegrala)
 * [CHANGE] Update jsonnet memcached and exporter image versions [#5056](https://github.com/grafana/tempo/pull/5056) (@zalegrala)
-* [CHANGE] Update to go 1.24.2 [#5057](https://github.com/grafana/tempo/pull/5057) [#5082](https://github.com/grafana/tempo/pull/5082) [(@carsontham) 
+* [CHANGE] Update to go 1.24.3 [#5110](https://github.com/grafana/tempo/pull/5110) (@stoewer)
+* [CHANGE] Update to go 1.24.2 [#5057](https://github.com/grafana/tempo/pull/5057) [#5082](https://github.com/grafana/tempo/pull/5082) (@carsontham)
+* [CHANGE] Update to go 1.24.1 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov) [#4793](https://github.com/grafana/tempo/pull/4793) (@javiermolinar)
 * [FEATURE] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
