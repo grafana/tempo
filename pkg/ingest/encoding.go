@@ -34,6 +34,7 @@ func encoderPoolGet() *tempopb.PushBytesRequest {
 func encoderPoolPut(req *tempopb.PushBytesRequest) {
 	req.Traces = req.Traces[:0]
 	req.Ids = req.Ids[:0]
+	req.SkipMetricsGeneration = false
 	encoderPool.Put(req)
 }
 
@@ -139,6 +140,7 @@ func (d *Decoder) Reset() {
 	// Retain slice capacity
 	d.req.Ids = d.req.Ids[:0]
 	d.req.Traces = d.req.Traces[:0]
+	d.req.SkipMetricsGeneration = false
 }
 
 // sovPush calculates the size of varint-encoded uint64.
