@@ -53,11 +53,11 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	}
 
 	var (
-		resultsMtx = sync.Mutex{}
-		combiner   = traceql.NewMetadataCombiner(maxResults, mostRecent)
-		metrics    = &tempopb.SearchMetrics{}
-		opts       = common.DefaultSearchOptions()
-		anyErr     atomic.Error
+		searchMtx = sync.RWMutex{}
+		combiner  = traceql.NewMetadataCombiner(maxResults, mostRecent)
+		metrics   = &tempopb.SearchMetrics{}
+		opts      = common.DefaultSearchOptions()
+		anyErr    atomic.Error
 	)
 
 	search := func(blockMeta *backend.BlockMeta, block common.Searcher, spanName string) {
@@ -71,7 +71,12 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		var err error
 
 		// if the combiner is complete for the block's end time, we can skip searching it
-		if combiner.IsCompleteFor(uint32(blockMeta.EndTime.Unix())) {
+		isComplete := func() bool {
+			searchMtx.RLock()
+			defer searchMtx.RUnlock()
+			return combiner.IsCompleteFor(uint32(blockMeta.EndTime.Unix()))
+		}()
+		if isComplete {
 			return
 		}
 
@@ -103,8 +108,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			return
 		}
 
-		resultsMtx.Lock()
-		defer resultsMtx.Unlock()
+		searchMtx.Lock()
+		defer searchMtx.Unlock()
 
 		if resp.Metrics != nil {
 			metrics.InspectedTraces += resp.Metrics.InspectedTraces

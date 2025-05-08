@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/multierror"
@@ -14,6 +15,7 @@ import (
 )
 
 type requestBatch struct {
+	mx sync.RWMutex
 	// requests that represent that communicate back with the upstream pipeline
 	pipelineRequests []*request
 	// requests that are actually sent to the queriers
@@ -30,11 +32,15 @@ func (b *buffer) Bytes() []byte {
 }
 
 func (b *requestBatch) clear() {
+	b.mx.Lock()
+	defer b.mx.Unlock()
 	b.pipelineRequests = b.pipelineRequests[:0]
 	b.wireRequests = b.wireRequests[:0]
 }
 
 func (b *requestBatch) add(r *request) error {
+	b.mx.Lock()
+	defer b.mx.Unlock()
 	b.pipelineRequests = append(b.pipelineRequests, r)
 
 	req, err := httpgrpc.FromHTTPRequest(r.request.HTTPRequest())
@@ -88,6 +94,8 @@ func (b *requestBatch) doneChan(stop <-chan struct{}) <-chan struct{} {
 		// tests each request context and only closes done if all are done.
 		// technically it is only testing one a time, but the loop will only complete
 		// if all are done.
+		b.mx.RLock()
+		defer b.mx.RUnlock()
 		for _, r := range b.pipelineRequests {
 			select {
 			case <-r.OriginalContext().Done():
@@ -102,6 +110,8 @@ func (b *requestBatch) doneChan(stop <-chan struct{}) <-chan struct{} {
 
 // reportErrorToPipeline sends errors back up the query frontend http pipeline
 func (b *requestBatch) reportErrorToPipeline(err error) {
+	b.mx.RLock()
+	defer b.mx.RUnlock()
 	for _, r := range b.pipelineRequests {
 		r.err <- err
 	}
@@ -109,6 +119,8 @@ func (b *requestBatch) reportErrorToPipeline(err error) {
 
 // reportResultsToPipeline sends errors back up the query frontend http pipeline
 func (b *requestBatch) reportResultsToPipeline(responses []*httpgrpc.HTTPResponse) error {
+	b.mx.RLock()
+	defer b.mx.RUnlock()
 	if len(responses) != len(b.pipelineRequests) {
 		return fmt.Errorf("incorrect number of responses to pipeline %d != %d", len(responses), len(b.pipelineRequests))
 	}
