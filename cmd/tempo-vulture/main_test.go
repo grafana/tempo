@@ -15,10 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	integrationutil "github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
+	util "github.com/grafana/tempo/pkg/util"
 )
 
 func TestHasMissingSpans(t *testing.T) {
@@ -667,37 +668,13 @@ func TestGetGrpcEndpoint(t *testing.T) {
 	assert.Equal(t, "localhost:14250", got, "Address without a port should be defaulted to 14250")
 }
 
-func TestNewJaegerGRPCClient(t *testing.T) {
-	config := vultureConfiguration{
-		tempoOrgID:                "orgID",
-		tempoWriteBackoffDuration: time.Second,
-		tempoPushURL:              "http://localhost",
+func TestNewOtlpJaegerClient(t *testing.T) {
+	configValid := vultureConfiguration{
+		tempoPushURL: "localhost:4317",
 	}
-	client, err := newJaegerGRPCClient(config, zap.NewNop())
-
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
-
-	config = vultureConfiguration{
-		tempoOrgID:                "orgID",
-		tempoWriteBackoffDuration: time.Second,
-		tempoPushTLS:              true,
-		tempoPushURL:              "http://localhost",
-	}
-	client, err = newJaegerGRPCClient(config, zap.NewNop())
-
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
-
-	config = vultureConfiguration{
-		tempoOrgID:                "orgID",
-		tempoWriteBackoffDuration: time.Second,
-		tempoPushURL:              "http://%gh&%ij",
-	}
-	client, err = newJaegerGRPCClient(config, zap.NewNop())
-
-	assert.Error(t, err)
-	assert.Nil(t, client)
+	clientValid, errValid := integrationutil.NewOtlpJaegerClient(configValid.tempoPushURL)
+	assert.NoError(t, errValid)
+	assert.NotNil(t, clientValid)
 }
 
 func TestQueryMetrics(t *testing.T) {

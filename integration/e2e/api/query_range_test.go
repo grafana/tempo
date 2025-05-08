@@ -41,7 +41,7 @@ func TestQueryRangeExemplars(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewOtlpJaegerClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -129,7 +129,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewOtlpJaegerClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -165,7 +165,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewOtlpJaegerClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -229,7 +229,7 @@ func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewOtlpJaegerClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -294,7 +294,7 @@ func TestQueryRangeMaxSeriesDisabledQuerier(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewOtlpJaegerClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 

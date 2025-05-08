@@ -107,6 +107,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Various edge case fixes for query range (TraceQL Metrics) [#4962](https://github.com/grafana/tempo/pull/4962) (@ruslan-mikhailov)
 * [BUGFIX] Fix mixin to include otlp_v1_traces http write route [#5072](https://github.com/grafana/tempo/pull/5072) (@mdisibio)
 * [BUGFIX] Fix `TempoBlockListRisingQuickly` alert grouping. [#4876](https://github.com/grafana/tempo/pull/4876) (@mapno)
+* [CHANGE] Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter.
 
 # v2.7.2
 
