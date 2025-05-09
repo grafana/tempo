@@ -12,7 +12,6 @@ import (
 
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
-
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"

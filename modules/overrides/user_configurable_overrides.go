@@ -322,6 +322,20 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsT
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {
+	if hostIdentifiers, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetHostInfo().GetHostIdentifiers(); ok {
+		return hostIdentifiers
+	}
+	return o.Interface.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorHostInfoMetricName(userID string) string {
+	if metricName, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetHostInfo().GetMetricName(); ok {
+		return metricName
+	}
+	return o.Interface.MetricsGeneratorProcessorHostInfoMetricName(userID)
+}
+
 // statusUserConfigurableOverrides used to marshal userconfigurableoverrides.Limits for tenants
 type statusUserConfigurableOverrides struct {
 	TenantLimits tenantLimits `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`

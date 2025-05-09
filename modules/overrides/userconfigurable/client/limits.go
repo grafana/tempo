@@ -90,6 +90,13 @@ func (l *LimitsMetricsGeneratorProcessor) GetSpanMetrics() *LimitsMetricsGenerat
 	return nil
 }
 
+func (l *LimitsMetricsGeneratorProcessor) GetHostInfo() *LimitsMetricGeneratorProcessorHostInfo {
+	if l != nil {
+		return &l.HostInfo
+	}
+	return nil
+}
+
 type LimitsMetricsGeneratorProcessorServiceGraphs struct {
 	Dimensions                            *[]string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 	EnableClientServerPrefix              *bool      `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
