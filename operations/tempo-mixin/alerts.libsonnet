@@ -299,7 +299,7 @@
               sum(increase(tempo_backend_scheduler_jobs_failed_total{namespace=~"%s"}[5m])) by (%s)
               /
               sum(increase(tempo_backend_scheduler_jobs_created_total{namespace=~"%s"}[5m])) by (%s)
-              > %s
+              > %0.2f
             ||| % [$._config.namespace, $._config.group_by_cluster, $._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_jobs_failure_rate],
             'for': '10m',
             labels: {
