@@ -293,6 +293,65 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
             },
           },
+          {
+            alert: 'TempoBackendSchedulerJobsFailureRateHigh',
+            expr: |||
+              sum(increase(tempo_backend_scheduler_jobs_failed_total{namespace=~"%s"}[5m])) by (%s)
+              /
+              sum(increase(tempo_backend_scheduler_jobs_created_total{namespace=~"%s"}[5m])) by (%s)
+              > %d
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_jobs_failure_rate],
+            'for': '10m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo backend scheduler job failure rate is {{ printf "%0.2f" $value }} (threshold 0.1) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerJobsFailureRateHigh',
+            },
+          },
+          {
+            alert: 'TempoBackendSchedulerRetryRateHigh',
+            expr: |||
+              sum(increase(tempo_backend_scheduler_jobs_retry_total{namespace=~"%s"}[1m])) by (%s) > %d
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_jobs_retry_count_per_minute],
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo backend scheduler retry rate is high ({{ printf "%0.2f" $value }} retries/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerRetryRateHigh',
+            },
+          },
+          {
+            alert: 'TempoBackendWorkerBadJobsRateHigh',
+            expr: |||
+              sum(increase(tempo_backend_worker_bad_jobs_received_total{namespace=~"%s"}[1m])) by (%s) > %d
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_bad_jobs_count_per_minute],
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo backend worker bad jobs rate is high ({{ printf "%0.2f" $value }} bad jobs/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendWorkerBadJobsRateHigh',
+            },
+          },
+          {
+            alert: 'TempoBackendWorkerCallRetriesHigh',
+            expr: |||
+              sum(increase(tempo_backend_worker_call_retries_total{namespace=~"%s"}[1m])) by (%s) > %s
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_worker_call_retries_count_per_minute],
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo backend worker call retries rate is high ({{ printf "%0.2f" $value }} retries/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendWorkerCallRetriesHigh',
+            },
+          },
         ],
       },
     ],
