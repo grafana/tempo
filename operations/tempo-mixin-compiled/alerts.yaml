@@ -185,3 +185,42 @@
     "for": "5m"
     "labels":
       "severity": "critical"
+  - "alert": "TempoBackendSchedulerJobsFailureRateHigh"
+    "annotations":
+      "message": "Tempo backend scheduler job failure rate is {{ printf \"%0.2f\" $value }} (threshold 0.1) in {{ $labels.cluster }}/{{ $labels.namespace }}"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerJobsFailureRateHigh"
+    "expr": |
+      sum(increase(tempo_backend_scheduler_jobs_failed_total{namespace=~".*"}[5m])) by (cluster, namespace)
+      /
+      sum(increase(tempo_backend_scheduler_jobs_created_total{namespace=~".*"}[5m])) by (cluster, namespace)
+      > 0.05
+    "for": "10m"
+    "labels":
+      "severity": "critical"
+  - "alert": "TempoBackendSchedulerRetryRateHigh"
+    "annotations":
+      "message": "Tempo backend scheduler retry rate is high ({{ printf \"%0.2f\" $value }} retries/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerRetryRateHigh"
+    "expr": |
+      sum(increase(tempo_backend_scheduler_jobs_retry_total{namespace=~".*"}[1m])) by (cluster, namespace) > 20
+    "for": "10m"
+    "labels":
+      "severity": "warning"
+  - "alert": "TempoBackendWorkerBadJobsRateHigh"
+    "annotations":
+      "message": "Tempo backend worker bad jobs rate is high ({{ printf \"%0.2f\" $value }} bad jobs/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendWorkerBadJobsRateHigh"
+    "expr": |
+      sum(increase(tempo_backend_worker_bad_jobs_received_total{namespace=~".*"}[1m])) by (cluster, namespace) > 0
+    "for": "10m"
+    "labels":
+      "severity": "warning"
+  - "alert": "TempoBackendWorkerCallRetriesHigh"
+    "annotations":
+      "message": "Tempo backend worker call retries rate is high ({{ printf \"%0.2f\" $value }} retries/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendWorkerCallRetriesHigh"
+    "expr": |
+      sum(increase(tempo_backend_worker_call_retries_total{namespace=~".*"}[1m])) by (cluster, namespace) > 5
+    "for": "10m"
+    "labels":
+      "severity": "warning"
