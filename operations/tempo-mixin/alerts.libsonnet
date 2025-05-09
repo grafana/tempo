@@ -299,7 +299,7 @@
               sum(increase(tempo_backend_scheduler_jobs_failed_total{namespace=~"%s"}[5m])) by (%s)
               /
               sum(increase(tempo_backend_scheduler_jobs_created_total{namespace=~"%s"}[5m])) by (%s)
-              > %d
+              > %s
             ||| % [$._config.namespace, $._config.group_by_cluster, $._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_jobs_failure_rate],
             'for': '10m',
             labels: {
@@ -313,7 +313,7 @@
           {
             alert: 'TempoBackendSchedulerRetryRateHigh',
             expr: |||
-              sum(increase(tempo_backend_scheduler_jobs_retry_total{namespace=~"%s"}[1m])) by (%s) > %d
+              sum(increase(tempo_backend_scheduler_jobs_retry_total{namespace=~"%s"}[1m])) by (%s) > %s
             ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_jobs_retry_count_per_minute],
             'for': '10m',
             labels: {
@@ -327,7 +327,7 @@
           {
             alert: 'TempoBackendWorkerBadJobsRateHigh',
             expr: |||
-              sum(increase(tempo_backend_worker_bad_jobs_received_total{namespace=~"%s"}[1m])) by (%s) > %d
+              sum(increase(tempo_backend_worker_bad_jobs_received_total{namespace=~"%s"}[1m])) by (%s) > %s
             ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_bad_jobs_count_per_minute],
             'for': '10m',
             labels: {

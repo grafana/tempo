@@ -193,7 +193,7 @@
       sum(increase(tempo_backend_scheduler_jobs_failed_total{namespace=~".*"}[5m])) by (cluster, namespace)
       /
       sum(increase(tempo_backend_scheduler_jobs_created_total{namespace=~".*"}[5m])) by (cluster, namespace)
-      > 0
+      > 0.01
     "for": "10m"
     "labels":
       "severity": "critical"
