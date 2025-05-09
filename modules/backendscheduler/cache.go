@@ -42,5 +42,9 @@ func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
 		return fmt.Errorf("failed to unmarshal work cache: %w", err)
 	}
 
+	// Once the work cache is loaded, replay the work list on top of the
+	// blocklist to ensure we only hand out jobs for blocks which need visiting.
+	s.replayWorkOnBlocklist()
+
 	return nil
 }

@@ -15,5 +15,4 @@ type Provider interface {
 // Scheduler interface defines the methods providers need from the scheduler
 type Scheduler interface {
 	ListJobs() []*work.Job
-	HasBlocks([]string) bool
 }
