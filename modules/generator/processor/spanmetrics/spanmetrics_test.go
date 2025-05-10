@@ -35,13 +35,14 @@ func TestSpanMetrics(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -73,14 +74,15 @@ func TestSpanMetrics(t *testing.T) {
 func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -139,7 +141,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			name: "Valid labels",
 			dimensions: []string{
 				"valid_label_123", // underscores
-				"12345",           // numeric only
 				"_underscore_first",
 			},
 			expectedCount: 10.0,
@@ -154,7 +155,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 				"status_code":       "STATUS_CODE_OK",
 				"status_message":    "OK",
 				"valid_label_123":   "",
-				"12345":             "",
 				"_underscore_first": "",
 			},
 		},
@@ -188,7 +188,8 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			testRegistry := registry.NewTestRegistry()
 
 			filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-			invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+			invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+			invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 			cfg := Config{}
 			cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -197,7 +198,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			cfg.IntrinsicDimensions.StatusMessage = true
 			cfg.Dimensions = tc.dimensions
 
-			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -218,6 +219,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 			lbls := labels.FromMap(tc.labels)
 			fmt.Println(lbls.String())
+			fmt.Println(testRegistry)
 
 			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
@@ -234,7 +236,8 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -242,7 +245,7 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	cfg.Dimensions = []string{"span.kind", "span_name"}
 	cfg.IntrinsicDimensions.SpanKind = false
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -282,14 +285,15 @@ func TestSpanMetrics_collisions(t *testing.T) {
 func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -330,7 +334,8 @@ func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cases := []struct {
 		filterPolicies     []filterconfig.FilterPolicy
@@ -421,7 +426,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			cfg.FilterPolicies = tc.filterPolicies
 
 			testRegistry := registry.NewTestRegistry()
-			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -475,14 +480,15 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	// but service will still be there
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -528,14 +534,15 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 func TestLabelsWithDifferentBatches(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -607,14 +614,15 @@ func TestTargetInfoEnabled(t *testing.T) {
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -660,14 +668,15 @@ func TestTargetInfoEnabled(t *testing.T) {
 func TestTargetInfoDisabled(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = false
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -760,7 +769,8 @@ func TestTargetInfoWithExclusion(t *testing.T) {
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -768,7 +778,7 @@ func TestTargetInfoWithExclusion(t *testing.T) {
 	cfg.TargetInfoExcludedDimensions = []string{"container", "container.id"}
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -825,14 +835,15 @@ func TestTargetInfoSanitizeLabelName(t *testing.T) {
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -880,14 +891,15 @@ func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -922,13 +934,14 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 	// if both job and instance are missing, target info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -970,14 +983,15 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 func TestTargetInfoWithDifferentBatches(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1059,7 +1073,8 @@ func TestTargetInfoWithDifferentBatches(t *testing.T) {
 func TestSpanMetricsDimensionMapping(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1074,7 +1089,7 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 		},
 	}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1119,7 +1134,8 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1147,7 +1163,7 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 		},
 	}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1198,13 +1214,14 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 func TestSpanMetricsNegativeLatency(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1330,14 +1347,15 @@ func BenchmarkSpanMetrics_applyFilterPolicyMedium(b *testing.B) {
 
 func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, batch *trace_v1.ResourceSpans) {
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	testRegistry := registry.NewTestRegistry()
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.FilterPolicies = policies
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(b, err)
 	defer p.Shutdown(context.Background())
 	b.ResetTimer()
