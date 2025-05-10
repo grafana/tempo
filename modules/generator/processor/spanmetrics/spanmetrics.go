@@ -3,6 +3,7 @@ package spanmetrics
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"time"
 	"unicode/utf8"
@@ -42,16 +43,17 @@ type Processor struct {
 	spanMetricsTargetInfo      registry.Gauge
 	labels                     []string
 
-	filter               *spanfilter.SpanFilter
-	filteredSpansCounter prometheus.Counter
-	invalidUTF8Counter   prometheus.Counter
-	sanitizeCache        reclaimable.Cache[string, string]
+	filter                        *spanfilter.SpanFilter
+	filteredSpansCounter          prometheus.Counter
+	invalidUTF8Counter            prometheus.Counter
+	invalidPrometheusLabelCounter prometheus.Counter
+	sanitizeCache                 reclaimable.Cache[string, string]
 
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
+func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter, invalidPrometheusLabelCounter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -80,20 +82,21 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels, c.Get))
 	}
 
-	err := validateLabelValues(labels)
+	err := validateUTF8LabelValues(labels)
 	if err != nil {
 		return nil, err
 	}
 
 	p := &Processor{
-		Cfg:                   cfg,
-		registry:              reg,
-		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
-		now:                   time.Now,
-		labels:                labels,
-		filteredSpansCounter:  filteredSpansCounter,
-		invalidUTF8Counter:    invalidUTF8Counter,
-		sanitizeCache:         c,
+		Cfg:                           cfg,
+		registry:                      reg,
+		spanMetricsTargetInfo:         reg.NewGauge(targetInfo),
+		now:                           time.Now,
+		labels:                        labels,
+		filteredSpansCounter:          filteredSpansCounter,
+		invalidUTF8Counter:            invalidUTF8Counter,
+		invalidPrometheusLabelCounter: invalidPrometheusLabelCounter,
+		sanitizeCache:                 c,
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -213,9 +216,15 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	err := validateLabelValues(labelValues)
+	err := validateUTF8LabelValues(labelValues)
 	if err != nil {
 		p.invalidUTF8Counter.Inc()
+		return
+	}
+
+	err = validatePromLabelNames(labels)
+	if err != nil {
+		p.invalidPrometheusLabelCounter.Inc()
 		return
 	}
 
@@ -261,10 +270,20 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func validateLabelValues(v []string) error {
+func validateUTF8LabelValues(v []string) error {
 	for _, value := range v {
 		if !utf8.ValidString(value) {
 			return fmt.Errorf("invalid utf8 string: %s", value)
+		}
+	}
+	return nil
+}
+
+func validatePromLabelNames(v []string) error {
+	promLabelRe := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+	for _, value := range v {
+		if !promLabelRe.MatchString(value) {
+			return fmt.Errorf("invalid prometheus label name: %s", value)
 		}
 	}
 	return nil
