@@ -27,6 +27,7 @@
   The following configuration options are no longer valid. If they are in your tempo config, remove them.
 * [ENHANCEMENT] Drop invalid prometheus label names in spanmetrics processor
 * [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) @electron0zero
+* [ENHANCEMENT] Drop invalid prometheus label names in spanmetrics processor [#5122](https://github.com/grafana/tempo/pull/5122)
   Following config options are no longer valid, please remove them if you are using these in your tempo config:
   ```
   querier:
