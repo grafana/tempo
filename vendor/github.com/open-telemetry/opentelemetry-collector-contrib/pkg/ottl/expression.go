@@ -406,6 +406,24 @@ func (g StandardFunctionGetter[K]) Get(args Arguments) (Expr[K], error) {
 	return Expr[K]{exprFunc: fn}, nil
 }
 
+type PMapGetSetter[K any] interface {
+	Get(ctx context.Context, tCtx K) (pcommon.Map, error)
+	Set(ctx context.Context, tCtx K, val pcommon.Map) error
+}
+
+type StandardPMapGetSetter[K any] struct {
+	Getter func(ctx context.Context, tCtx K) (pcommon.Map, error)
+	Setter func(ctx context.Context, tCtx K, val any) error
+}
+
+func (path StandardPMapGetSetter[K]) Get(ctx context.Context, tCtx K) (pcommon.Map, error) {
+	return path.Getter(ctx, tCtx)
+}
+
+func (path StandardPMapGetSetter[K]) Set(ctx context.Context, tCtx K, val pcommon.Map) error {
+	return path.Setter(ctx, tCtx, val)
+}
+
 // PMapGetter is a Getter that must return a pcommon.Map.
 type PMapGetter[K any] interface {
 	// Get retrieves a pcommon.Map value.
