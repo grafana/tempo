@@ -36,17 +36,9 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
 		Metrics: &tempopb.TraceByIDMetrics{},
 	}
-	resBytes, err := proto.Marshal(traceResponse)
-	require.NoError(t, err)
-	response := http.Response{
-		StatusCode: 200,
-		Header: map[string][]string{
-			"Content-Type": {"application/protobuf"},
-		},
-		Body: io.NopCloser(bytes.NewReader(resBytes)),
-	}
+
 	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON)
-	err = combiner.AddResponse(MockResponse{&response})
+	err := combiner.AddResponse(MockResponse{getResponse(t, traceResponse)})
 	require.NoError(t, err)
 
 	res, err := combiner.HTTPFinal()
@@ -64,17 +56,9 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 		Status:  tempopb.PartialStatus_PARTIAL,
 		Metrics: &tempopb.TraceByIDMetrics{},
 	}
-	resBytes, err := proto.Marshal(traceResponse)
-	require.NoError(t, err)
-	response := http.Response{
-		StatusCode: 200,
-		Header: map[string][]string{
-			"Content-Type": {"application/protobuf"},
-		},
-		Body: io.NopCloser(bytes.NewReader(resBytes)),
-	}
+
 	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON)
-	err = combiner.AddResponse(MockResponse{&response})
+	err := combiner.AddResponse(MockResponse{getResponse(t, traceResponse)})
 	require.NoError(t, err)
 
 	res, err := combiner.HTTPFinal()
@@ -84,6 +68,55 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
 	require.NoError(t, err)
 	assert.Equal(t, actualResp.Status, tempopb.PartialStatus_PARTIAL)
+}
+
+func TestNewTraceByIdV2ShouldQuitOnPartialTraceReached(t *testing.T) {
+	completeResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
+		Status:  tempopb.PartialStatus_COMPLETE,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+
+	partialResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
+		Status:  tempopb.PartialStatus_PARTIAL,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+
+	combiner := NewTraceByIDV2(completeResponse.Size()*2, api.HeaderAcceptJSON)
+
+	// This checks that the combiner never quits on startup
+	assert.False(t, combiner.ShouldQuit())
+
+	// First complete trace should not make it exit
+	err := combiner.AddResponse(MockResponse{getResponse(t, completeResponse)})
+	require.NoError(t, err)
+	assert.False(t, combiner.ShouldQuit())
+
+	// Second trace is flagged as partial, it should bail
+	err = combiner.AddResponse(MockResponse{getResponse(t, partialResponse)})
+	require.NoError(t, err)
+	assert.True(t, combiner.ShouldQuit())
+
+	res, err := combiner.HTTPFinal()
+	require.NoError(t, err)
+
+	actualResp := &tempopb.TraceByIDResponse{}
+	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
+	require.NoError(t, err)
+	assert.Equal(t, actualResp.Status, tempopb.PartialStatus_PARTIAL)
+}
+
+func getResponse(t *testing.T, res *tempopb.TraceByIDResponse) *http.Response {
+	resBytes, err := proto.Marshal(res)
+	require.NoError(t, err)
+	return &http.Response{
+		StatusCode: 200,
+		Header: map[string][]string{
+			"Content-Type": {"application/protobuf"},
+		},
+		Body: io.NopCloser(bytes.NewReader(resBytes)),
+	}
 }
 
 func TestNewTraceByIDV2(t *testing.T) {
