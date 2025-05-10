@@ -6,19 +6,19 @@ server:
   log_level: info
 
 query_frontend:
+  rf1_after: "2025-01-01T00:00:00Z"
   search:
     query_backend_after: 0 # setting these both to 0 will force all range searches to hit the backend
     query_ingesters_until: 0
+  metrics:
+    query_backend_after: 0
 
 distributor:
   receivers:
     jaeger:
       protocols:
         grpc:
-    otlp:
-      protocols:
-        grpc:
-    zipkin:
+          endpoint: "tempo:14250"
   log_received_spans:
     enabled: true
   log_discarded_spans:
@@ -41,6 +41,7 @@ ingester:
   partition_ring:
     kvstore:
       store: inmemory
+  flush_object_storage: false
 
 storage:
   trace:
