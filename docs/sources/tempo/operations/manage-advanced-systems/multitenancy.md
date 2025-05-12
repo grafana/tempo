@@ -10,10 +10,8 @@ aliases:
 
 # Enable multi-tenancy
 
-Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use
-of a header: `X-Scope-OrgID`.
-
-The `X-Scope-OrgID` header is used to enforce multi-tenancy in Tempo and Grafana Enterprise Traces.
+Tempo is a multi-tenant distributed tracing backend. 
+Tempo uses the `X-Scope-OrgID` header to enforce multi-tenancy in Tempo and Grafana Enterprise Traces.
 It is set to the tenant (or “organization”) name.
 It is used for scoped writes (ingest) so that each span is stored under its specified tenant, and scoped reads so that queries return only that tenant’s data.
 
