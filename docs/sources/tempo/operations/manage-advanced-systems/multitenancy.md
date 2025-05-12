@@ -22,7 +22,29 @@ in the repository. This example uses the following settings to achieve multi-ten
 
 {{< admonition type="note" >}}
 Multi-tenancy on ingestion is supported with GPRC and HTTP for OTLP.
-We recommended using OpenTelemetry Collector to support multi-tenancy.
+You can add headers both in the OpenTelemetry Collector and Grafana Alloy or using `curl` or any other relevant HTTP/gRPC protocol tool. 
+Here is an example configuration for Alloy. 
+
+otelcol.exporter.otlphttp "tempo" {
+    // Define the client for exporting.
+    client {
+        // Send the X-Scope-OrgID header to the Tempo instance for multi-tenancy (tenant 1234).
+        headers = {
+            "X-Scope-OrgID" = "1234",
+        }
+
+        // Send to the locally running Tempo instance, on port 4317 (OTLP gRPC).
+        endpoint = "http://tempo:4318"
+
+        // Configure TLS settings for communicating with the endpoint.
+        tls {
+            // The connection is insecure.
+            insecure = true
+            // Do not verify TLS certificates when connecting.
+            insecure_skip_verify = true
+        }
+    }
+}
 {{< /admonition >}}
 
 ## Configure multi-tenancy
