@@ -18,11 +18,11 @@ It is used for scoped writes (ingest) so that each span is stored under its spec
 If you're interested in setting up multi-tenancy, consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector-multitenant)
 in the repository. This example uses the following settings to achieve multi-tenancy in Tempo.
 
-{{< admonition type="note" >}}
 Multi-tenancy on ingestion is supported with GPRC and HTTP for OTLP.
 You can add headers both in the OpenTelemetry Collector and Grafana Alloy or using `curl` or any other relevant HTTP/gRPC protocol tool. 
 Here is an example configuration for Alloy. 
 
+```
 otelcol.exporter.otlphttp "tempo" {
     // Define the client for exporting.
     client {
@@ -43,7 +43,7 @@ otelcol.exporter.otlphttp "tempo" {
         }
     }
 }
-{{< /admonition >}}
+```
 
 ## Configure multi-tenancy
 
