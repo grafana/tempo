@@ -63,12 +63,14 @@ func (q *Work) RemoveJob(id string) {
 
 func (q *Work) ListJobs() []*Job {
 	q.mtx.RLock()
-	defer q.mtx.RUnlock()
 
 	jobs := make([]*Job, 0, len(q.Jobs))
 	for _, j := range q.Jobs {
 		jobs = append(jobs, j)
 	}
+
+	// Not defered to unlock while sorting
+	q.mtx.RUnlock()
 
 	// sort jobs by creation time
 	sort.Slice(jobs, func(i, j int) bool {
@@ -126,44 +128,6 @@ func (q *Work) GetJobForWorker(workerID string) *Job {
 	}
 
 	return nil
-}
-
-func (q *Work) GetJobForType(jobType tempopb.JobType) *Job {
-	q.mtx.RLock()
-	defer q.mtx.RUnlock()
-
-	for _, j := range q.Jobs {
-		if j.WorkerID != "" {
-			continue
-		}
-
-		if j.IsPending() {
-			// Honor the request job type if specified
-			if jobType != tempopb.JobType_JOB_TYPE_UNSPECIFIED && j.Type != jobType {
-				continue
-			}
-
-			return j
-		}
-	}
-
-	return nil
-}
-
-// HasBlocks returns true if the worker is currently working on any of the provided block IDs.
-func (q *Work) HasBlocks(ids []string) bool {
-	q.mtx.RLock()
-	defer q.mtx.RUnlock()
-
-	for _, j := range q.Jobs {
-		for _, id := range ids {
-			if j.OnBlock(id) {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 func (q *Work) Marshal() ([]byte, error) {

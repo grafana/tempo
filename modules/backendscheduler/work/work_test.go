@@ -140,14 +140,6 @@ func TestGetJobForType(t *testing.T) {
 	require.NoError(t, err)
 	j2.Start()
 	j2.SetWorkerID("two")
-
-	j = w.GetJobForType(j.Type)
-	require.NotNil(t, j)
-	require.Equal(t, "x", j.ID)
-	j.Complete()
-
-	j = w.GetJobForType(j.Type)
-	require.Nil(t, j)
 }
 
 func TestBlocks(t *testing.T) {
@@ -157,13 +149,10 @@ func TestBlocks(t *testing.T) {
 	j := &Job{ID: "1", Type: tempopb.JobType_JOB_TYPE_COMPACTION, JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"1"}}}}
 	err := w.AddJob(j)
 	require.NoError(t, err)
-	require.True(t, w.HasBlocks([]string{"1"}))
-	require.False(t, w.HasBlocks([]string{"2"}))
 
 	j = &Job{ID: "2", Type: tempopb.JobType_JOB_TYPE_COMPACTION, JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"2"}, Output: []string{"3"}}}}
 	err = w.AddJob(j)
 	require.NoError(t, err)
-	require.True(t, w.HasBlocks([]string{"3"}))
 
 	// test CompactionInput
 	j = &Job{ID: "3", Type: tempopb.JobType_JOB_TYPE_COMPACTION, JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"4"}}}}

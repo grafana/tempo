@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -30,9 +31,8 @@ func TestCompactionProvider(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.MaxJobsPerTenant = 2
 	cfg.MeasureInterval = 100 * time.Millisecond
-	cfg.Backoff.MinBackoff = 1 * time.Millisecond
-	cfg.Backoff.MaxBackoff = 10 * time.Millisecond
-	cfg.Backoff.MaxRetries = 1
+	cfg.Backoff.MinBackoff = 10 * time.Millisecond
+	cfg.Backoff.MaxBackoff = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
 
@@ -62,19 +62,19 @@ func TestCompactionProvider(t *testing.T) {
 
 	p := NewCompactionProvider(
 		cfg,
-		log.NewNopLogger(),
+		test.NewTestingLogger(t),
 		store,
 		limits,
 		w,
 	)
-
-	time.Sleep(100 * time.Millisecond)
 
 	jobChan := p.Start(ctx)
 
 	var receivedJobs []*work.Job
 	for job := range jobChan {
 		receivedJobs = append(receivedJobs, job)
+		err = w.AddJob(job)
+		require.NoError(t, err)
 	}
 
 	for _, job := range receivedJobs {
@@ -82,7 +82,30 @@ func TestCompactionProvider(t *testing.T) {
 		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, job.Type)
 		require.NotEqual(t, "", job.Tenant())
 		require.NotEqual(t, "", job.ID)
+
+		// Check that the newBlockSelector does not include the input blocks
+		for i := 0; i < tenantCount; i++ {
+			testTenant := tenant + strconv.Itoa(i)
+			twbs, _ := p.newBlockSelector(testTenant)
+			require.NotNil(t, twbs)
+
+			metas := collectAllMetas(twbs)
+
+			// All blocks which have been received were addded to the work queue.
+			// New instances of the block selector should yield zero blocks.
+			require.Len(t, metas, 0)
+		}
 	}
+}
+
+func collectAllMetas(bs blockselector.CompactionBlockSelector) []*backend.BlockMeta {
+	metas, _ := bs.BlocksToCompact()
+
+	for newMetas, _ := bs.BlocksToCompact(); len(newMetas) > 0; {
+		metas = append(metas, newMetas...)
+	}
+
+	return metas
 }
 
 func newStore(ctx context.Context, t testing.TB, tmpDir string) (storage.Store, backend.RawReader, backend.RawWriter) {
