@@ -31,6 +31,11 @@
       partition_lag_critical_seconds: 900,  // 15 minutes
       // Filter for consumer groups to monitor for partition lag
       partition_lag_group_filter: 'metrics-generator|block-builder',
+      // threshold config for backend scheduler and worker alerts
+      backend_scheduler_jobs_failure_rate: 0.05,  // 5% of the jobs failed
+      backend_scheduler_jobs_retry_count_per_minute: 20,  // 20 jobs retried per minute
+      backend_scheduler_bad_jobs_count_per_minute: 0,  // alert if there are any bad jobs
+      backend_worker_call_retries_count_per_minute: 5,  // 5 retries per minute
     },
 
     per_cluster_label: 'cluster',
