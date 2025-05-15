@@ -373,6 +373,16 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 		if d.overrides.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 			globalLimit = limit * d.DistributorRing.InstancesCount()
 		}
+
+		if tracesSize > limit || tracesSize > globalLimit {
+			return status.Errorf(codes.ResourceExhausted,
+				"%s: traces size exceeded ingestion rate limit (local: %d bytes, global: %d bytes) while adding %d bytes for user %s",
+				overrides.ErrorPrefixRateLimited,
+				limit,
+				globalLimit,
+				tracesSize, userID)
+		}
+
 		return status.Errorf(codes.ResourceExhausted,
 			"%s: ingestion rate limit (local: %d bytes, global: %d bytes) exceeded while adding %d bytes for user %s",
 			overrides.ErrorPrefixRateLimited,

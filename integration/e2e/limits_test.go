@@ -38,6 +38,7 @@ import (
 
 const (
 	configLimits             = "config-limits.yaml"
+	configLimitsBatch        = "config-limits-batch.yaml"
 	configLimitsQuery        = "config-limits-query.yaml"
 	configLimitsPartialError = "config-limits-partial-success.yaml"
 	configLimits429          = "config-limits-429.yaml"
@@ -393,4 +394,59 @@ func TestQueryRateLimits(t *testing.T) {
 	}
 	require.ErrorContains(t, err, "job queue full")
 	require.ErrorContains(t, err, "code = ResourceExhausted")
+}
+
+func TestIngestionRateLimitError(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e_rate_limit")
+	require.NoError(t, err)
+	defer s.Close()
+
+	// Use the existing config file with rate limits
+	require.NoError(t, util2.CopyFileToSharedDir(s, configLimitsBatch, "config.yaml"))
+	tempo := util2.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	// Create a client for the OTLP endpoint
+	grpcClient := otlptracegrpc.NewClient(
+		otlptracegrpc.WithEndpoint(tempo.Endpoint(4317)),
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{Enabled: false}),
+	)
+	require.NoError(t, grpcClient.Start(context.Background()))
+
+	protoSpans := test.MakeProtoSpans(20)
+
+	// Send the traces to trigger rate limit
+	err = grpcClient.UploadTraces(context.Background(), protoSpans)
+	fmt.Printf("=== Error: %s\n", err)
+
+	// Verify error details
+	require.Error(t, err)
+	require.Equal(t, codes.ResourceExhausted, status.Code(err))
+
+	// Verify the specific error message contains the expected text
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+
+	// Check the error message contains the correct language
+	errorMsg := st.Message()
+	fmt.Printf("=== Error message: %s\n", errorMsg)
+
+	require.Contains(t, errorMsg, "RATE_LIMITED:")
+	require.Contains(t, errorMsg, "ingestion rate limit")
+	require.Contains(t, errorMsg, "exceeded while adding")
+
+	// If the trace is bigger than the limit, it should contain this phrase
+	require.Contains(t, errorMsg, "trace size bigger than limit")
+
+	// Verify numeric values are in the message (not checking exact values as they may vary slightly)
+	require.Contains(t, errorMsg, "local: ")
+	require.Contains(t, errorMsg, "bytes")
+
+	// Confirm metrics were recorded
+	err = tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(10),
+		[]string{"tempo_discarded_spans_total"},
+		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
+	)
+	require.NoError(t, err)
 }
