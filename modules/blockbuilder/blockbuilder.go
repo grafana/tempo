@@ -75,6 +75,12 @@ var (
 		Name:      "fetch_errors_total",
 		Help:      "Total number of errors while fetching by the consumer.",
 	}, []string{"partition"})
+	metricOwnedPartitions = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "owned_partitions",
+		Help:      "Indicates partition ownership by this block-builder (1 = owned).",
+	}, []string{"partition"})
 
 	tracer = otel.Tracer("modules/blockbuilder")
 
@@ -231,6 +237,10 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 // all the partitions lag is less than the cycle duration. When that happen it returns time to wait before another consuming cycle, based on the last record timestamp
 func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	partitions := b.getAssignedPartitions()
+
+	for _, p := range partitions {
+		metricOwnedPartitions.WithLabelValues(strconv.Itoa(int(p))).Set(1)
+	}
 
 	ctx, span := tracer.Start(ctx, "blockbuilder.consume", trace.WithAttributes(attribute.String("active_partitions", formatActivePartitions(partitions))))
 	defer span.End()
