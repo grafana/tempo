@@ -51,6 +51,8 @@ type RawWriter interface {
 	Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, cacheInfo *CacheInfo) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
+	// AbortAppend aborts an Append job. This is a no-op if the AppendTracker is nil.
+	AbortAppend(ctx context.Context, tracker AppendTracker) error
 	// CloseAppend closes any resources associated with the AppendTracker.
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// Delete deletes a file.
@@ -119,6 +121,12 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 // Write implements backend.Writer
 func (w *writer) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
 	return w.w.Append(ctx, name, KeyPathForBlock(blockID, tenantID), tracker, buffer)
+}
+
+// Write implements backend.Writer
+func (w *writer) AbortAppend(ctx context.Context, tracker AppendTracker) error {
+	//TODO: implement AbortAppend
+	return nil
 }
 
 // Write implements backend.Writer

@@ -31,7 +31,11 @@ func (b *backendWriter) Write(p []byte) (n int, err error) {
 	b.tracker, err = b.w.Append(b.ctx, b.name, b.blockID, b.tenantID, b.tracker, p)
 	return len(p), err
 }
-
+func (b *backendWriter) Abort() (err error) {
+	err = b.w.AbortAppend(b.ctx, b.tracker)
+	b.tracker = nil // TODO: discuss set to nil? close does not set to nil
+	return err
+}
 func (b *backendWriter) Close() error {
 	return b.w.CloseAppend(b.ctx, b.tracker)
 }

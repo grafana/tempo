@@ -158,6 +158,12 @@ func (r *readerWriter) Append(ctx context.Context, name string, keypath backend.
 	return r.nextWriter.Append(ctx, name, keypath, tracker, buffer)
 }
 
+// AbortAppend implements backend.Writer
+func (r *readerWriter) AbortAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	// TODO: implement AbortAppend
+	return nil
+}
+
 // CloseAppend implements backend.Writer
 func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
 	return r.nextWriter.CloseAppend(ctx, tracker)

@@ -97,6 +97,11 @@ func (m *MockRawWriter) Append(_ context.Context, _ string, _ KeyPath, _ AppendT
 	return nil, nil
 }
 
+func (m *MockRawWriter) AbortAppend(_ context.Context, _ AppendTracker) error {
+	// TODO: implement AbortAppend
+	return nil
+}
+
 func (m *MockRawWriter) CloseAppend(context.Context, AppendTracker) error {
 	m.closeAppendCalled = true
 	return nil
@@ -251,6 +256,10 @@ func (m *MockWriter) WriteBlockMeta(context.Context, *BlockMeta) error {
 
 func (m *MockWriter) Append(context.Context, string, uuid.UUID, string, AppendTracker, []byte) (AppendTracker, error) {
 	return nil, nil
+}
+
+func (m *MockWriter) AbortAppend(context.Context, AppendTracker) error {
+	return nil
 }
 
 func (m *MockWriter) CloseAppend(context.Context, AppendTracker) error {

@@ -48,6 +48,8 @@ type Writer interface {
 	WriteBlockMeta(ctx context.Context, meta *BlockMeta) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error)
+	// AbortAppend aborts an Append job. This is a no-op if the AppendTracker is nil.
+	AbortAppend(ctx context.Context, tracker AppendTracker) error
 	// CloseAppend closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// WriteTenantIndex writes the two meta slices as a tenant index
