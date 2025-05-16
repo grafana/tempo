@@ -147,6 +147,12 @@ func (rw *Azure) Append(ctx context.Context, name string, keypath backend.KeyPat
 	return a, nil
 }
 
+// AbortAppend implements backend.Writer
+func (rw *Azure) AbortAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	// TODO: implement AbortAppend
+	return nil
+}
+
 // CloseAppend implements backend.Writer
 func (rw *Azure) CloseAppend(context.Context, backend.AppendTracker) error {
 	return nil

@@ -4,11 +4,16 @@ import (
 	"context"
 	crand "crypto/rand"
 	"flag"
+	"fmt"
+	"io"
 	"math/rand"
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -212,4 +217,170 @@ func TestCompact(t *testing.T) {
 	require.Equal(t, int64(20), newMeta[0].TotalObjects)
 	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
+}
+func TestCompactWithFactory(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	require.NoError(t, common.ValidateConfig(&blockConfig))
+
+	c := NewCompactorWithFactories(common.CompactionOptions{
+		BlockConfig:     blockConfig,
+		OutputBlocks:    1,
+		FlushSizeBytes:  30_000_000,
+		ObjectsCombined: func(compactionLevel, objects int) {},
+	}, nil, nil)
+
+	dedicatedColumns := backend.DedicatedColumns{
+		{Scope: "resource", Name: "dedicated.resource.1", Type: "string"},
+		{Scope: "span", Name: "dedicated.span.1", Type: "string"},
+	}
+
+	meta1 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, 1, dedicatedColumns)
+	meta2 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, 1, dedicatedColumns)
+
+	inputs := []*backend.BlockMeta{meta1, meta2}
+
+	newMeta, err := c.Compact(context.Background(), log.NewNopLogger(), r, w, inputs)
+	require.NoError(t, err)
+	require.Len(t, newMeta, 1)
+	require.Equal(t, int64(20), newMeta[0].TotalObjects)
+	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
+	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
+}
+
+type mockWriter struct {
+	mock.Mock
+}
+
+func (m *mockWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, cacheInfo *backend.CacheInfo) error {
+	args := m.Called(ctx, name, blockID, tenantID, buffer, cacheInfo)
+	return args.Error(0)
+}
+func (m *mockWriter) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+	args := m.Called(ctx, name, blockID, tenantID, data, size)
+	return args.Error(0)
+}
+func (m *mockWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
+	args := m.Called(ctx, meta)
+	return args.Error(0)
+}
+func (m *mockWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	args := m.Called(ctx, name, blockID, tenantID, tracker, buffer)
+	return args.Get(0).(backend.AppendTracker), args.Error(1)
+}
+func (m *mockWriter) AbortAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	args := m.Called(ctx, tracker)
+	return args.Error(0)
+}
+func (m *mockWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	args := m.Called(ctx, tracker)
+	return args.Error(0)
+}
+func (m *mockWriter) WriteTenantIndex(ctx context.Context, tenantID string, meta []*backend.BlockMeta, compactedMeta []*backend.CompactedBlockMeta) error {
+	args := m.Called(ctx, tenantID, meta, compactedMeta)
+	return args.Error(0)
+}
+func (m *mockWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath) error {
+	args := m.Called(ctx, name, keypath)
+	return args.Error(0)
+}
+
+// wraps a combine function to return an error on the second call
+func failingIteratorFactory(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row] {
+	invoked := 0
+	var combineWithError combineFn[parquet.Row] = func(data []parquet.Row) (parquet.Row, error) {
+
+		invoked++
+		if invoked > 1 {
+			return nil, fmt.Errorf("dummy error")
+		}
+		return combine(data)
+	}
+
+	return newMultiblockIterator(bookmarks, combineWithError)
+
+}
+
+func TestCompactAbortsWhenIteratorErrors(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	compactWriter := mockWriter{}
+	var dummyTracker backend.AppendTracker = "dummy tracker"
+	compactWriter.On("Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(dummyTracker, nil)
+	compactWriter.On("AbortAppend", mock.Anything, dummyTracker).Return(nil)
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	blockConfig.RowGroupSizeBytes = 1000
+
+	require.NoError(t, common.ValidateConfig(&blockConfig))
+
+	c := NewCompactorWithFactories(common.CompactionOptions{
+		BlockConfig:    blockConfig,
+		OutputBlocks:   1,
+		FlushSizeBytes: 3000,
+
+		ObjectsCombined: func(compactionLevel, objects int) {},
+	}, failingIteratorFactory, nil)
+
+	meta1 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, 1, nil)
+
+	inputs := []*backend.BlockMeta{meta1}
+
+	_, err = c.Compact(context.Background(), log.NewNopLogger(), r, &compactWriter, inputs)
+	assert.ErrorContains(t, err, "dummy error")
+	compactWriter.AssertCalled(t, "Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	compactWriter.AssertCalled(t, "AbortAppend", mock.Anything, dummyTracker)
+}
+func TestCompactAbortsWhenAppendingOnFlush_again_if_block_is_already_full(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	compactWriter := mockWriter{}
+	var dummyTracker backend.AppendTracker = "dummy tracker"
+	compactWriter.On("Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(dummyTracker, nil).Once()
+	compactWriter.On("Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(dummyTracker, fmt.Errorf("dummy error")).Once()
+
+	compactWriter.On("AbortAppend", mock.Anything, dummyTracker).Return(nil)
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	blockConfig.RowGroupSizeBytes = 1000
+
+	require.NoError(t, common.ValidateConfig(&blockConfig))
+
+	c := NewCompactor(common.CompactionOptions{
+		BlockConfig:    blockConfig,
+		OutputBlocks:   1,
+		FlushSizeBytes: 3000,
+	})
+
+	meta1 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 100, 1, nil)
+
+	inputs := []*backend.BlockMeta{meta1}
+
+	_, err = c.Compact(context.Background(), log.NewNopLogger(), r, &compactWriter, inputs)
+	assert.ErrorContains(t, err, "dummy error")
+	compactWriter.AssertCalled(t, "Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	compactWriter.AssertCalled(t, "AbortAppend", mock.Anything, dummyTracker)
 }
