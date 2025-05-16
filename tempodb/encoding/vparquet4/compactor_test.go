@@ -347,3 +347,40 @@ func TestCompactAbortsWhenIteratorErrors(t *testing.T) {
 	compactWriter.AssertCalled(t, "Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	compactWriter.AssertCalled(t, "AbortAppend", mock.Anything, dummyTracker)
 }
+func TestCompactAbortsWhenAppendingOnFlush_again_if_block_is_already_full(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	compactWriter := mockWriter{}
+	var dummyTracker backend.AppendTracker = "dummy tracker"
+	compactWriter.On("Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(dummyTracker, nil).Once()
+	compactWriter.On("Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(dummyTracker, fmt.Errorf("dummy error")).Once()
+
+	compactWriter.On("AbortAppend", mock.Anything, dummyTracker).Return(nil)
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	blockConfig.RowGroupSizeBytes = 1000
+
+	require.NoError(t, common.ValidateConfig(&blockConfig))
+
+	c := NewCompactor(common.CompactionOptions{
+		BlockConfig:    blockConfig,
+		OutputBlocks:   1,
+		FlushSizeBytes: 3000,
+	})
+
+	meta1 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 100, 1, nil)
+
+	inputs := []*backend.BlockMeta{meta1}
+
+	_, err = c.Compact(context.Background(), log.NewNopLogger(), r, &compactWriter, inputs)
+	assert.ErrorContains(t, err, "dummy error")
+	compactWriter.AssertCalled(t, "Append", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	compactWriter.AssertCalled(t, "AbortAppend", mock.Anything, dummyTracker)
+}

@@ -226,6 +226,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
+				currentBlock.Abort(ctx)
 				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
 		}
