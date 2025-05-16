@@ -4,11 +4,14 @@ import (
 	"context"
 	crand "crypto/rand"
 	"flag"
+	"io"
 	"math/rand"
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -250,4 +253,41 @@ func TestCompactWithFactory(t *testing.T) {
 	require.Equal(t, int64(20), newMeta[0].TotalObjects)
 	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
+}
+
+type mockWriter struct {
+	mock.Mock
+}
+
+func (m *mockWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, cacheInfo *backend.CacheInfo) error {
+	args := m.Called(ctx, name, blockID, tenantID, buffer, cacheInfo)
+	return args.Error(0)
+}
+func (m *mockWriter) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+	args := m.Called(ctx, name, blockID, tenantID, data, size)
+	return args.Error(0)
+}
+func (m *mockWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
+	args := m.Called(ctx, meta)
+	return args.Error(0)
+}
+func (m *mockWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	args := m.Called(ctx, name, blockID, tenantID, tracker, buffer)
+	return args.Get(0).(backend.AppendTracker), args.Error(1)
+}
+func (m *mockWriter) AbortAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	args := m.Called(ctx, tracker)
+	return args.Error(0)
+}
+func (m *mockWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	args := m.Called(ctx, tracker)
+	return args.Error(0)
+}
+func (m *mockWriter) WriteTenantIndex(ctx context.Context, tenantID string, meta []*backend.BlockMeta, compactedMeta []*backend.CompactedBlockMeta) error {
+	args := m.Called(ctx, tenantID, meta, compactedMeta)
+	return args.Error(0)
+}
+func (m *mockWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath) error {
+	args := m.Called(ctx, name, keypath)
+	return args.Error(0)
 }
