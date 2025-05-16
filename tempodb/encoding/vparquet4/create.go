@@ -273,6 +273,9 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom, b.index)
 }
+func (b *streamingBlock) Abort(ctx context.Context) error {
+	return b.w.Abort()
+}
 
 // estimateMarshalledSizeFromTrace attempts to estimate the size of trace in bytes. This is used to make choose
 // when to cut a row group during block creation.

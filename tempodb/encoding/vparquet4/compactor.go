@@ -177,6 +177,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		if err != nil {
+			if currentBlock != nil {
+				err = errors.Join(err, currentBlock.Abort(ctx))
+			}
 			return nil, fmt.Errorf("error iterating input blocks: %w", err)
 		}
 
@@ -219,7 +222,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// Flush again if block is already full.
-		if currentBlock.EstimatedBufferedBytes() > c.opts.BlockConfig.RowGroupSizeBytes {
+		estimatedBufferedBytes := currentBlock.EstimatedBufferedBytes()
+		if estimatedBufferedBytes > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
