@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -44,4 +45,43 @@ func TestCacheCaches(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+}
+
+func TestDetermineContentType(t *testing.T) {
+	// Create and marshal a real protobuf message
+	protoMsg := &tempopb.SearchTagsResponse{
+		TagNames: []string{"foo", "bar"},
+	}
+	protobufContent, err := protoMsg.Marshal()
+	require.NoError(t, err)
+
+	// Also create JSON content for comparison
+	jsonBuf := bytes.NewBuffer([]byte{})
+	err = (&jsonpb.Marshaler{}).Marshal(jsonBuf, protoMsg)
+	require.NoError(t, err)
+	jsonContent := jsonBuf.Bytes()
+
+	testCases := []struct {
+		name         string
+		body         []byte
+		expectedType string
+	}{
+		{
+			name:         "JSON content",
+			body:         jsonContent,
+			expectedType: api.HeaderAcceptJSON,
+		},
+		{
+			name:         "Protobuf content",
+			body:         protobufContent,
+			expectedType: api.HeaderAcceptProtobuf,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			contentType := determineContentType(tc.body)
+			require.Equal(t, tc.expectedType, contentType)
+		})
+	}
 }
