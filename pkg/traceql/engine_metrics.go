@@ -1408,7 +1408,6 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 		var bucket Static
 		for _, l := range ts.Labels {
 			if l.Key == internalLabelBucket {
-				// bucket = int(l.Value.GetIntValue())
 				bucket = StaticFromAnyValue(l.Value)
 				continue
 			}
