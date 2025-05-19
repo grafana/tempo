@@ -38,7 +38,7 @@ The supported Tempo version by the operator can be found in the [changelog](http
 
 ### Kubernetes
 
-The Tempo Operator is supported on Kubernetes versions v1.25 to v1.29.
+The supported Kubernetes versions can be found in the [changelog](https://github.com/grafana/tempo-operator/blob/main/CHANGELOG.md) or on the [release page](https://github.com/grafana/tempo-operator/releases).
 
 ### cert-manager
 
