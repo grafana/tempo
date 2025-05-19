@@ -166,10 +166,10 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 }
 
 func (s *queryRangeSharder) exemplarsPerShard(total uint32, exemplars uint32) uint32 {
-	if exemplars == 0 {
+	if exemplars == 0 || total == 0 {
 		return 0
 	}
-	return uint32(math.Ceil(float64(exemplars)*1.2)) / total
+	return max(uint32(math.Ceil(float64(exemplars)*1.2))/total, 1) // require at least 1 exemplar per shard
 }
 
 func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
@@ -244,7 +244,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		if exemplars > 0 {
 			// Scale the number of exemplars per block to match the size
 			// of each sub request on this block. For very small blocks or other edge cases, return at least 1.
-			exemplars = max(uint32(float64(exemplars)*float64(m.TotalRecords)/float64(pages)), 1)
+			exemplars = max(uint32(float64(exemplars)*float64(pages)/float64(m.TotalRecords)), 1)
 		}
 
 		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
