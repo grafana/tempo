@@ -20,12 +20,15 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/unmarshaler"
 )
 
-var errUnknownEncodingExtension = errors.New("unknown encoding extension")
+var (
+	errUnknownEncodingExtension = errors.New("unknown encoding extension")
+	errInvalidComponentType     = errors.New("invalid component type")
+)
 
 func newTracesUnmarshaler(encoding string, _ receiver.Settings, host component.Host) (ptrace.Unmarshaler, error) {
 	// Extensions take precedence.
 	if unmarshaler, err := loadEncodingExtension[ptrace.Unmarshaler](host, encoding, "traces"); err != nil {
-		if !errors.Is(err, errUnknownEncodingExtension) {
+		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
 			return nil, err
 		}
 	} else {
@@ -53,7 +56,7 @@ func newTracesUnmarshaler(encoding string, _ receiver.Settings, host component.H
 func newLogsUnmarshaler(encoding string, set receiver.Settings, host component.Host) (plog.Unmarshaler, error) {
 	// Extensions take precedence.
 	if unmarshaler, err := loadEncodingExtension[plog.Unmarshaler](host, encoding, "logs"); err != nil {
-		if !errors.Is(err, errUnknownEncodingExtension) {
+		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
 			return nil, err
 		}
 	} else {
@@ -91,7 +94,7 @@ func newLogsUnmarshaler(encoding string, set receiver.Settings, host component.H
 func newMetricsUnmarshaler(encoding string, _ receiver.Settings, host component.Host) (pmetric.Unmarshaler, error) {
 	// Extensions take precedence.
 	if unmarshaler, err := loadEncodingExtension[pmetric.Unmarshaler](host, encoding, "metrics"); err != nil {
-		if !errors.Is(err, errUnknownEncodingExtension) {
+		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
 			return nil, err
 		}
 	} else {
@@ -128,7 +131,7 @@ func loadEncodingExtension[T any](host component.Host, encoding, signalType stri
 func encodingToComponentID(encoding string) (*component.ID, error) {
 	componentType, err := component.NewType(encoding)
 	if err != nil {
-		return nil, fmt.Errorf("invalid component type: %w", err)
+		return nil, fmt.Errorf("%w: %w", errInvalidComponentType, err)
 	}
 	id := component.NewID(componentType)
 	return &id, nil

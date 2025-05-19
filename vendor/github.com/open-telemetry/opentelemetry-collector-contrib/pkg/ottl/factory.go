@@ -33,6 +33,7 @@ type Factory[K any] interface {
 	unexportedFactoryFunc()
 }
 
+// CreateFunctionFunc is a function that creates an OTTL function
 type CreateFunctionFunc[K any] func(fCtx FunctionContext, args Arguments) (ExprFunc[K], error)
 
 type factory[K any] struct {
@@ -56,8 +57,10 @@ func (f *factory[K]) CreateFunction(fCtx FunctionContext, args Arguments) (ExprF
 	return f.createFunctionFunc(fCtx, args)
 }
 
+// FactoryOption is an option for a Factory
 type FactoryOption[K any] func(factory *factory[K])
 
+// NewFactory creates a new Factory
 func NewFactory[K any](name string, args Arguments, createFunctionFunc CreateFunctionFunc[K], options ...FactoryOption[K]) Factory[K] {
 	f := &factory[K]{
 		name:               name,

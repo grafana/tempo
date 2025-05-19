@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configcompression"
 	"go.opentelemetry.io/collector/config/confighttp/internal"
+	"go.opentelemetry.io/collector/config/configmiddleware"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/extension/extensionauth"
@@ -37,7 +38,12 @@ const (
 	defaultMaxRequestBodySize = 20 * 1024 * 1024 // 20MiB
 )
 
-var defaultCompressionAlgorithms = []string{"", "gzip", "zstd", "zlib", "snappy", "deflate", "lz4"}
+func defaultCompressionAlgorithms() []string {
+	if enableFramedSnappy.IsEnabled() {
+		return []string{"", "gzip", "zstd", "zlib", "snappy", "deflate", "lz4", "x-snappy-framed"}
+	}
+	return []string{"", "gzip", "zstd", "zlib", "snappy", "deflate", "lz4"}
+}
 
 // ClientConfig defines settings for creating an HTTP client.
 type ClientConfig struct {
@@ -68,7 +74,7 @@ type ClientConfig struct {
 	Headers map[string]configopaque.String `mapstructure:"headers,omitempty"`
 
 	// Auth configuration for outgoing HTTP calls.
-	Auth *configauth.Authentication `mapstructure:"auth,omitempty"`
+	Auth *configauth.Config `mapstructure:"auth,omitempty"`
 
 	// The compression key for supported compression types within collector.
 	Compression configcompression.Type `mapstructure:"compression,omitempty"`
@@ -111,12 +117,18 @@ type ClientConfig struct {
 	HTTP2PingTimeout time.Duration `mapstructure:"http2_ping_timeout,omitempty"`
 	// Cookies configures the cookie management of the HTTP client.
 	Cookies *CookiesConfig `mapstructure:"cookies,omitempty"`
+
+	// Middlewares are used to add custom functionality to the HTTP client.
+	// Middleware handlers are called in the order they appear in this list,
+	// with the first middleware becoming the outermost handler.
+	Middlewares []configmiddleware.Config `mapstructure:"middleware,omitempty"`
 }
 
 // CookiesConfig defines the configuration of the HTTP client regarding cookies served by the server.
 type CookiesConfig struct {
 	// Enabled if true, cookies from HTTP responses will be reused in further HTTP requests with the same server.
 	Enabled bool `mapstructure:"enabled,omitempty"`
+	_       struct{}
 }
 
 // NewDefaultClientConfig returns ClientConfig type object with
@@ -193,6 +205,22 @@ func (hcs *ClientConfig) ToClient(ctx context.Context, host component.Host, sett
 	}
 
 	clientTransport := (http.RoundTripper)(transport)
+
+	// Apply middlewares in reverse order so they execute in
+	// forward order. The first middleware runs after authentication.
+	for i := len(hcs.Middlewares) - 1; i >= 0; i-- {
+		var wrapper func(http.RoundTripper) (http.RoundTripper, error)
+		wrapper, err = hcs.Middlewares[i].GetHTTPClientRoundTripper(ctx, host.GetExtensions())
+		// If we failed to get the middleware
+		if err != nil {
+			return nil, err
+		}
+		clientTransport, err = wrapper(clientTransport)
+		// If we failed to construct a wrapper
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// The Auth RoundTripper should always be the innermost to ensure that
 	// request signing-based auth mechanisms operate after compression
@@ -338,6 +366,11 @@ type ServerConfig struct {
 	// is zero, the value of ReadTimeout is used. If both are
 	// zero, there is no timeout.
 	IdleTimeout time.Duration `mapstructure:"idle_timeout"`
+
+	// Middlewares are used to add custom functionality to the HTTP server.
+	// Middleware handlers are called in the order they appear in this list,
+	// with the first middleware becoming the outermost handler.
+	Middlewares []configmiddleware.Config `mapstructure:"middleware,omitempty"`
 }
 
 // NewDefaultServerConfig returns ServerConfig type object with default values.
@@ -356,11 +389,13 @@ func NewDefaultServerConfig() ServerConfig {
 
 type AuthConfig struct {
 	// Auth for this receiver.
-	configauth.Authentication `mapstructure:",squash"`
+	configauth.Config `mapstructure:",squash"`
 
 	// RequestParameters is a list of parameters that should be extracted from the request and added to the context.
 	// When a parameter is found in both the query string and the header, the value from the query string will be used.
 	RequestParameters []string `mapstructure:"request_params,omitempty"`
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // ToListener creates a net.Listener.
@@ -411,7 +446,7 @@ func WithDecoder(key string, dec func(body io.ReadCloser) (io.ReadCloser, error)
 }
 
 // ToServer creates an http.Server from settings object.
-func (hss *ServerConfig) ToServer(_ context.Context, host component.Host, settings component.TelemetrySettings, handler http.Handler, opts ...ToServerOption) (*http.Server, error) {
+func (hss *ServerConfig) ToServer(ctx context.Context, host component.Host, settings component.TelemetrySettings, handler http.Handler, opts ...ToServerOption) (*http.Server, error) {
 	serverOpts := &toServerOptions{}
 	serverOpts.Apply(opts...)
 
@@ -420,7 +455,23 @@ func (hss *ServerConfig) ToServer(_ context.Context, host component.Host, settin
 	}
 
 	if hss.CompressionAlgorithms == nil {
-		hss.CompressionAlgorithms = defaultCompressionAlgorithms
+		hss.CompressionAlgorithms = defaultCompressionAlgorithms()
+	}
+
+	// Apply middlewares in reverse order so they execute in
+	// forward order.  The first middleware runs after
+	// decompression, below, preceded by Auth, CORS, etc.
+	for i := len(hss.Middlewares) - 1; i >= 0; i-- {
+		wrapper, err := hss.Middlewares[i].GetHTTPServerHandler(ctx, host.GetExtensions())
+		// If we failed to get the middleware
+		if err != nil {
+			return nil, err
+		}
+		handler, err = wrapper(handler)
+		// If we failed to construct a wrapper
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	handler = httpContentDecompressor(
@@ -530,6 +581,8 @@ type CORSConfig struct {
 	// Set it to the number of seconds that browsers should cache a CORS
 	// preflight response for.
 	MaxAge int `mapstructure:"max_age,omitempty"`
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // NewDefaultCORSConfig creates a default cross-origin resource sharing (CORS) configuration.
