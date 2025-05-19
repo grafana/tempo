@@ -1372,8 +1372,9 @@ func (h *Histogram) Record(bucket float64, count int) {
 }
 
 type histSeries struct {
-	labels Labels
-	hist   []Histogram
+	labels    Labels
+	hist      []Histogram
+	exemplars []Exemplar
 }
 
 type HistogramAggregator struct {
@@ -1381,7 +1382,6 @@ type HistogramAggregator struct {
 	qs               []float64
 	len              int
 	start, end, step uint64
-	exemplars        []Exemplar
 	exemplarBuckets  *bucketSet
 }
 
@@ -1430,7 +1430,6 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 				labels: withoutBucket,
 				hist:   make([]Histogram, h.len),
 			}
-			h.ss[withoutBucketStr] = existing
 		}
 
 		b := bucket.Float()
@@ -1461,19 +1460,20 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 					Value: StaticFromAnyValue(l.Value),
 				})
 			}
-			h.exemplars = append(h.exemplars, Exemplar{
+			existing.exemplars = append(existing.exemplars, Exemplar{
 				Labels:      labels,
 				Value:       exemplar.Value,
 				TimestampMs: uint64(exemplar.TimestampMs),
 			})
 		}
+		h.ss[withoutBucketStr] = existing
 	}
 }
 
 func (h *HistogramAggregator) Results() SeriesSet {
 	results := make(SeriesSet, len(h.ss)*len(h.qs))
 
-	for _, in := range h.ss {
+	for key, in := range h.ss {
 		// For each input series, we create a new series for each quantile.
 		for _, q := range h.qs {
 			// Append label for the quantile
@@ -1484,7 +1484,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			ts := TimeSeries{
 				Labels:    labels,
 				Values:    make([]float64, len(in.hist)),
-				Exemplars: h.exemplars,
+				Exemplars: h.ss[key].exemplars,
 			}
 			for i := range in.hist {
 
