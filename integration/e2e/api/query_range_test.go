@@ -86,6 +86,12 @@ sendLoop:
 		"{} | sum_over_time(duration)",
 		"{} | quantile_over_time(duration, .5)",
 		"{} | quantile_over_time(duration, .5, 0.9, 0.99)",
+
+		"{} | count_over_time() by (span.span_attr)",
+		"{} | count_over_time() by (resource.res_attr)",
+		"{} | count_over_time() by (.span_attr)",
+		"{} | count_over_time() by (.res_attr)",
+
 		"{} | histogram_over_time(duration)",
 		"{} | count_over_time() by (status)",
 		"{status != error} | count_over_time() by (status)",
