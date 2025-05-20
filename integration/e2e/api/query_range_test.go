@@ -108,6 +108,66 @@ sendLoop:
 		})
 	}
 
+	// check exemplars in more detail
+	for _, testCase := range []struct {
+		query                   string
+		targetAttribute         string
+		targetExemplarAttribute string
+	}{
+		{
+			query:                   "{} | quantile_over_time(duration, .9) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | quantile_over_time(duration, .9) by (resource.res_attr)",
+			targetAttribute:         "resource.res_attr",
+			targetExemplarAttribute: "resource.res_attr",
+		},
+		{
+			query:                   "{} | quantile_over_time(duration, .9) by (.span_attr)",
+			targetAttribute:         ".span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | quantile_over_time(duration, .9) by (.res_attr)",
+			targetAttribute:         ".res_attr",
+			targetExemplarAttribute: "resource.res_attr",
+		},
+	} {
+		t.Run(testCase.query, func(t *testing.T) {
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), testCase.query, debugMode)
+			require.NotNil(t, queryRangeRes)
+			require.Equal(t, len(queryRangeRes.GetSeries()), 2)
+
+			// Verify that all exemplars in this series belongs to the right series
+			// by matching attribute values
+			for _, series := range queryRangeRes.Series {
+				// search attribute value for the series
+				var expectedAttrValue string
+				for _, label := range series.Labels {
+					if label.Key == testCase.targetAttribute {
+						expectedAttrValue = label.Value.GetStringValue()
+						break
+					}
+				}
+				require.NotEmpty(t, expectedAttrValue)
+
+				// check attribute value in exemplars
+				for _, exemplar := range series.Exemplars {
+					var actualAttrValue string
+					for _, label := range exemplar.Labels {
+						if label.Key == testCase.targetExemplarAttribute {
+							actualAttrValue = label.Value.GetStringValue()
+							break
+						}
+					}
+					require.Equal(t, expectedAttrValue, actualAttrValue)
+				}
+			}
+		})
+	}
+
 	// invalid query
 	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}")
 	require.Equal(t, 400, res.StatusCode)
