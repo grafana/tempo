@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -371,7 +370,9 @@ func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempop
 	}
 
 	queryRangeRes := tempopb.QueryRangeResponse{}
-	require.NoError(t, json.Unmarshal(body, &queryRangeRes))
+	readBody := strings.NewReader(string(body))
+	err = new(jsonpb.Unmarshaler).Unmarshal(readBody, &queryRangeRes)
+	require.NoError(t, err)
 	return queryRangeRes
 }
 
