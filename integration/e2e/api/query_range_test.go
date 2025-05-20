@@ -134,6 +134,36 @@ sendLoop:
 			targetAttribute:         ".res_attr",
 			targetExemplarAttribute: "resource.res_attr",
 		},
+		{
+			query:                   "{} | rate() by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | count_over_time() by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | min_over_time(duration) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | max_over_time(duration) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | avg_over_time(duration) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | sum_over_time(duration) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
 	} {
 		t.Run(testCase.query, func(t *testing.T) {
 			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), testCase.query, debugMode)
