@@ -277,6 +277,12 @@ func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 	for _, attrs := range attributes {
 		// ignoring job and instance
 		key := attrs.Key
+		// Skip empty string keys, which are out of spec but
+		// technically possible in the proto. These will cause
+		// issues downstream for metrics datasources
+		if key == "" {
+			continue
+		}
 		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !slices.Contains(exclude, key) {
 			*keys = append(*keys, SanitizeLabelNameWithCollisions(key, intrinsicLabels, sanitizeFn))
 			value := tempo_util.StringifyAnyValue(attrs.Value)
