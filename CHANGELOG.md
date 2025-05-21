@@ -75,6 +75,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Support TraceQL Metrics checks in Vulture [#4886](https://github.com/grafana/tempo/pull/4886) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add memcached to the resources dashboard [#5049](https://github.com/grafana/tempo/pull/5049) (@javiermolinar)
 * [ENHANCEMENT] Query-frontend: logs add msg to the log line [#4975](https://github.com/grafana/tempo/pull/4975) (@jmichalek132)
+* [ENHANCEMENT] Host Info Processor: track host identifying resource attribute in metric [#5152](https://github.com/grafana/tempo/pull/5152) (@rlankfo)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Make comparison to nil symmetric [#4869](https://github.com/grafana/tempo/pull/4869) (@stoewer)
