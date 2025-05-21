@@ -1,11 +1,12 @@
 ## main / unreleased
-* [FEATURE] Add support for topk and bottomk functions for TraceQL metrics [#4646](https://github.com/grafana/tempo/pull/4646/) @electron0zero
+* [ENHANCEMENT] Add jitter in backendworker to avoid thundering herd from workers [#5150](https://github.com/grafana/tempo/pull/5150) (@electron0zero)
+* [FEATURE] Add support for topk and bottomk functions for TraceQL metrics [#4646](https://github.com/grafana/tempo/pull/4646/) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
 * [CHANGE] Update query range error message [#4929](https://github.com/grafana/tempo/pull/4929) (@joey-grafana)
 * [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1 [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
   The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
-* [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) @electron0zero
+* [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
   Following config options are no longer valid, please remove them if you are using these in your tempo config:
   ```
   querier:
