@@ -84,7 +84,7 @@ func TestHostInfoHostSource(t *testing.T) {
 	p.PushSpans(context.Background(), req)
 
 	for i := range len(req.Batches) {
-		hostIdLbls := labels.FromMap(map[string]string{
+		hostIDLbls := labels.FromMap(map[string]string{
 			hostIdentifierAttr: "test" + strconv.Itoa(i),
 			hostSourceAttr:     "host.id",
 		})
@@ -94,10 +94,10 @@ func TestHostInfoHostSource(t *testing.T) {
 		})
 
 		if i%2 == 0 {
-			assert.Equal(t, 0.0, testRegistry.Query(hostInfoMetric, hostIdLbls))
+			assert.Equal(t, 0.0, testRegistry.Query(hostInfoMetric, hostIDLbls))
 			assert.Equal(t, 1.0, testRegistry.Query(hostInfoMetric, k8sNodeNameLbls))
 		} else {
-			assert.Equal(t, 1.0, testRegistry.Query(hostInfoMetric, hostIdLbls))
+			assert.Equal(t, 1.0, testRegistry.Query(hostInfoMetric, hostIDLbls))
 			assert.Equal(t, 0.0, testRegistry.Query(hostInfoMetric, k8sNodeNameLbls))
 		}
 
