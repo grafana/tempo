@@ -165,11 +165,46 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, jobMetricsResponse, s.next), nil
 }
 
-func (s *queryRangeSharder) exemplarsPerShard(total uint32, exemplars uint32) uint32 {
-	if exemplars == 0 || total == 0 {
-		return 0
+// exemplarsPerShard fairly distributes exemplars over time per each shard.
+// Example: with metas containing 2 blocks, where first block duration is 90 seconds and
+// second block duration is 10 seconds, with limit = 100, the first block will
+// get 90*1.2 exemplars and the second block will get 10*1.2 exemplars
+func (s *queryRangeSharder) exemplarsPerShard(metas []*backend.BlockMeta, limit uint32) []uint32 {
+	const overhead = 1.2 // 20% overhead for shard size
+
+	exemplars := make([]uint32, len(metas))
+	if limit == 0 || len(metas) == 0 {
+		return exemplars
 	}
-	return max(uint32(math.Ceil(float64(exemplars)*1.2))/total, 1) // require at least 1 exemplar per shard
+
+	// Calculate total duration across all blocks
+	var totalDurationNanos int64
+	for _, meta := range metas {
+		if meta.EndTime.Before(meta.StartTime) { // Skip blocks with invalid time ranges
+			continue
+		}
+
+		totalDurationNanos += meta.EndTime.UnixNano() - meta.StartTime.UnixNano()
+	}
+
+	if totalDurationNanos <= 0 {
+		return exemplars
+	}
+
+	// Distribute exemplars proportionally based on block duration
+	var blockDuration int64
+	var share float64
+	for i, meta := range metas {
+		if meta.EndTime.Before(meta.StartTime) { // Skip blocks with invalid time ranges
+			continue
+		}
+
+		blockDuration = meta.EndTime.UnixNano() - meta.StartTime.UnixNano()
+		share = (float64(blockDuration) / float64(totalDurationNanos)) * float64(limit) * overhead
+		exemplars[i] = max(uint32(math.Ceil(share)), 1)
+	}
+
+	return exemplars
 }
 
 func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
@@ -228,8 +263,8 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	queryHash := hashForQueryRangeRequest(&searchReq)
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
-	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)), searchReq.Exemplars)
-	for _, m := range metas {
+	exemplarsPerBlock := s.exemplarsPerShard(metas, searchReq.Exemplars)
+	for i, m := range metas {
 		if m.EndTime.Before(m.StartTime) {
 			// Ignore blocks with bad timings from debugging
 			continue
@@ -240,7 +275,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			continue
 		}
 
-		exemplars := exemplarsPerBlock
+		exemplars := exemplarsPerBlock[i]
 		if exemplars > 0 {
 			// Scale the number of exemplars per block to match the size
 			// of each sub request on this block. For very small blocks or other edge cases, return at least 1.
