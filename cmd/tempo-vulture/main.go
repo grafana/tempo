@@ -125,7 +125,7 @@ func init() {
 	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls.  Set to 0s to disable search.")
 	flag.DurationVar(&tempoMetricsBackoffDuration, "tempo-metrics-backoff-duration", 0, "The amount of time to pause between TraceQL Metrics Tempo calls.  Set to 0s to disable.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
-	flag.DurationVar(&tempoRecentTracesCutoffDuration, "tempo-recent-traces-backoff-duration", 5*time.Minute, "The amount of time to pause between Recent Traces Tempo calls. Set to 0s to disable.")
+	flag.DurationVar(&tempoRecentTracesCutoffDuration, "tempo-recent-traces-backoff-duration", 14*time.Minute, "Cutoff between recent and old traces query checks")
 
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
 }
@@ -179,18 +179,46 @@ func main() {
 	r := rand.New(rand.NewSource(startTime.Unix()))
 	interval := vultureConfig.tempoWriteBackoffDuration
 
-	selectPastTimestamp := func(now time.Time) (newStart, ts time.Time) {
-		return selectPastTimestamp(startTime, now, interval, vultureConfig.tempoRetentionDuration, r)
+	selectRecentTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
+		oldest := now.Add(-vultureConfig.tempoRecentTracesCutoffDuration)
+		if oldest.Before(startTime) { // if vulture's just started
+			oldest = startTime
+		}
+		newStart, ts = selectPastTimestamp(oldest, now, interval, vultureConfig.tempoRetentionDuration, r)
+		return
+	}
+
+	selectOldTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
+		newest := now.Add(-vultureConfig.tempoRecentTracesCutoffDuration)
+		if newest.Before(startTime) { // if vulture's just started and no traces to query
+			skip = true
+			return
+		}
+		newStart, ts = selectPastTimestamp(startTime, newest, interval, vultureConfig.tempoRetentionDuration, r)
+		return
 	}
 
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
-	runChecker(tickerRead, vultureConfig, selectPastTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+
+	// Recent traces
+	runChecker(tickerRead, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doRead(httpClient, vultureConfig, info, l)
 	}, logger)
-	runChecker(tickerSearch, vultureConfig, selectPastTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+	runChecker(tickerSearch, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doSearch(httpClient, vultureConfig, info, l)
 	}, logger)
-	runChecker(tickerMetrics, vultureConfig, selectPastTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+	runChecker(tickerMetrics, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doMetrics(httpClient, vultureConfig, info, l)
+	}, logger)
+
+	// Old traces
+	runChecker(tickerRead, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doRead(httpClient, vultureConfig, info, l)
+	}, logger)
+	runChecker(tickerSearch, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doSearch(httpClient, vultureConfig, info, l)
+	}, logger)
+	runChecker(tickerMetrics, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doMetrics(httpClient, vultureConfig, info, l)
 	}, logger)
 
@@ -315,7 +343,7 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 func runChecker(
 	ticker *time.Ticker,
 	config vultureConfiguration,
-	selectPastTimestamp func(now time.Time) (newStart, ts time.Time),
+	selectPastTimestamp func(now time.Time) (newStart, ts time.Time, skip bool),
 	checker func(*util.TraceInfo, *zap.Logger),
 	l *zap.Logger,
 ) {
@@ -324,7 +352,10 @@ func runChecker(
 	}
 	go func() {
 		for now := range ticker.C {
-			startTime, seed := selectPastTimestamp(now)
+			startTime, seed, skip := selectPastTimestamp(now)
+			if skip {
+				continue
+			}
 
 			logger := l.With(
 				zap.String("org_id", config.tempoOrgID),
