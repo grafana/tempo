@@ -36,16 +36,17 @@ var (
 	prometheusListenAddress string
 	prometheusPath          string
 
-	tempoQueryURL                 string
-	tempoPushURL                  string
-	tempoOrgID                    string
-	tempoWriteBackoffDuration     time.Duration
-	tempoLongWriteBackoffDuration time.Duration
-	tempoReadBackoffDuration      time.Duration
-	tempoSearchBackoffDuration    time.Duration
-	tempoMetricsBackoffDuration   time.Duration
-	tempoRetentionDuration        time.Duration
-	tempoPushTLS                  bool
+	tempoQueryURL                   string
+	tempoPushURL                    string
+	tempoOrgID                      string
+	tempoWriteBackoffDuration       time.Duration
+	tempoLongWriteBackoffDuration   time.Duration
+	tempoReadBackoffDuration        time.Duration
+	tempoSearchBackoffDuration      time.Duration
+	tempoMetricsBackoffDuration     time.Duration
+	tempoRetentionDuration          time.Duration
+	tempoRecentTracesCutoffDuration time.Duration
+	tempoPushTLS                    bool
 
 	rf1After time.Time
 
@@ -71,16 +72,17 @@ const (
 )
 
 type vultureConfiguration struct {
-	tempoQueryURL                 string
-	tempoPushURL                  string
-	tempoOrgID                    string
-	tempoWriteBackoffDuration     time.Duration
-	tempoLongWriteBackoffDuration time.Duration
-	tempoReadBackoffDuration      time.Duration
-	tempoSearchBackoffDuration    time.Duration
-	tempoMetricsBackoffDuration   time.Duration
-	tempoRetentionDuration        time.Duration
-	tempoPushTLS                  bool
+	tempoQueryURL                   string
+	tempoPushURL                    string
+	tempoOrgID                      string
+	tempoWriteBackoffDuration       time.Duration
+	tempoLongWriteBackoffDuration   time.Duration
+	tempoReadBackoffDuration        time.Duration
+	tempoSearchBackoffDuration      time.Duration
+	tempoMetricsBackoffDuration     time.Duration
+	tempoRetentionDuration          time.Duration
+	tempoRecentTracesCutoffDuration time.Duration
+	tempoPushTLS                    bool
 }
 
 var _ flag.Value = (*timeVar)(nil)
@@ -123,6 +125,7 @@ func init() {
 	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls.  Set to 0s to disable search.")
 	flag.DurationVar(&tempoMetricsBackoffDuration, "tempo-metrics-backoff-duration", 0, "The amount of time to pause between TraceQL Metrics Tempo calls.  Set to 0s to disable.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
+	flag.DurationVar(&tempoRecentTracesCutoffDuration, "tempo-recent-traces-backoff-duration", 5*time.Minute, "The amount of time to pause between Recent Traces Tempo calls. Set to 0s to disable.")
 
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
 }
@@ -140,16 +143,17 @@ func main() {
 	logger.Info("Tempo Vulture starting")
 
 	vultureConfig := vultureConfiguration{
-		tempoQueryURL:                 tempoQueryURL,
-		tempoPushURL:                  tempoPushURL,
-		tempoOrgID:                    tempoOrgID,
-		tempoWriteBackoffDuration:     tempoWriteBackoffDuration,
-		tempoLongWriteBackoffDuration: tempoLongWriteBackoffDuration,
-		tempoReadBackoffDuration:      tempoReadBackoffDuration,
-		tempoSearchBackoffDuration:    tempoSearchBackoffDuration,
-		tempoMetricsBackoffDuration:   tempoMetricsBackoffDuration,
-		tempoRetentionDuration:        tempoRetentionDuration,
-		tempoPushTLS:                  tempoPushTLS,
+		tempoQueryURL:                   tempoQueryURL,
+		tempoPushURL:                    tempoPushURL,
+		tempoOrgID:                      tempoOrgID,
+		tempoWriteBackoffDuration:       tempoWriteBackoffDuration,
+		tempoLongWriteBackoffDuration:   tempoLongWriteBackoffDuration,
+		tempoReadBackoffDuration:        tempoReadBackoffDuration,
+		tempoSearchBackoffDuration:      tempoSearchBackoffDuration,
+		tempoMetricsBackoffDuration:     tempoMetricsBackoffDuration,
+		tempoRetentionDuration:          tempoRetentionDuration,
+		tempoRecentTracesCutoffDuration: tempoRecentTracesCutoffDuration,
+		tempoPushTLS:                    tempoPushTLS,
 	}
 
 	jaegerClient, err := newJaegerGRPCClient(vultureConfig, logger)
