@@ -390,9 +390,10 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 			globalLimit = limit * d.DistributorRing.InstancesCount()
 		}
 
-		if tracesSize > limit || tracesSize > burst {
+		// batch size is too big if it's more than the limit and burst both
+		if tracesSize > limit && tracesSize > burst {
 			return status.Errorf(codes.ResourceExhausted,
-				"%s: Batch size (%d bytes) exceeds ingestion limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes/s) while adding %d bytes for user %s. Consider reducing batch size or increasing rate limit.",
+				"%s: batch size (%d bytes) exceeds ingestion limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes/s) while adding %d bytes for user %s. Consider reducing batch size or increasing rate limit.",
 				overrides.ErrorPrefixRateLimited, tracesSize, limit, globalLimit, burst, tracesSize, userID)
 		}
 

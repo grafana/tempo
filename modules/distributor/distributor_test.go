@@ -2022,32 +2022,68 @@ func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {
 
 func TestCheckForRateLimits(t *testing.T) {
 	tests := []struct {
-		name           string
-		tracesSize     int
-		rateLimitBytes int
-		expectError    string
-		errCode        codes.Code
+		name            string
+		tracesSize      int
+		rateLimitBytes  int
+		burstLimitBytes int
+		expectError     string
+		errCode         codes.Code
 	}{
 		{
-			name:           "size under rate limit",
-			tracesSize:     100,
-			rateLimitBytes: 200,
-			expectError:    "",
-			errCode:        codes.OK,
+			name:            "size under rate limit and burst limit",
+			tracesSize:      100,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
 		},
 		{
-			name:           "size exactly at rate limit",
-			tracesSize:     200,
-			rateLimitBytes: 200,
-			expectError:    "",
-			errCode:        codes.OK,
+			name:            "size exactly at rate limit and burst limit",
+			tracesSize:      500,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
 		},
 		{
-			name:           "size over rate limit",
-			tracesSize:     300,
-			rateLimitBytes: 200,
-			expectError:    "RATE_LIMITED: traces size exceeded ingestion rate limit (local: 200 bytes, global: 0 bytes) while adding 300 bytes for user test-user",
-			errCode:        codes.ResourceExhausted,
+			name:            "size over rate limit but exactly at burst rate limit",
+			tracesSize:      500,
+			rateLimitBytes:  200, // to test that burst is respected
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size over rate limit but under burst limit",
+			tracesSize:      1100,
+			rateLimitBytes:  500, // to test that burst is respected
+			burstLimitBytes: 1500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size over rate limit and burst limit",
+			tracesSize:      1100,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "RATE_LIMITED: batch size (1100 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes/s) while adding 1100 bytes for user test-user. Consider reducing batch size or increasing rate limit.",
+			errCode:         codes.ResourceExhausted,
+		},
+		{
+			name:            "size over rate limit and burst limit",
+			tracesSize:      1000,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "RATE_LIMITED: batch size (1000 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes/s) while adding 1000 bytes for user test-user. Consider reducing batch size or increasing rate limit.",
+			errCode:         codes.ResourceExhausted,
+		},
+		{
+			name:            "size exactly at rate limit but over the burst limit",
+			tracesSize:      500,
+			rateLimitBytes:  500,
+			burstLimitBytes: 200,
+			expectError:     "RATE_LIMITED: ingestion rate limit (local: 500 bytes/s, global: 0 bytes/s, burst: 200 bytes/s) exceeded while adding 500 bytes for user test-user. Consider increasing the limit or reducing ingestion rate.",
+			errCode:         codes.ResourceExhausted,
 		},
 	}
 
@@ -2058,20 +2094,21 @@ func TestCheckForRateLimits(t *testing.T) {
 					Ingestion: overrides.IngestionOverrides{
 						RateStrategy:   overrides.LocalIngestionRateStrategy,
 						RateLimitBytes: tc.rateLimitBytes,
-						BurstSizeBytes: tc.rateLimitBytes,
+						BurstSizeBytes: tc.burstLimitBytes,
 					},
 				},
 			}
 
-			// Create distributor with the overrides
+			// Create a distributor with the overrides
 			logger := kitlog.NewNopLogger()
 			d, _ := prepare(t, overridesConfig, logger)
 
+			// check if we can ingest the batch
 			err := d.checkForRateLimits(tc.tracesSize, 100, "test-user")
 			s, ok := status.FromError(err)
 			require.True(t, ok)
 			require.Equal(t, tc.errCode, s.Code())
-			require.Equal(t, s.Message(), tc.expectError)
+			require.Equal(t, tc.expectError, s.Message())
 		})
 	}
 }
