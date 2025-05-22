@@ -447,13 +447,16 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 	exemplars := make([]Exemplar, 0, maxExemplars)
 
 	return &StepAggregator{
-		start:           start,
-		end:             end,
-		step:            step,
-		intervals:       intervals,
-		vectors:         vectors,
-		exemplars:       exemplars,
-		exemplarBuckets: newBucketSet(intervals),
+		start:     start,
+		end:       end,
+		step:      step,
+		intervals: intervals,
+		vectors:   vectors,
+		exemplars: exemplars,
+		exemplarBuckets: newBucketSet(
+			alignStart(start, step),
+			alignEnd(end, step),
+		),
 	}
 }
 
@@ -469,8 +472,7 @@ func (s *StepAggregator) ObserveExemplar(value float64, ts uint64, lbls Labels) 
 	if s.exemplarBuckets.testTotal() {
 		return
 	}
-	interval := IntervalOfMs(int64(ts), s.start, s.end, s.step)
-	if s.exemplarBuckets.addAndTest(interval) {
+	if s.exemplarBuckets.addAndTest(ts) {
 		return
 	}
 
@@ -1263,8 +1265,11 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 
 	}
 	return &SimpleAggregator{
-		ss:              make(SeriesSet),
-		exemplarBuckets: newBucketSet(l),
+		ss: make(SeriesSet),
+		exemplarBuckets: newBucketSet(
+			alignStart(req.Start, req.Step),
+			alignEnd(req.End, req.Step),
+		),
 		len:             l,
 		start:           req.Start,
 		end:             req.End,
@@ -1321,8 +1326,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 		if b.exemplarBuckets.testTotal() {
 			break
 		}
-		interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
-		if b.exemplarBuckets.addAndTest(interval) {
+		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
 			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
 		}
 		labels := make(Labels, 0, len(exemplar.Labels))
@@ -1388,13 +1392,16 @@ type HistogramAggregator struct {
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *HistogramAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	return &HistogramAggregator{
-		qs:              qs,
-		ss:              make(map[string]histSeries),
-		len:             l,
-		start:           req.Start,
-		end:             req.End,
-		step:            req.Step,
-		exemplarBuckets: newBucketSet(l),
+		qs:    qs,
+		ss:    make(map[string]histSeries),
+		len:   l,
+		start: req.Start,
+		end:   req.End,
+		step:  req.Step,
+		exemplarBuckets: newBucketSet(
+			alignStart(req.Start, req.Step),
+			alignEnd(req.End, req.Step),
+		),
 	}
 }
 
@@ -1448,8 +1455,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if h.exemplarBuckets.testTotal() {
 				break
 			}
-			interval := IntervalOfMs(exemplar.TimestampMs, h.start, h.end, h.step)
-			if h.exemplarBuckets.addAndTest(interval) {
+			if h.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 			}
 

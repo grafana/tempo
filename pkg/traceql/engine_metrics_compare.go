@@ -352,7 +352,10 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAg
 		end:             req.End,
 		step:            req.Step,
 		topN:            topN,
-		exemplarBuckets: newBucketSet(l),
+		exemplarBuckets: newBucketSet(
+			alignStart(req.Start, req.Step),
+			alignEnd(req.End, req.Step),
+		),
 	}
 }
 
@@ -434,8 +437,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 			if b.exemplarBuckets.testTotal() {
 				break
 			}
-			interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
-			if b.exemplarBuckets.addAndTest(interval) {
+			if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
 				continue
 			}
 
