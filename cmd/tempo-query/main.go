@@ -10,8 +10,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/grafana/tempo/cmd/tempo/build"
-	storagev2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
@@ -29,6 +27,8 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
+	"github.com/grafana/tempo/cmd/tempo/build"
+	storagev2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
 )
 
 const (
@@ -69,6 +69,18 @@ func main() {
 
 	cfg := &tempo.Config{}
 	cfg.InitFromViper(v)
+	if cfg.LogLevel != "" {
+		lvl, err := zapcore.ParseLevel(cfg.LogLevel)
+		if err != nil {
+			logger.Error("failed to parse log level", zap.Error(err))
+		} else {
+			logger = zap.New(zapcore.NewCore(
+				zaplogfmt.NewEncoder(config),
+				os.Stdout,
+				lvl,
+			))
+		}
+	}
 
 	backend, err := tempo.New(logger, cfg)
 	if err != nil {

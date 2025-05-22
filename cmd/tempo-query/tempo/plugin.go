@@ -14,15 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-logfmt/logfmt"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/user"
-	storage_v2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
-	tempopbcommonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	tempopbresourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	tempopbtracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	jaeger "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -34,7 +29,11 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 
+	storage_v2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
+	tempopbcommonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	tempopbresourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	tempopbtracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 const (
@@ -43,7 +42,6 @@ const (
 )
 
 const (
-	tagsSearchTag        = "tags"
 	serviceSearchTag     = "service.name"
 	operationSearchTag   = "name"
 	minDurationSearchTag = "minDuration"
@@ -246,7 +244,7 @@ func (b *Backend) GetServices(ctx context.Context, _ *storage_v2.GetServicesRequ
 	ctx, span := tracer.Start(ctx, "tempo-query.GetServices")
 	defer span.End()
 
-	services, err := b.lookupTagValues(ctx, "."+serviceSearchTag, "")
+	services, err := b.lookupTagValues(ctx, "resource."+serviceSearchTag, "")
 	if err != nil {
 		return nil, err
 	}
@@ -455,41 +453,12 @@ func toOtlpStatus(tempoStatus *tempopbtracev1.Status) *otlptracev1.Status {
 	}
 }
 
-// jaegerModelTracesToJaegerModelBatches converts a slice of Jaeger model traces to a slice of Jaeger model batches.
-// Each trace might be split into multiple batches if its spans belong to different processes.
-func jaegerModelTracesToJaegerModelBatches(traces []*jaeger.Trace, logger *zap.Logger) []*jaeger.Batch {
-	var modelBatches []*jaeger.Batch
-	for _, trace := range traces {
-		if trace == nil || len(trace.Spans) == 0 { // Ensure trace and spans exist
-			continue
-		}
-		// Group spans by their Process.
-		// Spans within a trace can belong to different processes.
-		spansByProcess := make(map[*jaeger.Process][]*jaeger.Span)
-		currentTraceIDStr := trace.Spans[0].TraceID.String() // Get TraceID for logging
-
-		for _, span := range trace.Spans {
-			if span == nil || span.Process == nil {
-				// Log if process is nil, as it's crucial for batching.
-				// getTrace should ensure span.Process is populated.
-				logger.Debug("Span or span.Process is nil, skipping span in batch creation", zap.String("traceID", currentTraceIDStr))
-				continue
-			}
-			spansByProcess[span.Process] = append(spansByProcess[span.Process], span)
-		}
-
-		if len(spansByProcess) == 0 && len(trace.Spans) > 0 {
-			logger.Warn("No spans could be grouped by process for trace, though spans exist. Check span.Process population.", zap.String("traceID", currentTraceIDStr))
-		}
-
-		for process, spansInGroup := range spansByProcess {
-			modelBatches = append(modelBatches, &jaeger.Batch{
-				Spans:   spansInGroup,
-				Process: process,
-			})
-		}
+func stringValue(s string) *storage_v2.AnyValue {
+	return &storage_v2.AnyValue{
+		Value: &storage_v2.AnyValue_StringValue{
+			StringValue: s,
+		},
 	}
-	return modelBatches
 }
 
 func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.TraceReader_FindTracesServer) error {
@@ -517,24 +486,32 @@ func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.Trace
 		urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", r.Query.StartTimeMax.Seconds))
 	}
 
-	appendQuery := ""
-	if r.Query.OperationName != "" {
-		appendQuery = fmt.Sprintf(" && name=%q", r.Query.OperationName)
+	tags := make(map[string]*storage_v2.AnyValue)
+	if r.Query.ServiceName != "" {
+		// I don't think it's possible to _not_ have a ServiceName - but let's cover this case as well.
+		tags["resource."+serviceSearchTag] = stringValue(r.Query.ServiceName)
 	}
-	urlQuery.Set("q", fmt.Sprintf("{ resource.service.name=%q%s }", r.Query.ServiceName, appendQuery))
+	if r.Query.OperationName != "" {
+		tags[operationSearchTag] = stringValue(r.Query.OperationName)
+	}
 
-	// TODO: Add this part
-	//tagsMap := toMap(r.Query.Attributes)
-	//queryParam, err := createTagsQueryParam(
-	//	r.Query.ServiceName,
-	//	r.Query.OperationName,
-	//	tagsMap,
-	//)
-	//if err != nil {
-	//	return fmt.Errorf("failed to create tags query parameter: %w", err)
-	//}
-	//urlQuery.Set(tagsSearchTag, queryParam)
+	for _, v := range r.Query.Attributes {
+		switch v.Key {
+		case "status":
+			tags[v.Key] = v.Value
+		default:
+			tags["span."+v.Key] = v.Value
+		}
+	}
 
+	tql, err := BuildTQL(tags)
+	if err != nil {
+		return fmt.Errorf("failed to build TQL: %w", err)
+	}
+
+	tqlStringQ := fmt.Sprintf("{ %s }", ConditionsToString(tql))
+	b.logger.Debug("TQL query", zap.String("tql", tqlStringQ))
+	urlQuery.Set("q", tqlStringQ)
 	endpoint.RawQuery = urlQuery.Encode()
 
 	req, err := b.newGetRequest(ctx, endpoint.String())
@@ -648,55 +625,6 @@ func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.Trace
 	return nil
 }
 
-func toMap(attributes []*storage_v2.KeyValue) map[string]string {
-	m := make(map[string]string, len(attributes))
-	for _, attribute := range attributes {
-		if attribute.Key == "" || attribute.Value == nil {
-			continue
-		}
-		if attribute.Value.GetStringValue() != "" { // Assuming GetStringValue is the correct method for storage_v2.AnyValue
-			m[attribute.Key] = attribute.Value.GetStringValue()
-		}
-	}
-	return m
-}
-
-func createTagsQueryParam(service string, operation string, tags map[string]string) (string, error) {
-	tagsBuilder := &strings.Builder{}
-	encoder := logfmt.NewEncoder(tagsBuilder) // Ensure logfmt is imported
-
-	firstTag := true
-	if service != "" {
-		if err := encoder.EncodeKeyval(serviceSearchTag, service); err != nil {
-			return "", fmt.Errorf("failed to encode service name: %w", err)
-		}
-		firstTag = false
-	}
-	if operation != "" {
-		if !firstTag {
-			tagsBuilder.WriteString(" ")
-		}
-		if err := encoder.EncodeKeyval(operationSearchTag, operation); err != nil {
-			return "", fmt.Errorf("failed to encode operation name: %w", err)
-		}
-		firstTag = false
-	}
-
-	for k, v := range tags {
-		if k == "" || v == "" {
-			continue
-		}
-		if !firstTag {
-			tagsBuilder.WriteString(" ")
-		}
-		if err := encoder.EncodeKeyval(k, v); err != nil {
-			return "", fmt.Errorf("failed to encode tag %s=%s: %w", k, v, err)
-		}
-		firstTag = false
-	}
-	return tagsBuilder.String(), nil
-}
-
 func (b *Backend) lookupTagValues(ctx context.Context, tagName string, query string) ([]string, error) {
 	q := url.Values{}
 	if b.QueryServicesDuration != nil {
@@ -746,12 +674,11 @@ func (b *Backend) lookupTagValues(ctx context.Context, tagName string, query str
 	for i, tagValue := range searchLookupResponse.TagValues {
 		tagValues[i] = tagValue.Value
 	}
-
 	return tagValues, nil
 }
 
 func (b *Backend) WriteSpan(context.Context, *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	return nil, nil
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (b *Backend) Close(context.Context, *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {

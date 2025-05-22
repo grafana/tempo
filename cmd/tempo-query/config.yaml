@@ -1,3 +1,4 @@
 address: 0.0.0.0:7777
 backend: 127.0.0.1:3100
 find_traces_concurrent_requests: 30
+log_level: debug
