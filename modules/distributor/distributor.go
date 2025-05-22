@@ -405,6 +405,8 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		// can't record discarded spans here b/c there's no tenant
 		return nil, err
 	}
+	defer d.padWithArtificialDelay(reqStart, userID)
+
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
 	}
@@ -480,8 +482,6 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 			d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 		}
 	}
-
-	d.padWithArtificialDelay(reqStart, userID)
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }

@@ -1743,6 +1743,61 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 	})
 }
 
+func TestArtificialLatency(t *testing.T) {
+	// prepare test data
+	overridesConfig := overrides.Config{}
+	overridesConfig.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	latency := 50 * time.Millisecond
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d, _ := prepare(t, overridesConfig, logger)
+	d.cfg.ArtificialDelay = latency
+
+	batches := []*v1.ResourceSpans{
+		makeResourceSpans("test-service", []*v1.ScopeSpans{
+			makeScope(
+				makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil)),
+			makeScope(
+				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+		}),
+	}
+
+	traces := batchesToTraces(t, batches)
+	reqStart := time.Now()
+	_, err := d.PushTraces(ctx, traces)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.GreaterOrEqual(t, time.Since(reqStart), latency, "Expected artificial latency not respected")
+}
+
+func TestArtificialLatencyIsAppliedOnError(t *testing.T) {
+	// prepare test data
+	overridesConfig := overrides.Config{}
+	overridesConfig.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	latency := 50 * time.Millisecond
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d, _ := prepare(t, overridesConfig, logger)
+	d.cfg.ArtificialDelay = latency
+
+	batches := []*v1.ResourceSpans{
+		makeResourceSpans("test-service", []*v1.ScopeSpans{}),
+	}
+
+	traces := batchesToTraces(t, batches)
+	reqStart := time.Now()
+	_, err := d.PushTraces(ctx, traces)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.GreaterOrEqual(t, time.Since(reqStart), latency, "Expected artificial latency not respected")
+}
+
 type testLogSpan struct {
 	Msg                string `json:"msg"`
 	Level              string `json:"level"`
