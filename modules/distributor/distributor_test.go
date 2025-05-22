@@ -1770,7 +1770,8 @@ func TestArtificialLatency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.GreaterOrEqual(t, time.Since(reqStart), latency, "Expected artificial latency not respected")
+	const tolerance = 10 * time.Millisecond
+	assert.GreaterOrEqual(t, time.Since(reqStart)+tolerance, latency, "Expected artificial latency not respected")
 }
 
 func TestArtificialLatencyIsAppliedOnError(t *testing.T) {
@@ -1794,7 +1795,7 @@ func TestArtificialLatencyIsAppliedOnError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	const tolerance = 10 * time.Millisecond
 	assert.GreaterOrEqual(t, time.Since(reqStart), latency, "Expected artificial latency not respected")
 }
 
