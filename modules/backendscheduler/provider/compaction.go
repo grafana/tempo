@@ -40,7 +40,7 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	// Backoff
 	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
 	f.DurationVar(&cfg.Backoff.MaxBackoff, prefix+".backoff-max-period", 10*time.Second, "Maximum delay when backing off.")
-	f.IntVar(&cfg.Backoff.MaxRetries, prefix+".backoff-retries", 0, "Number of times to backoff and retry before failing.")
+	cfg.Backoff.MaxRetries = 0
 
 	cfg.Compactor = tempodb.CompactorConfig{}
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
@@ -58,10 +58,9 @@ type CompactionProvider struct {
 	sched Scheduler
 
 	// Dependencies needed for tenant selection
-	curPriority       *tenantselector.PriorityQueue
-	curTenant         *tenantselector.Item
-	curSelector       blockselector.CompactionBlockSelector
-	curTenantJobCount int
+	curPriority *tenantselector.PriorityQueue
+	curTenant   *tenantselector.Item
+	curSelector blockselector.CompactionBlockSelector
 }
 
 func NewCompactionProvider(
@@ -93,33 +92,46 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 		level.Info(p.logger).Log("msg", "compaction provider started")
 
 		var (
-			job *work.Job
-			b   = backoff.New(ctx, p.cfg.Backoff)
+			job               *work.Job
+			b                 = backoff.New(ctx, p.cfg.Backoff)
+			curTenantJobCount int
 		)
 
 		reset := func() {
 			metricTenantReset.WithLabelValues(p.curTenant.Value()).Inc()
 			p.curSelector = nil
 			p.curTenant = nil
-			p.curTenantJobCount = 0
+			curTenantJobCount = 0
 		}
 
 		for {
+			if ctx.Err() != nil {
+				level.Info(p.logger).Log("msg", "compaction provider stopping")
+				return
+			}
+
 			if p.curSelector == nil {
 				if !p.prepareNextTenant(ctx) {
+					level.Info(p.logger).Log("msg", "received empty tenant", "waiting", b.NextDelay())
+					metricTenantBackoff.Inc()
 					b.Wait()
 				}
 				continue
 			}
 
-			if p.curTenantJobCount >= p.cfg.MaxJobsPerTenant {
+			if curTenantJobCount >= p.cfg.MaxJobsPerTenant {
+				level.Info(p.logger).Log("msg", "max jobs per tenant reached, skipping to next tenant")
 				reset()
 				continue
 			}
 
 			job = p.createJob(ctx)
 			if job == nil {
+				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant after delay", "waiting", b.NextDelay())
 				// we don't have a job, reset the curTenant and try again
+				metricTenantEmptyJob.Inc()
+				// Avoid CPU spin
+				b.Wait()
 				reset()
 				continue
 			}
@@ -133,6 +145,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				p.measureTenants()
 			case jobs <- job:
 				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
+				curTenantJobCount++
 				b.Reset()
 			}
 		}
@@ -171,8 +184,6 @@ func (p *CompactionProvider) createJob(ctx context.Context) *work.Job {
 		))
 		return nil
 	}
-
-	p.curTenantJobCount++
 
 	return &work.Job{
 		ID:   uuid.New().String(),
@@ -278,15 +289,51 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		blocklist     = make([]*backend.BlockMeta, 0, len(fullBlocklist))
 	)
 
-	// NOTE: we want to skip blocks which have already been oeprated on based on
-	// the scheduler.  This is required because the blocklist may not have been
-	// updated yet.
-	for _, b := range fullBlocklist {
-		if p.sched.HasBlocks([]string{b.BlockID.String()}) {
+	// Query the work for the jobs and build up a list of UUIDs which we can match against.
+	var (
+		perTenantBlockIDs = make(map[backend.UUID]struct{})
+		bid               backend.UUID
+		err               error
+
+		jobTenant string
+		jobType   tempopb.JobType
+		jobStatus tempopb.JobStatus
+	)
+
+	for _, job := range p.sched.ListJobs() {
+		jobTenant = job.Tenant()
+		if jobTenant != tenantID {
 			continue
 		}
 
-		blocklist = append(blocklist, b)
+		if jobType = job.GetType(); jobType == tempopb.JobType_JOB_TYPE_UNSPECIFIED {
+			continue
+		}
+
+		jobStatus = job.GetStatus()
+		if jobStatus != tempopb.JobStatus_JOB_STATUS_RUNNING && jobStatus != tempopb.JobStatus_JOB_STATUS_UNSPECIFIED {
+			continue
+		}
+
+		// NOTE: We check the compaction job input, but not the output.  This is to
+		// allow the output of one job to become the input of another.
+		for _, blockID := range job.GetCompactionInput() {
+			bid, err = backend.ParseUUID(blockID)
+			if err != nil {
+				level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
+				continue
+			}
+			perTenantBlockIDs[bid] = struct{}{}
+		}
+	}
+
+	for _, block := range fullBlocklist {
+		if _, ok := perTenantBlockIDs[block.BlockID]; ok {
+			// Skip blocks that are already in the input list from another job
+			continue
+		}
+
+		blocklist = append(blocklist, block)
 	}
 
 	if window == 0 {
