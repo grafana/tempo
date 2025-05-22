@@ -706,6 +706,55 @@ func TestTargetInfoDisabled(t *testing.T) {
 	assert.Equal(t, false, targetInfoExist)
 }
 
+func TestTargetInfoWithEmptyKey(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(10, nil)
+
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		{
+			Key:   "", // add empty key attribute (should be skipped)
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "should-be-skipped"}},
+		},
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		{
+			Key:   "cluster", // At least one extra attribute is required to get target_info
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	fmt.Println(testRegistry)
+
+	lbls := labels.FromMap(map[string]string{
+		"job":      "test-service",
+		"instance": "abc-instance-id-test-def",
+		"cluster":  "eu-west-0",
+	})
+
+	// Verify target info exists with correct labels
+	require.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
+}
+
 func TestTargetInfoWithExclusion(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
