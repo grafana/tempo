@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/gogo/protobuf/types"
 
 	storage_v2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -82,10 +85,18 @@ func ConditionToString(condition traceql.Condition) string {
 	return condition.Attribute.String() + condition.Op.String() + operandsToString(condition.Operands)
 }
 
-func ConditionsToString(tql []traceql.Condition) string {
+func ConditionsToString(tql []traceql.Condition, durationMin *types.Duration, durationMax *types.Duration) string {
 	var conditions []string
 	for _, condition := range tql {
 		conditions = append(conditions, ConditionToString(condition))
+	}
+	if durationMin != nil && !durationMin.Equal(types.Duration{}) {
+		minDurationD := time.Duration(durationMin.Seconds*1e9 + int64(durationMin.Nanos))
+		conditions = append(conditions, fmt.Sprintf("trace:duration >= %s", minDurationD.String()))
+	}
+	if durationMax != nil && !durationMax.Equal(types.Duration{}) {
+		maxDurationD := time.Duration(durationMax.Seconds*1e9 + int64(durationMax.Nanos))
+		conditions = append(conditions, fmt.Sprintf("trace:duration <= %s", maxDurationD.String()))
 	}
 	return strings.Join(conditions, " && ")
 }

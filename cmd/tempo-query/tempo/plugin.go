@@ -471,12 +471,6 @@ func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.Trace
 		Path:   "api/search",
 	}
 	urlQuery := endpoint.Query()
-	if r.Query.DurationMin != nil {
-		urlQuery.Set(minDurationSearchTag, r.Query.DurationMin.String())
-	}
-	if r.Query.DurationMax != nil {
-		urlQuery.Set(maxDurationSearchTag, r.Query.DurationMax.String())
-	}
 	urlQuery.Set(numTracesSearchTag, strconv.Itoa(int(r.Query.SearchDepth)))
 
 	if r.Query.StartTimeMin != nil {
@@ -509,9 +503,9 @@ func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.Trace
 		return fmt.Errorf("failed to build TQL: %w", err)
 	}
 
-	tqlStringQ := fmt.Sprintf("{ %s }", ConditionsToString(tql))
-	b.logger.Debug("TQL query", zap.String("tql", tqlStringQ))
+	tqlStringQ := fmt.Sprintf("{ %s }", ConditionsToString(tql, r.Query.DurationMin, r.Query.DurationMax))
 	urlQuery.Set("q", tqlStringQ)
+	b.logger.Debug("Tempo Query", zap.String("query", fmt.Sprintf("%v", urlQuery)))
 	endpoint.RawQuery = urlQuery.Encode()
 
 	req, err := b.newGetRequest(ctx, endpoint.String())
