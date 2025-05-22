@@ -546,7 +546,7 @@ func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.Trace
 
 	if len(searchResponse.Traces) == 0 {
 		b.logger.Info("No traces found by initial search.")
-		return s.Send(&otlptracev1.TracesData{ResourceSpans: make([]*otlptracev1.ResourceSpans, 0)})
+		return nil
 	}
 
 	jaegerTraceIDs := make([]jaeger.TraceID, 0, len(searchResponse.Traces))
