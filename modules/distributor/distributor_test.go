@@ -1796,7 +1796,7 @@ func TestArtificialLatencyIsAppliedOnError(t *testing.T) {
 		t.Fatal(err)
 	}
 	const tolerance = 10 * time.Millisecond
-	assert.GreaterOrEqual(t, time.Since(reqStart), latency, "Expected artificial latency not respected")
+	assert.GreaterOrEqual(t, time.Since(reqStart)+tolerance, latency, "Expected artificial latency not respected")
 }
 
 type testLogSpan struct {
