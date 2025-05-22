@@ -39,13 +39,57 @@ func TestIngestionRateStrategy(t *testing.T) {
 					BurstSizeBytes: 2,
 				},
 			},
-			ring: func() ReadLifecycler {
-				ring := newReadLifecyclerMock()
-				ring.On("HealthyInstancesCount").Return(2)
-				return ring
-			}(),
+			ring:          createMockRingWithHealthyInstances(2),
 			expectedLimit: 2.5,
 			expectedBurst: 2,
+		},
+		"global rate limiter should divide the limit but not the burst": {
+			limits: overrides.Overrides{
+				Ingestion: overrides.IngestionOverrides{
+					RateStrategy:   overrides.GlobalIngestionRateStrategy,
+					RateLimitBytes: 10,
+					BurstSizeBytes: 8,
+				},
+			},
+			ring:          createMockRingWithHealthyInstances(5),
+			expectedLimit: 2, // 10 ÷ 5 = 2
+			expectedBurst: 8, // Burst is NOT divided
+		},
+		"global rate limiter with different limit and burst values": {
+			limits: overrides.Overrides{
+				Ingestion: overrides.IngestionOverrides{
+					RateStrategy:   overrides.GlobalIngestionRateStrategy,
+					RateLimitBytes: 100,
+					BurstSizeBytes: 50,
+				},
+			},
+			ring:          createMockRingWithHealthyInstances(4),
+			expectedLimit: 25, // 100 ÷ 4 = 25
+			expectedBurst: 50, // Burst is NOT divided
+		},
+		"global rate limiter with very large burst size": {
+			limits: overrides.Overrides{
+				Ingestion: overrides.IngestionOverrides{
+					RateStrategy:   overrides.GlobalIngestionRateStrategy,
+					RateLimitBytes: 1000,
+					BurstSizeBytes: 10000, // 10x the rate limit
+				},
+			},
+			ring:          createMockRingWithHealthyInstances(10),
+			expectedLimit: 100,   // 1000 ÷ 10 = 100
+			expectedBurst: 10000, // Burst will NOT be divided regardless of size
+		},
+		"edge case with zero burst size": {
+			limits: overrides.Overrides{
+				Ingestion: overrides.IngestionOverrides{
+					RateStrategy:   overrides.GlobalIngestionRateStrategy,
+					RateLimitBytes: 200,
+					BurstSizeBytes: 0, // Zero burst size
+				},
+			},
+			ring:          createMockRingWithHealthyInstances(2),
+			expectedLimit: 100, // 200 ÷ 2 = 100
+			expectedBurst: 0,   // Zero burst size is respected
 		},
 	}
 
@@ -88,4 +132,10 @@ func newReadLifecyclerMock() *readLifecyclerMock {
 func (m *readLifecyclerMock) HealthyInstancesCount() int {
 	args := m.Called()
 	return args.Int(0)
+}
+
+func createMockRingWithHealthyInstances(count int) ReadLifecycler {
+	ring := newReadLifecyclerMock()
+	ring.On("HealthyInstancesCount").Return(count)
+	return ring
 }
