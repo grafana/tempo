@@ -618,7 +618,6 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 		return tm, nil
 	}
 
-	// iterate through
 	if hasMissingSpans(trace) {
 		logger.Error("trace has missing spans")
 		tm.missingSpans++
@@ -774,20 +773,20 @@ func equalTraces(a, b *tempopb.Trace) bool {
 }
 
 func hasMissingSpans(t *tempopb.Trace) bool {
-	// collect all parent span IDs
-	linkedSpanIDs := make([][]byte, 0)
+	// check that all parent spans exist in the trace
+	parentSpanIDs := make([][]byte, 0)
 
 	for _, b := range t.ResourceSpans {
 		for _, ss := range b.ScopeSpans {
 			for _, s := range ss.Spans {
 				if len(s.ParentSpanId) > 0 {
-					linkedSpanIDs = append(linkedSpanIDs, s.ParentSpanId)
+					parentSpanIDs = append(parentSpanIDs, s.ParentSpanId)
 				}
 			}
 		}
 	}
 
-	for _, id := range linkedSpanIDs {
+	for _, id := range parentSpanIDs {
 		found := false
 
 	B:
