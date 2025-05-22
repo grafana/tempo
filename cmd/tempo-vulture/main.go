@@ -179,10 +179,20 @@ func main() {
 	r := rand.New(rand.NewSource(startTime.Unix()))
 	interval := vultureConfig.tempoWriteBackoffDuration
 
+	selectPastTimestamp := func(now time.Time) (newStart, ts time.Time) {
+		return selectPastTimestamp(startTime, now, interval, vultureConfig.tempoRetentionDuration, r)
+	}
+
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
-	doRead(httpClient, tickerRead, startTime, interval, r, vultureConfig, logger)
-	doSearch(httpClient, tickerSearch, startTime, interval, r, vultureConfig, logger)
-	doMetrics(httpClient, tickerMetrics, startTime, interval, r, vultureConfig, logger)
+	runChecker(tickerRead, vultureConfig, selectPastTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doRead(httpClient, vultureConfig, info, l)
+	}, logger)
+	runChecker(tickerSearch, vultureConfig, selectPastTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doSearch(httpClient, vultureConfig, info, l)
+	}, logger)
+	runChecker(tickerMetrics, vultureConfig, selectPastTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doMetrics(httpClient, vultureConfig, info, l)
+	}, logger)
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
@@ -302,88 +312,20 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 	}()
 }
 
-func doRead(httpClient httpclient.TempoHTTPClient, tickerRead *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
-	if tickerRead != nil {
-		go func() {
-			for now := range tickerRead.C {
-				var seed time.Time
-				startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration, r)
-
-				logger := l.With(
-					zap.String("org_id", config.tempoOrgID),
-					zap.Int64("seed", seed.Unix()),
-				)
-
-				info := util.NewTraceInfo(seed, config.tempoOrgID)
-
-				// Don't query for a trace we don't expect to be complete
-				if !traceIsReady(info, now, startTime,
-					config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
-					continue
-				}
-
-				// query the trace
-				queryMetrics, err := queryTrace(httpClient, info, l)
-				if err != nil {
-					metricErrorTotal.Inc()
-					logger.Error("query for metrics failed",
-						zap.Error(err),
-					)
-				}
-				pushVultureMetrics(queryMetrics)
-			}
-		}()
-	}
-}
-
-func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
-	if tickerSearch != nil {
-		go func() {
-			for now := range tickerSearch.C {
-				_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
-				logger := l.With(
-					zap.String("org_id", config.tempoOrgID),
-					zap.Int64("seed", seed.Unix()),
-				)
-
-				info := util.NewTraceInfo(seed, config.tempoOrgID)
-
-				if !traceIsReady(info, now, startTime,
-					config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
-					continue
-				}
-
-				// query a tag we expect the trace to be found within
-				searchMetrics, err := searchTag(httpClient, seed, config, l)
-				if err != nil {
-					metricErrorTotal.Inc()
-					logger.Error("search tag for metrics failed",
-						zap.Error(err),
-					)
-				}
-				pushVultureMetrics(searchMetrics)
-
-				// traceql query
-				traceqlSearchMetrics, err := searchTraceql(httpClient, seed, config, l)
-				if err != nil {
-					metricErrorTotal.Inc()
-					logger.Error("traceql query for metrics failed",
-						zap.Error(err),
-					)
-				}
-				pushVultureMetrics(traceqlSearchMetrics)
-			}
-		}()
-	}
-}
-
-func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+func runChecker(
+	ticker *time.Ticker,
+	config vultureConfiguration,
+	selectPastTimestamp func(now time.Time) (newStart, ts time.Time),
+	checker func(*util.TraceInfo, *zap.Logger),
+	l *zap.Logger,
+) {
 	if ticker == nil {
 		return
 	}
 	go func() {
 		for now := range ticker.C {
-			_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
+			startTime, seed := selectPastTimestamp(now)
+
 			logger := l.With(
 				zap.String("org_id", config.tempoOrgID),
 				zap.Int64("seed", seed.Unix()),
@@ -391,18 +333,57 @@ func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, start
 
 			info := util.NewTraceInfo(seed, config.tempoOrgID)
 
+			// Don't query for a trace we don't expect to be complete
 			if !traceIsReady(info, now, startTime,
 				config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
 				continue
 			}
 
-			m, err := queryMetrics(httpClient, seed, config, l)
-			if err != nil {
-				logger.Error("query metrics failed", zap.Error(err))
-			}
-			pushVultureMetrics(m)
+			checker(info, logger)
 		}
 	}()
+}
+
+func doRead(httpClient httpclient.TempoHTTPClient, _ vultureConfiguration, info *util.TraceInfo, l *zap.Logger) {
+	// query the trace
+	queryMetrics, err := queryTrace(httpClient, info, l)
+	if err != nil {
+		metricErrorTotal.Inc()
+		logger.Error("query for metrics failed",
+			zap.Error(err),
+		)
+	}
+	pushVultureMetrics(queryMetrics)
+}
+
+func doSearch(httpClient httpclient.TempoHTTPClient, config vultureConfiguration, info *util.TraceInfo, l *zap.Logger) {
+	// query a tag we expect the trace to be found within
+	searchMetrics, err := searchTag(httpClient, info.Timestamp(), config, l)
+	if err != nil {
+		metricErrorTotal.Inc()
+		logger.Error("search tag for metrics failed",
+			zap.Error(err),
+		)
+	}
+	pushVultureMetrics(searchMetrics)
+
+	// traceql query
+	traceqlSearchMetrics, err := searchTraceql(httpClient, info.Timestamp(), config, l)
+	if err != nil {
+		metricErrorTotal.Inc()
+		logger.Error("traceql query for metrics failed",
+			zap.Error(err),
+		)
+	}
+	pushVultureMetrics(traceqlSearchMetrics)
+}
+
+func doMetrics(httpClient httpclient.TempoHTTPClient, config vultureConfiguration, info *util.TraceInfo, l *zap.Logger) {
+	m, err := queryMetrics(httpClient, info.Timestamp(), config, l)
+	if err != nil {
+		logger.Error("query metrics failed", zap.Error(err))
+	}
+	pushVultureMetrics(m)
 }
 
 func pushVultureMetrics(metrics traceMetrics) {
