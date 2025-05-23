@@ -1,5 +1,6 @@
 metadata:
   yaml:
 status:
+  disable_codecov_badge: true
   codeowners:
     active: [open-telemetry/collector-approvers]
