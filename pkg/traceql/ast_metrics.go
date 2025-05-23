@@ -232,10 +232,10 @@ func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
 func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
-		a.seriesAgg = NewHistogramAggregator(q, a.floats, maxExemplars)
+		a.seriesAgg = NewHistogramAggregator(q, a.floats, q.Exemplars)
 	default:
 		// These are simple additions by series
-		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp, maxExemplars)
+		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp, q.Exemplars)
 	}
 }
 
