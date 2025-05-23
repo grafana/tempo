@@ -53,8 +53,14 @@ type bucketSet struct {
 
 // newBucketSet creates a new bucket set for the given time range
 // start and end are in nanoseconds
-func newBucketSet(start, end uint64) *bucketSet {
-	const buckets = maxExemplars / maxExemplarsPerBucket
+func newBucketSet(exemplars uint32, start, end uint64) *bucketSet {
+	if exemplars > maxExemplars {
+		exemplars = maxExemplars
+	}
+	buckets := exemplars / maxExemplarsPerBucket
+	if buckets == 0 { // edge case for few exemplars
+		buckets = 1
+	}
 
 	// convert nanoseconds to milliseconds
 	start = start / uint64(time.Millisecond.Nanoseconds())
@@ -64,8 +70,8 @@ func newBucketSet(start, end uint64) *bucketSet {
 	bucketWidth := interval / uint64(buckets)
 
 	return &bucketSet{
-		sz:          buckets,
-		maxTotal:    maxExemplars,
+		sz:          int(buckets),
+		maxTotal:    int(exemplars),
 		maxBucket:   maxExemplarsPerBucket,
 		buckets:     make([]int, buckets+1), // +1 for total count
 		start:       start,
@@ -104,7 +110,7 @@ func (b *bucketSet) bucket(ts uint64) int {
 // addAndTest adds a timestamp to the bucket set and returns true if the total exceeds the max total
 // the timestamp is in milliseconds
 func (b *bucketSet) addAndTest(ts uint64) bool {
-	if !b.inRange(ts) || b.testTotal() {
+	if !b.inRange(ts) || b.testTotal() || b.sz == 0 {
 		return true
 	}
 

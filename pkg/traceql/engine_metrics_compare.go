@@ -353,6 +353,7 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAg
 		step:            req.Step,
 		topN:            topN,
 		exemplarBuckets: newBucketSet(
+			maxExemplars,
 			alignStart(req.Start, req.Step),
 			alignEnd(req.End, req.Step),
 		),

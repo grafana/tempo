@@ -444,16 +444,15 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 		vectors[i] = innerAgg()
 	}
 
-	exemplars := make([]Exemplar, 0, maxExemplars)
-
 	return &StepAggregator{
 		start:     start,
 		end:       end,
 		step:      step,
 		intervals: intervals,
 		vectors:   vectors,
-		exemplars: exemplars,
+		exemplars: make([]Exemplar, 0, maxExemplars),
 		exemplarBuckets: newBucketSet(
+			maxExemplars,
 			alignStart(start, step),
 			alignEnd(end, step),
 		),
@@ -1267,6 +1266,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 	return &SimpleAggregator{
 		ss: make(SeriesSet),
 		exemplarBuckets: newBucketSet(
+			maxExemplars,
 			alignStart(req.Start, req.Step),
 			alignEnd(req.End, req.Step),
 		),
@@ -1399,6 +1399,7 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *Histo
 		end:   req.End,
 		step:  req.Step,
 		exemplarBuckets: newBucketSet(
+			maxExemplars,
 			alignStart(req.Start, req.Step),
 			alignEnd(req.End, req.Step),
 		),
