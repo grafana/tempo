@@ -79,11 +79,11 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		m.selectionTotals = make(map[Attribute][]float64)
 
 	case AggregateModeSum:
-		m.seriesAgg = NewSimpleCombiner(q, sumAggregation)
+		m.seriesAgg = NewSimpleCombiner(q, sumAggregation, maxExemplars)
 		return
 
 	case AggregateModeFinal:
-		m.seriesAgg = NewBaselineAggregator(q, m.topN)
+		m.seriesAgg = NewBaselineAggregator(q, m.topN, maxExemplars)
 		return
 	}
 }
@@ -339,7 +339,7 @@ type staticWithTimeSeries struct {
 	series TimeSeries
 }
 
-func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAggregator {
+func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int, exemplars uint32) *BaselineAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	return &BaselineAggregator{
 		baseline:        make(map[string]map[StaticMapKey]staticWithTimeSeries),
@@ -353,7 +353,7 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAg
 		step:            req.Step,
 		topN:            topN,
 		exemplarBuckets: newBucketSet(
-			maxExemplars,
+			exemplars,
 			alignStart(req.Start, req.Step),
 			alignEnd(req.End, req.Step),
 		),

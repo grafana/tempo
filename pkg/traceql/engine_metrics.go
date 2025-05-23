@@ -1241,7 +1241,7 @@ type SimpleAggregator struct {
 	initWithNaN      bool
 }
 
-func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
+func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, exemplars uint32) *SimpleAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	var initWithNaN bool
 	var f func(existingValue float64, newValue float64) float64
@@ -1266,7 +1266,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 	return &SimpleAggregator{
 		ss: make(SeriesSet),
 		exemplarBuckets: newBucketSet(
-			maxExemplars,
+			exemplars,
 			alignStart(req.Start, req.Step),
 			alignEnd(req.End, req.Step),
 		),
@@ -1389,7 +1389,7 @@ type HistogramAggregator struct {
 	exemplarBuckets  *bucketSet
 }
 
-func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *HistogramAggregator {
+func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplars uint32) *HistogramAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	return &HistogramAggregator{
 		qs:    qs,
@@ -1399,7 +1399,7 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *Histo
 		end:   req.End,
 		step:  req.Step,
 		exemplarBuckets: newBucketSet(
-			maxExemplars,
+			exemplars,
 			alignStart(req.Start, req.Step),
 			alignEnd(req.End, req.Step),
 		),
