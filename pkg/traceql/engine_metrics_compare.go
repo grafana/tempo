@@ -438,7 +438,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 			if b.exemplarBuckets.testTotal() {
 				break
 			}
-			if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
+			if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
 				continue
 			}
 

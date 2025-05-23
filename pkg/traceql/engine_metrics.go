@@ -1326,7 +1326,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 		if b.exemplarBuckets.testTotal() {
 			break
 		}
-		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
+		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
 			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
 		}
 		labels := make(Labels, 0, len(exemplar.Labels))
@@ -1456,7 +1456,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if h.exemplarBuckets.testTotal() {
 				break
 			}
-			if h.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
+			if h.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 			}
 

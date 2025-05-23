@@ -68,19 +68,20 @@ func TestBucketSet_Bucket(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bs := newBucketSet(maxExemplars, tc.start*uint64(time.Second.Nanoseconds()), tc.end*uint64(time.Second.Nanoseconds()))
-			actual := bs.bucket(tc.ts * uint64(time.Second.Milliseconds()))
+			bs := newBucketSet(maxExemplars, tc.start*uint64(time.Second.Nanoseconds()), tc.end*uint64(time.Second.Nanoseconds())) //nolint: gosec // G115
+			actual := bs.bucket(tc.ts * uint64(time.Second.Milliseconds()))                                                        //nolint: gosec // G115
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
 
 func TestBucketSet(t *testing.T) {
-	s := newBucketSet(maxExemplars, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds()))
+	s := newBucketSet(maxExemplars, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds())) //nolint: gosec // G115
 
 	// Add two to each bucket
 	for ts := uint64(100); ts <= 199; ts += 2 { // 100 in total
-		tsMilli := uint64(int64(ts) * time.Second.Milliseconds())
+		tsMilli := uint64(int64(ts) * time.Second.Milliseconds()) //nolint: gosec // G115
+
 		assert.False(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", ts)
 		assert.False(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", ts)
 	}
@@ -89,7 +90,7 @@ func TestBucketSet(t *testing.T) {
 	// Should be full and reject new adds
 	assert.True(t, s.testTotal())
 	for ts := uint64(100); ts <= 199; ts += 2 {
-		tsMilli := uint64(int64(ts) * time.Second.Milliseconds())
+		tsMilli := uint64(int64(ts) * time.Second.Milliseconds()) //nolint: gosec // G115
 		assert.True(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", ts)
 		assert.True(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", ts)
 	}
@@ -97,8 +98,8 @@ func TestBucketSet(t *testing.T) {
 }
 
 func TestBucketSetSingleExemplar(t *testing.T) {
-	s := newBucketSet(1, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds()))
-	tsMilli := uint64(100 * time.Second.Milliseconds())
+	s := newBucketSet(1, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds())) //nolint: gosec // G115
+	tsMilli := uint64(100 * time.Second.Milliseconds())                                                //nolint: gosec // G115
 	assert.False(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", 100)
 	assert.True(t, s.addAndTest(tsMilli), "ts=%d should not be added to bucket", 100)
 }
