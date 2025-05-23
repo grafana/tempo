@@ -334,8 +334,8 @@
               severity: 'warning',
             },
             annotations: {
-              message: 'Tempo backend scheduler retry rate is high ({{ printf "%0.2f" $value }} retries/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerRetryRateHigh',
+              message: 'Tempo backend scheduler empty job rate is high ({{ printf "%0.2f" $value }} retries/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerCompactionEmptyJobRateHigh',
             },
           },
           {
