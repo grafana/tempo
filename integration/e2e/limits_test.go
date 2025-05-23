@@ -239,6 +239,9 @@ func TestQueryLimits(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
+		if err == nil {
+			return false
+		}
 		return strings.Contains(err.Error(), trace.ErrTraceTooLarge.Error())
 	}, time.Minute, time.Second)
 
