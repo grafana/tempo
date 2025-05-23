@@ -1,0 +1,17 @@
+services:
+  jaeger:
+    image: jaegertracing/jaeger:2.6.0
+    volumes:
+      - ./jaeger:/jaeger
+    command:
+      - --config=/jaeger/config.yaml
+    environment:
+      TEMPO_JAEGER_HOST: host.docker.internal
+      NO_PROXY: host.docker.internal
+    ports:
+      - 16686:16686
+  jaeger-debug:
+    image: jaegertracing/jaeger:2.6.0
+    ports:
+      - 4317:4317
+      - 16687:16686
