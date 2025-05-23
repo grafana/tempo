@@ -17,15 +17,16 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/user"
 	jaeger "github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
 	storagev2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
@@ -67,7 +68,7 @@ type Backend struct {
 	QueryServicesDuration        *time.Duration
 	findTracesConcurrentRequests int
 
-	storagev2.UnimplementedTraceReaderServer
+	// storagev2.UnimplementedTraceReaderServer
 	storagev2.UnimplementedDependencyReaderServer
 }
 
@@ -565,12 +566,8 @@ func (b *Backend) lookupTagValues(ctx context.Context, tagName string, query str
 	return tagValues, nil
 }
 
-func (b *Backend) WriteSpan(context.Context, *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (b *Backend) Close(context.Context, *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {
-	return nil, nil
+func (b *Backend) FindTraceIDs(ctx context.Context, req *storagev2.FindTracesRequest) (*storagev2.FindTraceIDsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FindTraceIDs not implemented")
 }
 
 func (b *Backend) newGetRequest(ctx context.Context, url string) (*http.Request, error) {
