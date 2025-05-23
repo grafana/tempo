@@ -2066,7 +2066,7 @@ func TestCheckForRateLimits(t *testing.T) {
 			tracesSize:      1100,
 			rateLimitBytes:  500,
 			burstLimitBytes: 500,
-			expectError:     "RATE_LIMITED: batch size (1100 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes/s) while adding 1100 bytes for user test-user. Consider reducing batch size or increasing rate limit.",
+			expectError:     "RATE_LIMITED: batch size (1100 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes) while adding 1100 bytes for user test-user. consider reducing batch size or increasing rate limit.",
 			errCode:         codes.ResourceExhausted,
 		},
 		{
@@ -2074,7 +2074,7 @@ func TestCheckForRateLimits(t *testing.T) {
 			tracesSize:      1000,
 			rateLimitBytes:  500,
 			burstLimitBytes: 500,
-			expectError:     "RATE_LIMITED: batch size (1000 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes/s) while adding 1000 bytes for user test-user. Consider reducing batch size or increasing rate limit.",
+			expectError:     "RATE_LIMITED: batch size (1000 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes) while adding 1000 bytes for user test-user. consider reducing batch size or increasing rate limit.",
 			errCode:         codes.ResourceExhausted,
 		},
 		{
@@ -2082,7 +2082,7 @@ func TestCheckForRateLimits(t *testing.T) {
 			tracesSize:      500,
 			rateLimitBytes:  500,
 			burstLimitBytes: 200,
-			expectError:     "RATE_LIMITED: ingestion rate limit (local: 500 bytes/s, global: 0 bytes/s, burst: 200 bytes/s) exceeded while adding 500 bytes for user test-user. Consider increasing the limit or reducing ingestion rate.",
+			expectError:     "RATE_LIMITED: ingestion rate limit (local: 500 bytes/s, global: 0 bytes/s, burst: 200 bytes) exceeded while adding 500 bytes for user test-user. consider increasing the limit or reducing ingestion rate.",
 			errCode:         codes.ResourceExhausted,
 		},
 	}
