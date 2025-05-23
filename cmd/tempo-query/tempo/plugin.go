@@ -27,7 +27,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 
-	storage_v2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
+	storagev2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -66,8 +66,8 @@ type Backend struct {
 	QueryServicesDuration        *time.Duration
 	findTracesConcurrentRequests int
 
-	storage_v2.UnimplementedTraceReaderServer
-	storage_v2.UnimplementedDependencyReaderServer
+	storagev2.UnimplementedTraceReaderServer
+	storagev2.UnimplementedDependencyReaderServer
 }
 
 func New(logger *zap.Logger, cfg *Config) (*Backend, error) {
@@ -177,8 +177,8 @@ func tlsCipherSuites() map[string]uint16 {
 	return cipherSuites
 }
 
-func (b *Backend) GetDependencies(context.Context, *storage_v2.GetDependenciesRequest) (*storage_v2.GetDependenciesResponse, error) {
-	return &storage_v2.GetDependenciesResponse{}, nil
+func (b *Backend) GetDependencies(context.Context, *storagev2.GetDependenciesRequest) (*storagev2.GetDependenciesResponse, error) {
+	return &storagev2.GetDependenciesResponse{}, nil
 }
 
 func (b *Backend) apiSchema() string {
@@ -233,7 +233,7 @@ func (b *Backend) calculateTimeRange() (int64, int64) {
 	return start.Unix(), now.Unix()
 }
 
-func (b *Backend) GetServices(ctx context.Context, _ *storage_v2.GetServicesRequest) (*storage_v2.GetServicesResponse, error) {
+func (b *Backend) GetServices(ctx context.Context, _ *storagev2.GetServicesRequest) (*storagev2.GetServicesResponse, error) {
 	ctx, span := tracer.Start(ctx, "tempo-query.GetServices")
 	defer span.End()
 
@@ -241,10 +241,10 @@ func (b *Backend) GetServices(ctx context.Context, _ *storage_v2.GetServicesRequ
 	if err != nil {
 		return nil, err
 	}
-	return &storage_v2.GetServicesResponse{Services: services}, nil
+	return &storagev2.GetServicesResponse{Services: services}, nil
 }
 
-func (b *Backend) GetOperations(ctx context.Context, r *storage_v2.GetOperationsRequest) (*storage_v2.GetOperationsResponse, error) {
+func (b *Backend) GetOperations(ctx context.Context, r *storagev2.GetOperationsRequest) (*storagev2.GetOperationsResponse, error) {
 	ctx, span := tracer.Start(ctx, "tempo-query.GetOperations")
 	defer span.End()
 
@@ -256,15 +256,15 @@ func (b *Backend) GetOperations(ctx context.Context, r *storage_v2.GetOperations
 		return nil, err
 	}
 
-	var operations []*storage_v2.Operation
+	var operations []*storagev2.Operation
 	for _, value := range tagValues {
-		operations = append(operations, &storage_v2.Operation{
+		operations = append(operations, &storagev2.Operation{
 			Name:     value,
 			SpanKind: "",
 		})
 	}
 
-	return &storage_v2.GetOperationsResponse{
+	return &storagev2.GetOperationsResponse{
 		Operations: operations,
 	}, nil
 }
@@ -291,15 +291,15 @@ func worker(b *Backend, jobs <-chan job, results chan<- jobResult) {
 	}
 }
 
-func stringValue(s string) *storage_v2.AnyValue {
-	return &storage_v2.AnyValue{
-		Value: &storage_v2.AnyValue_StringValue{
+func stringValue(s string) *storagev2.AnyValue {
+	return &storagev2.AnyValue{
+		Value: &storagev2.AnyValue_StringValue{
 			StringValue: s,
 		},
 	}
 }
 
-func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.TraceReader_FindTracesServer) error {
+func (b *Backend) FindTraces(r *storagev2.FindTracesRequest, s storagev2.TraceReader_FindTracesServer) error {
 	ctx, span := tracer.Start(s.Context(), "tempo-query.FindTraces")
 	defer span.End()
 
@@ -318,7 +318,7 @@ func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.Trace
 		urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", r.Query.StartTimeMax.Seconds))
 	}
 
-	tags := make(map[string]*storage_v2.AnyValue)
+	tags := make(map[string]*storagev2.AnyValue)
 	if r.Query.ServiceName != "" {
 		// I don't think it's possible to _not_ have a ServiceName - but let's cover this case as well.
 		tags["resource."+serviceSearchTag] = stringValue(r.Query.ServiceName)
