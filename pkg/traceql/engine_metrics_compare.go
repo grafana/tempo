@@ -83,7 +83,7 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		return
 
 	case AggregateModeFinal:
-		m.seriesAgg = NewBaselineAggregator(q, m.topN, maxExemplars)
+		m.seriesAgg = NewBaselineAggregator(q, m.topN, q.Exemplars)
 		return
 	}
 }
