@@ -63,8 +63,8 @@ func newBucketSet(exemplars uint32, start, end uint64) *bucketSet {
 	}
 
 	// convert nanoseconds to milliseconds
-	start = start / uint64(time.Millisecond.Nanoseconds()) //nolint: gosec // G115
-	end = end / uint64(time.Millisecond.Nanoseconds())     //nolint: gosec // G115
+	start /= uint64(time.Millisecond.Nanoseconds()) //nolint: gosec // G115
+	end /= uint64(time.Millisecond.Nanoseconds())   //nolint: gosec // G115
 
 	interval := end - start
 	bucketWidth := interval / uint64(buckets)
