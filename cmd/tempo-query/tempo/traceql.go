@@ -18,7 +18,7 @@ func stringToStatus(s string) traceql.Status {
 	case "error":
 		return traceql.StatusError
 	case "ok":
-		return traceql.StatusUnset
+		return traceql.StatusOk
 	}
 	return traceql.StatusUnset
 }

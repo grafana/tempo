@@ -491,8 +491,15 @@ func (b *Backend) FindTraces(r *storage_v2.FindTracesRequest, s storage_v2.Trace
 
 	for _, v := range r.Query.Attributes {
 		switch v.Key {
-		case "status":
-			tags[v.Key] = v.Value
+		case "error":
+			// Handle error=true / error=false which is special in Jaeger
+			if strings.EqualFold(v.Value.GetStringValue(), "true") {
+				tags["status"] = stringValue("error")
+			} else if strings.EqualFold(v.Value.GetStringValue(), "false") {
+				tags["status"] = stringValue("ok")
+			} else {
+				tags["span."+v.Key] = v.Value
+			}
 		default:
 			tags["span."+v.Key] = v.Value
 		}
