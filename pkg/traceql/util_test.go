@@ -68,7 +68,7 @@ func TestBucketSet_Bucket(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bs := newBucketSet(tc.start*uint64(time.Second.Nanoseconds()), tc.end*uint64(time.Second.Nanoseconds()))
+			bs := newBucketSet(maxExemplars, tc.start*uint64(time.Second.Nanoseconds()), tc.end*uint64(time.Second.Nanoseconds()))
 			actual := bs.bucket(tc.ts * uint64(time.Second.Milliseconds()))
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -76,7 +76,7 @@ func TestBucketSet_Bucket(t *testing.T) {
 }
 
 func TestBucketSet(t *testing.T) {
-	s := newBucketSet(uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds()))
+	s := newBucketSet(maxExemplars, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds()))
 
 	// Add two to each bucket
 	for ts := uint64(100); ts <= 199; ts += 2 { // 100 in total
@@ -94,4 +94,11 @@ func TestBucketSet(t *testing.T) {
 		assert.True(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", ts)
 	}
 	assert.True(t, s.addAndTest(0))
+}
+
+func TestBucketSetSingleExemplar(t *testing.T) {
+	s := newBucketSet(1, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds()))
+	tsMilli := uint64(100 * time.Second.Milliseconds())
+	assert.False(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", 100)
+	assert.True(t, s.addAndTest(tsMilli), "ts=%d should not be added to bucket", 100)
 }
