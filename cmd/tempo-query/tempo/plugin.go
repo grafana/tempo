@@ -16,6 +16,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/user"
 	jaeger "github.com/jaegertracing/jaeger/model"
@@ -188,12 +189,25 @@ func (b *Backend) apiSchema() string {
 	return "http"
 }
 
-func (b *Backend) getTrace(ctx context.Context, traceID string) (*tempopb.TraceByIDResponse, error) {
-	endpoint := fmt.Sprintf("%s://%s/api/v2/traces/%s", b.apiSchema(), b.tempoBackend, traceID)
+func (b *Backend) getTrace(ctx context.Context, traceID string, start, end *types.Timestamp) (*tempopb.TraceByIDResponse, error) {
 	ctx, span := tracer.Start(ctx, "tempo-query.getTrace")
 	defer span.End()
+	endpoint := fmt.Sprintf("%s://%s/api/v2/traces/%s", b.apiSchema(), b.tempoBackend, traceID)
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing Tempo URL: %w", err)
+	}
 
-	req, err := b.newGetRequest(ctx, endpoint)
+	values := url.Values{}
+	if start != nil && start.Seconds > 0 {
+		values.Set("start", fmt.Sprintf("%d", start.Seconds))
+	}
+	if end != nil && end.Seconds > 0 {
+		values.Set("end", fmt.Sprintf("%d", end.Seconds))
+	}
+	u.RawQuery = values.Encode()
+
+	req, err := b.newGetRequest(ctx, u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -280,9 +294,9 @@ type jobResult struct {
 	err     error
 }
 
-func worker(b *Backend, jobs <-chan job, results chan<- jobResult) {
+func worker(b *Backend, jobs <-chan job, results chan<- jobResult, start, end *types.Timestamp) {
 	for job := range jobs {
-		td, err := b.getTrace(job.ctx, job.traceID.String())
+		td, err := b.getTrace(job.ctx, job.traceID.String(), start, end)
 		results <- jobResult{
 			traceID: job.traceID.String(),
 			trace:   getOtlpTraceData(td),
@@ -417,7 +431,7 @@ func (b *Backend) FindTraces(r *storagev2.FindTracesRequest, s storagev2.TraceRe
 
 	b.logger.Debug("Starting workers to fetch traces", zap.Int("num_workers", numWorkers), zap.Int("num_traces_to_fetch", numJobs))
 	for i := 0; i < numWorkers; i++ {
-		go worker(b, jobs, results)
+		go worker(b, jobs, results, r.Query.StartTimeMin, r.Query.StartTimeMax)
 	}
 
 	for _, traceID := range jaegerTraceIDs {
@@ -461,6 +475,41 @@ func (b *Backend) FindTraces(r *storagev2.FindTracesRequest, s storagev2.TraceRe
 	}
 
 	b.logger.Info("Successfully sent all OTLP traces to client.")
+	return nil
+}
+
+func (b *Backend) GetTraces(req *storagev2.GetTracesRequest, srv storagev2.TraceReader_GetTracesServer) error {
+	ctx, span := tracer.Start(srv.Context(), "tempo-query.GetTraces")
+	defer span.End()
+
+	for _, q := range req.Query {
+		if q == nil {
+			return fmt.Errorf("q is nil")
+		}
+		traceId, err := jaeger.TraceIDFromBytes(q.TraceId)
+		if err != nil {
+			return fmt.Errorf("error converting traceId to jaeger TraceID: %w", err)
+		}
+		trace, err := b.getTrace(ctx, traceId.String(), q.StartTime, q.EndTime)
+		if err != nil {
+			if errors.Is(err, ErrTraceNotFound) {
+				b.logger.Debug("Trace not found", zap.String("traceID", traceId.String()))
+				continue
+			}
+			return fmt.Errorf("error getting trace: %w", err)
+		}
+		if trace == nil {
+			return fmt.Errorf("got a nil trace")
+		}
+		convertedTrace := getOtlpTraceData(trace)
+		if convertedTrace == nil {
+			return fmt.Errorf("failed to convert trace to OTLP format")
+		}
+		if err := srv.Send(convertedTrace); err != nil {
+			return fmt.Errorf("error sending trace: %w", err)
+		}
+	}
+
 	return nil
 }
 
