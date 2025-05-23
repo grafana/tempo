@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -843,4 +844,123 @@ func TestDoMetrics(t *testing.T) {
 
 	doMetrics(mockHTTPClient, config, traceInfo, logger)
 	assert.Equal(t, 1, mockHTTPClient.GetMetricsCount())
+}
+
+func TestRunCheckerWithNilTicker(t *testing.T) {
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
+
+	logger = zap.NewNop()
+
+	checkerCalled := false
+	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
+		return time.Now(), time.Now(), false
+	}
+	checker := func(_ *util.TraceInfo, _ *zap.Logger) {
+		checkerCalled = true
+	}
+
+	runChecker(nil, config, selectPastTimestamp, checker, logger)
+	assert.False(t, checkerCalled)
+}
+
+func TestRunCheckerWithSkip(t *testing.T) {
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
+
+	logger = zap.NewNop()
+	ticker := time.NewTicker(time.Millisecond) // fires immediately
+	defer ticker.Stop()
+
+	// Checker function that signals completion
+	var checkerCalled bool
+	checker := func(_ *util.TraceInfo, _ *zap.Logger) {
+		checkerCalled = true
+	}
+
+	alwaysSkip := func(_ time.Time) (newStart, ts time.Time, skip bool) {
+		return time.Now(), time.Now(), true
+	}
+
+	runChecker(ticker, config, alwaysSkip, checker, logger)
+	time.Sleep(5 * time.Millisecond)
+	// Ensure the checker was not called due to skip=true
+	assert.False(t, checkerCalled)
+}
+
+func TestRunCheckerTraceNotReady(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	config := vultureConfiguration{
+		tempoOrgID:                    "orgID",
+		tempoWriteBackoffDuration:     10 * time.Hour, // Very long to ensure trace not ready
+		tempoLongWriteBackoffDuration: 20 * time.Hour,
+	}
+
+	logger = zap.NewNop()
+
+	ticker := time.NewTicker(time.Millisecond) // fires immediately
+
+	// Checker function that signals completion
+	var checkerCalled bool
+	checker := func(_ *util.TraceInfo, _ *zap.Logger) {
+		checkerCalled = true
+	}
+
+	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
+		return seed, seed, false
+	}
+	runChecker(ticker, config, selectPastTimestamp, checker, logger)
+	time.Sleep(5 * time.Millisecond)
+	// Ensure the checker was not called because trace is not ready
+	assert.False(t, checkerCalled)
+}
+
+func TestRunCheckerSuccess(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2009, 1, 1, 12, 0, 0, 0, time.UTC) // Far in the future to ensure trace is ready
+
+	config := vultureConfiguration{
+		tempoOrgID:                    "orgID",
+		tempoWriteBackoffDuration:     time.Second, // Small value to ensure trace is ready
+		tempoLongWriteBackoffDuration: time.Second,
+	}
+
+	logger = zap.NewNop()
+
+	tickChan := make(chan time.Time, 1)
+	mockTicker := &time.Ticker{C: tickChan}
+
+	// Send the time on the channel to trigger the ticker
+	go func() {
+		tickChan <- now
+	}()
+
+	// Checker function that signals completion
+	mx := sync.Mutex{}
+	checkerCalled := false
+	var checkedInfo *util.TraceInfo
+	checker := func(info *util.TraceInfo, _ *zap.Logger) {
+		mx.Lock()
+		defer mx.Unlock()
+		checkerCalled = true
+		checkedInfo = info
+	}
+
+	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
+		return startTime, seed, false
+	}
+	runChecker(mockTicker, config, selectPastTimestamp, checker, logger)
+	time.Sleep(10 * time.Millisecond)
+
+	mx.Lock()
+	defer mx.Unlock()
+	assert.True(t, checkerCalled)
+	require.NotNil(t, checkedInfo)
+	assert.Equal(t, seed.Unix(), checkedInfo.Timestamp().Unix())
 }
