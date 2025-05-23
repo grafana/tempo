@@ -37,13 +37,11 @@ const (
 )
 
 const (
-	serviceSearchTag     = "service.name"
-	operationSearchTag   = "name"
-	minDurationSearchTag = "minDuration"
-	maxDurationSearchTag = "maxDuration"
-	startTimeMaxTag      = "end"
-	startTimeMinTag      = "start"
-	numTracesSearchTag   = "limit"
+	serviceSearchTag   = "service.name"
+	operationSearchTag = "name"
+	startTimeMaxTag    = "end"
+	startTimeMinTag    = "start"
+	numTracesSearchTag = "limit"
 )
 
 var tlsVersions = map[string]uint16{
