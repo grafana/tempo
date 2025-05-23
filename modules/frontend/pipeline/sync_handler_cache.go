@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
+
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
@@ -39,30 +41,30 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	if len(key) > 0 {
 		body := c.cache.fetchBytes(req.Context(), key)
 		if len(body) > 0 {
+			contentType := determineContentType(body)
+
 			resp := &http.Response{
-				Header:     http.Header{},
-				StatusCode: http.StatusOK,
-				Status:     http.StatusText(http.StatusOK),
-				Body:       io.NopCloser(bytes.NewBuffer(body)),
+				Header:        http.Header{api.HeaderContentType: []string{contentType}, combiner.TempoCacheHeader: []string{combiner.TempoCacheHit}},
+				StatusCode:    http.StatusOK,
+				Status:        http.StatusText(http.StatusOK),
+				Body:          io.NopCloser(bytes.NewBuffer(body)),
+				ContentLength: int64(len(body)),
 			}
 
-			// We aren't capturing the original content type in the cache, just the raw bytes.
-			// Detect it and readd it, so the upstream code can parse the body.
-			// TODO - Cache should capture all of the relevant parts of the
-			// original response including both content-type and content-length headers, possibly more.
-			// But upgrading the cache format requires migration/detection of previous format either way.
-			// It's tempting to use https://pkg.go.dev/net/http#DetectContentType but it doesn't detect
-			// json or proto.
-			if body[0] == '{' {
-				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptJSON)
-			} else {
-				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptProtobuf)
-			}
 			return resp, nil
 		}
 	}
 
 	resp, err := c.next.RoundTrip(req)
+
+	// Add cache miss header for all responses that weren't from cache
+	if resp != nil {
+		if resp.Header == nil {
+			resp.Header = http.Header{}
+		}
+		resp.Header[combiner.TempoCacheHeader] = []string{combiner.TempoCacheMiss}
+	}
+
 	// do not cache if there was an error
 	if err != nil {
 		return resp, err
@@ -98,6 +100,18 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+func determineContentType(body []byte) string {
+	// TODO - Cache should capture all of the relevant parts of the
+	// original response including both content-type and content-length headers, possibly more.
+	// But upgrading the cache format requires migration/detection of previous format either way.
+	// It's tempting to use https://pkg.go.dev/net/http#DetectContentType but it doesn't detect
+	// json or proto.
+	if body[0] == '{' {
+		return api.HeaderAcceptJSON
+	}
+	return api.HeaderAcceptProtobuf
 }
 
 func shouldCache(statusCode int) bool {
