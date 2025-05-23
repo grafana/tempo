@@ -278,6 +278,15 @@ indicating execution instability or transient failures or possible issues with b
 - Check logs for tenant and job types that are being retried
 - Look at logs to see if the backend object store is having issues or not
 
+## TempoBackendSchedulerCompactionEmptyJobRateHigh
+
+This alert fires when a high number of jobs received by the backend scheduler
+are empty. This can happen when the backoff for the compaction provider is too
+low and the outstanding blocklist is low, meaning that there is not enough work
+to do.
+
+- Check logs for backend scheduler component for errors
+- Check the blocklist and compare to the outstanding block list
 
 ## TempoBackendWorkerBadJobsRateHigh
 

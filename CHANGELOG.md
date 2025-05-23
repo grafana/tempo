@@ -1,5 +1,4 @@
 ## main / unreleased
-* [ENHANCEMENT] Add jitter in backendworker to avoid thundering herd from workers [#5150](https://github.com/grafana/tempo/pull/5150) (@electron0zero)
 * [CHANGE] Improve rate limit error message when traces size exceeds rate limit [#4986](https://github.com/grafana/tempo/pull/4986/) (@electron0zero)
 * [FEATURE] Add support for topk and bottomk functions for TraceQL metrics [#4646](https://github.com/grafana/tempo/pull/4646/) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
@@ -41,6 +40,8 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
 * [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) [#5035](https://github.com/grafana/tempo/pull/5035) (@yvrhdn, @mapno)
 * [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
+* [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
+* [ENHANCEMENT] Add jitter in backendworker to avoid thundering herd from workers [#5150](https://github.com/grafana/tempo/pull/5150) (@electron0zero)
 * [ENHANCEMENT] tempo-vulture now generates spans with a parent, instead of only root spans [#5154](https://github.com/grafana/tempo/pull/5154) (@carles-grafana)
 * [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham) 
 * [ENHANCEMENT] Improve Tempo build options [#4755](https://github.com/grafana/tempo/pull/4755) (@stoewer)
