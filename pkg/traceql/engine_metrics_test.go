@@ -1910,7 +1910,7 @@ func BenchmarkHistogramAggregator_Combine(b *testing.B) {
 			series := generateTestTimeSeries(seriesCount, bm.samplesCount, bm.exemplarCount, req.Start, req.End)
 
 			for b.Loop() {
-				agg := NewHistogramAggregator(req, []float64{0.5, 0.9, 0.99})
+				agg := NewHistogramAggregator(req, []float64{0.5, 0.9, 0.99}, uint32(bm.exemplarCount))
 				agg.Combine(series)
 			}
 		})
