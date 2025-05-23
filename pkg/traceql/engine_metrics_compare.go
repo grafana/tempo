@@ -79,11 +79,11 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		m.selectionTotals = make(map[Attribute][]float64)
 
 	case AggregateModeSum:
-		m.seriesAgg = NewSimpleCombiner(q, sumAggregation)
+		m.seriesAgg = NewSimpleCombiner(q, sumAggregation, maxExemplars)
 		return
 
 	case AggregateModeFinal:
-		m.seriesAgg = NewBaselineAggregator(q, m.topN)
+		m.seriesAgg = NewBaselineAggregator(q, m.topN, q.Exemplars)
 		return
 	}
 }
@@ -339,7 +339,7 @@ type staticWithTimeSeries struct {
 	series TimeSeries
 }
 
-func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAggregator {
+func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int, exemplars uint32) *BaselineAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	return &BaselineAggregator{
 		baseline:        make(map[string]map[StaticMapKey]staticWithTimeSeries),
@@ -352,7 +352,11 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAg
 		end:             req.End,
 		step:            req.Step,
 		topN:            topN,
-		exemplarBuckets: newBucketSet(l),
+		exemplarBuckets: newBucketSet(
+			exemplars,
+			alignStart(req.Start, req.Step),
+			alignEnd(req.End, req.Step),
+		),
 	}
 }
 
@@ -434,8 +438,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 			if b.exemplarBuckets.testTotal() {
 				break
 			}
-			interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
-			if b.exemplarBuckets.addAndTest(interval) {
+			if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
 				continue
 			}
 

@@ -48,14 +48,35 @@ func MakeCollectTagValueFunc(collect func(tempopb.TagValue) bool) func(v Static)
 type bucketSet struct {
 	sz, maxTotal, maxBucket int
 	buckets                 []int
+	start, end, bucketWidth uint64
 }
 
-func newBucketSet(size int) *bucketSet {
+// newBucketSet creates a new bucket set for the given time range
+// start and end are in nanoseconds
+func newBucketSet(exemplars uint32, start, end uint64) *bucketSet {
+	if exemplars > maxExemplars || exemplars == 0 {
+		exemplars = maxExemplars
+	}
+	buckets := exemplars / maxExemplarsPerBucket
+	if buckets == 0 { // edge case for few exemplars
+		buckets = 1
+	}
+
+	// convert nanoseconds to milliseconds
+	start /= uint64(time.Millisecond.Nanoseconds()) //nolint: gosec // G115
+	end /= uint64(time.Millisecond.Nanoseconds())   //nolint: gosec // G115
+
+	interval := end - start
+	bucketWidth := interval / uint64(buckets)
+
 	return &bucketSet{
-		sz:        size,
-		maxTotal:  maxExemplars,
-		maxBucket: maxExemplarsPerBucket,
-		buckets:   make([]int, size+1), // +1 for total count
+		sz:          int(buckets),
+		maxTotal:    int(exemplars),
+		maxBucket:   maxExemplarsPerBucket,
+		buckets:     make([]int, buckets+1), // +1 for total count
+		start:       start,
+		end:         end,
+		bucketWidth: bucketWidth,
 	}
 }
 
@@ -67,15 +88,33 @@ func (b *bucketSet) testTotal() bool {
 	return b.len() >= b.maxTotal
 }
 
-func (b *bucketSet) inRange(i int) bool {
-	return i >= 0 && i < b.sz
+func (b *bucketSet) inRange(ts uint64) bool {
+	return b.start <= ts && ts <= b.end
 }
 
-func (b *bucketSet) addAndTest(i int) bool {
-	if !b.inRange(i) || b.testTotal() {
+func (b *bucketSet) bucket(ts uint64) int {
+	if b.start == b.end {
+		return 0
+	}
+
+	bucket := int((ts - b.start) / b.bucketWidth) //nolint: gosec // G115
+
+	// Clamp to last bucket to handle edge rounding
+	if bucket >= b.sz {
+		bucket = b.sz - 1
+	}
+
+	return bucket
+}
+
+// addAndTest adds a timestamp to the bucket set and returns true if the total exceeds the max total
+// the timestamp is in milliseconds
+func (b *bucketSet) addAndTest(ts uint64) bool {
+	if !b.inRange(ts) || b.testTotal() || b.sz == 0 {
 		return true
 	}
 
+	i := b.bucket(ts)
 	if b.buckets[i] >= b.maxBucket {
 		return true
 	}
