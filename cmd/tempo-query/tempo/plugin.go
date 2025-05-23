@@ -69,7 +69,7 @@ type Backend struct {
 	findTracesConcurrentRequests int
 
 	// storagev2.UnimplementedTraceReaderServer
-	storagev2.UnimplementedDependencyReaderServer
+	// storagev2.UnimplementedDependencyReaderServer
 }
 
 func New(logger *zap.Logger, cfg *Config) (*Backend, error) {
@@ -180,6 +180,7 @@ func tlsCipherSuites() map[string]uint16 {
 }
 
 func (b *Backend) GetDependencies(context.Context, *storagev2.GetDependenciesRequest) (*storagev2.GetDependenciesResponse, error) {
+	// TODO: Implement if service graphs are enabled? (https://grafana.com/docs/tempo/latest/metrics-generator/service_graphs/)
 	return &storagev2.GetDependenciesResponse{}, nil
 }
 
