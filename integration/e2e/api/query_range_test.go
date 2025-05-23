@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,7 +53,20 @@ sendLoop:
 	for {
 		select {
 		case <-ticker.C:
-			require.NoError(t, jaegerClient.EmitBatch(context.Background(), util.MakeThriftBatch()))
+			require.NoError(t, jaegerClient.EmitBatch(context.Background(),
+				util.MakeThriftBatchWithSpanCountAttributeAndName(
+					1, "my operation",
+					"res_val", "span_val",
+					"res_attr", "span_attr",
+				),
+			))
+			require.NoError(t, jaegerClient.EmitBatch(context.Background(),
+				util.MakeThriftBatchWithSpanCountAttributeAndName(
+					1, "my operation",
+					"res_val2", "span_val2",
+					"res_attr", "span_attr",
+				),
+			))
 		case <-timer.C:
 			break sendLoop
 		}
@@ -74,6 +86,12 @@ sendLoop:
 		"{} | sum_over_time(duration)",
 		"{} | quantile_over_time(duration, .5)",
 		"{} | quantile_over_time(duration, .5, 0.9, 0.99)",
+
+		"{} | count_over_time() by (span.span_attr)",
+		"{} | count_over_time() by (resource.res_attr)",
+		"{} | count_over_time() by (.span_attr)",
+		"{} | count_over_time() by (.res_attr)",
+
 		"{} | histogram_over_time(duration)",
 		"{} | count_over_time() by (status)",
 		"{status != error} | count_over_time() by (status)",
@@ -87,6 +105,96 @@ sendLoop:
 				exemplarCount += len(series.GetExemplars())
 			}
 			require.GreaterOrEqual(t, exemplarCount, 1)
+		})
+	}
+
+	// check exemplars in more detail
+	for _, testCase := range []struct {
+		query                   string
+		targetAttribute         string
+		targetExemplarAttribute string
+	}{
+		{
+			query:                   "{} | quantile_over_time(duration, .9) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | quantile_over_time(duration, .9) by (resource.res_attr)",
+			targetAttribute:         "resource.res_attr",
+			targetExemplarAttribute: "resource.res_attr",
+		},
+		{
+			query:                   "{} | quantile_over_time(duration, .9) by (.span_attr)",
+			targetAttribute:         ".span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | quantile_over_time(duration, .9) by (.res_attr)",
+			targetAttribute:         ".res_attr",
+			targetExemplarAttribute: "resource.res_attr",
+		},
+		{
+			query:                   "{} | rate() by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | count_over_time() by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | min_over_time(duration) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | max_over_time(duration) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | avg_over_time(duration) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+		{
+			query:                   "{} | sum_over_time(duration) by (span.span_attr)",
+			targetAttribute:         "span.span_attr",
+			targetExemplarAttribute: "span.span_attr",
+		},
+	} {
+		t.Run(testCase.query, func(t *testing.T) {
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), testCase.query, debugMode)
+			require.NotNil(t, queryRangeRes)
+			require.Equal(t, len(queryRangeRes.GetSeries()), 2)
+
+			// Verify that all exemplars in this series belongs to the right series
+			// by matching attribute values
+			for _, series := range queryRangeRes.Series {
+				// search attribute value for the series
+				var expectedAttrValue string
+				for _, label := range series.Labels {
+					if label.Key == testCase.targetAttribute {
+						expectedAttrValue = label.Value.GetStringValue()
+						break
+					}
+				}
+				require.NotEmpty(t, expectedAttrValue)
+
+				// check attribute value in exemplars
+				for _, exemplar := range series.Exemplars {
+					var actualAttrValue string
+					for _, label := range exemplar.Labels {
+						if label.Key == testCase.targetExemplarAttribute {
+							actualAttrValue = label.Value.GetStringValue()
+							break
+						}
+					}
+					require.Equal(t, expectedAttrValue, actualAttrValue)
+				}
+			}
 		})
 	}
 
@@ -371,7 +479,9 @@ func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempop
 	}
 
 	queryRangeRes := tempopb.QueryRangeResponse{}
-	require.NoError(t, json.Unmarshal(body, &queryRangeRes))
+	readBody := strings.NewReader(string(body))
+	err = new(jsonpb.Unmarshaler).Unmarshal(readBody, &queryRangeRes)
+	require.NoError(t, err)
 	return queryRangeRes
 }
 
