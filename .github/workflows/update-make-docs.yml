@@ -1,4 +1,7 @@
 name: Update `make docs` procedure
+
+permissions: {}
+
 on:
   schedule:
     - cron: '0 7 * * 1-5'
@@ -9,4 +12,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: grafana/writers-toolkit/update-make-docs@update-make-docs/v1
+        with:
+          persist-credentials: false
+      - uses: grafana/writers-toolkit/update-make-docs@6200164349ac8f24bab065ce3689dd8c9a093061

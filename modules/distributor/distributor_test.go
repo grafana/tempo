@@ -1743,6 +1743,62 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 	})
 }
 
+func TestArtificialLatency(t *testing.T) {
+	// prepare test data
+	overridesConfig := overrides.Config{}
+	overridesConfig.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	latency := 50 * time.Millisecond
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d, _ := prepare(t, overridesConfig, logger)
+	d.cfg.ArtificialDelay = latency
+
+	batches := []*v1.ResourceSpans{
+		makeResourceSpans("test-service", []*v1.ScopeSpans{
+			makeScope(
+				makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil)),
+			makeScope(
+				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+		}),
+	}
+
+	traces := batchesToTraces(t, batches)
+	reqStart := time.Now()
+	_, err := d.PushTraces(ctx, traces)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const tolerance = 10 * time.Millisecond
+	assert.GreaterOrEqual(t, time.Since(reqStart)+tolerance, latency, "Expected artificial latency not respected")
+}
+
+func TestArtificialLatencyIsAppliedOnError(t *testing.T) {
+	// prepare test data
+	overridesConfig := overrides.Config{}
+	overridesConfig.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	latency := 50 * time.Millisecond
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d, _ := prepare(t, overridesConfig, logger)
+	d.cfg.ArtificialDelay = latency
+
+	batches := []*v1.ResourceSpans{
+		makeResourceSpans("test-service", []*v1.ScopeSpans{}),
+	}
+
+	traces := batchesToTraces(t, batches)
+	reqStart := time.Now()
+	_, err := d.PushTraces(ctx, traces)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const tolerance = 10 * time.Millisecond
+	assert.GreaterOrEqual(t, time.Since(reqStart)+tolerance, latency, "Expected artificial latency not respected")
+}
+
 type testLogSpan struct {
 	Msg                string `json:"msg"`
 	Level              string `json:"level"`
@@ -2018,4 +2074,97 @@ func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {
 		},
 	}
 	return ring.NewPartitionRing(desc)
+}
+
+func TestCheckForRateLimits(t *testing.T) {
+	tests := []struct {
+		name            string
+		tracesSize      int
+		rateLimitBytes  int
+		burstLimitBytes int
+		expectError     string
+		errCode         codes.Code
+	}{
+		{
+			name:            "size under rate limit and burst limit",
+			tracesSize:      100,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size exactly at rate limit and burst limit",
+			tracesSize:      500,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size over rate limit but exactly at burst rate limit",
+			tracesSize:      500,
+			rateLimitBytes:  200, // to test that burst is respected
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size over rate limit but under burst limit",
+			tracesSize:      1100,
+			rateLimitBytes:  500, // to test that burst is respected
+			burstLimitBytes: 1500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size over rate limit and burst limit",
+			tracesSize:      1100,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "RATE_LIMITED: batch size (1100 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes) while adding 1100 bytes for user test-user. consider reducing batch size or increasing rate limit.",
+			errCode:         codes.ResourceExhausted,
+		},
+		{
+			name:            "size over rate limit and burst limit",
+			tracesSize:      1000,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "RATE_LIMITED: batch size (1000 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes) while adding 1000 bytes for user test-user. consider reducing batch size or increasing rate limit.",
+			errCode:         codes.ResourceExhausted,
+		},
+		{
+			name:            "size exactly at rate limit but over the burst limit",
+			tracesSize:      500,
+			rateLimitBytes:  500,
+			burstLimitBytes: 200,
+			expectError:     "RATE_LIMITED: ingestion rate limit (local: 500 bytes/s, global: 0 bytes/s, burst: 200 bytes) exceeded while adding 500 bytes for user test-user. consider increasing the limit or reducing ingestion rate.",
+			errCode:         codes.ResourceExhausted,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			overridesConfig := overrides.Config{
+				Defaults: overrides.Overrides{
+					Ingestion: overrides.IngestionOverrides{
+						RateStrategy:   overrides.LocalIngestionRateStrategy,
+						RateLimitBytes: tc.rateLimitBytes,
+						BurstSizeBytes: tc.burstLimitBytes,
+					},
+				},
+			}
+
+			// Create a distributor with the overrides
+			logger := kitlog.NewNopLogger()
+			d, _ := prepare(t, overridesConfig, logger)
+
+			// check if we can ingest the batch
+			err := d.checkForRateLimits(tc.tracesSize, 100, "test-user")
+			s, ok := status.FromError(err)
+			require.True(t, ok)
+			require.Equal(t, tc.errCode, s.Code())
+			require.Equal(t, tc.expectError, s.Message())
+		})
+	}
 }

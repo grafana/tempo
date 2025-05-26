@@ -10,7 +10,6 @@ on:
 # Needed to login to DockerHub
 permissions:
   contents: read
-  id-token: write
 
 jobs:
 
@@ -22,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: fetch tags
         run: git fetch --tags
@@ -38,11 +39,15 @@ jobs:
         component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
         runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
+    permissions:
+      id-token: write
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: fetch tags
         run: git fetch --tags
@@ -57,7 +62,7 @@ jobs:
           docker build -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@5d7e361bc7e0a183cde8afe9899fb7b596d2659b # dockerhub-login-v1.0.1
 
       - name: docker-push
         run: |
@@ -67,6 +72,8 @@ jobs:
   manifest:
     if: github.repository == 'grafana/tempo'
     needs: ['get-tag', 'docker']
+    permissions:
+      id-token: write
     strategy:
       matrix:
         component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
@@ -77,9 +84,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@5d7e361bc7e0a183cde8afe9899fb7b596d2659b # dockerhub-login-v1.0.1
 
       - name: docker-manifest-create-and-push
         run: |
@@ -100,9 +109,13 @@ jobs:
     if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     needs: manifest
+    permissions:
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: fetch tags
         run: git fetch --tags
@@ -114,21 +127,27 @@ jobs:
           echo "grafana/tempo-vulture:$(./tools/image-tag)" > tags_for_cd_tempo_vulture
 
       - name: Authenticate to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@main
+        uses: grafana/shared-workflows/actions/login-to-gar@5d7e361bc7e0a183cde8afe9899fb7b596d2659b # login-to-gar-v0.3.0
         id: login-to-gar
         with:
           registry: us-docker.pkg.dev
           environment: prod
 
       - name: Get Vault secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@main
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@5d7e361bc7e0a183cde8afe9899fb7b596d2659b # get-vault-secrets-v1.2.0
         with:
+          export_env: false
           common_secrets: |
             GITHUB_APP_ID=updater-app:app-id
             GITHUB_APP_INSTALLATION_ID=updater-app:app-installation-id
             GITHUB_APP_PRIVATE_KEY=updater-app:private-key
 
       - name: Update jsonnet
+        env:
+          GITHUB_APP_ID: ${{ fromJSON(steps.get-secrets.outputs.secrets).GITHUB_APP_ID }}
+          GITHUB_APP_INSTALLATION_ID: ${{ fromJSON(steps.get-secrets.outputs.secrets).GITHUB_APP_INSTALLATION_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ fromJSON(steps.get-secrets.outputs.secrets).GITHUB_APP_PRIVATE_KEY }}
         run: |
           set -e -o pipefail
 

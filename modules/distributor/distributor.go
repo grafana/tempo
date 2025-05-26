@@ -24,7 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"github.com/segmentio/fasthash/fnv1a"
-	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc/codes"
@@ -365,21 +364,42 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
+// checkForRateLimits checks if the trace batch size exceeds the ingestion rate limit.
+// it will use the ingestion rate limits based on the ingestion strategy configured.
+//
+// LocalIngestionRateStrategy: the ingestion rate limit is applied as is in each distributor.
+// example: if the ingestion rate limit is 10MB/s and the burst size is 20MB, then each distributor
+// will allow 10MB/s with a burst of 20MB.
+//
+// GlobalIngestionRateStrategy: the ingestion rate limit is divided by the number of healthy distributors.
+// example: if the ingestion rate limit is 10MB/s and the burst size is 20MB, and there are 5 healthy distributors,
+// then each distributor will allow 2MB/s with a burst of 20MB.
 func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID string) error {
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
+		// limit: number of bytes per second allowed for the user, as per ingestion rate strategy
 		limit := int(d.ingestionRateLimiter.Limit(now, userID))
+		burst := d.ingestionRateLimiter.Burst(now, userID)
+
+		// globalLimit will be 0 when using local ingestion rate strategy
 		var globalLimit int
 		if d.overrides.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
+			// note: global limit should be calculated using healthy distributors count,
+			// but we are using it in logs, instance count is good enough.
 			globalLimit = limit * d.DistributorRing.InstancesCount()
 		}
+
+		// batch size is too big if it's more than the limit and burst both
+		if tracesSize > limit && tracesSize > burst {
+			return status.Errorf(codes.ResourceExhausted,
+				"%s: batch size (%d bytes) exceeds ingestion limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes) while adding %d bytes for user %s. consider reducing batch size or increasing rate limit.",
+				overrides.ErrorPrefixRateLimited, tracesSize, limit, globalLimit, burst, tracesSize, userID)
+		}
+
 		return status.Errorf(codes.ResourceExhausted,
-			"%s: ingestion rate limit (local: %d bytes, global: %d bytes) exceeded while adding %d bytes for user %s",
-			overrides.ErrorPrefixRateLimited,
-			limit,
-			globalLimit,
-			tracesSize, userID)
+			"%s: ingestion rate limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes) exceeded while adding %d bytes for user %s. consider increasing the limit or reducing ingestion rate.",
+			overrides.ErrorPrefixRateLimited, limit, globalLimit, burst, tracesSize, userID)
 	}
 
 	return nil
@@ -406,6 +426,8 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		// can't record discarded spans here b/c there's no tenant
 		return nil, err
 	}
+	defer d.padWithArtificialDelay(reqStart, userID)
+
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
 	}
@@ -481,8 +503,6 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 			d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 		}
 	}
-
-	d.padWithArtificialDelay(reqStart, userID)
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
@@ -645,8 +665,6 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 			return err
 		}
 
-		startTime := time.Now()
-
 		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes)
 		if err != nil {
 			return fmt.Errorf("failed to encode PushSpansRequest: %w", err)
@@ -654,39 +672,32 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		metricKafkaRecordsPerRequest.Observe(float64(len(records)))
 
+		startTime := time.Now()
 		produceResults := d.kafkaProducer.ProduceSync(localCtx, records)
+		metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
 
 		partitionLabel := fmt.Sprintf("partition_%d", partitionID)
-		if count, sizeBytes := successfulProduceRecordsStats(produceResults); count > 0 {
-			metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
-			metricKafkaWriteBytesTotal.WithLabelValues(partitionLabel).Add(float64(sizeBytes))
-			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)
-		}
-
-		var finalErr error
+		count := 0
+		sizeBytes := 0
 		for _, result := range produceResults {
 			if result.Err != nil {
 				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
 				metricKafkaAppends.WithLabelValues(partitionLabel, "fail").Inc()
-				finalErr = result.Err
 			} else {
-				metricKafkaAppends.WithLabelValues(partitionLabel, "success").Inc()
+				count++
+				sizeBytes += len(result.Record.Value)
 			}
 		}
 
-		return finalErr
-	}, ring.DoBatchOptions{})
-}
-
-func successfulProduceRecordsStats(results kgo.ProduceResults) (count, sizeBytes int) {
-	for _, res := range results {
-		if res.Err == nil && res.Record != nil {
-			count++
-			sizeBytes += len(res.Record.Value)
+		if count > 0 {
+			metricKafkaWriteBytesTotal.WithLabelValues(partitionLabel).Add(float64(sizeBytes))
+			metricKafkaAppends.WithLabelValues(partitionLabel, "success").Add(float64(count))
 		}
-	}
 
-	return count, sizeBytes
+		_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)
+
+		return produceResults.FirstErr()
+	}, ring.DoBatchOptions{})
 }
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring

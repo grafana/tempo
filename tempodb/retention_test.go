@@ -222,6 +222,63 @@ func TestBlockRetentionOverride(t *testing.T) {
 	require.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
 }
 
+func TestBlockRetentionOverrideDisabled(t *testing.T) {
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              0.01,
+			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
+			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	overrides := &mockOverrides{
+		disabled: true,
+	}
+
+	ctx := context.Background()
+	err = c.EnableCompaction(ctx, &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          time.Hour,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, overrides)
+	require.NoError(t, err)
+
+	r.EnablePolling(ctx, &mockJobSharder{})
+
+	cutTestBlocks(t, w, testTenantID, 10, 10)
+
+	// The test spans are all 1 second long, so we have to sleep to put all the
+	// data in the past
+	time.Sleep(time.Second)
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist(ctx)
+	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
+
+	time.Sleep(10 * time.Millisecond)
+
+	// Retention = 1ns, deletes everything
+	overrides.blockRetention = time.Nanosecond
+	r.(*readerWriter).doRetention(ctx)
+	rw.pollBlocklist(ctx)
+	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
+}
+
 func TestRetainWithConfig(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()

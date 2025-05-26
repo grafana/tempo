@@ -95,9 +95,25 @@ spans than `/api/happy`, for example.
 ## The `count_over_time` function
 
 The `count_over_time()` function counts the number of matching spans per time interval.
-The time interval that the count will be computed over is set by the `step` parameter.
-For more information, refer to the [
-`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
+The time interval that the count is computed over is set by the `step` parameter.
+
+### The `step` parameter
+
+Ths `step` parameter defines the granularity of the returned time-series.
+For example, `step=15s` returns a data point every 15s within the time range.
+By default, `step` automatically chooses a dynamic value based on the query start time and end time.
+
+Any value used for `step` needs to include a duration value, such as `30s` for `s`econds or `1m` for `m`inutes.
+
+You can configure this parameter using Grafana Explore or using the Tempo API.
+Refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics) for information about using the API.
+
+To check or change the `step` value using Grafana Explore:
+1. Select your Tempo data source.
+1. Select either the **Search** or **TraceQL** query type tab.
+1. Expand the **Metrics options** to view the **Step** value.
+
+![The Step value in the Metrics options in Grafana Explore](/media/docs/tempo/tempo-ds-query-metrics-options-step.png)
 
 ### Example
 

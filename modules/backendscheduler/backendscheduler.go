@@ -287,24 +287,10 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
-		var (
-			metas     = s.store.BlockMetas(j.Tenant())
-			oldBlocks []*backend.BlockMeta
-		)
-
-		for _, b := range j.GetCompactionInput() {
-			for _, m := range metas {
-				if m.BlockID.String() == b {
-					oldBlocks = append(oldBlocks, m)
-				}
-			}
-		}
-
-		err = s.store.MarkBlocklistCompacted(j.Tenant(), oldBlocks, nil)
+		err = s.loadBlocklistJobsForTenant(j.Tenant(), []*work.Job{j})
 		if err != nil {
-			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, "failed to mark compacted blocks on in-memory blocklist")
+			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
-
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		j.Fail()
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
@@ -324,6 +310,73 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	return &tempopb.UpdateJobStatusResponse{
 		Success: true,
 	}, nil
+}
+
+func (s *BackendScheduler) replayWorkOnBlocklist() {
+	var (
+		err           error
+		tenant        string
+		perTenantJobs = make(map[string][]*work.Job)
+	)
+
+	// Get all the input blocks which have been successfully compacted
+	for _, j := range s.work.ListJobs() {
+		tenant = j.Tenant()
+
+		if j.GetStatus() != tempopb.JobStatus_JOB_STATUS_SUCCEEDED {
+			continue
+		}
+
+		if _, ok := perTenantJobs[tenant]; !ok {
+			perTenantJobs[tenant] = make([]*work.Job, 0, 1000)
+		}
+
+		perTenantJobs[tenant] = append(perTenantJobs[tenant], j)
+	}
+
+	for tenant, jobs := range perTenantJobs {
+		err = s.loadBlocklistJobsForTenant(tenant, jobs)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "failed to load blocklist jobs for tenant", "tenant", tenant, "error", err)
+		}
+	}
+}
+
+func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*work.Job) error {
+	var (
+		metas     = s.store.BlockMetas(tenant)
+		oldBlocks []*backend.BlockMeta
+		u         backend.UUID
+		err       error
+	)
+
+	for _, j := range jobs {
+		if j.GetStatus() != tempopb.JobStatus_JOB_STATUS_SUCCEEDED {
+			continue
+		}
+
+		for _, b := range j.GetCompactionInput() {
+			u, err = backend.ParseUUID(b)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "failed to parse block ID", "block_id", b, "error", err)
+				continue
+			}
+
+			for _, m := range metas {
+				if m.BlockID == u {
+					oldBlocks = append(oldBlocks, m)
+					break
+				}
+			}
+		}
+	}
+
+	err = s.store.MarkBlocklistCompacted(tenant, oldBlocks, nil)
+	if err != nil {
+		return fmt.Errorf("failed to mark compacted blocks on in-memory blocklist: %w", err)
+	}
+
+	return nil
 }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {

@@ -151,12 +151,16 @@ func (t *TraceInfo) generateRandomInt(min, max int64) int64 {
 func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *thrift.Batch {
 	var spans []*thrift.Span
 	count := t.generateRandomInt(1, 5)
+	lastSpanID, nextSpanID := int64(0), int64(0)
+	// Each span has the previous span as parent, creating a tree with a single branch per batch.
 	for i := int64(0); i < count; i++ {
+		nextSpanID = t.r.Int63()
+
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    TraceIDLow,
 			TraceIdHigh:   TraceIDHigh,
-			SpanId:        t.r.Int63(),
-			ParentSpanId:  0,
+			SpanId:        nextSpanID,
+			ParentSpanId:  lastSpanID,
 			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
 			References:    nil,
 			Flags:         0,
@@ -165,6 +169,8 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *thrift.Batch
 			Tags:          t.generateRandomTags(),
 			Logs:          t.generateRandomLogs(),
 		})
+
+		lastSpanID = nextSpanID
 	}
 
 	process := &thrift.Process{
@@ -178,12 +184,16 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *thrift.Batch
 func (t *TraceInfo) makeJaegerBatch(TraceIDHigh, TraceIDLow int64) *jaeger.Batch {
 	var spans []*jaeger.Span
 	count := t.generateRandomInt(1, 5)
+	lastSpanID, nextSpanID := int64(0), int64(0)
+	// Each span has the previous span as parent, creating a tree with a single branch per batch.
 	for i := int64(0); i < count; i++ {
+		nextSpanID = t.r.Int63()
+
 		spans = append(spans, &jaeger.Span{
 			TraceIdLow:    TraceIDLow,
 			TraceIdHigh:   TraceIDHigh,
-			SpanId:        t.r.Int63(),
-			ParentSpanId:  0,
+			SpanId:        nextSpanID,
+			ParentSpanId:  lastSpanID,
 			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
 			References:    nil,
 			Flags:         0,
@@ -192,6 +202,8 @@ func (t *TraceInfo) makeJaegerBatch(TraceIDHigh, TraceIDLow int64) *jaeger.Batch
 			Tags:          t.generateRandomJaegerTags(),
 			Logs:          t.generateRandomJaegerLogs(),
 		})
+
+		lastSpanID = nextSpanID
 	}
 
 	process := &jaeger.Process{

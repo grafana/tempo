@@ -230,7 +230,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\",status_code=~\"2.+\"}[$__rate_interval])) /\nsum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))\n",
+     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\",status_code=~\"2.+\"}[$__rate_interval])) /\nsum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval]))\n",
      "format": null,
      "instant": false,
      "interval": "",
@@ -354,7 +354,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\",status_code=~\"4.+\"}[$__rate_interval])) /\nsum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))\n",
+     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\",status_code=~\"4.+\"}[$__rate_interval])) /\nsum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval]))\n",
      "format": null,
      "instant": false,
      "interval": "",
@@ -474,7 +474,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\",status_code=~\"5.+\"}[$__rate_interval])) /\nsum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))\n",
+     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\",status_code=~\"5.+\"}[$__rate_interval])) /\nsum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval]))\n",
      "format": null,
      "instant": false,
      "interval": "",
@@ -598,7 +598,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}))\n",
+     "expr": "histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}))\n",
      "format": null,
      "instant": false,
      "interval": "",
@@ -1386,7 +1386,7 @@
    },
    "targets": [
     {
-     "expr": "1 - (\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"} offset 24h))[1h:])\n  /\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}))[1h:])\n)\n",
+     "expr": "1 - (\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"} offset 24h))[1h:])\n  /\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}))[1h:])\n)\n",
      "format": "time_series",
      "interval": "1m",
      "legendFormat": "writes",

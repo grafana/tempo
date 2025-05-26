@@ -3,6 +3,8 @@ on:
   schedule:
     - cron: "*/30 * * * *"
 
+permissions: {}
+
 jobs:
   main:
     # this action keeps failing in all forks, only run in grafana/tempo.
@@ -10,19 +12,29 @@ jobs:
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-24.04
     steps:
+      - name: Get Github App secrets from vault
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@5d7e361bc7e0a183cde8afe9899fb7b596d2659b #get-vault-secrets 1.2.0
+        with:
+          export_env: false
+          repo_secrets: |
+            APP_ID=tempo-ci-app:app-id
+            PRIVATE_KEY=tempo-ci-app:private-key
       - name: Get app token
-        uses: actions/create-github-app-token@3ff1caaa28b64c9cc276ce0a02e2ff584f3900c5 # v2.0.2
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
         id: get-github-app-token
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ fromJSON(steps.get-secrets.outputs.secrets).APP_ID }}
+          private-key: ${{ fromJSON(steps.get-secrets.outputs.secrets).PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: tempo
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
           repository: "grafana/grafana-github-actions"
           path: ./actions
           ref: main
+          persist-credentials: false
       - name: Install Actions
         run: npm install --production --prefix ./actions
       - name: Run metrics collector

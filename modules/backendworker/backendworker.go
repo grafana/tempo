@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"math/rand"
 	"os"
 	"time"
 
@@ -494,6 +495,8 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 			if err = f(ctx); err != nil {
 				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
 				metricWorkerCallRetries.WithLabelValues().Inc()
+				// Add jitter so all workers don't all retry at once and cause a thundering herd.
+				time.Sleep(time.Duration(rand.Float32() * float32(1*time.Second)))
 				b.Wait()
 				continue
 			}

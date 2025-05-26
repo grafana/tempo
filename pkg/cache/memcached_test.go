@@ -169,3 +169,28 @@ func testMemcachedStopping(memcache *cache.Memcached) {
 	go memcache.Fetch(ctx, keys)
 	memcache.Stop()
 }
+
+func TestMemcachedRespectsCancelledContext(t *testing.T) {
+	client := newMockMemcache()
+	memcache := cache.NewMemcached(cache.MemcachedConfig{}, client,
+		"test", 0, nil, log.NewNopLogger())
+	defer memcache.Stop()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	found, bufs, missing := memcache.Fetch(ctx, []string{"1"})
+	require.Nil(t, found)
+	require.Nil(t, bufs)
+	require.Equal(t, []string{"1"}, missing)
+
+	val, f := memcache.FetchKey(ctx, "1")
+	require.Nil(t, val)
+	require.False(t, f)
+
+	memcache.Store(ctx, []string{"1"}, [][]byte{[]byte("1")})
+	// confirm that the value is not stored
+	mi, err := client.Get("1")
+	require.ErrorContains(t, err, "cache miss")
+	require.Nil(t, mi)
+}

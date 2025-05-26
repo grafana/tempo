@@ -21,6 +21,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxLocalTracesPerUser:      c.Ingestion.MaxLocalTracesPerUser,
 		MaxGlobalTracesPerUser:     c.Ingestion.MaxGlobalTracesPerUser,
 		IngestionMaxAttributeBytes: c.Ingestion.MaxAttributeBytes,
+		IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
 
 		Forwarders: c.Forwarders,
 
@@ -53,20 +54,27 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:                        c.MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod,
 		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:                         c.MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod,
 		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:                    c.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
+		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
+		MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
 		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
 
-		BlockRetention:   c.Compaction.BlockRetention,
-		CompactionWindow: c.Compaction.CompactionWindow,
+		BlockRetention:     c.Compaction.BlockRetention,
+		CompactionWindow:   c.Compaction.CompactionWindow,
+		CompactionDisabled: c.Compaction.CompactionDisabled,
 
 		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
 		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
 		MaxSearchDuration:          c.Read.MaxSearchDuration,
+		MaxMetricsDuration:         c.Read.MaxMetricsDuration,
 		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
 		DedicatedColumns: c.Storage.DedicatedColumns,
-		CostAttribution:  c.CostAttribution,
+		CostAttribution: CostAttributionOverrides{
+			Dimensions:     c.CostAttribution.Dimensions,
+			MaxCardinality: c.CostAttribution.MaxCardinality,
+		},
 	}
 }
 
@@ -74,12 +82,12 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 // limits via flags, or per-user limits via yaml config.
 type LegacyOverrides struct {
 	// Distributor enforced limits.
-	IngestionRateStrategy      string        `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
-	IngestionRateLimitBytes    int           `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
-	IngestionBurstSizeBytes    int           `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
-	IngestionTenantShardSize   int           `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
-	IngestionMaxAttributeBytes int           `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
-	IngestionArtificialDelay   time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
+	IngestionRateStrategy      string         `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
+	IngestionRateLimitBytes    int            `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
+	IngestionBurstSizeBytes    int            `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
+	IngestionTenantShardSize   int            `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
+	IngestionMaxAttributeBytes int            `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
+	IngestionArtificialDelay   *time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
 
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
@@ -156,6 +164,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxGlobalTracesPerUser: l.MaxGlobalTracesPerUser,
 			TenantShardSize:        l.IngestionTenantShardSize,
 			MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
+			ArtificialDelay:        l.IngestionArtificialDelay,
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
@@ -223,7 +232,8 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			DedicatedColumns: l.DedicatedColumns,
 		},
 		CostAttribution: CostAttributionOverrides{
-			Dimensions: l.CostAttribution.Dimensions,
+			Dimensions:     l.CostAttribution.Dimensions,
+			MaxCardinality: l.CostAttribution.MaxCardinality,
 		},
 	}
 }

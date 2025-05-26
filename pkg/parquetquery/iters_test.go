@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"context"
+	"io"
 	"math"
 	"os"
 	"strconv"
@@ -17,9 +18,6 @@ var iterTestCases = []struct {
 	name     string
 	makeIter makeTestIterFn
 }{
-	{"async", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
-		return NewColumnIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs, MaxDefinitionLevel)
-	}},
 	{"sync", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
 		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs, MaxDefinitionLevel)
 	}},
@@ -207,7 +205,7 @@ func testColumnIteratorPredicate(t *testing.T, makeIter makeTestIterFn) {
 	}
 }
 
-func TestColumnIteratorExitEarly(t *testing.T) {
+func TestSyncIteratorPropagatesErrors(t *testing.T) {
 	type T struct{ A int }
 
 	rows := []T{}
@@ -216,75 +214,26 @@ func TestColumnIteratorExitEarly(t *testing.T) {
 		rows = append(rows, T{i})
 	}
 
-	pf := createFileWith(t, rows)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	pf := createFileWith(t, ctx, rows)
+
 	idx, _, _ := GetColumnIndexByPath(pf, "A")
-	readSize := 1000
+	iter := NewSyncIterator(ctx, pf.RowGroups(), idx, "", 1, nil, "A", MaxDefinitionLevel)
 
-	readIter := func(iter Iterator) (int, error) {
-		received := 0
-		for {
-			res, err := iter.Next()
-			if err != nil {
-				return received, err
-			}
-			if res == nil {
-				break
-			}
-			received++
+	_, err := iter.Next()
+	require.NoError(t, err)
+
+	cancel()
+
+	// iterate until we get an error and confirm it's because of the context cancellation
+	for {
+		_, err = iter.Next()
+		if err != nil {
+			break
 		}
-		return received, nil
 	}
-
-	t.Run("cancelledEarly", func(t *testing.T) {
-		// Cancel before iterating
-		ctx, cancel := context.WithCancel(context.TODO())
-		cancel()
-		iter := NewColumnIterator(ctx, pf.RowGroups(), idx, "", readSize, nil, "A", MaxDefinitionLevel)
-		count, err := readIter(iter)
-		require.ErrorContains(t, err, "context canceled")
-		require.Equal(t, 0, count)
-	})
-
-	t.Run("cancelledPartial", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.TODO())
-		iter := NewColumnIterator(ctx, pf.RowGroups(), idx, "", readSize, nil, "A", MaxDefinitionLevel)
-
-		// Read some results
-		_, err := iter.Next()
-		require.NoError(t, err)
-
-		// Then cancel
-		cancel()
-
-		// Read again = context cancelled
-		_, err = readIter(iter)
-		require.ErrorContains(t, err, "context canceled")
-	})
-
-	t.Run("closedEarly", func(t *testing.T) {
-		// Close before iterating
-		iter := NewColumnIterator(context.TODO(), pf.RowGroups(), idx, "", readSize, nil, "A", MaxDefinitionLevel)
-		iter.Close()
-		count, err := readIter(iter)
-		require.NoError(t, err)
-		require.Equal(t, 0, count)
-	})
-
-	t.Run("closedPartial", func(t *testing.T) {
-		iter := NewColumnIterator(context.TODO(), pf.RowGroups(), idx, "", readSize, nil, "A", MaxDefinitionLevel)
-
-		// Read some results
-		_, err := iter.Next()
-		require.NoError(t, err)
-
-		// Then close
-		iter.Close()
-
-		// Read again = should close early
-		res2, err := readIter(iter)
-		require.NoError(t, err)
-		require.Less(t, readSize+res2, count)
-	})
+	require.ErrorContains(t, err, "context canceled")
 }
 
 func BenchmarkColumnIterator(b *testing.B) {
@@ -327,11 +276,23 @@ func createTestFile(t testing.TB, count int) *parquet.File {
 		rows = append(rows, T{i})
 	}
 
-	pf := createFileWith(t, rows)
+	pf := createFileWith(t, context.Background(), rows)
 	return pf
 }
 
-func createFileWith[T any](t testing.TB, rows []T) *parquet.File {
+type ctxReaderAt struct {
+	readerAt io.ReaderAt
+	ctx      context.Context
+}
+
+func (r *ctxReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.readerAt.ReadAt(p, off)
+}
+
+func createFileWith[T any](t testing.TB, ctx context.Context, rows []T) *parquet.File { //nolint:revive
 	f, err := os.CreateTemp(t.TempDir(), "data.parquet")
 	require.NoError(t, err)
 
@@ -351,7 +312,10 @@ func createFileWith[T any](t testing.TB, rows []T) *parquet.File {
 	stat, err := f.Stat()
 	require.NoError(t, err)
 
-	pf, err := parquet.OpenFile(f, stat.Size())
+	pf, err := parquet.OpenFile(&ctxReaderAt{
+		readerAt: f,
+		ctx:      ctx,
+	}, stat.Size(), parquet.FileReadMode(parquet.ReadModeSync))
 	require.NoError(t, err)
 
 	return pf

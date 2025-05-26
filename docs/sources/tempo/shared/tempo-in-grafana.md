@@ -33,7 +33,7 @@ Using the app, you can:
 - Browse automatic visualizations of your data based on its characteristics
 - Do all of this without writing TraceQL queries
 
-Expand your observability journey and learn about [the Explore apps suite](https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/).
+Expand your observability journey and learn about [the Drilldown apps suite](https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/).
 
 {{< youtube id="a3uB1C2oHA4" >}}
 

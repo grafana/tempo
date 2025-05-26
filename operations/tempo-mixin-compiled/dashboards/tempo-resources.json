@@ -2261,6 +2261,234 @@
       }
      ],
      "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{pod}}",
+       "legendLink": null
+      },
+      {
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "limit",
+       "legendLink": null
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "request",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "CPU",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 23,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+      {
+       "alias": "limit",
+       "color": "#E02F44",
+       "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
+      }
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{pod}}",
+       "legendLink": null
+      },
+      {
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "limit",
+       "legendLink": null
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "request",
+       "legendLink": null
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Memory (workingset)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "bytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Memcached",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 24,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+      {
+       "alias": "limit",
+       "color": "#E02F44",
+       "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
+      }
+     ],
+     "spaceLength": 10,
      "span": 4,
      "stack": false,
      "steppedLine": false,
@@ -2336,7 +2564,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 23,
+     "id": 25,
      "legend": {
       "avg": false,
       "current": false,
@@ -2444,7 +2672,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 24,
+     "id": 26,
      "legend": {
       "avg": false,
       "current": false,

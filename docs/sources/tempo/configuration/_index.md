@@ -22,6 +22,7 @@ The Tempo configuration options include:
     - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
     - [gRPC compression](#grpc-compression)
   - [Ingester](#ingester)
+    - [Ingester configuration block](#ingester-configuration-block)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
     - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
@@ -312,6 +313,10 @@ The ingester is responsible for batching up traces and pushing them to [TempoDB]
 A live, or active, trace is a trace that has received a new batch of spans in more than a configured amount of time (default 10 seconds, set by `ingester.trace_idle_period`).
 After 10 seconds (or the configured amount of time), the trace is flushed to disk and appended to the WAL.
 When Tempo receives a new batch, a new live trace is created in memory.
+
+Refer to [Data quality metrics](../troubleshooting/querying/long-running-traces) for information about `trace_idle_period` and warning metrics like `disconnected_trace_flushed_to_wal`.
+
+### Ingester configuration block
 
 ```yaml
 # Ingester configuration block
@@ -746,7 +751,7 @@ query_frontend:
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
-        
+
     # Metrics query configuration
     metrics:
         # The number of concurrent jobs to execute when querying the backend.
@@ -1662,7 +1667,7 @@ overrides:
 
       # Maximum bytes any attribute can be for both keys and values.
       [max_attribute_bytes: <int> | default = 0]
-      
+
       # Pad push requests with an artificial delay, if set push requests will be delayed to ensure
       # an average latency of at least artificial_delay.
       [artificial_delay: <duration> | default = 0ms]
@@ -1699,7 +1704,7 @@ overrides:
       # Per-user compaction window. If this value is set to 0 (default),
       # then block_retention in the compactor configuration is used.
       [compaction_window: <duration> | default = 0s]
-      # Allow compaction to be deactivated on a per-tenant basis. Default value
+      # Allow compaction and retention to be deactivated on a per-tenant basis. Default value
       # is false (compaction active). Useful to perform operations on the backend
       # that require compaction to be disabled for a period of time.
       [compaction_disabled: <bool> | default = false]

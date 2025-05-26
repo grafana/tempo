@@ -16,6 +16,8 @@ concurrency:
   group: "${{ github.ref_name }}-${{ github.head_ref }}"
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
   lint:
     name: Lint
@@ -26,6 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: "0"
+          persist-credentials: false
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -48,9 +51,13 @@ jobs:
           key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
 
       - name: lint
+        # using env instead of template expansions to avoid template injection
+        # https://woodruffw.github.io/zizmor/audits/#template-injection
         run: |
-          make lint base=origin/${{github.base_ref}}
+          make lint base=origin/${BASE_REF}
           sudo chown -R $(id -u):$(id -g) .cache/golangci-lint  # needed to archive cache
+        env:
+          BASE_REF: ${{ github.base_ref }}
 
 
   unit-tests:
@@ -70,6 +77,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -96,6 +105,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Fetch tags
         run: git fetch --prune --unshallow --tags
       - name: Set up Go
@@ -111,6 +122,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -138,6 +151,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -153,6 +168,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -160,7 +177,7 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
 
       - name: Check vendor
         run: make vendor-check
@@ -171,6 +188,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -192,5 +211,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Build Website
         run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
