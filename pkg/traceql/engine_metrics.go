@@ -1473,7 +1473,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 func (h *HistogramAggregator) Results() SeriesSet {
 	results := make(SeriesSet, len(h.ss)*len(h.qs))
 
-	for key, in := range h.ss {
+	for _, in := range h.ss {
 		// For each input series, we create a new series for each quantile.
 		for _, q := range h.qs {
 			// Append label for the quantile
@@ -1484,7 +1484,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			ts := TimeSeries{
 				Labels:    labels,
 				Values:    make([]float64, len(in.hist)),
-				Exemplars: h.ss[key].exemplars,
+				Exemplars: in.exemplars,
 			}
 			for i := range in.hist {
 
