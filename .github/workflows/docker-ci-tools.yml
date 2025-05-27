@@ -81,9 +81,3 @@ jobs:
           	--amend $IMAGE_NAME:$TAG-amd64  \
           	--amend $IMAGE_NAME:$TAG-arm64 
           docker manifest push $IMAGE_NAME:$TAG
-
-          docker manifest create \
-          	$IMAGE_NAME:latest            \
-          	--amend $IMAGE_NAME:$TAG-amd64   \
-          	--amend $IMAGE_NAME:$TAG-arm64 
-          docker manifest push $IMAGE_NAME:latest
