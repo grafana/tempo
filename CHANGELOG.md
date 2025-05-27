@@ -2,9 +2,7 @@
 
 # v2.8.0-rc.0
 
-* [CHANGE] Improve rate limit error message when traces size exceeds rate limit [#4986](https://github.com/grafana/tempo/pull/4986/) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
-* [CHANGE] Update query range error message [#4929](https://github.com/grafana/tempo/pull/4929) (@joey-grafana)
 * [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1 [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
   The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
@@ -21,12 +19,12 @@
           external_endpoints: <array>
   ```
   Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total` and `tempo_feature_enabled` are being removed.
-
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
-  Renamed max_span_attr_byte to max_attribute_bytes
-  [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
+  Renamed max_span_attr_byte to max_attribute_bytes [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
 * [CHANGE] **BREAKING CHANGE** Removed otel jaeger exporter. [#4926](https://github.com/grafana/tempo/pull/4926) (@javiermolinar)
+* [CHANGE] Update query range error message [#4929](https://github.com/grafana/tempo/pull/4929) (@joey-grafana)
+* [CHANGE] Improve rate limit error message when traces size exceeds rate limit [#4986](https://github.com/grafana/tempo/pull/4986/) (@electron0zero)
 * [CHANGE] Tempo Query: replace opentracing-contrib/go-grpc by otelgrpc. [#4958](https://github.com/grafana/tempo/pull/4958) (@javiermolinar)
 * [CHANGE] Improve parquet readers io.ReaderAt compatibility [#4963](https://github.com/grafana/tempo/pull/4963) (@joe-elliott)
 * [CHANGE] Finish polling current tenants on poller shutdown [#4897](https://github.com/grafana/tempo/pull/4897) (@zalegrala)
@@ -38,19 +36,19 @@
 * [CHANGE] Update to go 1.24.3 [#5110](https://github.com/grafana/tempo/pull/5110) (@stoewer)
 * [CHANGE] Update to go 1.24.2 [#5057](https://github.com/grafana/tempo/pull/5057) [#5082](https://github.com/grafana/tempo/pull/5082) (@carsontham)
 * [CHANGE] Update to go 1.24.1 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov) [#4793](https://github.com/grafana/tempo/pull/4793) (@javiermolinar)
-* [FEATURE] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
-configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
-* [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) [#5035](https://github.com/grafana/tempo/pull/5035) (@yvrhdn, @mapno)
 * [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
 * [FEATURE] Add support for topk and bottomk functions for TraceQL metrics [#4646](https://github.com/grafana/tempo/pull/4646/) (@electron0zero)
+* [FEATURE] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
+* [ENHANCEMENT] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
+configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
+* [ENHANCEMENT] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) [#5035](https://github.com/grafana/tempo/pull/5035) (@yvrhdn, @mapno)
 * [ENHANCEMENT] tempo-vulture now generates spans with a parent, instead of only root spans [#5154](https://github.com/grafana/tempo/pull/5154) (@carles-grafana)
 * [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham) 
 * [ENHANCEMENT] Improve Tempo build options [#4755](https://github.com/grafana/tempo/pull/4755) (@stoewer)
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
 * [ENHANCEMENT] Reorder span iterators [#4754](https://github.com/grafana/tempo/pull/4754) (@stoewer)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
-* [ENHANCEMENT] Fix flaky ingester test [#4846](https://github.com/grafana/tempo/pull/4846) (@javiermolinar)
 * [ENHANCEMENT] Prevent queries in the ingester from blocking flushing traces to disk and memory spikes. [#4483](https://github.com/grafana/tempo/pull/4483) (@joe-elliott)
 * [ENHANCEMENT] Update tempo operational dashboard for new block-builder and v2 traces api [#4559](https://github.com/grafana/tempo/pull/4559) (@mdisibio)
 * [ENHANCEMENT] Improve metrics-generator performance and stability by applying queue back pressure and concurrency [#4721](https://github.com/grafana/tempo/pull/4721) (@mdisibio)
@@ -69,8 +67,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Rhythm: fair partition consumption in blockbuilders [#4655](https://github.com/grafana/tempo/pull/4655) (@javiermolinar)
 * [ENHANCEMENT] Rhythm: retry on commit error [#4874](https://github.com/grafana/tempo/pull/4874) (@javiermolinar)
 * [ENHANCEMENT] Skip creating one span-traces for every pushed spans in metrics generator [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar)
-* [ENHANCEMENT] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
-* [ENHANCEMENT] Improve Tempo / Writes dashboard by adding  a kafka panel [#4947](https://github.com/grafana/tempo/pull/4947) (@javiermolinar)
+* [ENHANCEMENT] Improve Tempo / Writes dashboard by adding a kafka panel [#4947](https://github.com/grafana/tempo/pull/4947) (@javiermolinar)
 * [ENHANCEMENT] Improve memcached memory usage by pooling buffers [#4970](https://github.com/grafana/tempo/pull/4970) (@joe-elliott)
 * [ENHANCEMENT] metrics-generator: allow skipping localblocks and consuming from a different source of data [#4686](https://github.com/grafana/tempo/pull/4686) (@flxbk)
 * [ENHANCEMENT] compactor: restore dedicated columns logging for completed blocks [#4832](https://github.com/grafana/tempo/pull/4832) (@edgarkz)
@@ -102,9 +99,10 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Rhythm - fix adjustment of the start and end range for livetraces blocks [#4746](https://github.com/grafana/tempo/pull/4746) (@javiermolinar)
 * [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
 * [BUGFIX] Fix flaky test [#4787](https://github.com/grafana/tempo/pull/4787) [#4995](https://github.com/grafana/tempo/pull/4995) (@javiermolinar)
+* [BUGFIX] Fix flaky ingester test [#4846](https://github.com/grafana/tempo/pull/4846) (@javiermolinar)
 * [BUGFIX] Include cost attribution when converting from default config to legacy one [#4787](https://github.com/grafana/tempo/pull/4937) (@javiermolinar)
 * [BUGFIX] Fix memcached settings for docker compose example [#4346](https://github.com/grafana/tempo/pull/4695) (@ruslan-mikhailov)
-* [BUGFIX] Update memcahed to respect cancelled context to prevent panic [#5041](https://github.com/grafana/tempo/pull/5041) (@joe-elliott)
+* [BUGFIX] Update memcached to respect cancelled context to prevent panic [#5041](https://github.com/grafana/tempo/pull/5041) (@joe-elliott)
 * [BUGFIX] Fix frontend cache key generation for TraceQL Metrics queries to prevent collisions. [#5017](https://github.com/grafana/tempo/pull/5017) (@joe-elliott)
 * [BUGFIX] Fix setting processors in user configurations overrides via API [#4741](https://github.com/grafana/tempo/pull/4741) (@ruslan-mikhailov)
 * [BUGFIX] Fix panic on startup [#4744](https://github.com/grafana/tempo/pull/4744) (@ruslan-mikhailov)
