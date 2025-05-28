@@ -23,9 +23,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: fetch tags
-        run: git fetch --tags
+          fetch-depth: 0
+          fetch-tags: true
 
       - id: get-tag
         run: |
@@ -48,9 +47,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: fetch tags
-        run: git fetch --tags
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: build-tempo-binaries
         run: |
@@ -116,9 +114,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: fetch tags
-        run: git fetch --tags
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: get-tag
         run: |
