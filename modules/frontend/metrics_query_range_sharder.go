@@ -129,9 +129,12 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		cutoff                = time.Now().Add(-s.cfg.QueryBackendAfter)
 	)
 
+	backendExemplars, generatorExemplars := s.exemplarsCutoff(*req, cutoff)
+	req.Exemplars = generatorExemplars
 	generatorReq := s.generatorRequest(tenantID, pipelineRequest, *req, cutoff)
-	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
+	req.Exemplars = backendExemplars
 
+	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 	if generatorReq != nil {
 		reqCh <- generatorReq
 	}
@@ -205,6 +208,30 @@ func (s *queryRangeSharder) exemplarsPerShard(metas []*backend.BlockMeta, limit 
 	}
 
 	return exemplars
+}
+
+// exemplarsCutoff calculates how to distribute exemplars between the generator (for recent data) and
+// backend blocks. It returns two values: the number of exemplars for blocks before the cutoff time,
+// and the number of exemplars for data after the cutoff time. The distribution is proportional to
+// the time range of each segment relative to the total query time range.
+func (s *queryRangeSharder) exemplarsCutoff(req tempopb.QueryRangeRequest, cutoff time.Time) (uint32, uint32) {
+	timeRange := req.End - req.Start
+	limit := req.Exemplars
+	traceql.TrimToAfter(&req, cutoff)
+
+	if req.Start >= req.End { // no need to query generator
+		return limit, 0 // after - no exemplars needed
+	}
+	if req.End-req.Start >= timeRange { // no need to query backend
+		return 0, limit
+	}
+
+	shareAfterCutoff := float64(limit) * float64(req.End-req.Start) / float64(timeRange)
+	shareAfterCutoffCeil := uint32(math.Ceil(shareAfterCutoff))
+	if limit <= shareAfterCutoffCeil {
+		return 0, limit // after - receives all exemplars
+	}
+	return limit - shareAfterCutoffCeil, shareAfterCutoffCeil
 }
 
 func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
