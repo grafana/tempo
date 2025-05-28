@@ -1,6 +1,6 @@
 ## main / unreleased
 
-* [CHANGE] Assert max live traces limits in local-blocks processor [#](https://github.com/grafana/tempo/pull/) (@mapno)
+* [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 
 # v2.8.0-rc.0
 
