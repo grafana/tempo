@@ -259,10 +259,6 @@ func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 
 // maxLiveTraces for the tenant, if enabled, and read from config in order of precedence.
 func (p *Processor) maxLiveTraces() uint64 {
-	if !p.Cfg.AssertMaxLiveTraces {
-		return 0
-	}
-
 	if m := p.overrides.MaxLocalTracesPerUser(p.tenant); m > 0 {
 		return uint64(m)
 	}
