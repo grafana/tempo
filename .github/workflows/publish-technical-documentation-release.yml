@@ -23,7 +23,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: grafana/writers-toolkit/publish-technical-documentation-release@6200164349ac8f24bab065ce3689dd8c9a093061
+      - uses: grafana/writers-toolkit/publish-technical-documentation-release@publish-technical-documentation-release/v2 # zizmor: ignore[unpinned-uses]
         with:
           release_tag_regexp: "^v(\\d+)\\.(\\d+)\\.(\\d+)$"
           release_branch_regexp: "^release-v(\\d+)\\.(\\d+)$"
