@@ -87,7 +87,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/grafana/gomemcache v0.0.0-20250318131618-74242eea118d
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
-	github.com/jaegertracing/jaeger-idl v0.5.0
+	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.124.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.124.1
