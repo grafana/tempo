@@ -2,6 +2,8 @@
 
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
+* [ENHANCEMENT] TraceQL Metrics: distribute exemplars over time [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
+* [ENHANCEMENT] TraceQL Metrics: hard limit number of exemplars [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
 
 # v2.8.0-rc.0
 
