@@ -3,7 +3,6 @@ package util
 import (
 	"bytes"
 	"crypto/rand"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -59,10 +58,5 @@ func TestHashForCollisionRate(t *testing.T) {
 	}
 
 	missing := n - len(tokens)
-	if missing > 0 {
-		fmt.Printf("missing 1 out of every %.2f trace ids", float32(n)/float32(missing))
-	}
-
-	// There shouldn't be any collisions.
-	require.Equal(t, n, len(tokens))
+	require.Zerof(t, missing, "missing 1 out of every %.2f trace ids", float32(n)/float32(missing))
 }
