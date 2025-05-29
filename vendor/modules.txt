@@ -1407,10 +1407,6 @@ github.com/spf13/viper/internal/encoding/json
 github.com/spf13/viper/internal/encoding/toml
 github.com/spf13/viper/internal/encoding/yaml
 github.com/spf13/viper/internal/features
-# github.com/stoewer/parquet-cli v0.0.10
-## explicit; go 1.24
-github.com/stoewer/parquet-cli/pkg/inspect
-github.com/stoewer/parquet-cli/pkg/output
 # github.com/stretchr/objx v0.5.2
 ## explicit; go 1.20
 github.com/stretchr/objx
