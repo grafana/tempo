@@ -85,6 +85,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Make comparison to nil symmetric [#4869](https://github.com/grafana/tempo/pull/4869) (@stoewer)
+* [BUGFIX] Fix distributor issue where a hash collision could lead to spans stored incorrectly [#5186](https://github.com/grafana/tempo/pull/5186) (@mdisibio)
 * [BUGFIX] Fix behavior for queries like {.foo && true} and {.foo || false} [#4855](https://github.com/grafana/tempo/pull/4855) (@stoewer)
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
 * [BUGFIX] Add object name to cache key in ReadRange [#4982](https://github.com/grafana/tempo/pull/4982) (@joe-elliott)
