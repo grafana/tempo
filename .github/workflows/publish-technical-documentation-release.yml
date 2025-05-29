@@ -25,8 +25,8 @@ jobs:
           fetch-depth: 0
       - uses: grafana/writers-toolkit/publish-technical-documentation-release@publish-technical-documentation-release/v2 # zizmor: ignore[unpinned-uses]
         with:
-          release_tag_regexp: "^v(\\d+)\\.(\\d+)\\.(\\d+)$"
-          release_branch_regexp: "^release-v(\\d+)\\.(\\d+)$"
-          release_branch_with_patch_regexp: "^release-v(\\d+)\\.(\\d+)\\.(\\d+)$"
+          release_tag_regexp: "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)$"
+          release_branch_regexp: "^release-v([0-9]+)\\.([0-9]+)$"
+          release_branch_with_patch_regexp: "^release-v([0-9]+)\\.([0-9]+)\\.([0-9]+)$"
           source_directory: docs/sources/tempo
           website_directory: content/docs/tempo
