@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
 
       - name: fetch tags
-        run: git fetch --tags
+        run: git fetch --tags --force
 
       - id: "get-secrets"
         name: "get nfpm signing keys"
