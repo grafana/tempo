@@ -295,7 +295,7 @@ func TestExemplarsCutoff(t *testing.T) {
 			// When all data is after the cutoff, all exemplars should go to the 'after' portion
 			name: "all data after cutoff",
 			req: tempopb.QueryRangeRequest{
-				Start:     uint64(cutoff.Add(50 * time.Minute).UnixNano()),
+				Start:     uint64(cutoff.Add(50 * time.Minute).UnixNano()), // //nolint: gosec // G115
 				End:       uint64(now.UnixNano()),
 				Exemplars: 100,
 			},
@@ -306,8 +306,8 @@ func TestExemplarsCutoff(t *testing.T) {
 			// When all data is before the cutoff, all exemplars should go to the 'before' portion
 			name: "all data before cutoff",
 			req: tempopb.QueryRangeRequest{
-				Start:     uint64(cutoff.Add(-2 * time.Hour).UnixNano()),
-				End:       uint64(cutoff.Add(-10 * time.Minute).UnixNano()),
+				Start:     uint64(cutoff.Add(-2 * time.Hour).UnixNano()),    //nolint: gosec // G115
+				End:       uint64(cutoff.Add(-10 * time.Minute).UnixNano()), //nolint: gosec // G115
 				Exemplars: 100,
 			},
 			expectedBeforeCut: 100,
