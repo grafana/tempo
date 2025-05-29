@@ -29,6 +29,9 @@ linters:
         - (github.com/go-kit/log.Logger).Log
     errorlint:
       errorf: false
+    gosec:
+      excludes:
+        - G115
   exclusions:
     generated: lax
     presets:
