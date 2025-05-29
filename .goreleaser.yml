@@ -11,7 +11,7 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      - darwin
+#      - darwin  re-enable when https://github.com/golang/go/issues/73617 is fixed
       - linux
       - windows
     goarch:
@@ -41,7 +41,7 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      - darwin
+#      - darwin  re-enable when https://github.com/golang/go/issues/73617 is fixed
       - linux
       - windows
     goarch:
@@ -71,7 +71,7 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      - darwin
+#      - darwin  re-enable when https://github.com/golang/go/issues/73617 is fixed
       - linux
       - windows
     goarch:
