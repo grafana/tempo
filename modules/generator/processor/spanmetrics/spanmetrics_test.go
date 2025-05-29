@@ -718,14 +718,15 @@ func TestTargetInfoDisabled(t *testing.T) {
 func TestTargetInfoWithEmptyKey(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	invalidPrometheusSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_prometheus_label")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter, invalidPrometheusSpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1361,5 +1362,113 @@ func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, b
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	}
+}
+
+func TestValidatePromLabelNames(t *testing.T) {
+	tests := []struct {
+		name                string
+		inputLabels         []string
+		inputLabelValues    []string
+		expectedLabels      []string
+		expectedLabelValues []string
+	}{
+		{
+			name:                "all valid labels",
+			inputLabels:         []string{"valid_label", "AnotherValid", "_startsWithUnderscore", "a1b2c3", "labelWith123"},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5"},
+			expectedLabels:      []string{"valid_label", "AnotherValid", "_startsWithUnderscore", "a1b2c3", "labelWith123"},
+			expectedLabelValues: []string{"value1", "value2", "value3", "value4", "value5"},
+		},
+		{
+			name:                "all invalid labels",
+			inputLabels:         []string{"1startsWithNumber", "has-dash", "has.dot", "has@symbol", "has space", ""},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "mixed valid and invalid labels",
+			inputLabels:         []string{"valid_label", "1invalid", "another_valid", "has-dash", "_underscore", "has.dot"},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
+			expectedLabels:      []string{"valid_label", "another_valid", "_underscore"},
+			expectedLabelValues: []string{"value1", "value3", "value5"},
+		},
+		{
+			name:                "empty slices",
+			inputLabels:         []string{},
+			inputLabelValues:    []string{},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "more labels than values",
+			inputLabels:         []string{"valid1", "valid2", "valid3"},
+			inputLabelValues:    []string{"value1", "value2"},
+			expectedLabels:      []string{"valid1", "valid2", "valid3"},
+			expectedLabelValues: []string{"value1", "value2"},
+		},
+		{
+			name:                "more values than labels",
+			inputLabels:         []string{"valid1", "valid2"},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4"},
+			expectedLabels:      []string{"valid1", "valid2"},
+			expectedLabelValues: []string{"value1", "value2"},
+		},
+		{
+			name:                "invalid label names that start with numbers",
+			inputLabels:         []string{"123invalid", "4notvalid", "0zero"},
+			inputLabelValues:    []string{"value1", "value2", "value3"},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "invalid label names with special characters",
+			inputLabels:         []string{"label-with-dash", "label.with.dot", "label@with@at", "label with space", "label#hash", "label$dollar"},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "edge case: single character valid labels",
+			inputLabels:         []string{"a", "Z", "_"},
+			inputLabelValues:    []string{"value1", "value2", "value3"},
+			expectedLabels:      []string{"a", "Z", "_"},
+			expectedLabelValues: []string{"value1", "value2", "value3"},
+		},
+		{
+			name:                "edge case: single character invalid labels",
+			inputLabels:         []string{"1", ".", "-", "@", " "},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5"},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "complex mixed scenario with mismatched lengths",
+			inputLabels:         []string{"valid_start", "2invalid", "good_label", "", "another_good", "bad-label", "_underscore_ok"},
+			inputLabelValues:    []string{"val1", "val2", "val3"},
+			expectedLabels:      []string{"valid_start", "good_label", "another_good", "_underscore_ok"},
+			expectedLabelValues: []string{"val1", "val3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create copies of the input slices to avoid modifying the test data
+			labels := make([]string, len(tt.inputLabels))
+			copy(labels, tt.inputLabels)
+			labelValues := make([]string, len(tt.inputLabelValues))
+			copy(labelValues, tt.inputLabelValues)
+
+			// Call the function under test
+			validatePromLabelNames(&labels, &labelValues)
+
+			// Assert the results
+			assert.Equal(t, tt.expectedLabels, labels, "labels should match expected")
+			assert.Equal(t, tt.expectedLabelValues, labelValues, "label values should match expected")
+
+			// Additional assertion: ensure values length doesn't exceed labels length
+			assert.LessOrEqual(t, len(labelValues), len(labels), "values should not exceed labels in length")
+		})
 	}
 }
