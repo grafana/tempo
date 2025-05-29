@@ -75,10 +75,9 @@ var (
 )
 
 const (
-	reasonOutsideTimeRangeSlack  = "outside_metrics_ingestion_slack"
-	reasonSpanMetricsFiltered    = "span_metrics_filtered"
-	reasonInvalidUTF8            = "invalid_utf8"
-	reasonInvalidPromethuesLabel = "invalid_prometheus_label"
+	reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
+	reasonSpanMetricsFiltered   = "span_metrics_filtered"
+	reasonInvalidUTF8           = "invalid_utf8"
 )
 
 type instance struct {
