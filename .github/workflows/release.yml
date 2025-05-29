@@ -12,7 +12,7 @@ jobs:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
       id-token: write
     env:
       NFPM_SIGNING_KEY_FILE: /tmp/nfpm-private-key.key
