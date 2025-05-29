@@ -12,7 +12,7 @@ jobs:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
       id-token: write
     env:
       NFPM_SIGNING_KEY_FILE: /tmp/nfpm-private-key.key
@@ -21,8 +21,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          fetch-depth: 0
-          fetch-tags: true
+
+      - name: fetch tags
+        run: git fetch --tags --force
 
       - id: "get-secrets"
         name: "get nfpm signing keys"
