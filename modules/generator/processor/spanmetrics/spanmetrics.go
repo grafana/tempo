@@ -220,7 +220,8 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		return
 	}
 
-	validatePromLabelNames(&labels, &labelValues)
+	promLabelRe := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+	validatePromLabelNames(promLabelRe, &labels, &labelValues)
 
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
@@ -273,8 +274,7 @@ func validateUTF8LabelValues(v []string) error {
 	return nil
 }
 
-func validatePromLabelNames(labels *[]string, labelValues *[]string) {
-	promLabelRe := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+func validatePromLabelNames(promLabelRe *regexp.Regexp, labels *[]string, labelValues *[]string) {
 
 	validLabels := make([]string, 0, len(*labels))
 	validLabelValues := make([]string, 0, len(*labelValues))
