@@ -25,7 +25,7 @@ jobs:
           persist-credentials: false
 
       - name: fetch tags
-        run: git fetch --tags
+        run: git fetch --tags --force
 
       - id: get-tag
         run: |
@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
 
       - name: fetch tags
-        run: git fetch --tags
+        run: git fetch --tags --force
 
       - name: build-tempo-binaries
         run: |
@@ -118,7 +118,7 @@ jobs:
           persist-credentials: false
 
       - name: fetch tags
-        run: git fetch --tags
+        run: git fetch --tags --force
 
       - name: get-tag
         run: |
