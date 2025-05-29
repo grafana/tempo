@@ -139,7 +139,7 @@ func (l Log) Wrap(next http.Handler) http.Handler {
 			if l.LogRequestHeaders && headers != nil {
 				level.Warn(requestLog).Log("msg", dskit_log.LazySprintf("%s %s (%d) %s Response: %q ws: %v; %s", r.Method, uri, statusCode, time.Since(begin), buf.Bytes(), IsWSHandshakeRequest(r), headers))
 			} else {
-				level.Warn(requestLog).Log("msg", dskit_log.LazySprintf("%s %s (%d) %s", r.Method, uri, statusCode, time.Since(begin)))
+				level.Warn(requestLog).Log("msg", dskit_log.LazySprintf("%s %s (%d) %s Response: %q", r.Method, uri, statusCode, time.Since(begin), buf.Bytes()))
 			}
 		}
 	})
@@ -158,6 +158,6 @@ func dumpRequest(req *http.Request, httpHeadersToExclude map[string]bool) ([]byt
 		return nil, err
 	}
 
-	ret := bytes.Replace(b.Bytes(), []byte("\r\n"), []byte("; "), -1)
+	ret := bytes.ReplaceAll(b.Bytes(), []byte("\r\n"), []byte("; "))
 	return ret, nil
 }

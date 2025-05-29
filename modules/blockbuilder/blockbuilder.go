@@ -75,6 +75,12 @@ var (
 		Name:      "fetch_errors_total",
 		Help:      "Total number of errors while fetching by the consumer.",
 	}, []string{"partition"})
+	metricOwnedPartitions = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "owned_partitions",
+		Help:      "Indicates partition ownership by this block-builder (1 = owned).",
+	}, []string{"partition", "state"})
 
 	tracer = otel.Tracer("modules/blockbuilder")
 
@@ -231,7 +237,6 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 // all the partitions lag is less than the cycle duration. When that happen it returns time to wait before another consuming cycle, based on the last record timestamp
 func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	partitions := b.getAssignedPartitions()
-
 	ctx, span := tracer.Start(ctx, "blockbuilder.consume", trace.WithAttributes(attribute.String("active_partitions", formatActivePartitions(partitions))))
 	defer span.End()
 
@@ -577,15 +582,16 @@ func (b *BlockBuilder) pushTraces(ts time.Time, tenantBytes, reqBytes []byte, p 
 // Gets assigned partitions, these can be active or inactive. Pending partitions won't be included
 func (b *BlockBuilder) getAssignedPartitions() []int32 {
 	partitions := b.partitionRing.PartitionRing().Partitions()
-	ringAssignedPartitions := make(map[int32]bool, len(partitions))
+	ringAssignedPartitions := make(map[int32]string, len(partitions))
 	for _, p := range partitions {
 		if p.IsActive() || p.IsInactive() {
-			ringAssignedPartitions[p.Id] = true
+			ringAssignedPartitions[p.Id] = p.GetState().String()
 		}
 	}
 	assignedActivePartitions := make([]int32, 0, len(b.cfg.AssignedPartitions[b.cfg.InstanceID]))
 	for _, partition := range b.cfg.AssignedPartitions[b.cfg.InstanceID] {
-		if ringAssignedPartitions[partition] {
+		if s, ok := ringAssignedPartitions[partition]; ok {
+			metricOwnedPartitions.WithLabelValues(strconv.Itoa(int(partition)), s).Set(1)
 			assignedActivePartitions = append(assignedActivePartitions, partition)
 		}
 	}

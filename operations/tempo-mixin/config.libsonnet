@@ -34,6 +34,7 @@
       // threshold config for backend scheduler and worker alerts
       backend_scheduler_jobs_failure_rate: 0.05,  // 5% of the jobs failed
       backend_scheduler_jobs_retry_count_per_minute: 20,  // 20 jobs retried per minute
+      backend_scheduler_compaction_tenant_empty_job_count_per_minute: 10,  // 10 empty jobs per minute
       backend_scheduler_bad_jobs_count_per_minute: 0,  // alert if there are any bad jobs
       backend_worker_call_retries_count_per_minute: 5,  // 5 retries per minute
     },

@@ -325,6 +325,20 @@
             },
           },
           {
+            alert: 'TempoBackendSchedulerCompactionEmptyJobRateHigh',
+            expr: |||
+              sum(increase(tempo_backend_scheduler_compaction_tenant_empty_job_total{namespace=~"%s"}[1m])) by (%s) > %s
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_compaction_tenant_empty_job_count_per_minute],
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo backend scheduler empty job rate is high ({{ printf "%0.2f" $value }} jobs/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerCompactionEmptyJobRateHigh',
+            },
+          },
+          {
             alert: 'TempoBackendWorkerBadJobsRateHigh',
             expr: |||
               sum(increase(tempo_backend_worker_bad_jobs_received_total{namespace=~"%s"}[1m])) by (%s) > %s

@@ -364,21 +364,42 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
+// checkForRateLimits checks if the trace batch size exceeds the ingestion rate limit.
+// it will use the ingestion rate limits based on the ingestion strategy configured.
+//
+// LocalIngestionRateStrategy: the ingestion rate limit is applied as is in each distributor.
+// example: if the ingestion rate limit is 10MB/s and the burst size is 20MB, then each distributor
+// will allow 10MB/s with a burst of 20MB.
+//
+// GlobalIngestionRateStrategy: the ingestion rate limit is divided by the number of healthy distributors.
+// example: if the ingestion rate limit is 10MB/s and the burst size is 20MB, and there are 5 healthy distributors,
+// then each distributor will allow 2MB/s with a burst of 20MB.
 func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID string) error {
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
+		// limit: number of bytes per second allowed for the user, as per ingestion rate strategy
 		limit := int(d.ingestionRateLimiter.Limit(now, userID))
+		burst := d.ingestionRateLimiter.Burst(now, userID)
+
+		// globalLimit will be 0 when using local ingestion rate strategy
 		var globalLimit int
 		if d.overrides.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
+			// note: global limit should be calculated using healthy distributors count,
+			// but we are using it in logs, instance count is good enough.
 			globalLimit = limit * d.DistributorRing.InstancesCount()
 		}
+
+		// batch size is too big if it's more than the limit and burst both
+		if tracesSize > limit && tracesSize > burst {
+			return status.Errorf(codes.ResourceExhausted,
+				"%s: batch size (%d bytes) exceeds ingestion limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes) while adding %d bytes for user %s. consider reducing batch size or increasing rate limit.",
+				overrides.ErrorPrefixRateLimited, tracesSize, limit, globalLimit, burst, tracesSize, userID)
+		}
+
 		return status.Errorf(codes.ResourceExhausted,
-			"%s: ingestion rate limit (local: %d bytes, global: %d bytes) exceeded while adding %d bytes for user %s",
-			overrides.ErrorPrefixRateLimited,
-			limit,
-			globalLimit,
-			tracesSize, userID)
+			"%s: ingestion rate limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes) exceeded while adding %d bytes for user %s. consider increasing the limit or reducing ingestion rate.",
+			overrides.ErrorPrefixRateLimited, limit, globalLimit, burst, tracesSize, userID)
 	}
 
 	return nil

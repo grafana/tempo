@@ -345,7 +345,6 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		if i.traceQueryWAL != nil {
 			nonFlushingConfig := cfg.LocalBlocks
 			nonFlushingConfig.FlushToStorage = false
-			nonFlushingConfig.AssertMaxLiveTraces = true
 			nonFlushingConfig.AdjustTimeRangeForSlack = false
 			i.queuebasedLocalBlocks, err = localblocks.New(nonFlushingConfig, i.instanceID, i.traceQueryWAL, i.writer, i.overrides)
 			if err != nil {

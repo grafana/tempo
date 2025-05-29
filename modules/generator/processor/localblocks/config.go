@@ -29,7 +29,6 @@ type Config struct {
 	FlushToStorage       bool                  `yaml:"flush_to_storage"`
 	Metrics              MetricsConfig         `yaml:",inline"`
 
-	AssertMaxLiveTraces     bool `yaml:"-"` // Used internally for non-flushing instance
 	AdjustTimeRangeForSlack bool `yaml:"-"` // Used internally for non-flushing instance
 }
 
