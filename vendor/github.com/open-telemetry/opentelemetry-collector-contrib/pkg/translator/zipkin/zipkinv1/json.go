@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin"
 )
@@ -359,7 +359,7 @@ func getOrCreateNodeRequest(m map[string]ptrace.SpanSlice, td ptrace.Traces, end
 	}
 
 	rs := td.ResourceSpans().AppendEmpty()
-	rs.Resource().Attributes().PutStr(conventions.AttributeServiceName, endpoint.ServiceName)
+	rs.Resource().Attributes().PutStr(string(conventions.ServiceNameKey), endpoint.ServiceName)
 	endpoint.setAttributes(rs.Resource().Attributes())
 	ss = rs.ScopeSpans().AppendEmpty().Spans()
 	m[nodeKey] = ss

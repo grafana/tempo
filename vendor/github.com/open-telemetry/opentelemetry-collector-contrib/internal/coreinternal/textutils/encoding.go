@@ -14,14 +14,16 @@ import (
 )
 
 var encodingOverrides = map[string]encoding.Encoding{
-	"utf-16":   unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM),
-	"utf16":    unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM),
-	"utf-8":    unicode.UTF8,
-	"utf8":     unicode.UTF8,
-	"ascii":    unicode.UTF8,
-	"us-ascii": unicode.UTF8,
-	"nop":      encoding.Nop,
-	"":         unicode.UTF8,
+	"utf-16":    unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM),
+	"utf16":     unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM),
+	"utf-8":     unicode.UTF8,
+	"utf8":      unicode.UTF8,
+	"utf-8-raw": UTF8Raw,
+	"utf8-raw":  UTF8Raw,
+	"ascii":     unicode.UTF8,
+	"us-ascii":  unicode.UTF8,
+	"nop":       encoding.Nop,
+	"":          unicode.UTF8,
 }
 
 func LookupEncoding(enc string) (encoding.Encoding, error) {

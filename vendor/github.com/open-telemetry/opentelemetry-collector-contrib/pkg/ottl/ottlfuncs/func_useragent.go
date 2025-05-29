@@ -7,7 +7,7 @@ import (
 	"errors"
 
 	"github.com/ua-parser/uap-go/uaparser"
-	semconv "go.opentelemetry.io/collector/semconv/v1.25.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -39,9 +39,9 @@ func userAgent[K any](userAgentSource ottl.StringGetter[K]) ottl.ExprFunc[K] { /
 		}
 		parsedUserAgent := parser.ParseUserAgent(userAgentString)
 		return map[string]any{
-			semconv.AttributeUserAgentName:     parsedUserAgent.Family,
-			semconv.AttributeUserAgentOriginal: userAgentString,
-			semconv.AttributeUserAgentVersion:  parsedUserAgent.ToVersionString(),
+			string(semconv.UserAgentNameKey):     parsedUserAgent.Family,
+			string(semconv.UserAgentOriginalKey): userAgentString,
+			string(semconv.UserAgentVersionKey):  parsedUserAgent.ToVersionString(),
 		}, nil
 	}
 }

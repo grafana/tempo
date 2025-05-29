@@ -18,6 +18,9 @@ type Config struct {
 	// An empty list means that CORS is not enabled at all. A wildcard (*) can be
 	// used to match any origin or one or more characters of an origin.
 	CorsOrigins []string `mapstructure:"cors_allowed_origins"`
+
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 func (cfg *Config) buildOptions() []ocOption {
