@@ -42,8 +42,7 @@ import (
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
-	tempo_util "github.com/grafana/tempo/pkg/util"
-
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -472,7 +471,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	maxAttributeBytes := d.getMaxAttributeBytes(userID)
 
-	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
+	ringTokens, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
 	if err != nil {
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
@@ -482,7 +481,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, keys)
+	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, ringTokens)
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +491,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	}
 
 	if d.kafkaProducer != nil {
-		err := d.sendToKafka(ctx, userID, keys, rebatchedTraces)
+		err := d.sendToKafka(ctx, userID, ringTokens, rebatchedTraces)
 		if err != nil {
 			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err)
 			return nil, err
@@ -500,7 +499,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	} else {
 		// See if we need to send to the generators
 		if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
-			d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
+			d.generatorForwarder.SendTraces(ctx, userID, ringTokens, rebatchedTraces)
 		}
 	}
 
@@ -704,11 +703,11 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 // and traces to pass onto the ingesters.
 func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, int, error) {
 	const tracesPerBatch = 20 // p50 of internal env
-	tracesByID := make(map[uint32]*rebatchedTrace, tracesPerBatch)
+	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
 	truncatedAttributeCount := 0
 
 	for _, b := range batches {
-		spansByILS := make(map[uint32]*v1.ScopeSpans)
+		spansByILS := make(map[uint64]*v1.ScopeSpans)
 		// check resource for large attributes
 		if maxSpanAttrSize > 0 && b.Resource != nil {
 			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
@@ -745,11 +744,11 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
-				traceKey := tempo_util.TokenFor(userID, traceID)
+				traceKey := util.HashForTraceID(traceID)
 				ilsKey := traceKey
 				if ils.Scope != nil {
-					ilsKey = fnv1a.AddString32(ilsKey, ils.Scope.Name)
-					ilsKey = fnv1a.AddString32(ilsKey, ils.Scope.Version)
+					ilsKey = fnv1a.AddString64(ilsKey, ils.Scope.Name)
+					ilsKey = fnv1a.AddString64(ilsKey, ils.Scope.Version)
 				}
 
 				existingILS, ilsAdded := spansByILS[ilsKey]
@@ -800,15 +799,15 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 
 	metricTracesPerBatch.Observe(float64(len(tracesByID)))
 
-	keys := make([]uint32, 0, len(tracesByID))
+	ringTokens := make([]uint32, 0, len(tracesByID))
 	traces := make([]*rebatchedTrace, 0, len(tracesByID))
 
-	for k, r := range tracesByID {
-		keys = append(keys, k)
-		traces = append(traces, r)
+	for _, tr := range tracesByID {
+		ringTokens = append(ringTokens, util.TokenFor(userID, tr.id))
+		traces = append(traces, tr)
 	}
 
-	return keys, traces, truncatedAttributeCount, nil
+	return ringTokens, traces, truncatedAttributeCount, nil
 }
 
 // find and truncate the span attributes that are too large
@@ -993,7 +992,7 @@ func logSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logge
 				loggerWithAtts = log.With(
 					loggerWithAtts,
 					"span_"+strutil.SanitizeLabelName(a.GetKey()),
-					tempo_util.StringifyAnyValue(a.GetValue()))
+					util.StringifyAnyValue(a.GetValue()))
 			}
 		}
 
@@ -1015,7 +1014,7 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 			logger = log.With(
 				logger,
 				"span_"+strutil.SanitizeLabelName(a.GetKey()),
-				tempo_util.StringifyAnyValue(a.GetValue()))
+				util.StringifyAnyValue(a.GetValue()))
 		}
 
 		latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
