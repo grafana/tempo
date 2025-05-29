@@ -329,8 +329,7 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	case spanmetrics.Name:
 		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered)
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8)
-		invalidPrometheusLabelCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidPromethuesLabel)
-		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter, invalidPrometheusLabelCounter)
+		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter)
 		if err != nil {
 			return err
 		}

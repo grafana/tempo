@@ -43,17 +43,16 @@ type Processor struct {
 	spanMetricsTargetInfo      registry.Gauge
 	labels                     []string
 
-	filter                        *spanfilter.SpanFilter
-	filteredSpansCounter          prometheus.Counter
-	invalidUTF8Counter            prometheus.Counter
-	invalidPrometheusLabelCounter prometheus.Counter
-	sanitizeCache                 reclaimable.Cache[string, string]
+	filter               *spanfilter.SpanFilter
+	filteredSpansCounter prometheus.Counter
+	invalidUTF8Counter   prometheus.Counter
+	sanitizeCache        reclaimable.Cache[string, string]
 
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter, invalidPrometheusLabelCounter prometheus.Counter) (gen.Processor, error) {
+func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -88,15 +87,14 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 	}
 
 	p := &Processor{
-		Cfg:                           cfg,
-		registry:                      reg,
-		spanMetricsTargetInfo:         reg.NewGauge(targetInfo),
-		now:                           time.Now,
-		labels:                        labels,
-		filteredSpansCounter:          filteredSpansCounter,
-		invalidUTF8Counter:            invalidUTF8Counter,
-		invalidPrometheusLabelCounter: invalidPrometheusLabelCounter,
-		sanitizeCache:                 c,
+		Cfg:                   cfg,
+		registry:              reg,
+		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
+		now:                   time.Now,
+		labels:                labels,
+		filteredSpansCounter:  filteredSpansCounter,
+		invalidUTF8Counter:    invalidUTF8Counter,
+		sanitizeCache:         c,
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -287,6 +285,8 @@ func validatePromLabelNames(labels *[]string, labelValues *[]string) {
 			if i < len(*labelValues) {
 				validLabelValues = append(validLabelValues, (*labelValues)[i])
 			}
+		} else {
+
 		}
 	}
 
