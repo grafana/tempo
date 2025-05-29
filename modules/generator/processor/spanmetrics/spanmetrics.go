@@ -222,11 +222,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		return
 	}
 
-	err = validatePromLabelNames(labels)
-	if err != nil {
-		p.invalidPrometheusLabelCounter.Inc()
-		return
-	}
+	validatePromLabelNames(&labels, &labelValues)
 
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
@@ -279,14 +275,23 @@ func validateUTF8LabelValues(v []string) error {
 	return nil
 }
 
-func validatePromLabelNames(v []string) error {
+func validatePromLabelNames(labels *[]string, labelValues *[]string) {
 	promLabelRe := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
-	for _, value := range v {
-		if !promLabelRe.MatchString(value) {
-			return fmt.Errorf("invalid prometheus label name: %s", value)
+
+	validLabels := make([]string, 0, len(*labels))
+	validLabelValues := make([]string, 0, len(*labelValues))
+
+	for i, labelName := range *labels {
+		if promLabelRe.MatchString(labelName) {
+			validLabels = append(validLabels, labelName)
+			if i < len(*labelValues) {
+				validLabelValues = append(validLabelValues, (*labelValues)[i])
+			}
 		}
 	}
-	return nil
+
+	*labels = validLabels
+	*labelValues = validLabelValues
 }
 
 func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string, sanitizeFn sanitizeFn) {
