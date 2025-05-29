@@ -43,8 +43,6 @@ func TestIngest(t *testing.T) {
 	info := tempoUtil.NewTraceInfo(time.Now(), "")
 	require.NoError(t, info.EmitAllBatches(c))
 
-	time.Sleep(5 * time.Minute)
-
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
