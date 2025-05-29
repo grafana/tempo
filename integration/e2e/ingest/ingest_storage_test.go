@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -67,5 +66,4 @@ func TestIngest(t *testing.T) {
 	res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/metrics")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	fmt.Println(res.Body)
 }
