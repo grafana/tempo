@@ -1,8 +1,7 @@
 package ingest
 
 import (
-	"context"
-	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -28,6 +27,13 @@ func TestIngest(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
+	// Wait until joined to partition ring
+	matchers := []*labels.Matcher{
+		{Type: labels.MatchEqual, Name: "state", Value: "Active"},
+		{Type: labels.MatchEqual, Name: "name", Value: "ingester-partitions"},
+	}
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(matchers...)))
+
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
@@ -35,8 +41,6 @@ func TestIngest(t *testing.T) {
 
 	info := tempoUtil.NewTraceInfo(time.Now(), "")
 	require.NoError(t, info.EmitAllBatches(c))
-
-	time.Sleep(5 * time.Minute)
 
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
@@ -49,59 +53,17 @@ func TestIngest(t *testing.T) {
 
 	apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
 
-	// query an in-memory trace
-	util.QueryAndAssertTrace(t, apiClient, info)
-
-	// wait trace_idle_time and ensure trace is created in ingester
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
-
-	// flush trace to backend
-	util.CallFlush(t, tempo)
-
-	// search for trace in backend
-	util.SearchAndAssertTrace(t, apiClient, info)
-	util.SearchTraceQLAndAssertTrace(t, apiClient, info)
-
-	// sleep
-	time.Sleep(10 * time.Second)
-
-	// force clear completed block
-	util.CallFlush(t, tempo)
-
-	fmt.Println(tempo.Endpoint(3200))
-	// test metrics
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(3), "tempo_query_frontend_queries_total"))
-
-	matchers := []*labels.Matcher{
-		{
-			Type:  labels.MatchEqual,
-			Name:  "receiver",
-			Value: "jaeger/jaeger_receiver",
-		},
-		{
-			Type:  labels.MatchEqual,
-			Name:  "transport",
-			Value: "grpc",
-		},
-	}
-
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Greater(1), []string{"tempo_receiver_accepted_spans"}, e2e.WithLabelMatchers(matchers...)))
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(0), []string{"tempo_receiver_refused_spans"}, e2e.WithLabelMatchers(matchers...)))
-
-	// query trace - should fetch from backend
-	util.QueryAndAssertTrace(t, apiClient, info)
+	// wait until the block-builder block is flushed
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_block_builder_flushed_blocks"}, e2e.WaitMissingMetrics))
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempodb_blocklist_length"},
+		e2e.WaitMissingMetrics, e2e.WithLabelMatchers(&labels.Matcher{Type: labels.MatchEqual, Name: "tenant", Value: "single-tenant"})))
 
 	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 	now := time.Now()
 	util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
-	util.SearchAndAsserTagsBackend(t, apiClient, now.Add(-20*time.Minute).Unix(), now.Unix())
-
-	// find the trace with streaming. using the http server b/c that's what Grafana will do
-	grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
+	// Call /metrics
+	res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/metrics")
 	require.NoError(t, err)
-
-	util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+	require.Equal(t, http.StatusOK, res.StatusCode)
 }

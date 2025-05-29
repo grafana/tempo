@@ -4,13 +4,13 @@ import (
 	"github.com/grafana/e2e"
 )
 
-const kafkaImage = "confluentinc/cp-kafka:7.7.1"
+const kafkaImage = "confluentinc/cp-kafka:latest"
 
 func NewKafka() *e2e.HTTPService {
 	envVars := map[string]string{
 		"CLUSTER_ID":                             "zH1GDqcNTzGMDCXm5VZQdg",
 		"KAFKA_BROKER_ID":                        "1",
-		"KAFKA_NUM_PARTITIONS":                   "1000",
+		"KAFKA_NUM_PARTITIONS":                   "2",
 		"KAFKA_PROCESS_ROLES":                    "broker,controller",
 		"KAFKA_LISTENERS":                        "PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092",
 		"KAFKA_ADVERTISED_LISTENERS":             "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092",
