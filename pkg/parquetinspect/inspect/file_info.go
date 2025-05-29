@@ -6,9 +6,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/grafana/tempo/pkg/parquetinspect/output"
 	"github.com/parquet-go/parquet-go"
-
-	"github.com/stoewer/parquet-cli/pkg/output"
 )
 
 func NewFileInfo(file *os.File, pfile *parquet.File) (*FileInfo, error) {

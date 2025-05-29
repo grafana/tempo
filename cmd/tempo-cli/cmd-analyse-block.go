@@ -11,10 +11,11 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/grafana/tempo/pkg/parquetinspect/inspect"
+
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
-	"github.com/stoewer/parquet-cli/pkg/inspect"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"

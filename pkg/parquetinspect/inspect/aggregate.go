@@ -6,13 +6,11 @@ import (
 	"io"
 	"sort"
 
+	"github.com/grafana/tempo/pkg/parquetinspect/output"
 	"github.com/parquet-go/parquet-go"
-	"github.com/stoewer/parquet-cli/pkg/output"
 )
 
-var (
-	aggregateCellFields = [...]string{"size", "values", "nulls"}
-)
+var aggregateCellFields = [...]string{"size", "values", "nulls"}
 
 type AggregateCellStats struct {
 	Column string `json:"col"`
