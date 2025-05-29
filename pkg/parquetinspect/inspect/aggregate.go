@@ -10,9 +10,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
-var (
-	aggregateCellFields = [...]string{"size", "values", "nulls"}
-)
+var aggregateCellFields = [...]string{"size", "values", "nulls"}
 
 type AggregateCellStats struct {
 	Column string `json:"col"`

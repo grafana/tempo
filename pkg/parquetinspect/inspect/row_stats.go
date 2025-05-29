@@ -7,9 +7,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
-var (
-	rowCellFields = [...]string{"size", "values", "nulls"}
-)
+var rowCellFields = [...]string{"size", "values", "nulls"}
 
 type RowCellStats struct {
 	Column string `json:"col"`
