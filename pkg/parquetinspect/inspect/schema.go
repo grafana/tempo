@@ -5,8 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/stoewer/parquet-cli/pkg/output"
-
+	"github.com/grafana/tempo/pkg/parquetinspect/output"
 	"github.com/parquet-go/parquet-go"
 )
 

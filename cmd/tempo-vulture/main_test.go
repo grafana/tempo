@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -384,33 +384,11 @@ func doQueryTrace(f traceOps, err error) (traceMetrics, error) {
 	return queryTrace(&mockHTTPClient, traceInfo, logger)
 }
 
-func TestDoReadWhenTickerIsNil(t *testing.T) {
-	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
-	traceInfo := util.NewTraceInfo(seed, "test")
-
-	trace, _ := traceInfo.ConstructTraceFromEpoch()
-	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
-	mockHTTPClient := MockHTTPClient{err: nil, traceResp: trace}
-	// Define the configuration
-	config := vultureConfiguration{
-		tempoOrgID:                "orgID",
-		tempoWriteBackoffDuration: time.Second,
-	}
-
-	logger = zap.NewNop()
-	r := rand.New(rand.NewSource(startTime.Unix()))
-
-	// Assert ticker is nil
-	doRead(&mockHTTPClient, nil, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-	assert.Equal(t, 0, mockHTTPClient.GetRequestsCount())
-}
-
 func TestDoReadForAnOkRead(t *testing.T) {
 	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
 	traceInfo := util.NewTraceInfo(seed, "test")
 
 	trace, _ := traceInfo.ConstructTraceFromEpoch()
-	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
 	mockHTTPClient := MockHTTPClient{err: nil, traceResp: trace}
 	// Define the configuration
 	config := vultureConfiguration{
@@ -418,15 +396,10 @@ func TestDoReadForAnOkRead(t *testing.T) {
 		tempoWriteBackoffDuration: time.Second,
 	}
 
-	ticker := time.NewTicker(10 * time.Millisecond)
 	logger = zap.NewNop()
-	r := rand.New(rand.NewSource(startTime.Unix()))
 
-	// Assert an ok read
-	doRead(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-	time.Sleep(time.Second)
-	ticker.Stop()
-	assert.Greater(t, mockHTTPClient.GetRequestsCount(), 0)
+	doRead(&mockHTTPClient, config, traceInfo, logger)
+	assert.Equal(t, 1, mockHTTPClient.GetRequestsCount())
 }
 
 func TestDoReadForAnErroredRead(t *testing.T) {
@@ -434,7 +407,6 @@ func TestDoReadForAnErroredRead(t *testing.T) {
 	traceInfo := util.NewTraceInfo(seed, "test")
 
 	trace, _ := traceInfo.ConstructTraceFromEpoch()
-	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	// Define the configuration
 	config := vultureConfiguration{
@@ -442,14 +414,11 @@ func TestDoReadForAnErroredRead(t *testing.T) {
 		tempoWriteBackoffDuration: time.Second,
 	}
 
-	ticker := time.NewTicker(10 * time.Millisecond)
 	logger = zap.NewNop()
-	r := rand.New(rand.NewSource(startTime.Unix()))
 
 	// Assert a read with errors
 	mockHTTPClient := MockHTTPClient{err: errors.New("an error"), traceResp: trace}
-	doRead(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-	time.Sleep(time.Second)
+	doRead(&mockHTTPClient, config, traceInfo, logger)
 	assert.Equal(t, 0, mockHTTPClient.GetRequestsCount())
 }
 
@@ -564,7 +533,6 @@ func TestSearchTag(t *testing.T) {
 func TestDoSearch(t *testing.T) {
 	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
 	traceInfo := util.NewTraceInfo(seed, "test")
-	startTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	// Define the configuration
 	config := vultureConfiguration{
@@ -574,9 +542,7 @@ func TestDoSearch(t *testing.T) {
 		tempoRetentionDuration:    time.Second * 10,
 	}
 
-	ticker := time.NewTicker(10 * time.Millisecond)
 	logger = zap.NewNop()
-	r := rand.New(rand.NewSource(startTime.Unix()))
 
 	searchResponse := []*tempopb.TraceSearchMetadata{
 		{
@@ -597,61 +563,30 @@ func TestDoSearch(t *testing.T) {
 			},
 		},
 	}
-	logger = zap.NewNop()
+
 	mockHTTPClient := MockHTTPClient{err: nil, searchResponse: searchResponse}
 
-	doSearch(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-
-	time.Sleep(time.Second)
-	ticker.Stop()
+	doSearch(&mockHTTPClient, config, traceInfo, logger)
 	assert.Greater(t, mockHTTPClient.GetSearchesCount(), 0)
 }
 
-func TestDoSearchWhenTickerIsNil(t *testing.T) {
-	startTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+func TestDoSearchError(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+	traceInfo := util.NewTraceInfo(seed, "test")
 
 	// Define the configuration
 	config := vultureConfiguration{
-		tempoOrgID: "orgID",
-		// This is a hack to ensure the trace is "ready"
-		tempoWriteBackoffDuration: -time.Hour * 10000,
-		tempoRetentionDuration:    time.Second * 10,
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
 	}
-
-	logger = zap.NewNop()
-	r := rand.New(rand.NewSource(startTime.Unix()))
-
-	logger = zap.NewNop()
-
-	mockHTTPClient := MockHTTPClient{err: nil}
-	doSearch(&mockHTTPClient, nil, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-	assert.Equal(t, mockHTTPClient.GetSearchesCount(), 0)
-}
-
-func TestDoSearchOnSearchError(t *testing.T) {
-	startTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	// Define the configuration
-	config := vultureConfiguration{
-		tempoOrgID: "orgID",
-		// This is a hack to ensure the trace is "ready"
-		tempoWriteBackoffDuration: -time.Hour * 10000,
-		tempoRetentionDuration:    time.Second * 10,
-	}
-
-	ticker := time.NewTicker(10 * time.Millisecond)
-	logger = zap.NewNop()
-	r := rand.New(rand.NewSource(startTime.Unix()))
 
 	logger = zap.NewNop()
 
 	// Assert an errored search
 	mockHTTPClient := MockHTTPClient{err: errors.New("an error")}
 
-	doSearch(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-	ticker.Stop()
-
-	assert.Equal(t, mockHTTPClient.searchesCount, 0)
+	doSearch(&mockHTTPClient, config, traceInfo, logger)
+	assert.Equal(t, 0, mockHTTPClient.GetSearchesCount())
 }
 
 func TestGetGrpcEndpoint(t *testing.T) {
@@ -881,61 +816,151 @@ func TestQueryMetrics(t *testing.T) {
 
 func TestDoMetrics(t *testing.T) {
 	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
-	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
-	interval := time.Second
+	traceInfo := util.NewTraceInfo(seed, "test")
 
+	// Define the configuration
 	config := vultureConfiguration{
-		tempoOrgID: "orgID",
-		// This is a hack to ensure the trace is "ready"
-		tempoWriteBackoffDuration: -time.Hour * 10000,
-		tempoRetentionDuration:    time.Second * 10,
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
 	}
 
 	logger = zap.NewNop()
-	r := rand.New(rand.NewSource(startTime.Unix()))
 
-	tests := []struct {
-		name          string
-		ticker        *time.Ticker
-		expectedCalls int
-	}{
-		{
-			name:          "nil ticker",
-			ticker:        nil,
-			expectedCalls: 0,
-		},
-		{
-			name:          "active ticker",
-			ticker:        time.NewTicker(100 * time.Millisecond),
-			expectedCalls: 1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockHTTPClient := &MockHTTPClient{
-				err: nil,
-				metricsResp: &tempopb.QueryRangeResponse{
-					Series: []*tempopb.TimeSeries{
+	mockHTTPClient := &MockHTTPClient{
+		err: nil,
+		metricsResp: &tempopb.QueryRangeResponse{
+			Series: []*tempopb.TimeSeries{
+				{
+					Samples: []tempopb.Sample{
 						{
-							Samples: []tempopb.Sample{
-								{
-									TimestampMs: seed.UnixMilli(),
-									Value:       1.0,
-								},
-							},
+							TimestampMs: seed.UnixMilli(),
+							Value:       1.0,
 						},
 					},
 				},
-			}
-
-			doMetrics(mockHTTPClient, tt.ticker, startTime, interval, r, config, logger)
-
-			if tt.ticker != nil {
-				time.Sleep(170 * time.Millisecond)
-				tt.ticker.Stop()
-			}
-			assert.Equal(t, tt.expectedCalls, mockHTTPClient.GetMetricsCount())
-		})
+			},
+		},
 	}
+
+	doMetrics(mockHTTPClient, config, traceInfo, logger)
+	assert.Equal(t, 1, mockHTTPClient.GetMetricsCount())
+}
+
+func TestRunCheckerWithNilTicker(t *testing.T) {
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
+
+	logger = zap.NewNop()
+
+	checkerCalled := false
+	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
+		return time.Now(), time.Now(), false
+	}
+	checker := func(_ *util.TraceInfo, _ *zap.Logger) {
+		checkerCalled = true
+	}
+
+	runChecker(nil, config, selectPastTimestamp, checker, logger)
+	assert.False(t, checkerCalled)
+}
+
+func TestRunCheckerWithSkip(t *testing.T) {
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
+
+	logger = zap.NewNop()
+	ticker := time.NewTicker(time.Millisecond) // fires immediately
+	defer ticker.Stop()
+
+	// Checker function that signals completion
+	var checkerCalled bool
+	checker := func(_ *util.TraceInfo, _ *zap.Logger) {
+		checkerCalled = true
+	}
+
+	alwaysSkip := func(_ time.Time) (newStart, ts time.Time, skip bool) {
+		return time.Now(), time.Now(), true
+	}
+
+	runChecker(ticker, config, alwaysSkip, checker, logger)
+	time.Sleep(5 * time.Millisecond)
+	// Ensure the checker was not called due to skip=true
+	assert.False(t, checkerCalled)
+}
+
+func TestRunCheckerTraceNotReady(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	config := vultureConfiguration{
+		tempoOrgID:                    "orgID",
+		tempoWriteBackoffDuration:     10 * time.Hour, // Very long to ensure trace not ready
+		tempoLongWriteBackoffDuration: 20 * time.Hour,
+	}
+
+	logger = zap.NewNop()
+
+	ticker := time.NewTicker(time.Millisecond) // fires immediately
+
+	// Checker function that signals completion
+	var checkerCalled bool
+	checker := func(_ *util.TraceInfo, _ *zap.Logger) {
+		checkerCalled = true
+	}
+
+	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
+		return seed, seed, false
+	}
+	runChecker(ticker, config, selectPastTimestamp, checker, logger)
+	time.Sleep(5 * time.Millisecond)
+	// Ensure the checker was not called because trace is not ready
+	assert.False(t, checkerCalled)
+}
+
+func TestRunCheckerSuccess(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2009, 1, 1, 12, 0, 0, 0, time.UTC) // Far in the future to ensure trace is ready
+
+	config := vultureConfiguration{
+		tempoOrgID:                    "orgID",
+		tempoWriteBackoffDuration:     time.Second, // Small value to ensure trace is ready
+		tempoLongWriteBackoffDuration: time.Second,
+	}
+
+	logger = zap.NewNop()
+
+	tickChan := make(chan time.Time, 1)
+	mockTicker := &time.Ticker{C: tickChan}
+
+	// Send the time on the channel to trigger the ticker
+	go func() {
+		tickChan <- now
+	}()
+
+	// Checker function that signals completion
+	mx := sync.Mutex{}
+	checkerCalled := false
+	var checkedInfo *util.TraceInfo
+	checker := func(info *util.TraceInfo, _ *zap.Logger) {
+		mx.Lock()
+		defer mx.Unlock()
+		checkerCalled = true
+		checkedInfo = info
+	}
+
+	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
+		return startTime, seed, false
+	}
+	runChecker(mockTicker, config, selectPastTimestamp, checker, logger)
+	time.Sleep(10 * time.Millisecond)
+
+	mx.Lock()
+	defer mx.Unlock()
+	assert.True(t, checkerCalled)
+	require.NotNil(t, checkedInfo)
+	assert.Equal(t, seed.Unix(), checkedInfo.Timestamp().Unix())
 }

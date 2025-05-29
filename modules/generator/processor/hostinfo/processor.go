@@ -14,6 +14,7 @@ const (
 
 	hostInfoMetric     = "traces_host_info"
 	hostIdentifierAttr = "grafana_host_id"
+	hostSourceAttr     = "host_source"
 )
 
 type Processor struct {
@@ -30,28 +31,30 @@ func (p *Processor) Name() string {
 	return Name
 }
 
-func (p *Processor) findHostIdentifier(resourceSpans *v1.ResourceSpans) string {
+func (p *Processor) findHostIdentifier(resourceSpans *v1.ResourceSpans) (string, string) {
 	attrs := resourceSpans.GetResource().GetAttributes()
 	for _, idAttr := range p.Cfg.HostIdentifiers {
 		for _, attr := range attrs {
-			if attr.GetKey() == idAttr {
+			hostSource := attr.GetKey()
+			if hostSource == idAttr {
 				if val := attr.GetValue(); val != nil {
 					if strVal := val.GetStringValue(); strVal != "" {
-						return strVal
+						return strVal, hostSource
 					}
 				}
 			}
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
-	values := make([]string, 1)
+	values := make([]string, 2)
 	for i := range req.Batches {
 		resourceSpans := req.Batches[i]
-		if hostID := p.findHostIdentifier(resourceSpans); hostID != "" {
+		if hostID, hostSource := p.findHostIdentifier(resourceSpans); hostID != "" && hostSource != "" {
 			values[0] = hostID
+			values[1] = hostSource
 			labelValues := p.registry.NewLabelValueCombo(
 				p.labels,
 				values,
@@ -64,8 +67,9 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 func (p *Processor) Shutdown(_ context.Context) {}
 
 func New(cfg Config, reg registry.Registry, logger log.Logger) (*Processor, error) {
-	labels := make([]string, 1)
+	labels := make([]string, 2)
 	labels[0] = hostIdentifierAttr
+	labels[1] = hostSourceAttr
 	p := &Processor{
 		Cfg:        cfg,
 		logger:     logger,

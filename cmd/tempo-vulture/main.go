@@ -36,16 +36,17 @@ var (
 	prometheusListenAddress string
 	prometheusPath          string
 
-	tempoQueryURL                 string
-	tempoPushURL                  string
-	tempoOrgID                    string
-	tempoWriteBackoffDuration     time.Duration
-	tempoLongWriteBackoffDuration time.Duration
-	tempoReadBackoffDuration      time.Duration
-	tempoSearchBackoffDuration    time.Duration
-	tempoMetricsBackoffDuration   time.Duration
-	tempoRetentionDuration        time.Duration
-	tempoPushTLS                  bool
+	tempoQueryURL                   string
+	tempoPushURL                    string
+	tempoOrgID                      string
+	tempoWriteBackoffDuration       time.Duration
+	tempoLongWriteBackoffDuration   time.Duration
+	tempoReadBackoffDuration        time.Duration
+	tempoSearchBackoffDuration      time.Duration
+	tempoMetricsBackoffDuration     time.Duration
+	tempoRetentionDuration          time.Duration
+	tempoRecentTracesCutoffDuration time.Duration
+	tempoPushTLS                    bool
 
 	rf1After time.Time
 
@@ -71,16 +72,17 @@ const (
 )
 
 type vultureConfiguration struct {
-	tempoQueryURL                 string
-	tempoPushURL                  string
-	tempoOrgID                    string
-	tempoWriteBackoffDuration     time.Duration
-	tempoLongWriteBackoffDuration time.Duration
-	tempoReadBackoffDuration      time.Duration
-	tempoSearchBackoffDuration    time.Duration
-	tempoMetricsBackoffDuration   time.Duration
-	tempoRetentionDuration        time.Duration
-	tempoPushTLS                  bool
+	tempoQueryURL                   string
+	tempoPushURL                    string
+	tempoOrgID                      string
+	tempoWriteBackoffDuration       time.Duration
+	tempoLongWriteBackoffDuration   time.Duration
+	tempoReadBackoffDuration        time.Duration
+	tempoSearchBackoffDuration      time.Duration
+	tempoMetricsBackoffDuration     time.Duration
+	tempoRetentionDuration          time.Duration
+	tempoRecentTracesCutoffDuration time.Duration
+	tempoPushTLS                    bool
 }
 
 var _ flag.Value = (*timeVar)(nil)
@@ -123,6 +125,7 @@ func init() {
 	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls.  Set to 0s to disable search.")
 	flag.DurationVar(&tempoMetricsBackoffDuration, "tempo-metrics-backoff-duration", 0, "The amount of time to pause between TraceQL Metrics Tempo calls.  Set to 0s to disable.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
+	flag.DurationVar(&tempoRecentTracesCutoffDuration, "tempo-recent-traces-backoff-duration", 14*time.Minute, "Cutoff between recent and old traces query checks")
 
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
 }
@@ -140,16 +143,17 @@ func main() {
 	logger.Info("Tempo Vulture starting")
 
 	vultureConfig := vultureConfiguration{
-		tempoQueryURL:                 tempoQueryURL,
-		tempoPushURL:                  tempoPushURL,
-		tempoOrgID:                    tempoOrgID,
-		tempoWriteBackoffDuration:     tempoWriteBackoffDuration,
-		tempoLongWriteBackoffDuration: tempoLongWriteBackoffDuration,
-		tempoReadBackoffDuration:      tempoReadBackoffDuration,
-		tempoSearchBackoffDuration:    tempoSearchBackoffDuration,
-		tempoMetricsBackoffDuration:   tempoMetricsBackoffDuration,
-		tempoRetentionDuration:        tempoRetentionDuration,
-		tempoPushTLS:                  tempoPushTLS,
+		tempoQueryURL:                   tempoQueryURL,
+		tempoPushURL:                    tempoPushURL,
+		tempoOrgID:                      tempoOrgID,
+		tempoWriteBackoffDuration:       tempoWriteBackoffDuration,
+		tempoLongWriteBackoffDuration:   tempoLongWriteBackoffDuration,
+		tempoReadBackoffDuration:        tempoReadBackoffDuration,
+		tempoSearchBackoffDuration:      tempoSearchBackoffDuration,
+		tempoMetricsBackoffDuration:     tempoMetricsBackoffDuration,
+		tempoRetentionDuration:          tempoRetentionDuration,
+		tempoRecentTracesCutoffDuration: tempoRecentTracesCutoffDuration,
+		tempoPushTLS:                    tempoPushTLS,
 	}
 
 	jaegerClient, err := newJaegerGRPCClient(vultureConfig, logger)
@@ -175,10 +179,48 @@ func main() {
 	r := rand.New(rand.NewSource(startTime.Unix()))
 	interval := vultureConfig.tempoWriteBackoffDuration
 
+	selectRecentTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
+		oldest := now.Add(-vultureConfig.tempoRecentTracesCutoffDuration)
+		if oldest.Before(startTime) { // if vulture's just started
+			oldest = startTime
+		}
+		newStart, ts = selectPastTimestamp(oldest, now, interval, vultureConfig.tempoRetentionDuration, r)
+		return
+	}
+
+	selectOldTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
+		newest := now.Add(-vultureConfig.tempoRecentTracesCutoffDuration)
+		if newest.Before(startTime) { // if vulture's just started and no traces to query
+			skip = true
+			return
+		}
+		newStart, ts = selectPastTimestamp(startTime, newest, interval, vultureConfig.tempoRetentionDuration, r)
+		return
+	}
+
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
-	doRead(httpClient, tickerRead, startTime, interval, r, vultureConfig, logger)
-	doSearch(httpClient, tickerSearch, startTime, interval, r, vultureConfig, logger)
-	doMetrics(httpClient, tickerMetrics, startTime, interval, r, vultureConfig, logger)
+
+	// Recent traces
+	runChecker(tickerRead, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doRead(httpClient, vultureConfig, info, l)
+	}, logger)
+	runChecker(tickerSearch, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doSearch(httpClient, vultureConfig, info, l)
+	}, logger)
+	runChecker(tickerMetrics, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doMetrics(httpClient, vultureConfig, info, l)
+	}, logger)
+
+	// Old traces
+	runChecker(tickerRead, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doRead(httpClient, vultureConfig, info, l)
+	}, logger)
+	runChecker(tickerSearch, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doSearch(httpClient, vultureConfig, info, l)
+	}, logger)
+	runChecker(tickerMetrics, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
+		doMetrics(httpClient, vultureConfig, info, l)
+	}, logger)
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
@@ -298,88 +340,23 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 	}()
 }
 
-func doRead(httpClient httpclient.TempoHTTPClient, tickerRead *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
-	if tickerRead != nil {
-		go func() {
-			for now := range tickerRead.C {
-				var seed time.Time
-				startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration, r)
-
-				logger := l.With(
-					zap.String("org_id", config.tempoOrgID),
-					zap.Int64("seed", seed.Unix()),
-				)
-
-				info := util.NewTraceInfo(seed, config.tempoOrgID)
-
-				// Don't query for a trace we don't expect to be complete
-				if !traceIsReady(info, now, startTime,
-					config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
-					continue
-				}
-
-				// query the trace
-				queryMetrics, err := queryTrace(httpClient, info, l)
-				if err != nil {
-					metricErrorTotal.Inc()
-					logger.Error("query for metrics failed",
-						zap.Error(err),
-					)
-				}
-				pushVultureMetrics(queryMetrics)
-			}
-		}()
-	}
-}
-
-func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
-	if tickerSearch != nil {
-		go func() {
-			for now := range tickerSearch.C {
-				_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
-				logger := l.With(
-					zap.String("org_id", config.tempoOrgID),
-					zap.Int64("seed", seed.Unix()),
-				)
-
-				info := util.NewTraceInfo(seed, config.tempoOrgID)
-
-				if !traceIsReady(info, now, startTime,
-					config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
-					continue
-				}
-
-				// query a tag we expect the trace to be found within
-				searchMetrics, err := searchTag(httpClient, seed, config, l)
-				if err != nil {
-					metricErrorTotal.Inc()
-					logger.Error("search tag for metrics failed",
-						zap.Error(err),
-					)
-				}
-				pushVultureMetrics(searchMetrics)
-
-				// traceql query
-				traceqlSearchMetrics, err := searchTraceql(httpClient, seed, config, l)
-				if err != nil {
-					metricErrorTotal.Inc()
-					logger.Error("traceql query for metrics failed",
-						zap.Error(err),
-					)
-				}
-				pushVultureMetrics(traceqlSearchMetrics)
-			}
-		}()
-	}
-}
-
-func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+func runChecker(
+	ticker *time.Ticker,
+	config vultureConfiguration,
+	selectPastTimestamp func(now time.Time) (newStart, ts time.Time, skip bool),
+	checker func(*util.TraceInfo, *zap.Logger),
+	l *zap.Logger,
+) {
 	if ticker == nil {
 		return
 	}
 	go func() {
 		for now := range ticker.C {
-			_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
+			startTime, seed, skip := selectPastTimestamp(now)
+			if skip {
+				continue
+			}
+
 			logger := l.With(
 				zap.String("org_id", config.tempoOrgID),
 				zap.Int64("seed", seed.Unix()),
@@ -387,18 +364,57 @@ func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, start
 
 			info := util.NewTraceInfo(seed, config.tempoOrgID)
 
+			// Don't query for a trace we don't expect to be complete
 			if !traceIsReady(info, now, startTime,
 				config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
 				continue
 			}
 
-			m, err := queryMetrics(httpClient, seed, config, l)
-			if err != nil {
-				logger.Error("query metrics failed", zap.Error(err))
-			}
-			pushVultureMetrics(m)
+			checker(info, logger)
 		}
 	}()
+}
+
+func doRead(httpClient httpclient.TempoHTTPClient, _ vultureConfiguration, info *util.TraceInfo, l *zap.Logger) {
+	// query the trace
+	queryMetrics, err := queryTrace(httpClient, info, l)
+	if err != nil {
+		metricErrorTotal.Inc()
+		logger.Error("query for metrics failed",
+			zap.Error(err),
+		)
+	}
+	pushVultureMetrics(queryMetrics)
+}
+
+func doSearch(httpClient httpclient.TempoHTTPClient, config vultureConfiguration, info *util.TraceInfo, l *zap.Logger) {
+	// query a tag we expect the trace to be found within
+	searchMetrics, err := searchTag(httpClient, info.Timestamp(), config, l)
+	if err != nil {
+		metricErrorTotal.Inc()
+		logger.Error("search tag for metrics failed",
+			zap.Error(err),
+		)
+	}
+	pushVultureMetrics(searchMetrics)
+
+	// traceql query
+	traceqlSearchMetrics, err := searchTraceql(httpClient, info.Timestamp(), config, l)
+	if err != nil {
+		metricErrorTotal.Inc()
+		logger.Error("traceql query for metrics failed",
+			zap.Error(err),
+		)
+	}
+	pushVultureMetrics(traceqlSearchMetrics)
+}
+
+func doMetrics(httpClient httpclient.TempoHTTPClient, config vultureConfiguration, info *util.TraceInfo, l *zap.Logger) {
+	m, err := queryMetrics(httpClient, info.Timestamp(), config, l)
+	if err != nil {
+		logger.Error("query metrics failed", zap.Error(err))
+	}
+	pushVultureMetrics(m)
 }
 
 func pushVultureMetrics(metrics traceMetrics) {
@@ -618,7 +634,6 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 		return tm, nil
 	}
 
-	// iterate through
 	if hasMissingSpans(trace) {
 		logger.Error("trace has missing spans")
 		tm.missingSpans++
@@ -774,20 +789,20 @@ func equalTraces(a, b *tempopb.Trace) bool {
 }
 
 func hasMissingSpans(t *tempopb.Trace) bool {
-	// collect all parent span IDs
-	linkedSpanIDs := make([][]byte, 0)
+	// check that all parent spans exist in the trace
+	parentSpanIDs := make([][]byte, 0)
 
 	for _, b := range t.ResourceSpans {
 		for _, ss := range b.ScopeSpans {
 			for _, s := range ss.Spans {
 				if len(s.ParentSpanId) > 0 {
-					linkedSpanIDs = append(linkedSpanIDs, s.ParentSpanId)
+					parentSpanIDs = append(parentSpanIDs, s.ParentSpanId)
 				}
 			}
 		}
 	}
 
-	for _, id := range linkedSpanIDs {
+	for _, id := range parentSpanIDs {
 		found := false
 
 	B:

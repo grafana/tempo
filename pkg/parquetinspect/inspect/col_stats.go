@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/grafana/tempo/pkg/parquetinspect/output"
 	"github.com/parquet-go/parquet-go"
-	"github.com/stoewer/parquet-cli/pkg/output"
 )
 
 var (
