@@ -24,7 +24,6 @@
 * [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
 * [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
-* [ENHANCEMENT] Drop invalid prometheus label names in spanmetrics processor [#5122](https://github.com/grafana/tempo/pull/5122)
   Following config options are no longer valid, please remove them if you are using these in your tempo config:
   ```
   querier:
