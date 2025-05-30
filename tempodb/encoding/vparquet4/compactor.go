@@ -20,12 +20,41 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+var defaultMultiblockIteratorFactory = func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row] {
+	return newMultiblockIterator(bookmarks, combine)
+}
+var defaultStreamingBlockFactory = newStreamingBlock
+
+func NewCompactorWithFactories(opts common.CompactionOptions, multiblockIteratorFactory func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row], streamingBlockFactory func(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock) *Compactor {
+
+	if multiblockIteratorFactory == nil {
+		multiblockIteratorFactory = defaultMultiblockIteratorFactory
+	}
+	if streamingBlockFactory == nil {
+		streamingBlockFactory = defaultStreamingBlockFactory
+	}
+	return &Compactor{
+		opts: opts,
+
+		multiblockIteratorFactory: multiblockIteratorFactory,
+		streamingBlockFactory:     streamingBlockFactory,
+	}
+}
 func NewCompactor(opts common.CompactionOptions) *Compactor {
-	return &Compactor{opts: opts}
+	return &Compactor{
+		opts: opts,
+
+		multiblockIteratorFactory: defaultMultiblockIteratorFactory,
+		streamingBlockFactory:     defaultStreamingBlockFactory,
+	}
 }
 
 type Compactor struct {
 	opts common.CompactionOptions
+
+	// factories for testing
+	multiblockIteratorFactory func(bookmarks []*bookmark[parquet.Row], combine combineFn[parquet.Row]) *MultiBlockIterator[parquet.Row]
+	streamingBlockFactory     func(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock
 }
 
 // pool is a global rowPool to reuse parquet.Row buffers while compacting.
@@ -146,7 +175,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	}
 
 	var (
-		m               = newMultiblockIterator(bookmarks, combine)
+		m               = c.multiblockIteratorFactory(bookmarks, combine)
 		recordsPerBlock = (totalRecords / int64(c.opts.OutputBlocks))
 		currentBlock    *streamingBlock
 	)
@@ -159,6 +188,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		if err != nil {
+			if currentBlock != nil {
+				err = errors.Join(err, currentBlock.Abort(ctx))
+			}
 			return nil, fmt.Errorf("error iterating input blocks: %w", err)
 		}
 
@@ -178,7 +210,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 				DedicatedColumns:  inputs[0].DedicatedColumns,
 			}
 
-			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
+			currentBlock = c.streamingBlockFactory(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
@@ -205,6 +237,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
+				currentBlock.Abort(ctx)
 				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
 		}
