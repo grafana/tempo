@@ -9,8 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/collector"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -31,7 +29,7 @@ type TraceByIDCombiner struct {
 	code          int
 	statusMessage string
 
-	mc *collector.MetricsCollector
+	MetricsCombiner *TraceByIDMetricsCombiner
 }
 
 // NewTraceByID returns a trace id combiner. The trace by id combiner has a few different behaviors then the others
@@ -41,19 +39,15 @@ type TraceByIDCombiner struct {
 // - encode the returned trace as either json or proto depending on the request
 func NewTraceByID(maxBytes int, contentType string) Combiner {
 	return &TraceByIDCombiner{
-		c:           trace.NewCombiner(maxBytes, false),
-		code:        http.StatusNotFound,
-		contentType: contentType,
-		mc:          collector.NewMetricsCollector(),
+		c:               trace.NewCombiner(maxBytes, false),
+		code:            http.StatusNotFound,
+		contentType:     contentType,
+		MetricsCombiner: NewTraceByIDMetricsCombiner(),
 	}
 }
 
 func NewTypedTraceByID(maxBytes int, contentType string) *TraceByIDCombiner {
 	return NewTraceByID(maxBytes, contentType).(*TraceByIDCombiner)
-}
-
-func (c *TraceByIDCombiner) TotalBytesProcessed() uint64 {
-	return c.mc.TotalValue()
 }
 
 func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
@@ -103,9 +97,7 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 		c.statusMessage = fmt.Sprint(err)
 		return nil
 	}
-	if resp.Metrics != nil {
-		c.mc.Add(resp.Metrics.InspectedBytes)
-	}
+	c.MetricsCombiner.Combine(resp.Metrics, r)
 
 	return err
 }
