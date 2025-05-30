@@ -3,6 +3,7 @@ package spanmetrics
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"time"
 	"unicode/utf8"
@@ -80,7 +81,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels, c.Get))
 	}
 
-	err := validateLabelValues(labels)
+	err := validateUTF8LabelValues(labels)
 	if err != nil {
 		return nil, err
 	}
@@ -213,11 +214,14 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	err := validateLabelValues(labelValues)
+	err := validateUTF8LabelValues(labelValues)
 	if err != nil {
 		p.invalidUTF8Counter.Inc()
 		return
 	}
+
+	promLabelRe := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+	validatePromLabelNames(promLabelRe, &labels, &labelValues)
 
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
@@ -261,13 +265,33 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func validateLabelValues(v []string) error {
+func validateUTF8LabelValues(v []string) error {
 	for _, value := range v {
 		if !utf8.ValidString(value) {
 			return fmt.Errorf("invalid utf8 string: %s", value)
 		}
 	}
 	return nil
+}
+
+func validatePromLabelNames(promLabelRe *regexp.Regexp, labels *[]string, labelValues *[]string) {
+
+	validLabels := make([]string, 0, len(*labels))
+	validLabelValues := make([]string, 0, len(*labelValues))
+
+	for i, labelName := range *labels {
+		if promLabelRe.MatchString(labelName) {
+			validLabels = append(validLabels, labelName)
+			if i < len(*labelValues) {
+				validLabelValues = append(validLabelValues, (*labelValues)[i])
+			}
+		} else {
+
+		}
+	}
+
+	*labels = validLabels
+	*labelValues = validLabelValues
 }
 
 func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string, sanitizeFn sanitizeFn) {

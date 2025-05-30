@@ -35,13 +35,13 @@ func TestSpanMetrics(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -73,14 +73,14 @@ func TestSpanMetrics(t *testing.T) {
 func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -139,7 +139,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			name: "Valid labels",
 			dimensions: []string{
 				"valid_label_123", // underscores
-				"12345",           // numeric only
 				"_underscore_first",
 			},
 			expectedCount: 10.0,
@@ -154,7 +153,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 				"status_code":       "STATUS_CODE_OK",
 				"status_message":    "OK",
 				"valid_label_123":   "",
-				"12345":             "",
 				"_underscore_first": "",
 			},
 		},
@@ -188,7 +186,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			testRegistry := registry.NewTestRegistry()
 
 			filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-			invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+			invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 			cfg := Config{}
 			cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -197,7 +195,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			cfg.IntrinsicDimensions.StatusMessage = true
 			cfg.Dimensions = tc.dimensions
 
-			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -218,6 +216,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 			lbls := labels.FromMap(tc.labels)
 			fmt.Println(lbls.String())
+			fmt.Println(testRegistry)
 
 			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
@@ -234,7 +233,7 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -242,7 +241,7 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	cfg.Dimensions = []string{"span.kind", "span_name"}
 	cfg.IntrinsicDimensions.SpanKind = false
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -282,14 +281,14 @@ func TestSpanMetrics_collisions(t *testing.T) {
 func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -330,7 +329,7 @@ func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cases := []struct {
 		filterPolicies     []filterconfig.FilterPolicy
@@ -421,7 +420,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			cfg.FilterPolicies = tc.filterPolicies
 
 			testRegistry := registry.NewTestRegistry()
-			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -475,14 +474,14 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	// but service will still be there
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -528,14 +527,14 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 func TestLabelsWithDifferentBatches(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -607,14 +606,14 @@ func TestTargetInfoEnabled(t *testing.T) {
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -660,14 +659,14 @@ func TestTargetInfoEnabled(t *testing.T) {
 func TestTargetInfoDisabled(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = false
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -709,14 +708,14 @@ func TestTargetInfoDisabled(t *testing.T) {
 func TestTargetInfoWithEmptyKey(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -760,7 +759,7 @@ func TestTargetInfoWithExclusion(t *testing.T) {
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -768,7 +767,7 @@ func TestTargetInfoWithExclusion(t *testing.T) {
 	cfg.TargetInfoExcludedDimensions = []string{"container", "container.id"}
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -825,14 +824,14 @@ func TestTargetInfoSanitizeLabelName(t *testing.T) {
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -880,14 +879,14 @@ func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -922,13 +921,13 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 	// if both job and instance are missing, target info should not exist
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -970,14 +969,14 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 func TestTargetInfoWithDifferentBatches(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1059,7 +1058,7 @@ func TestTargetInfoWithDifferentBatches(t *testing.T) {
 func TestSpanMetricsDimensionMapping(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1074,7 +1073,7 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 		},
 	}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1119,7 +1118,7 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1147,7 +1146,7 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 		},
 	}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1198,13 +1197,13 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 func TestSpanMetricsNegativeLatency(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -1330,18 +1329,126 @@ func BenchmarkSpanMetrics_applyFilterPolicyMedium(b *testing.B) {
 
 func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, batch *trace_v1.ResourceSpans) {
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
 
 	testRegistry := registry.NewTestRegistry()
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.FilterPolicies = policies
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(b, err)
 	defer p.Shutdown(context.Background())
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	}
+}
+
+func TestValidatePromLabelNames(t *testing.T) {
+	tests := []struct {
+		name                string
+		inputLabels         []string
+		inputLabelValues    []string
+		expectedLabels      []string
+		expectedLabelValues []string
+	}{
+		{
+			name:                "all valid labels",
+			inputLabels:         []string{"valid_label", "AnotherValid", "_startsWithUnderscore", "a1b2c3", "labelWith123"},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5"},
+			expectedLabels:      []string{"valid_label", "AnotherValid", "_startsWithUnderscore", "a1b2c3", "labelWith123"},
+			expectedLabelValues: []string{"value1", "value2", "value3", "value4", "value5"},
+		},
+		{
+			name:                "all invalid labels",
+			inputLabels:         []string{"1startsWithNumber", "has-dash", "has.dot", "has@symbol", "has space", ""},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "mixed valid and invalid labels",
+			inputLabels:         []string{"valid_label", "1invalid", "another_valid", "has-dash", "_underscore", "has.dot"},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
+			expectedLabels:      []string{"valid_label", "another_valid", "_underscore"},
+			expectedLabelValues: []string{"value1", "value3", "value5"},
+		},
+		{
+			name:                "empty slices",
+			inputLabels:         []string{},
+			inputLabelValues:    []string{},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "more labels than values",
+			inputLabels:         []string{"valid1", "valid2", "valid3"},
+			inputLabelValues:    []string{"value1", "value2"},
+			expectedLabels:      []string{"valid1", "valid2", "valid3"},
+			expectedLabelValues: []string{"value1", "value2"},
+		},
+		{
+			name:                "more values than labels",
+			inputLabels:         []string{"valid1", "valid2"},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4"},
+			expectedLabels:      []string{"valid1", "valid2"},
+			expectedLabelValues: []string{"value1", "value2"},
+		},
+		{
+			name:                "invalid label names that start with numbers",
+			inputLabels:         []string{"123invalid", "4notvalid", "0zero"},
+			inputLabelValues:    []string{"value1", "value2", "value3"},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "invalid label names with special characters",
+			inputLabels:         []string{"label-with-dash", "label.with.dot", "label@with@at", "label with space", "label#hash", "label$dollar"},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "edge case: single character valid labels",
+			inputLabels:         []string{"a", "Z", "_"},
+			inputLabelValues:    []string{"value1", "value2", "value3"},
+			expectedLabels:      []string{"a", "Z", "_"},
+			expectedLabelValues: []string{"value1", "value2", "value3"},
+		},
+		{
+			name:                "edge case: single character invalid labels",
+			inputLabels:         []string{"1", ".", "-", "@", " "},
+			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5"},
+			expectedLabels:      []string{},
+			expectedLabelValues: []string{},
+		},
+		{
+			name:                "complex mixed scenario with mismatched lengths",
+			inputLabels:         []string{"valid_start", "2invalid", "good_label", "", "another_good", "bad-label", "_underscore_ok"},
+			inputLabelValues:    []string{"val1", "val2", "val3"},
+			expectedLabels:      []string{"valid_start", "good_label", "another_good", "_underscore_ok"},
+			expectedLabelValues: []string{"val1", "val3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create copies of the input slices to avoid modifying the test data
+			labels := make([]string, len(tt.inputLabels))
+			copy(labels, tt.inputLabels)
+			labelValues := make([]string, len(tt.inputLabelValues))
+			copy(labelValues, tt.inputLabelValues)
+
+			// Call the function under test
+			validatePromLabelNames(&labels, &labelValues)
+
+			// Assert the results
+			assert.Equal(t, tt.expectedLabels, labels, "labels should match expected")
+			assert.Equal(t, tt.expectedLabelValues, labelValues, "label values should match expected")
+
+			// Additional assertion: ensure values length doesn't exceed labels length
+			assert.LessOrEqual(t, len(labelValues), len(labels), "values should not exceed labels in length")
+		})
 	}
 }
