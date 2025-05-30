@@ -33,6 +33,9 @@ type RemoteSamplingConfig struct {
 	StrategyFile               string        `mapstructure:"strategy_file"`
 	StrategyFileReloadInterval time.Duration `mapstructure:"strategy_file_reload_interval"`
 	configgrpc.ClientConfig    `mapstructure:",squash"`
+
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // Protocols is the configuration for the supported protocols.
@@ -41,12 +44,18 @@ type Protocols struct {
 	ThriftHTTP       *confighttp.ServerConfig `mapstructure:"thrift_http"`
 	ThriftBinaryUDP  *ProtocolUDP             `mapstructure:"thrift_binary"`
 	ThriftCompactUDP *ProtocolUDP             `mapstructure:"thrift_compact"`
+
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // ProtocolUDP is the configuration for a UDP protocol.
 type ProtocolUDP struct {
 	Endpoint        string `mapstructure:"endpoint"`
 	ServerConfigUDP `mapstructure:",squash"`
+
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // ServerConfigUDP is the server configuration for a UDP protocol.
@@ -55,6 +64,9 @@ type ServerConfigUDP struct {
 	MaxPacketSize    int `mapstructure:"max_packet_size"`
 	Workers          int `mapstructure:"workers"`
 	SocketBufferSize int `mapstructure:"socket_buffer_size"`
+
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // defaultServerConfigUDP creates the default ServerConfigUDP.
@@ -71,6 +83,9 @@ func defaultServerConfigUDP() ServerConfigUDP {
 type Config struct {
 	Protocols      `mapstructure:"protocols"`
 	RemoteSampling *RemoteSamplingConfig `mapstructure:"remote_sampling"`
+
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 var (

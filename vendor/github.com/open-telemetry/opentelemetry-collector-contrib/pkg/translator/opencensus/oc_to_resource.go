@@ -10,7 +10,7 @@ import (
 	ocresource "github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1"
 	"go.opencensus.io/resource/resourcekeys"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions"
 )
@@ -19,16 +19,16 @@ var ocLangCodeToLangMap = getOCLangCodeToLangMap()
 
 func getOCLangCodeToLangMap() map[occommon.LibraryInfo_Language]string {
 	mappings := make(map[occommon.LibraryInfo_Language]string)
-	mappings[1] = conventions.AttributeTelemetrySDKLanguageCPP
-	mappings[2] = conventions.AttributeTelemetrySDKLanguageDotnet
-	mappings[3] = conventions.AttributeTelemetrySDKLanguageErlang
-	mappings[4] = conventions.AttributeTelemetrySDKLanguageGo
-	mappings[5] = conventions.AttributeTelemetrySDKLanguageJava
-	mappings[6] = conventions.AttributeTelemetrySDKLanguageNodejs
-	mappings[7] = conventions.AttributeTelemetrySDKLanguagePHP
-	mappings[8] = conventions.AttributeTelemetrySDKLanguagePython
-	mappings[9] = conventions.AttributeTelemetrySDKLanguageRuby
-	mappings[10] = conventions.AttributeTelemetrySDKLanguageWebjs
+	mappings[1] = conventions.TelemetrySDKLanguageCPP.Value.AsString()
+	mappings[2] = conventions.TelemetrySDKLanguageDotnet.Value.AsString()
+	mappings[3] = conventions.TelemetrySDKLanguageErlang.Value.AsString()
+	mappings[4] = conventions.TelemetrySDKLanguageGo.Value.AsString()
+	mappings[5] = conventions.TelemetrySDKLanguageJava.Value.AsString()
+	mappings[6] = conventions.TelemetrySDKLanguageNodejs.Value.AsString()
+	mappings[7] = conventions.TelemetrySDKLanguagePHP.Value.AsString()
+	mappings[8] = conventions.TelemetrySDKLanguagePython.Value.AsString()
+	mappings[9] = conventions.TelemetrySDKLanguageRuby.Value.AsString()
+	mappings[10] = conventions.TelemetrySDKLanguageWebjs.Value.AsString()
 	return mappings
 }
 
@@ -76,7 +76,7 @@ func ocNodeResourceToInternal(ocNode *occommon.Node, ocResource *ocresource.Reso
 	for k, v := range ocResource.GetLabels() {
 		switch k {
 		case resourcekeys.CloudKeyZone:
-			attrs.PutStr(conventions.AttributeCloudAvailabilityZone, v)
+			attrs.PutStr(string(conventions.CloudAvailabilityZoneKey), v)
 		default:
 			attrs.PutStr(k, v)
 		}
@@ -89,7 +89,7 @@ func ocNodeResourceToInternal(ocNode *occommon.Node, ocResource *ocresource.Reso
 	if ocNode != nil {
 		if ocNode.ServiceInfo != nil {
 			if ocNode.ServiceInfo.Name != "" {
-				attrs.PutStr(conventions.AttributeServiceName, ocNode.ServiceInfo.Name)
+				attrs.PutStr(string(conventions.ServiceNameKey), ocNode.ServiceInfo.Name)
 			}
 		}
 		if ocNode.Identifier != nil {
@@ -97,22 +97,22 @@ func ocNodeResourceToInternal(ocNode *occommon.Node, ocResource *ocresource.Reso
 				attrs.PutStr(occonventions.AttributeProcessStartTime, ocNode.Identifier.StartTimestamp.AsTime().Format(time.RFC3339Nano))
 			}
 			if ocNode.Identifier.HostName != "" {
-				attrs.PutStr(conventions.AttributeHostName, ocNode.Identifier.HostName)
+				attrs.PutStr(string(conventions.HostNameKey), ocNode.Identifier.HostName)
 			}
 			if ocNode.Identifier.Pid != 0 {
-				attrs.PutInt(conventions.AttributeProcessPID, int64(ocNode.Identifier.Pid))
+				attrs.PutInt(string(conventions.ProcessPIDKey), int64(ocNode.Identifier.Pid))
 			}
 		}
 		if ocNode.LibraryInfo != nil {
 			if ocNode.LibraryInfo.CoreLibraryVersion != "" {
-				attrs.PutStr(conventions.AttributeTelemetrySDKVersion, ocNode.LibraryInfo.CoreLibraryVersion)
+				attrs.PutStr(string(conventions.TelemetrySDKVersionKey), ocNode.LibraryInfo.CoreLibraryVersion)
 			}
 			if ocNode.LibraryInfo.ExporterVersion != "" {
 				attrs.PutStr(occonventions.AttributeExporterVersion, ocNode.LibraryInfo.ExporterVersion)
 			}
 			if ocNode.LibraryInfo.Language != occommon.LibraryInfo_LANGUAGE_UNSPECIFIED {
 				if str, ok := ocLangCodeToLangMap[ocNode.LibraryInfo.Language]; ok {
-					attrs.PutStr(conventions.AttributeTelemetrySDKLanguage, str)
+					attrs.PutStr(string(conventions.TelemetrySDKLanguageKey), str)
 				}
 			}
 		}

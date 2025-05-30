@@ -468,6 +468,8 @@ Available Converters:
 - [Format](#format)
 - [FormatTime](#formattime)
 - [GetXML](#getxml)
+- [HasPrefix](#hasprefix)
+- [HasSuffix](#hassuffix)
 - [Hex](#hex)
 - [Hour](#hour)
 - [Hours](#hours)
@@ -500,6 +502,7 @@ Available Converters:
 - [ParseKeyValue](#parsekeyvalue)
 - [ParseSimplifiedXML](#parsesimplifiedxml)
 - [ParseXML](#parsexml)
+- [ProfileID](#profileid)
 - [RemoveXML](#removexml)
 - [Second](#second)
 - [Seconds](#seconds)
@@ -957,6 +960,44 @@ Get `hello` from `<a><![CDATA[hello]]></a>`
 Get `bar` from `<a foo="bar"/>`
 
 - `GetXML(log.body, "/a/@foo")`
+
+### HasPrefix
+
+`HasPrefix(value, prefix)`
+
+The `HasPrefix` function returns a boolean value indicating whether a given string `value` begins with a given `prefix`.
+
+The returned type is `bool`.
+
+If the `value` is not a string or does not exist, the `HasPrefix` converter will return an error.
+
+The `value` is either a path expression to a telemetry field to retrieve or a literal.
+
+Examples:
+
+- `HasPrefix(resource.attributes["service.name"], "ingest_")`
+
+
+- `HasPrefix("ingest_service", "ingest_")`
+
+### HasSuffix
+
+`HasSuffix(value, suffix)`
+
+The `HasSuffix` function returns a boolean value indicating whether a given string `value` ends with a given `suffix`.
+
+The returned type is `bool`.
+
+If the `value` is not a string or does not exist, the `HasSuffix` converter will return an error.
+
+The `value` is either a path expression to a telemetry field to retrieve or a literal.
+
+Examples:
+
+- `HasSuffix(resource.attributes["service.name"], "_service")`
+
+
+- `HasSuffix("ingest_service", "_service")`
 
 ### Hex
 
@@ -1713,6 +1754,18 @@ Examples:
 - `ParseXML(log.attributes["xml"])`
 
 - `ParseXML("<HostInfo hostname=\"example.com\" zone=\"east-1\" cloudprovider=\"aws\" />")`
+
+### ProfileID
+
+`ProfileID(bytes)`
+
+The `ProfileID` Converter returns a `pprofile.ProfileID` struct from the given byte slice.
+
+`bytes` is a byte slice of exactly 16 bytes.
+
+Examples:
+
+- `ProfileID(0x00112233445566778899aabbccddeeff)`
 
 ### RemoveXML
 
