@@ -39,7 +39,11 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 		start:                 q.Start,
 		end:                   q.End,
 		step:                  q.Step,
-		exemplarBuckets:       newBucketSet(IntervalCount(q.Start, q.End, q.Step)),
+		exemplarBuckets: newBucketSet(
+			maxExemplars,
+			alignStart(q.Start, q.Step),
+			alignEnd(q.End, q.Step),
+		),
 	}
 
 	if mode == AggregateModeRaw {
@@ -292,8 +296,7 @@ func (b *averageOverTimeSeriesAggregator) aggregateExemplars(ts *tempopb.TimeSer
 		if b.exemplarBuckets.testTotal() {
 			break
 		}
-		interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
-		if b.exemplarBuckets.addAndTest(interval) {
+		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
 			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
 		}
 		labels := make(Labels, 0, len(exemplar.Labels))
@@ -451,8 +454,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float
 	if s.exemplarBuckets.testTotal() {
 		return
 	}
-	interval := IntervalOfMs(int64(ts), g.start, g.end, g.step)
-	if s.exemplarBuckets.addAndTest(interval) {
+	if s.exemplarBuckets.addAndTest(ts) {
 		return
 	}
 
@@ -533,10 +535,14 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 	if !ok {
 		intervals := IntervalCount(g.start, g.end, g.step)
 		s = avgOverTimeSeries[S]{
-			vals:            g.buf.vals,
-			average:         newAverageSeries(intervals, maxExemplars, nil),
-			exemplarBuckets: newBucketSet(intervals),
-			initialized:     true,
+			vals:    g.buf.vals,
+			average: newAverageSeries(intervals, maxExemplars, nil),
+			exemplarBuckets: newBucketSet(
+				maxExemplars,
+				alignStart(g.start, g.step),
+				alignEnd(g.end, g.step),
+			),
+			initialized: true,
 		}
 		g.series[g.buf.fast] = s
 	}
