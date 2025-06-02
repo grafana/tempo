@@ -142,5 +142,4 @@ func TestPartitionDownscale(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, trace2)
 	require.Equal(t, util.SpanCount(trace2), util.SpanCount(trace))
-
 }
