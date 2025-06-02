@@ -2613,7 +2613,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		// collector reads them as Nils.  We could skip them in the attribute collector,
 		// but this is more performant because it's at the lowest level.
 		// Alternatively, JoinIterators don't pay attention to -1 (undefined) when checking
-		// the defintion level matches.  Fixing that would also work but would need wider testing first.
+		// the definition level matches.  Fixing that would also work but would need wider testing first.
 		skipNils := &parquetquery.SkipNilsPredicate{}
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{
