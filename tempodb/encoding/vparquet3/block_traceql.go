@@ -1660,9 +1660,11 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			if entry.scope != intrinsicScopeSpan {
 				continue
 			}
-			// These intrinsics aren't included in select all because I say so.
+			// These intrinsics aren't included in select all because they
+			// aren't useful for compare().
 			switch intrins {
 			case traceql.IntrinsicSpanID,
+				traceql.IntrinsicParentID,
 				traceql.IntrinsicSpanStartTime,
 				traceql.IntrinsicStructuralDescendant,
 				traceql.IntrinsicStructuralChild,
