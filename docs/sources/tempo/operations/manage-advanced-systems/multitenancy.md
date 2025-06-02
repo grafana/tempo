@@ -10,15 +10,40 @@ aliases:
 
 # Enable multi-tenancy
 
-Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use
-of a header: `X-Scope-OrgID`.
+Tempo is a multi-tenant distributed tracing backend. 
+Tempo uses the `X-Scope-OrgID` header to enforce multi-tenancy in Tempo and Grafana Enterprise Traces.
+It is set to the tenant (or “organization”) name.
+It is used for scoped writes (ingest) so that each span is stored under its specified tenant, and scoped reads so that queries return only that tenant’s data.
 
 If you're interested in setting up multi-tenancy, consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector-multitenant)
 in the repository. This example uses the following settings to achieve multi-tenancy in Tempo.
 
-{{< admonition type="note" >}}
-Multi-tenancy on ingestion is currently [only working](https://github.com/grafana/tempo/issues/495) with GPRC and this may never change. It's strongly recommended to use the OpenTelemetry Collector to support multi-tenancy.
-{{< /admonition >}}
+Multi-tenancy on ingestion is supported with GPRC and HTTP for OTLP.
+You can add headers both in the OpenTelemetry Collector and Grafana Alloy or using `curl` or any other relevant HTTP/gRPC protocol tool. 
+Here is an example configuration for Alloy. 
+
+```
+otelcol.exporter.otlphttp "tempo" {
+    // Define the client for exporting.
+    client {
+        // Send the X-Scope-OrgID header to the Tempo instance for multi-tenancy (tenant 1234).
+        headers = {
+            "X-Scope-OrgID" = "1234",
+        }
+
+        // Send to the locally running Tempo instance, on port 4317 (OTLP gRPC).
+        endpoint = "http://tempo:4318"
+
+        // Configure TLS settings for communicating with the endpoint.
+        tls {
+            // The connection is insecure.
+            insecure = true
+            // Do not verify TLS certificates when connecting.
+            insecure_skip_verify = true
+        }
+    }
+}
+```
 
 ## Configure multi-tenancy
 
