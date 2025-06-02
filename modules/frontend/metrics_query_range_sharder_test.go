@@ -280,6 +280,7 @@ func FuzzExemplarsPerShard(f *testing.F) {
 	})
 }
 
+// nolint: gosec // G115
 func TestExemplarsCutoff(t *testing.T) {
 	s := &queryRangeSharder{}
 	now := time.Now()
