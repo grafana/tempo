@@ -4,7 +4,6 @@
 # will only check a few things and detect that the PR is not yet merged. 
 # At this time only squashed PRs are supported since the cherry-pick 
 # command does not include "-m <n>" arg required for merge commits.
-# TODO: this workflow is broken, suraj will fix it in a day or two
 name: Backport PR Creator
 on:
   pull_request:
@@ -19,6 +18,9 @@ jobs:
     # skip it in all forks, only run in grafana/tempo.
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
+    permissions:
+        id-token: write
+
     steps:
       - name: Checkout Actions
         uses: actions/checkout@v4
