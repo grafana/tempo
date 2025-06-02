@@ -303,6 +303,31 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				},
 			},
 		},
+		"structural_rate_by": {
+			q: "{name=`foo`} > {} | rate() by (name)",
+			expectedReq: FetchSpansRequest{
+				AllConditions: false,
+				Conditions: []Condition{
+					{
+						Attribute: NewIntrinsic(IntrinsicStructuralChild),
+					},
+					{
+						Attribute: IntrinsicNameAttribute,
+						Op:        OpEqual,
+						Operands:  Operands{NewStaticString("foo")},
+					},
+				},
+				SecondPassConditions: []Condition{
+					{
+						Attribute: IntrinsicNameAttribute,
+					},
+					{
+						// Since there is already a second pass then span start time isn't optimized to the first pass.
+						Attribute: IntrinsicSpanStartTimeAttribute,
+					},
+				},
+			},
+		},
 	}
 
 	for n, tc := range tc {
