@@ -111,7 +111,8 @@ func (t Token) IsValue() bool {
 //
 //	[{FlagToken, "foo"}, {FlagValueToken, "bar"}]
 type Scanner struct {
-	args []Token
+	allowHyphenated bool
+	args            []Token
 }
 
 // ScanAsType creates a new Scanner from args with the given type.
@@ -131,6 +132,14 @@ func Scan(args ...string) *Scanner {
 // ScanFromTokens creates a new Scanner from a slice of tokens.
 func ScanFromTokens(tokens ...Token) *Scanner {
 	return &Scanner{args: tokens}
+}
+
+// AllowHyphenPrefixedParameters enables or disables hyphen-prefixed flag parameters on this Scanner.
+//
+// Disabled by default.
+func (s *Scanner) AllowHyphenPrefixedParameters(enable bool) *Scanner {
+	s.allowHyphenated = enable
+	return s
 }
 
 // Len returns the number of input arguments.
@@ -162,7 +171,7 @@ func (e *expectedError) Error() string {
 // "context" is used to assist the user if the value can not be popped, eg. "expected <context> value but got <type>"
 func (s *Scanner) PopValue(context string) (Token, error) {
 	t := s.Pop()
-	if !t.IsValue() {
+	if !s.allowHyphenated && !t.IsValue() {
 		return t, &expectedError{context, t}
 	}
 	return t, nil

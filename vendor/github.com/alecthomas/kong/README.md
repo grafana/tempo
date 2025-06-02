@@ -181,7 +181,7 @@ Flags:
 
 #### Showing an _argument_'s detailed help
 
-Custom help will only be shown for _positional arguments with named fields_ ([see the README section on positional arguments for more details on what that means](../../../README.md#branching-positional-arguments))
+Custom help will only be shown for _positional arguments with named fields_ ([see the README section on positional arguments for more details on what that means](#branching-positional-arguments))
 
 **Contextual argument help**
 
