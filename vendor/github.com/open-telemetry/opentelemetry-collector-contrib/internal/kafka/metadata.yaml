@@ -1,3 +1,4 @@
 status:
+  disable_codecov_badge: true
   codeowners:
     active: [pavolloffay, MovieStoreGuy, axw]
