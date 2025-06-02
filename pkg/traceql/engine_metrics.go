@@ -1372,8 +1372,9 @@ func (h *Histogram) Record(bucket float64, count int) {
 }
 
 type histSeries struct {
-	labels Labels
-	hist   []Histogram
+	labels    Labels
+	hist      []Histogram
+	exemplars []Exemplar
 }
 
 type HistogramAggregator struct {
@@ -1381,7 +1382,6 @@ type HistogramAggregator struct {
 	qs               []float64
 	len              int
 	start, end, step uint64
-	exemplars        []Exemplar
 	exemplarBuckets  *bucketSet
 }
 
@@ -1408,7 +1408,6 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 		var bucket Static
 		for _, l := range ts.Labels {
 			if l.Key == internalLabelBucket {
-				// bucket = int(l.Value.GetIntValue())
 				bucket = StaticFromAnyValue(l.Value)
 				continue
 			}
@@ -1431,7 +1430,6 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 				labels: withoutBucket,
 				hist:   make([]Histogram, h.len),
 			}
-			h.ss[withoutBucketStr] = existing
 		}
 
 		b := bucket.Float()
@@ -1462,12 +1460,13 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 					Value: StaticFromAnyValue(l.Value),
 				})
 			}
-			h.exemplars = append(h.exemplars, Exemplar{
+			existing.exemplars = append(existing.exemplars, Exemplar{
 				Labels:      labels,
 				Value:       exemplar.Value,
 				TimestampMs: uint64(exemplar.TimestampMs),
 			})
 		}
+		h.ss[withoutBucketStr] = existing
 	}
 }
 
@@ -1485,7 +1484,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			ts := TimeSeries{
 				Labels:    labels,
 				Values:    make([]float64, len(in.hist)),
-				Exemplars: h.exemplars,
+				Exemplars: in.exemplars,
 			}
 			for i := range in.hist {
 
