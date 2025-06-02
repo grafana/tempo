@@ -50,7 +50,6 @@ type TempoHTTPClient interface {
 	SearchTraceQL(query string) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error)
-	QueryRange(query string, start int64, end int64) (*tempopb.QueryRangeResponse, error)
 	MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error)
 	MetricsQueryRange(query string, start, end int, step string, exemplars int) (*tempopb.QueryRangeResponse, error)
 	GetOverrides() (*userconfigurableoverrides.Limits, string, error)
@@ -340,27 +339,6 @@ func (c *Client) SearchTraceQLWithRangeAndLimit(query string, start int64, end i
 	}
 
 	return m, nil
-}
-
-func (c *Client) QueryRange(query string, start int64, end int64) (*tempopb.QueryRangeResponse, error) {
-	joinURL, err := url.Parse(c.BaseURL + api.PathMetricsQueryRange + "?")
-	if err != nil {
-		return nil, err
-	}
-	q := joinURL.Query()
-	q.Set("start", strconv.FormatInt(start, 10))
-	q.Set("end", strconv.FormatInt(end, 10))
-	q.Set("q", query)
-	q.Set("step", "5m")
-	joinURL.RawQuery = q.Encode()
-
-	resp := &tempopb.QueryRangeResponse{}
-	_, err = c.getFor(joinURL.String(), resp)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
 }
 
 func (c *Client) MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error) {
