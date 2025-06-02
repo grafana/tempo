@@ -118,6 +118,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Reset `SkipMetricsGeneration` before reuse. [#5117](https://github.com/grafana/tempo/pull/5117) (@flxbk)
 * [BUGFIX] Fix metrics generator host info processor overrides config. [#5118](https://github.com/grafana/tempo/pull/5118) (@rlankfo)
 * [BUGFIX] Fix metrics generator target_info to skip attributes with no name to prevent downstream errors [#5148](https://github.com/grafana/tempo/pull/5148) (@mdisibio)
+* [BUGFIX] TraceQL Metrics: right exemplars for histogram and quantiles [#5145](https://github.com/grafana/tempo/pull/5145) (@ruslan-mikhailov)
 * [BUGFIX] Fix for queried number of exemplars (TraceQL Metrics) [#5115](https://github.com/grafana/tempo/pull/5115) (@ruslan-mikhailov)
 
 # v2.7.2
