@@ -68,8 +68,8 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 		metadata: func(resp PipelineResponse, final *tempopb.SearchResponse) error {
 			if sj, ok := resp.(*SearchJobResponse); ok && sj != nil {
 				sjMetrics := &tempopb.SearchMetrics{
-					TotalBlocks:     uint32(sj.TotalBlocks),
-					TotalJobs:       uint32(sj.TotalJobs),
+					TotalBlocks:     uint32(sj.TotalBlocks), //nolint:gosec
+					TotalJobs:       uint32(sj.TotalJobs),   //nolint:gosec
 					TotalBlockBytes: sj.TotalBytes,
 				}
 				metricsCombiner.CombineMetadata(sjMetrics, resp)

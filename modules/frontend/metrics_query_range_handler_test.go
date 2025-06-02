@@ -330,8 +330,8 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 
 	// set up query
 	query := "{} | rate()"
-	step := 1000000000
-	hash := hashForQueryRangeRequest(&tempopb.QueryRangeRequest{Query: query, Step: uint64(step)})
+	var step uint64 = 1000000000
+	hash := hashForQueryRangeRequest(&tempopb.QueryRangeRequest{Query: query, Step: step})
 	startNS := uint64(10 * time.Second)
 	endNS := uint64(20 * time.Second)
 	cacheKey := queryRangeCacheKey(tenant, hash, time.Unix(0, int64(startNS)), time.Unix(0, int64(endNS)), meta, 0, 1)
