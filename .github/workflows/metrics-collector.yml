@@ -11,6 +11,9 @@ jobs:
     # stats collection action is only useful in main repo.
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Get Github App secrets from vault
         id: get-secrets
