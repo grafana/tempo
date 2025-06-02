@@ -76,36 +76,70 @@ sendLoop:
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
 
-	for _, query := range []string{
-		"{} | rate()",
-		"{} | compare({status=error})",
-		"{} | count_over_time()",
-		"{} | min_over_time(duration)",
-		"{} | max_over_time(duration)",
-		"{} | avg_over_time(duration)",
-		"{} | sum_over_time(duration)",
-		"{} | quantile_over_time(duration, .5)",
-		"{} | quantile_over_time(duration, .5, 0.9, 0.99)",
-
-		"{} | count_over_time() by (span.span_attr)",
-		"{} | count_over_time() by (resource.res_attr)",
-		"{} | count_over_time() by (.span_attr)",
-		"{} | count_over_time() by (.res_attr)",
-
-		"{} | histogram_over_time(duration)",
-		"{} | count_over_time() by (status)",
-		"{status != error} | count_over_time() by (status)",
+	for _, exeplarsCase := range []struct {
+		name              string
+		exemplars         int
+		expectedExemplars int
+	}{
+		{
+			name:              "default",
+			exemplars:         0,
+			expectedExemplars: 100, // if set to 0, then limits to 100
+		},
+		{
+			name:              "5 exemplar",
+			exemplars:         5,
+			expectedExemplars: 5,
+		},
+		{
+			name:              "25 exemplars",
+			exemplars:         25,
+			expectedExemplars: 25,
+		},
+		{
+			name:              "capped exemplars",
+			exemplars:         1000,
+			expectedExemplars: 100, // capped to 100
+		},
 	} {
-		t.Run(query, func(t *testing.T) {
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
-			require.NotNil(t, queryRangeRes)
-			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
-			exemplarCount := 0
-			for _, series := range queryRangeRes.GetSeries() {
-				exemplarCount += len(series.GetExemplars())
-			}
-			require.GreaterOrEqual(t, exemplarCount, 1)
-		})
+		for _, query := range []string{
+			"{} | rate()",
+			"{} | compare({status=error})",
+			"{} | count_over_time()",
+			"{} | min_over_time(duration)",
+			"{} | max_over_time(duration)",
+			"{} | avg_over_time(duration)",
+			"{} | sum_over_time(duration)",
+			"{} | quantile_over_time(duration, .5)",
+			"{} | quantile_over_time(duration, .5, 0.9, 0.99)",
+
+			"{} | count_over_time() by (span.span_attr)",
+			"{} | count_over_time() by (resource.res_attr)",
+			"{} | count_over_time() by (.span_attr)",
+			"{} | count_over_time() by (.res_attr)",
+
+			"{} | histogram_over_time(duration)",
+			"{} | count_over_time() by (status)",
+			"{status != error} | count_over_time() by (status)",
+		} {
+			t.Run(fmt.Sprintf("%s: %s", exeplarsCase.name, query), func(t *testing.T) {
+				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, exeplarsCase.exemplars, debugMode)
+				require.NotNil(t, queryRangeRes)
+				require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
+				if query == "{} | quantile_over_time(duration, .5, 0.9, 0.99)" {
+					// Bug: https://github.com/grafana/tempo/issues/5167
+					t.Skip("Bug in quantile_over_time in calculating exemplars")
+				}
+
+				exemplarCount := 0
+
+				for _, series := range queryRangeRes.GetSeries() {
+					exemplarCount += len(series.GetExemplars())
+				}
+				assert.LessOrEqual(t, exemplarCount, exeplarsCase.expectedExemplars)
+				assert.GreaterOrEqual(t, exemplarCount, 1)
+			})
+		}
 	}
 
 	// check exemplars in more detail
@@ -166,7 +200,7 @@ sendLoop:
 		},
 	} {
 		t.Run(testCase.query, func(t *testing.T) {
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), testCase.query, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), testCase.query, 100, debugMode)
 			require.NotNil(t, queryRangeRes)
 			require.Equal(t, len(queryRangeRes.GetSeries()), 2)
 
@@ -199,7 +233,7 @@ sendLoop:
 	}
 
 	// invalid query
-	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}")
+	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}", 100)
 	require.Equal(t, 400, res.StatusCode)
 
 	// query with empty results
@@ -210,7 +244,7 @@ sendLoop:
 		`{span.randomattr = "doesnotexist"} | count_over_time()`,
 	} {
 		t.Run(query, func(t *testing.T) {
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, 100, debugMode)
 			require.NotNil(t, queryRangeRes)
 			// it has time series but they are empty and has no exemplars
 			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
@@ -250,7 +284,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 
 	// Query the trace by count. As we have only one trace, we should get one dot with value 1
 	query := "{} | count_over_time()"
-	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, 100, debugMode)
 	require.NotNil(t, queryRangeRes)
 	require.Equal(t, len(queryRangeRes.GetSeries()), 1)
 
@@ -467,8 +501,8 @@ sendLoop:
 	require.Equal(t, spanCount, len(queryRangeRes.GetSeries()))
 }
 
-func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempopb.QueryRangeResponse {
-	res := doRequest(t, endpoint, query)
+func callQueryRange(t *testing.T, endpoint, query string, exemplars int, printBody bool) tempopb.QueryRangeResponse {
+	res := doRequest(t, endpoint, query, exemplars)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Read body and print it
@@ -485,8 +519,8 @@ func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempop
 	return queryRangeRes
 }
 
-func doRequest(t *testing.T, endpoint, query string) *http.Response {
-	url := buildURL(endpoint, fmt.Sprintf("%s with(exemplars=true)", query))
+func doRequest(t *testing.T, endpoint, query string, exemplars int) *http.Response {
+	url := buildURL(endpoint, fmt.Sprintf("%s with(exemplars=true)", query), exemplars)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 
@@ -495,13 +529,14 @@ func doRequest(t *testing.T, endpoint, query string) *http.Response {
 	return res
 }
 
-func buildURL(endpoint, query string) string {
+func buildURL(endpoint, query string, exemplars int) string {
 	return fmt.Sprintf(
-		"http://%s/api/metrics/query_range?query=%s&start=%d&end=%d&step=%s",
+		"http://%s/api/metrics/query_range?query=%s&start=%d&end=%d&step=%s&exemplars=%d",
 		endpoint,
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
 		time.Now().Add(time.Minute).UnixNano(),
 		"5s",
+		exemplars,
 	)
 }

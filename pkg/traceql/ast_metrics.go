@@ -226,16 +226,16 @@ func exemplarAttribute(a Attribute) func(Span) (float64, uint64) {
 func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
 	// Currently all metrics are summed by job to produce
 	// intermediate results. This will change when adding min/max/topk/etc
-	a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp)
+	a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp, maxExemplars)
 }
 
 func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
-		a.seriesAgg = NewHistogramAggregator(q, a.floats)
+		a.seriesAgg = NewHistogramAggregator(q, a.floats, q.Exemplars)
 	default:
 		// These are simple additions by series
-		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp)
+		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp, q.Exemplars)
 	}
 }
 
