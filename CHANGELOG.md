@@ -80,6 +80,8 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Host Info Processor: track host identifying resource attribute in metric [#5152](https://github.com/grafana/tempo/pull/5152) (@rlankfo)
 * [ENHANCEMENT] Vulture checks recent traces [#5157](https://github.com/grafana/tempo/pull/5157) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add jitter in backendworker to avoid thundering herd from workers [#5150](https://github.com/grafana/tempo/pull/5150) (@electron0zero)
+* [ENHANCEMENT] TraceQL Metrics: distribute exemplars over time [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
+* [ENHANCEMENT] TraceQL Metrics: hard limit number of exemplars [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Make comparison to nil symmetric [#4869](https://github.com/grafana/tempo/pull/4869) (@stoewer)
