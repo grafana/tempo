@@ -73,7 +73,7 @@ func (l *openMetricsLexer) Error(es string) {
 
 // OpenMetricsParser parses samples from a byte slice of samples in the official
 // OpenMetrics text exposition format.
-// This is based on the working draft https://docs.google.com/document/u/1/d/1KwV0mAXwwbvvifBvDKH_LU1YjyXE_wxCkHNoCGq1GX0/edit
+// Specification can be found at https://prometheus.io/docs/specs/om/open_metrics_spec/
 type OpenMetricsParser struct {
 	l         *openMetricsLexer
 	builder   labels.ScratchBuilder
@@ -199,7 +199,9 @@ func (p *OpenMetricsParser) Comment() []byte {
 
 // Labels writes the labels of the current sample into the passed labels.
 func (p *OpenMetricsParser) Labels(l *labels.Labels) {
-	s := yoloString(p.series)
+	// Defensive copy in case the following keeps a reference.
+	// See https://github.com/prometheus/prometheus/issues/16490
+	s := string(p.series)
 
 	p.builder.Reset()
 	metricName := unreplace(s[p.offsets[0]-p.start : p.offsets[1]-p.start])
