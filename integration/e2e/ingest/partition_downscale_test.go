@@ -50,11 +50,13 @@ func TestPartitionDownscale(t *testing.T) {
 	require.NoError(t, distributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("ingester")...), e2e.WaitMissingMetrics))
 
 	// Wait until joined to partition ring
-	matchers := []*labels.Matcher{
-		{Type: labels.MatchEqual, Name: "state", Value: "Active"},
-		{Type: labels.MatchEqual, Name: "name", Value: "ingester-partitions"},
+	partitionStateMatchers := func(state string) []*labels.Matcher {
+		return []*labels.Matcher{
+			{Type: labels.MatchEqual, Name: "state", Value: state},
+			{Type: labels.MatchEqual, Name: "name", Value: "ingester-partitions"},
+		}
 	}
-	require.NoError(t, distributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(matchers...)))
+	require.NoError(t, distributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(partitionStateMatchers("Active")...)))
 
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := util.NewJaegerGRPCClient(distributor.Endpoint(14250))
@@ -90,6 +92,8 @@ func TestPartitionDownscale(t *testing.T) {
 	require.NoError(t, json.NewDecoder(httpResp.Body).Decode(&result))
 	require.Greater(t, result["timestamp"].(float64), float64(0)) // ts > 0 ==> INACTIVE (when it was marked for downscale)
 
+	require.NoError(t, distributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(partitionStateMatchers("Inactive")...)))
+
 	// Start block-builder (it should consume data from the downscaled partition)
 	blockbuilder := util.NewTempoBlockBuilder(0)
 	require.NoError(t, s.StartAndWaitReady(blockbuilder))
@@ -119,6 +123,8 @@ func TestPartitionDownscale(t *testing.T) {
 	require.Equal(t, 200, httpResp.StatusCode)
 	require.NoError(t, json.NewDecoder(httpResp.Body).Decode(&result))
 	require.Equal(t, float64(0), result["timestamp"].(float64)) // ts == 0 ==> ACTIVE
+
+	require.NoError(t, distributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(partitionStateMatchers("Active")...)))
 
 	// Generate and emit more traces after reactivating the partition
 	info2 := tempoUtil.NewTraceInfo(time.Now(), "")
