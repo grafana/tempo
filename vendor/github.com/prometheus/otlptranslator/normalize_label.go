@@ -1,4 +1,4 @@
-// Copyright 2024 The Prometheus Authors
+// Copyright 2025 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -10,17 +10,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Provenance-includes-location: https://github.com/prometheus/prometheus/blob/93e991ef7ed19cc997a9360c8016cac3767b8057/storage/remote/otlptranslator/prometheus/normalize_label.go
+// Provenance-includes-license: Apache-2.0
+// Provenance-includes-copyright: Copyright The Prometheus Authors
 // Provenance-includes-location: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/95e8f8fdc2a9dc87230406c9a3cf02be4fd68bea/pkg/translator/prometheus/normalize_label.go
 // Provenance-includes-license: Apache-2.0
 // Provenance-includes-copyright: Copyright The OpenTelemetry Authors.
 
-package prometheus
+package otlptranslator
 
 import (
 	"strings"
 	"unicode"
-
-	"github.com/prometheus/prometheus/util/strutil"
 )
 
 // Normalizes the specified label to follow Prometheus label names standard.
@@ -35,7 +36,7 @@ func NormalizeLabel(label string) string {
 		return label
 	}
 
-	label = strutil.SanitizeLabelName(label)
+	label = sanitizeLabelName(label)
 
 	// If label starts with a number, prepend with "key_".
 	if unicode.IsDigit(rune(label[0])) {

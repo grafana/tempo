@@ -19,8 +19,9 @@ jobs:
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     permissions:
-        id-token: write
-
+      contents: read
+      id-token: write
+      pull-requests: write
     steps:
       - name: Checkout Actions
         uses: actions/checkout@v4
