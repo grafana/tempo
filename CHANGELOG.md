@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Fix distributor issue where a hash collision could lead to spans stored incorrectly [#5186](https://github.com/grafana/tempo/pull/5186) (@mdisibio)
+
 # v2.8.0-rc.0
 
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
