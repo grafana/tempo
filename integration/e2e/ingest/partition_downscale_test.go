@@ -38,7 +38,6 @@ func TestPartitionDownscale(t *testing.T) {
 	queryFrontend := util.NewTempoQueryFrontend()
 
 	require.NoError(t, s.StartAndWaitReady(distributor, ingester, querier, queryFrontend))
-	t.Cleanup(func() { require.NoError(t, s.Stop(distributor, ingester, querier, queryFrontend)) })
 
 	// Wait until ingester and metrics-generator are active
 	isServiceActiveMatcher := func(service string) []*labels.Matcher {
