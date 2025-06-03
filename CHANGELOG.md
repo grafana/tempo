@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [BUGFIX] Excluded nestedSetParent and other values from compare() function [#5196](https://github.com/grafana/tempo/pull/5196) (@mdisibio)
 * [BUGFIX] Fix distributor issue where a hash collision could lead to spans stored incorrectly [#5186](https://github.com/grafana/tempo/pull/5186) (@mdisibio)
 
 # v2.8.0-rc.0
