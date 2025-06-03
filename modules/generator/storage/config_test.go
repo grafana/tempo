@@ -7,7 +7,7 @@ import (
 
 	prometheus_common_config "github.com/prometheus/common/config"
 	prometheus_config "github.com/prometheus/prometheus/config"
-	"github.com/prometheus/prometheus/tsdb/wlog"
+	"github.com/prometheus/prometheus/util/compression"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 )
@@ -31,7 +31,7 @@ remote_write:
 	assert.NoError(t, err)
 
 	walCfg := agentDefaultOptions()
-	walCfg.WALCompression = wlog.CompressionSnappy
+	walCfg.WALCompression = compression.Snappy
 
 	remoteWriteConfig := prometheus_config.DefaultRemoteWriteConfig
 	prometheusURL, err := url.Parse("http://prometheus/api/prom/push")
