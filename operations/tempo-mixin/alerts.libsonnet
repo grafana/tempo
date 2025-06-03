@@ -366,6 +366,20 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendWorkerCallRetriesHigh',
             },
           },
+          {
+            alert: 'TempoVultureHighErrorRate',
+            expr: |||
+              sum(rate(tempo_vulture_trace_error_total{namespace=~"%s"}[1m])) by (%s, error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{namespace=~"%s"}[1m])) by (%s) > %f
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.namespace, $._config.group_by_cluster, $._config.alerts.vulture_error_rate_threshold],
+            'for': '5m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo vulture error rate is {{ printf "%0.2f" $value }} for error type {{ $labels.error }} in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoVultureHighErrorRate',
+            },
+          },
         ],
       },
     ],
