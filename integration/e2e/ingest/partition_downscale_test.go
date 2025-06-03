@@ -24,7 +24,7 @@ func TestPartitionDownscale(t *testing.T) {
 	require.NoError(t, util.CopyFileToSharedDir(s, "config-partition-downscale.yaml", "config.yaml"))
 
 	// Start dependencies
-	kafka := NewKafka()
+	kafka := e2edb.NewKafka()
 	require.NoError(t, s.StartAndWaitReady(kafka))
 
 	minio := e2edb.NewMinio(9000, "tempo")
@@ -141,10 +141,10 @@ func TestPartitionDownscale(t *testing.T) {
 	trace, err = apiClient.QueryTrace(info.HexID())
 	require.NoError(t, err)
 	require.NotNil(t, trace)
-	require.Equal(t, util.SpanCount(trace), util.SpanCount(trace))
+	require.Equal(t, util.SpanCount(expected), util.SpanCount(trace))
 
 	trace2, err := apiClient.QueryTrace(info2.HexID())
 	require.NoError(t, err)
 	require.NotNil(t, trace2)
-	require.Equal(t, util.SpanCount(trace2), util.SpanCount(trace))
+	require.Equal(t, util.SpanCount(expected2), util.SpanCount(trace2))
 }
