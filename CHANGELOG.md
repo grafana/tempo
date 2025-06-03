@@ -4,6 +4,7 @@
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [BUGFIX] Excluded nestedSetParent and other values from compare() function [#5196](https://github.com/grafana/tempo/pull/5196) (@mdisibio)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
+* [BUGFIX] Fix structural metrics rate by aggregation [#5204](https://github.com/grafana/tempo/pull/5204) (@zalegrala)
 
 # v2.8.0-rc.0
 
