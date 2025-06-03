@@ -5,7 +5,6 @@ import (
 
 	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/util"
@@ -98,8 +97,8 @@ func (i *Ingester) PreparePartitionDownscaleHandler(w http.ResponseWriter, r *ht
 	}
 
 	if state == ring.PartitionInactive {
-		util.WriteJSONResponse(w, map[string]any{"timestamp": stateTimestamp.Unix()})
+		util.WriteJSONResponse(w, map[string]any{"timestamp": stateTimestamp.Unix(), "state": state.String()})
 	} else {
-		util.WriteJSONResponse(w, map[string]any{"timestamp": 0})
+		util.WriteJSONResponse(w, map[string]any{"timestamp": 0, "state": state.String()})
 	}
 }
