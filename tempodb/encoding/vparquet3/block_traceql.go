@@ -1660,9 +1660,11 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			if entry.scope != intrinsicScopeSpan {
 				continue
 			}
-			// These intrinsics aren't included in select all because I say so.
+			// These intrinsics aren't included in select all because they
+			// aren't useful for compare().
 			switch intrins {
 			case traceql.IntrinsicSpanID,
+				traceql.IntrinsicParentID,
 				traceql.IntrinsicSpanStartTime,
 				traceql.IntrinsicStructuralDescendant,
 				traceql.IntrinsicStructuralChild,
@@ -2132,13 +2134,22 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 ) (parquetquery.Iterator, error) {
 	if selectAll {
 		// Select all with no filtering
+		// Levels such as resource/instrumentation/span may have no attributes. When that
+		// occurs the columns are encoded as single null values, and the current attribute
+		// collector reads them as Nils.  We could skip them in the attribute collector,
+		// but this is more performant because it's at the lowest level.
+		// Alternatively, JoinIterators don't pay attention to -1 (undefined) when checking
+		// the definition level matches.  Fixing that would also work but would need wider testing first.
+		skipNils := &parquetquery.SkipNilsPredicate{}
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
-			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
 			[]parquetquery.Iterator{
-				makeIter(strPath, nil, "string"),
-				makeIter(intPath, nil, "int"),
-				makeIter(floatPath, nil, "float"),
-				makeIter(boolPath, nil, "bool"),
+				makeIter(keyPath, skipNils, "key"),
+			},
+			[]parquetquery.Iterator{
+				makeIter(strPath, skipNils, "string"),
+				makeIter(intPath, skipNils, "int"),
+				makeIter(floatPath, skipNils, "float"),
+				makeIter(boolPath, skipNils, "bool"),
 			},
 			&attributeCollector{},
 			parquetquery.WithPool(pqAttrPool))
