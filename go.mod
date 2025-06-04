@@ -24,8 +24,8 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/grafana/dskit v0.0.0-20250529133336-ec9bc5b3a14e
-	github.com/grafana/e2e v0.1.1
+	github.com/grafana/dskit v0.0.0-20250529170946-28928403e61e
+	github.com/grafana/e2e v0.1.2-0.20250428181430-708d63bcc673
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jaegertracing/jaeger v1.67.0
 	github.com/jedib0t/go-pretty/v6 v6.6.7
