@@ -1590,7 +1590,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 			}
 			iters = append(iters, makeIter(columnPathTraceID, pred, columnPathTraceID))
 		case traceql.IntrinsicTraceDuration:
-			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			pred, err := createDurationPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
