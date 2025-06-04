@@ -58,6 +58,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 				nestedSet,
 				tagValuesRunner,
 				tagNamesRunner,
+				traceQLDuration,
 			)
 		})
 		if vers == vparquet4.VersionString {
@@ -1602,6 +1603,134 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			// test that callback is recording bytes read
 			require.Greater(t, mc.TotalValue(), uint64(100))
 		})
+	}
+}
+
+func traceQLDuration(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, searchesThatMatch, searchesThatDontMatch []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
+	ctx := context.Background()
+	e := traceql.NewEngine()
+
+	// We've got two `span:duration`: 1000000000ns && 2000000000ns
+	// We've got one `trace:duration`: 2000000000ns
+
+	quotedAttributesThatMatch := []*tempopb.SearchRequest{
+		{Query: `{ span:duration >= 999999999 && span:duration <= 1000000001 }`},
+		{Query: `{ span:duration > 999999999 && span:duration < 1000000001 }`},
+		{Query: `{ span:duration >= 1000000000 && span:duration <= 1000000000 }`},
+		{Query: `{ span:duration = 1000000000 }`},
+
+		{Query: `{ span:duration >= 999999999.9 && span:duration <= 1000000000.1 }`},
+		{Query: `{ span:duration > 999999999.9 && span:duration < 1000000000.1 }`},
+		{Query: `{ span:duration >= 1000000000.0 && span:duration <= 1000000000.0 }`},
+		{Query: `{ span:duration = 1000000000.0 }`},
+
+		{Query: `{ span:duration >= 2999999999ns / 3 && span:duration <= 3000000001ns / 3 }`},
+		{Query: `{ span:duration > 2999999999ns / 3 && span:duration < 3000000001ns / 3 }`},
+		{Query: `{ span:duration >= 3000000000ns / 3 && span:duration <= 3000000000ns / 3 }`},
+		{Query: `{ span:duration = 3000000000ns / 3 }`},
+
+		{Query: `{ span:duration >= 4999999999 * .2 && span:duration <= 5000000001 * .2 }`},
+		{Query: `{ span:duration > 4999999999 * .2 && span:duration < 5000000001 * .2 }`},
+		{Query: `{ span:duration >= 5000000000 * .2 && span:duration <= 5000000000 * .2 }`},
+		{Query: `{ span:duration = 5000000000 * .2 }`},
+
+		{Query: `{ span:duration >= 3333333333ns * .3 && span:duration <= 3333333334ns * .3 }`},
+		{Query: `{ span:duration > 3333333333ns * .3 && span:duration < 3333333334ns * .3 }`},
+		{Query: `{ span:duration >= 5000000000ns * .2 && span:duration <= 5000000000ns * .2 }`},
+		{Query: `{ span:duration = 5000000000ns * .2 }`},
+
+		{Query: `{ span:duration >= 333333333ns * 3 && span:duration <= 333333334ns * 3 }`},
+		{Query: `{ span:duration > 333333333ns * 3 && span:duration < 333333334ns * 3 }`},
+		{Query: `{ span:duration >= 500000000 * 2 && span:duration <= 500000000 * 2 }`},
+		{Query: `{ span:duration = 500000000 * 2 }`},
+
+		{Query: `{ trace:duration >= 1999999999 && trace:duration <= 2000000001 }`},
+		{Query: `{ trace:duration > 1999999999 && trace:duration < 2000000001 }`},
+		{Query: `{ trace:duration >= 2000000000 && trace:duration <= 2000000000 }`},
+		{Query: `{ trace:duration = 2000000000 }`},
+
+		{Query: `{ trace:duration >= 1999999999.9 && trace:duration <= 2000000000.1 }`},
+		{Query: `{ trace:duration > 1999999999.9 && trace:duration < 2000000000.1 }`},
+		{Query: `{ trace:duration >= 2000000000.0 && trace:duration <= 2000000000.0 }`},
+		{Query: `{ trace:duration = 2000000000.0 }`},
+
+		{Query: `{ trace:duration >= 5999999999ns / 3 && trace:duration <= 6000000001ns / 3 }`},
+		{Query: `{ trace:duration > 5999999999ns / 3 && trace:duration < 6000000001ns / 3 }`},
+		{Query: `{ trace:duration >= 6000000000ns / 3 && trace:duration <= 6000000000ns / 3 }`},
+		{Query: `{ trace:duration = 6000000000ns / 3 }`},
+
+		{Query: `{ trace:duration >= 9999999999 * .2 && trace:duration <= 10000000001 * .2 }`},
+		{Query: `{ trace:duration > 9999999999 * .2 && trace:duration < 10000000001 * .2 }`},
+		{Query: `{ trace:duration >= 10000000000 * .2 && trace:duration <= 10000000000 * .2 }`},
+		{Query: `{ trace:duration = 10000000000 * .2 }`},
+
+		{Query: `{ trace:duration >= 6666666666ns * .3 && trace:duration <= 6666666667ns * .3 }`},
+		{Query: `{ trace:duration > 6666666666ns * .3 && trace:duration < 6666666667ns * .3 }`},
+		{Query: `{ trace:duration >= 10000000000ns * .2 && trace:duration <= 10000000000ns * .2 }`},
+		{Query: `{ trace:duration = 10000000000ns * .2 }`},
+
+		{Query: `{ trace:duration >= 666666666ns * 3 && trace:duration <= 666666667ns * 3 }`},
+		{Query: `{ trace:duration > 666666666ns * 3 && trace:duration < 666666667ns * 3 }`},
+		{Query: `{ trace:duration >= 1000000000 * 2 && trace:duration <= 1000000000 * 2 }`},
+		{Query: `{ trace:duration = 1000000000 * 2 }`},
+	}
+
+	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
+	for _, req := range searchesThatMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+
+		require.NoError(t, err, "search request: %+v", req)
+		actual := actualForExpectedMeta(wantMeta, res)
+		require.NotNil(t, actual, "search request: %v", req)
+		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+		actual.SpanSets = nil
+		actual.ServiceStats = nil
+		require.Equal(t, wantMeta, actual, "search request: %v", req)
+	}
+
+	quotedAttributesThaDonttMatch := []*tempopb.SearchRequest{
+		{Query: `{ span:duration < 1000000000 || span:duration > 2000000000 }`},
+		{Query: `{ span:duration > 1000000000 && span:duration < 2000000000 }`},
+
+		{Query: `{ span:duration < 1000000000.0 || span:duration > 2000000000.0 }`},
+		{Query: `{ span:duration > 1000000000.0 && span:duration < 2000000000.0 }`},
+
+		{Query: `{ span:duration < 3000000000ns / 3 || span:duration > 6000000000ns / 3 }`},
+		{Query: `{ span:duration > 3000000000ns / 3 && span:duration < 6000000000ns / 3 }`},
+
+		{Query: `{ span:duration < 5000000000 * .2 || span:duration > 10000000000 * .2 }`},
+		{Query: `{ span:duration > 5000000000 * .2 && span:duration < 10000000000 * .2 }`},
+
+		{Query: `{ span:duration < 5000000000ns * .2 || span:duration > 10000000000ns * .2 }`},
+		{Query: `{ span:duration > 5000000000ns * .2 && span:duration < 10000000000ns * .2 }`},
+
+		{Query: `{ span:duration < 500000000ns * 2 || span:duration > 1000000000ns * 2 }`},
+		{Query: `{ span:duration > 500000000ns * 2 && span:duration < 1000000000ns * 2 }`},
+
+		{Query: `{ trace:duration < 2000000000 || trace:duration > 2000000000 }`},
+		{Query: `{ trace:duration < 2000000000.0 || trace:duration > 2000000000.0 }`},
+		{Query: `{ trace:duration < 6000000000ns / 3 || trace:duration > 6000000000ns / 3 }`},
+		{Query: `{ trace:duration < 10000000000 * .2 || trace:duration > 10000000000 * .2 }`},
+		{Query: `{ trace:duration < 10000000000ns * .2 || trace:duration > 10000000000ns * .2 }`},
+		{Query: `{ trace:duration < 1000000000ns * 2 || trace:duration > 1000000000ns * 2 }`},
+	}
+
+	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThaDonttMatch...)
+	for _, req := range searchesThatDontMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		require.NoError(t, err, "search request: %+v", req)
+		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 	}
 }
 
