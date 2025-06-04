@@ -70,8 +70,13 @@ func TestRequestsByTraceID(t *testing.T) {
 	traceIDA := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 	traceIDB := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
+	// These 2 trace IDs are known to collide under fnv32
+	collision1, _ := util.HexStringToTraceID("fd5980503add11f09f80f77608c1b2da")
+	collision2, _ := util.HexStringToTraceID("091ea7803ade11f0998a055186ee1243")
+
 	tests := []struct {
 		name           string
+		emptyTenant    bool
 		batches        []*v1.ResourceSpans
 		expectedKeys   []uint32
 		expectedTraces []*tempopb.Trace
@@ -709,32 +714,206 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedStarts: []uint32{10, 60},
 			expectedEnds:   []uint32{50, 80},
 		},
+		{
+			// These 2 trace IDs are known to collide under fnv32
+			name:        "known collisions",
+			emptyTenant: true,
+			batches: []*v1.ResourceSpans{
+				{
+					Resource: &v1_resource.Resource{
+						DroppedAttributesCount: 3,
+					},
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Scope: &v1_common.InstrumentationScope{
+								Name: "test",
+							},
+							Spans: []*v1.Span{
+								{
+									TraceId:           collision2,
+									Name:              "spanA",
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
+								},
+								{
+									TraceId:           collision2,
+									Name:              "spanC",
+									StartTimeUnixNano: uint64(20 * time.Second),
+									EndTimeUnixNano:   uint64(50 * time.Second),
+								},
+								{
+									TraceId:           collision1,
+									Name:              "spanE",
+									StartTimeUnixNano: uint64(70 * time.Second),
+									EndTimeUnixNano:   uint64(80 * time.Second),
+								},
+							},
+						},
+					},
+				},
+				{
+					Resource: &v1_resource.Resource{
+						DroppedAttributesCount: 4,
+					},
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Scope: &v1_common.InstrumentationScope{
+								Name: "test2",
+							},
+							Spans: []*v1.Span{
+								{
+									TraceId:           collision2,
+									Name:              "spanB",
+									StartTimeUnixNano: uint64(10 * time.Second),
+									EndTimeUnixNano:   uint64(30 * time.Second),
+								},
+								{
+									TraceId:           collision1,
+									Name:              "spanD",
+									StartTimeUnixNano: uint64(60 * time.Second),
+									EndTimeUnixNano:   uint64(80 * time.Second),
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedKeys: []uint32{
+				util.TokenFor("", collision1),
+				util.TokenFor("", collision2),
+			},
+			expectedTraces: []*tempopb.Trace{
+				{
+					ResourceSpans: []*v1.ResourceSpans{
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 3,
+							},
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name: "test",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           collision1,
+											Name:              "spanE",
+											StartTimeUnixNano: uint64(70 * time.Second),
+											EndTimeUnixNano:   uint64(80 * time.Second),
+										},
+									},
+								},
+							},
+						},
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 4,
+							},
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name: "test2",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           collision1,
+											Name:              "spanD",
+											StartTimeUnixNano: uint64(60 * time.Second),
+											EndTimeUnixNano:   uint64(80 * time.Second),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ResourceSpans: []*v1.ResourceSpans{
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 3,
+							},
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name: "test",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           collision2,
+											Name:              "spanA",
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
+										},
+										{
+											TraceId:           collision2,
+											Name:              "spanC",
+											StartTimeUnixNano: uint64(20 * time.Second),
+											EndTimeUnixNano:   uint64(50 * time.Second),
+										},
+									},
+								},
+							},
+						},
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 4,
+							},
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name: "test2",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           collision2,
+											Name:              "spanB",
+											StartTimeUnixNano: uint64(10 * time.Second),
+											EndTimeUnixNano:   uint64(30 * time.Second),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIDs: [][]byte{
+				collision1,
+				collision2,
+			},
+			expectedStarts: []uint32{60, 10},
+			expectedEnds:   []uint32{80, 50},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys, rebatchedTraces, _, err := requestsByTraceID(tt.batches, util.FakeTenantID, 1, 1000)
-			require.Equal(t, len(keys), len(rebatchedTraces))
+			tenant := util.FakeTenantID
+			if tt.emptyTenant {
+				tenant = ""
+			}
+			ringTokens, rebatchedTraces, _, err := requestsByTraceID(tt.batches, tenant, 1, 1000)
+			require.Equal(t, len(ringTokens), len(rebatchedTraces))
 
-			for i, expectedKey := range tt.expectedKeys {
+			for i, expectedID := range tt.expectedIDs {
 				foundIndex := -1
-				for j, key := range keys {
-					if expectedKey == key {
+				for j, tr := range rebatchedTraces {
+					if bytes.Equal(expectedID, tr.id) {
 						foundIndex = j
+						break
 					}
 				}
 				require.NotEqual(t, -1, foundIndex, "expected key %d not found", foundIndex)
 
 				// now confirm that the request at this position is the expected one
-				expectedReq := tt.expectedTraces[i]
-				actualReq := rebatchedTraces[foundIndex].trace
-				assert.Equal(t, expectedReq, actualReq)
-				assert.Equal(t, tt.expectedIDs[i], rebatchedTraces[foundIndex].id)
-				assert.Equal(t, tt.expectedStarts[i], rebatchedTraces[foundIndex].start)
-				assert.Equal(t, tt.expectedEnds[i], rebatchedTraces[foundIndex].end)
+				require.Equal(t, tt.expectedIDs[i], rebatchedTraces[foundIndex].id)
+				require.Equal(t, tt.expectedTraces[i], rebatchedTraces[foundIndex].trace)
+				require.Equal(t, tt.expectedStarts[i], rebatchedTraces[foundIndex].start)
+				require.Equal(t, tt.expectedEnds[i], rebatchedTraces[foundIndex].end)
 			}
 
-			assert.Equal(t, tt.expectedErr, err)
+			require.Equal(t, tt.expectedErr, err)
 		})
 	}
 }
