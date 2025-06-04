@@ -136,11 +136,15 @@ func (m *MetricsCompare) observe(span Span) {
 			return
 		}
 
-		// These attributes get pulled back by select all but we never
-		// group by them because the cardinality isn't useful.
+		// These attributes get pulled back by select all, or might be used in a comparison query,
+		// but we never group by them because the cardinality isn't useful.
 		switch a {
 		case IntrinsicSpanStartTimeAttribute,
-			IntrinsicTraceIDAttribute:
+			IntrinsicTraceIDAttribute,
+			IntrinsicParentIDAttribute,
+			IntrinsicNestedSetLeftAttribute,
+			IntrinsicNestedSetRightAttribute,
+			IntrinsicNestedSetParentAttribute:
 			return
 		}
 
