@@ -1782,27 +1782,31 @@ func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands)
 	case traceql.OpNotEqual:
 		return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
 	case traceql.OpGreater, traceql.OpGreaterEqual:
-		if f < float64(math.MinInt64) {
+		switch {
+		case f < float64(math.MinInt64):
 			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
-		} else if float64(math.MaxInt64) <= f {
+		case float64(math.MaxInt64) <= f:
 			return nil, nil
-		} else if 0 < f {
+		case 0 < f:
 			// "x > 10.3" -> "x >= 11"
 			return parquetquery.NewIntGreaterEqualPredicate(int64(f) + 1), nil
+		default:
+			// "x > -2.7" -> "x >= -2"
+			return parquetquery.NewIntGreaterEqualPredicate(int64(f)), nil
 		}
-		// "x > -2.7" -> "x >= -2"
-		return parquetquery.NewIntGreaterEqualPredicate(int64(f)), nil
 	case traceql.OpLess, traceql.OpLessEqual:
-		if f < float64(math.MinInt64) {
+		switch {
+		case f < float64(math.MinInt64):
 			return nil, nil
-		} else if float64(math.MaxInt64) <= f {
+		case float64(math.MaxInt64) <= f:
 			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
-		} else if f < 0 {
+		case f < 0:
 			// "x < -2.7" -> "x <= -3"
 			return parquetquery.NewIntLessEqualPredicate(int64(f) - 1), nil
+		default:
+			// "x < 10.3" -> "x <= 10"
+			return parquetquery.NewIntLessEqualPredicate(int64(f)), nil
 		}
-		// "x < 10.3" -> "x <= 10"
-		return parquetquery.NewIntLessEqualPredicate(int64(f)), nil
 	}
 
 	return nil, fmt.Errorf("operator not supported for integers: %v", op)
