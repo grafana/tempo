@@ -1114,6 +1114,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | max_over_time(duration) by (span.http.status_code)",
 		"{} | min_over_time(duration) by (span.http.status_code)",
 		"{ name != nil } | compare({status=error})",
+		"{} > {} | rate() by (name)", // structural
 	}
 
 	e := traceql.NewEngine()
