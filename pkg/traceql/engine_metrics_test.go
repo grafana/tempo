@@ -37,7 +37,13 @@ func TestStepRangeToIntervals(t *testing.T) {
 			start:    0,
 			end:      1,
 			step:     1,
-			expected: 2, // 0, 1, even multiple
+			expected: 1, // end-start == step -> instant query, only one interval
+		},
+		{
+			start:    0,
+			end:      3,
+			step:     1,
+			expected: 4, // 0, 1, 2, 3
 		},
 		{
 			start:    0,
@@ -54,8 +60,8 @@ func TestStepRangeToIntervals(t *testing.T) {
 
 func TestTimestampOf(t *testing.T) {
 	tc := []struct {
-		interval, start, step uint64
-		expected              uint64
+		interval, start, end, step uint64
+		expected                   uint64
 	}{
 		{
 			expected: 0,
@@ -64,12 +70,13 @@ func TestTimestampOf(t *testing.T) {
 			interval: 2,
 			start:    10, // aligned to 9
 			step:     3,
+			end:      100,
 			expected: 15, // 9, 12, 15 <-- intervals
 		},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, TimestampOf(c.interval, c.start, c.step))
+		require.Equal(t, c.expected, TimestampOf(c.interval, c.start, c.end, c.step))
 	}
 }
 
