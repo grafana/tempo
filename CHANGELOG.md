@@ -4,10 +4,16 @@
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
-* [BUGFIX] Excluded nestedSetParent and other values from compare() function [#5196](https://github.com/grafana/tempo/pull/5196) (@mdisibio)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
-* [BUGFIX] Fix structural metrics rate by aggregation [#5204](https://github.com/grafana/tempo/pull/5204) (@zalegrala)
 
+# v2.8.0-rc.1
+
+* [ENHANCEMENT] TraceQL Metrics: distribute exemplars over time [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
+* [ENHANCEMENT] TraceQL Metrics: hard limit number of exemplars [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
+* [BUGFIX] Excluded nestedSetParent and other values from compare() function [#5196](https://github.com/grafana/tempo/pull/5196) (@mdisibio)
+* [BUGFIX] Fix distributor issue where a hash collision could lead to spans stored incorrectly [#5186](https://github.com/grafana/tempo/pull/5186) (@mdisibio)
+* [BUGFIX] Fix structural metrics rate by aggregation [#5204](https://github.com/grafana/tempo/pull/5204) (@zalegrala)
+* [BUGFIX] TraceQL Metrics: right exemplars for histogram and quantiles [#5145](https://github.com/grafana/tempo/pull/5145) (@ruslan-mikhailov)
 
 # v2.8.0-rc.0
 
@@ -89,12 +95,9 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Host Info Processor: track host identifying resource attribute in metric [#5152](https://github.com/grafana/tempo/pull/5152) (@rlankfo)
 * [ENHANCEMENT] Vulture checks recent traces [#5157](https://github.com/grafana/tempo/pull/5157) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add jitter in backendworker to avoid thundering herd from workers [#5150](https://github.com/grafana/tempo/pull/5150) (@electron0zero)
-* [ENHANCEMENT] TraceQL Metrics: distribute exemplars over time [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
-* [ENHANCEMENT] TraceQL Metrics: hard limit number of exemplars [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Make comparison to nil symmetric [#4869](https://github.com/grafana/tempo/pull/4869) (@stoewer)
-* [BUGFIX] Fix distributor issue where a hash collision could lead to spans stored incorrectly [#5186](https://github.com/grafana/tempo/pull/5186) (@mdisibio)
 * [BUGFIX] Fix behavior for queries like {.foo && true} and {.foo || false} [#4855](https://github.com/grafana/tempo/pull/4855) (@stoewer)
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
 * [BUGFIX] Add object name to cache key in ReadRange [#4982](https://github.com/grafana/tempo/pull/4982) (@joe-elliott)
@@ -130,7 +133,6 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Reset `SkipMetricsGeneration` before reuse. [#5117](https://github.com/grafana/tempo/pull/5117) (@flxbk)
 * [BUGFIX] Fix metrics generator host info processor overrides config. [#5118](https://github.com/grafana/tempo/pull/5118) (@rlankfo)
 * [BUGFIX] Fix metrics generator target_info to skip attributes with no name to prevent downstream errors [#5148](https://github.com/grafana/tempo/pull/5148) (@mdisibio)
-* [BUGFIX] TraceQL Metrics: right exemplars for histogram and quantiles [#5145](https://github.com/grafana/tempo/pull/5145) (@ruslan-mikhailov)
 * [BUGFIX] Fix for queried number of exemplars (TraceQL Metrics) [#5115](https://github.com/grafana/tempo/pull/5115) (@ruslan-mikhailov)
 
 # v2.7.2
