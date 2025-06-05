@@ -55,7 +55,7 @@ func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger,
 		server.WithResourceCapabilities(false, false),
 
 	// TODO: mcp servers also support the concept of prompts, but unsure how to use them or what role they play
-	//server.WithPromptCapabilities(true),
+	// server.WithPromptCapabilities(true),
 	)
 
 	httpServer := server.NewStreamableHTTPServer(mcpServer)
