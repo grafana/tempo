@@ -10,28 +10,9 @@ labels:
 <!-- WARNING: This file is loaded by /modules/frontend/mcp.go and served to LLMs through the MCP protocol. It -->
 <!-- should be kept terse and to the point. Links and videos and such are bad. Examples are good! The below "mcp-cutoff" 
 <!-- is used to remove everything above. -->
+<!-- TODO: Anthropic suggests using xml tags to organize content delivered to an LLM. Can we tag this content with xml tags  -->
+<!-- that make both hugo and llms happy? -->
 <!-- mcp-cutoff -->
-
-## Query using TraceQL
-
-You can use TraceQL query editor and query builder in the Tempo data source to build queries and drill-down into result sets.
-The editor and builder are available in the [Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/) for Grafana Explore.
-
-<p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
-
-In addition, you can use Traces Drilldown to investigate your tracing data without writing TraceQL queries.
-For more information, refer to the [Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/) documentation.
-
-### Stream query results
-
-By streaming results to the client, you can start to look at traces matching your query before the entire query completes.
-
-The GRPC streaming API endpoint in the query frontend allows a client to stream search results from Tempo.
-The `tempo-cli` also uses this streaming endpoint.
-For more information, refer to the [Tempo CLI documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#query-api-command).
-
-To use streaming in Grafana, you must have `stream_over_http_enabled: true` enabled in Tempo.
-For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#tempo-grpc-api).
 
 ## Construct a TraceQL query
 
@@ -101,7 +82,7 @@ You can use query filtering on multiple spans of the traces.
 This example locates all the traces of the `GET /api/products/{id}` operation that access a database. It's a convenient request to identify abnormal access ratios to the database caused by caching problems.
 
 ```
-{span.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
+{span.service.name="frontend" && name = "GET /api/products/{id}"} && {span.db.system="postgresql"}
 ```
 
 ### Find traces going through `production` and `staging` instances
@@ -161,7 +142,7 @@ Find the services where the http status is 200, and list the service name the sp
 Find any trace with an unscoped `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
 
 ```
-{ .deployment.environment = "production" && span.http.status_code = 200 }
+{ resource.deployment.environment = "production" && span.http.status_code = 200 }
 ```
 
 Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
@@ -351,7 +332,7 @@ All characters between the quotes are considered part of the attribute name.
 To find a span with the attribute name `attribute name with space`, use the following query:
 
 ```
-{ ."attribute name with space" = "value" }
+{ span."attribute name with space" = "value" }
 ```
 
 You can use quoted attributes syntax with non-quoted attribute syntax, the following is a valid TraceQL query:
@@ -406,9 +387,9 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 { span.http.method =~ "DELETE|GET" }
 ```
 
-Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
+Find all traces where `any_attribute` is not `nil` i.e. where `any_attribute` exists in a span
 ```
-{ .any_attribute != nil }
+{ span.any_attribute != nil }
 ```
 
 ### Field expressions

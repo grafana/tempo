@@ -85,7 +85,7 @@ func (s *MCPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.httpHandler.ServeHTTP(w, r)
 }
 
-// setupResources registers MCP resources for trace operations
+// setupResources registers MCP resources for TraceQL documentation
 func (s *MCPServer) setupResources() {
 	traceQLQuery := mcp.NewResource(
 		docsTraceQLQueryURI,
