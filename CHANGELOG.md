@@ -2,6 +2,7 @@
 
 * [BUGFIX] Excluded nestedSetParent and other values from compare() function [#5196](https://github.com/grafana/tempo/pull/5196) (@mdisibio)
 * [BUGFIX] Fix distributor issue where a hash collision could lead to spans stored incorrectly [#5186](https://github.com/grafana/tempo/pull/5186) (@mdisibio)
+* [BUGFIX] Fix structural metrics rate by aggregation [#5204](https://github.com/grafana/tempo/pull/5204) (@zalegrala)
 
 # v2.8.0-rc.0
 

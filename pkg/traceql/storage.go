@@ -124,6 +124,16 @@ func (f *FetchSpansRequest) HasAttribute(a Attribute) bool {
 	return false
 }
 
+func (f *FetchSpansRequest) SecondPassHasAttribute(a Attribute) bool {
+	for _, cc := range f.SecondPassConditions {
+		if cc.Attribute == a {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (f *FetchSpansRequest) HasAttributeWithOp(a Attribute, o Operator) bool {
 	for _, cc := range f.Conditions {
 		if cc.Attribute == a && cc.Op == o {

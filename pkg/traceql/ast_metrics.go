@@ -72,10 +72,24 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	}
 
 	for _, b := range a.by {
-		if !request.HasAttribute(b) {
-			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
-				Attribute: b,
-			})
+		// In the case of the AllConditions, it is enough to check that the
+		// attribute is present in any of the passes.
+		if request.AllConditions {
+			if !request.HasAttribute(b) {
+				request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+					Attribute: b,
+				})
+			}
+		} else {
+			// In the case of AllConditions set to false, as is the case with a
+			// structural query, we need to ensure that the `by` attribute is present
+			// in the second pass conditions as well, so that we load the column and
+			// can return the appropriate values.
+			if !request.SecondPassHasAttribute(b) {
+				request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+					Attribute: b,
+				})
+			}
 		}
 	}
 }
