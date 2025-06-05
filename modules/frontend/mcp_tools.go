@@ -88,7 +88,7 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 
 	body, err := handleHTTP(ctx, s.frontend.SearchHandler, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
+		return nil, err
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -147,7 +147,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 
 	body, err := handleHTTP(ctx, s.frontend.MetricsQueryInstantHandler, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
+		return nil, err
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -205,7 +205,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 
 	body, err := handleHTTP(ctx, s.frontend.MetricsQueryRangeHandler, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
+		return nil, err
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -228,7 +228,7 @@ func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequ
 
 	body, err := handleHTTP(ctx, s.frontend.TraceByIDHandlerV2, httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
+		return nil, err
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -250,7 +250,7 @@ func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.Cal
 
 	body, err := handleHTTP(ctx, s.frontend.SearchTagsV2Handler, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
+		return nil, err
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -288,7 +288,7 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 
 	body, err := handleHTTP(ctx, s.frontend.SearchTagsValuesV2Handler, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
+		return nil, err
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -315,7 +315,7 @@ func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (s
 	body := rw.Body.String()
 
 	if rw.Code != http.StatusOK {
-		return "", fmt.Errorf("HTTP request failed with status code %d and body %s", rw.Code, body)
+		return "", fmt.Errorf("tool failed with http status code %d and reason %s", rw.Code, body)
 	}
 
 	return body, nil
