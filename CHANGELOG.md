@@ -2,6 +2,7 @@
 
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
+* [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
