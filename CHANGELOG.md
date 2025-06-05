@@ -21,7 +21,7 @@
 * [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
 * [CHANGE] **BREAKING CHANGE** Remove tempo serverless. 
-  The following configuration options are no longer valid. If they are in your ctempo config, remove them. 
+  The following configuration options are no longer valid. If they are in your tempo config, remove them. 
   ```
   querier:
       search:
@@ -32,7 +32,7 @@
           google_cloud_run: <string>
           external_endpoints: <array>
   ```
-  The Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total`, and `tempo_feature_enabled` are also removed. [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
+  The Tempo serverless-related metrics, `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total`, and `tempo_feature_enabled`, are also removed. [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
   Renamed max_span_attr_byte to max_attribute_bytes [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
