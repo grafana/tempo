@@ -4,6 +4,7 @@
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
+* [ENHANCEMENT] Traceql performance improvement [#5218](https://github.com/grafana/tempo/pull/5218) (@mdisibio)
 * [BUGFIX] Excluded nestedSetParent and other values from compare() function [#5196](https://github.com/grafana/tempo/pull/5196) (@mdisibio)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
 * [BUGFIX] Fix structural metrics rate by aggregation [#5204](https://github.com/grafana/tempo/pull/5204) (@zalegrala)
