@@ -1108,8 +1108,9 @@ type bridgeIterator struct {
 	iter parquetquery.Iterator
 	cb   traceql.SecondPassFn
 
-	nextSpans []*span
-	at        *parquetquery.IteratorResult
+	nextSpans    []*span
+	nextSpansIdx int
+	at           *parquetquery.IteratorResult
 }
 
 func newBridgeIterator(iter parquetquery.Iterator, cb traceql.SecondPassFn) *bridgeIterator {
@@ -1124,13 +1125,31 @@ func (i *bridgeIterator) String() string {
 	return fmt.Sprintf("bridgeIterator: \n\t%s", util.TabOut(i.iter))
 }
 
+// reset the buffer and reuse existing space.
+func (i *bridgeIterator) reset() {
+	i.nextSpansIdx = 0
+	i.nextSpans = i.nextSpans[:0]
+}
+
+// pop next span from beginning of the buffer.
+func (i *bridgeIterator) pop() (*parquetquery.IteratorResult, bool) {
+	if i.nextSpansIdx >= len(i.nextSpans) {
+		return nil, false
+	}
+
+	ret := i.nextSpans[i.nextSpansIdx]
+	i.nextSpansIdx++
+	return i.spanToIteratorResult(ret), true
+}
+
 func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 	// drain current buffer
-	if len(i.nextSpans) > 0 {
-		ret := i.nextSpans[0]
-		i.nextSpans = i.nextSpans[1:]
-		return i.spanToIteratorResult(ret), nil
+	if ret, ok := i.pop(); ok {
+		return ret, nil
 	}
+
+	// get next spanset
+	i.reset()
 
 	for {
 		res, err := i.iter.Next()
@@ -1184,10 +1203,8 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 		})
 
 		// found something!
-		if len(i.nextSpans) > 0 {
-			ret := i.nextSpans[0]
-			i.nextSpans = i.nextSpans[1:]
-			return i.spanToIteratorResult(ret), nil
+		if ret, ok := i.pop(); ok {
+			return ret, nil
 		}
 	}
 }
