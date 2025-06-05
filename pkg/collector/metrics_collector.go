@@ -4,8 +4,9 @@ import (
 	"go.uber.org/atomic"
 )
 
-// MetricsCollector is a simple collector that can be used to accumulate a metric
-// we primarily use it to collect the total bytes read from a reader across a request
+// MetricsCollector is a thread-safe collector that uses atomic operations
+// to accumulate metrics. We primarily use it to collect the total bytes read from
+// a reader across a request
 type MetricsCollector struct {
 	totalValue *atomic.Uint64
 }

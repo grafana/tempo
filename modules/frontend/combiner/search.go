@@ -42,6 +42,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
 	completedThroughTracker := &ShardCompletionTracker{}
+	metricsCombiner := NewSearchMetricsCombiner()
 
 	c := &genericCombiner[*tempopb.SearchResponse]{
 		httpStatusCode: 200,
@@ -60,19 +61,18 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 				}
 			}
 
-			if partial.Metrics != nil {
-				final.Metrics.CompletedJobs++
-				final.Metrics.InspectedBytes += partial.Metrics.InspectedBytes
-				final.Metrics.InspectedTraces += partial.Metrics.InspectedTraces
-			}
+			metricsCombiner.Combine(partial.Metrics, resp)
 
 			return nil
 		},
 		metadata: func(resp PipelineResponse, final *tempopb.SearchResponse) error {
 			if sj, ok := resp.(*SearchJobResponse); ok && sj != nil {
-				final.Metrics.TotalBlocks += uint32(sj.TotalBlocks)
-				final.Metrics.TotalJobs += uint32(sj.TotalJobs)
-				final.Metrics.TotalBlockBytes += sj.TotalBytes
+				sjMetrics := &tempopb.SearchMetrics{
+					TotalBlocks:     uint32(sj.TotalBlocks), //nolint:gosec
+					TotalJobs:       uint32(sj.TotalJobs),   //nolint:gosec
+					TotalBlockBytes: sj.TotalBytes,
+				}
+				metricsCombiner.CombineMetadata(sjMetrics, resp)
 
 				if keepMostRecent {
 					completedThroughTracker.addShards(sj.Shards)
@@ -84,7 +84,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 		finalize: func(final *tempopb.SearchResponse) (*tempopb.SearchResponse, error) {
 			// metrics are already combined on the passed in final
 			final.Traces = metadataCombiner.Metadata()
-
+			final.Metrics = metricsCombiner.Metrics
 			addRootSpanNotReceivedText(final.Traces)
 			return final, nil
 		},
@@ -92,15 +92,14 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 			// wipe out any existing traces and recreate from the map
 			diff := &tempopb.SearchResponse{
 				Traces:  make([]*tempopb.TraceSearchMetadata, 0, len(diffTraces)),
-				Metrics: current.Metrics,
+				Metrics: metricsCombiner.Metrics,
 			}
-
 			metadataFn := metadataCombiner.Metadata
 			if keepMostRecent {
 				metadataFn = func() []*tempopb.TraceSearchMetadata {
 					completedThroughSeconds := completedThroughTracker.completedThroughSeconds
 					// if all jobs are completed then let's just return everything the combiner has
-					if current.Metrics.CompletedJobs == current.Metrics.TotalJobs && current.Metrics.TotalJobs > 0 {
+					if diff.Metrics.CompletedJobs == diff.Metrics.TotalJobs && diff.Metrics.TotalJobs > 0 {
 						completedThroughSeconds = 1
 					}
 
@@ -127,8 +126,6 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 
 			return diff, nil
 		},
-		// search combiner doesn't use current in the way i would have expected. it only tracks metrics through current and uses the results map for the actual traces.
-		//  should we change this?
 		quit: func(_ *tempopb.SearchResponse) bool {
 			completedThroughSeconds := completedThroughTracker.completedThroughSeconds
 			// have we completed any shards?
