@@ -222,7 +222,7 @@ func (s *MCPServer) setupTools() {
 func trimDocs(content string) string {
 	// Trim the content at the cutoff marker
 	if idx := strings.Index(content, docsCutoff); idx != -1 {
-		return content[:idx]
+		return content[idx+len(docsCutoff):]
 	}
 	return content
 }

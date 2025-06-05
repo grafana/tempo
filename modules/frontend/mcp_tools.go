@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -19,11 +20,23 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+func (s *MCPServer) handleTraceQLQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	level.Info(s.logger).Log("msg", "traceql query tool requested")
+
+	return mcp.NewToolResultText(trimDocs(docs.TraceQLMain)), nil
+}
+
+func (s *MCPServer) handleTraceQLMetrics(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	level.Info(s.logger).Log("msg", "traceql metrics tool requested")
+
+	return mcp.NewToolResultText(trimDocs(docs.TraceQLMetrics)), nil
+}
+
 // handleSearch handles the traceql-search tool
 func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
 	if err != nil {
-		return nil, fmt.Errorf("query parameter required: %w", err)
+		return nil, err
 	}
 
 	var startEpoch, endEpoch int64
@@ -65,7 +78,6 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 		Query: query,
 		Start: uint32(startEpoch),
 		End:   uint32(endEpoch),
-		Limit: 20,
 	}
 
 	req, err := api.BuildSearchRequest(nil, searchReq)
@@ -86,7 +98,7 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
 	if err != nil {
-		return nil, fmt.Errorf("query parameter required: %w", err)
+		return nil, err
 	}
 
 	var startEpochNanos, endEpochNanos int64
@@ -144,7 +156,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
 	if err != nil {
-		return nil, fmt.Errorf("query parameter required: %w", err)
+		return nil, err
 	}
 
 	var startEpochNanos, endEpochNanos int64
@@ -203,7 +215,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	traceID, err := request.RequireString("trace_id")
 	if err != nil {
-		return nil, fmt.Errorf("trace_id parameter required: %w", err)
+		return nil, err
 	}
 
 	level.Info(s.logger).Log("msg", "getting trace", "trace_id", traceID)
@@ -215,6 +227,66 @@ func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequ
 	httpReq, ctx = injectMuxVars(ctx, httpReq, map[string]string{"traceID": traceID})
 
 	body, err := handleHTTP(ctx, s.frontend.TraceByIDHandlerV2, httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
+	}
+
+	return mcp.NewToolResultText(body), nil
+}
+
+// handleGetAttributeNames handles the get-attribute-names tool
+func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	level.Info(s.logger).Log("msg", "getting attribute names")
+
+	searchTagsReq := &tempopb.SearchTagsRequest{
+		Scope: request.GetString("scope", ""),
+	}
+
+	req, err := api.BuildSearchTagsRequest(nil, searchTagsReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build search request: %w", err)
+	}
+	req.URL.Path = s.buildPath(api.PathSearchTagsV2)
+
+	body, err := handleHTTP(ctx, s.frontend.SearchTagsV2Handler, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
+	}
+
+	return mcp.NewToolResultText(body), nil
+}
+
+// handleGetAttributeValues handles the get-attribute-values tool
+func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := request.RequireString("name")
+	if err != nil {
+		return nil, err
+	}
+
+	query := request.GetString("filter-query", "")
+	if query != "" {
+		q := traceql.ExtractMatchers(query)
+		if traceql.IsEmptyQuery(q) {
+			return nil, fmt.Errorf("filter-query invalid. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }")
+		}
+	}
+
+	level.Info(s.logger).Log("msg", "getting attribute values", "name", name, "filter query", query)
+
+	searchTagValuesReq := &tempopb.SearchTagValuesRequest{
+		TagName: name,
+		Query:   query,
+	}
+
+	req, err := api.BuildSearchTagValuesRequest(nil, searchTagValuesReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build search request: %w", err)
+	}
+	req.URL.Path = s.buildPath("/api/v2/search/tag/" + url.PathEscape(name) + "/values")
+
+	req, ctx = injectMuxVars(ctx, req, map[string]string{api.MuxVarTagName: name})
+
+	body, err := handleHTTP(ctx, s.frontend.SearchTagsValuesV2Handler, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
 	}
@@ -249,78 +321,6 @@ func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (s
 	return body, nil
 }
 
-func (s *MCPServer) handleTraceQLQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	level.Info(s.logger).Log("msg", "traceql query tool requested")
-
-	return mcp.NewToolResultText(trimDocs(docs.TraceQLMain)), nil
-}
-
-func (s *MCPServer) handleTraceQLMetrics(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	level.Info(s.logger).Log("msg", "traceql metrics tool requested")
-
-	return mcp.NewToolResultText(trimDocs(docs.TraceQLMetrics)), nil
-}
-
-// handleGetAttributeNames handles the get-attribute-names tool
-func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	level.Info(s.logger).Log("msg", "getting attribute names")
-
-	searchTagsReq := &tempopb.SearchTagsRequest{
-		Scope: request.GetString("scope", ""),
-	}
-
-	req, err := api.BuildSearchTagsRequest(nil, searchTagsReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build search request: %w", err)
-	}
-	req.URL.Path = s.buildPath(api.PathSearchTagsV2)
-
-	body, err := handleHTTP(ctx, s.frontend.SearchTagsV2Handler, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
-	}
-
-	return mcp.NewToolResultText(body), nil
-}
-
-// handleGetAttributeValues handles the get-attribute-values tool
-func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	name, err := request.RequireString("name")
-	if err != nil {
-		return nil, fmt.Errorf("name parameter required: %w", err)
-	}
-
-	query := request.GetString("filter-query", "")
-	if query != "" {
-		q := traceql.ExtractMatchers(query)
-		if traceql.IsEmptyQuery(q) {
-			return nil, fmt.Errorf("filter-query invalid. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }")
-		}
-	}
-
-	level.Info(s.logger).Log("msg", "getting attribute values", "name", name, "filter query", query)
-
-	searchTagValuesReq := &tempopb.SearchTagValuesRequest{
-		TagName: name,
-		Query:   query,
-	}
-
-	req, err := api.BuildSearchTagValuesRequest(nil, searchTagValuesReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build search request: %w", err)
-	}
-	req.URL.Path = s.buildPath("/api/v2/search/tag/" + url.PathEscape(name) + "/values")
-
-	req, ctx = injectMuxVars(ctx, req, map[string]string{api.MuxVarTagName: name})
-
-	body, err := handleHTTP(ctx, s.frontend.SearchTagsValuesV2Handler, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to handle HTTP request: %w", err)
-	}
-
-	return mcp.NewToolResultText(body), nil
-}
-
 // injectMuxVars uses the mux.SetVars method to add vars into the context that can be used by downstream handlers.
 // a few Tempo endpoints rely on the mux routing package extracting vars from the request path. this method allows
 // us to do the same for MCP tools.
@@ -333,6 +333,6 @@ func injectMuxVars(ctx context.Context, req *http.Request, vars map[string]strin
 }
 
 // buildPath is a helper method to build a path with the path prefix
-func (s *MCPServer) buildPath(path string) string {
-	return s.pathPrefix + path
+func (s *MCPServer) buildPath(p string) string {
+	return path.Join(s.pathPrefix, p)
 }
