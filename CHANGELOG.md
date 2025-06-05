@@ -18,11 +18,10 @@
 # v2.8.0-rc.0
 
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
-* [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1 [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
-  The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`
+* [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
-* [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
-  Following config options are no longer valid, please remove them if you are using these in your tempo config:
+* [CHANGE] **BREAKING CHANGE** Remove tempo serverless. 
+  The following configuration options are no longer valid. If they are in your ctempo config, remove them. 
   ```
   querier:
       search:
@@ -33,7 +32,7 @@
           google_cloud_run: <string>
           external_endpoints: <array>
   ```
-  Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total` and `tempo_feature_enabled` are being removed.
+  The Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total`, and `tempo_feature_enabled` are also removed. [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
   Renamed max_span_attr_byte to max_attribute_bytes [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
@@ -55,8 +54,7 @@
 * [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
 * [FEATURE] Add support for topk and bottomk functions for TraceQL metrics [#4646](https://github.com/grafana/tempo/pull/4646/) (@electron0zero)
 * [FEATURE] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
-* [ENHANCEMENT] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
-configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
+* [ENHANCEMENT] Add throughput SLO and metrics for the TraceByID endpoint. Configurable using the `throughput_bytes_slo` field. It populates the `op="traces"` label in slo and throughput metrics. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 * [ENHANCEMENT] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) [#5035](https://github.com/grafana/tempo/pull/5035) (@yvrhdn, @mapno)
 * [ENHANCEMENT] tempo-vulture now generates spans with a parent, instead of only root spans [#5154](https://github.com/grafana/tempo/pull/5154) (@carles-grafana)
 * [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham) 
@@ -95,8 +93,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Host Info Processor: track host identifying resource attribute in metric [#5152](https://github.com/grafana/tempo/pull/5152) (@rlankfo)
 * [ENHANCEMENT] Vulture checks recent traces [#5157](https://github.com/grafana/tempo/pull/5157) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add jitter in backendworker to avoid thundering herd from workers [#5150](https://github.com/grafana/tempo/pull/5150) (@electron0zero)
-* [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
-  Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
+* [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. Correctly copy exemplars for metrics like `| rate()` when gRPC streaming. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
 * [BUGFIX] Make comparison to nil symmetric [#4869](https://github.com/grafana/tempo/pull/4869) (@stoewer)
 * [BUGFIX] Fix behavior for queries like {.foo && true} and {.foo || false} [#4855](https://github.com/grafana/tempo/pull/4855) (@stoewer)
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
