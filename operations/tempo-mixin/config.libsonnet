@@ -26,11 +26,11 @@
       p99_request_exclude_regex: 'metrics|/frontend.Frontend/Process|debug_pprof',
       outstanding_blocks_warning: 100,
       outstanding_blocks_critical: 250,
-      // Partition lag thresholds in seconds
-      partition_lag_warning_seconds: 300,  // 5 minutes
+      // Generators partition lag thresholds in seconds¡
       partition_lag_critical_seconds: 900,  // 15 minutes
-      // Filter for consumer groups to monitor for partition lag
-      partition_lag_group_filter: 'metrics-generator|block-builder',
+      // Block-builder partition lag thresholds in seconds
+      block_builder_partition_lag_warning_seconds: 200,  // 5 minutes
+      block_builder_partition_lag_critical_seconds: 300,  // 15 minutes
       // threshold config for backend scheduler and worker alerts
       backend_scheduler_jobs_failure_rate: 0.05,  // 5% of the jobs failed
       backend_scheduler_jobs_retry_count_per_minute: 20,  // 20 jobs retried per minute
