@@ -269,7 +269,7 @@
             alert: 'TempoMetricsGeneratorPartitionLagCritical',
             expr: |||
               max by (%s, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace,$._config.jobs.metrics_generator, $._config.alerts.partition_lag_critical_seconds],
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.metrics_generator, $._config.alerts.partition_lag_critical_seconds],
             'for': '5m',
             labels: {
               severity: 'critical',
@@ -283,7 +283,7 @@
             alert: 'TempoBlockBuilderPartitionLagWarning',
             expr: |||
               max by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace,$._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_critical_seconds],
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_critical_seconds],
             'for': '5m',
             labels: {
               severity: 'warning',
@@ -297,7 +297,7 @@
             alert: 'TempoBlockBuilderPartitionLagCritical',
             expr: |||
               max by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace,$._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_critical_seconds],
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_critical_seconds],
             'for': '5m',
             labels: {
               severity: 'critical',
