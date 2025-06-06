@@ -3,6 +3,7 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,13 +21,13 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func (s *MCPServer) handleTraceQLQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *MCPServer) handleTraceQLQuery(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	level.Info(s.logger).Log("msg", "traceql query tool requested")
 
 	return mcp.NewToolResultText(trimDocs(docs.TraceQLMain)), nil
 }
 
-func (s *MCPServer) handleTraceQLMetrics(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *MCPServer) handleTraceQLMetrics(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	level.Info(s.logger).Log("msg", "traceql metrics tool requested")
 
 	return mcp.NewToolResultText(trimDocs(docs.TraceQLMetrics)), nil
@@ -67,13 +68,14 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 
 	parsed, err := traceql.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("Query parse error. Consult TraceQL docs tools: %w", err)
+		return nil, fmt.Errorf("query parse error. Consult TraceQL docs tools: %w", err)
 	}
 
 	if parsed.MetricsPipeline != nil || parsed.MetricsSecondStage != nil {
-		return nil, fmt.Errorf("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead.")
+		return nil, errors.New("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead")
 	}
 
+	// nolint:gosec // G115
 	searchReq := &tempopb.SearchRequest{
 		Query: query,
 		Start: uint32(startEpoch),
@@ -129,13 +131,14 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 
 	parsed, err := traceql.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("Query parse error. Consult TraceQL docs tools: %w", err)
+		return nil, fmt.Errorf("query parse error. Consult TraceQL docs tools: %w", err)
 	}
 
 	if parsed.MetricsPipeline == nil {
-		return nil, fmt.Errorf("TraceQL search query received on instant query tool. Use the traceql-search tool instead.")
+		return nil, errors.New("TraceQL search query received on instant query tool. Use the traceql-search tool instead")
 	}
 
+	// nolint:gosec // G115
 	queryInstantReq := &tempopb.QueryInstantRequest{
 		Query: query,
 		Start: uint64(startEpochNanos),
@@ -187,13 +190,14 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 
 	parsed, err := traceql.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("Query parse error. Consult TraceQL docs tools: %w", err)
+		return nil, fmt.Errorf("query parse error. Consult TraceQL docs tools: %w", err)
 	}
 
 	if parsed.MetricsPipeline == nil {
-		return nil, fmt.Errorf("TraceQL search query received on range query tool. Use the traceql-search tool instead.")
+		return nil, errors.New("TraceQL search query received on range query tool. Use the traceql-search tool instead")
 	}
 
+	// nolint:gosec // G115
 	queryRangeReq := &tempopb.QueryRangeRequest{
 		Query: query,
 		Start: uint64(startEpochNanos),
@@ -327,7 +331,6 @@ func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (s
 func injectMuxVars(ctx context.Context, req *http.Request, vars map[string]string) (*http.Request, context.Context) {
 	req = req.WithContext(ctx)
 	req = mux.SetURLVars(req, vars)
-	ctx = req.Context()
 
 	return req, req.Context()
 }

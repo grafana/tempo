@@ -232,7 +232,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	if cfg.MCPServer.Enabled {
 		// Initialize MCP server
-		mcpServer := NewMCPServer(f, apiPrefix, logger, cfg.MultiTenantQueriesEnabled, authMiddleware)
+		mcpServer := NewMCPServer(f, apiPrefix, logger, authMiddleware)
 		f.MCPHandler = mcpServer
 	} else {
 		f.MCPHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

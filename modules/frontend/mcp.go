@@ -40,13 +40,12 @@ type MCPServer struct {
 	mcpServer  *server.MCPServer
 	httpServer *server.StreamableHTTPServer
 
-	pathPrefix     string
-	authMiddleware middleware.Interface
-	httpHandler    http.Handler
+	pathPrefix  string
+	httpHandler http.Handler
 }
 
 // NewMCPServer creates a new MCP server instance
-func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger, multitenancyEnabled bool, authMiddleware middleware.Interface) *MCPServer {
+func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger, authMiddleware middleware.Interface) *MCPServer {
 	// Create the underlying MCP server
 	mcpServer := server.NewMCPServer(
 		"tempo",
@@ -94,7 +93,7 @@ func (s *MCPServer) setupResources() {
 		mcp.WithMIMEType(docsTraceQLMimeType),
 	)
 
-	s.mcpServer.AddResource(traceQLQuery, func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	s.mcpServer.AddResource(traceQLQuery, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 		level.Info(s.logger).Log("msg", "traceql query resource requested")
 
 		return []mcp.ResourceContents{
@@ -113,7 +112,7 @@ func (s *MCPServer) setupResources() {
 		mcp.WithMIMEType(docsTraceQLMimeType),
 	)
 
-	s.mcpServer.AddResource(traceQLMetrics, func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	s.mcpServer.AddResource(traceQLMetrics, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 		level.Info(s.logger).Log("msg", "traceql metrics resource requested")
 
 		return []mcp.ResourceContents{

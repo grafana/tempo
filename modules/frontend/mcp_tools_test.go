@@ -92,7 +92,7 @@ func TestHandleSearch(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: errors.New("Query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
+				err: errors.New("query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
 			},
 		},
 		{
@@ -101,7 +101,7 @@ func TestHandleSearch(t *testing.T) {
 				"query": "{} | rate()",
 			}),
 			expected: expectedResult{
-				err: errors.New("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead."),
+				err: errors.New("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead"),
 			},
 		},
 	}
@@ -164,7 +164,7 @@ func TestHandleInstantQuery(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: errors.New("Query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
+				err: errors.New("query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
 			},
 		},
 		{
@@ -173,7 +173,7 @@ func TestHandleInstantQuery(t *testing.T) {
 				"query": "{}",
 			}),
 			expected: expectedResult{
-				err: errors.New("TraceQL search query received on instant query tool. Use the traceql-search tool instead."),
+				err: errors.New("TraceQL search query received on instant query tool. Use the traceql-search tool instead"),
 			},
 		},
 	}
@@ -236,7 +236,7 @@ func TestHandleRangeQuery(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: errors.New("Query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
+				err: errors.New("query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
 			},
 		},
 		{
@@ -245,7 +245,7 @@ func TestHandleRangeQuery(t *testing.T) {
 				"query": "{}",
 			}),
 			expected: expectedResult{
-				err: errors.New("TraceQL search query received on range query tool. Use the traceql-search tool instead."),
+				err: errors.New("TraceQL search query received on range query tool. Use the traceql-search tool instead"),
 			},
 		},
 	}
