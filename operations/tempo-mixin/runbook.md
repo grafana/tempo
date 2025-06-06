@@ -252,7 +252,9 @@ This alert fires when a Kafka partition in a consumer group is lagging behind th
    - Examine Kafka metrics for unusual patterns (high produce rate, throttling, etc.)
 
 3. Possible resolutions:
-   - Scale up the consumer group by adding more instances
+   - For the metric generators scale up the consumer group by adding more instances
+   - Scale up the block-builder instances to match the ingester partitions.
+   - For the block-builder consider to reduce the cycle-time
    - Increase resources (CPU/memory) for the consumer instances
    - Check for and fix any bottlenecks in the processing pipeline
    - If the lag is temporary due to a spike in traffic, monitor to see if it recovers
