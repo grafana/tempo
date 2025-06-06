@@ -1,0 +1,46 @@
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [nop]
+      processors: [batch]
+      exporters: [nop]
+  telemetry:
+    logs:
+      level: debug
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+
+  jaeger_query:
+    storage:
+      traces: tj-query
+    base_path: /
+    ui:
+      log_access: true
+    grpc:
+      endpoint: 0.0.0.0:16685
+    http:
+      endpoint: 0.0.0.0:16686
+
+  jaeger_storage:
+    backends:
+      tj-query:
+        grpc:
+          endpoint: ${env:TEMPO_JAEGER_HOST:-127.0.0.1}:7777
+          tls:
+            insecure: true
+      scratch:
+        memory:
+          max_traces: 100000
+
+receivers:
+  nop:
+
+processors:
+  batch:
+
+exporters:
+  nop:
+
