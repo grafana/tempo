@@ -80,7 +80,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels, c.Get))
 	}
 
-	err := validateLabelValues(labels)
+	err := validateUTF8LabelValues(labels)
 	if err != nil {
 		return nil, err
 	}
@@ -213,11 +213,13 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	err := validateLabelValues(labelValues)
+	err := validateUTF8LabelValues(labelValues)
 	if err != nil {
 		p.invalidUTF8Counter.Inc()
 		return
 	}
+
+	validatePromLabelNames(&labels, &labelValues)
 
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
@@ -261,13 +263,37 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func validateLabelValues(v []string) error {
+func validateUTF8LabelValues(v []string) error {
 	for _, value := range v {
 		if !utf8.ValidString(value) {
 			return fmt.Errorf("invalid utf8 string: %s", value)
 		}
 	}
 	return nil
+}
+
+func validatePromLabelNames(labels *[]string, labelValues *[]string) {
+
+	validLabels := make([]string, 0, len(*labels))
+	validLabelValues := make([]string, 0, len(*labelValues))
+
+	for i, labelName := range *labels {
+		if len(labelName) == 0 {
+			continue
+		}
+		firstRune, _ := utf8.DecodeRuneInString(labelName)
+		if firstRune >= '0' && firstRune <= '9' {
+			// skip label names that start with a digit
+			continue
+		}
+		validLabels = append(validLabels, labelName)
+		if i < len(*labelValues) {
+			validLabelValues = append(validLabelValues, (*labelValues)[i])
+		}
+	}
+
+	*labels = validLabels
+	*labelValues = validLabelValues
 }
 
 func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string, sanitizeFn sanitizeFn) {
