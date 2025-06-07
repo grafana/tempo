@@ -24,8 +24,8 @@
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
 * [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
-* [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
-  Following config options are no longer valid, please remove them if you are using these in your tempo config:
+* [CHANGE] **BREAKING CHANGE** Remove tempo serverless.
+  The following configuration options are no longer valid. If they are in your tempo config, remove them.
   ```
   querier:
       search:
@@ -58,8 +58,7 @@
 * [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
 * [FEATURE] Add support for topk and bottomk functions for TraceQL metrics [#4646](https://github.com/grafana/tempo/pull/4646/) (@electron0zero)
 * [FEATURE] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
-* [ENHANCEMENT] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
-configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
+* [ENHANCEMENT] Add throughput SLO and metrics for the TraceByID endpoint. Configurable using the `throughput_bytes_slo` field. It populates the `op="traces"` label in slo and throughput metrics. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 * [ENHANCEMENT] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) [#5035](https://github.com/grafana/tempo/pull/5035) (@yvrhdn, @mapno)
 * [ENHANCEMENT] tempo-vulture now generates spans with a parent, instead of only root spans [#5154](https://github.com/grafana/tempo/pull/5154) (@carles-grafana)
 * [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham)
