@@ -3,7 +3,6 @@ package spanmetrics
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"slices"
 	"time"
 	"unicode/utf8"
@@ -220,8 +219,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		return
 	}
 
-	promLabelRe := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
-	validatePromLabelNames(promLabelRe, &labels, &labelValues)
+	validatePromLabelNames(&labels, &labelValues)
 
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
@@ -274,19 +272,23 @@ func validateUTF8LabelValues(v []string) error {
 	return nil
 }
 
-func validatePromLabelNames(promLabelRe *regexp.Regexp, labels *[]string, labelValues *[]string) {
+func validatePromLabelNames(labels *[]string, labelValues *[]string) {
 
 	validLabels := make([]string, 0, len(*labels))
 	validLabelValues := make([]string, 0, len(*labelValues))
 
 	for i, labelName := range *labels {
-		if promLabelRe.MatchString(labelName) {
-			validLabels = append(validLabels, labelName)
-			if i < len(*labelValues) {
-				validLabelValues = append(validLabelValues, (*labelValues)[i])
-			}
-		} else {
-
+		if len(labelName) == 0 {
+			continue
+		}
+		firstRune, _ := utf8.DecodeRuneInString(labelName)
+		if firstRune >= '0' && firstRune <= '9' {
+			// skip label names that start with a digit
+			continue
+		}
+		validLabels = append(validLabels, labelName)
+		if i < len(*labelValues) {
+			validLabelValues = append(validLabelValues, (*labelValues)[i])
 		}
 	}
 
