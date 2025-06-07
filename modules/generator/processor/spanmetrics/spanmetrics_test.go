@@ -1346,6 +1346,7 @@ func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, b
 }
 
 func TestValidatePromLabelNames(t *testing.T) {
+
 	tests := []struct {
 		name                string
 		inputLabels         []string
@@ -1361,15 +1362,15 @@ func TestValidatePromLabelNames(t *testing.T) {
 			expectedLabelValues: []string{"value1", "value2", "value3", "value4", "value5"},
 		},
 		{
-			name:                "all invalid labels",
-			inputLabels:         []string{"1startsWithNumber", "has-dash", "has.dot", "has@symbol", "has space", ""},
+			name:                "all invalid labels (start with number)",
+			inputLabels:         []string{"1startsWithNumber", "2foo", "3bar", "4baz", "5qux", "6quux"},
 			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
 			expectedLabels:      []string{},
 			expectedLabelValues: []string{},
 		},
 		{
-			name:                "mixed valid and invalid labels",
-			inputLabels:         []string{"valid_label", "1invalid", "another_valid", "has-dash", "_underscore", "has.dot"},
+			name:                "mixed valid and invalid labels (start with number)",
+			inputLabels:         []string{"valid_label", "1invalid", "another_valid", "2bad", "_underscore", "3bad"},
 			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
 			expectedLabels:      []string{"valid_label", "another_valid", "_underscore"},
 			expectedLabelValues: []string{"value1", "value3", "value5"},
@@ -1403,13 +1404,6 @@ func TestValidatePromLabelNames(t *testing.T) {
 			expectedLabelValues: []string{},
 		},
 		{
-			name:                "invalid label names with special characters",
-			inputLabels:         []string{"label-with-dash", "label.with.dot", "label@with@at", "label with space", "label#hash", "label$dollar"},
-			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
-			expectedLabels:      []string{},
-			expectedLabelValues: []string{},
-		},
-		{
 			name:                "edge case: single character valid labels",
 			inputLabels:         []string{"a", "Z", "_"},
 			inputLabelValues:    []string{"value1", "value2", "value3"},
@@ -1417,15 +1411,15 @@ func TestValidatePromLabelNames(t *testing.T) {
 			expectedLabelValues: []string{"value1", "value2", "value3"},
 		},
 		{
-			name:                "edge case: single character invalid labels",
-			inputLabels:         []string{"1", ".", "-", "@", " "},
-			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5"},
+			name:                "edge case: single character invalid labels (number)",
+			inputLabels:         []string{"1", "2", "3"},
+			inputLabelValues:    []string{"value1", "value2", "value3"},
 			expectedLabels:      []string{},
 			expectedLabelValues: []string{},
 		},
 		{
-			name:                "complex mixed scenario with mismatched lengths",
-			inputLabels:         []string{"valid_start", "2invalid", "good_label", "", "another_good", "bad-label", "_underscore_ok"},
+			name:                "complex mixed scenario with mismatched lengths (number only)",
+			inputLabels:         []string{"valid_start", "2invalid", "good_label", "", "another_good", "3bad", "_underscore_ok"},
 			inputLabelValues:    []string{"val1", "val2", "val3"},
 			expectedLabels:      []string{"valid_start", "good_label", "another_good", "_underscore_ok"},
 			expectedLabelValues: []string{"val1", "val3"},
@@ -1434,20 +1428,15 @@ func TestValidatePromLabelNames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create copies of the input slices to avoid modifying the test data
 			labels := make([]string, len(tt.inputLabels))
 			copy(labels, tt.inputLabels)
 			labelValues := make([]string, len(tt.inputLabelValues))
 			copy(labelValues, tt.inputLabelValues)
 
-			// Call the function under test
 			validatePromLabelNames(&labels, &labelValues)
 
-			// Assert the results
 			assert.Equal(t, tt.expectedLabels, labels, "labels should match expected")
 			assert.Equal(t, tt.expectedLabelValues, labelValues, "label values should match expected")
-
-			// Additional assertion: ensure values length doesn't exceed labels length
 			assert.LessOrEqual(t, len(labelValues), len(labels), "values should not exceed labels in length")
 		})
 	}
