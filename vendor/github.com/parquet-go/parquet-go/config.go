@@ -297,6 +297,7 @@ func (c *WriterConfig) ConfigureWriter(config *WriterConfig) {
 		BloomFilters:         coalesceBloomFilters(c.BloomFilters, config.BloomFilters),
 		Compression:          coalesceCompression(c.Compression, config.Compression),
 		Sorting:              coalesceSortingConfig(c.Sorting, config.Sorting),
+		SkipPageBounds:       coalesceSkipPageBounds(c.SkipPageBounds, config.SkipPageBounds),
 		Encodings:            encodings,
 	}
 }
@@ -843,6 +844,13 @@ func coalesceBloomFilters(f1, f2 []BloomFilterColumn) []BloomFilterColumn {
 		return f1
 	}
 	return f2
+}
+
+func coalesceSkipPageBounds(b1, b2 [][]string) [][]string {
+	if b1 != nil {
+		return b1
+	}
+	return b2
 }
 
 func coalesceCompression(c1, c2 compress.Codec) compress.Codec {

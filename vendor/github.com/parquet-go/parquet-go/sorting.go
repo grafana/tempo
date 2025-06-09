@@ -223,3 +223,9 @@ func (w *SortingWriter[T]) sortAndWriteBufferedRows() error {
 	w.numRows += n
 	return nil
 }
+
+// File returns a FileView of the written parquet file.
+// Only available after Close is called.
+func (w *SortingWriter[T]) File() FileView {
+	return w.output.File()
+}
