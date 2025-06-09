@@ -1,7 +1,8 @@
-package vparquet4
+package vparquet5
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/parquet-go/parquet-go"
@@ -171,6 +172,7 @@ type Span struct {
 	Kind                   int         `parquet:",delta"`
 	TraceState             string      `parquet:",snappy"`
 	StartTimeUnixNano      uint64      `parquet:",delta"`
+	StartTimeRounded       uint32      `parquet:",delta"`
 	DurationNano           uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
@@ -471,6 +473,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 					ss.StatusMessage = ""
 				}
 				ss.StartTimeUnixNano = s.StartTimeUnixNano
+				ss.StartTimeRounded = uint32(s.StartTimeUnixNano / uint64(time.Second) / 15) // Round to 15s intervals
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
