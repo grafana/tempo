@@ -2,6 +2,7 @@ package parquet
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 
@@ -260,18 +261,23 @@ func readPages(pages Pages, read chan<- asyncPage, seek <-chan asyncSeek, init, 
 		seekTo.rowIndex = -1
 	}
 
+	var err error
+
 	for {
 		var page Page
-		var err error
 
-		if seekTo.rowIndex >= 0 {
-			err = pages.SeekToRow(seekTo.rowIndex)
-			if err == nil {
-				seekTo.rowIndex = -1
-				continue
+		// if err is not fatal we consider the underlying pages object to be in an unknown state
+		// and we only repeatedly return that error
+		if !isFatalError(err) {
+			if seekTo.rowIndex >= 0 {
+				err = pages.SeekToRow(seekTo.rowIndex)
+				if err == nil {
+					seekTo.rowIndex = -1
+					continue
+				}
+			} else {
+				page, err = pages.ReadPage()
 			}
-		} else {
-			page, err = pages.ReadPage()
 		}
 
 		select {
@@ -287,6 +293,10 @@ func readPages(pages Pages, read chan<- asyncPage, seek <-chan asyncSeek, init, 
 			return
 		}
 	}
+}
+
+func isFatalError(err error) bool {
+	return err != nil && err != io.EOF && !errors.Is(err, ErrSeekOutOfRange) // ErrSeekOutOfRange can be returned from FilePages but is recoverable
 }
 
 type singlePage struct {

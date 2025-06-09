@@ -1191,7 +1191,7 @@ github.com/opentracing/opentracing-go/log
 github.com/openzipkin/zipkin-go/model
 github.com/openzipkin/zipkin-go/proto/zipkin_proto3
 github.com/openzipkin/zipkin-go/reporter
-# github.com/parquet-go/parquet-go v0.25.1-0.20250428214007-401fed3de956
+# github.com/parquet-go/parquet-go v0.25.1
 ## explicit; go 1.22
 github.com/parquet-go/parquet-go
 github.com/parquet-go/parquet-go/bloom
