@@ -16,6 +16,7 @@ type expectedResult struct {
 	err    string
 	path   string
 	params map[string]string
+	meta   map[string]any
 }
 
 func TestInjectMuxVars(t *testing.T) {
@@ -58,6 +59,11 @@ func TestHandleSearch(t *testing.T) {
 				params: map[string]string{
 					"q": "{ span.foo = \"bar\" }",
 				},
+				meta: map[string]any{
+					"type":     "search-results",
+					"encoding": "json",
+					"version":  "1",
+				},
 			},
 		},
 		{
@@ -80,6 +86,11 @@ func TestHandleSearch(t *testing.T) {
 					"q":     "{ span.foo = \"bar\" }",
 					"start": "1640995200",
 					"end":   "1641081600",
+				},
+				meta: map[string]any{
+					"type":     "search-results",
+					"encoding": "json",
+					"version":  "1",
 				},
 			},
 		},
@@ -128,6 +139,11 @@ func TestHandleInstantQuery(t *testing.T) {
 				params: map[string]string{
 					"q": "{} | rate()",
 				},
+				meta: map[string]any{
+					"type":     "metrics",
+					"encoding": "json",
+					"version":  "1",
+				},
 			},
 		},
 		{
@@ -150,6 +166,11 @@ func TestHandleInstantQuery(t *testing.T) {
 					"q":     "{} | rate()",
 					"start": "1640995200000000000",
 					"end":   "1641081600000000000",
+				},
+				meta: map[string]any{
+					"type":     "metrics",
+					"encoding": "json",
+					"version":  "1",
 				},
 			},
 		},
@@ -198,6 +219,11 @@ func TestHandleRangeQuery(t *testing.T) {
 				params: map[string]string{
 					"q": "{} | rate()",
 				},
+				meta: map[string]any{
+					"type":     "metrics",
+					"encoding": "json",
+					"version":  "1",
+				},
 			},
 		},
 		{
@@ -220,6 +246,11 @@ func TestHandleRangeQuery(t *testing.T) {
 					"q":     "{} | rate()",
 					"start": "1640995200000000000", // query range uses nanos
 					"end":   "1641081600000000000",
+				},
+				meta: map[string]any{
+					"type":     "metrics",
+					"encoding": "json",
+					"version":  "1",
 				},
 			},
 		},
@@ -266,6 +297,11 @@ func TestHandleGetTrace(t *testing.T) {
 			expected: expectedResult{
 				path:   "/api/v2/traces/12345678abcdef90",
 				params: map[string]string{},
+				meta: map[string]any{
+					"type":     "trace",
+					"encoding": "json",
+					"version":  "2",
+				},
 			},
 		},
 		{
@@ -298,6 +334,11 @@ func TestHandleGetAttributeNames(t *testing.T) {
 			expected: expectedResult{
 				path:   "/api/v2/search/tags",
 				params: map[string]string{},
+				meta: map[string]any{
+					"type":     "attribute-names",
+					"encoding": "json",
+					"version":  "2",
+				},
 			},
 		},
 		{
@@ -309,6 +350,11 @@ func TestHandleGetAttributeNames(t *testing.T) {
 				path: "/api/v2/search/tags",
 				params: map[string]string{
 					"scope": "span",
+				},
+				meta: map[string]any{
+					"type":     "attribute-names",
+					"encoding": "json",
+					"version":  "2",
 				},
 			},
 		},
@@ -337,6 +383,11 @@ func TestHandleGetAttributeValues(t *testing.T) {
 			expected: expectedResult{
 				path:   "/api/v2/search/tag/service.name/values",
 				params: map[string]string{},
+				meta: map[string]any{
+					"type":     "attribute-values",
+					"encoding": "json",
+					"version":  "2",
+				},
 			},
 		},
 		{
@@ -356,6 +407,11 @@ func TestHandleGetAttributeValues(t *testing.T) {
 				path: "/api/v2/search/tag/service.name/values",
 				params: map[string]string{
 					"q": "{ span.status = \"error\" }",
+				},
+				meta: map[string]any{
+					"type":     "attribute-values",
+					"encoding": "json",
+					"version":  "2",
 				},
 			},
 		},
@@ -448,6 +504,8 @@ func testFrontend() (*MCPServer, func(t *testing.T, req mcp.CallToolRequest, han
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
+
+		require.Equal(t, expected.meta, result.Meta)
 
 		if expected.err != "" {
 			// Check if the result contains an error

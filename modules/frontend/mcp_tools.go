@@ -23,13 +23,13 @@ import (
 func (s *MCPServer) handleTraceQLQuery(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	level.Info(s.logger).Log("msg", "traceql query tool requested")
 
-	return mcp.NewToolResultText(trimDocs(docs.TraceQLMain)), nil
+	return toolResult(trimDocs(docs.TraceQLMain), "documentation", "markdown", "1"), nil
 }
 
 func (s *MCPServer) handleTraceQLMetrics(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	level.Info(s.logger).Log("msg", "traceql metrics tool requested")
 
-	return mcp.NewToolResultText(trimDocs(docs.TraceQLMetrics)), nil
+	return toolResult(trimDocs(docs.TraceQLMetrics), "documentation", "markdown", "1"), nil
 }
 
 // handleSearch handles the traceql-search tool
@@ -92,7 +92,7 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return mcp.NewToolResultText(body), nil
+	return toolResult(body, "search-results", "json", "1"), nil
 }
 
 // handleInstantQuery handles the traceql-metrics-instant tool
@@ -152,7 +152,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return mcp.NewToolResultText(body), nil
+	return toolResult(body, "metrics", "json", "1"), nil
 }
 
 func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -211,7 +211,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return mcp.NewToolResultText(body), nil
+	return toolResult(body, "metrics", "json", "1"), nil
 }
 
 // handleGetTrace handles the get-trace tool
@@ -234,7 +234,7 @@ func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequ
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return mcp.NewToolResultText(body), nil
+	return toolResult(body, "trace", "json", "2"), nil
 }
 
 // handleGetAttributeNames handles the get-attribute-names tool
@@ -256,7 +256,7 @@ func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.Cal
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return mcp.NewToolResultText(body), nil
+	return toolResult(body, "attribute-names", "json", "2"), nil
 }
 
 // handleGetAttributeValues handles the get-attribute-values tool
@@ -294,7 +294,7 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return mcp.NewToolResultText(body), nil
+	return toolResult(body, "attribute-values", "json", "2"), nil
 }
 
 func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (string, error) {
@@ -337,4 +337,15 @@ func injectMuxVars(ctx context.Context, req *http.Request, vars map[string]strin
 // buildPath is a helper method to build a path with the path prefix
 func (s *MCPServer) buildPath(p string) string {
 	return path.Join(s.pathPrefix, p)
+}
+
+func toolResult(body string, contentType string, encoding string, version string) *mcp.CallToolResult {
+	res := mcp.NewToolResultText(body)
+	res.Meta = map[string]any{
+		"type":     contentType,
+		"encoding": encoding,
+		"version":  version,
+	}
+
+	return res
 }
