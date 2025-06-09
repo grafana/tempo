@@ -14,15 +14,15 @@ func NewTypedTraceByIDV2(maxBytes int, marshalingFormat string) GRPCCombiner[*te
 func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
-	var inspectedBytes uint64
+	metricsCombiner := NewTraceByIDMetricsCombiner()
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
-		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, _ PipelineResponse) error {
+		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, pipelineResp PipelineResponse) error {
 			if partial.Status == tempopb.PartialStatus_PARTIAL {
 				partialTrace = true
 			}
-			if partial.Metrics != nil {
-				inspectedBytes += partial.Metrics.InspectedBytes
-			}
+
+			metricsCombiner.Combine(partial.Metrics, pipelineResp)
+
 			_, err := combiner.Consume(partial.Trace)
 			return err
 		},
@@ -36,7 +36,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 			deduper := newDeduper()
 			traceResult = deduper.dedupe(traceResult)
 			resp.Trace = traceResult
-			resp.Metrics = &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes}
+			resp.Metrics = metricsCombiner.Metrics
 
 			if partialTrace || combiner.IsPartialTrace() {
 				resp.Status = tempopb.PartialStatus_PARTIAL

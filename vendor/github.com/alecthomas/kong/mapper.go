@@ -387,7 +387,7 @@ func intDecoder(bits int) MapperFunc { //nolint: dupl
 		default:
 			return fmt.Errorf("expected an int but got %q (%T)", t, t.Value)
 		}
-		n, err := strconv.ParseInt(sv, 10, bits)
+		n, err := strconv.ParseInt(sv, 0, bits)
 		if err != nil {
 			return fmt.Errorf("expected a valid %d bit int but got %q", bits, sv)
 		}
@@ -416,7 +416,7 @@ func uintDecoder(bits int) MapperFunc { //nolint: dupl
 		default:
 			return fmt.Errorf("expected an int but got %q (%T)", t, t.Value)
 		}
-		n, err := strconv.ParseUint(sv, 10, bits)
+		n, err := strconv.ParseUint(sv, 0, bits)
 		if err != nil {
 			return fmt.Errorf("expected a valid %d bit uint but got %q", bits, sv)
 		}

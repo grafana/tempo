@@ -310,3 +310,8 @@ This can mean multiple things:
 - scheduler is having issues handing out job or failing internallt due to outage/issues on backend object store.
 
 Look at the logs for scheduler and worker and fix the issues.
+
+## TempoVultureHighErrorRate
+
+This alert fires when Tempo vulture detects a high error rate (above the configured threshold) while validating write or read paths. It indicates there are problems with trace processing or storage.
+

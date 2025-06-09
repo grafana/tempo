@@ -106,5 +106,8 @@ func (p *partitionAssignmentVar) Set(s string) error {
 }
 
 func (p *partitionAssignmentVar) String() string {
+	if p.p == nil {
+		return "map[]"
+	}
 	return fmt.Sprintf("%v", *p.p)
 }

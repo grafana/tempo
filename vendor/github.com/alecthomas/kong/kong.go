@@ -56,16 +56,17 @@ type Kong struct {
 	registry     *Registry
 	ignoreFields []*regexp.Regexp
 
-	noDefaultHelp bool
-	usageOnError  usageOnError
-	help          HelpPrinter
-	shortHelp     HelpPrinter
-	helpFormatter HelpValueFormatter
-	helpOptions   HelpOptions
-	helpFlag      *Flag
-	groups        []Group
-	vars          Vars
-	flagNamer     func(string) string
+	noDefaultHelp   bool
+	allowHyphenated bool
+	usageOnError    usageOnError
+	help            HelpPrinter
+	shortHelp       HelpPrinter
+	helpFormatter   HelpValueFormatter
+	helpOptions     HelpOptions
+	helpFlag        *Flag
+	groups          []Group
+	vars            Vars
+	flagNamer       func(string) string
 
 	// Set temporarily by Options. These are applied after build().
 	postBuildOptions []Option

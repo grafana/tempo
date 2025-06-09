@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/awsmsk"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka/configkafka"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka"
 )
 
 // configureSaramaAuthentication configures authentication in sarama.Config.

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -485,4 +486,111 @@ func TestTraceIDHandlerV2WithJSONResponse(t *testing.T) {
 	actualResp := &tempopb.TraceByIDResponse{}
 	err := new(jsonpb.Unmarshaler).Unmarshal(resp.Body, actualResp)
 	require.NoError(t, err)
+}
+
+func TestTraceByIDHandlerV2CachedMetrics(t *testing.T) {
+	// Setup test trace
+	testTrace := test.MakeTrace(2, []byte{0x01, 0x02})
+	traceID := "1234abcd"
+
+	callCount := 0
+	var mu sync.Mutex
+	next := pipeline.RoundTripperFunc(func(_ pipeline.Request) (*http.Response, error) {
+		mu.Lock()
+		callCount++
+		mu.Unlock()
+
+		metrics := &tempopb.TraceByIDMetrics{
+			InspectedBytes: 1024,
+		}
+
+		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
+			Trace:   testTrace,
+			Metrics: metrics,
+		})
+		require.NoError(t, err)
+
+		return &http.Response{
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+			StatusCode: 200,
+			Header: map[string][]string{
+				"Content-Type": {"application/protobuf"},
+			},
+		}, nil
+	})
+
+	// Create frontend
+	f := frontendWithSettings(t, next, nil, &Config{
+		MultiTenantQueriesEnabled: true,
+		TraceByID: TraceByIDConfig{
+			QueryShards: 2, // Minimum value required
+			SLO:         testSLOcfg,
+		},
+		Search: SearchConfig{
+			Sharder: SearchSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
+			},
+			SLO: testSLOcfg,
+		},
+		Metrics: MetricsConfig{
+			Sharder: QueryRangeSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				Interval:              time.Second,
+			},
+			SLO: testSLOcfg,
+		},
+	}, nil)
+
+	tenant := "test-org"
+
+	// First request - should hit the backend
+	req := httptest.NewRequest("GET", "/api/v2/traces/"+traceID, nil)
+	ctx := user.InjectOrgID(req.Context(), tenant)
+	req = req.WithContext(ctx)
+	req = mux.SetURLVars(req, map[string]string{"traceID": traceID})
+	req.Header.Set("Accept", "application/protobuf")
+
+	httpResp := httptest.NewRecorder()
+	f.TraceByIDHandlerV2.ServeHTTP(httpResp, req)
+	resp := httpResp.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	// Parse first response
+	actualResp := &tempopb.TraceByIDResponse{}
+	bytesTrace, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = proto.Unmarshal(bytesTrace, actualResp)
+	require.NoError(t, err)
+
+	// Verify first response metrics
+	require.Equal(t, uint64(2048), actualResp.Metrics.InspectedBytes)
+	require.Equal(t, 2, callCount)
+
+	// Second request - TraceIDHandlerV2 does not cache
+	req = httptest.NewRequest("GET", "/api/v2/traces/"+traceID, nil)
+	ctx = user.InjectOrgID(req.Context(), tenant)
+	req = req.WithContext(ctx)
+	req = mux.SetURLVars(req, map[string]string{"traceID": traceID})
+	req.Header.Set("Accept", "application/protobuf")
+
+	httpResp = httptest.NewRecorder()
+	f.TraceByIDHandlerV2.ServeHTTP(httpResp, req)
+	resp = httpResp.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	// Parse second response
+	actualResp = &tempopb.TraceByIDResponse{}
+	bytesTrace, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = proto.Unmarshal(bytesTrace, actualResp)
+	require.NoError(t, err)
+
+	// Verify second response metrics. They should be the same as the first response as we're not caching
+	require.Equal(t, uint64(2048), actualResp.Metrics.InspectedBytes)
+
+	// Verify the backend was called again (callCount should be 4)
+	require.Equal(t, 4, callCount)
 }

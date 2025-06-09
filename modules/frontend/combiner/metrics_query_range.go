@@ -30,22 +30,14 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 	var prevResp *tempopb.QueryRangeResponse
 	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
+	metricsCombiner := NewQueryRangeMetricsCombiner()
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.QueryRangeResponse { return &tempopb.QueryRangeResponse{} },
 		current:        &tempopb.QueryRangeResponse{Metrics: &tempopb.SearchMetrics{}},
-		combine: func(partial *tempopb.QueryRangeResponse, _ *tempopb.QueryRangeResponse, _ PipelineResponse) error {
-			if partial.Metrics != nil {
-				// this is a coordination between the sharder and combiner. the sharder returns one response with summary metrics
-				// only. the combiner correctly takes and accumulates that job. however, if the response has no jobs this is
-				// an indicator this is a "real" response so we set CompletedJobs to 1 to increment in the combiner.
-				if partial.Metrics.TotalJobs == 0 {
-					partial.Metrics.CompletedJobs = 1
-				}
-			}
-
+		combine: func(partial *tempopb.QueryRangeResponse, _ *tempopb.QueryRangeResponse, resp PipelineResponse) error {
 			combiner.Combine(partial)
-
+			metricsCombiner.Combine(partial.Metrics, resp)
 			return nil
 		},
 		finalize: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
@@ -63,7 +55,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				resp.Message = maxSeriesReachedErrorMsg
 			}
 			attachExemplars(req, resp)
-
+			resp.Metrics = metricsCombiner.Metrics
 			return resp, nil
 		},
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
@@ -89,7 +81,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				diff.Status = tempopb.PartialStatus_PARTIAL
 				diff.Message = maxSeriesReachedErrorMsg
 			}
-
+			diff.Metrics = metricsCombiner.Metrics
 			return diff, nil
 		},
 		quit: func(_ *tempopb.QueryRangeResponse) bool {

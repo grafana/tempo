@@ -14,7 +14,7 @@ import (
 	"github.com/relvacode/iso8601"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
-	conventions "go.opentelemetry.io/collector/semconv/v1.13.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.13.0"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
@@ -208,10 +208,10 @@ func extractRawAttributes(log azureLogRecord) map[string]any {
 	setIf(attrs, azureResultType, log.ResultType)
 	setIf(attrs, azureTenantID, log.TenantID)
 
-	setIf(attrs, conventions.AttributeCloudRegion, log.Location)
-	attrs[conventions.AttributeCloudProvider] = conventions.AttributeCloudProviderAzure
+	setIf(attrs, string(conventions.CloudRegionKey), log.Location)
+	attrs[string(conventions.CloudProviderKey)] = conventions.CloudProviderAzure.Value.AsString()
 
-	setIf(attrs, conventions.AttributeNetSockPeerAddr, log.CallerIPAddress)
+	setIf(attrs, string(conventions.NetSockPeerAddrKey), log.CallerIPAddress)
 	return attrs
 }
 

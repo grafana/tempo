@@ -55,6 +55,16 @@ func Exit(exit func(int)) Option {
 	})
 }
 
+// WithHyphenPrefixedParameters enables or disables hyphen-prefixed parameters.
+//
+// These are disabled by default.
+func WithHyphenPrefixedParameters(enable bool) Option {
+	return OptionFunc(func(k *Kong) error {
+		k.allowHyphenated = enable
+		return nil
+	})
+}
+
 type embedded struct {
 	strct any
 	tags  []string

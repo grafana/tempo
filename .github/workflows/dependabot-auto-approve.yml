@@ -1,0 +1,48 @@
+name: Dependabot Auto-Approve & Merge
+
+on: pull_request
+
+permissions:
+  pull-requests: write
+  contents: write  # Needed to merge PRs via gh CLI
+
+jobs:
+  auto-approve-and-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'grafana/tempo'
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Get Github App secrets from vault
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@5d7e361bc7e0a183cde8afe9899fb7b596d2659b #get-vault-secrets 1.2.0
+        with:
+          export_env: false
+          repo_secrets: |
+            APP_ID=tempo-ci-app:app-id
+            PRIVATE_KEY=tempo-ci-app:private-key
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        with:
+          app-id: ${{ fromJSON(steps.get-secrets.outputs.secrets).APP_ID }}
+          private-key: ${{ fromJSON(steps.get-secrets.outputs.secrets).PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: tempo
+      - name: Approve Dependabot PR
+        # Only path updates 
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' 
+        run: gh pr review --approve -b "Automatically approved dependency update"
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+
+      - name: Enable auto-merge
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}

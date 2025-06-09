@@ -195,7 +195,7 @@ func (w *GenericWriter[T]) Write(rows []T) (int, error) {
 
 		for _, c := range w.base.writer.columns {
 			if c.columnBuffer.Size() >= int64(c.bufferSize) {
-				if err := c.flush(); err != nil {
+				if err := c.Flush(); err != nil {
 					return n, err
 				}
 			}
@@ -861,7 +861,6 @@ func (w *writer) writeFileFooter() error {
 	protocol := new(thrift.CompactProtocol)
 	encoder := thrift.NewEncoder(protocol.NewWriter(&w.writer))
 
-	w.columnIndex = w.columnIndex[:0]
 	for i, columnIndexes := range w.columnIndexes {
 		rowGroup := &w.rowGroups[i]
 		for j := range columnIndexes {
@@ -872,10 +871,8 @@ func (w *writer) writeFileFooter() error {
 			}
 			column.ColumnIndexLength = int32(w.writer.offset - column.ColumnIndexOffset)
 		}
-		w.columnIndex = append(w.columnIndex, columnIndexes...)
 	}
 
-	w.offsetIndex = w.offsetIndex[:0]
 	for i, offsetIndexes := range w.offsetIndexes {
 		rowGroup := &w.rowGroups[i]
 		for j := range offsetIndexes {
@@ -886,7 +883,6 @@ func (w *writer) writeFileFooter() error {
 			}
 			column.OffsetIndexLength = int32(w.writer.offset - column.OffsetIndexOffset)
 		}
-		w.offsetIndex = append(w.offsetIndex, offsetIndexes...)
 	}
 
 	numRows := int64(0)
@@ -948,7 +944,7 @@ func (w *writer) writeRowGroup(rowGroupSchema *Schema, rowGroupSortingColumns []
 	}()
 
 	for _, c := range w.columns {
-		if err := c.flush(); err != nil {
+		if err := c.Flush(); err != nil {
 			return 0, err
 		}
 		if err := c.flushFilterPages(); err != nil {
@@ -1311,7 +1307,8 @@ func (c *ColumnWriter) totalRowCount() int64 {
 	return n
 }
 
-func (c *ColumnWriter) flush() (err error) {
+// Flush writes any buffered data to the underlying [io.Writer].
+func (c *ColumnWriter) Flush() (err error) {
 	if c.columnBuffer == nil {
 		return nil
 	}
@@ -1469,9 +1466,22 @@ func (c *ColumnWriter) WriteRowValues(rows []Value) (int, error) {
 	}
 	numRows := int(int64(c.columnBuffer.Len()) - startingRows)
 	if c.columnBuffer.Size() >= int64(c.bufferSize) {
-		return numRows, c.flush()
+		return numRows, c.Flush()
 	}
 	return numRows, nil
+}
+
+// Close closes the column writer and releases all dependent resources.
+// New values should not be written after the ColumnWriter is closed.
+func (c *ColumnWriter) Close() (err error) {
+	if c.columnBuffer == nil {
+		return nil
+	}
+	if err := c.Flush(); err != nil {
+		return err
+	}
+	c.columnBuffer = nil
+	return nil
 }
 
 func (c *ColumnWriter) writeValues(values []Value) (numValues int, err error) {
@@ -1650,10 +1660,10 @@ func (c *ColumnWriter) writeDictionaryPage(output io.Writer, dict Dictionary) (e
 	return nil
 }
 
-func (w *ColumnWriter) writePageToFilter(page Page) (err error) {
+func (c *ColumnWriter) writePageToFilter(page Page) (err error) {
 	pageType := page.Type()
 	pageData := page.Data()
-	w.filter, err = pageType.Encode(w.filter, pageData, w.columnFilter.Encoding())
+	c.filter, err = pageType.Encode(c.filter, pageData, c.columnFilter.Encoding())
 	return err
 }
 

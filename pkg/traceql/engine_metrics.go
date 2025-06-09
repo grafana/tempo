@@ -444,16 +444,18 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 		vectors[i] = innerAgg()
 	}
 
-	exemplars := make([]Exemplar, 0, maxExemplars)
-
 	return &StepAggregator{
-		start:           start,
-		end:             end,
-		step:            step,
-		intervals:       intervals,
-		vectors:         vectors,
-		exemplars:       exemplars,
-		exemplarBuckets: newBucketSet(intervals),
+		start:     start,
+		end:       end,
+		step:      step,
+		intervals: intervals,
+		vectors:   vectors,
+		exemplars: make([]Exemplar, 0, maxExemplars),
+		exemplarBuckets: newBucketSet(
+			maxExemplars,
+			alignStart(start, step),
+			alignEnd(end, step),
+		),
 	}
 }
 
@@ -469,8 +471,7 @@ func (s *StepAggregator) ObserveExemplar(value float64, ts uint64, lbls Labels) 
 	if s.exemplarBuckets.testTotal() {
 		return
 	}
-	interval := IntervalOfMs(int64(ts), s.start, s.end, s.step)
-	if s.exemplarBuckets.addAndTest(interval) {
+	if s.exemplarBuckets.addAndTest(ts) {
 		return
 	}
 
@@ -1240,7 +1241,7 @@ type SimpleAggregator struct {
 	initWithNaN      bool
 }
 
-func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
+func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, exemplars uint32) *SimpleAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	var initWithNaN bool
 	var f func(existingValue float64, newValue float64) float64
@@ -1263,8 +1264,12 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 
 	}
 	return &SimpleAggregator{
-		ss:              make(SeriesSet),
-		exemplarBuckets: newBucketSet(l),
+		ss: make(SeriesSet),
+		exemplarBuckets: newBucketSet(
+			exemplars,
+			alignStart(req.Start, req.Step),
+			alignEnd(req.End, req.Step),
+		),
 		len:             l,
 		start:           req.Start,
 		end:             req.End,
@@ -1321,8 +1326,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 		if b.exemplarBuckets.testTotal() {
 			break
 		}
-		interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
-		if b.exemplarBuckets.addAndTest(interval) {
+		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
 			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
 		}
 		labels := make(Labels, 0, len(exemplar.Labels))
@@ -1372,8 +1376,9 @@ func (h *Histogram) Record(bucket float64, count int) {
 }
 
 type histSeries struct {
-	labels Labels
-	hist   []Histogram
+	labels    Labels
+	hist      []Histogram
+	exemplars []Exemplar
 }
 
 type HistogramAggregator struct {
@@ -1381,20 +1386,23 @@ type HistogramAggregator struct {
 	qs               []float64
 	len              int
 	start, end, step uint64
-	exemplars        []Exemplar
 	exemplarBuckets  *bucketSet
 }
 
-func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *HistogramAggregator {
+func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplars uint32) *HistogramAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	return &HistogramAggregator{
-		qs:              qs,
-		ss:              make(map[string]histSeries),
-		len:             l,
-		start:           req.Start,
-		end:             req.End,
-		step:            req.Step,
-		exemplarBuckets: newBucketSet(l),
+		qs:    qs,
+		ss:    make(map[string]histSeries),
+		len:   l,
+		start: req.Start,
+		end:   req.End,
+		step:  req.Step,
+		exemplarBuckets: newBucketSet(
+			exemplars,
+			alignStart(req.Start, req.Step),
+			alignEnd(req.End, req.Step),
+		),
 	}
 }
 
@@ -1408,7 +1416,6 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 		var bucket Static
 		for _, l := range ts.Labels {
 			if l.Key == internalLabelBucket {
-				// bucket = int(l.Value.GetIntValue())
 				bucket = StaticFromAnyValue(l.Value)
 				continue
 			}
@@ -1431,7 +1438,6 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 				labels: withoutBucket,
 				hist:   make([]Histogram, h.len),
 			}
-			h.ss[withoutBucketStr] = existing
 		}
 
 		b := bucket.Float()
@@ -1450,8 +1456,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if h.exemplarBuckets.testTotal() {
 				break
 			}
-			interval := IntervalOfMs(exemplar.TimestampMs, h.start, h.end, h.step)
-			if h.exemplarBuckets.addAndTest(interval) {
+			if h.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 			}
 
@@ -1462,12 +1467,13 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 					Value: StaticFromAnyValue(l.Value),
 				})
 			}
-			h.exemplars = append(h.exemplars, Exemplar{
+			existing.exemplars = append(existing.exemplars, Exemplar{
 				Labels:      labels,
 				Value:       exemplar.Value,
 				TimestampMs: uint64(exemplar.TimestampMs),
 			})
 		}
+		h.ss[withoutBucketStr] = existing
 	}
 }
 
@@ -1485,7 +1491,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			ts := TimeSeries{
 				Labels:    labels,
 				Values:    make([]float64, len(in.hist)),
-				Exemplars: h.exemplars,
+				Exemplars: in.exemplars,
 			}
 			for i := range in.hist {
 

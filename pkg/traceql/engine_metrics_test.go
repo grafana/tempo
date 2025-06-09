@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -297,6 +298,31 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 						Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name"),
 					},
 					{
+						Attribute: IntrinsicSpanStartTimeAttribute,
+					},
+				},
+			},
+		},
+		"structural_rate_by": {
+			q: "{name=`foo`} > {} | rate() by (name)",
+			expectedReq: FetchSpansRequest{
+				AllConditions: false,
+				Conditions: []Condition{
+					{
+						Attribute: NewIntrinsic(IntrinsicStructuralChild),
+					},
+					{
+						Attribute: IntrinsicNameAttribute,
+						Op:        OpEqual,
+						Operands:  Operands{NewStaticString("foo")},
+					},
+				},
+				SecondPassConditions: []Condition{
+					{
+						Attribute: IntrinsicNameAttribute,
+					},
+					{
+						// Since there is already a second pass then span start time isn't optimized to the first pass.
 						Attribute: IntrinsicSpanStartTimeAttribute,
 					},
 				},
@@ -1882,4 +1908,118 @@ func BenchmarkSumOverTime(b *testing.B) {
 	for b.Loop() {
 		_, _, _ = runTraceQLMetric(req, in, in2)
 	}
+}
+
+func BenchmarkHistogramAggregator_Combine(b *testing.B) {
+	// nolint:gosec // G115
+	req := &tempopb.QueryRangeRequest{
+		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
+		End:       uint64(time.Now().UnixNano()),
+		Step:      uint64(15 * time.Second.Nanoseconds()),
+		Exemplars: maxExemplars,
+	}
+	const seriesCount = 6
+
+	benchmarks := []struct {
+		name          string
+		samplesCount  int
+		exemplarCount int
+	}{
+		{"Small", 10, 5},
+		{"Medium", 100, 20},
+		{"Large", 1000, 100},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			series := generateTestTimeSeries(seriesCount, bm.samplesCount, bm.exemplarCount, req.Start, req.End)
+
+			for b.Loop() {
+				agg := NewHistogramAggregator(req, []float64{0.5, 0.9, 0.99}, uint32(bm.exemplarCount)) // nolint: gosec // G115
+				agg.Combine(series)
+			}
+		})
+	}
+}
+
+// generateTestTimeSeries creates test time series data for benchmarking
+// nolint:gosec // G115
+func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start, end uint64) []*tempopb.TimeSeries {
+	result := make([]*tempopb.TimeSeries, seriesCount)
+
+	timeRange := end - start
+
+	for i := 0; i < seriesCount; i++ {
+		// Create unique labels for each series
+		labels := []commonv1proto.KeyValue{
+			{
+				Key: "service",
+				Value: &commonv1proto.AnyValue{
+					Value: &commonv1proto.AnyValue_StringValue{
+						StringValue: "service-" + fmt.Sprintf("%d", i),
+					},
+				},
+			},
+			{
+				Key: internalLabelBucket,
+				Value: &commonv1proto.AnyValue{
+					Value: &commonv1proto.AnyValue_DoubleValue{
+						DoubleValue: math.Pow(2, float64(i%20)), // Power of 2 as bucket
+					},
+				},
+			},
+		}
+
+		samples := make([]tempopb.Sample, samplesCount)
+		for j := 0; j < samplesCount; j++ {
+			// Distribute samples evenly across the time range
+			offset := (uint64(j) * timeRange) / uint64(samplesCount)
+			ts := time.Unix(0, int64(start+offset)).UnixMilli()
+			samples[j] = tempopb.Sample{
+				TimestampMs: ts,
+				Value:       float64(j % 100), // Simple pattern for test data
+			}
+		}
+
+		// Create exemplars
+		exemplars := make([]tempopb.Exemplar, exemplarCount)
+		for j := 0; j < exemplarCount; j++ {
+			// Distribute exemplars evenly across the time range
+			offset := (uint64(j) * timeRange) / uint64(exemplarCount)
+			ts := time.Unix(0, int64(start+offset)).UnixMilli()
+			exemplarLabels := []commonv1proto.KeyValue{
+				{
+					Key: "trace_id",
+					Value: &commonv1proto.AnyValue{
+						Value: &commonv1proto.AnyValue_StringValue{
+							StringValue: fmt.Sprintf("trace-%d", i*1000+j),
+						},
+					},
+				},
+				{
+					Key: "span_id",
+					Value: &commonv1proto.AnyValue{
+						Value: &commonv1proto.AnyValue_StringValue{
+							StringValue: fmt.Sprintf("span-%d", j),
+						},
+					},
+				},
+			}
+			exemplars[j] = tempopb.Exemplar{
+				Labels: exemplarLabels,
+
+				Value:       float64(j % 100), // Simple pattern for test data
+				TimestampMs: ts,
+			}
+		}
+
+		result[i] = &tempopb.TimeSeries{
+			PromLabels: fmt.Sprintf("{service=\"service-%d\",bucket=\"%d\"}", i, i%20),
+			Labels:     labels,
+			Samples:    samples,
+			Exemplars:  exemplars,
+		}
+	}
+
+	return result
 }
