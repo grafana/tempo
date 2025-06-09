@@ -282,7 +282,7 @@
           {
             alert: 'TempoBlockBuilderPartitionLagWarning',
             expr: |||
-              max by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
+              max by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container="%s"}[6m])) > %d
             ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_warning_seconds],
             'for': '5m',
             labels: {
