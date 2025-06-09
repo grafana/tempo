@@ -2,7 +2,7 @@ package traceql
 
 import "fmt"
 
-type AttributeScope int
+type AttributeScope int8
 
 const (
 	AttributeScopeNone AttributeScope = iota
@@ -61,7 +61,7 @@ func AttributeScopeFromString(s string) AttributeScope {
 	return AttributeScopeUnknown
 }
 
-type Intrinsic int
+type Intrinsic int8
 
 const (
 	IntrinsicNone Intrinsic = iota

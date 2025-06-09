@@ -1027,10 +1027,10 @@ func (Static) __scalarExpression() {}
 // **********************
 
 type Attribute struct {
-	Scope     AttributeScope
-	Parent    bool
-	Name      string
-	Intrinsic Intrinsic
+	Name      string         // 16 bytes
+	Scope     AttributeScope // 1 byte - aligned with other fields
+	Parent    bool           // 1 byte - aligned with other fields
+	Intrinsic Intrinsic      // 1 byte - aligned with other fields
 }
 
 // NewAttribute creates a new attribute with the given identifier string.
