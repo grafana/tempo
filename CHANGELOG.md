@@ -4,6 +4,7 @@
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
+* [ENHANCEMENT] Align traceql attribute struct for better performance [#5240](https://github.com/grafana/tempo/pull/5240) (@mdisibio)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
 
 # v2.8.0-rc.1
