@@ -1,7 +1,7 @@
 # cel.dev/expr v0.20.0
 ## explicit; go 1.21.1
 cel.dev/expr
-# cloud.google.com/go v0.121.0
+# cloud.google.com/go v0.121.1
 ## explicit; go 1.23.0
 cloud.google.com/go/internal
 cloud.google.com/go/internal/optional
@@ -39,7 +39,7 @@ cloud.google.com/go/iam/apiv1/iampb
 cloud.google.com/go/monitoring/apiv3/v2
 cloud.google.com/go/monitoring/apiv3/v2/monitoringpb
 cloud.google.com/go/monitoring/internal
-# cloud.google.com/go/storage v1.54.0
+# cloud.google.com/go/storage v1.55.0
 ## explicit; go 1.23.0
 cloud.google.com/go/storage
 cloud.google.com/go/storage/experimental
@@ -1855,8 +1855,8 @@ go.opentelemetry.io/contrib/bridges/otelzap
 # go.opentelemetry.io/contrib/bridges/prometheus v0.61.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/bridges/prometheus
-# go.opentelemetry.io/contrib/detectors/gcp v1.35.0
-## explicit; go 1.22.0
+# go.opentelemetry.io/contrib/detectors/gcp v1.36.0
+## explicit; go 1.23.0
 go.opentelemetry.io/contrib/detectors/gcp
 # go.opentelemetry.io/contrib/exporters/autoexport v0.61.0
 ## explicit; go 1.23.0
