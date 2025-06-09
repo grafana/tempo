@@ -99,6 +99,7 @@ dashboard_utils {
           $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.memcached),
         )
       )
+
       .addRow(
         g.row('Backend scheduler')
         .addPanel(
@@ -110,6 +111,7 @@ dashboard_utils {
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.backend_scheduler)),
         )
+      )
       .addRow(
         g.row('Backend worker')
         .addPanel(
@@ -121,6 +123,7 @@ dashboard_utils {
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.backend_worker)),
         )
+      )
       .addRow(
         g.row('Block builder')
         .addPanel(
