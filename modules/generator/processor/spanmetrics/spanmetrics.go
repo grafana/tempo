@@ -273,7 +273,6 @@ func validateUTF8LabelValues(v []string) error {
 }
 
 func validatePromLabelNames(labels *[]string, labelValues *[]string) {
-
 	validLabels := make([]string, 0, len(*labels))
 	validLabelValues := make([]string, 0, len(*labelValues))
 
