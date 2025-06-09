@@ -3,7 +3,7 @@ module github.com/grafana/tempo
 go 1.24.3
 
 require (
-	cloud.google.com/go/storage v1.54.0
+	cloud.google.com/go/storage v1.55.0
 	github.com/alecthomas/kong v1.11.0
 	github.com/alicebob/miniredis/v2 v2.34.0
 	github.com/aws/aws-sdk-go v1.55.7
@@ -128,7 +128,7 @@ require (
 
 require (
 	cel.dev/expr v0.20.0 // indirect
-	cloud.google.com/go v0.121.0 // indirect
+	cloud.google.com/go v0.121.1 // indirect
 	cloud.google.com/go/auth v0.16.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
@@ -370,7 +370,7 @@ require (
 	go.opentelemetry.io/collector/service/hostcapabilities v0.127.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
 	go.opentelemetry.io/contrib/bridges/prometheus v0.61.0 // indirect
-	go.opentelemetry.io/contrib/detectors/gcp v1.35.0 // indirect
+	go.opentelemetry.io/contrib/detectors/gcp v1.36.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.60.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.15.0 // indirect
