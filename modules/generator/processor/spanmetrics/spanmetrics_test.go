@@ -1346,7 +1346,6 @@ func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, b
 }
 
 func TestValidatePromLabelNames(t *testing.T) {
-
 	tests := []struct {
 		name                string
 		inputLabels         []string
