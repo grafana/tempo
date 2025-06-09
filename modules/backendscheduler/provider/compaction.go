@@ -271,8 +271,9 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 }
 
 func (p *CompactionProvider) measureTenants() {
+	var blockSelector blockselector.CompactionBlockSelector
 	for _, tenant := range p.store.Tenants() {
-		blockSelector, _ := p.newBlockSelector(tenant)
+		blockSelector, _ = p.newBlockSelector(tenant)
 
 		yes := func(_ string) bool {
 			return true

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -137,7 +138,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 
 				select {
 				case s.mergedJobs <- job:
-					metricProviderJobsMerged.WithLabelValues(fmt.Sprintf("%d", i)).Inc()
+					metricProviderJobsMerged.WithLabelValues(strconv.Itoa(i)).Inc()
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
 					return
