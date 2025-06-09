@@ -3,7 +3,6 @@ package frontend
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,7 +36,7 @@ func (s *MCPServer) handleTraceQLMetrics(_ context.Context, _ mcp.CallToolReques
 func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	var startEpoch, endEpoch int64
@@ -52,7 +51,7 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 	} else {
 		startTS, err := time.Parse(time.RFC3339, start)
 		if err != nil {
-			return nil, fmt.Errorf("invalid start time: %w", err)
+			return mcp.NewToolResultError(fmt.Sprintf("invalid start time: %v", err)), nil
 		}
 		startEpoch = startTS.Unix()
 	}
@@ -61,18 +60,18 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 	} else {
 		endTS, err := time.Parse(time.RFC3339, end)
 		if err != nil {
-			return nil, fmt.Errorf("invalid end time: %w", err)
+			return mcp.NewToolResultError(fmt.Sprintf("invalid end time: %v", err)), nil
 		}
 		endEpoch = endTS.Unix()
 	}
 
 	parsed, err := traceql.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("query parse error. Consult TraceQL docs tools: %w", err)
+		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}
 
 	if parsed.MetricsPipeline != nil || parsed.MetricsSecondStage != nil {
-		return nil, errors.New("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead")
+		return mcp.NewToolResultError("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead"), nil
 	}
 
 	// nolint:gosec // G115
@@ -84,13 +83,13 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 
 	req, err := api.BuildSearchRequest(nil, searchReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build search request: %w", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to build search request: %v", err)), nil
 	}
 	req.URL.Path = s.buildPath(api.PathSearch)
 
 	body, err := handleHTTP(ctx, s.frontend.SearchHandler, req)
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -100,7 +99,7 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	var startEpochNanos, endEpochNanos int64
@@ -115,7 +114,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 	} else {
 		startTS, err := time.Parse(time.RFC3339, start)
 		if err != nil {
-			return nil, fmt.Errorf("invalid start time: %w", err)
+			return mcp.NewToolResultError(fmt.Sprintf("invalid start time: %v", err)), nil
 		}
 		startEpochNanos = startTS.UnixNano()
 	}
@@ -124,18 +123,18 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 	} else {
 		endTS, err := time.Parse(time.RFC3339, end)
 		if err != nil {
-			return nil, fmt.Errorf("invalid end time: %w", err)
+			return mcp.NewToolResultError(fmt.Sprintf("invalid end time: %v", err)), nil
 		}
 		endEpochNanos = endTS.UnixNano()
 	}
 
 	parsed, err := traceql.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("query parse error. Consult TraceQL docs tools: %w", err)
+		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}
 
 	if parsed.MetricsPipeline == nil {
-		return nil, errors.New("TraceQL search query received on instant query tool. Use the traceql-search tool instead")
+		return mcp.NewToolResultError("TraceQL search query received on instant query tool. Use the traceql-search tool instead"), nil
 	}
 
 	// nolint:gosec // G115
@@ -150,7 +149,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 
 	body, err := handleHTTP(ctx, s.frontend.MetricsQueryInstantHandler, req)
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -159,7 +158,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	query, err := request.RequireString("query")
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	var startEpochNanos, endEpochNanos int64
@@ -174,7 +173,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 	} else {
 		startTS, err := time.Parse(time.RFC3339, start)
 		if err != nil {
-			return nil, fmt.Errorf("invalid start time: %w", err)
+			return mcp.NewToolResultError(fmt.Sprintf("invalid start time: %v", err)), nil
 		}
 		startEpochNanos = startTS.UnixNano()
 	}
@@ -183,18 +182,18 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 	} else {
 		endTS, err := time.Parse(time.RFC3339, end)
 		if err != nil {
-			return nil, fmt.Errorf("invalid end time: %w", err)
+			return mcp.NewToolResultError(fmt.Sprintf("invalid end time: %v", err)), nil
 		}
 		endEpochNanos = endTS.UnixNano()
 	}
 
 	parsed, err := traceql.Parse(query)
 	if err != nil {
-		return nil, fmt.Errorf("query parse error. Consult TraceQL docs tools: %w", err)
+		return mcp.NewToolResultError(fmt.Sprintf("query parse error. Consult TraceQL docs tools: %v", err)), nil
 	}
 
 	if parsed.MetricsPipeline == nil {
-		return nil, errors.New("TraceQL search query received on range query tool. Use the traceql-search tool instead")
+		return mcp.NewToolResultError("TraceQL search query received on range query tool. Use the traceql-search tool instead"), nil
 	}
 
 	// nolint:gosec // G115
@@ -209,7 +208,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 
 	body, err := handleHTTP(ctx, s.frontend.MetricsQueryRangeHandler, req)
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -219,7 +218,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	traceID, err := request.RequireString("trace_id")
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	level.Info(s.logger).Log("msg", "getting trace", "trace_id", traceID)
@@ -232,7 +231,7 @@ func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequ
 
 	body, err := handleHTTP(ctx, s.frontend.TraceByIDHandlerV2, httpReq)
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -248,13 +247,13 @@ func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.Cal
 
 	req, err := api.BuildSearchTagsRequest(nil, searchTagsReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build search request: %w", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to build search request: %v", err)), nil
 	}
 	req.URL.Path = s.buildPath(api.PathSearchTagsV2)
 
 	body, err := handleHTTP(ctx, s.frontend.SearchTagsV2Handler, req)
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	return mcp.NewToolResultText(body), nil
@@ -264,14 +263,14 @@ func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.Cal
 func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	name, err := request.RequireString("name")
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	query := request.GetString("filter-query", "")
 	if query != "" {
 		q := traceql.ExtractMatchers(query)
 		if traceql.IsEmptyQuery(q) {
-			return nil, fmt.Errorf("filter-query invalid. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }")
+			return mcp.NewToolResultError("filter-query invalid. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }"), nil
 		}
 	}
 
@@ -284,7 +283,7 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 
 	req, err := api.BuildSearchTagValuesRequest(nil, searchTagValuesReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build search request: %w", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to build search request: %v", err)), nil
 	}
 	req.URL.Path = s.buildPath("/api/v2/search/tag/" + url.PathEscape(name) + "/values")
 
@@ -292,7 +291,7 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 
 	body, err := handleHTTP(ctx, s.frontend.SearchTagsValuesV2Handler, req)
 	if err != nil {
-		return nil, err
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	return mcp.NewToolResultText(body), nil

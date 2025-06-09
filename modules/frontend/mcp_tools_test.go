@@ -2,7 +2,6 @@ package frontend
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"testing"
@@ -14,7 +13,7 @@ import (
 )
 
 type expectedResult struct {
-	err    error
+	err    string
 	path   string
 	params map[string]string
 }
@@ -55,7 +54,6 @@ func TestHandleSearch(t *testing.T) {
 				"query": "{ span.foo = \"bar\" }",
 			}),
 			expected: expectedResult{
-				err:  nil,
 				path: "/api/search",
 				params: map[string]string{
 					"q": "{ span.foo = \"bar\" }",
@@ -66,7 +64,7 @@ func TestHandleSearch(t *testing.T) {
 			name:    "no query!",
 			request: callToolRequest(map[string]any{}),
 			expected: expectedResult{
-				err: errors.New("required argument \"query\" not found"),
+				err: "required argument \"query\" not found",
 			},
 		},
 		{
@@ -77,7 +75,6 @@ func TestHandleSearch(t *testing.T) {
 				"end":   "2022-01-02T00:00:00Z",
 			}),
 			expected: expectedResult{
-				err:  nil,
 				path: "/api/search",
 				params: map[string]string{
 					"q":     "{ span.foo = \"bar\" }",
@@ -92,7 +89,7 @@ func TestHandleSearch(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: errors.New("query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
 			},
 		},
 		{
@@ -101,7 +98,7 @@ func TestHandleSearch(t *testing.T) {
 				"query": "{} | rate()",
 			}),
 			expected: expectedResult{
-				err: errors.New("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead"),
+				err: "TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead",
 			},
 		},
 	}
@@ -127,7 +124,6 @@ func TestHandleInstantQuery(t *testing.T) {
 				"query": "{} | rate()",
 			}),
 			expected: expectedResult{
-				err:  nil,
 				path: "/api/metrics/query",
 				params: map[string]string{
 					"q": "{} | rate()",
@@ -138,7 +134,7 @@ func TestHandleInstantQuery(t *testing.T) {
 			name:    "no query",
 			request: callToolRequest(map[string]any{}),
 			expected: expectedResult{
-				err: errors.New("required argument \"query\" not found"),
+				err: "required argument \"query\" not found",
 			},
 		},
 		{
@@ -149,7 +145,6 @@ func TestHandleInstantQuery(t *testing.T) {
 				"end":   "2022-01-02T00:00:00Z",
 			}),
 			expected: expectedResult{
-				err:  nil,
 				path: "/api/metrics/query",
 				params: map[string]string{
 					"q":     "{} | rate()",
@@ -164,7 +159,7 @@ func TestHandleInstantQuery(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: errors.New("query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
 			},
 		},
 		{
@@ -173,7 +168,7 @@ func TestHandleInstantQuery(t *testing.T) {
 				"query": "{}",
 			}),
 			expected: expectedResult{
-				err: errors.New("TraceQL search query received on instant query tool. Use the traceql-search tool instead"),
+				err: "TraceQL search query received on instant query tool. Use the traceql-search tool instead",
 			},
 		},
 	}
@@ -199,7 +194,6 @@ func TestHandleRangeQuery(t *testing.T) {
 				"query": "{} | rate()",
 			}),
 			expected: expectedResult{
-				err:  nil,
 				path: "/api/metrics/query_range",
 				params: map[string]string{
 					"q": "{} | rate()",
@@ -210,7 +204,7 @@ func TestHandleRangeQuery(t *testing.T) {
 			name:    "no query",
 			request: callToolRequest(map[string]any{}),
 			expected: expectedResult{
-				err: errors.New("required argument \"query\" not found"),
+				err: "required argument \"query\" not found",
 			},
 		},
 		{
@@ -221,7 +215,6 @@ func TestHandleRangeQuery(t *testing.T) {
 				"end":   "2022-01-02T00:00:00Z",
 			}),
 			expected: expectedResult{
-				err:  nil,
 				path: "/api/metrics/query_range",
 				params: map[string]string{
 					"q":     "{} | rate()",
@@ -236,7 +229,7 @@ func TestHandleRangeQuery(t *testing.T) {
 				"query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: errors.New("query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER"),
+				err: "query parse error. Consult TraceQL docs tools: parse error at line 1, col 3: syntax error: unexpected IDENTIFIER",
 			},
 		},
 		{
@@ -245,7 +238,7 @@ func TestHandleRangeQuery(t *testing.T) {
 				"query": "{}",
 			}),
 			expected: expectedResult{
-				err: errors.New("TraceQL search query received on range query tool. Use the traceql-search tool instead"),
+				err: "TraceQL search query received on range query tool. Use the traceql-search tool instead",
 			},
 		},
 	}
@@ -271,7 +264,6 @@ func TestHandleGetTrace(t *testing.T) {
 				"trace_id": "12345678abcdef90",
 			}),
 			expected: expectedResult{
-				err:    nil,
 				path:   "/api/v2/traces/12345678abcdef90",
 				params: map[string]string{},
 			},
@@ -280,7 +272,7 @@ func TestHandleGetTrace(t *testing.T) {
 			name:    "no trace ID",
 			request: callToolRequest(map[string]any{}),
 			expected: expectedResult{
-				err: errors.New("required argument \"trace_id\" not found"),
+				err: "required argument \"trace_id\" not found",
 			},
 		},
 	}
@@ -304,7 +296,6 @@ func TestHandleGetAttributeNames(t *testing.T) {
 			name:    "no scope",
 			request: callToolRequest(map[string]any{}),
 			expected: expectedResult{
-				err:    nil,
 				path:   "/api/v2/search/tags",
 				params: map[string]string{},
 			},
@@ -315,7 +306,6 @@ func TestHandleGetAttributeNames(t *testing.T) {
 				"scope": "span",
 			}),
 			expected: expectedResult{
-				err:  nil,
 				path: "/api/v2/search/tags",
 				params: map[string]string{
 					"scope": "span",
@@ -345,7 +335,6 @@ func TestHandleGetAttributeValues(t *testing.T) {
 				"name": "service.name",
 			}),
 			expected: expectedResult{
-				err:    nil,
 				path:   "/api/v2/search/tag/service.name/values",
 				params: map[string]string{},
 			},
@@ -354,7 +343,7 @@ func TestHandleGetAttributeValues(t *testing.T) {
 			name:    "no name",
 			request: callToolRequest(map[string]any{}),
 			expected: expectedResult{
-				err: errors.New("required argument \"name\" not found"),
+				err: "required argument \"name\" not found",
 			},
 		},
 		{
@@ -364,7 +353,6 @@ func TestHandleGetAttributeValues(t *testing.T) {
 				"filter-query": "{ span.status = \"error\" }",
 			}),
 			expected: expectedResult{
-				err:  nil,
 				path: "/api/v2/search/tag/service.name/values",
 				params: map[string]string{
 					"q": "{ span.status = \"error\" }",
@@ -378,7 +366,7 @@ func TestHandleGetAttributeValues(t *testing.T) {
 				"filter-query": "{ foo bar baz }",
 			}),
 			expected: expectedResult{
-				err: errors.New("filter-query invalid. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }"),
+				err: "filter-query invalid. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }",
 			},
 		},
 	}
@@ -458,14 +446,22 @@ func testFrontend() (*MCPServer, func(t *testing.T, req mcp.CallToolRequest, han
 		ctx := context.Background()
 		result, err := handler(ctx, req)
 
-		if expected.err != nil {
-			require.Error(t, err)
-			require.EqualError(t, err, expected.err.Error())
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		if expected.err != "" {
+			// Check if the result contains an error
+			require.True(t, result.IsError)
+			require.Len(t, result.Content, 1)
+			textContent, ok := result.Content[0].(mcp.TextContent)
+			require.True(t, ok)
+			require.Equal(t, expected.err, textContent.Text)
 			return
 		}
 
-		require.NoError(t, err)
-		require.NotNil(t, result)
+		// For successful cases, verify we have text content
+		require.False(t, result.IsError)
+		require.NotEmpty(t, result.Content)
 
 		// Parse and verify the request URL
 		require.Equal(t, expected.path, lastRequest.URL.Path)
