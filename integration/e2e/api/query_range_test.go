@@ -151,7 +151,7 @@ sendLoop:
 					Query:     query,
 					Exemplars: exeplarsCase.exemplars,
 				}
-				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req, debugMode)
+				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 				require.NotNil(t, queryRangeRes)
 				require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
 				if query == "{} | quantile_over_time(duration, .5, 0.9, 0.99)" {
@@ -232,7 +232,7 @@ sendLoop:
 				Query:     testCase.query,
 				Exemplars: 100,
 			}
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 			require.NotNil(t, queryRangeRes)
 			require.Equal(t, len(queryRangeRes.GetSeries()), 2)
 
@@ -280,7 +280,7 @@ sendLoop:
 		`{span.randomattr = "doesnotexist"} | count_over_time()`,
 	} {
 		t.Run(query, func(t *testing.T) {
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), queryRangeRequest{Query: query, Exemplars: 100}, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), queryRangeRequest{Query: query, Exemplars: 100})
 			require.NotNil(t, queryRangeRes)
 			// it has time series but they are empty and has no exemplars
 			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
@@ -339,13 +339,13 @@ sendLoop:
 				Step:  testCase.step,
 			}
 
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 			require.NotNil(t, queryRangeRes)
 			require.Equal(t, 1, len(queryRangeRes.GetSeries()))
 
 			expectedValue := testCase.converter(queryRangeRes.Series[0].Samples)
 
-			instantQueryRes := callInstantQuery(t, tempo.Endpoint(tempoPort), req, debugMode)
+			instantQueryRes := callInstantQuery(t, tempo.Endpoint(tempoPort), req)
 			require.NotNil(t, instantQueryRes)
 			require.Equal(t, 1, len(instantQueryRes.GetSeries()))
 			require.InDelta(t, expectedValue, instantQueryRes.GetSeries()[0].Value, 0.000001)
@@ -408,7 +408,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 
 	// Query the trace by count. As we have only one trace, we should get one dot with value 1
 	query := "{} | count_over_time()"
-	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), queryRangeRequest{Query: query, Exemplars: 100}, debugMode)
+	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), queryRangeRequest{Query: query, Exemplars: 100})
 	require.NotNil(t, queryRangeRes)
 	require.Equal(t, len(queryRangeRes.GetSeries()), 1)
 
@@ -625,7 +625,7 @@ sendLoop:
 	require.Equal(t, spanCount, len(queryRangeRes.GetSeries()))
 }
 
-func callInstantQuery(t *testing.T, endpoint string, req queryRangeRequest, printBody bool) tempopb.QueryInstantResponse {
+func callInstantQuery(t *testing.T, endpoint string, req queryRangeRequest) tempopb.QueryInstantResponse {
 	req.SetDefaults()
 	res := doRequest(t, endpoint, "api/metrics/query", req)
 	require.Equal(t, http.StatusOK, res.StatusCode)
@@ -633,8 +633,8 @@ func callInstantQuery(t *testing.T, endpoint string, req queryRangeRequest, prin
 	// Read body and print it
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	if printBody {
-		fmt.Println(string(body))
+	if debugMode {
+		t.Logf("Response body: %s", string(body))
 	}
 
 	instantQueryRes := tempopb.QueryInstantResponse{}
@@ -644,7 +644,7 @@ func callInstantQuery(t *testing.T, endpoint string, req queryRangeRequest, prin
 	return instantQueryRes
 }
 
-func callQueryRange(t *testing.T, endpoint string, req queryRangeRequest, printBody bool) tempopb.QueryRangeResponse {
+func callQueryRange(t *testing.T, endpoint string, req queryRangeRequest) tempopb.QueryRangeResponse {
 	req.SetDefaults()
 	res := doRequest(t, endpoint, "api/metrics/query_range", req)
 	require.Equal(t, http.StatusOK, res.StatusCode)
@@ -652,8 +652,8 @@ func callQueryRange(t *testing.T, endpoint string, req queryRangeRequest, printB
 	// Read body and print it
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	if printBody {
-		fmt.Println(string(body))
+	if debugMode {
+		t.Logf("Response body: %s", string(body))
 	}
 
 	queryRangeRes := tempopb.QueryRangeResponse{}
