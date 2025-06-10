@@ -286,6 +286,92 @@ sendLoop:
 			require.Equal(t, 0, exemplarCount)
 		})
 	}
+
+	for _, testCase := range []struct {
+		name      string
+		query     string
+		step      string
+		converter func([]tempopb.Sample) float64
+	}{
+		{
+			name:      "count_over_time",
+			query:     "{} | count_over_time()",
+			step:      "1s",
+			converter: sumSamples,
+		},
+		{
+			name:      "sum_over_time",
+			query:     "{} | sum_over_time(duration)",
+			step:      "1s",
+			converter: sumSamples,
+		},
+		{
+			name:      "max_over_time",
+			query:     "{} | max_over_time(duration)",
+			step:      "1s",
+			converter: maxSamples,
+		},
+		{
+			name:      "min_over_time",
+			query:     "{} | min_over_time(duration)",
+			step:      "1s",
+			converter: minSamples,
+		},
+		{
+			name:      "1m step",
+			query:     "{} | count_over_time()",
+			step:      "1m",
+			converter: sumSamples,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			req := queryRangeRequest{
+				Query: testCase.query,
+				Start: time.Now().Add(-5 * time.Minute).Truncate(time.Minute),
+				End:   time.Now().Add(time.Minute).Truncate(time.Minute),
+				Step:  testCase.step,
+			}
+
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req, debugMode)
+			require.NotNil(t, queryRangeRes)
+			require.Equal(t, 1, len(queryRangeRes.GetSeries()))
+
+			expectedValue := testCase.converter(queryRangeRes.Series[0].Samples)
+
+			instantQueryRes := callInstantQuery(t, tempo.Endpoint(tempoPort), req, debugMode)
+			require.NotNil(t, instantQueryRes)
+			require.Equal(t, 1, len(instantQueryRes.GetSeries()))
+			require.InDelta(t, expectedValue, instantQueryRes.GetSeries()[0].Value, 0.000001)
+		})
+	}
+}
+
+func sumSamples(samples []tempopb.Sample) float64 {
+	var sum float64
+	for _, sample := range samples {
+		sum += sample.Value
+	}
+	return sum
+}
+
+func maxSamples(samples []tempopb.Sample) float64 {
+	max := samples[0].Value
+	for _, sample := range samples {
+		if sample.Value > max {
+			max = sample.Value
+		}
+	}
+	return max
+}
+
+func minSamples(samples []tempopb.Sample) float64 {
+	min := samples[0].Value
+	for _, sample := range samples {
+		if sample.Value < min {
+			min = sample.Value
+		}
+	}
+	return min
 }
 
 // TestQueryRangeSingleTrace checks count for a single trace
