@@ -1,6 +1,6 @@
 ---
-title: Command line flags  
-menuTitle: Command line flags  
+title: Command line flags
+menuTitle: Command line flags
 description: Reference for Tempo command line flags
 weight: 650
 ---
@@ -61,7 +61,7 @@ Tempo provides various command-line flags to configure its behavior when startin
 
 You can use additional flags to configuring individual Tempo modules, such as the distributor, ingester, querier, and their components. These flags follow a pattern like `--<module>.<setting>` and are extensively documented in the configuration file format.
 
-Use the configuration file approach described in the [Configuration documentation](../configuration/).
+Use the configuration file approach described in the [Configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/).
 The documentation has a comprehensive list of all configuration options.
 
 ## Usage examples
