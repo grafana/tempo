@@ -55,11 +55,11 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 			case <-time.After(waitTime):
 				lag, err := getGroupLag(ctx, admClient, topic, group)
 				if err != nil {
-					refreshMetadata, _ := HandleKafkaError(err)
+					refreshMetadata, retryable := HandleKafkaError(err)
 					if refreshMetadata {
 						forceMetadataRefresh()
 					}
-					level.Error(log).Log("msg", "metric lag failed:", "err", err)
+					level.Error(log).Log("msg", "metric lag failed:", "err", err, "retryable", retryable, "refreshMetadata", refreshMetadata)
 					continue
 				}
 				for _, p := range getAssignedActivePartitions() {
