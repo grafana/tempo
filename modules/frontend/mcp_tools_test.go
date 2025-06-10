@@ -140,7 +140,7 @@ func TestHandleInstantQuery(t *testing.T) {
 					"q": "{} | rate()",
 				},
 				meta: map[string]any{
-					"type":     "metrics",
+					"type":     "metrics-instant",
 					"encoding": "json",
 					"version":  "1",
 				},
@@ -168,7 +168,7 @@ func TestHandleInstantQuery(t *testing.T) {
 					"end":   "1641081600000000000",
 				},
 				meta: map[string]any{
-					"type":     "metrics",
+					"type":     "metrics-instant",
 					"encoding": "json",
 					"version":  "1",
 				},
@@ -220,7 +220,7 @@ func TestHandleRangeQuery(t *testing.T) {
 					"q": "{} | rate()",
 				},
 				meta: map[string]any{
-					"type":     "metrics",
+					"type":     "metrics-range",
 					"encoding": "json",
 					"version":  "1",
 				},
@@ -248,7 +248,7 @@ func TestHandleRangeQuery(t *testing.T) {
 					"end":   "1641081600000000000",
 				},
 				meta: map[string]any{
-					"type":     "metrics",
+					"type":     "metrics-range",
 					"encoding": "json",
 					"version":  "1",
 				},

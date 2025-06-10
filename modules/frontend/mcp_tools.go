@@ -20,16 +20,26 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+const (
+	MetaTypeDocumentation   = "documentation"
+	MetaTypeSearchResults   = "search-results"
+	MetaTypeMetricsRange    = "metrics-range"
+	MetaTypeMetricsInstant  = "metrics-instant"
+	MetaTypeTrace           = "trace"
+	MetaTypeAttributeNames  = "attribute-names"
+	MetaTypeAttributeValues = "attribute-values"
+)
+
 func (s *MCPServer) handleTraceQLQuery(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	level.Info(s.logger).Log("msg", "traceql query tool requested")
 
-	return toolResult(trimDocs(docs.TraceQLMain), "documentation", "markdown", "1"), nil
+	return toolResult(trimDocs(docs.TraceQLMain), MetaTypeDocumentation, "markdown", "1"), nil
 }
 
 func (s *MCPServer) handleTraceQLMetrics(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	level.Info(s.logger).Log("msg", "traceql metrics tool requested")
 
-	return toolResult(trimDocs(docs.TraceQLMetrics), "documentation", "markdown", "1"), nil
+	return toolResult(trimDocs(docs.TraceQLMetrics), MetaTypeDocumentation, "markdown", "1"), nil
 }
 
 // handleSearch handles the traceql-search tool
@@ -92,7 +102,7 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return toolResult(body, "search-results", "json", "1"), nil
+	return toolResult(body, MetaTypeSearchResults, "json", "1"), nil
 }
 
 // handleInstantQuery handles the traceql-metrics-instant tool
@@ -152,7 +162,7 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return toolResult(body, "metrics", "json", "1"), nil
+	return toolResult(body, MetaTypeMetricsInstant, "json", "1"), nil
 }
 
 func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -211,7 +221,7 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return toolResult(body, "metrics", "json", "1"), nil
+	return toolResult(body, MetaTypeMetricsRange, "json", "1"), nil
 }
 
 // handleGetTrace handles the get-trace tool
@@ -234,7 +244,7 @@ func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequ
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return toolResult(body, "trace", "json", "2"), nil
+	return toolResult(body, MetaTypeTrace, "json", "2"), nil
 }
 
 // handleGetAttributeNames handles the get-attribute-names tool
@@ -256,7 +266,7 @@ func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.Cal
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return toolResult(body, "attribute-names", "json", "2"), nil
+	return toolResult(body, MetaTypeAttributeNames, "json", "2"), nil
 }
 
 // handleGetAttributeValues handles the get-attribute-values tool
@@ -294,7 +304,7 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return toolResult(body, "attribute-values", "json", "2"), nil
+	return toolResult(body, MetaTypeAttributeValues, "json", "2"), nil
 }
 
 func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (string, error) {
