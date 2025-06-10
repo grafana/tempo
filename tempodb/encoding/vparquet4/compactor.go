@@ -32,7 +32,7 @@ type Compactor struct {
 // This setup has been experimentally found to have much better performance and resource usage
 // in a high volume multitenant setup.  But this isn't necessarily the best possible and could use
 // more investigation. Findings:
-// (1) Previously we initialzied the pool with a setting based on the tenant's MaxBytesPerTrace.
+// (1) Previously we initialized the pool with a setting based on the tenant's MaxBytesPerTrace.
 // But this led to unstable memory usage, with high memory spikes and OOMs. Removing pooling altogether
 // reduced memory usage by over half.
 // (2) However some amount of pooling is needed to keep GC's low and compaction throughput high. 1M is
