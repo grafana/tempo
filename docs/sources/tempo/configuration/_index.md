@@ -2001,7 +2001,7 @@ No performance data is collected.
 You can view the report by visiting this address on your Tempo instance:
 `http://localhost:3200/status/usage-stats`
 
-Refer to [Anonymous usage reporting](../configuration/anonymouse-usage-reporting/) for detailed information on the information included in the report.
+Refer to [Anonymous usage reporting](../configuration/anonymous-usage-reporting/) for detailed information on the information included in the report.
 
 ### Configure usage-reporting
 
