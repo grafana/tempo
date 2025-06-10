@@ -38,6 +38,7 @@ func TestBackendScheduler(t *testing.T) {
 	cfg.BackendFlushInterval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
 
 	var (
 		ctx, cancel   = context.WithCancel(context.Background())
@@ -330,6 +331,7 @@ func TestProviderBasedScheduling(t *testing.T) {
 	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = t.TempDir()
 
 	var (
 		ctx, cancel   = context.WithCancel(context.Background())
