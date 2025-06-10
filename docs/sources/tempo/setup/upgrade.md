@@ -81,7 +81,7 @@ In addition, these Tempo serverless related metrics have been removed: `tempo_qu
 
 ## Upgrade to Tempo 2.7
 
-When[upgrading to Tempo 2.7, be aware of these considerations and breaking changes.
+When upgrading to Tempo 2.7, be aware of these considerations and breaking changes.
 
 ### OpenTelemetry Collector receiver listens on `localhost` by default
 
