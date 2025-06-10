@@ -206,7 +206,10 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		b.kadm,
 		b.logger,
 		b.cfg.IngestStorageConfig,
-		b.getAssignedPartitions)
+		b.getAssignedPartitions,
+		func() {
+			b.kafkaClient.ForceMetadataRefresh()
+		})
 
 	return nil
 }
@@ -221,7 +224,11 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 		cancel() // Always cancel the context after consume completes
 
 		if err != nil {
-			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
+			forceMetadata, retryable := ingest.HandleKafkaError(err)
+			if forceMetadata {
+				b.kafkaClient.ForceMetadataRefresh()
+			}
+			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err, "retryable", retryable, "force_metadata_refresh", forceMetadata)
 		}
 
 		select {

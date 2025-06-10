@@ -42,7 +42,7 @@ var (
 // Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting
 // stale data. For efficiency this is not detected automatically from changes inthe assigned
 // partition callback.
-func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32) {
+func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
 	go func() {
 		var (
 			waitTime = time.Second * 15
@@ -55,6 +55,10 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 			case <-time.After(waitTime):
 				lag, err := getGroupLag(ctx, admClient, topic, group)
 				if err != nil {
+					refreshMetadata, _ := HandleKafkaError(err)
+					if refreshMetadata {
+						forceMetadataRefresh()
+					}
 					level.Error(log).Log("msg", "metric lag failed:", "err", err)
 					continue
 				}
