@@ -632,6 +632,12 @@ You can specify the time window to break a search up into when doing a most rece
 The default value is 200.
 Refer to the [Tempo configuration reference](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/query_frontend/) for more information.
 
+### Search impact using `most_recent`
+
+Most search functions are deterministic: using the same search criteria results in the same results.
+
+When you use most_recent=true`, Tempo search is non-deterministic.
+If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
 
 ## Experimental TraceQL metrics
 
