@@ -37,7 +37,13 @@
     (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
   newBackendSchedulerStatefulSet(max_unavailable=1)::
-    statefulset.new(target_name, $._config.backend_scheduler.replicas, $.tempo_backend_scheduler_container, [], { app: target_name }) +
+    statefulset.new(
+      target_name,
+      $._config.backend_scheduler.replicas,
+      $.tempo_backend_scheduler_container,
+      [],
+      { app: target_name }
+    ) +
     statefulset.mixin.spec.withServiceName(target_name) +
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
     statefulset.mixin.spec.template.metadata.withAnnotations({

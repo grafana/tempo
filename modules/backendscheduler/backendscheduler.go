@@ -33,6 +33,8 @@ var tracer = otel.Tracer("modules/backendscheduler")
 type BackendScheduler struct {
 	services.Service
 
+	mtx sync.Mutex
+
 	cfg       Config
 	store     storage.Store
 	overrides overrides.Interface
@@ -163,12 +165,25 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 	maintenanceTicker := time.NewTicker(s.cfg.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
 
+	backendFlushTicker := time.NewTicker(s.cfg.BackendFlushInterval)
+	defer backendFlushTicker.Stop()
+
+	var err error
+
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-maintenanceTicker.C:
 			s.work.Prune()
+		case <-backendFlushTicker.C:
+			err = s.flushWorkCacheToBackend(ctx)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "failed to flush work cache to backend", "error", err)
+			} else {
+				level.Info(log.Logger).Log("msg", "flushed work cache to backend")
+			}
+
 		}
 	}
 }
@@ -177,6 +192,11 @@ func (s *BackendScheduler) stopping(_ error) error {
 	err := s.flushWorkCache(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to flush work cache on shutdown: %w", err)
+	}
+
+	err = s.flushWorkCacheToBackend(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to flush work cache to backend on shutdown: %w", err)
 	}
 
 	level.Info(log.Logger).Log("msg", "backend scheduler stopping")
@@ -199,7 +219,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			Detail: j.JobDetail,
 		}
 
-		// The job exists in memory, but may not have been persisted to the backend.
+		// The job exists in memory, but may not have been persisted to disk.
 		err := s.flushWorkCache(ctx)
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
@@ -239,7 +259,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
 		}
 
-		j.Start()
+		s.work.StartJob(j.ID)
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 
 		err = s.flushWorkCache(ctx)
@@ -250,7 +270,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 		span.SetAttributes(attribute.String("job_id", j.ID))
 
-		metricJobsCreated.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+		metricJobsCreated.WithLabelValues(resp.Detail.Tenant, resp.Type.String()).Inc()
 
 		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
 
@@ -273,13 +293,13 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
-		j.Complete()
+		s.work.CompleteJob(req.JobId)
 		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Dec()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
 		if req.Compaction != nil && req.Compaction.Output != nil {
-			j.SetCompactionOutput(req.Compaction.Output)
+			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 		}
 
 		err := s.flushWorkCache(ctx)
@@ -293,7 +313,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
-		j.Fail()
+		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
