@@ -1450,6 +1450,33 @@ func TestSecondStageTopK(t *testing.T) {
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
 }
 
+func TestSecondStageTopKInstant(t *testing.T) {
+	// Instant Queries are just Range Queries with a step that spans the entire range (end - start) + start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(8 * time.Second),
+		Step:  uint64(7 * time.Second),
+		Query: "{ } | rate() by (span.foo) | topk(2)",
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	result, _, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	// Instant queries return a single value for each series.
+	// so there should be only one value in each series and only two series in the result.
+	require.Equal(t, 2, len(result))
+
+	// bar and baz have more spans so they should be the top 2
+	require.Equal(t, 1, len(result[`{"span.foo"="bar"}`].Values))
+	require.Equal(t, 1, len(result[`{"span.foo"="baz"}`].Values))
+}
+
 func TestSecondStageTopKAverage(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
@@ -1493,10 +1520,39 @@ func TestSecondStageBottomK(t *testing.T) {
 	require.NoError(t, err)
 
 	// quax and baz have the lowest spans so they should be the bottom 2
-	resultBar := result[`{"span.foo"="quax"}`]
-	require.Equal(t, []float64{3, 3, 3, 3, 3, 3, 3, 3}, resultBar.Values)
+	resultQuax := result[`{"span.foo"="quax"}`]
+	require.Equal(t, []float64{3, 3, 3, 3, 3, 3, 3, 3}, resultQuax.Values)
 	resultBaz := result[`{"span.foo"="baz"}`]
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
+}
+
+func TestSecondStageBottomKInstant(t *testing.T) {
+	// Instant Queries are just Range Queries with a step that spans the entire range (end - start)
+	start := uint64(1 * time.Second)
+	end := uint64(8 * time.Second)
+	req := &tempopb.QueryRangeRequest{
+		Start: start,
+		End:   end,
+		Step:  end - start,
+		Query: "{ } | rate() by (span.foo) | bottomk(2)",
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	result, _, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	// Instant queries return a single value for each series.
+	// so there should be only one value in each series and only two series in the result.
+	require.Equal(t, 2, len(result))
+
+	// quax and baz have the lowest spans so they should be the bottom 2
+	require.Equal(t, 1, len(result[`{"span.foo"="quax"}`].Values))
+	require.Equal(t, 1, len(result[`{"span.foo"="baz"}`].Values))
 }
 
 func TestProcessTopK(t *testing.T) {
