@@ -41,7 +41,7 @@ Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a tr
 
 [TraceQL metrics](https://grafana.com/docs/tempo/latest/traceql/metrics-queries/) is an experimental feature in Grafana Tempo that creates metrics from traces. Metric queries extend trace queries by applying a function to trace query results. This powerful feature allows for ad hoc aggregation of any existing TraceQL query by any dimension available in your traces, much in the same way that LogQL metric queries create metrics from logs.
 
-Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ingests batches in any of the mentioned formats, buffers them, and then writes them to Azure, GCS, S3, or local disk. As such, it is robust, cheap, and easy to operate!
+Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ingests batches in any of the mentioned formats, buffers them, and then writes them to Azure, GCS, S3, or local disk. As such, it's robust, cheap, and easy to operate.
 
 ## Getting started with Tempo
 
