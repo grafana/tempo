@@ -1007,6 +1007,10 @@ backend_scheduler:
                 max_period: 10s
                 max_retries: 0
     job_timeout: 15s
+    backoff:
+        min_period: 100ms
+        max_period: 10s
+        max_retries: 10
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
