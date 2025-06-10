@@ -536,6 +536,25 @@ sendLoop:
 	require.Equal(t, spanCount, len(queryRangeRes.GetSeries()))
 }
 
+func callInstantQuery(t *testing.T, endpoint string, req queryRangeRequest, printBody bool) tempopb.QueryInstantResponse {
+	req.SetDefaults()
+	res := doRequest(t, endpoint, "api/metrics/query", req)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	// Read body and print it
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	if printBody {
+		fmt.Println(string(body))
+	}
+
+	instantQueryRes := tempopb.QueryInstantResponse{}
+	readBody := strings.NewReader(string(body))
+	err = new(jsonpb.Unmarshaler).Unmarshal(readBody, &instantQueryRes)
+	require.NoError(t, err)
+	return instantQueryRes
+}
+
 func callQueryRange(t *testing.T, endpoint string, req queryRangeRequest, printBody bool) tempopb.QueryRangeResponse {
 	req.SetDefaults()
 	res := doRequest(t, endpoint, "api/metrics/query_range", req)
