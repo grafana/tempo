@@ -52,6 +52,9 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 
 // IntervalCount is the number of intervals in the range with step.
 func IntervalCount(start, end, step uint64) int {
+	if isInstant(start, end, step) { // always 1 interval
+		return 1
+	}
 	start = alignStart(start, end, step)
 	end = alignEnd(start, end, step)
 
@@ -68,15 +71,26 @@ func TimestampOf(interval, start, end, step uint64) uint64 {
 
 // IntervalOf the given timestamp within the range and step.
 func IntervalOf(ts, start, end, step uint64) int {
+	if isInstant(start, end, step) { // always one interval
+		if !isTsValidForInterval(ts, start, end, step) {
+			return -1
+		}
+		return 0
+	}
+
 	start = alignStart(start, end, step)
 	end = alignEnd(start, end, step) + step
 
-	if ts < start || ts > end || end == start || step == 0 {
-		// Invalid
+	if !isTsValidForInterval(ts, start, end, step) {
 		return -1
 	}
 
 	return int((ts - start) / step)
+}
+
+// validateIntervalOf returns true if the timestamp is valid for the given range and step.
+func isTsValidForInterval(ts, start, end, step uint64) bool {
+	return !(ts < start || ts > end || end == start || step == 0)
 }
 
 // IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.

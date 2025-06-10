@@ -37,7 +37,7 @@ func TestStepRangeToIntervals(t *testing.T) {
 			start:    0,
 			end:      1,
 			step:     1,
-			expected: 2, // 0, 1, even multiple
+			expected: 1, // end-start == step -> instant query, only one interval
 		},
 		{
 			start:    0,
