@@ -25,9 +25,63 @@ For detailed information about any release, refer to the [Release notes](../rele
 You can check your configuration options using the [`status` API endpoint](../../api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
+## Upgrade to Tempo 2.8
+
+When upgrading to Tempo 2.8, be aware of these considerations and breaking changes.
+
+### Changed the default listening port
+
+With Tempo 2.8, the default `http_listen_port` changes from 80 to 3200. Check the configuration options for the `server:` block in your Tempo configuration file.
+
+```yaml
+server:
+    # HTTP server listen host
+    [http_listen_address: &lt;string>]
+
+    # HTTP server listen port
+    [http_listen_port: &lt;int> | default = 3200]
+```
+
+Refer to [issue 4945](https://github.com/grafana/tempo/discussions/4945) for more information for the rationale.
+[PR 4960](https://github.com/grafana/tempo/pull/4960)
+
+### Removed Tempo serverless
+
+Tempo serverless has been removed. The following configuration options are no longer  valid and should be removed from your Tempo configuration. [PR [4599](https://github.com/grafana/tempo/pull/4599/))
+
+```yaml
+querier:
+    search:
+        prefer_self: <int>
+        external_hedge_requests_at: <duration>
+        external_hedge_requests_up_to:  <duration>
+        external_backend: <string>
+        google_cloud_run: <string>
+        external_endpoints: <array>
+```
+
+In addition, these Tempo serverless related metrics have been removed: `tempo_querier_external_endpoint_duration_seconds`, `tempo_querier_external_endpoint_hedged_roundtrips_total`, and `tempo_feature_enabled`.
+
+### Updated, removed, or renamed configuration parameters
+
+| Parameter | Comments |
+|---|---|
+| `max_span_attr_byte` | Renamed to `max_attribute_bytes`. ([PR 4633](https://github.com/grafana/tempo/pull/4633)) |
+| `tempo_discarded_spans_total` | Removed `internal_error` as a reason from `tempo_discarded_spans_total`. ([PR 4554](https://github.com/grafana/tempo/pull/4554)) |
+| `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` | The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. ([PR 4893](https://github.com/grafana/tempo/pull/4893))  |
+
+### Other upgrade considerations
+
+* Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. ([PR 4893](https://github.com/grafana/tempo/pull/4893))
+* Replace `opentracing-contrib/go-grpc` by `otelgrpc` in Tempo query. ([PR 4958](https://github.com/grafana/tempo/pull/4958))
+* Enforce max attribute size at event, link, and instrumentation scope. The configuration is now per-tenant. Renamed `max_span_attr_byte` to `max_attribute_bytes`. ([PR 4633](https://github.com/grafana/tempo/pull/4633))
+* Converted SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. ([PR 4748](https://github.com/grafana/tempo/pull/4748))
+* Removed the OpenTelemetry Jaeger exporter, which has been [deprecated](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/jaeger). ([PR 4926](https://github.com/grafana/tempo/pull/4926))
+
+
 ## Upgrade to Tempo 2.7
 
-When [upgrading](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/upgrade/) to Tempo 2.7, be aware of these considerations and breaking changes.
+When[upgrading to Tempo 2.7, be aware of these considerations and breaking changes.
 
 ### OpenTelemetry Collector receiver listens on `localhost` by default
 
