@@ -46,6 +46,8 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
+        - mountPath: /var/tempo
+          name: backend-scheduler-data
         - mountPath: /overrides
           name: overrides
       securityContext:
@@ -59,3 +61,18 @@ spec:
         name: overrides
   updateStrategy:
     type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      labels:
+        app: backend-scheduler
+      name: backend-scheduler-data
+      namespace: tracing
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 200Mi
+      storageClassName: fast
