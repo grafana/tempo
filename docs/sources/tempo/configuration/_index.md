@@ -95,7 +95,7 @@ server:
     [http_listen_address: <string>]
 
     # HTTP server listen port
-    [http_listen_port: <int> | default = 80]
+    [http_listen_port: <int> | default = 3200]
 
     # gRPC server listen host
     [grpc_listen_address: <string>]
@@ -712,7 +712,7 @@ query_frontend:
         [throughput_bytes_slo: <float> | default = 0 ]
 
         # The number of time windows to break a search up into when doing a most recent TraceQL search. This only impacts TraceQL
-        # searches with (most_recent=true)
+        # searches with (most_recent=true).
         [most_recent_shards: <int> | default = 200]
 
         # The number of shards to break ingester queries into.
