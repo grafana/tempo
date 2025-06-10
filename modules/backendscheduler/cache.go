@@ -41,13 +41,17 @@ func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	metricWorkFlushes.Inc()
+
 	b, err := s.work.Marshal()
 	if err != nil {
+		metricWorkFlushesFailed.Inc()
 		return fmt.Errorf("failed to marshal work cache: %w", err)
 	}
 
 	err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), -1, nil)
 	if err != nil {
+		metricWorkFlushesFailed.Inc()
 		return fmt.Errorf("failed to flush work cache: %w", err)
 	}
 
