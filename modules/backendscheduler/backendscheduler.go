@@ -32,6 +32,8 @@ var tracer = otel.Tracer("modules/backendscheduler")
 type BackendScheduler struct {
 	services.Service
 
+	mtx sync.Mutex
+
 	cfg       Config
 	store     storage.Store
 	overrides overrides.Interface

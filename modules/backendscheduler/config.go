@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/tempo/modules/backendscheduler/provider"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/pkg/util"
@@ -19,6 +20,7 @@ type Config struct {
 	// Provider configs
 	ProviderConfig provider.Config `yaml:"provider"`
 	JobTimeout     time.Duration   `yaml:"job_timeout"`
+	Backoff        backoff.Config  `yaml:"backoff"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -29,6 +31,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Work.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "work"), f)
 
 	cfg.ProviderConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "provider"), f)
+
+	cfg.Backoff.RegisterFlagsWithPrefix(util.PrefixConfig(prefix, "backoff"), f)
 }
 
 func ValidateConfig(cfg *Config) error {

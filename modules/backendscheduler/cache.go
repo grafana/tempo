@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -17,9 +18,17 @@ func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
 		return fmt.Errorf("failed to marshal work cache: %w", err)
 	}
 
-	err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), -1, nil)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to flush work cache", "error", err)
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	bo := backoff.New(ctx, s.cfg.Backoff)
+
+	for bo.Ongoing() {
+		err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), -1, nil)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "failed to flush work cache", "error", err)
+			bo.Wait()
+		}
 	}
 	return err
 }
