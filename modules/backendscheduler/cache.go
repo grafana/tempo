@@ -17,7 +17,11 @@ func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
 		return fmt.Errorf("failed to marshal work cache: %w", err)
 	}
 
-	return s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), -1, nil)
+	err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), -1, nil)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "failed to flush work cache", "error", err)
+	}
+	return err
 }
 
 // readSeedFile reads the cluster seed file from the object store.
