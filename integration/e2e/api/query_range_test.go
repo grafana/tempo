@@ -233,7 +233,7 @@ sendLoop:
 	}
 
 	// invalid query
-	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}", 100)
+	res := doRequest(t, tempo.Endpoint(tempoPort), "api/metrics/query_range", "{. a}", 100)
 	require.Equal(t, 400, res.StatusCode)
 
 	// query with empty results
@@ -502,7 +502,7 @@ sendLoop:
 }
 
 func callQueryRange(t *testing.T, endpoint, query string, exemplars int, printBody bool) tempopb.QueryRangeResponse {
-	res := doRequest(t, endpoint, query, exemplars)
+	res := doRequest(t, endpoint, "api/metrics/query_range", query, exemplars)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Read body and print it
@@ -519,8 +519,8 @@ func callQueryRange(t *testing.T, endpoint, query string, exemplars int, printBo
 	return queryRangeRes
 }
 
-func doRequest(t *testing.T, endpoint, query string, exemplars int) *http.Response {
-	url := buildURL(endpoint, fmt.Sprintf("%s with(exemplars=true)", query), exemplars)
+func doRequest(t *testing.T, host, endpoint, query string, exemplars int) *http.Response {
+	url := buildURL(host, endpoint, fmt.Sprintf("%s with(exemplars=true)", query), exemplars)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 
@@ -529,10 +529,10 @@ func doRequest(t *testing.T, endpoint, query string, exemplars int) *http.Respon
 	return res
 }
 
-func buildURL(endpoint, query string, exemplars int) string {
+func buildURL(host, endpoint, query string, exemplars int) string {
 	return fmt.Sprintf(
-		"http://%s/api/metrics/query_range?query=%s&start=%d&end=%d&step=%s&exemplars=%d",
-		endpoint,
+		"http://%s/%s?query=%s&start=%d&end=%d&step=%s&exemplars=%d",
+		host, endpoint,
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
 		time.Now().Add(time.Minute).UnixNano(),
