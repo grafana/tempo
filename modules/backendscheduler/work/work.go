@@ -43,6 +43,17 @@ func (q *Work) AddJob(j *Job) error {
 	return nil
 }
 
+func (q *Work) StartJob(id string) {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j, ok := q.Jobs[id]; ok {
+		if j.IsPending() {
+			j.Start()
+		}
+	}
+}
+
 func (q *Work) GetJob(id string) *Job {
 	q.mtx.RLock()
 	defer q.mtx.RUnlock()
@@ -130,9 +141,36 @@ func (q *Work) GetJobForWorker(workerID string) *Job {
 	return nil
 }
 
+func (q *Work) CompleteJob(id string) {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j, ok := q.Jobs[id]; ok {
+		j.Complete()
+	}
+}
+
+func (q *Work) FailJob(id string) {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j, ok := q.Jobs[id]; ok {
+		j.Fail()
+	}
+}
+
+func (q *Work) SetJobCompactionOutput(id string, output []string) {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j, ok := q.Jobs[id]; ok {
+		j.SetCompactionOutput(output)
+	}
+}
+
 func (q *Work) Marshal() ([]byte, error) {
-	q.mtx.RLock()
-	defer q.mtx.RUnlock()
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	return jsoniter.Marshal(q)
 }
