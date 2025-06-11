@@ -61,7 +61,9 @@ func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
 	workPath := filepath.Join(s.cfg.LocalWorkPath, backend.WorkFileName)
 	data, err := os.ReadFile(workPath)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", workPath, "error", err)
+		if !os.IsNotExist(err) {
+			level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", workPath, "error", err)
+		}
 		return s.loadWorkCacheFromBackend(ctx)
 	}
 
