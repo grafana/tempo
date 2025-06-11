@@ -337,14 +337,21 @@ func (s *BackendScheduler) replayWorkOnBlocklist() {
 	var (
 		err           error
 		tenant        string
+		jobStatus     tempopb.JobStatus
 		perTenantJobs = make(map[string][]*work.Job)
 	)
 
 	// Get all the input blocks which have been successfully compacted
 	for _, j := range s.work.ListJobs() {
 		tenant = j.Tenant()
+		jobStatus = j.GetStatus()
 
-		if j.GetStatus() != tempopb.JobStatus_JOB_STATUS_SUCCEEDED {
+		// count the active jobs and update the metric
+		if jobStatus == tempopb.JobStatus_JOB_STATUS_RUNNING {
+			metricJobsActive.WithLabelValues(tenant, j.GetType().String()).Inc()
+		}
+
+		if jobStatus != tempopb.JobStatus_JOB_STATUS_SUCCEEDED {
 			continue
 		}
 
