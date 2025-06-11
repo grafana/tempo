@@ -73,7 +73,7 @@ func (i *Ingester) PreparePartitionDownscaleHandler(w http.ResponseWriter, r *ht
 			return
 		}
 
-		// If partition is inactive, make it active. We ignore other states Active and especially Pending.
+		// If partition is inactive, make it active. Other states are a no-op.
 		if state == ring.PartitionInactive {
 			// We don't switch it back to PENDING state if there are not enough owners because we want to guarantee consistency
 			// in the read path. If the partition is within the lookback period we need to guarantee that partition will be queried.
