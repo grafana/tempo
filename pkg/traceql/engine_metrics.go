@@ -90,7 +90,7 @@ func IntervalOf(ts, start, end, step uint64) int {
 
 // validateIntervalOf returns true if the timestamp is valid for the given range and step.
 func isTsValidForInterval(ts, start, end, step uint64) bool {
-	return !(ts < start || ts > end || end == start || step == 0)
+	return ts >= start && ts <= end && end != start && step != 0
 }
 
 // IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.
