@@ -364,6 +364,56 @@ sendLoop:
 			require.InDelta(t, expectedValue, instantQueryRes.GetSeries()[0].Value, 0.000001)
 		})
 	}
+
+	for _, testCase := range []struct {
+		name        string
+		query       string
+		expectedNum int
+	}{
+		{
+			name:        "top 1 by span attribute",
+			query:       "{ } | rate() by (span.span_high_cardinality) | topk(1)",
+			expectedNum: 1,
+		},
+		{
+			name:        "top 10 by span attribute",
+			query:       "{ } | rate() by (span.span_high_cardinality) | topk(10)",
+			expectedNum: 10,
+		},
+		{
+			name:        "top 2 by resource attribute",
+			query:       "{ } | rate() by (resource.res_high_cardinality) | topk(2)",
+			expectedNum: 2,
+		},
+		{
+			name:        "bottom 1 by resource attribute",
+			query:       "{ } | rate() by (resource.res_high_cardinality) | bottomk(1)",
+			expectedNum: 1,
+		},
+		{
+			name:        "bootom 10 by resource attribute",
+			query:       "{ } | rate() by (resource.res_high_cardinality) | bottomk(10)",
+			expectedNum: 10,
+		},
+		{
+			name:        "bottom 2 by span attribute",
+			query:       "{ } | rate() by (span.span_high_cardinality) | bottomk(2)",
+			expectedNum: 2,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			req := queryRangeRequest{
+				Query: testCase.query,
+				Start: time.Now().Add(-5 * time.Minute),
+				End:   time.Now().Add(time.Minute),
+				Step:  "1m",
+			}
+
+			instantQueryRes := callInstantQuery(t, tempo.Endpoint(tempoPort), req)
+			require.NotNil(t, instantQueryRes)
+			require.Equal(t, testCase.expectedNum, len(instantQueryRes.GetSeries()))
+		})
+	}
 }
 
 func sumSamples(samples []tempopb.Sample) float64 {
