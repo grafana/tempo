@@ -56,6 +56,9 @@ Even identical searches differ due to things like machine load and network laten
 This approach values speed over predictability and is quite simple; enforcing that the search results are consistent would introduce additional complexity (and increase the time the user spends waiting for results).
 TraceQL follows the same behavior.
 
+By adding `most_recent=true` to your TraceQL queries, the search results are deterministic. 
+For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#retrieving-most-recent-results-experimental)
+
 #### Use trace search results as panels in dashboards
 
 You can embed tracing panels and visualizations in dashboards.
