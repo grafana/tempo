@@ -127,6 +127,17 @@ func Less(value float64) func(sums ...float64) bool {
 	}
 }
 
+// Between is an isExpected function for WaitSumMetrics that returns true if given single sum is greater than or equal to lower
+// and less than or equal to upper.
+func Between(lower, upper float64) func(sums ...float64) bool {
+	return func(sums ...float64) bool {
+		if len(sums) != 1 {
+			panic("equals: expected one value")
+		}
+		return sums[0] >= lower && sums[0] <= upper
+	}
+}
+
 // EqualsAmongTwo is an isExpected function for WaitSumMetrics that returns true if first sum is equal to the second.
 // NOTE: Be careful on scrapes in between of process that changes two metrics. Those are
 // usually not atomic.

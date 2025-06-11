@@ -220,16 +220,22 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 
 	p.curPriority = tenantselector.NewPriorityQueue() // wipe and restart
 
+	var (
+		blocklistLen      int
+		blockSelector     blockselector.CompactionBlockSelector
+		outstandingBlocks int
+		toBeCompacted     []*backend.BlockMeta
+	)
+
 	for _, tenantID := range p.store.Tenants() {
 		if p.overrides.CompactionDisabled(tenantID) {
 			continue
 		}
 
-		var (
-			outstandingBlocks           = 0
-			toBeCompacted               []*backend.BlockMeta
-			blockSelector, blocklistLen = p.newBlockSelector(tenantID)
-		)
+		outstandingBlocks = 0
+		clear(toBeCompacted)
+
+		blockSelector, blocklistLen = p.newBlockSelector(tenantID)
 
 		// Measure the outstanding blocks
 		for {
@@ -271,8 +277,9 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 }
 
 func (p *CompactionProvider) measureTenants() {
+	var blockSelector blockselector.CompactionBlockSelector
 	for _, tenant := range p.store.Tenants() {
-		blockSelector, _ := p.newBlockSelector(tenant)
+		blockSelector, _ = p.newBlockSelector(tenant)
 
 		yes := func(_ string) bool {
 			return true

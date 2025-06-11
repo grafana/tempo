@@ -250,9 +250,13 @@ These functions are similar to their equivalent PromQL functions. For example:
 When a query response is larger than the maximum, you can use these functions to return only the specified number
 from 1 through `k` of the number of the top or bottom results.
 
-For example: `{ resource.service.name = "foo" } | rate() by (span.http.url)  | topk(10)`
-The first part, `{ resource.service.name = "foo" }`, takes all spans in the service `foo` The spans
-are rated by the URL, for example, the most active endpoints on a service.
+For example:
+```
+`{ resource.service.name = "foo" } | rate() by (span.http.url)  | topk(10)`
+```
+
+The first part, `{ resource.service.name = "foo" }`, takes all spans in the service `foo`.
+The spans are rated by the URL, for example, the most active endpoints on a service.
 
 Adding `topk(10)` returns the top 10 most common instead of the entire list.
 Conversely, you can use `bottomk(10)` to see the least most used ones.

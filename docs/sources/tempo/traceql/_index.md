@@ -56,10 +56,39 @@ For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/<TEMPO
 
 {{< docs/shared source="tempo" lookup="traceql-main.md" version="<TEMPO_VERSION>" >}}
 
+## Retrieving most recent results (experimental)
+
+When troubleshooting a live incident or monitoring production health, you often need to see the latest traces first.
+By default, Tempo’s query engine favors speed and returns the first `N` matching traces, which may not be the newest.
+
+The `most_recent` hint ensures you see the freshest data, so you can diagnose recent errors or performance regressions without missing anything due to early row‑limit cuts.
+
+You can use TraceQL query hint `most_recent=true` with any TraceQL selection query to force Tempo to return the most recent results ordered by time.
+
+Examples:
+
+```
+{} with (most_recent=true)
+{ span.foo = "bar" } >> { status = error } with (most_recent=true)
+```
+
+With `most_recent=true`, Tempo performs a deeper search across data shards, retains the newest candidates, and returns traces sorted by start time rather than stopping at the first limit hit.
+
+You can specify the time window to break a search up into when doing a most recent TraceQL search using `most_recent_shards:` in the `query_frontend` configuration block.
+The default value is 200.
+Refer to the [Tempo configuration reference](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/query_frontend/) for more information.
+
+### Search impact using `most_recent`
+
+Most search functions are deterministic: using the same search criteria results in the same results.
+
+When you use most_recent=true`, Tempo search is non-deterministic.
+If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
+
 ## Experimental TraceQL metrics
 
-TraceQL metrics are experimental, but easy to get started with.
-Refer to [the TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) documentation for more information.
+TraceQL metrics are easy to get started with.
+Refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) for more information.
 
 You can also use TraceQL metrics queries.
-For details, refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/).
+Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for more information.
