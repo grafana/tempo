@@ -609,6 +609,166 @@ func TestCountOverTime(t *testing.T) {
 	require.Equal(t, len(result), seriesCount)
 }
 
+func TestCountOverTimeInstantNs(t *testing.T) {
+	// not rounded values to simulate real world data
+	start := 1*time.Second - 9*time.Nanosecond
+	end := 3*time.Second + 9*time.Nanosecond
+	step := end - start // for instant queries step == end-start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | count_over_time()",
+	}
+
+	in := []Span{
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(1),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(1),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(10),
+
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
+	}
+
+	out := SeriesSet{
+		`{__name__="count_over_time"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "__name__", Value: NewStaticString("count_over_time")},
+			},
+			Values:    []float64{4},
+			Exemplars: make([]Exemplar, 0),
+		},
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+	require.Equal(t, out, result)
+	require.Equal(t, len(result), seriesCount)
+}
+
+// TestCountOverTimeInstantNsWithCutoff simulates merge behavior in L2 and L3.
+func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
+	start := 1*time.Second + 300*time.Nanosecond // additional 300ns that can be accidentally dropped by ms conversion
+	end := 3 * time.Second
+	step := end - start // for instant queries step == end-start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | count_over_time()",
+	}
+
+	cutoff := 2*time.Second + 300*time.Nanosecond
+	// from start to cutoff
+	req1 := *req
+	req1.End = uint64(cutoff)
+	req1.Step = req1.End - req1.Start
+	// from cutoff to end
+	req2 := *req
+	req2.Start = uint64(cutoff)
+	req2.Step = req2.End - req2.Start
+
+	in1 := []Span{
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(1),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+
+		// outside of cutoff
+		newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+	}
+
+	in2 := []Span{
+		// outside of cutoff
+		newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(10),
+
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
+	}
+
+	out := SeriesSet{
+		`{__name__="count_over_time"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "__name__", Value: NewStaticString("count_over_time")},
+			},
+			Values:    []float64{8},
+			Exemplars: make([]Exemplar, 0),
+		},
+	}
+
+	t.Run("merge in L2", func(t *testing.T) {
+		e := NewEngine()
+
+		layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+		require.NoError(t, err)
+
+		// process different series in L1
+		layer1, err := e.CompileMetricsQueryRange(&req1, 0, 0, false)
+		require.NoError(t, err)
+		for _, s := range in1 {
+			layer1.metricsPipeline.observe(s)
+		}
+		res1 := layer1.Results().ToProto(&req1)
+
+		layer1, err = e.CompileMetricsQueryRange(&req2, 0, 0, false)
+		require.NoError(t, err)
+		for _, s := range in2 {
+			layer1.metricsPipeline.observe(s)
+		}
+		res2 := layer1.Results().ToProto(&req2)
+
+		// merge in L2
+		layer2.metricsPipeline.observeSeries(res1)
+		layer2.metricsPipeline.observeSeries(res2)
+
+		result, seriesCount, err := processLayer3(req, layer2.Results())
+		require.NoError(t, err)
+		require.Equal(t, out, result)
+		require.Equal(t, len(result), seriesCount)
+	})
+
+	t.Run("merge in L3", func(t *testing.T) {
+		// process different series in L1+L2
+		res1, err := processLayer1AndLayer2(&req1, in1)
+		require.NoError(t, err)
+		res2, err := processLayer1AndLayer2(&req2, in2)
+		require.NoError(t, err)
+
+		// merge in L3
+		e := NewEngine()
+		layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+		require.NoError(t, err)
+
+		layer3.ObserveSeries(res1.ToProto(req))
+		layer3.ObserveSeries(res2.ToProto(req))
+
+		require.NoError(t, err)
+		require.Equal(t, out, layer3.Results())
+		require.Equal(t, len(layer3.Results()), layer3.Length())
+	})
+}
+
 func TestMinOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
