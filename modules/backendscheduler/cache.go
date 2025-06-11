@@ -26,7 +26,7 @@ func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
 
 	err = os.MkdirAll(s.cfg.LocalWorkPath, 0o700)
 	if err != nil {
-		return fmt.Errorf("error creating directory %q: %w", workPath, err)
+		return fmt.Errorf("error creating directory %q: %w", s.cfg.LocalWorkPath, err)
 	}
 
 	err = os.WriteFile(workPath, b, 0o600)
