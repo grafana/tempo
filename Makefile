@@ -215,7 +215,7 @@ docker-tempo: ## Build tempo docker image
 	COMPONENT=tempo make docker-component
 
 .PHONY: docker-tempo-multi
-docker-tempo-multi: ## Build multiarch image locally, requires containerd image store
+docker-tempo-multi: ## Build multiarch image locally, requires containerd image store and qemu installed 'docker run --privileged --rm tonistiigi/binfmt --install all'
 	COMPONENT=tempo make docker-component-multi
 
 docker-tempo-debug: ## Build tempo debug docker image
