@@ -299,6 +299,9 @@ func (t *App) initIngester() (services.Service, error) {
 	tempopb.RegisterQuerierServer(t.Server.GRPC(), t.ingester)
 	t.Server.HTTPRouter().Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
 	t.Server.HTTPRouter().Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
+	t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
+		Path("/ingester/prepare-partition-downscale").
+		Handler(http.HandlerFunc(t.ingester.PreparePartitionDownscaleHandler))
 	return t.ingester, nil
 }
 

@@ -2151,6 +2151,10 @@ type mockRing struct {
 	replicationFactor uint32
 }
 
+func (r mockRing) GetSubringForOperationStates(_ ring.Operation) ring.ReadRing {
+	panic("implement me if required for testing")
+}
+
 func (r mockRing) WritableInstancesWithTokensCount() int {
 	panic("implement me if required for testing")
 }

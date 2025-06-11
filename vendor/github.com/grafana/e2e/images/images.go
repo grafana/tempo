@@ -12,4 +12,5 @@ var (
 	BigtableEmulator = "shopify/bigtable-emulator:0.1.0"
 	Cassandra        = "rinscy/cassandra:3.11.0"
 	SwiftEmulator    = "bouncestorage/swift-aio:55ba4331"
+	Kafka            = "apache/kafka:4.0.0"
 )
