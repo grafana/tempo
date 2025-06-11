@@ -178,10 +178,10 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			s.work.Prune()
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
+			metricWorkFlushes.Inc()
 			if err != nil {
+				metricWorkFlushesFailed.Inc()
 				level.Error(log.Logger).Log("msg", "failed to flush work cache to backend", "error", err)
-			} else {
-				level.Info(log.Logger).Log("msg", "flushed work cache to backend")
 			}
 
 		}
