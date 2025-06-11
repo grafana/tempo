@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/google/uuid"
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
@@ -89,6 +90,13 @@ sendLoop:
 					1, "my operation",
 					"res_val2", "span_val2",
 					"res_attr", "span_attr",
+				),
+			))
+			require.NoError(t, jaegerClient.EmitBatch(context.Background(),
+				util.MakeThriftBatchWithSpanCountAttributeAndName(
+					1, "operation with high cardinality",
+					uuid.New().String(), uuid.New().String(),
+					"res_high_cardinality", "span_high_cardinality",
 				),
 			))
 		case <-timer.C:
@@ -234,10 +242,11 @@ sendLoop:
 			}
 			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 			require.NotNil(t, queryRangeRes)
-			require.Equal(t, len(queryRangeRes.GetSeries()), 2)
+			require.Equal(t, len(queryRangeRes.GetSeries()), 3) // value 1, value 2 and nil (high cardinality's span has no such attribute)
 
 			// Verify that all exemplars in this series belongs to the right series
 			// by matching attribute values
+			var skippedForNilAttr bool
 			for _, series := range queryRangeRes.Series {
 				// search attribute value for the series
 				var expectedAttrValue string
@@ -246,6 +255,10 @@ sendLoop:
 						expectedAttrValue = label.Value.GetStringValue()
 						break
 					}
+				}
+				if (expectedAttrValue == "" || expectedAttrValue == "nil") && !skippedForNilAttr { // one attribute is empty, so we skip it
+					skippedForNilAttr = true
+					continue
 				}
 				require.NotEmpty(t, expectedAttrValue)
 
