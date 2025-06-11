@@ -96,9 +96,10 @@ func (i *Ingester) PreparePartitionDownscaleHandler(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if state == ring.PartitionInactive {
+	switch state {
+	case ring.PartitionInactive:
 		util.WriteJSONResponse(w, map[string]any{"timestamp": stateTimestamp.Unix(), "state": state.String()})
-	} else {
+	default:
 		util.WriteJSONResponse(w, map[string]any{"timestamp": 0, "state": state.String()})
 	}
 }
