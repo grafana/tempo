@@ -49,7 +49,7 @@ Use the Explore trace view to quickly diagnose errors and high latency events in
 Most search functions are deterministic: using the same search criteria results in the same results.
 
 However, Tempo search is non-deterministic.
-If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.Add commentMore actions
+If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results.
 Even identical searches differ due to things like machine load and network latency.
