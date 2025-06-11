@@ -634,10 +634,9 @@ Refer to the [Tempo configuration reference](https://grafana.com/docs/tempo/<TEM
 
 ### Search impact using `most_recent`
 
-Most search functions are deterministic: using the same search criteria results in the same results.
-
-When you use most_recent=true`, Tempo search is non-deterministic.
-If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
+Most Tempo search functions are non-deterministic: using the same search criteria results in different results.
+When you use `most_recent=true`, Tempo search is deterministic.
+If you perform the same search twice, you’ll get the same lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
 
 ## Experimental TraceQL metrics
 
