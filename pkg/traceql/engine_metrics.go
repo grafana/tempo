@@ -96,8 +96,16 @@ func isTsValidForInterval(ts, start, end, step uint64) bool {
 // IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.
 func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	ts := uint64(time.Duration(tsmills) * time.Millisecond)
+	instant := isInstant(start, end, step)
 	start -= start % uint64(time.Millisecond)
 	end -= end % uint64(time.Millisecond)
+
+	if instant {
+		if !isTsValidForInterval(ts, start, end, step) {
+			return -1
+		}
+		return 0
+	}
 	return IntervalOf(ts, start, end, step)
 }
 
