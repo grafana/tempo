@@ -12,7 +12,11 @@ keywords:
 
 # Configure TraceQL metrics
 
-{{< docs/experimental product="TraceQL metrics" >}}
+<!-- Using a custom admonition because no feature flag is required. -->
+{{< admonition type="caution" >}}
+TraceQL metrics is an [experimental feature](/docs/release-life-cycle/). Engineering and on-call support is not available. Documentation is either limited or not provided outside of code comments. No SLA is provided.
+Contact Grafana Support to enable this feature in Grafana Cloud.
+{{< /admonition >}}
 
 TraceQL language provides metrics queries as an experimental feature.
 Metric queries extend trace queries by applying a function to trace query results.
