@@ -63,7 +63,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
 		Query: "{} | rate()",
 		Start: uint64(1100 * time.Second),
-		End:   uint64(1200 * time.Second),
+		End:   uint64(1300 * time.Second),
 		Step:  uint64(100 * time.Second),
 	}, "")
 
@@ -99,6 +99,10 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 					{
 						TimestampMs: 1200_000,
 						Value:       8,
+					},
+					{
+						TimestampMs: 1300_000,
+						Value:       0,
 					},
 				},
 			},

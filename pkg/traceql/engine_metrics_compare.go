@@ -358,8 +358,8 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int, exemplars u
 		topN:            topN,
 		exemplarBuckets: newBucketSet(
 			exemplars,
-			alignStart(req.Start, req.Step),
-			alignEnd(req.End, req.Step),
+			alignStart(req.Start, req.End, req.Step),
+			alignEnd(req.Start, req.End, req.Step),
 		),
 	}
 }
