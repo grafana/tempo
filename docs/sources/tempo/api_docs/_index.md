@@ -53,7 +53,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
 | [Status](#status) | Status |  HTTP | `GET /status` |
 | [List build information](#list-build-information) | Status |  HTTP | `GET /api/status/buildinfo` |
-| [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (*) | MCP |   | `/mcp` |
+| [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (*) | MCP |   | `/api/mcp` |
 
 _(*) This endpoint isn't always available, check the specific section for more details._
 
