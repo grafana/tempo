@@ -249,6 +249,21 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	return a, nil
 }
 
+// AbortAppend implements backend.Writer
+func (rw *readerWriter) AbortAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	if tracker == nil {
+		return nil
+	}
+
+	a := tracker.(appendTracker)
+	err := rw.core.AbortMultipartUpload(ctx,
+		rw.cfg.Bucket,
+		a.objectName,
+		a.uploadID)
+
+	return fmt.Errorf("error aborting multipart upload, object: %s, uploadID: %s: %w", a.objectName, a.uploadID, err)
+}
+
 // CloseAppend implements backend.Writer
 func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
 	if tracker == nil {
