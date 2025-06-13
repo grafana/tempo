@@ -356,12 +356,18 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 			panic("column not found in parquet file:" + name)
 		}
 
-		var opts []pq.SyncIteratorOpt
+		opts := []pq.SyncIteratorOpt{
+			pq.SyncIteratorOptColumnName(name),
+			pq.SyncIteratorOptPredicate(predicate),
+			pq.SyncIteratorOptSelectAs(selectAs),
+			pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
+		}
+
 		if name != columnPathSpanID && name != columnPathTraceID {
 			opts = append(opts, pq.SyncIteratorOptIntern())
 		}
 
-		return pq.NewSyncIterator(ctx, rgs, index, name, 1000, predicate, selectAs, maxDef, opts...)
+		return pq.NewSyncIterator(ctx, rgs, index, opts...)
 	}
 }
 

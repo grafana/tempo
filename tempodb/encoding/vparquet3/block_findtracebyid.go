@@ -230,7 +230,10 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	}
 
 	// Now iterate the matching row group
-	iter := parquetquery.NewSyncIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex, "", 1000, parquetquery.NewStringInPredicate([]string{string(traceID)}), "", maxDef)
+	iter := parquetquery.NewSyncIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex,
+		parquetquery.SyncIteratorOptPredicate(parquetquery.NewStringInPredicate([]string{string(traceID)})),
+		parquetquery.SyncIteratorOptMaxDefinitionLevel(maxDef),
+	)
 	defer iter.Close()
 
 	res, err := iter.Next()
