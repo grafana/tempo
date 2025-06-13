@@ -10,6 +10,7 @@
 * [ENHANCEMENT] TraceQL metrics performance increase for simple queries [#5247](https://github.com/grafana/tempo/pull/5247) (@mdisibio)
 * [ENHANCEMENT] Align traceql attribute struct for better performance [#5240](https://github.com/grafana/tempo/pull/5240) (@mdisibio)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
+* [BUGFIX] Fix various race conditions [#5113](https://github.com/grafana/tempo/pull/5113) (@ruslan-mikhailov)
 
 # v2.8.0
 

@@ -901,7 +901,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	me.end = req.End
 
 	if me.maxExemplars > 0 {
-		cb := func() bool { return me.exemplarCount < me.maxExemplars }
+		cb := func() bool {
+			me.mtx.Lock()
+			defer me.mtx.Unlock()
+			return me.exemplarCount < me.maxExemplars
+		}
 		meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
 		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 	}
@@ -1141,6 +1145,8 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 }
 
 func (e *MetricsEvaluator) Length() int {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
 	return e.metricsPipeline.length()
 }
 
