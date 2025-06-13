@@ -2674,13 +2674,14 @@ func TestHistogramAggregator_SemanticMatching(t *testing.T) {
 	for _, series := range results {
 		for _, label := range series.Labels {
 			if label.Name == "p" {
-				if label.Value.Float() == 0.5 {
+				switch label.Value.Float() {
+				case 0.5:
 					p50Series = series
 					found50 = true
-				} else if label.Value.Float() == 0.9 {
+				case 0.9:
 					p90Series = series
 					found90 = true
-				} else if label.Value.Float() == 0.99 {
+				case 0.99:
 					p99Series = series
 					found99 = true
 				}
