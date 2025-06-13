@@ -1885,10 +1885,15 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			if err != nil {
 				return nil, err
 			}
-			// addPredicate(columnPathSpanStartTime, pred)
-			// columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
-			addPredicate(columnPathSpanStartRounded, pred)
-			columnSelectAs[columnPathSpanStartRounded] = columnPathSpanStartRounded
+
+			if cond.LowPrecision {
+				// When low precision is requested, we use the rounded start time.
+				addPredicate(columnPathSpanStartRounded, pred)
+				columnSelectAs[columnPathSpanStartRounded] = columnPathSpanStartRounded
+			} else {
+				addPredicate(columnPathSpanStartTime, pred)
+				columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
+			}
 			continue
 
 		case traceql.IntrinsicName:

@@ -876,11 +876,23 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
+	// If step is an even multiple of 15 seconds, then we can use low precision
+	// for the span start time.
+	lowPrecision := req.Step >= uint64(15*time.Second) && req.Step%uint64(15*time.Second) == 0
+
 	// Span start time (always required)
 	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		// Technically we only need the start time of matching spans, so we add it to the second pass.
 		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
-		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, LowPrecision: lowPrecision})
+	} else {
+		// Update the existing condition to use low precision
+		for i, c := range storageReq.Conditions {
+			if c.Attribute == IntrinsicSpanStartTimeAttribute {
+				storageReq.Conditions[i].LowPrecision = lowPrecision
+				break
+			}
+		}
 	}
 
 	// Timestamp filtering

@@ -156,7 +156,7 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	q := `{ resource.region != nil && resource.service.name = "bar" }`
+	q := `{ rootServiceName = "doesntexist" || (span.http.url="hello" || span.http.status_code = 500)}`
 	// q := `{ resource.str-array =~ "value.*" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
@@ -1053,12 +1053,16 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 }
 
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
+	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
+	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
+	os.Setenv("BENCH_TENANT", "1")
+
 	testCases := []struct {
 		name  string
 		query string
 	}{
 		// span
-		{"spanAttValMatch", "{ span.component = `net/http` }"},
+		/*{"spanAttValMatch", "{ span.component = `net/http` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `does-not-exit-6c2408325a45` }"},
 		{"spanAttIntrinsicMatch", "{ name = `/cortex.Ingester/Push` }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `does-not-exit-6c2408325a45` }"},
@@ -1069,12 +1073,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
-		// trace
+		// trace*/
 		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
 		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
 
 		// mixed
-		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
+		/*{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
 		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
 
@@ -1083,7 +1087,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
 		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
-		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},
+		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},*/
 	}
 
 	ctx := context.TODO()
@@ -1223,9 +1227,13 @@ func BenchmarkIterators(b *testing.B) {
 }
 
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
+	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
+	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
+	os.Setenv("BENCH_TENANT", "1")
+
 	testCases := []string{
 		"{} | rate()",
-		"{} | rate() by (span.http.status_code)",
+		/*"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
 		"{} | rate() by (span.http.url)", // High cardinality attribute
 		"{resource.service.name=`loki-ingester`} | rate()",
@@ -1238,7 +1246,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | max_over_time(duration) by (span.http.status_code)",
 		"{} | min_over_time(duration) by (span.http.status_code)",
 		"{ name != nil } | compare({status=error})",
-		"{} > {} | rate() by (name)", // structural
+		"{} > {} | rate() by (name)", // structural*/
+		`{nestedSetParent<0 && true && status!=error && resource.service.name != nil} | rate() by(resource.service.name, status)`,
 	}
 
 	e := traceql.NewEngine()
@@ -1268,7 +1277,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 					req := &tempopb.QueryRangeRequest{
 						Query:     tc,
-						Step:      uint64(time.Minute),
+						Step:      uint64(time.Second * 15),
 						Start:     uint64(st.UnixNano()),
 						End:       uint64(end.UnixNano()),
 						MaxSeries: 1000,

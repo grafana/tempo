@@ -1,6 +1,7 @@
 package vparquet5
 
 import (
+	"cmp"
 	"math"
 	"slices"
 	"strings"
@@ -91,6 +92,15 @@ func rebatchTrace(trace *Trace) {
 				}
 			}
 			rs.ScopeSpans = rs.ScopeSpans[:len(uniqueIndexes)]
+		}
+	}
+
+	// Sort spans by time
+	for _, rs := range trace.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			slices.SortFunc(ss.Spans, func(i, j Span) int {
+				return cmp.Compare(i.StartTimeUnixNano, j.StartTimeUnixNano)
+			})
 		}
 	}
 }

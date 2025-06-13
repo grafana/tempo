@@ -199,13 +199,6 @@ func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUI
 
 // ReadRange implements backend.Reader
 func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, cacheInfo *CacheInfo) error {
-	// time.Sleep(70 * time.Millisecond)
-
-	// Disguting
-	st := time.Now()
-	for time.Since(st) < 100*time.Millisecond {
-	}
-
 	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer, cacheInfo)
 }
 

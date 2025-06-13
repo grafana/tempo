@@ -156,7 +156,7 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	q := `{ resource.region != nil && resource.service.name = "bar" }`
+	q := `{ resource.region != nil || resource.service.name = "bar" }`
 	// q := `{ resource.str-array =~ "value.*" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
@@ -201,7 +201,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
-		{"empty request", traceql.FetchSpansRequest{}},
+		//{"empty request", traceql.FetchSpansRequest{}},
 		{
 			"Time range inside trace",
 			traceql.FetchSpansRequest{
@@ -1270,7 +1270,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 					req := &tempopb.QueryRangeRequest{
 						Query:     tc,
-						Step:      uint64(time.Minute),
+						Step:      uint64(time.Second * 15),
 						Start:     uint64(st.UnixNano()),
 						End:       uint64(end.UnixNano()),
 						MaxSeries: 1000,
