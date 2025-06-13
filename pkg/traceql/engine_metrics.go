@@ -1487,10 +1487,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 	results := make(SeriesSet, len(h.ss)*len(h.qs))
 
 	// Collect all exemplars and calculate representative quantile values
-	var (
-		allExemplars   []Exemplar
-		quantileValues []float64
-	)
+	var allExemplars []Exemplar
 
 	// Aggregate buckets across all series and time intervals for better quantile calculation
 	aggregatedBuckets := make(map[float64]int) // bucketMax -> totalCount
@@ -1522,7 +1519,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 		return buckets[i].Max < buckets[j].Max
 	})
 
-	quantileValues = make([]float64, len(h.qs))
+	quantileValues := make([]float64, len(h.qs))
 	for i, q := range h.qs {
 		quantileValues[i] = Log2Quantile(q, buckets)
 	}
