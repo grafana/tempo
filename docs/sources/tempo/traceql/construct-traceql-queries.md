@@ -427,7 +427,7 @@ Spanset operators let you select different sets of spans from a trace and then m
 These spanset operators perform logical checks between the sets of spans.
 
 - `{condA} && {condB}` - The and operator (`&&`) checks that both conditions found matches.
-- `{condA} || {condB}` - The union operator (`||`) checks that either condition found matches.
+- `{condA} || {condB}` - The union operator (`||`) checks that either condition found matches. This functions as an "OR" statement.
 
 For example, to find a trace that went through two specific `cloud.region`:
 
@@ -442,6 +442,12 @@ Note the difference between the previous example and this one:
 ```
 
 The second expression returns no traces because it's impossible for a single span to have a `resource.cloud.region` attribute that's set to both region values at the same time.
+
+You can use a similar query to find a trace that passed through either `us-east-1` or `us-west-1` cloud regions:
+
+```
+{ resource.cloud.region = "us-east-1" } || { resource.cloud.region = "us-west-1" }
+```
 
 ### Structural
 
