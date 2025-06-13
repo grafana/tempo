@@ -437,6 +437,14 @@ You can use a similar query to find a trace that passed through either `us-east-
 { resource.cloud.region = "us-east-1" } || { resource.cloud.region = "us-west-1" }
 ```
 
+TraceQL provides multiple ways to perform similar queries.
+For example, this query achieves the same result as the previous one.
+This query uses a pipe to indicate that either the first result or the second condition can be used (effectively chaining the options) instead of requiring a matching condition for either one or the other cloud region.
+
+```
+{ resource.cloud.region =~ "us-east-1|us-west-1" }
+```
+
 ### Structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans.
