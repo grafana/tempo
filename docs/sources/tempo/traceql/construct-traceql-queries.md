@@ -87,7 +87,7 @@ You can use query filtering on multiple spans of the traces.
 This example locates all the traces of the `GET /api/products/{id}` operation that access a database. It's a convenient request to identify abnormal access ratios to the database caused by caching problems.
 
 ```
-{span.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
+{span.service.name="frontend" && name = "GET /api/products/{id}"} && {span.db.system="postgresql"}
 ```
 
 ### Find traces going through `production` and `staging` instances
@@ -334,7 +334,7 @@ All characters between the quotes are considered part of the attribute name.
 To find a span with the attribute name `attribute name with space`, use the following query:
 
 ```
-{ ."attribute name with space" = "value" }
+{ span."attribute name with space" = "value" }
 ```
 
 You can use quoted attributes syntax with non-quoted attribute syntax, the following is a valid TraceQL query:
@@ -391,7 +391,7 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 
 Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
 ```
-{ .any_attribute != nil }
+{ span.any_attribute != nil }
 ```
 
 ### Field expressions
