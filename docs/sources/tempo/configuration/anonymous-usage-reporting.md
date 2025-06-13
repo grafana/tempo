@@ -98,7 +98,8 @@ An example report output looks like this:
 
 ## Which information is collected?
 
-When you enable anonymous usage statistics reporting, Tempo collects and reports the following information to Grafana Labs.
+Tempo collects and reports the following information to Grafana Labs. 
+The report from your Tempo instance may vary from the provided example. 
 Each field provides insight into the Tempo instance, its environment, and configuration. The fields are grouped by their purpose.
 
 This information helps Grafana Labs understand how Tempo is used, which features are enabled, and the typical deployment environments, without collecting any private or user-identifying data.
