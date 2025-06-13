@@ -412,10 +412,6 @@ These spanset operators perform logical checks between the sets of spans.
 - `{condA} && {condB}` - The and operator (`&&`) checks that both conditions found matches.
 - `{condA} || {condB}` - The union operator (`||`) checks that either condition found matches. This functions as an "OR" statement.
 
-{{< admonition type="note" >}}
-A double pipe (`||`) is a union operator.
-A single pipe (`|`) lets you chain additional aggregators or conditions.
-{{< /admonition >}}
 
 For example, to find a trace that went through two specific `cloud.region`:
 
@@ -438,7 +434,7 @@ You can use a similar query to find a trace that passed through either `us-east-
 ```
 
 TraceQL provides multiple ways to perform similar queries.
-For example, this query achieves the same result as the previous one.
+For example, this query achieves the same result as the previous one and is more performant.
 This query uses a pipe to indicate that either the first result or the second condition can be used (effectively chaining the options) instead of requiring a matching condition for either one or the other cloud region.
 
 ```
