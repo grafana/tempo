@@ -10,6 +10,11 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 )
 
+const (
+	// unknownBroker duplicates a constant from franz-go because it isn't exported.
+	unknownBroker = "unknown broker"
+)
+
 // Regular expression used to parse the ingester numeric ID.
 var ingesterIDRegexp = regexp.MustCompile("-([0-9]+)$")
 
@@ -65,6 +70,9 @@ func HandleKafkaError(err error, forceMetadataRefresh func()) (retriable bool) {
 		forceMetadataRefresh()
 	case strings.Contains(errString, "i/o timeout"):
 		forceMetadataRefresh()
+	case strings.Contains(errString, unknownBroker):
+		// The client's metadata refreshed after we called Broker(). It should already be refreshed, so we can retry immediately.
 	}
+
 	return retriable
 }
