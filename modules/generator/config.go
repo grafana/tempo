@@ -211,17 +211,13 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.SpanMetrics.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
 	}
 
-	if dimensionMappings := o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID); dimensionMappings != nil {
-		copyCfg.SpanMetrics.DimensionMappings = dimensionMappings
-	}
+	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
 
 	if enableTargetInfo := o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID); enableTargetInfo {
 		copyCfg.SpanMetrics.EnableTargetInfo = enableTargetInfo
 	}
 
-	if targetInfoExcludedDimensions := o.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID); targetInfoExcludedDimensions != nil {
-		copyCfg.SpanMetrics.TargetInfoExcludedDimensions = targetInfoExcludedDimensions
-	}
+	copyCfg.SpanMetrics.TargetInfoExcludedDimensions = o.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
 
 	if enableClientServerPrefix := o.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID); enableClientServerPrefix {
 		copyCfg.ServiceGraphs.EnableClientServerPrefix = enableClientServerPrefix

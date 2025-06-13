@@ -477,7 +477,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							HistogramBuckets:         []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
 							Dimensions:               []string{"k8s.cluster-name", "k8s.namespace.name", "http.method", "http.route", "http.status_code", "service.version"},
 							PeerAttributes:           []string{"foo", "bar"},
-							EnableClientServerPrefix: true,
+							EnableClientServerPrefix: boolPtr(true),
 						},
 						SpanMetrics: SpanMetricsOverrides{
 							HistogramBuckets:             []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
@@ -485,7 +485,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							IntrinsicDimensions:          map[string]bool{"foo": true, "bar": true},
 							FilterPolicies:               []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: filterconfig.Regex, Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "unknown_service:myservice"}}}}},
 							DimensionMappings:            []sharedconfig.DimensionMappings{{Name: "foo", SourceLabel: []string{"bar"}, Join: "baz"}},
-							EnableTargetInfo:             true,
+							EnableTargetInfo:             boolPtr(true),
 							TargetInfoExcludedDimensions: []string{"bar", "namespace", "env"},
 						},
 						LocalBlocks: LocalBlocksOverrides{
