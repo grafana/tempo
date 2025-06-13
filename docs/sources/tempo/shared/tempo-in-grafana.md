@@ -46,7 +46,10 @@ Use the Explore trace view to quickly diagnose errors and high latency events in
 
 ### Search is non-deterministic
 
-Most search functions are deterministic: using the same search criteria results in the same results.
+Most search functions are deterministic. 
+When given the same criteria, a deterministic algorithm returns consistent results. 
+For example, let's say that you query a search engine for the definition of "traces." 
+The results consistently list the same top matches  for each query for "traces" in that search engine. 
 
 However, Tempo search is non-deterministic.
 If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
