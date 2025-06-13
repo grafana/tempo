@@ -288,7 +288,7 @@ You can query for an exception in your span event:
 { event.exception.message =~ ".*something went wrong.*" }
 ```
 
-If you've instrumented your traces for span links, you can use the `link` scope to query the link data. A span link associates one span with one or more other spans that are a casual relationship.
+If you've instrumented your traces for span links, you can use the `link` scope to query the link data. A span link associates one span with one or more other spans that are a causal relationship.
 For more information on span links, refer to the [Span Links](https://opentelemetry.io/docs/concepts/signals/traces/#span-links) documentation in the Open Telemetry project.
 
 You can search for an attribute in your link:

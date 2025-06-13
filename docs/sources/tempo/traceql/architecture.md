@@ -3,6 +3,7 @@ title: How TraceQL works
 menuTitle: How TraceQL works
 description: Learn about how TraceQL works
 weight: 300
+draft: true
 aliases:
   - /docs/tempo/latest/traceql/architecture
 keywords:
@@ -10,6 +11,8 @@ keywords:
   - Architecture
   - TraceQL
 ---
+
+<!-- This page is now hidden. It's very out of date. We need to either update or delete it. -->
 
 # How TraceQL works
 
