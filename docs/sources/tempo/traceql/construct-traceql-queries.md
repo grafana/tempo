@@ -144,12 +144,6 @@ Find the services where the http status is 200, and list the service name the sp
 { span.http.status_code = 200 } | select(resource.service.name)
 ```
 
-Find any trace with an unscoped `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
-
-```
-{ .deployment.environment = "production" && span.http.status_code = 200 }
-```
-
 Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
 
 ```
@@ -310,17 +304,6 @@ Find the libraries producing instrumentation for a given service:
 ```
 
 The [Tempo 2.7 release video](https://www.youtube.com/watch?v=0jUEvY-pCdw) demos and explains the `instrumentation` scope, starting at 30 seconds.
-
-### Unscoped attribute fields
-
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource.
-When possible, use scoped instead of unscoped attributes.
-Scoped attributes provide faster query results.
-
-For example, to find traces with an attribute of `sla` set to `critical`:
-```
-{ .sla = "critical" }
-```
 
 ### Quoted attribute names
 
