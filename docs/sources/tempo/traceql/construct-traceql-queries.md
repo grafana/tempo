@@ -412,7 +412,10 @@ These spanset operators perform logical checks between the sets of spans.
 - `{condA} && {condB}` - The and operator (`&&`) checks that both conditions found matches.
 - `{condA} || {condB}` - The union operator (`||`) checks that either condition found matches. This functions as an "OR" statement.
 
-In this case, a double pipe (`||`) acts as a union operator, while a single pipe (`|`) lets you chain additional aggregators or conditions.
+{{< admonition type="note" >}}
+A double pipe (`||`) is a union operator.
+A single pipe (`|`) lets you chain additional aggregators or conditions.
+{{< /admonition >}}
 
 For example, to find a trace that went through two specific `cloud.region`:
 
