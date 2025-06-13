@@ -41,9 +41,6 @@ func HandleKafkaError(err error, forceMetadataRefresh func()) (retriable bool) {
 	errString := err.Error()
 	retriable = kerr.IsRetriable(err)
 
-	if !retriable {
-		return false
-	}
 	switch {
 	// We're asking a broker which is no longer the leader. For a partition. We should refresh our metadata and try again.
 	case errors.Is(err, kerr.NotLeaderForPartition):
@@ -71,6 +68,7 @@ func HandleKafkaError(err error, forceMetadataRefresh func()) (retriable bool) {
 	case strings.Contains(errString, "i/o timeout"):
 		forceMetadataRefresh()
 	case strings.Contains(errString, unknownBroker):
+		retriable = true
 		// The client's metadata refreshed after we called Broker(). It should already be refreshed, so we can retry immediately.
 	}
 
