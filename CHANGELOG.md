@@ -4,6 +4,7 @@
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
+* [BUGFIX] fix tempo configuration options that are always overrided with config overrides section [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
 * [ENHANCEMENT] Add endpoint for partition downscaling [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add backend scheduler and worker to the resources dashboard [#5206](https://github.com/grafana/tempo/pull/5241) (@javiermolinar)
@@ -16,8 +17,8 @@
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
 * [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
-* [CHANGE] **BREAKING CHANGE** Remove tempo serverless. 
-  The following configuration options are no longer valid. If they are in your tempo config, remove them. 
+* [CHANGE] **BREAKING CHANGE** Remove tempo serverless.
+  The following configuration options are no longer valid. If they are in your tempo config, remove them.
   ```
   querier:
       search:
@@ -53,7 +54,7 @@
 * [ENHANCEMENT] Add throughput SLO and metrics for the TraceByID endpoint. Configurable using the `throughput_bytes_slo` field. It populates the `op="traces"` label in slo and throughput metrics. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 * [ENHANCEMENT] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) [#5035](https://github.com/grafana/tempo/pull/5035) (@yvrhdn, @mapno)
 * [ENHANCEMENT] tempo-vulture now generates spans with a parent, instead of only root spans [#5154](https://github.com/grafana/tempo/pull/5154) (@carles-grafana)
-* [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham) 
+* [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham)
 * [ENHANCEMENT] Improve Tempo build options [#4755](https://github.com/grafana/tempo/pull/4755) (@stoewer)
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
 * [ENHANCEMENT] Reorder span iterators [#4754](https://github.com/grafana/tempo/pull/4754) (@stoewer)
@@ -70,7 +71,7 @@
 * [ENHANCEMENT] Rhythm: add block builder to resources dashboard [#4556](https://github.com/grafana/tempo/pull/4669) (@javiermolinar)
 * [ENHANCEMENT] Upgrade prometheus to version 3.1.0 [#4805](https://github.com/grafana/tempo/pull/4805) (@javiermolinar)
 * [ENHANCEMENT] Update dskit to latest version [#4681](https://github.com/grafana/tempo/pull/4681) (@javiermolinar) [#4865](https://github.com/grafana/tempo/pull/4865) (@javiermolinar)
-* [ENHANCEMENT] Increase query-frontend default batch size [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar) 
+* [ENHANCEMENT] Increase query-frontend default batch size [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar)
 * [ENHANCEMENT] Improve TraceQL perf by reverting EqualRowNumber to an inlineable function.[#4705](https://github.com/grafana/tempo/pull/4705) (@joe-elliott)
 * [ENHANCEMENT] Rhythm: Implement MaxBytesPerCycle [#4835](https://github.com/grafana/tempo/pull/4835) (@javiermolinar)
 * [ENHANCEMENT] Rhythm: fair partition consumption in blockbuilders [#4655](https://github.com/grafana/tempo/pull/4655) (@javiermolinar)
