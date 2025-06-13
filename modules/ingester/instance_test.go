@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -409,7 +410,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 			instance, _ := defaultInstance(t)
 
 			for _, trace := range tc.input {
-				fp := instance.tokenForTraceID(trace.traceID)
+				fp := util.HashForTraceID(trace.traceID)
 				instance.traces[fp] = trace
 			}
 
@@ -418,12 +419,12 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 			require.Equal(t, len(tc.expectedExist), len(instance.traces))
 			for _, expectedExist := range tc.expectedExist {
-				_, ok := instance.traces[instance.tokenForTraceID(expectedExist.traceID)]
+				_, ok := instance.traces[util.HashForTraceID(expectedExist.traceID)]
 				require.True(t, ok)
 			}
 
 			for _, expectedNotExist := range tc.expectedNotExist {
-				_, ok := instance.traces[instance.tokenForTraceID(expectedNotExist.traceID)]
+				_, ok := instance.traces[util.HashForTraceID(expectedNotExist.traceID)]
 				require.False(t, ok)
 			}
 		})
