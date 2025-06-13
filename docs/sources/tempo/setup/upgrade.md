@@ -142,7 +142,7 @@ There are no changes to this release for serverless. However, you'll need to rem
 Regex matchers in TraceQL are now fully anchored using Prometheus's fast regexp.
 For instance, `span.foo =~ "bar"` is interpreted as `span.foo =~ "^bar$"`. Adjust existing queries accordingly. ([#4329](https://github.com/grafana/tempo/pull/4329))
 
-For more information, refer to the [Comparison operators TraceQL](http://localhost:3002/docs/tempo/<TEMPO_VERSION>/traceql/#comparison-operators) documentation.
+For more information, refer to the [Comparison operators TraceQL](http://localhost:3002/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/#comparison-operators) documentation.
 
 ### Migration from OpenTracing to OpenTelemetry
 
