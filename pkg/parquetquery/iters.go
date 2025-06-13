@@ -1151,9 +1151,14 @@ outer:
 }
 
 func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
-	err := j.seekAllRequired(t, d)
+	done, err := j.seekAllRequired(t, d)
 	if err != nil {
 		return nil, err
+	}
+
+	if done {
+		// A required iterator is exhausted, no reason to seek the remaining
+		return nil, nil
 	}
 
 	err = j.seekAllOptional(t, d)
@@ -1174,7 +1179,7 @@ func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
 	return nil
 }
 
-func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (err error) {
+func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (done bool, err error) {
 	for iterNum, iter := range j.required {
 		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
 			j.peeksRequired[iterNum], err = iter.SeekTo(t, d)
@@ -1183,11 +1188,11 @@ func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (err error) {
 			}
 			if j.peeksRequired[iterNum] == nil {
 				// A required iterator is exhausted, no reason to seek the remaining
-				return nil
+				return true, nil
 			}
 		}
 	}
-	return nil
+	return
 }
 
 func (j *LeftJoinIterator) seekAllOptional(t RowNumber, d int) (err error) {
