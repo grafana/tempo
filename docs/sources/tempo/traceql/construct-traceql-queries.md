@@ -20,7 +20,7 @@ Curly brackets are commonly paired with a condition to reduce the spans fetched.
 Each expression in the pipeline selects or discards spansets from being included in the results set.
 For example:
 
-```
+```traceql
 { span.http.status_code >= 200 && span.http.status_code < 300 } | count() > 2
 ```
 
