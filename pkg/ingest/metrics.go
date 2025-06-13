@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -48,18 +49,33 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 			waitTime = time.Second * 15
 			topic    = cfg.Kafka.Topic
 			group    = cfg.Kafka.ConsumerGroup
+			boff     = backoff.New(ctx, backoff.Config{
+				MinBackoff: 100 * time.Millisecond,
+				MaxBackoff: waitTime,
+				MaxRetries: 5,
+			})
 		)
 
 		for {
 			select {
 			case <-time.After(waitTime):
-				lag, err := getGroupLag(ctx, admClient, topic, group)
-				if err != nil {
-					refreshMetadata, retryable := HandleKafkaError(err)
-					if refreshMetadata {
-						forceMetadataRefresh()
+				var (
+					lag kadm.GroupLag
+					err error
+				)
+				for boff.Ongoing() {
+					lag, err = getGroupLag(ctx, admClient, topic, group)
+					if err == nil {
+						break
 					}
-					level.Error(log).Log("msg", "metric lag failed:", "err", err, "retryable", retryable, "refreshMetadata", refreshMetadata)
+					retryable := HandleKafkaError(err, forceMetadataRefresh)
+					if retryable {
+						boff.Wait()
+					}
+				}
+				boff.Reset()
+				if err != nil {
+					level.Error(log).Log("msg", "metric lag failed:", "err", err)
 					continue
 				}
 				for _, p := range getAssignedActivePartitions() {

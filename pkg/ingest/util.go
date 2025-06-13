@@ -29,43 +29,42 @@ func IngesterPartitionID(ingesterID string) (int32, error) {
 	return int32(ingesterSeq), nil
 }
 
-func HandleKafkaError(err error) (refreshMetadata, retriable bool) {
+func HandleKafkaError(err error, forceMetadataRefresh func()) (retriable bool) {
 	if err == nil {
-		return false, false
+		return false
 	}
 	errString := err.Error()
 	retriable = kerr.IsRetriable(err)
 
 	if !retriable {
-		return false, false
+		return false
 	}
 	switch {
 	// We're asking a broker which is no longer the leader. For a partition. We should refresh our metadata and try again.
 	case errors.Is(err, kerr.NotLeaderForPartition):
-		refreshMetadata = true
+		forceMetadataRefresh()
 	// Maybe the replica hasn't replicated the log yet, or it is no longer a replica for this partition.
 	// We should refresh and try again with a leader or replica which is up to date.
 	case errors.Is(err, kerr.ReplicaNotAvailable):
-		refreshMetadata = true
+		forceMetadataRefresh()
 	// Maybe there's an ongoing election. We should refresh our metadata and try again with a leader in the current epoch.
 	case errors.Is(err, kerr.UnknownLeaderEpoch):
-		refreshMetadata = true
+		forceMetadataRefresh()
 	case errors.Is(err, kerr.LeaderNotAvailable):
-		refreshMetadata = true
+		forceMetadataRefresh()
 	case errors.Is(err, kerr.BrokerNotAvailable):
-		refreshMetadata = true
+		forceMetadataRefresh()
 	// Topic or partition doesn't exist - metadata refresh needed to get current topology
 	case errors.Is(err, kerr.UnknownTopicOrPartition):
-		refreshMetadata = true
+		forceMetadataRefresh()
 	// Network connectivity issues - broker may have changed
 	case errors.Is(err, kerr.NetworkException):
-		refreshMetadata = true
+		forceMetadataRefresh()
 	// Coordinator moved to different broker
 	case errors.Is(err, kerr.NotCoordinator):
-		refreshMetadata = true
+		forceMetadataRefresh()
 	case strings.Contains(errString, "i/o timeout"):
-
-		refreshMetadata = true
+		forceMetadataRefresh()
 	}
-	return refreshMetadata, retriable
+	return retriable
 }

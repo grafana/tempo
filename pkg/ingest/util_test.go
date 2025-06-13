@@ -28,8 +28,13 @@ func TestHandleKafkaError(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		refreshMetadata, retriable := HandleKafkaError(test.err)
-		require.Equal(t, test.expectedRefresh, refreshMetadata, "HandleKafkaError(%v) refreshMetadata mismatch", test.err)
+		refreshCalled := false
+		refreshFunc := func() {
+			refreshCalled = true
+		}
+
+		retriable := HandleKafkaError(test.err, refreshFunc)
+		require.Equal(t, test.expectedRefresh, refreshCalled, "HandleKafkaError(%v) refresh function call mismatch", test.err)
 		require.Equal(t, test.expectedRetriable, retriable, "HandleKafkaError(%v) retriable mismatch", test.err)
 	}
 }
