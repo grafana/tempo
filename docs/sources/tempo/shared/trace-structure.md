@@ -49,7 +49,7 @@ Resource attributes are resource-related metadata (key-value pairs) that are des
 An *event attribute* represents a unique point in the time during the span's duration. For more information, refer to [All about span events](https://grafana.com/blog/2024/08/15/all-about-span-events-what-they-are-and-how-to-query-them/#how-to-query-span-events-with-traceql) and [Span events](https://opentelemetry.io/docs/concepts/signals/traces/#span-events) in the OTEL documentation.
 
 A *link attribute* lets you query link data in a span.
-A span link associates one span with one or more other spans that are a casual relationship. For more information on span links, refer to the [Span Links](https://opentelemetry.io/docs/concepts/signals/traces/#span-links) documentation in the Open Telemetry project.
+A span link associates one span with one or more other spans that are a causal relationship. For more information on span links, refer to the [Span Links](https://opentelemetry.io/docs/concepts/signals/traces/#span-links) documentation in the Open Telemetry project.
 
 The OpenTelemetry specification defines Semantic Attributes for Spans and for Resources.
 Semantic Span Attributes are a set of naming schemes for attributes shared across languages, frameworks, and runtimes.
