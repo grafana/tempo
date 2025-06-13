@@ -44,6 +44,24 @@ Use the Explore trace view to quickly diagnose errors and high latency events in
 
 ![Sample search visualization](/static/img/docs/grafana-cloud/trace_search.png)
 
+### Search is non-deterministic
+
+Most search functions are deterministic. 
+When given the same criteria, a deterministic algorithm returns consistent results. 
+For example, let's say that you query a search engine for the definition of "traces." 
+The results list the same top matches for each query for "traces" in that search engine. 
+
+However, Tempo search is non-deterministic.
+If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
+
+When performing a search, Tempo does a massively parallel search over the given time range, and takes the first `N` results.
+Even identical searches differ due to things like machine load and network latency.
+This approach values speed over predictability and is quite simple; enforcing that the search results are consistent would introduce additional complexity (and increase the time the user spends waiting for results).
+TraceQL follows the same behavior.
+
+By adding `most_recent=true` to your TraceQL queries, the search results become deterministic. 
+For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#retrieving-most-recent-results-experimental)
+
 #### Use trace search results as panels in dashboards
 
 You can embed tracing panels and visualizations in dashboards.

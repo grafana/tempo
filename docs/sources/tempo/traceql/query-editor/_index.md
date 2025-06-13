@@ -31,6 +31,10 @@ The queries use [TraceQL](ref:traceql), the query language designed specifically
 
 For general documentation on querying data sources in Grafana, refer to [Query and transform data](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/panels-visualizations/query-transform-data/).
 
+Query results can stream to the client, which lets you look at traces matching your query before the entire query completes.
+To use streaming in Grafana, you must have `stream_over_http_enabled: true` enabled in Tempo.
+For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#tempo-grpc-api).
+
 ## Before you begin
 
 You can compose TraceQL queries in Grafana and Grafana Cloud using **Explore** and a Tempo data source.

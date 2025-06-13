@@ -21,7 +21,8 @@ refs:
 
 # TraceQL metrics queries
 
-{{< docs/experimental product="TraceQL metrics" >}}
+<!-- Using a custom admonition because no feature flag is required. -->
+{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
 TraceQL metrics is an experimental feature in Grafana Tempo that creates metrics from traces.
 

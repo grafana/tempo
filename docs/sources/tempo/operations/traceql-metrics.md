@@ -12,7 +12,7 @@ keywords:
 
 # Configure TraceQL metrics
 
-{{< docs/experimental product="TraceQL metrics" >}}
+{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
 TraceQL language provides metrics queries as an experimental feature.
 Metric queries extend trace queries by applying a function to trace query results.
