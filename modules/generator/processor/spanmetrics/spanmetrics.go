@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/util/strutil"
 
@@ -42,16 +43,17 @@ type Processor struct {
 	spanMetricsTargetInfo      registry.Gauge
 	labels                     []string
 
-	filter               *spanfilter.SpanFilter
-	filteredSpansCounter prometheus.Counter
-	invalidUTF8Counter   prometheus.Counter
-	sanitizeCache        reclaimable.Cache[string, string]
+	filter                    *spanfilter.SpanFilter
+	filteredSpansCounter      prometheus.Counter
+	invalidUTF8Counter        prometheus.Counter
+	labelCountExceededCounter prometheus.Counter
+	sanitizeCache             reclaimable.Cache[string, string]
 
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
+func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter, labelCountExceededCounter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -86,14 +88,15 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 	}
 
 	p := &Processor{
-		Cfg:                   cfg,
-		registry:              reg,
-		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
-		now:                   time.Now,
-		labels:                labels,
-		filteredSpansCounter:  filteredSpansCounter,
-		invalidUTF8Counter:    invalidUTF8Counter,
-		sanitizeCache:         c,
+		Cfg:                       cfg,
+		registry:                  reg,
+		spanMetricsTargetInfo:     reg.NewGauge(targetInfo),
+		now:                       time.Now,
+		labels:                    labels,
+		filteredSpansCounter:      filteredSpansCounter,
+		invalidUTF8Counter:        invalidUTF8Counter,
+		labelCountExceededCounter: labelCountExceededCounter,
+		sanitizeCache:             c,
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -216,6 +219,15 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	err := validateLabelValues(labelValues)
 	if err != nil {
 		p.invalidUTF8Counter.Inc()
+		return
+	}
+	spew.Dump("labels", labels)
+	spew.Dump("labelValues", labelValues)
+	spew.Dump("targetInfoLabels", targetInfoLabels)
+	spew.Dump("targetInfoLabelValues", targetInfoLabelValues)
+
+	if len(labels) > p.Cfg.MaxLabelValues {
+		p.labelCountExceededCounter.Inc()
 		return
 	}
 

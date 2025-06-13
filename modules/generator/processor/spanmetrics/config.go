@@ -58,6 +58,9 @@ type Config struct {
 
 	// Allow user to specify labels they want to drop from target_info
 	TargetInfoExcludedDimensions []string `yaml:"target_info_excluded_dimensions"`
+
+	// Allow user to specify labels they want to drop from intrinsic dimensions
+	MaxLabelValues int `yaml:"max_label_values"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -67,6 +70,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true
 	cfg.IntrinsicDimensions.StatusCode = true
+	cfg.MaxLabelValues = 80
 	cfg.Subprocessors = make(map[Subprocessor]bool)
 	cfg.Subprocessors[Latency] = true
 	cfg.Subprocessors[Count] = true

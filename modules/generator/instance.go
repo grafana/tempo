@@ -78,6 +78,7 @@ const (
 	reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
 	reasonSpanMetricsFiltered   = "span_metrics_filtered"
 	reasonInvalidUTF8           = "invalid_utf8"
+	reasonLabelCountExceeded    = "label_count_exceeded"
 )
 
 type instance struct {
@@ -328,7 +329,8 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	case spanmetrics.Name:
 		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered)
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8)
-		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter)
+		labelCountExceededCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonLabelCountExceeded)
+		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter, labelCountExceededCounter)
 		if err != nil {
 			return err
 		}
