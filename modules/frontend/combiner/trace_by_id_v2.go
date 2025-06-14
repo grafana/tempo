@@ -45,6 +45,9 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 
 			return resp, nil
 		},
+		quit: func(_ *tempopb.TraceByIDResponse) bool {
+			return partialTrace || combiner.IsPartialTrace()
+		},
 		new:     func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
 		current: &tempopb.TraceByIDResponse{},
 	}
