@@ -1360,7 +1360,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 			break
 		}
 		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
-			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
+			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 		}
 		labels := make(Labels, 0, len(exemplar.Labels))
 		for _, l := range exemplar.Labels {
@@ -1538,7 +1538,6 @@ func (h *HistogramAggregator) Results() SeriesSet {
 	}
 
 	// Calculate quantile values from aggregated distribution
-	// if len(aggregatedBuckets) > 0 {
 	// Convert map to sorted slice
 	var buckets []HistogramBucket
 	for bucketMax, count := range aggregatedBuckets {
