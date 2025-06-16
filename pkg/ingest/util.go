@@ -68,6 +68,7 @@ func HandleKafkaError(err error, forceMetadataRefresh func()) (retriable bool) {
 	case strings.Contains(errString, "i/o timeout"):
 		forceMetadataRefresh()
 	case strings.Contains(errString, unknownBroker):
+		forceMetadataRefresh()
 		retriable = true
 		// The client's metadata refreshed after we called Broker(). It should already be refreshed, so we can retry immediately.
 	}
