@@ -764,6 +764,52 @@ func TestCountOverTimeInstantNs(t *testing.T) {
 	require.Equal(t, len(result), seriesCount)
 }
 
+func TestAvgOverTimeInstantNs(t *testing.T) {
+	// not rounded values to simulate real world data
+	start := 1*time.Second - 9*time.Nanosecond
+	end := 3*time.Second + 9*time.Nanosecond
+	step := end - start // for instant queries step == end-start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | avg_over_time(span:duration)",
+	}
+
+	in := []Span{
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(uint64(1*time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(uint64(2*time.Second)),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(uint64(3*time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(uint64(4*time.Second)),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(uint64(5*time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(uint64(6*time.Second)),
+
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(uint64(7*time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(uint64(8*time.Second)),
+	}
+
+	out := SeriesSet{
+		`{__name__="avg_over_time"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "__name__", Value: NewStaticString("avg_over_time")},
+			},
+			Values:    []float64{(3+4+5+6)/4.},
+			Exemplars: make([]Exemplar, 0),
+		},
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+	require.Equal(t, out, result)
+	require.Equal(t, len(result), seriesCount)
+}
+
 // TestCountOverTimeInstantNsWithCutoff simulates merge behavior in L2 and L3.
 func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 	start := 1*time.Second + 300*time.Nanosecond // additional 300ns that can be accidentally dropped by ms conversion
