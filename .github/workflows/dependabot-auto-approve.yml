@@ -11,6 +11,10 @@ jobs:
       contents: write # Needed to merge PRs via gh CLI
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'grafana/tempo'
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Fetch Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b
