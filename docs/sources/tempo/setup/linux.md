@@ -75,7 +75,7 @@ Refer to the [Tempo configuration documentation](../../configuration/) for expla
 
 In the following configuration, Tempo options are altered to only listen to the OTLP gRPC and HTTP protocols.
 By default, Tempo listens for all compatible protocols.
-The OpenTelemetry Collector receiver binds to `localhost` instead of `0.0.0.0`.
+By default, the OpenTelemetry Collector receiver binds to `localhost` instead of `0.0.0.0`.
 This example binds to all ports, bear in mind that this can be a security risk if your Tempo instance is exposed to the public internet.
 
 ```yaml
