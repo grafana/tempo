@@ -1842,22 +1842,28 @@ func TestTiesInBottomK(t *testing.T) {
 }
 
 func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, int, error) {
+	res, err := processLayer1AndLayer2(req, inSpans...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Pass layer 2 to layer 3
+	// These are summed counts over time by bucket
+	return processLayer3(req, res)
+}
+
+func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (SeriesSet, error) {
 	e := NewEngine()
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	for _, spanSet := range inSpans {
+	for _, spanSet := range in {
 		layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		for _, s := range spanSet {
 			layer1.metricsPipeline.observe(s)
@@ -1868,14 +1874,19 @@ func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (Series
 		layer2.metricsPipeline.observeSeries(res.ToProto(req))
 	}
 
-	// Pass layer 2 to layer 3
-	// These are summed counts over time by bucket
-	res := layer2.Results()
-	layer3.ObserveSeries(res.ToProto(req))
-	seriesCount := layer3.Length()
-	// Layer 3 final results
+	return layer2.Results(), nil
+}
 
-	return layer3.Results(), seriesCount, nil
+func processLayer3(req *tempopb.QueryRangeRequest, res SeriesSet) (SeriesSet, int, error) {
+	e := NewEngine()
+
+	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	layer3.ObserveSeries(res.ToProto(req))
+	return layer3.Results(), layer3.Length(), nil
 }
 
 func randInt(minimum, maximum int) int {
