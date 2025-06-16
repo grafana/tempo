@@ -2797,8 +2797,9 @@ func TestHistogramAggregator_LatencySpike(t *testing.T) {
 		{Value: 0.19, TimestampMs: normal2Time.UnixMilli()}, // Medium - should go to p90
 	}
 
-	// Combine all time series
-	allSeries := append(normalSeries1, spikeSeries...)
+	// Combine all time series in correct temporal order
+	allSeries := append([]*tempopb.TimeSeries(nil), normalSeries1...) // Copy normalSeries1
+	allSeries = append(allSeries, spikeSeries...)
 	allSeries = append(allSeries, normalSeries2...)
 
 	agg.Combine(allSeries)
