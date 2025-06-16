@@ -636,13 +636,6 @@ Metamonitoring provides observability for your Tempo deployment by collecting me
 
 ### Configure metamonitoring
 
-1. Add the Grafana Helm Chart repository:
-
-   ```bash
-   helm repo add grafana https://grafana.github.io/helm-charts
-   helm repo update
-   ```
-
 1. Create a `metamonitoring-values.yaml` file for the k8s-monitoring configuration:
 
    ```yaml
