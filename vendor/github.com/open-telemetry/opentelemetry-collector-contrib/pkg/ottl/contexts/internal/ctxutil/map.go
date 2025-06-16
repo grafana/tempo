@@ -18,16 +18,9 @@ func GetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.
 		return nil, errors.New("cannot get map value without keys")
 	}
 
-	s, err := keys[0].String(ctx, tCtx)
+	s, err := GetMapKeyName(ctx, tCtx, keys[0])
 	if err != nil {
-		return nil, err
-	}
-	if s == nil {
-		resString, err := FetchValueFromExpression[K, string](ctx, tCtx, keys[0])
-		if err != nil {
-			return nil, fmt.Errorf("unable to resolve a string index in map: %w", err)
-		}
-		s = resString
+		return nil, fmt.Errorf("cannot get map value: %w", err)
 	}
 
 	val, ok := m.Get(*s)
@@ -40,19 +33,12 @@ func GetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.
 
 func SetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.Key[K], val any) error {
 	if len(keys) == 0 {
-		return errors.New("cannot set map value without key")
+		return errors.New("cannot set map value without keys")
 	}
 
-	s, err := keys[0].String(ctx, tCtx)
+	s, err := GetMapKeyName(ctx, tCtx, keys[0])
 	if err != nil {
-		return err
-	}
-	if s == nil {
-		resString, err := FetchValueFromExpression[K, string](ctx, tCtx, keys[0])
-		if err != nil {
-			return fmt.Errorf("unable to resolve a string index in map: %w", err)
-		}
-		s = resString
+		return fmt.Errorf("cannot set map value: %w", err)
 	}
 
 	currentValue, ok := m.Get(*s)
@@ -60,6 +46,20 @@ func SetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.
 		currentValue = m.PutEmpty(*s)
 	}
 	return SetIndexableValue[K](ctx, tCtx, currentValue, val, keys[1:])
+}
+
+func GetMapKeyName[K any](ctx context.Context, tCtx K, key ottl.Key[K]) (*string, error) {
+	resolvedKey, err := key.String(ctx, tCtx)
+	if err != nil {
+		return nil, err
+	}
+	if resolvedKey == nil {
+		resolvedKey, err = FetchValueFromExpression[K, string](ctx, tCtx, key)
+		if err != nil {
+			return nil, fmt.Errorf("unable to resolve a string index in map: %w", err)
+		}
+	}
+	return resolvedKey, nil
 }
 
 func FetchValueFromExpression[K any, T int64 | string](ctx context.Context, tCtx K, key ottl.Key[K]) (*T, error) {
@@ -90,4 +90,18 @@ func SetMap(target pcommon.Map, val any) error {
 		return target.FromRaw(rm)
 	}
 	return nil
+}
+
+func GetMap(val any) (pcommon.Map, error) {
+	if m, ok := val.(pcommon.Map); ok {
+		return m, nil
+	}
+	if rm, ok := val.(map[string]any); ok {
+		m := pcommon.NewMap()
+		if err := m.FromRaw(rm); err != nil {
+			return pcommon.Map{}, err
+		}
+		return m, nil
+	}
+	return pcommon.Map{}, fmt.Errorf("failed to convert type %T into pcommon.Map", val)
 }
