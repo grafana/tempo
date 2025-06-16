@@ -1627,18 +1627,18 @@ func (h *HistogramAggregator) selectExemplarsFromQuantileValues(allExemplars []E
 // determineTargetQuantile determines which quantile an exemplar should be assigned to
 // by comparing its value against the calculated quantile thresholds.
 func (h *HistogramAggregator) determineTargetQuantile(exemplarValue float64, quantileValues []float64) int {
-	// Assign to the highest quantile that the exemplar qualifies for
+	// Assign to the smallest quantile that can contain this exemplar
 	// e.g., if exemplar is 1.5s and p50=0.5s, p90=2.0s, p99=5.0s
-	// then 1.5s qualifies for p90 (since 1.5s > 0.5s but <= 2.0s)
+	// then 1.5s goes to p90 (since 1.5s > p50 but <= p90)
 
-	for i := len(quantileValues) - 1; i >= 0; i-- {
-		if exemplarValue >= quantileValues[i] {
+	for i := 0; i < len(quantileValues); i++ {
+		if exemplarValue <= quantileValues[i] {
 			return i
 		}
 	}
 
-	// If exemplar is below all quantile thresholds, assign to the lowest quantile
-	return 0
+	// If exemplar is above all quantile thresholds, assign to the highest quantile
+	return len(quantileValues) - 1
 }
 
 func (h *HistogramAggregator) Length() int {
