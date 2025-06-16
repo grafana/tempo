@@ -2725,3 +2725,139 @@ func createBucketSeries(bucketValue string, count int, timestampMs int64) *tempo
 		},
 	}
 }
+
+func TestHistogramAggregator_LatencySpike(t *testing.T) {
+	// Simulate a latency spike: normal traffic, then a spike, then normal again
+	now := time.Now()
+	start := now.Add(-45 * time.Minute)
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start.UnixNano()),
+		End:   uint64(now.UnixNano()),
+		Step:  uint64(15 * time.Minute), // 3 intervals: normal, spike, normal
+	}
+	quantiles := []float64{0.5, 0.9, 0.99}
+
+	agg := NewHistogramAggregator(req, quantiles, 20)
+
+	// Interval 1: Normal latency (0-15min) - p50=100ms, p90=200ms, p99=500ms
+	normal1Time := start.Add(7 * time.Minute)
+	normalSeries1 := []*tempopb.TimeSeries{
+		createBucketSeries("0.125", 70, normal1Time.UnixMilli()), // 70 fast requests
+		createBucketSeries("0.25", 20, normal1Time.UnixMilli()),  // 20 medium requests
+		createBucketSeries("0.5", 8, normal1Time.UnixMilli()),    // 8 slow requests
+		createBucketSeries("1.0", 2, normal1Time.UnixMilli()),    // 2 very slow requests
+	}
+
+	// Add exemplars for normal period
+	normalSeries1[0].Exemplars = []tempopb.Exemplar{
+		{Value: 0.08, TimestampMs: normal1Time.UnixMilli()}, // Fast - should go to p50
+		{Value: 0.12, TimestampMs: normal1Time.UnixMilli()}, // Fast - should go to p50
+	}
+	normalSeries1[1].Exemplars = []tempopb.Exemplar{
+		{Value: 0.18, TimestampMs: normal1Time.UnixMilli()}, // Medium - should go to p90
+	}
+	normalSeries1[2].Exemplars = []tempopb.Exemplar{
+		{Value: 0.35, TimestampMs: normal1Time.UnixMilli()}, // Slow - should go to p99
+	}
+
+	// Interval 2: Latency spike (15-30min) - p50=800ms, p90=2000ms, p99=4000ms
+	spikeTime := start.Add(22 * time.Minute)
+	spikeSeries := []*tempopb.TimeSeries{
+		createBucketSeries("1.0", 50, spikeTime.UnixMilli()), // 50 slow requests (now "fast" for spike)
+		createBucketSeries("2.0", 30, spikeTime.UnixMilli()), // 30 very slow requests
+		createBucketSeries("4.0", 15, spikeTime.UnixMilli()), // 15 extremely slow requests
+		createBucketSeries("8.0", 5, spikeTime.UnixMilli()),  // 5 timeout requests
+	}
+
+	// Add exemplars during spike - these should be assigned contextually
+	spikeSeries[0].Exemplars = []tempopb.Exemplar{
+		{Value: 0.9, TimestampMs: spikeTime.UnixMilli()}, // During spike, this is p50!
+		{Value: 1.1, TimestampMs: spikeTime.UnixMilli()}, // During spike, this is p50!
+	}
+	spikeSeries[1].Exemplars = []tempopb.Exemplar{
+		{Value: 1.8, TimestampMs: spikeTime.UnixMilli()}, // During spike, this is p90!
+	}
+	spikeSeries[2].Exemplars = []tempopb.Exemplar{
+		{Value: 3.5, TimestampMs: spikeTime.UnixMilli()}, // During spike, this is p99!
+	}
+
+	// Interval 3: Back to normal (30-45min) - p50=100ms, p90=200ms, p99=500ms
+	normal2Time := start.Add(37 * time.Minute)
+	normalSeries2 := []*tempopb.TimeSeries{
+		createBucketSeries("0.125", 75, normal2Time.UnixMilli()),
+		createBucketSeries("0.25", 20, normal2Time.UnixMilli()),
+		createBucketSeries("0.5", 4, normal2Time.UnixMilli()),
+		createBucketSeries("1.0", 1, normal2Time.UnixMilli()),
+	}
+
+	normalSeries2[0].Exemplars = []tempopb.Exemplar{
+		{Value: 0.09, TimestampMs: normal2Time.UnixMilli()}, // Fast - should go to p50
+	}
+	normalSeries2[1].Exemplars = []tempopb.Exemplar{
+		{Value: 0.19, TimestampMs: normal2Time.UnixMilli()}, // Medium - should go to p90
+	}
+
+	// Combine all time series
+	allSeries := append(normalSeries1, spikeSeries...)
+	allSeries = append(allSeries, normalSeries2...)
+
+	agg.Combine(allSeries)
+	results := agg.Results()
+
+	// Verify we have the expected quantile series
+	require.Len(t, results, 3, "Should have 3 quantile series")
+
+	var p50Series, p90Series, p99Series TimeSeries
+	var found50, found90, found99 bool
+
+	for _, series := range results {
+		for _, label := range series.Labels {
+			if label.Name == "p" {
+				switch label.Value.Float() {
+				case 0.5:
+					p50Series = series
+					found50 = true
+				case 0.9:
+					p90Series = series
+					found90 = true
+				case 0.99:
+					p99Series = series
+					found99 = true
+				}
+			}
+		}
+	}
+
+	require.True(t, found50, "Should find p50 series")
+	require.True(t, found90, "Should find p90 series")
+	require.True(t, found99, "Should find p99 series")
+
+	// Verify quantile values reflect the spike pattern
+	require.Greater(t, p50Series.Values[1], p50Series.Values[0], "P50 should spike in interval 1")
+	require.Greater(t, p50Series.Values[1], p50Series.Values[2], "P50 should be higher during spike than after")
+
+	// Verify exemplar distribution makes sense with per-interval context
+	totalExemplars := len(p50Series.Exemplars) + len(p90Series.Exemplars) + len(p99Series.Exemplars)
+	require.Greater(t, totalExemplars, 0, "Should have exemplars distributed")
+
+	t.Logf("Quantile values across intervals:")
+	t.Logf("P50: [%.3f, %.3f, %.3f]", p50Series.Values[0], p50Series.Values[1], p50Series.Values[2])
+	t.Logf("P90: [%.3f, %.3f, %.3f]", p90Series.Values[0], p90Series.Values[1], p90Series.Values[2])
+	t.Logf("P99: [%.3f, %.3f, %.3f]", p99Series.Values[0], p99Series.Values[1], p99Series.Values[2])
+
+	t.Logf("Exemplar distribution:")
+	t.Logf("P50 exemplars: %d", len(p50Series.Exemplars))
+	t.Logf("P90 exemplars: %d", len(p90Series.Exemplars))
+	t.Logf("P99 exemplars: %d", len(p99Series.Exemplars))
+
+	// Log individual exemplar values to see the assignment
+	for _, ex := range p50Series.Exemplars {
+		t.Logf("P50 exemplar: %.3f", ex.Value)
+	}
+	for _, ex := range p90Series.Exemplars {
+		t.Logf("P90 exemplar: %.3f", ex.Value)
+	}
+	for _, ex := range p99Series.Exemplars {
+		t.Logf("P99 exemplar: %.3f", ex.Value)
+	}
+}
