@@ -16,7 +16,7 @@ func TestHandleKafkaError(t *testing.T) {
 	}{
 		{nil, false, false},
 		{errors.New("Some error"), false, false},
-		{errors.New("unknown broker"), false, true},
+		{errors.New("unknown broker"), true, true},
 		{kerr.NotLeaderForPartition, true, true},
 		{kerr.ReplicaNotAvailable, true, true},
 		{kerr.UnknownLeaderEpoch, true, true},
