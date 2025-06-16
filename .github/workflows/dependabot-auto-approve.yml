@@ -33,7 +33,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: tempo
       - name: Approve Dependabot PR
-        # Only path updates
+        # Only patch updates
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: gh pr review --approve -b "Automatically approved dependency update"
         env:
