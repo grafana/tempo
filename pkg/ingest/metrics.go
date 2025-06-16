@@ -63,6 +63,7 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 					lag kadm.GroupLag
 					err error
 				)
+				boff.Reset()
 				for boff.Ongoing() {
 					lag, err = getGroupLag(ctx, admClient, topic, group)
 					if err == nil {
@@ -73,9 +74,9 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 						boff.Wait()
 					}
 				}
-				boff.Reset()
+
 				if err != nil {
-					level.Error(log).Log("msg", "metric lag failed:", "err", err)
+					level.Error(log).Log("msg", "metric lag failed:", "err", err, "retries", boff.NumRetries())
 					continue
 				}
 				for _, p := range getAssignedActivePartitions() {
