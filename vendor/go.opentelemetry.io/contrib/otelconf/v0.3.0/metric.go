@@ -252,11 +252,13 @@ func otlpGRPCMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 		}
 	}
 
-	tlsConfig, err := createTLSConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
-	if err != nil {
-		return nil, err
+	if otlpConfig.Certificate != nil || otlpConfig.ClientCertificate != nil || otlpConfig.ClientKey != nil {
+		tlsConfig, err := createTLSConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, otlpmetricgrpc.WithTLSCredentials(credentials.NewTLS(tlsConfig)))
 	}
-	opts = append(opts, otlpmetricgrpc.WithTLSCredentials(credentials.NewTLS(tlsConfig)))
 
 	return otlpmetricgrpc.New(ctx, opts...)
 }
