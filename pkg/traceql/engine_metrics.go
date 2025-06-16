@@ -1713,7 +1713,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			}
 
 			// Select exemplars using per-interval semantic matching with pre-sorted buckets
-			ts.Exemplars = h.selectExemplarsWithIntervalMatching(allExemplars, sortedIntervalBuckets, qIdx, q)
+			ts.Exemplars = h.selectExemplarsWithIntervalMatching(allExemplars, sortedIntervalBuckets, qIdx)
 
 			results[s] = ts
 		}
@@ -1723,7 +1723,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 
 // selectExemplarsWithIntervalMatching assigns exemplars based on their time interval context.
 // Each exemplar is compared against the quantile threshold from its specific interval.
-func (h *HistogramAggregator) selectExemplarsWithIntervalMatching(allExemplars []Exemplar, histSeries [][]HistogramBucket, quantileIdx int, quantileValue float64) []Exemplar {
+func (h *HistogramAggregator) selectExemplarsWithIntervalMatching(allExemplars []Exemplar, histSeries [][]HistogramBucket, quantileIdx int) []Exemplar {
 	if len(allExemplars) == 0 {
 		return nil
 	}
