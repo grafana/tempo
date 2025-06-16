@@ -254,8 +254,8 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		case "otlp":
 			otlpRecvCfg := cfg.(*otlpreceiver.Config)
 
-			if otlpRecvCfg.HTTP != nil {
-				otlpRecvCfg.HTTP.ServerConfig.IncludeMetadata = true
+			if otlpRecvCfg.HTTP.HasValue() {
+				otlpRecvCfg.HTTP.Get().ServerConfig.IncludeMetadata = true
 				cfg = otlpRecvCfg
 			}
 

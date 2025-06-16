@@ -35,7 +35,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.93
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.127.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.128.0
 	github.com/opentracing-contrib/go-grpc v0.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.22
@@ -88,13 +88,13 @@ require (
 	github.com/grafana/gomemcache v0.0.0-20250318131618-74242eea118d
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jaegertracing/jaeger-idl v0.6.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.127.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.127.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.127.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.127.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.127.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.127.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.127.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.128.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.128.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.128.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.128.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.128.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.128.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.128.0
 	github.com/parquet-go/parquet-go v0.25.1
 	github.com/twmb/franz-go v1.18.1
 	github.com/twmb/franz-go/pkg/kadm v1.16.0
@@ -139,13 +139,13 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.27.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0 // indirect
-	github.com/IBM/sarama v1.45.1 // indirect
+	github.com/IBM/sarama v1.45.2 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/antchfx/xmlquery v1.4.4 // indirect
 	github.com/antchfx/xpath v1.3.4 // indirect
-	github.com/apache/thrift v0.21.0 // indirect
+	github.com/apache/thrift v0.22.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.4 // indirect
@@ -181,7 +181,7 @@ require (
 	github.com/elastic/lunes v0.1.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
-	github.com/expr-lang/expr v1.17.3 // indirect
+	github.com/expr-lang/expr v1.17.5 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250323135004-b31fac66206e // indirect
@@ -265,17 +265,17 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/oklog/ulid/v2 v2.1.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.127.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.128.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.124.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.127.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.127.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.128.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.128.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.124.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
@@ -314,6 +314,8 @@ require (
 	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
+	github.com/twmb/franz-go/pkg/sasl/kerberos v1.1.0 // indirect
+	github.com/twmb/franz-go/plugin/kzap v1.1.2 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/ua-parser/uap-go v0.0.0-20241012191800-bbb40edc15aa // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
@@ -360,7 +362,7 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.128.0 // indirect
 	go.opentelemetry.io/collector/pipeline v0.128.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.128.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper v0.127.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper v0.128.0 // indirect
 	go.opentelemetry.io/collector/processor/processortest v0.128.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.128.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.128.0 // indirect

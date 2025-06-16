@@ -384,7 +384,7 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
 	otlpCfg.ClientConfig = configgrpc.ClientConfig{
 		Endpoint: endpoint,
-		TLSSetting: configtls.ClientConfig{
+		TLS: configtls.ClientConfig{
 			Insecure: true,
 		},
 	}
