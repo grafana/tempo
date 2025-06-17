@@ -557,6 +557,49 @@ func (s *StepAggregator) Length() int {
 	return 0
 }
 
+// InstantAggregator is similar to StepAggregator but always has only one interval.
+// It's used for instant queries where we only need a single data point.
+type InstantAggregator struct {
+	start, end      uint64
+	vector          VectorAggregator
+	exemplars       []Exemplar
+	exemplarBuckets *bucketSet
+}
+
+var _ RangeAggregator = (*InstantAggregator)(nil)
+
+func NewInstantAggregator(start, end uint64, innerAgg func() VectorAggregator) *InstantAggregator {
+	return &InstantAggregator{
+		start:  start,
+		end:    end,
+		vector: innerAgg(),
+	}
+}
+
+func (i *InstantAggregator) Observe(span Span) {
+	// if outside the range, skip
+	if ts := span.StartTimeUnixNanos(); ts < i.start || ts > i.end {
+		return
+	}
+	i.vector.Observe(span)
+}
+
+func (i *InstantAggregator) ObserveExemplar(value float64, ts uint64, lbls Labels) {
+	// instant query does not have exemplars, so we skip
+}
+
+func (i *InstantAggregator) Samples() []float64 {
+	return []float64{i.vector.Sample()}
+}
+
+func (i *InstantAggregator) Exemplars() []Exemplar {
+	return nil
+}
+
+func (i *InstantAggregator) Length() int {
+	return 0
+}
+
 const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
 
 // FastValues is an array of attribute values (static values) that can be used
