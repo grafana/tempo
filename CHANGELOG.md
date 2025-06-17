@@ -44,6 +44,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 # v2.8.1
 
 * [BUGFIX] Fix ingester issue where a hash collision could lead to spans stored incorrectly [#5276](https://github.com/grafana/tempo/pull/5276) (@carles-grafana)
+* [BUGFIX] Correct instant query calculation [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
 
 # v2.8.0
 
