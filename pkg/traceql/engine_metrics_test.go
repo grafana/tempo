@@ -1277,11 +1277,9 @@ func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T
 		if !strings.Contains(ts.PromLabels, internalLabelMetaType) {
 			// add all values series
 			truncated2bResults = append(truncated2bResults, ts)
-		} else {
+		} else if len(ts.Samples) != 3 {
 			// the panic appears when the count series with 3 samples is missing
-			if len(ts.Samples) != 3 {
-				truncated2bResults = append(truncated2bResults, ts)
-			}
+			truncated2bResults = append(truncated2bResults, ts)
 		}
 	}
 	assert.NotPanics(t, func() {
