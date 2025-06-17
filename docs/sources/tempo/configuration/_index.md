@@ -142,13 +142,15 @@ Additional documentation and more advanced configuration options are available i
 distributor:
 
     # receiver configuration for different protocols
-    # config is passed down to opentelemetry receivers
-    # for a production deployment you should only enable the receivers you need!
+    # The config is passed down to OpenTelemetry receivers.
+    # By default, receivers listen to localhost and need a configured IP to
+    # listen on an external interface.
+    # For a production deployment, you should only enable the receivers you need.
     receivers:
         otlp:
             protocols:
-                grpc:
-                http:
+                grpc:    # default localhost:4317
+                http:    # default localhost:4318
         jaeger:
             protocols:
                 thrift_http:
