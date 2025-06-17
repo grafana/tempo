@@ -33,7 +33,14 @@ Check the [Tempo release notes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/r
 TraceQL requires the Parquet columnar format, which is enabled by default.
 For information on Parquet, refer to the [Apache Parquet backend](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet) documentation.
 
-## Query using TraceQL
+## Use TraceQL
+
+To use TraceQL, you need to:
+
+* Understand the [structure of a trace](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/structure/) and spans to determine what information you want to query.
+* [Construct a query to locate the information](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/). Use the language reference to learn about the syntax and semantics of TraceQL.
+
+### Query using TraceQL
 
 You can use TraceQL query editor and query builder in the Tempo data source to build queries and drill-down into result sets.
 The editor and builder are available in the [Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/) for Grafana Explore.
@@ -43,9 +50,11 @@ The editor and builder are available in the [Tempo data source](https://grafana.
 In addition, you can use Traces Drilldown to investigate your tracing data without writing TraceQL queries.
 For more information, refer to the [Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/) documentation.
 
+For more information, refer to [Write TraceQL queries in Grafana](http://localhost:3002/docs/tempo/<TEMPO_VERSION>/traceql/query-editor/).
+
 ### Stream query results
 
-By streaming results to the client, you can start to look at traces matching your query before the entire query completes.
+Query results can stream to the client, which lets you look at traces matching your query before the entire query completes.
 
 The GRPC streaming API endpoint in the query frontend allows a client to stream search results from Tempo.
 The `tempo-cli` also uses this streaming endpoint.
@@ -54,38 +63,10 @@ For more information, refer to the [Tempo CLI documentation](https://grafana.com
 To use streaming in Grafana, you must have `stream_over_http_enabled: true` enabled in Tempo.
 For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#tempo-grpc-api).
 
-{{< docs/shared source="tempo" lookup="traceql-main.md" version="<TEMPO_VERSION>" >}}
+### TraceQL metrics
 
-## Retrieving most recent results (experimental)
-
-When troubleshooting a live incident or monitoring production health, you often need to see the latest traces first.
-By default, Tempo’s query engine favors speed and returns the first `N` matching traces, which may not be the newest.
-
-The `most_recent` hint ensures you see the freshest data, so you can diagnose recent errors or performance regressions without missing anything due to early row‑limit cuts.
-
-You can use TraceQL query hint `most_recent=true` with any TraceQL selection query to force Tempo to return the most recent results ordered by time.
-
-Examples:
-
-```
-{} with (most_recent=true)
-{ span.foo = "bar" } >> { status = error } with (most_recent=true)
-```
-
-With `most_recent=true`, Tempo performs a deeper search across data shards, retains the newest candidates, and returns traces sorted by start time rather than stopping at the first limit hit.
-
-You can specify the time window to break a search up into when doing a most recent TraceQL search using `most_recent_shards:` in the `query_frontend` configuration block.
-The default value is 200.
-Refer to the [Tempo configuration reference](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/query_frontend/) for more information.
-
-### Search impact using `most_recent`
-
-Most search functions are deterministic: using the same search criteria results in the same results.
-
-When you use most_recent=true`, Tempo search is non-deterministic.
-If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
-
-## Experimental TraceQL metrics
+<!-- Using a custom admonition because no feature flag is required. -->
+{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
 TraceQL metrics are easy to get started with.
 Refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) for more information.

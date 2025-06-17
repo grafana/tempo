@@ -1,26 +1,26 @@
 ---
-headless: true
-description: Shared file for core traceql concepts.
-labels:
-  products:
-    - enterprise
-    - oss
+title: Construct a TraceQL query
+menuTitle: Construct a query
+description: Learn about how TraceQL works
+weight: 150
+keywords:
+  - query structure
+  - TraceQL
 ---
 
-<!-- WARNING: This file is loaded by /modules/frontend/mcp.go and served to LLMs through the MCP protocol. It -->
-<!-- should be kept terse and to the point. Links and videos and such are bad. Examples are good! The below "mcp-cutoff" 
-<!-- is used to remove everything above. -->
-<!-- TODO: Anthropic suggests using xml tags to organize content delivered to an LLM. Can we tag this content with xml tags  -->
-<!-- that make both hugo and llms happy? -->
-<!-- mcp-cutoff -->
+# Construct a TraceQL query
 
-## Construct a TraceQL query
+In TraceQL, a query is an expression that's evaluated on one trace at a time
 
-In TraceQL, a query is an expression that's evaluated on one trace at a time.
 The query is structured as a set of chained expressions called a pipeline.
-Each expression in the pipeline selects or discards spansets from being included in the results set. For example:
 
-```
+In TraceQL, curly brackets `{}` always select a set of spans from available traces.
+Curly brackets are commonly paired with a condition to reduce the spans fetched.
+
+Each expression in the pipeline selects or discards spansets from being included in the results set.
+For example:
+
+```traceql
 { span.http.status_code >= 200 && span.http.status_code < 300 } | count() > 2
 ```
 
@@ -33,6 +33,18 @@ Queries select sets of spans and filter them through a pipeline of aggregators a
 If, for a given trace, this pipeline produces a spanset then it's included in the results of the query.
 
 Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for examples of TraceQL metrics queries.
+
+<!-- WARNING: This file is loaded by /modules/frontend/mcp.go and served to LLMs through the MCP protocol. It -->
+<!-- should be kept terse and to the point. Links and videos and such are bad. Examples are good! The below "mcp-cutoff" 
+<!-- is used to remove everything above. -->
+<!-- TODO: Anthropic suggests using xml tags to organize content delivered to an LLM. Can we tag this content with xml tags  -->
+<!-- that make both hugo and llms happy? -->
+<!-- mcp-cutoff -->
+
+## Examples
+
+The following examples illustrate some commonly used queries.
+You can use these examples as a starting point for your own queries.
 
 ### Find traces of a specific operation
 
@@ -139,12 +151,6 @@ Find the services where the http status is 200, and list the service name the sp
 { span.http.status_code = 200 } | select(resource.service.name)
 ```
 
-Find any trace with an unscoped `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
-
-```
-{ resource.deployment.environment = "production" && span.http.status_code = 200 }
-```
-
 Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
 
 ```
@@ -163,10 +169,7 @@ Find any trace with a `deployment.environment` attribute that matches the regex 
 { resource.deployment.environment =~ "prod-.*" && span.http.status_code = 200 }
 ```
 
-## Selecting spans
-
-In TraceQL, curly brackets `{}` always select a set of spans from available traces.
-Curly brackets are commonly paired with a condition to reduce the spans fetched.
+## Select spans
 
 TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs.
 You can use intrinsics and attributes to build filters and select spans.
@@ -179,7 +182,7 @@ Intrinsics are inherently present, as opposed to other key-value pairs (attribut
 Intrinsics are always indicated using a `<scope>:`.
 Refer to the Intrinsics table for all current intrinsics.
 
-Intrinsics example:
+Intrinsics examples:
 ```
 { span:name = "foo" }
 { event:name = "foo" }
@@ -264,7 +267,7 @@ To find traces with the `GET HTTP` method, your query could look like this:
 
 For more information about attributes and resources, refer to the [OpenTelemetry Resource SDK](https://opentelemetry.io/docs/reference/specification/resource/sdk/).
 
-#### Examples
+### Examples
 
 Find traces that passed through the `production` environment:
 ```
@@ -277,7 +280,7 @@ Find any database connection string that goes to a Postgres or MySQL database:
 ```
 
 You can use the `event` scope to query events that happen within a span.
-A span event is a unique point in time during the span's duration.
+A span event is a unique point in time during the span’s duration.
 While spans help build the structural hierarchy of your services, span events can provide a deeper level of granularity to help debug your application faster and maintain optimal performance.
 To learn more about how you can use span events, read the [What are span events?](https://grafana.com/blog/2024/08/15/all-about-span-events-what-they-are-and-how-to-query-them/) blog post.
 
@@ -286,7 +289,7 @@ You can query for an exception in your span event:
 { event.exception.message =~ ".*something went wrong.*" }
 ```
 
-If you've instrumented your traces for span links, you can use the `link` scope to query the link data. A span link associates one span with one or more other spans that are a casual relationship.
+If you've instrumented your traces for span links, you can use the `link` scope to query the link data. A span link associates one span with one or more other spans that are a causal relationship.
 For more information on span links, refer to the [Span Links](https://opentelemetry.io/docs/concepts/signals/traces/#span-links) documentation in the Open Telemetry project.
 
 You can search for an attribute in your link:
@@ -308,17 +311,6 @@ Find the libraries producing instrumentation for a given service:
 ```
 
 The [Tempo 2.7 release video](https://www.youtube.com/watch?v=0jUEvY-pCdw) demos and explains the `instrumentation` scope, starting at 30 seconds.
-
-### Unscoped attribute fields
-
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource.
-When possible, use scoped instead of unscoped attributes.
-Scoped attributes provide faster query results.
-
-For example, to find traces with an attribute of `sla` set to `critical`:
-```
-{ .sla = "critical" }
-```
 
 ### Quoted attribute names
 
@@ -387,7 +379,7 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 { span.http.method =~ "DELETE|GET" }
 ```
 
-Find all traces where `any_attribute` is not `nil` i.e. where `any_attribute` exists in a span
+Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
 ```
 { span.any_attribute != nil }
 ```
@@ -416,7 +408,7 @@ The entire expression inside of a pair of `{}` must be evaluated as true on a si
 
 In the above example, if a span includes an `.http.method` attribute set to `DELETE` where the span also includes a `status` attribute set to `ok`, the trace would not be included in the returned results.
 
-## Combine spansets
+## Combine spansets using operators
 
 Spanset operators let you select different sets of spans from a trace and then make a determination between them.
 
@@ -425,7 +417,8 @@ Spanset operators let you select different sets of spans from a trace and then m
 These spanset operators perform logical checks between the sets of spans.
 
 - `{condA} && {condB}` - The and operator (`&&`) checks that both conditions found matches.
-- `{condA} || {condB}` - The union operator (`||`) checks that either condition found matches.
+- `{condA} || {condB}` - The union operator (`||`) checks that either condition found matches. This functions as an "OR" statement.
+
 
 For example, to find a trace that went through two specific `cloud.region`:
 
@@ -440,6 +433,20 @@ Note the difference between the previous example and this one:
 ```
 
 The second expression returns no traces because it's impossible for a single span to have a `resource.cloud.region` attribute that's set to both region values at the same time.
+
+You can use a similar query to find a trace that passed through either `us-east-1` or `us-west-1` cloud regions:
+
+```
+{ resource.cloud.region = "us-east-1" } || { resource.cloud.region = "us-west-1" }
+```
+
+TraceQL provides multiple ways to perform similar queries.
+For example, this query achieves the same result as the previous one and is more performant.
+This query uses a pipe to indicate that either the first result or the second condition can be used (effectively chaining the options) instead of requiring a matching condition for either one or the other cloud region.
+
+```
+{ resource.cloud.region =~ "us-east-1|us-west-1" }
+```
 
 ### Structural
 
@@ -552,7 +559,8 @@ find something like a single service with more than 1 error:
 
 ## Arithmetic
 
-TraceQL supports arbitrary arithmetic in your queries. This can be useful to make queries more human readable:
+TraceQL supports arbitrary arithmetic in your queries.
+Using arithmetic can make queries more human readable:
 ```
 { span.http.request_content_length > 10 * 1024 * 1024 }
 ```
@@ -561,16 +569,39 @@ or anything else that comes to mind.
 
 ## Selection
 
-TraceQL can select arbitrary fields from spans. This is particularly performant because the selected fields are not retrieved until all other criteria is met.
+TraceQL can select arbitrary fields from spans.
+This is particularly performant because the selected fields aren't retrieved until all other criteria is met.
+For example, to select the `span.http.status_code` and `span.http.url` from all spans that have an error status code:
+
 ```
-{ status=error } | select(span.http.status_code, span.http.url)
+{ status = error } | select(span.http.status_code, span.http.url)
 ```
 
-## Retrieving most recent results (experimental)
+## Retrieve most recent results (experimental)
 
-The TraceQL query hint `most_recent=true` can be used with any TraceQL selection query to force Tempo to return the most recent results ordered by time. Examples:
+When troubleshooting a live incident or monitoring production health, you often need to see the latest traces first.
+By default, Tempo’s query engine favors speed and returns the first `N` matching traces, which may not be the newest.
+
+The `most_recent` hint ensures you see the freshest data, so you can diagnose recent errors or performance regressions without missing anything due to early row‑limit cuts.
+
+You can use TraceQL query hint `most_recent=true` with any TraceQL selection query to force Tempo to return the most recent results ordered by time.
+
+Examples:
 
 ```
 {} with (most_recent=true)
 { span.foo = "bar" } >> { status = error } with (most_recent=true)
 ```
+
+With `most_recent=true`, Tempo performs a deeper search across data shards, retains the newest candidates, and returns traces sorted by start time rather than stopping at the first limit hit.
+
+You can specify the time window to break a search up into when doing a most recent TraceQL search using `most_recent_shards:` in the `query_frontend` configuration block.
+The default value is 200.
+Refer to the [Tempo configuration reference](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#query-frontend/) for more information.
+
+### Search impact using `most_recent`
+
+Most search functions are deterministic: using the same search criteria results in the same results.
+
+When you use most_recent=true`, Tempo search is non-deterministic.
+If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.

@@ -41,4 +41,14 @@ var (
 		Name:      "backend_scheduler_provider_jobs_merged_total",
 		Help:      "The number of jobs merged from providers",
 	}, []string{"id"})
+	metricWorkFlushesFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_work_flushes_failed_total",
+		Help:      "The number of times the work cache flush to backend storage failed",
+	})
+	metricWorkFlushes = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_work_flushes_total",
+		Help:      "The number of times the work cache was flushed to backend storage",
+	})
 )

@@ -8,8 +8,10 @@
 * [ENHANCEMENT] Add endpoint for partition downscaling [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add backend scheduler and worker to the resources dashboard [#5206](https://github.com/grafana/tempo/pull/5241) (@javiermolinar)
+* [ENHANCEMENT] TraceQL metrics performance increase for simple queries [#5247](https://github.com/grafana/tempo/pull/5247) (@mdisibio)
 * [ENHANCEMENT] Align traceql attribute struct for better performance [#5240](https://github.com/grafana/tempo/pull/5240) (@mdisibio)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
+* [BUGFIX] Fix ingester issue where a hash collision could lead to spans stored incorrectly [#5276](https://github.com/grafana/tempo/pull/5276) (@carles-grafana)
 
 # v2.8.0
 

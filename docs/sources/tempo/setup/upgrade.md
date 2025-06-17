@@ -19,10 +19,10 @@ The upgrade process changes for each version, depending upon the changes made fo
 
 This upgrade guide applies to on-premise installations and not for Grafana Cloud.
 
-For detailed information about any release, refer to the [Release notes](../release-notes/).
+For detailed information about any release, refer to the [Release notes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/release-notes/).
 
 {{< admonition type="tip" >}}
-You can check your configuration options using the [`status` API endpoint](../../api_docs/#status) in your Tempo installation.
+You can check your configuration options using the [`status` API endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
 ## Upgrade to Tempo 2.8
@@ -36,10 +36,10 @@ With Tempo 2.8, the default `http_listen_port` changes from 80 to 3200. Check th
 ```yaml
 server:
     # HTTP server listen host
-    [http_listen_address: &lt;string>]
+    [http_listen_address: <string>]
 
     # HTTP server listen port
-    [http_listen_port: &lt;int> | default = 3200]
+    [http_listen_port: <int> | default = 3200]
 ```
 
 Refer to [issue 4945](https://github.com/grafana/tempo/discussions/4945) for more information for the rationale.
@@ -133,7 +133,7 @@ query_frontend:
 ### Tempo serverless deprecation
 
 Tempo serverless is officially deprecated and will be removed in an upcoming release.
-Prepare to migrate any serverless workflows to alternative deployments. ([#4017](https://github.com/grafana/tempo/pull/4017), [documentation](https://grafana.com/docs/tempo/latest/operations/backend_search/#serverless-environment))
+Prepare to migrate any serverless workflows to alternative deployments. ([#4017](https://github.com/grafana/tempo/pull/4017), [documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/backend_search/#serverless-environment))
 
 There are no changes to this release for serverless. However, you'll need to remove these configurations before the next release.
 
@@ -142,7 +142,7 @@ There are no changes to this release for serverless. However, you'll need to rem
 Regex matchers in TraceQL are now fully anchored using Prometheus's fast regexp.
 For instance, `span.foo =~ "bar"` is interpreted as `span.foo =~ "^bar$"`. Adjust existing queries accordingly. ([#4329](https://github.com/grafana/tempo/pull/4329))
 
-For more information, refer to the [Comparison operators TraceQL](http://localhost:3002/docs/tempo/<TEMPO_VERSION>/traceql/#comparison-operators) documentation.
+For more information, refer to the [Comparison operators TraceQL](http://localhost:3002/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/#comparison-operators) documentation.
 
 ### Migration from OpenTracing to OpenTelemetry
 
@@ -287,9 +287,9 @@ Although you can use Tempo 2.6 with vParquet2 or vParquet3, you can only use vPa
 If you are using 2.5 with vParquet4, you'll need to upgrade to Tempo 2.6 to use the new TraceQL features.
 
 You can also use the `tempo-cli analyse blocks` command to query vParquet4 blocks. [PR 3868](https://github.com/grafana/tempo/pull/3868)].
-Refer to the [Tempo CLI ](https://grafana.com/docs/tempo/next/operations/tempo_cli/#analyse-blocks)documentation for more information.
+Refer to the [Tempo CLI ](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#analyse-blocks)documentation for more information.
 
-For information on upgrading, refer to [Upgrade to Tempo 2.6](https://grafana.com/docs/tempo/next/setup/upgrade/) and [Choose a different block format](https://grafana.com/docs/tempo/next/configuration/parquet/#choose-a-different-block-format).
+For information on upgrading, refer to [Upgrade to Tempo 2.6](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/upgrade/) and [Choose a different block format](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
 
 ### Updated, removed, or renamed configuration parameters
 
@@ -325,7 +325,7 @@ For information on upgrading, refer to [Upgrade to Tempo 2.6](https://grafana.co
   <tr>
    <td><code>compaction_disabled</code>
    </td>
-   <td>New. Allow compaction disablement per-tenant. [PR <a href="https://github.com/grafana/tempo/pull/3965">#3965</a>, <a href="https://grafana.com/docs/tempo/next/configuration/#overrides">documentation</a>]
+   <td>New. Allow compaction disablement per-tenant. [PR <a href="https://github.com/grafana/tempo/pull/3965">#3965</a>, <a href="https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides">documentation</a>]
    </td>
   </tr>
   <tr>
@@ -335,7 +335,7 @@ For information on upgrading, refer to [Upgrade to Tempo 2.6](https://grafana.co
 <p>
 <code>    [enable_dual_stack: &lt;bool>]</code>
    </td>
-   <td>Boolean flag to activate or deactivate <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html">dualstack mode</a> on the Storage block configuration for S3. [PR <a href="https://github.com/grafana/tempo/pull/3721">#3721</a>, <a href="https://grafana.com/docs/tempo/next/configuration/#standard-overrides">documentation</a>]
+   <td>Boolean flag to activate or deactivate <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html">dualstack mode</a> on the Storage block configuration for S3. [PR <a href="https://github.com/grafana/tempo/pull/3721">#3721</a>, <a href="https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides">documentation</a>]
    </td>
   </tr>
 </table>
@@ -393,7 +393,7 @@ The vParquet4 block format is required for querying links, events, and arrays an
 While you can use vParquet4, keep in mind that it's experimental.
 If you choose to use vParquet4 and then opt to revert to vParquet3, any vParquet4 blocks would not be readable by vParquet3.
 
-To try vParquet4, refer to [Choose a block format](https://grafana.com/docs/tempo/latest/configuration/parquet/#choose-a-different-block-format).
+To try vParquet4, refer to [Choose a block format](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
 
 <!-- vale Grafana.Spelling = YES -->
 ### Removed configuration parameters
@@ -440,7 +440,7 @@ With this release, the first version of our Parquet backend, vParquet, is being 
 Tempo 2.4 still reads vParquet1 blocks.
 However, Tempo will exit with error if they are manually configured. [[PR 3377](https://github.com/grafana/tempo/pull/3377/files#top)]
 
-For information on changing the vParquet version, refer to [Choose a different block format](https://grafana.com/docs/tempo/next/configuration/parquet#choose-a-different-block-format).
+For information on changing the vParquet version, refer to [Choose a different block format](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet#choose-a-different-block-format).
 
 <!-- vale Grafana.Spelling = YES -->
 ### Cache configuration refactored

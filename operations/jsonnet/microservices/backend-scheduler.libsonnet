@@ -6,11 +6,13 @@
   local volumeMount = k.core.v1.volumeMount,
   local statefulset = k.apps.v1.statefulSet,
   local volume = k.core.v1.volume,
+  local pvc = k.core.v1.persistentVolumeClaim,
   local envVar = k.core.v1.envVar,
   local configMap = k.core.v1.configMap,
 
   local target_name = 'backend-scheduler',
   local tempo_config_volume = 'tempo-conf',
+  local tempo_data_volume = 'backend-scheduler-data',
   local tempo_overrides_config_volume = 'overrides',
 
   tempo_backend_scheduler_ports:: [
@@ -23,12 +25,22 @@
     'mem-ballast-size-mbs': $._config.ballast_size_mbs,
   },
 
+  tempo_backend_scheduler_pvc::
+    pvc.new(tempo_data_volume)
+    + pvc.mixin.spec.resources.withRequests({ storage: $._config.backend_scheduler.pvc_size })
+    + pvc.mixin.spec.withAccessModes(['ReadWriteOnce'])
+    + pvc.mixin.spec.withStorageClassName($._config.backend_scheduler.pvc_storage_class)
+    + pvc.mixin.metadata.withLabels({ app: target_name })
+    + pvc.mixin.metadata.withNamespace($._config.namespace),
+
+
   tempo_backend_scheduler_container::
     container.new(target_name, $._images.tempo) +
     container.withPorts($.tempo_backend_scheduler_ports) +
     container.withArgs($.util.mapToFlags($.tempo_backend_scheduler_args)) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
+      volumeMount.new(tempo_data_volume, '/var/tempo'),
       volumeMount.new(tempo_overrides_config_volume, '/overrides'),
     ]) +
     $.util.withResources($._config.backend_scheduler.resources) +
@@ -37,7 +49,13 @@
     (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
   newBackendSchedulerStatefulSet(max_unavailable=1)::
-    statefulset.new(target_name, $._config.backend_scheduler.replicas, $.tempo_backend_scheduler_container, [], { app: target_name }) +
+    statefulset.new(
+      target_name,
+      $._config.backend_scheduler.replicas,
+      $.tempo_backend_scheduler_container,
+      self.tempo_backend_scheduler_pvc,
+      { app: target_name }
+    ) +
     statefulset.mixin.spec.withServiceName(target_name) +
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
     statefulset.mixin.spec.template.metadata.withAnnotations({
