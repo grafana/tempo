@@ -6,8 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash"
-	"hash/fnv"
 	"sort"
 	"sync"
 	"time"
@@ -25,6 +23,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/tracesizes"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
@@ -79,7 +78,7 @@ var (
 
 type instance struct {
 	tracesMtx      sync.Mutex
-	traces         map[uint32]*liveTrace
+	traces         map[uint64]*liveTrace
 	traceSizes     *tracesizes.Tracker
 	traceSizeBytes uint64
 
@@ -105,8 +104,6 @@ type instance struct {
 	localReader backend.Reader
 	localWriter backend.Writer
 
-	hash hash.Hash32
-
 	logger         kitlog.Logger
 	maxTraceLogger *log.RateLimitedLogger
 }
@@ -115,7 +112,7 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 	logger := kitlog.With(log.Logger, "tenant", instanceID)
 
 	i := &instance{
-		traces:     map[uint32]*liveTrace{},
+		traces:     map[uint64]*liveTrace{},
 		traceSizes: tracesizes.New(),
 
 		instanceID:         instanceID,
@@ -130,8 +127,6 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 		local:       l,
 		localReader: backend.NewReader(l),
 		localWriter: backend.NewWriter(l),
-
-		hash: fnv.New32(),
 
 		logger:         logger,
 		maxTraceLogger: log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
@@ -214,7 +209,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 		return errTraceTooLarge
 	}
 
-	tkn := i.tokenForTraceID(id)
+	tkn := util.HashForTraceID(id)
 	trace := i.getOrCreateTrace(id, tkn)
 
 	err = trace.Push(ctx, i.instanceID, traceBytes)
@@ -412,7 +407,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 
 	// live traces
 	i.tracesMtx.Lock()
-	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
+	if liveTrace, ok := i.traces[util.HashForTraceID(id)]; ok {
 		completeTrace, err = model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.batches)
 		if err != nil {
 			i.tracesMtx.Unlock()
@@ -486,7 +481,7 @@ func (i *instance) AddCompletingBlock(b common.WALBlock) {
 // getOrCreateTrace will return a new trace object for the given request
 //
 //	It must be called under the i.tracesMtx lock
-func (i *instance) getOrCreateTrace(traceID []byte, fp uint32) *liveTrace {
+func (i *instance) getOrCreateTrace(traceID []byte, fp uint64) *liveTrace {
 	trace, ok := i.traces[fp]
 	if ok {
 		return trace
@@ -496,13 +491,6 @@ func (i *instance) getOrCreateTrace(traceID []byte, fp uint32) *liveTrace {
 	i.traces[fp] = trace
 
 	return trace
-}
-
-// tokenForTraceID hash trace ID, should be called under lock
-func (i *instance) tokenForTraceID(id []byte) uint32 {
-	i.hash.Reset()
-	_, _ = i.hash.Write(id)
-	return i.hash.Sum32()
 }
 
 // resetHeadBlock() should be called under lock
