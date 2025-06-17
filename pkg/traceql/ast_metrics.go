@@ -152,9 +152,18 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		return
 	}
 
-	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
-		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
-	}, a.by, byFunc, byFuncLabel)
+	var innerAggFunc func() RangeAggregator
+	if q.End-q.Start == q.Step {
+		innerAggFunc = func() RangeAggregator {
+			return NewInstantAggregator(q.Start, q.End, innerAgg)
+		}
+	} else {
+		innerAggFunc = func() RangeAggregator {
+			return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
+		}
+	}
+
+	a.agg = NewGroupingAggregator(a.op.String(), innerAggFunc, a.by, byFunc, byFuncLabel)
 }
 
 func bucketizeFnFor(attr Attribute) func(Span) (Static, bool) {
