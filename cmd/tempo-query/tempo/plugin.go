@@ -352,10 +352,10 @@ func (b *Backend) FindTraces(r *storagev2.FindTracesRequest, s storagev2.TraceRe
 			} else if strings.EqualFold(v.Value.GetStringValue(), "false") {
 				tags["status"] = stringValue("ok")
 			} else {
-				tags["span."+v.Key] = v.Value
+				tags["."+v.Key] = v.Value
 			}
 		default:
-			tags["span."+v.Key] = v.Value
+			tags["."+v.Key] = v.Value
 		}
 	}
 
