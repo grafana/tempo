@@ -19,7 +19,7 @@ var iterTestCases = []struct {
 	makeIter makeTestIterFn
 }{
 	{"sync", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
-		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs, MaxDefinitionLevel)
+		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs(selectAs), SyncIteratorOptPredicate(filter), SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel))
 	}},
 }
 
@@ -218,8 +218,7 @@ func TestSyncIteratorPropagatesErrors(t *testing.T) {
 
 	pf := createFileWith(t, ctx, rows)
 
-	idx, _, _ := GetColumnIndexByPath(pf, "A")
-	iter := NewSyncIterator(ctx, pf.RowGroups(), idx, "", 1, nil, "A", MaxDefinitionLevel)
+	iter := NewSyncIterator(ctx, pf.RowGroups(), 0)
 
 	_, err := iter.Next()
 	require.NoError(t, err)
@@ -353,4 +352,54 @@ func assertPanic(t *testing.T, f func()) {
 		}
 	}()
 	f()
+}
+
+func BenchmarkIteratorResultAppend(b *testing.B) {
+	testCases := []struct {
+		name        string
+		inputResult *IteratorResult
+	}{
+		{
+			name:        "empty",
+			inputResult: &IteratorResult{},
+		},
+		{
+			name: "both results",
+			inputResult: &IteratorResult{
+				Entries: []struct {
+					Key   string
+					Value parquet.Value
+				}{
+					{Key: "A", Value: parquet.Int32Value(1)},
+				},
+				OtherEntries: []struct {
+					Key   string
+					Value interface{}
+				}{
+					{Key: "B", Value: "test"},
+				},
+			},
+		},
+		{
+			name: "only entries",
+			inputResult: &IteratorResult{
+				Entries: []struct {
+					Key   string
+					Value parquet.Value
+				}{
+					{Key: "A", Value: parquet.Int32Value(1)},
+				},
+			},
+		},
+	}
+
+	ir := IteratorResult{}
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				ir.Reset()
+				ir.Append(tc.inputResult)
+			}
+		})
+	}
 }

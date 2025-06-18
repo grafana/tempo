@@ -3058,7 +3058,19 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// Second pass. Update and further filter the spans
 	if len(c.resAttrs) > 0 || c.requireAtLeastOneMatchOverall {
-		spans = res.OtherEntries[:0]
+		mightFilter := c.requireAtLeastOneMatchOverall
+
+		// If we might filter, then rebuild the slice of kept
+		// spans, in place with the same underlying buffer.
+		// If not filtering, then skip this work.
+		var spans []struct {
+			Key   string
+			Value interface{}
+		}
+		if mightFilter {
+			spans = res.OtherEntries[:0]
+		}
+
 		for _, e := range res.OtherEntries {
 			span, ok := e.Value.(*span)
 			if !ok {
@@ -3070,17 +3082,19 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			// takes precedence (can be nil to indicate no match)
 			span.setResourceAttrs(c.resAttrs)
 
-			if c.requireAtLeastOneMatchOverall {
+			if mightFilter {
 				// Skip over span if it didn't meet minimum criteria
 				if span.attributesMatched() == 0 {
 					putSpan(span)
 					continue
 				}
+				spans = append(spans, e)
 			}
-
-			spans = append(spans, e)
 		}
-		res.OtherEntries = spans
+
+		if mightFilter {
+			res.OtherEntries = spans
+		}
 	}
 
 	// Throw out batches without any remaining spans
