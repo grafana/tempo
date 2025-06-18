@@ -162,10 +162,6 @@ sendLoop:
 				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 				require.NotNil(t, queryRangeRes)
 				require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
-				if query == "{} | quantile_over_time(duration, .5, 0.9, 0.99)" {
-					// Bug: https://github.com/grafana/tempo/issues/5167
-					t.Skip("Bug in quantile_over_time in calculating exemplars")
-				}
 
 				exemplarCount := 0
 
