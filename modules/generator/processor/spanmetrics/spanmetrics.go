@@ -219,8 +219,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		return
 	}
 
-	validatePromLabelNames(&labels, &labelValues)
-
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	if p.Cfg.Subprocessors[Count] {
@@ -260,6 +258,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
 			p.spanMetricsTargetInfo.SetForTargetInfo(targetInfoRegistryLabelValues, 1)
 		}
+		validatePromLabelNames(&labels, &labelValues)
 	}
 }
 
@@ -273,26 +272,24 @@ func validateUTF8LabelValues(v []string) error {
 }
 
 func validatePromLabelNames(labels *[]string, labelValues *[]string) {
-	validLabels := make([]string, 0, len(*labels))
-	validLabelValues := make([]string, 0, len(*labelValues))
-
+	// Remove invalid labels and their corresponding values in-place.
+	n := 0
 	for i, labelName := range *labels {
 		if len(labelName) == 0 {
 			continue
 		}
 		firstRune, _ := utf8.DecodeRuneInString(labelName)
 		if firstRune >= '0' && firstRune <= '9' {
-			// skip label names that start with a digit
 			continue
 		}
-		validLabels = append(validLabels, labelName)
+		(*labels)[n] = labelName
 		if i < len(*labelValues) {
-			validLabelValues = append(validLabelValues, (*labelValues)[i])
+			(*labelValues)[n] = (*labelValues)[i]
 		}
+		n++
 	}
-
-	*labels = validLabels
-	*labelValues = validLabelValues
+	*labels = (*labels)[:n]
+	*labelValues = (*labelValues)[:n]
 }
 
 func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string, sanitizeFn sanitizeFn) {

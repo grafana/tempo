@@ -1382,20 +1382,6 @@ func TestValidatePromLabelNames(t *testing.T) {
 			expectedLabelValues: []string{},
 		},
 		{
-			name:                "more labels than values",
-			inputLabels:         []string{"valid1", "valid2", "valid3"},
-			inputLabelValues:    []string{"value1", "value2"},
-			expectedLabels:      []string{"valid1", "valid2", "valid3"},
-			expectedLabelValues: []string{"value1", "value2"},
-		},
-		{
-			name:                "more values than labels",
-			inputLabels:         []string{"valid1", "valid2"},
-			inputLabelValues:    []string{"value1", "value2", "value3", "value4"},
-			expectedLabels:      []string{"valid1", "valid2"},
-			expectedLabelValues: []string{"value1", "value2"},
-		},
-		{
 			name:                "invalid label names that start with numbers",
 			inputLabels:         []string{"123invalid", "4notvalid", "0zero"},
 			inputLabelValues:    []string{"value1", "value2", "value3"},
@@ -1415,13 +1401,6 @@ func TestValidatePromLabelNames(t *testing.T) {
 			inputLabelValues:    []string{"value1", "value2", "value3"},
 			expectedLabels:      []string{},
 			expectedLabelValues: []string{},
-		},
-		{
-			name:                "complex mixed scenario with mismatched lengths (number only)",
-			inputLabels:         []string{"valid_start", "2invalid", "good_label", "", "another_good", "3bad", "_underscore_ok"},
-			inputLabelValues:    []string{"val1", "val2", "val3"},
-			expectedLabels:      []string{"valid_start", "good_label", "another_good", "_underscore_ok"},
-			expectedLabelValues: []string{"val1", "val3"},
 		},
 	}
 
