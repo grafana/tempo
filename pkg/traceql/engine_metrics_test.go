@@ -778,20 +778,20 @@ func TestAvgOverTimeInstantNs(t *testing.T) {
 
 	in := []Span{
 		// outside of the range but within the range for ms. Should be ignored.
-		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(uint64(1*time.Second)),
-		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(uint64(2*time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(uint64(1 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(uint64(2 * time.Second)),
 
 		// within the range
-		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(uint64(3*time.Second)),
-		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(uint64(4*time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(uint64(3 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(uint64(4 * time.Second)),
 
 		// within the range
-		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(uint64(5*time.Second)),
-		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(uint64(6*time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(uint64(5 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(uint64(6 * time.Second)),
 
 		// outside of the range but within the range for ms. Should be ignored.
-		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(uint64(7*time.Second)),
-		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(uint64(8*time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(uint64(7 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(uint64(8 * time.Second)),
 	}
 
 	out := SeriesSet{
@@ -799,7 +799,7 @@ func TestAvgOverTimeInstantNs(t *testing.T) {
 			Labels: []Label{
 				{Name: "__name__", Value: NewStaticString("avg_over_time")},
 			},
-			Values:    []float64{(3+4+5+6)/4.},
+			Values:    []float64{(3 + 4 + 5 + 6) / 4.},
 			Exemplars: make([]Exemplar, 0),
 		},
 	}
