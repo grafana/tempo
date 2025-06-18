@@ -32,6 +32,10 @@ tempo {
       ephemeral_storage_limit_size: '2Gi',
       ephemeral_storage_request_size: '1Gi',
     },
+    backend_scheduler+: {
+      pvc_size: '200Mi',
+      pvc_storage_class: 'local-path',
+    },
     memcached+: {
       replicas: 1,
     },

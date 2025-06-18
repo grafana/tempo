@@ -14,6 +14,8 @@
       distributor: 'distributor',
       compactor: 'compactor',
       block_builder: 'block-builder',
+      backend_scheduler: 'backend-scheduler',
+      backend_worker: 'backend-worker',
       memcached: 'memcached',
     },
     alerts: {
@@ -26,11 +28,18 @@
       p99_request_exclude_regex: 'metrics|/frontend.Frontend/Process|debug_pprof',
       outstanding_blocks_warning: 100,
       outstanding_blocks_critical: 250,
-      // Partition lag thresholds in seconds
-      partition_lag_warning_seconds: 300,  // 5 minutes
+      // Generators partition lag thresholds in seconds
       partition_lag_critical_seconds: 900,  // 15 minutes
-      // Filter for consumer groups to monitor for partition lag
-      partition_lag_group_filter: 'metrics-generator|block-builder',
+      // Block-builder partition lag thresholds in seconds
+      block_builder_partition_lag_warning_seconds: 200,  // 3.3 minutes
+      block_builder_partition_lag_critical_seconds: 300,  // 5 minutes
+      // threshold config for backend scheduler and worker alerts
+      backend_scheduler_jobs_failure_rate: 0.05,  // 5% of the jobs failed
+      backend_scheduler_jobs_retry_count_per_minute: 20,  // 20 jobs retried per minute
+      backend_scheduler_compaction_tenant_empty_job_count_per_minute: 10,  // 10 empty jobs per minute
+      backend_scheduler_bad_jobs_count_per_minute: 0,  // alert if there are any bad jobs
+      backend_worker_call_retries_count_per_minute: 5,  // 5 retries per minute
+      vulture_error_rate_threshold: 0.2,  // 20% error rate
     },
 
     per_cluster_label: 'cluster',

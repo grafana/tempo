@@ -1907,7 +1907,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			continue
 
 		case traceql.IntrinsicDuration:
-			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			pred, err := createDurationPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
@@ -2036,9 +2036,11 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			if entry.scope != intrinsicScopeSpan {
 				continue
 			}
-			// These intrinsics aren't included in select all because I say so.
+			// These intrinsics aren't included in select all because they
+			// aren't useful for compare().
 			switch intrins {
 			case traceql.IntrinsicSpanID,
+				traceql.IntrinsicParentID,
 				traceql.IntrinsicSpanStartTime,
 				traceql.IntrinsicStructuralDescendant,
 				traceql.IntrinsicStructuralChild,
@@ -2362,7 +2364,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 					iters = append(iters, makeIter(columnPathTraceID, pred, columnPathTraceID))
 				}
 			case traceql.IntrinsicTraceDuration:
-				pred, err := createIntPredicate(cond.Op, cond.Operands)
+				pred, err := createDurationPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, err
 				}
@@ -2507,6 +2509,89 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 	}
 }
 
+func createDurationPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	if operands[0].Type == traceql.TypeFloat {
+		// The column is already indexed as int, so we need to convert the float to int
+		return createIntPredicateFromFloat(op, operands)
+	}
+
+	return createIntPredicate(op, operands)
+}
+
+// createIntPredicateFromFloat adapts a float-based query operand to an int column.
+// If the float is exactly representable as an int64 (e.g. 42.0), we compare the
+// column to that integer. Otherwise, if the float is non-integer or out of the
+// int64 range, we return a "trivial" outcome:
+//
+//   - "=" on a non-integer float returns nil, meaning "no filter"
+//   - "!=" on a non-integer float always matches, implemented as a predicate
+//     that returns true for every row.
+//   - For "<", "<=", ">", ">=", we shift the boundary to the nearest integer.
+//     For example, "x < 10.3" becomes "x <= 10" for the int column.
+//
+// Note: If returning nil, no column-level filtering is applied for this condition.
+func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	if operands[0].Type != traceql.TypeFloat {
+		return nil, fmt.Errorf("operand is not float: %s", operands[0].EncodeToString(false))
+	}
+	f := operands[0].Float()
+
+	if math.IsNaN(f) {
+		return nil, nil
+	}
+
+	// Check if it's in [MinInt64, MaxInt64) range, and if so, see if it's an integer.
+	if float64(math.MinInt64) <= f && f < float64(math.MaxInt64) {
+		if intPart, frac := math.Modf(f); frac == 0 {
+			intOperands := traceql.Operands{traceql.NewStaticInt(int(intPart))}
+			return createIntPredicate(op, intOperands)
+		}
+	}
+
+	switch op {
+	case traceql.OpEqual:
+		return nil, nil
+	case traceql.OpNotEqual:
+		return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+	case traceql.OpGreater, traceql.OpGreaterEqual:
+		switch {
+		case f < float64(math.MinInt64):
+			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+		case float64(math.MaxInt64) <= f:
+			return nil, nil
+		case 0 < f:
+			// "x > 10.3" -> "x >= 11"
+			return parquetquery.NewIntGreaterEqualPredicate(int64(f) + 1), nil
+		default:
+			// "x > -2.7" -> "x >= -2"
+			return parquetquery.NewIntGreaterEqualPredicate(int64(f)), nil
+		}
+	case traceql.OpLess, traceql.OpLessEqual:
+		switch {
+		case f < float64(math.MinInt64):
+			return nil, nil
+		case float64(math.MaxInt64) <= f:
+			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+		case f < 0:
+			// "x < -2.7" -> "x <= -3"
+			return parquetquery.NewIntLessEqualPredicate(int64(f) - 1), nil
+		default:
+			// "x < 10.3" -> "x <= 10"
+			return parquetquery.NewIntLessEqualPredicate(int64(f)), nil
+		}
+	}
+
+	return nil, fmt.Errorf("operator not supported for integers: %v", op)
+}
+
 func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
@@ -2605,13 +2690,23 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 	allConditions bool, selectAll bool,
 ) (parquetquery.Iterator, error) {
 	if selectAll {
+		// Select all with no filtering
+		// Levels such as resource/instrumentation/span may have no attributes. When that
+		// occurs the columns are encoded as single null values, and the current attribute
+		// collector reads them as Nils.  We could skip them in the attribute collector,
+		// but this is more performant because it's at the lowest level.
+		// Alternatively, JoinIterators don't pay attention to -1 (undefined) when checking
+		// the definition level matches.  Fixing that would also work but would need wider testing first.
+		skipNils := &parquetquery.SkipNilsPredicate{}
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
-			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
 			[]parquetquery.Iterator{
-				makeIter(strPath, nil, "string"),
-				makeIter(intPath, nil, "int"),
-				makeIter(floatPath, nil, "float"),
-				makeIter(boolPath, nil, "bool"),
+				makeIter(keyPath, skipNils, "key"),
+			},
+			[]parquetquery.Iterator{
+				makeIter(strPath, skipNils, "string"),
+				makeIter(intPath, skipNils, "int"),
+				makeIter(floatPath, skipNils, "float"),
+				makeIter(boolPath, skipNils, "bool"),
 			},
 			&attributeCollector{},
 			parquetquery.WithPool(pqAttrPool))
@@ -2882,27 +2977,19 @@ func (c *instrumentationCollector) KeepGroup(res *parquetquery.IteratorResult) b
 		}
 	}
 
-	// Second pass. Update and further filter the spans
-	spans = res.OtherEntries[:0]
-	for _, e := range res.OtherEntries {
-		span, ok := e.Value.(*span)
-		if !ok {
-			continue
+	// Second pass. Update spans with instrumentation attributes.
+	if len(c.instrumentationAttrs) > 0 {
+		for _, e := range res.OtherEntries {
+			span, ok := e.Value.(*span)
+			if !ok {
+				continue
+			}
+
+			// Copy scope-level attributes to the span
+			// If the span already has an entry for this attribute it
+			// takes precedence (can be nil to indicate no match)
+			span.setInstrumentationAttrs(c.instrumentationAttrs)
 		}
-
-		// Copy scope-level attributes to the span
-		// If the span already has an entry for this attribute it
-		// takes precedence (can be nil to indicate no match)
-		span.setInstrumentationAttrs(c.instrumentationAttrs)
-		spans = append(spans, e)
-
-	}
-
-	// pass up to resource collector
-	res.OtherEntries = spans
-	// Throw out batches without any remaining spans
-	if len(res.OtherEntries) == 0 {
-		return false
 	}
 
 	res.Entries = res.Entries[:0]
@@ -2970,30 +3057,31 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	// Second pass. Update and further filter the spans
-	spans = res.OtherEntries[:0]
-	for _, e := range res.OtherEntries {
-		span, ok := e.Value.(*span)
-		if !ok {
-			continue
-		}
-
-		// Copy resource-level attributes to the span
-		// If the span already has an entry for this attribute it
-		// takes precedence (can be nil to indicate no match)
-		span.setResourceAttrs(c.resAttrs)
-
-		if c.requireAtLeastOneMatchOverall {
-			// Skip over span if it didn't meet minimum criteria
-			if span.attributesMatched() == 0 {
-				putSpan(span)
+	if len(c.resAttrs) > 0 || c.requireAtLeastOneMatchOverall {
+		spans = res.OtherEntries[:0]
+		for _, e := range res.OtherEntries {
+			span, ok := e.Value.(*span)
+			if !ok {
 				continue
 			}
+
+			// Copy resource-level attributes to the span
+			// If the span already has an entry for this attribute it
+			// takes precedence (can be nil to indicate no match)
+			span.setResourceAttrs(c.resAttrs)
+
+			if c.requireAtLeastOneMatchOverall {
+				// Skip over span if it didn't meet minimum criteria
+				if span.attributesMatched() == 0 {
+					putSpan(span)
+					continue
+				}
+			}
+
+			spans = append(spans, e)
 		}
-
-		spans = append(spans, e)
-
+		res.OtherEntries = spans
 	}
-	res.OtherEntries = spans
 
 	// Throw out batches without any remaining spans
 	if len(res.OtherEntries) == 0 {
@@ -3068,9 +3156,11 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	// loop over all spans and add the trace-level attributes
-	for _, s := range finalSpanset.Spans {
-		s := s.(*span)
-		s.setTraceAttrs(c.traceAttrs)
+	if len(c.traceAttrs) > 0 {
+		for _, s := range finalSpanset.Spans {
+			s := s.(*span)
+			s.setTraceAttrs(c.traceAttrs)
+		}
 	}
 
 	if numServiceStats > 0 {
@@ -3156,6 +3246,7 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch e.Key {
 		case "key":
 			key = unsafeToString(e.Value.Bytes())
+
 		case "string":
 			c.strBuffer = append(c.strBuffer, unsafeToString(e.Value.Bytes()))
 		case "int":

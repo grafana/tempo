@@ -51,7 +51,7 @@ Jaeger client libraries have been deprecated. For more information, refer to the
 ### Additional OTel resources
 
 - [Grafana Application Observability](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/)
-- [OpenTelemetry Go instrumentation examples](https://github.com/open-telemetry/opentelemetry-go/tree/main/example)
+- [OpenTelemetry Go instrumentation examples](https://github.com/open-telemetry/opentelemetry-go-instrumentation/tree/main/examples)
 - [OpenTelemetry Language Specific Instrumentation](https://opentelemetry.io/docs/instrumentation/)
 
 ## Other instrumentation resources

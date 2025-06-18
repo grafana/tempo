@@ -139,9 +139,6 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
 	defer func() {
-		diff := time.Since(start).Seconds()
-		metricBlocklistPollDuration.Observe(diff)
-		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
 		backend.ClearDedicatedColumns()
 	}()
 
@@ -248,6 +245,10 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 	if tenantFailuresRemaining.Load() < 0 {
 		return nil, nil, errors.New("too many tenant failures; abandoning polling cycle")
 	}
+
+	diff := time.Since(start).Seconds()
+	metricBlocklistPollDuration.Observe(diff)
+	level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
 
 	return blocklist, compactedBlocklist, nil
 }

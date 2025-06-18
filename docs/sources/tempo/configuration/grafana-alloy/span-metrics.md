@@ -68,7 +68,7 @@ otelcol.connector.spanmetrics "default" {
 
   metrics_flush_interval = "15s"
 
-  namespace = "traces_spanmetrics"
+  namespace = "traces.spanmetrics"
 
   output {
     metrics = [otelcol.exporter.otlp.default.input]

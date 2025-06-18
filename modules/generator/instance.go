@@ -38,6 +38,7 @@ var (
 		spanmetrics.Count.String(),
 		spanmetrics.Latency.String(),
 		spanmetrics.Size.String(),
+		hostinfo.Name,
 	}
 
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -344,7 +345,6 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		if i.traceQueryWAL != nil {
 			nonFlushingConfig := cfg.LocalBlocks
 			nonFlushingConfig.FlushToStorage = false
-			nonFlushingConfig.AssertMaxLiveTraces = true
 			nonFlushingConfig.AdjustTimeRangeForSlack = false
 			i.queuebasedLocalBlocks, err = localblocks.New(nonFlushingConfig, i.instanceID, i.traceQueryWAL, i.writer, i.overrides)
 			if err != nil {
@@ -414,7 +414,7 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 		switch processor.Name() {
 		case localblocks.Name:
 			processor.PushSpans(ctx, req)
-		case spanmetrics.Name, servicegraphs.Name:
+		case spanmetrics.Name, servicegraphs.Name, hostinfo.Name:
 			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
 				break
@@ -434,7 +434,7 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, ts time.Time, req *te
 		case localblocks.Name:
 			// don't push to this processor as queue consumer, instead use queue based local
 			// blocks if configured.
-		case spanmetrics.Name, servicegraphs.Name:
+		case spanmetrics.Name, servicegraphs.Name, hostinfo.Name:
 			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
 				break

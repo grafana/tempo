@@ -76,8 +76,13 @@ func TestRequestsByTraceID(t *testing.T) {
 	traceIDA := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 	traceIDB := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
+	// These 2 trace IDs are known to collide under fnv32
+	collision1, _ := util.HexStringToTraceID("fd5980503add11f09f80f77608c1b2da")
+	collision2, _ := util.HexStringToTraceID("091ea7803ade11f0998a055186ee1243")
+
 	tests := []struct {
 		name           string
+		emptyTenant    bool
 		batches        []*v1.ResourceSpans
 		expectedKeys   []uint32
 		expectedTraces []*tempopb.Trace
@@ -715,32 +720,206 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedStarts: []uint32{10, 60},
 			expectedEnds:   []uint32{50, 80},
 		},
+		{
+			// These 2 trace IDs are known to collide under fnv32
+			name:        "known collisions",
+			emptyTenant: true,
+			batches: []*v1.ResourceSpans{
+				{
+					Resource: &v1_resource.Resource{
+						DroppedAttributesCount: 3,
+					},
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Scope: &v1_common.InstrumentationScope{
+								Name: "test",
+							},
+							Spans: []*v1.Span{
+								{
+									TraceId:           collision2,
+									Name:              "spanA",
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
+								},
+								{
+									TraceId:           collision2,
+									Name:              "spanC",
+									StartTimeUnixNano: uint64(20 * time.Second),
+									EndTimeUnixNano:   uint64(50 * time.Second),
+								},
+								{
+									TraceId:           collision1,
+									Name:              "spanE",
+									StartTimeUnixNano: uint64(70 * time.Second),
+									EndTimeUnixNano:   uint64(80 * time.Second),
+								},
+							},
+						},
+					},
+				},
+				{
+					Resource: &v1_resource.Resource{
+						DroppedAttributesCount: 4,
+					},
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Scope: &v1_common.InstrumentationScope{
+								Name: "test2",
+							},
+							Spans: []*v1.Span{
+								{
+									TraceId:           collision2,
+									Name:              "spanB",
+									StartTimeUnixNano: uint64(10 * time.Second),
+									EndTimeUnixNano:   uint64(30 * time.Second),
+								},
+								{
+									TraceId:           collision1,
+									Name:              "spanD",
+									StartTimeUnixNano: uint64(60 * time.Second),
+									EndTimeUnixNano:   uint64(80 * time.Second),
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedKeys: []uint32{
+				util.TokenFor("", collision1),
+				util.TokenFor("", collision2),
+			},
+			expectedTraces: []*tempopb.Trace{
+				{
+					ResourceSpans: []*v1.ResourceSpans{
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 3,
+							},
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name: "test",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           collision1,
+											Name:              "spanE",
+											StartTimeUnixNano: uint64(70 * time.Second),
+											EndTimeUnixNano:   uint64(80 * time.Second),
+										},
+									},
+								},
+							},
+						},
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 4,
+							},
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name: "test2",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           collision1,
+											Name:              "spanD",
+											StartTimeUnixNano: uint64(60 * time.Second),
+											EndTimeUnixNano:   uint64(80 * time.Second),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ResourceSpans: []*v1.ResourceSpans{
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 3,
+							},
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name: "test",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           collision2,
+											Name:              "spanA",
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
+										},
+										{
+											TraceId:           collision2,
+											Name:              "spanC",
+											StartTimeUnixNano: uint64(20 * time.Second),
+											EndTimeUnixNano:   uint64(50 * time.Second),
+										},
+									},
+								},
+							},
+						},
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 4,
+							},
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name: "test2",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           collision2,
+											Name:              "spanB",
+											StartTimeUnixNano: uint64(10 * time.Second),
+											EndTimeUnixNano:   uint64(30 * time.Second),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIDs: [][]byte{
+				collision1,
+				collision2,
+			},
+			expectedStarts: []uint32{60, 10},
+			expectedEnds:   []uint32{80, 50},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys, rebatchedTraces, _, err := requestsByTraceID(tt.batches, util.FakeTenantID, 1, 1000)
-			require.Equal(t, len(keys), len(rebatchedTraces))
+			tenant := util.FakeTenantID
+			if tt.emptyTenant {
+				tenant = ""
+			}
+			ringTokens, rebatchedTraces, _, err := requestsByTraceID(tt.batches, tenant, 1, 1000)
+			require.Equal(t, len(ringTokens), len(rebatchedTraces))
 
-			for i, expectedKey := range tt.expectedKeys {
+			for i, expectedID := range tt.expectedIDs {
 				foundIndex := -1
-				for j, key := range keys {
-					if expectedKey == key {
+				for j, tr := range rebatchedTraces {
+					if bytes.Equal(expectedID, tr.id) {
 						foundIndex = j
+						break
 					}
 				}
 				require.NotEqual(t, -1, foundIndex, "expected key %d not found", foundIndex)
 
 				// now confirm that the request at this position is the expected one
-				expectedReq := tt.expectedTraces[i]
-				actualReq := rebatchedTraces[foundIndex].trace
-				assert.Equal(t, expectedReq, actualReq)
-				assert.Equal(t, tt.expectedIDs[i], rebatchedTraces[foundIndex].id)
-				assert.Equal(t, tt.expectedStarts[i], rebatchedTraces[foundIndex].start)
-				assert.Equal(t, tt.expectedEnds[i], rebatchedTraces[foundIndex].end)
+				require.Equal(t, tt.expectedIDs[i], rebatchedTraces[foundIndex].id)
+				require.Equal(t, tt.expectedTraces[i], rebatchedTraces[foundIndex].trace)
+				require.Equal(t, tt.expectedStarts[i], rebatchedTraces[foundIndex].start)
+				require.Equal(t, tt.expectedEnds[i], rebatchedTraces[foundIndex].end)
 			}
 
-			assert.Equal(t, tt.expectedErr, err)
+			require.Equal(t, tt.expectedErr, err)
 		})
 	}
 }
@@ -1743,6 +1922,62 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 	})
 }
 
+func TestArtificialLatency(t *testing.T) {
+	// prepare test data
+	overridesConfig := overrides.Config{}
+	overridesConfig.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	latency := 50 * time.Millisecond
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d, _ := prepare(t, overridesConfig, logger)
+	d.cfg.ArtificialDelay = latency
+
+	batches := []*v1.ResourceSpans{
+		makeResourceSpans("test-service", []*v1.ScopeSpans{
+			makeScope(
+				makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil)),
+			makeScope(
+				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+		}),
+	}
+
+	traces := batchesToTraces(t, batches)
+	reqStart := time.Now()
+	_, err := d.PushTraces(ctx, traces)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const tolerance = 10 * time.Millisecond
+	assert.GreaterOrEqual(t, time.Since(reqStart)+tolerance, latency, "Expected artificial latency not respected")
+}
+
+func TestArtificialLatencyIsAppliedOnError(t *testing.T) {
+	// prepare test data
+	overridesConfig := overrides.Config{}
+	overridesConfig.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	latency := 50 * time.Millisecond
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d, _ := prepare(t, overridesConfig, logger)
+	d.cfg.ArtificialDelay = latency
+
+	batches := []*v1.ResourceSpans{
+		makeResourceSpans("test-service", []*v1.ScopeSpans{}),
+	}
+
+	traces := batchesToTraces(t, batches)
+	reqStart := time.Now()
+	_, err := d.PushTraces(ctx, traces)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const tolerance = 10 * time.Millisecond
+	assert.GreaterOrEqual(t, time.Since(reqStart)+tolerance, latency, "Expected artificial latency not respected")
+}
+
 type testLogSpan struct {
 	Msg                string `json:"msg"`
 	Level              string `json:"level"`
@@ -1916,6 +2151,10 @@ type mockRing struct {
 	replicationFactor uint32
 }
 
+func (r mockRing) GetSubringForOperationStates(_ ring.Operation) ring.ReadRing {
+	panic("implement me if required for testing")
+}
+
 func (r mockRing) WritableInstancesWithTokensCount() int {
 	panic("implement me if required for testing")
 }
@@ -2018,4 +2257,97 @@ func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {
 		},
 	}
 	return ring.NewPartitionRing(desc)
+}
+
+func TestCheckForRateLimits(t *testing.T) {
+	tests := []struct {
+		name            string
+		tracesSize      int
+		rateLimitBytes  int
+		burstLimitBytes int
+		expectError     string
+		errCode         codes.Code
+	}{
+		{
+			name:            "size under rate limit and burst limit",
+			tracesSize:      100,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size exactly at rate limit and burst limit",
+			tracesSize:      500,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size over rate limit but exactly at burst rate limit",
+			tracesSize:      500,
+			rateLimitBytes:  200, // to test that burst is respected
+			burstLimitBytes: 500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size over rate limit but under burst limit",
+			tracesSize:      1100,
+			rateLimitBytes:  500, // to test that burst is respected
+			burstLimitBytes: 1500,
+			expectError:     "",
+			errCode:         codes.OK,
+		},
+		{
+			name:            "size over rate limit and burst limit",
+			tracesSize:      1100,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "RATE_LIMITED: batch size (1100 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes) while adding 1100 bytes for user test-user. consider reducing batch size or increasing rate limit.",
+			errCode:         codes.ResourceExhausted,
+		},
+		{
+			name:            "size over rate limit and burst limit",
+			tracesSize:      1000,
+			rateLimitBytes:  500,
+			burstLimitBytes: 500,
+			expectError:     "RATE_LIMITED: batch size (1000 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes) while adding 1000 bytes for user test-user. consider reducing batch size or increasing rate limit.",
+			errCode:         codes.ResourceExhausted,
+		},
+		{
+			name:            "size exactly at rate limit but over the burst limit",
+			tracesSize:      500,
+			rateLimitBytes:  500,
+			burstLimitBytes: 200,
+			expectError:     "RATE_LIMITED: ingestion rate limit (local: 500 bytes/s, global: 0 bytes/s, burst: 200 bytes) exceeded while adding 500 bytes for user test-user. consider increasing the limit or reducing ingestion rate.",
+			errCode:         codes.ResourceExhausted,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			overridesConfig := overrides.Config{
+				Defaults: overrides.Overrides{
+					Ingestion: overrides.IngestionOverrides{
+						RateStrategy:   overrides.LocalIngestionRateStrategy,
+						RateLimitBytes: tc.rateLimitBytes,
+						BurstSizeBytes: tc.burstLimitBytes,
+					},
+				},
+			}
+
+			// Create a distributor with the overrides
+			logger := kitlog.NewNopLogger()
+			d, _ := prepare(t, overridesConfig, logger)
+
+			// check if we can ingest the batch
+			err := d.checkForRateLimits(tc.tracesSize, 100, "test-user")
+			s, ok := status.FromError(err)
+			require.True(t, ok)
+			require.Equal(t, tc.errCode, s.Code())
+			require.Equal(t, tc.expectError, s.Message())
+		})
+	}
 }

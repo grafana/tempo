@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -34,9 +35,10 @@ func TestBackendScheduler(t *testing.T) {
 		TenantMeasurementInterval: 100 * time.Millisecond,
 	}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	cfg.ProviderConfig.Compaction.Backoff.MaxRetries = 1
+	cfg.BackendFlushInterval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
 
 	var (
 		ctx, cancel   = context.WithCancel(context.Background())
@@ -129,6 +131,16 @@ func TestBackendScheduler(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updateResp)
 
+		t.Run("the store does not contain the metas which have been compacted", func(t *testing.T) {
+			metas := store.BlockMetas(resp.Detail.Tenant)
+
+			for _, m := range metas {
+				for _, b := range resp.Detail.Compaction.Input {
+					require.NotContains(t, m.BlockID.String(), b)
+				}
+			}
+		})
+
 		resp, err = s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
 		})
@@ -146,6 +158,9 @@ func TestBackendScheduler(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updateResp)
 
+		// Give some time for s to flush jobs to the backend
+		time.Sleep(500 * time.Millisecond)
+
 		t.Run("jobs are reloaded from cache", func(t *testing.T) {
 			s2, err := New(cfg, store, limits, rr, ww)
 			require.NoError(t, err)
@@ -161,6 +176,29 @@ func TestBackendScheduler(t *testing.T) {
 			}
 
 			for _, job := range s2.work.ListJobs() {
+				j := s.work.GetJob(job.ID)
+				require.NotNil(t, j)
+				equalJobs(t, job, j)
+			}
+		})
+
+		t.Run("jobs are reloaded from backend if local cache errors", func(t *testing.T) {
+			cfg.LocalWorkPath = tmpDir + "/non-existent-path"
+
+			s3, err := New(cfg, store, limits, rr, ww)
+			require.NoError(t, err)
+
+			err = s3.starting(ctx)
+			require.NoError(t, err)
+
+			// Ensure that the jobs are the same
+			for _, job := range s.work.ListJobs() {
+				j := s3.work.GetJob(job.ID)
+				require.NotNil(t, j)
+				equalJobs(t, job, j)
+			}
+
+			for _, job := range s3.work.ListJobs() {
 				j := s.work.GetJob(job.ID)
 				require.NotNil(t, j)
 				equalJobs(t, job, j)
@@ -293,6 +331,7 @@ func TestProviderBasedScheduling(t *testing.T) {
 	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = t.TempDir()
 
 	var (
 		ctx, cancel   = context.WithCancel(context.Background())

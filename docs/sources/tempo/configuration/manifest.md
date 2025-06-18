@@ -81,6 +81,10 @@ server:
         grpc:
             enabled: false
             soft_validation: false
+        http:
+            enabled: false
+            soft_validation: false
+            excluded_paths: ""
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -145,6 +149,10 @@ internal_server:
         grpc:
             enabled: false
             soft_validation: false
+        http:
+            enabled: false
+            soft_validation: false
+            excluded_paths: ""
     enable: false
 distributor:
     ring:
@@ -936,6 +944,7 @@ memberlist:
     min_join_backoff: 1s
     max_join_backoff: 1m0s
     max_join_retries: 10
+    abort_if_cluster_fast_join_fails: false
     abort_if_cluster_join_fails: false
     rejoin_interval: 0s
     left_ingesters_timeout: 5m0s
@@ -943,6 +952,7 @@ memberlist:
     leave_timeout: 20s
     broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0
+    watch_prefix_buffer_size: 128
     bind_addr: []
     bind_port: 7946
     packet_dial_timeout: 2s
@@ -974,6 +984,7 @@ backend_scheduler:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
     maintenance_interval: 1m0s
+    backend_flush_interval: 1m0s
     provider:
         retention:
             interval: 1h0m0s
@@ -997,6 +1008,7 @@ backend_scheduler:
                 max_period: 10s
                 max_retries: 0
     job_timeout: 15s
+    local_work_path: /var/tempo
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600

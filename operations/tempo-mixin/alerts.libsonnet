@@ -266,24 +266,10 @@
             },
           },
           {
-            alert: 'TempoPartitionLagWarning',
+            alert: 'TempoMetricsGeneratorPartitionLagCritical',
             expr: |||
-              max by (%s, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", group=~"%s"}) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.alerts.partition_lag_group_filter, $._config.alerts.partition_lag_warning_seconds],
-            'for': '5m',
-            labels: {
-              severity: 'warning',
-            },
-            annotations: {
-              message: 'Tempo partition {{ $labels.partition }} in consumer group {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.partition_lag_warning_seconds, $._config.per_cluster_label],
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
-            },
-          },
-          {
-            alert: 'TempoPartitionLagCritical',
-            expr: |||
-              max by (%s, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", group=~"%s"}) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.alerts.partition_lag_group_filter, $._config.alerts.partition_lag_critical_seconds],
+              max by (%s, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container="%s"}) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.metrics_generator, $._config.alerts.partition_lag_critical_seconds],
             'for': '5m',
             labels: {
               severity: 'critical',
@@ -291,6 +277,121 @@
             annotations: {
               message: 'Tempo partition {{ $labels.partition }} in consumer group {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.partition_lag_critical_seconds, $._config.per_cluster_label],
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
+            },
+          },
+          {
+            alert: 'TempoBlockBuilderPartitionLagWarning',
+            expr: |||
+              max by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container="%s"}[6m])) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_warning_seconds],
+            'for': '5m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo ingest partition {{ $labels.partition }} for blockbuilder {{ $labels.pod }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.block_builder_partition_lag_critical_seconds, $._config.per_cluster_label],
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
+            },
+          },
+          {
+            alert: 'TempoBlockBuilderPartitionLagCritical',
+            expr: |||
+              max by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_critical_seconds],
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo ingest partition {{ $labels.partition }} for blockbuilder {{ $labels.pod }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.block_builder_partition_lag_critical_seconds, $._config.per_cluster_label],
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
+            },
+          },
+          {
+            alert: 'TempoBackendSchedulerJobsFailureRateHigh',
+            expr: |||
+              sum(increase(tempo_backend_scheduler_jobs_failed_total{namespace=~"%s"}[5m])) by (%s)
+              /
+              sum(increase(tempo_backend_scheduler_jobs_created_total{namespace=~"%s"}[5m])) by (%s)
+              > %0.2f
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_jobs_failure_rate],
+            'for': '10m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo backend scheduler job failure rate is {{ printf "%0.2f" $value }} (threshold 0.1) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerJobsFailureRateHigh',
+            },
+          },
+          {
+            alert: 'TempoBackendSchedulerRetryRateHigh',
+            expr: |||
+              sum(increase(tempo_backend_scheduler_jobs_retry_total{namespace=~"%s"}[1m])) by (%s) > %s
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_jobs_retry_count_per_minute],
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo backend scheduler retry rate is high ({{ printf "%0.2f" $value }} retries/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerRetryRateHigh',
+            },
+          },
+          {
+            alert: 'TempoBackendSchedulerCompactionEmptyJobRateHigh',
+            expr: |||
+              sum(increase(tempo_backend_scheduler_compaction_tenant_empty_job_total{namespace=~"%s"}[1m])) by (%s) > %s
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_compaction_tenant_empty_job_count_per_minute],
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo backend scheduler empty job rate is high ({{ printf "%0.2f" $value }} jobs/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendSchedulerCompactionEmptyJobRateHigh',
+            },
+          },
+          {
+            alert: 'TempoBackendWorkerBadJobsRateHigh',
+            expr: |||
+              sum(increase(tempo_backend_worker_bad_jobs_received_total{namespace=~"%s"}[1m])) by (%s) > %s
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_scheduler_bad_jobs_count_per_minute],
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo backend worker bad jobs rate is high ({{ printf "%0.2f" $value }} bad jobs/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendWorkerBadJobsRateHigh',
+            },
+          },
+          {
+            alert: 'TempoBackendWorkerCallRetriesHigh',
+            expr: |||
+              sum(increase(tempo_backend_worker_call_retries_total{namespace=~"%s"}[1m])) by (%s) > %s
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.alerts.backend_worker_call_retries_count_per_minute],
+            'for': '10m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo backend worker call retries rate is high ({{ printf "%0.2f" $value }} retries/minute) in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBackendWorkerCallRetriesHigh',
+            },
+          },
+          {
+            alert: 'TempoVultureHighErrorRate',
+            expr: |||
+              sum(rate(tempo_vulture_trace_error_total{namespace=~"%s"}[1m])) by (%s, error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{namespace=~"%s"}[1m])) by (%s) > %f
+            ||| % [$._config.namespace, $._config.group_by_cluster, $._config.namespace, $._config.group_by_cluster, $._config.alerts.vulture_error_rate_threshold],
+            'for': '5m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo vulture error rate is {{ printf "%0.2f" $value }} for error type {{ $labels.error }} in {{ $labels.cluster }}/{{ $labels.namespace }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoVultureHighErrorRate',
             },
           },
         ],

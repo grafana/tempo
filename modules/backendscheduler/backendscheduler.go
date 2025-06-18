@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -31,6 +32,8 @@ var tracer = otel.Tracer("modules/backendscheduler")
 // BackendScheduler manages scheduling and execution of backend jobs
 type BackendScheduler struct {
 	services.Service
+
+	mtx sync.Mutex
 
 	cfg       Config
 	store     storage.Store
@@ -137,7 +140,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 
 				select {
 				case s.mergedJobs <- job:
-					metricProviderJobsMerged.WithLabelValues(fmt.Sprintf("%d", i)).Inc()
+					metricProviderJobsMerged.WithLabelValues(strconv.Itoa(i)).Inc()
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
 					return
@@ -162,12 +165,25 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 	maintenanceTicker := time.NewTicker(s.cfg.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
 
+	backendFlushTicker := time.NewTicker(s.cfg.BackendFlushInterval)
+	defer backendFlushTicker.Stop()
+
+	var err error
+
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-maintenanceTicker.C:
 			s.work.Prune()
+		case <-backendFlushTicker.C:
+			err = s.flushWorkCacheToBackend(ctx)
+			metricWorkFlushes.Inc()
+			if err != nil {
+				metricWorkFlushesFailed.Inc()
+				level.Error(log.Logger).Log("msg", "failed to flush work cache to backend", "error", err)
+			}
+
 		}
 	}
 }
@@ -176,6 +192,11 @@ func (s *BackendScheduler) stopping(_ error) error {
 	err := s.flushWorkCache(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to flush work cache on shutdown: %w", err)
+	}
+
+	err = s.flushWorkCacheToBackend(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to flush work cache to backend on shutdown: %w", err)
 	}
 
 	level.Info(log.Logger).Log("msg", "backend scheduler stopping")
@@ -198,7 +219,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			Detail: j.JobDetail,
 		}
 
-		// The job exists in memory, but may not have been persisted to the backend.
+		// The job exists in memory, but may not have been persisted to disk.
 		err := s.flushWorkCache(ctx)
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
@@ -238,7 +259,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
 		}
 
-		j.Start()
+		s.work.StartJob(j.ID)
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 
 		err = s.flushWorkCache(ctx)
@@ -249,7 +270,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 		span.SetAttributes(attribute.String("job_id", j.ID))
 
-		metricJobsCreated.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+		metricJobsCreated.WithLabelValues(resp.Detail.Tenant, resp.Type.String()).Inc()
 
 		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
 
@@ -272,13 +293,13 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
-		j.Complete()
+		s.work.CompleteJob(req.JobId)
 		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Dec()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
 		if req.Compaction != nil && req.Compaction.Output != nil {
-			j.SetCompactionOutput(req.Compaction.Output)
+			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 		}
 
 		err := s.flushWorkCache(ctx)
@@ -287,26 +308,12 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
-		var (
-			metas     = s.store.BlockMetas(j.Tenant())
-			oldBlocks []*backend.BlockMeta
-		)
-
-		for _, b := range j.GetCompactionInput() {
-			for _, m := range metas {
-				if m.BlockID.String() == b {
-					oldBlocks = append(oldBlocks, m)
-				}
-			}
-		}
-
-		err = s.store.MarkBlocklistCompacted(j.Tenant(), oldBlocks, nil)
+		err = s.loadBlocklistJobsForTenant(j.Tenant(), []*work.Job{j})
 		if err != nil {
-			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, "failed to mark compacted blocks on in-memory blocklist")
+			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
-
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
-		j.Fail()
+		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
@@ -324,6 +331,80 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	return &tempopb.UpdateJobStatusResponse{
 		Success: true,
 	}, nil
+}
+
+func (s *BackendScheduler) replayWorkOnBlocklist() {
+	var (
+		err           error
+		tenant        string
+		jobStatus     tempopb.JobStatus
+		perTenantJobs = make(map[string][]*work.Job)
+	)
+
+	// Get all the input blocks which have been successfully compacted
+	for _, j := range s.work.ListJobs() {
+		tenant = j.Tenant()
+		jobStatus = j.GetStatus()
+
+		// count the active jobs and update the metric
+		if jobStatus == tempopb.JobStatus_JOB_STATUS_RUNNING {
+			metricJobsActive.WithLabelValues(tenant, j.GetType().String()).Inc()
+		}
+
+		if jobStatus != tempopb.JobStatus_JOB_STATUS_SUCCEEDED {
+			continue
+		}
+
+		if _, ok := perTenantJobs[tenant]; !ok {
+			perTenantJobs[tenant] = make([]*work.Job, 0, 1000)
+		}
+
+		perTenantJobs[tenant] = append(perTenantJobs[tenant], j)
+	}
+
+	for tenant, jobs := range perTenantJobs {
+		err = s.loadBlocklistJobsForTenant(tenant, jobs)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "failed to load blocklist jobs for tenant", "tenant", tenant, "error", err)
+		}
+	}
+}
+
+func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*work.Job) error {
+	var (
+		metas     = s.store.BlockMetas(tenant)
+		oldBlocks []*backend.BlockMeta
+		u         backend.UUID
+		err       error
+	)
+
+	for _, j := range jobs {
+		if j.GetStatus() != tempopb.JobStatus_JOB_STATUS_SUCCEEDED {
+			continue
+		}
+
+		for _, b := range j.GetCompactionInput() {
+			u, err = backend.ParseUUID(b)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "failed to parse block ID", "block_id", b, "error", err)
+				continue
+			}
+
+			for _, m := range metas {
+				if m.BlockID == u {
+					oldBlocks = append(oldBlocks, m)
+					break
+				}
+			}
+		}
+	}
+
+	err = s.store.MarkBlocklistCompacted(tenant, oldBlocks, nil)
+	if err != nil {
+		return fmt.Errorf("failed to mark compacted blocks on in-memory blocklist: %w", err)
+	}
+
+	return nil
 }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {

@@ -22,6 +22,7 @@ The Tempo configuration options include:
     - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
     - [gRPC compression](#grpc-compression)
   - [Ingester](#ingester)
+    - [Ingester configuration block](#ingester-configuration-block)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
     - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
@@ -50,6 +51,7 @@ The Tempo configuration options include:
         - [User-configurable overrides](#user-configurable-overrides)
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
+    - [Configure usage-reporting](#configure-usage-reporting)
   - [Cache](#cache)
 
 Additionally, you can review [TLS](network/tls/) to configure the cluster components to communicate over TLS, or receive traces over TLS.
@@ -94,7 +96,7 @@ server:
     [http_listen_address: <string>]
 
     # HTTP server listen port
-    [http_listen_port: <int> | default = 80]
+    [http_listen_port: <int> | default = 3200]
 
     # gRPC server listen host
     [grpc_listen_address: <string>]
@@ -140,13 +142,15 @@ Additional documentation and more advanced configuration options are available i
 distributor:
 
     # receiver configuration for different protocols
-    # config is passed down to opentelemetry receivers
-    # for a production deployment you should only enable the receivers you need!
+    # The config is passed down to OpenTelemetry receivers.
+    # By default, receivers listen to localhost and need a configured IP to
+    # listen on an external interface.
+    # For a production deployment, you should only enable the receivers you need.
     receivers:
         otlp:
             protocols:
-                grpc:
-                http:
+                grpc:    # default localhost:4317
+                http:    # default localhost:4318
         jaeger:
             protocols:
                 thrift_http:
@@ -312,6 +316,10 @@ The ingester is responsible for batching up traces and pushing them to [TempoDB]
 A live, or active, trace is a trace that has received a new batch of spans in more than a configured amount of time (default 10 seconds, set by `ingester.trace_idle_period`).
 After 10 seconds (or the configured amount of time), the trace is flushed to disk and appended to the WAL.
 When Tempo receives a new batch, a new live trace is created in memory.
+
+Refer to [Data quality metrics](../troubleshooting/querying/long-running-traces) for information about `trace_idle_period` and warning metrics like `disconnected_trace_flushed_to_wal`.
+
+### Ingester configuration block
 
 ```yaml
 # Ingester configuration block
@@ -707,7 +715,7 @@ query_frontend:
         [throughput_bytes_slo: <float> | default = 0 ]
 
         # The number of time windows to break a search up into when doing a most recent TraceQL search. This only impacts TraceQL
-        # searches with (most_recent=true)
+        # searches with (most_recent=true).
         [most_recent_shards: <int> | default = 200]
 
         # The number of shards to break ingester queries into.
@@ -746,7 +754,7 @@ query_frontend:
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
-        
+
     # Metrics query configuration
     metrics:
         # The number of concurrent jobs to execute when querying the backend.
@@ -1662,7 +1670,7 @@ overrides:
 
       # Maximum bytes any attribute can be for both keys and values.
       [max_attribute_bytes: <int> | default = 0]
-      
+
       # Pad push requests with an artificial delay, if set push requests will be delayed to ensure
       # an average latency of at least artificial_delay.
       [artificial_delay: <duration> | default = 0ms]
@@ -1976,13 +1984,11 @@ overrides:
 
 ## Usage-report
 
-By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs.
+By default, Tempo reports anonymous usage data about the shape of a deployment to Grafana Labs.
 This data is used to determine how common the deployment of certain features are, if a feature flag has been enabled,
 and which replication factor or compression levels are used.
 
 By providing information on how people use Tempo, usage reporting helps the Tempo team decide where to focus their development and documentation efforts. No private information is collected, and all reports are completely anonymous.
-
-Reporting is controlled by a configuration option.
 
 The following configuration values are used:
 
@@ -1994,6 +2000,14 @@ The following configuration values are used:
 
 No performance data is collected.
 
+You can view the report by visiting this address on your Tempo instance:
+`http://localhost:3200/status/usage-stats`
+
+Refer to [Anonymous usage reporting](../configuration/anonymous-usage-reporting/) for detailed information on the information included in the report.
+
+### Configure usage-reporting
+
+Reporting is controlled by a configuration option.
 You can disable the automatic reporting of this generic information using the following
 configuration:
 

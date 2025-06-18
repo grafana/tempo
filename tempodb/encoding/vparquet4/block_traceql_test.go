@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"sort"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -27,6 +29,128 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+func TestCreateIntPredicateFromFloat(t *testing.T) {
+	f := func(query string, predicate string) {
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(query)
+		require.Len(t, req.Conditions, 1)
+		p, err := createIntPredicateFromFloat(req.Conditions[0].Op, req.Conditions[0].Operands)
+		require.NoError(t, err)
+		np := "nil"
+		if p != nil {
+			r := strings.NewReplacer(
+				"IntEqualPredicate", "=",
+				"IntNotEqualPredicate", "!=",
+				"IntLessPredicate", "<",
+				"IntLessEqualPredicate", "<=",
+				"IntGreaterEqualPredicate", ">=",
+				"IntGreaterPredicate", ">",
+			)
+			np = r.Replace(p.String())
+			if np == "CallbackPredicate{}" {
+				if p.KeepValue(parquet.Value{}) {
+					np = "callback:true"
+				} else {
+					np = "callback:false"
+				}
+			}
+		}
+		require.Equal(t, predicate, np, "query:%s", query)
+	}
+	fe := func(query string, errorMessage string) {
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(query)
+		require.Len(t, req.Conditions, 1)
+		_, err := createIntPredicateFromFloat(req.Conditions[0].Op, req.Conditions[0].Operands)
+		require.EqualError(t, err, errorMessage, "query:%s", query)
+	}
+
+	{
+		p, err := createIntPredicateFromFloat(traceql.OpNone, nil)
+		require.NoError(t, err)
+		require.Nil(t, p)
+	}
+	{
+		p, err := createIntPredicateFromFloat(traceql.OpEqual, traceql.Operands{traceql.NewStaticFloat(math.NaN())})
+		require.NoError(t, err)
+		require.Nil(t, p)
+	}
+
+	// Every float64 in range [math.MinInt64, math.MaxInt64) can be converted to int64 exactly,
+	// but you need to consider a fractional part of the float64 to adjust an operator.
+	// It's worth noting that float64 can have a fractional part
+	// in the range (-float64(1<<52)-0.5, float64(1<<52)+0.5)
+	f(`{.attr = -123.1}`, `nil`)
+	f(`{.attr != -123.1}`, `callback:true`)
+	f(`{.attr < -123.1}`, `<={-124}`)
+	f(`{.attr <= -123.1}`, `<={-124}`)
+	f(`{.attr > -123.1}`, `>={-123}`)
+	f(`{.attr >= -123.1}`, `>={-123}`)
+
+	f(`{.attr = -123.0}`, `={-123}`)
+	f(`{.attr != -123.0}`, `!={-123}`)
+	f(`{.attr < -123.0}`, `<{-123}`)
+	f(`{.attr <= -123.0}`, `<={-123}`)
+	f(`{.attr > -123.0}`, `>{-123}`)
+	f(`{.attr >= -123.0}`, `>={-123}`)
+
+	f(`{.attr = 123.0}`, `={123}`)
+	f(`{.attr != 123.0}`, `!={123}`)
+	f(`{.attr < 123.0}`, `<{123}`)
+	f(`{.attr <= 123.0}`, `<={123}`)
+	f(`{.attr > 123.0}`, `>{123}`)
+	f(`{.attr >= 123.0}`, `>={123}`)
+
+	f(`{.attr = 123.1}`, `nil`)
+	f(`{.attr != 123.1}`, `callback:true`)
+	f(`{.attr < 123.1}`, `<={123}`)
+	f(`{.attr <= 123.1}`, `<={123}`)
+	f(`{.attr > 123.1}`, `>={124}`)
+	f(`{.attr >= 123.1}`, `>={124}`)
+
+	// [MaxInt64, +Inf)
+	f(`{.attr = 9.223372036854776e+18}`, `nil`)
+	f(`{.attr != 9.223372036854776e+18}`, `callback:true`)
+	f(`{.attr > 9.223372036854776e+18}`, `nil`)
+	f(`{.attr >= 9.223372036854776e+18}`, `nil`)
+	f(`{.attr < 9.223372036854776e+18}`, `callback:true`)
+	f(`{.attr <= 9.223372036854776e+18}`, `callback:true`)
+
+	// (-Inf, MinInt64)
+	f(`{.attr = -9.223372036854777e+18}`, `nil`)
+	f(`{.attr != -9.223372036854777e+18}`, `callback:true`)
+	f(`{.attr > -9.223372036854777e+18}`, `callback:true`)
+	f(`{.attr >= -9.223372036854777e+18}`, `callback:true`)
+	f(`{.attr < -9.223372036854777e+18}`, `nil`)
+	f(`{.attr <= -9.223372036854777e+18}`, `nil`)
+
+	fe(`{.attr = 1}`, `operand is not float: 1`)
+	fe(`{.attr =~ -1.2}`, `operator not supported for integers: =~`)
+}
+
+func TestCreateNumericPredicate(t *testing.T) {
+	t.Run("none", func(t *testing.T) {
+		p, err := createDurationPredicate(traceql.OpNone, nil)
+		require.NoError(t, err)
+		require.Nil(t, p)
+	})
+
+	t.Run("float", func(t *testing.T) {
+		p, err := createDurationPredicate(traceql.OpGreater, traceql.Operands{traceql.NewStaticFloat(1.2)})
+		require.NoError(t, err)
+		require.Equal(t, "IntGreaterEqualPredicate{2}", p.String())
+	})
+
+	t.Run("int", func(t *testing.T) {
+		p, err := createDurationPredicate(traceql.OpGreater, traceql.Operands{traceql.NewStaticFloat(1)})
+		require.NoError(t, err)
+		require.Equal(t, "IntGreaterPredicate{1}", p.String())
+	})
+
+	t.Run("it forwards errors", func(t *testing.T) {
+		_, err := createDurationPredicate(traceql.OpGreater, traceql.Operands{traceql.NewStaticBool(true)})
+		require.EqualError(t, err, `operand is not int, duration, status or kind: true`)
+	})
+}
 
 func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
@@ -730,9 +854,9 @@ func TestBackendBlockSelectAll(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 
-	_, _, _, _, req, err := traceql.Compile("{}")
+	_, eval, _, _, req, err := traceql.Compile("{}")
 	require.NoError(t, err)
-	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{inSS}, nil }
+	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return eval([]*traceql.Spanset{inSS}) }
 	req.SecondPassSelectAll = true
 
 	resp, err := b.Fetch(ctx, *req, common.DefaultSearchOptions())
@@ -887,7 +1011,6 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
 				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
 				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
-				newS.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(s.ParentSpanID)))
 
 				if s.HttpStatusCode != nil {
 					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
@@ -1115,6 +1238,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | max_over_time(duration) by (span.http.status_code)",
 		"{} | min_over_time(duration) by (span.http.status_code)",
 		"{ name != nil } | compare({status=error})",
+		"{} > {} | rate() by (name)", // structural
 	}
 
 	e := traceql.NewEngine()

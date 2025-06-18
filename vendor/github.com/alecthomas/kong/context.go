@@ -99,7 +99,7 @@ type Context struct {
 // This just constructs a new trace. To fully apply the trace you must call Reset(), Resolve(),
 // Validate() and Apply().
 func Trace(k *Kong, args []string) (*Context, error) {
-	s := Scan(args...)
+	s := Scan(args...).AllowHyphenPrefixedParameters(k.allowHyphenated)
 	c := &Context{
 		Kong: k,
 		Args: args,

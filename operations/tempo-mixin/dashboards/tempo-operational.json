@@ -4948,7 +4948,7 @@
           "pluginVersion": "9.0.0-d452322apre",
           "targets": [
             {
-              "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (status_code)",
+              "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval])) by (status_code)",
               "interval": "",
               "legendFormat": "{{status_code}}",
               "refId": "A"
@@ -5141,7 +5141,7 @@
                 "uid": "mimir-ops-03"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
+              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
               "interval": "",
               "legendFormat": ".99",
               "range": true,
@@ -5153,7 +5153,7 @@
                 "uid": "mimir-ops-03"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
+              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
               "interval": "",
               "legendFormat": ".9",
               "range": true,
@@ -5165,7 +5165,7 @@
                 "uid": "mimir-ops-03"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
+              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
               "interval": "",
               "legendFormat": ".5",
               "range": true,
@@ -5177,7 +5177,7 @@
                 "uid": "mimir-ops-03"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
+              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
               "hide": false,
               "interval": "",
               "legendFormat": ".99",
@@ -5190,7 +5190,7 @@
                 "uid": "mimir-ops-03"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
+              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
               "hide": false,
               "interval": "",
               "legendFormat": ".9",
@@ -5203,7 +5203,7 @@
                 "uid": "mimir-ops-03"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
+              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
               "hide": false,
               "interval": "",
               "legendFormat": ".5",

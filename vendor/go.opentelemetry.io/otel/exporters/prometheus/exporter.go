@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -40,7 +41,15 @@ const (
 	spanIDExemplarKey  = "span_id"
 )
 
-var errScopeInvalid = errors.New("invalid scope")
+var (
+	errScopeInvalid = errors.New("invalid scope")
+
+	metricsPool = sync.Pool{
+		New: func() interface{} {
+			return &metricdata.ResourceMetrics{}
+		},
+	}
+)
 
 // Exporter is a Prometheus Exporter that embeds the OTel metric.Reader
 // interface for easy instantiation with a MeterProvider.
@@ -144,9 +153,9 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 //
 // This method is safe to call concurrently.
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
-	// TODO (#3047): Use a sync.Pool instead of allocating metrics every Collect.
-	metrics := metricdata.ResourceMetrics{}
-	err := c.reader.Collect(context.TODO(), &metrics)
+	metrics := metricsPool.Get().(*metricdata.ResourceMetrics)
+	defer metricsPool.Put(metrics)
+	err := c.reader.Collect(context.TODO(), metrics)
 	if err != nil {
 		if errors.Is(err, metric.ErrReaderShutdown) {
 			return
@@ -233,6 +242,10 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 				addHistogramMetric(ch, v, m, name, kv)
 			case metricdata.Histogram[float64]:
 				addHistogramMetric(ch, v, m, name, kv)
+			case metricdata.ExponentialHistogram[int64]:
+				addExponentialHistogramMetric(ch, v, m, name, kv)
+			case metricdata.ExponentialHistogram[float64]:
+				addExponentialHistogramMetric(ch, v, m, name, kv)
 			case metricdata.Sum[int64]:
 				addSumMetric(ch, v, m, name, kv)
 			case metricdata.Sum[float64]:
@@ -246,7 +259,67 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func addHistogramMetric[N int64 | float64](ch chan<- prometheus.Metric, histogram metricdata.Histogram[N], m metricdata.Metrics, name string, kv keyVals) {
+func addExponentialHistogramMetric[N int64 | float64](
+	ch chan<- prometheus.Metric,
+	histogram metricdata.ExponentialHistogram[N],
+	m metricdata.Metrics,
+	name string,
+	kv keyVals,
+) {
+	for _, dp := range histogram.DataPoints {
+		keys, values := getAttrs(dp.Attributes)
+		keys = append(keys, kv.keys...)
+		values = append(values, kv.vals...)
+
+		desc := prometheus.NewDesc(name, m.Description, keys, nil)
+
+		// From spec: note that Prometheus Native Histograms buckets are indexed by upper boundary while Exponential Histograms are indexed by lower boundary, the result being that the Offset fields are different-by-one.
+		positiveBuckets := make(map[int]int64)
+		for i, c := range dp.PositiveBucket.Counts {
+			if c > math.MaxInt64 {
+				otel.Handle(fmt.Errorf("positive count %d is too large to be represented as int64", c))
+				continue
+			}
+			positiveBuckets[int(dp.PositiveBucket.Offset)+i+1] = int64(c) // nolint: gosec  // Size check above.
+		}
+
+		negativeBuckets := make(map[int]int64)
+		for i, c := range dp.NegativeBucket.Counts {
+			if c > math.MaxInt64 {
+				otel.Handle(fmt.Errorf("negative count %d is too large to be represented as int64", c))
+				continue
+			}
+			negativeBuckets[int(dp.NegativeBucket.Offset)+i+1] = int64(c) // nolint: gosec  // Size check above.
+		}
+
+		m, err := prometheus.NewConstNativeHistogram(
+			desc,
+			dp.Count,
+			float64(dp.Sum),
+			positiveBuckets,
+			negativeBuckets,
+			dp.ZeroCount,
+			dp.Scale,
+			dp.ZeroThreshold,
+			dp.StartTime,
+			values...)
+		if err != nil {
+			otel.Handle(err)
+			continue
+		}
+
+		// TODO(GiedriusS): add exemplars here after https://github.com/prometheus/client_golang/pull/1654#pullrequestreview-2434669425 is done.
+		ch <- m
+	}
+}
+
+func addHistogramMetric[N int64 | float64](
+	ch chan<- prometheus.Metric,
+	histogram metricdata.Histogram[N],
+	m metricdata.Metrics,
+	name string,
+	kv keyVals,
+) {
 	for _, dp := range histogram.DataPoints {
 		keys, values := getAttrs(dp.Attributes)
 		keys = append(keys, kv.keys...)
@@ -270,7 +343,13 @@ func addHistogramMetric[N int64 | float64](ch chan<- prometheus.Metric, histogra
 	}
 }
 
-func addSumMetric[N int64 | float64](ch chan<- prometheus.Metric, sum metricdata.Sum[N], m metricdata.Metrics, name string, kv keyVals) {
+func addSumMetric[N int64 | float64](
+	ch chan<- prometheus.Metric,
+	sum metricdata.Sum[N],
+	m metricdata.Metrics,
+	name string,
+	kv keyVals,
+) {
 	valueType := prometheus.CounterValue
 	if !sum.IsMonotonic {
 		valueType = prometheus.GaugeValue
@@ -296,7 +375,13 @@ func addSumMetric[N int64 | float64](ch chan<- prometheus.Metric, sum metricdata
 	}
 }
 
-func addGaugeMetric[N int64 | float64](ch chan<- prometheus.Metric, gauge metricdata.Gauge[N], m metricdata.Metrics, name string, kv keyVals) {
+func addGaugeMetric[N int64 | float64](
+	ch chan<- prometheus.Metric,
+	gauge metricdata.Gauge[N],
+	m metricdata.Metrics,
+	name string,
+	kv keyVals,
+) {
 	for _, dp := range gauge.DataPoints {
 		keys, values := getAttrs(dp.Attributes)
 		keys = append(keys, kv.keys...)
@@ -319,7 +404,7 @@ func getAttrs(attrs attribute.Set) ([]string, []string) {
 	values := make([]string, 0, attrs.Len())
 	itr := attrs.Iter()
 
-	if model.NameValidationScheme == model.UTF8Validation {
+	if model.NameValidationScheme == model.UTF8Validation { // nolint:staticcheck // We need this check to keep supporting the legacy scheme.
 		// Do not perform sanitization if prometheus supports UTF-8.
 		for itr.Next() {
 			kv := itr.Attribute()
@@ -405,8 +490,9 @@ var unitSuffixes = map[string]string{
 // getName returns the sanitized name, prefixed with the namespace and suffixed with unit.
 func (c *collector) getName(m metricdata.Metrics, typ *dto.MetricType) string {
 	name := m.Name
-	if model.NameValidationScheme != model.UTF8Validation {
+	if model.NameValidationScheme != model.UTF8Validation { // nolint:staticcheck // We need this check to keep supporting the legacy scheme.
 		// Only sanitize if prometheus does not support UTF-8.
+		logDeprecatedLegacyScheme()
 		name = model.EscapeName(name, model.NameEscapingScheme)
 	}
 	addCounterSuffix := !c.withoutCounterSuffixes && *typ == dto.MetricType_COUNTER
@@ -436,11 +522,13 @@ func (c *collector) getName(m metricdata.Metrics, typ *dto.MetricType) string {
 // underscore when the escaping scheme is underscore escaping. This is meant to
 // capture any character that should be considered a "delimiter".
 func convertsToUnderscore(b rune) bool {
-	return !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == ':' || (b >= '0' && b <= '9'))
+	return (b < 'a' || b > 'z') && (b < 'A' || b > 'Z') && b != ':' && (b < '0' || b > '9')
 }
 
 func (c *collector) metricType(m metricdata.Metrics) *dto.MetricType {
 	switch v := m.Data.(type) {
+	case metricdata.ExponentialHistogram[int64], metricdata.ExponentialHistogram[float64]:
+		return dto.MetricType_HISTOGRAM.Enum()
 	case metricdata.Histogram[int64], metricdata.Histogram[float64]:
 		return dto.MetricType_HISTOGRAM.Enum()
 	case metricdata.Sum[float64]:

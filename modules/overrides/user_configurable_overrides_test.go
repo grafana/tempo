@@ -397,7 +397,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.NotEqual(t, mgr.Forwarders(tenantID), baseMgr.Forwarders(tenantID))
 
 	// Processors will be the merged result between runtime and user-configurable overrides
-	assert.Equal(t, mgr.MetricsGeneratorProcessors(tenantID), map[string]struct{}{"local-blocks": {}, "service-graphs": {}, "span-metrics": {}})
+	assert.Equal(t, mgr.MetricsGeneratorProcessors(tenantID), map[string]struct{}{"local-blocks": {}, "service-graphs": {}, "span-metrics": {}, "host-info": {}})
 
 	// For the remaining settings runtime overrides will bubble up
 	assert.Equal(t, mgr.IngestionRateStrategy(), baseMgr.IngestionRateStrategy())
@@ -436,6 +436,8 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenantID))
+	assert.Equal(t, mgr.MetricsGeneratorProcessorHostInfoHostIdentifiers(tenantID), baseMgr.MetricsGeneratorProcessorHostInfoHostIdentifiers(tenantID))
+	assert.Equal(t, mgr.MetricsGeneratorProcessorHostInfoMetricName(tenantID), baseMgr.MetricsGeneratorProcessorHostInfoMetricName(tenantID))
 	assert.Equal(t, mgr.BlockRetention(tenantID), baseMgr.BlockRetention(tenantID))
 	assert.Equal(t, mgr.MaxSearchDuration(tenantID), baseMgr.MaxSearchDuration(tenantID))
 	assert.Equal(t, mgr.DedicatedColumns(tenantID), baseMgr.DedicatedColumns(tenantID))
@@ -462,7 +464,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 				},
 				MetricsGenerator: MetricsGeneratorOverrides{
 					RingSize:           2,
-					Processors:         listtomap.ListToMap{"span-metrics": {}, "service-graphs": {}},
+					Processors:         listtomap.ListToMap{"span-metrics": {}, "service-graphs": {}, "host-info": {}},
 					MaxActiveSeries:    60000,
 					CollectionInterval: 15 * time.Second,
 					DisableCollection:  false,
@@ -493,6 +495,10 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							FlushCheckPeriod:     10 * time.Second,
 							TraceIdlePeriod:      20 * time.Second,
 							CompleteBlockTimeout: 30 * time.Second,
+						},
+						HostInfo: HostInfoOverrides{
+							HostIdentifiers: []string{"host.name"},
+							MetricName:      "override_host_info",
 						},
 					},
 					IngestionSlack: 0,

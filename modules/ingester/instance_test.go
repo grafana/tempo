@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -409,7 +410,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 			instance, _ := defaultInstance(t)
 
 			for _, trace := range tc.input {
-				fp := instance.tokenForTraceID(trace.traceID)
+				fp := util.HashForTraceID(trace.traceID)
 				instance.traces[fp] = trace
 			}
 
@@ -418,12 +419,12 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 			require.Equal(t, len(tc.expectedExist), len(instance.traces))
 			for _, expectedExist := range tc.expectedExist {
-				_, ok := instance.traces[instance.tokenForTraceID(expectedExist.traceID)]
+				_, ok := instance.traces[util.HashForTraceID(expectedExist.traceID)]
 				require.True(t, ok)
 			}
 
 			for _, expectedNotExist := range tc.expectedNotExist {
-				_, ok := instance.traces[instance.tokenForTraceID(expectedNotExist.traceID)]
+				_, ok := instance.traces[util.HashForTraceID(expectedNotExist.traceID)]
 				require.False(t, ok)
 			}
 		})
@@ -682,6 +683,72 @@ func TestInstancePartialSuccess(t *testing.T) {
 	result, err = i.FindTraceByID(ctx, ids[4], false)
 	require.NoError(t, err, "error finding trace by id")
 	require.Equal(t, expected, result)
+}
+
+func TestFindTraceByIDNoCollisions(t *testing.T) {
+	ctx := context.Background()
+	ingester, _, _ := defaultIngester(t, t.TempDir())
+	instance, err := ingester.getOrCreateInstance(testTenantID)
+	require.NoError(t, err, "unexpected error creating new instance")
+
+	// Verify that Trace IDs that collide with fnv-32 hash do not collide with fnv-64 hash
+	hexIDs := []string{
+		"fd5980503add11f09f80f77608c1b2da",
+		"091ea7803ade11f0998a055186ee1243",
+		"9e0d446036dc11f09ac04988d2097052",
+		"a61ed97036dc11f0883771db3b51b1ec",
+		"6b27f5501eda11f09e99db1b2c23c542",
+		"6b4149b01eda11f0b0e2a966cf7ebbc8",
+		"3e9582202f9a11f0afb01b7c06024bd6",
+		"370db6802f9a11f0a9a212dff3125239",
+		"978d70802a7311f0991f350653ef0ab4",
+		"9b66da202a7311f09d292db17ccfd31a",
+		"de567f703bb711f0b8c377682d1667e6",
+		"dc2d0fc03bb711f091de732fcf93048c",
+	}
+
+	ids := make([][]byte, len(hexIDs))
+	for i, hexID := range hexIDs {
+		traceID, err := util.HexStringToTraceID(hexID)
+		require.NoError(t, err)
+		ids[i] = traceID
+	}
+
+	multiMaxBytes := make([]int, len(ids))
+	for j := range multiMaxBytes {
+		multiMaxBytes[j] = 1000
+	}
+	req := makePushBytesRequestMultiTraces(ids, multiMaxBytes)
+	require.Equal(t, len(ids), len(req.Traces))
+	response := instance.PushBytesRequest(ctx, req)
+	errored, maxLiveCount, traceTooLargeCount := CheckPushBytesError(response)
+
+	require.False(t, errored)
+	require.Equal(t, 0, maxLiveCount)
+	require.Equal(t, 0, traceTooLargeCount)
+
+	traceResults := make([]*tempopb.Trace, len(ids))
+	for i := range ids {
+		result, err := instance.FindTraceByID(ctx, ids[i], false)
+		require.NoError(t, err, "error finding trace by id")
+		require.NotNil(t, result)
+		require.NotNil(t, result.Trace)
+		traceResults[i] = result.Trace
+	}
+
+	// Verify that spans do not appear in multiple traces
+	spanIDs := map[string]struct{}{}
+	for _, trace := range traceResults {
+		for _, resourceSpan := range trace.ResourceSpans {
+			for _, scopeSpan := range resourceSpan.ScopeSpans {
+				for _, span := range scopeSpan.Spans {
+					_, found := spanIDs[string(span.SpanId)]
+					require.False(t, found, "span %s appears in multiple traces", span.SpanId)
+					spanIDs[string(span.SpanId)] = struct{}{}
+				}
+			}
+		}
+	}
 }
 
 func TestSortByteSlices(t *testing.T) {
