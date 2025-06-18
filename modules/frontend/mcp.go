@@ -23,6 +23,16 @@ const (
 	docsTraceQLMetricsDescription = "Documentation on TraceQL metrics. Best for aggregating traces into metrics to understand patterns and trends. This covers how to use TraceQL to generate metrics from tracing data."
 
 	docsTraceQLMimeType = "text/markdown"
+
+	// Tool names
+	toolTraceQLSearch         = "traceql-search"
+	toolTraceQLMetricsInstant = "traceql-metrics-instant"
+	toolTraceQLMetricsRange   = "traceql-metrics-range"
+	toolGetTrace              = "get-trace"
+	toolGetAttributeNames     = "get-attribute-names"
+	toolGetAttributeValues    = "get-attribute-values"
+	toolDocsTraceQLQuery      = "docs-traceql-query"
+	toolDocsTraceQLMetrics    = "docs-traceql-metrics"
 )
 
 // fakeHTTPAuthMiddleware is a middleware that does nothing, used when multitenancy is disabled
@@ -128,7 +138,7 @@ func (s *MCPServer) setupResources() {
 // setupTools registers MCP tools for trace operations
 func (s *MCPServer) setupTools() {
 	// api tools
-	searchTool := mcp.NewTool("traceql-search",
+	searchTool := mcp.NewTool(toolTraceQLSearch,
 		mcp.WithDescription("Search for traces using TraceQL queries"),
 		mcp.WithString("query",
 			mcp.Required(),
@@ -143,7 +153,7 @@ func (s *MCPServer) setupTools() {
 	)
 	s.mcpServer.AddTool(searchTool, s.handleSearch)
 
-	instantQueryTool := mcp.NewTool("traceql-metrics-instant",
+	instantQueryTool := mcp.NewTool(toolTraceQLMetricsInstant,
 		mcp.WithDescription("Retrieve a single metric value given a TraceQL metrics query. The value is at the current instant or end. Most metrics questions can be answered with instant values."),
 		mcp.WithString("query",
 			mcp.Required(),
@@ -159,7 +169,7 @@ func (s *MCPServer) setupTools() {
 	s.mcpServer.AddTool(instantQueryTool, s.handleInstantQuery)
 
 	// TODO: should we even expose this? the LLM would be better at using the instant query tool and giving accurate answers.
-	rangeQueryTool := mcp.NewTool("traceql-metrics-range",
+	rangeQueryTool := mcp.NewTool(toolTraceQLMetricsRange,
 		mcp.WithDescription("Retrieve a metric series given a TraceQL metrics query. The series ranges from start to end."),
 		mcp.WithString("query",
 			mcp.Required(),
@@ -174,7 +184,7 @@ func (s *MCPServer) setupTools() {
 	)
 	s.mcpServer.AddTool(rangeQueryTool, s.handleRangeQuery)
 
-	traceTool := mcp.NewTool("get-trace",
+	traceTool := mcp.NewTool(toolGetTrace,
 		mcp.WithDescription("Retrieve a specific trace by ID"),
 		mcp.WithString("trace_id",
 			mcp.Required(),
@@ -183,7 +193,7 @@ func (s *MCPServer) setupTools() {
 	)
 	s.mcpServer.AddTool(traceTool, s.handleGetTrace)
 
-	attributeNamesTool := mcp.NewTool("get-attribute-names",
+	attributeNamesTool := mcp.NewTool(toolGetAttributeNames,
 		mcp.WithDescription("Get a list of available attribute names that can be used in TraceQL queries. This is useful for finding the names of attributes that can be used in a query."),
 		mcp.WithString("scope",
 			mcp.Description("Optional scope to filter attributes by (span, resource, event, link, instrumentation). If not provided, returns all attributes."),
@@ -191,7 +201,7 @@ func (s *MCPServer) setupTools() {
 	)
 	s.mcpServer.AddTool(attributeNamesTool, s.handleGetAttributeNames)
 
-	attributeValuesTool := mcp.NewTool("get-attribute-values",
+	attributeValuesTool := mcp.NewTool(toolGetAttributeValues,
 		mcp.WithDescription("Get a list of values for a fully scoped attribute name. This is useful for finding the values of a specific attribute. i.e. you can find all the services in the data by asking for resource.service.name"),
 		mcp.WithString("name",
 			mcp.Required(),
@@ -205,12 +215,12 @@ func (s *MCPServer) setupTools() {
 
 	// docs tools - these are defined as tools as well as resources b/c claude code never asks for resources but it will nicely
 	// request the content from these docs tools.
-	traceQLAdvanced := mcp.NewTool("docs-traceql-query",
+	traceQLAdvanced := mcp.NewTool(toolDocsTraceQLQuery,
 		mcp.WithDescription(docsTraceQLQueryDescription),
 	)
 	s.mcpServer.AddTool(traceQLAdvanced, s.handleTraceQLQuery)
 
-	traceQLMetrics := mcp.NewTool("docs-traceql-metrics",
+	traceQLMetrics := mcp.NewTool(toolDocsTraceQLMetrics,
 		mcp.WithDescription(docsTraceQLMetricsDescription),
 	)
 	s.mcpServer.AddTool(traceQLMetrics, s.handleTraceQLMetrics)

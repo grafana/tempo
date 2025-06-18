@@ -18,7 +18,16 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+// add a mcp calls metric counter
+var metricMCPToolCalls = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "query_frontend_mcp_calls_total",
+	Help:      "Total number of MCP calls",
+}, []string{"tool"})
 
 const (
 	MetaTypeDocumentation   = "documentation"
@@ -31,12 +40,14 @@ const (
 )
 
 func (s *MCPServer) handleTraceQLQuery(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolDocsTraceQLQuery).Inc()
 	level.Info(s.logger).Log("msg", "traceql query tool requested")
 
 	return toolResult(trimDocs(docs.TraceQLMain), MetaTypeDocumentation, "markdown", "1"), nil
 }
 
 func (s *MCPServer) handleTraceQLMetrics(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolDocsTraceQLMetrics).Inc()
 	level.Info(s.logger).Log("msg", "traceql metrics tool requested")
 
 	return toolResult(trimDocs(docs.TraceQLMetrics), MetaTypeDocumentation, "markdown", "1"), nil
@@ -44,6 +55,8 @@ func (s *MCPServer) handleTraceQLMetrics(_ context.Context, _ mcp.CallToolReques
 
 // handleSearch handles the traceql-search tool
 func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolTraceQLSearch).Inc()
+
 	query, err := request.RequireString("query")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -84,7 +97,6 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 		return mcp.NewToolResultError("TraceQL metrics query received on traceql-search tool. Use the traceql-metrics-instant or traceql-metrics-range tool instead"), nil
 	}
 
-	// nolint:gosec // G115
 	searchReq := &tempopb.SearchRequest{
 		Query: query,
 		Start: uint32(startEpoch),
@@ -107,6 +119,8 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 
 // handleInstantQuery handles the traceql-metrics-instant tool
 func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolTraceQLMetricsInstant).Inc()
+
 	query, err := request.RequireString("query")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -147,7 +161,6 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 		return mcp.NewToolResultError("TraceQL search query received on instant query tool. Use the traceql-search tool instead"), nil
 	}
 
-	// nolint:gosec // G115
 	queryInstantReq := &tempopb.QueryInstantRequest{
 		Query: query,
 		Start: uint64(startEpochNanos),
@@ -166,6 +179,8 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 }
 
 func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolTraceQLMetricsRange).Inc()
+
 	query, err := request.RequireString("query")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -206,7 +221,6 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 		return mcp.NewToolResultError("TraceQL search query received on range query tool. Use the traceql-search tool instead"), nil
 	}
 
-	// nolint:gosec // G115
 	queryRangeReq := &tempopb.QueryRangeRequest{
 		Query: query,
 		Start: uint64(startEpochNanos),
@@ -226,6 +240,8 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 
 // handleGetTrace handles the get-trace tool
 func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolGetTrace).Inc()
+
 	traceID, err := request.RequireString("trace_id")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -249,6 +265,8 @@ func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequ
 
 // handleGetAttributeNames handles the get-attribute-names tool
 func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolGetAttributeNames).Inc()
+
 	level.Info(s.logger).Log("msg", "getting attribute names")
 
 	searchTagsReq := &tempopb.SearchTagsRequest{
@@ -271,6 +289,8 @@ func (s *MCPServer) handleGetAttributeNames(ctx context.Context, request mcp.Cal
 
 // handleGetAttributeValues handles the get-attribute-values tool
 func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolGetAttributeValues).Inc()
+
 	name, err := request.RequireString("name")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
