@@ -1519,16 +1519,10 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 func (h *HistogramAggregator) Results() SeriesSet {
 	results := make(SeriesSet, len(h.ss)*len(h.qs))
 
-	// Collect all exemplars and calculate representative quantile values
-	var allExemplars []Exemplar
-
 	// Aggregate buckets across all series and time intervals for better quantile calculation
 	aggregatedBuckets := make(map[float64]int) // bucketMax -> totalCount
 
 	for _, in := range h.ss {
-		// Collect exemplars from this series
-		allExemplars = append(allExemplars, in.exemplars...)
-
 		// Aggregate bucket counts across all time intervals
 		for _, hist := range in.hist {
 			for _, bucket := range hist.Buckets {
@@ -1593,8 +1587,8 @@ func (h *HistogramAggregator) Results() SeriesSet {
 				ts.Values[i] = Log2Quantile(q, sortedIntervalBuckets[i])
 			}
 
-			// Select exemplars using per-interval semantic matching with pre-sorted buckets
-			ts.Exemplars = h.selectExemplarsWithIntervalMatching(allExemplars, sortedIntervalBuckets, qIdx)
+			// Select exemplars using per-interval semantic matching with exemplars from this specific grouping
+			ts.Exemplars = h.selectExemplarsWithIntervalMatching(in.exemplars, sortedIntervalBuckets, qIdx)
 
 			results[s] = ts
 		}
