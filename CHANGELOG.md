@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Fix ingester issue where a hash collision could lead to spans stored incorrectly [#5276](https://github.com/grafana/tempo/pull/5276) (@carles-grafana)
+
 # v2.8.0
 
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
