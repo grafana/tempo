@@ -50,7 +50,7 @@ The editor and builder are available in the [Tempo data source](https://grafana.
 In addition, you can use Traces Drilldown to investigate your tracing data without writing TraceQL queries.
 For more information, refer to the [Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/) documentation.
 
-For more information, refer to [Write TraceQL queries in Grafana](http://localhost:3002/docs/tempo/<TEMPO_VERSION>/traceql/query-editor/).
+For more information, refer to [Write TraceQL queries in Grafana](http://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/query-editor/).
 
 ### Stream query results
 
