@@ -240,9 +240,9 @@ This example searches all Kubernetes clusters called `service-name` that have a 
 
 TraceQL supports these different attribute scopes: span attributes, resource attributes, event attributes, link attributes, and instrumentation scope attributes.
 
-By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
+By expanding a span in the Grafana UI, you can see both its span attributes and resource attributes.
 
-<p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
+![Span and resource attributes in Grafana](/media/docs/tempo/screenshot-grafana-trace-view-span-resource-attributes.png)
 
 Attribute fields are derived from the span and can be customized.
 Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type.
@@ -512,7 +512,6 @@ So far, all of the example queries expressions have been about individual spans.
 - `sum` - The sum value of a given numeric attribute or intrinsic for a spanset.
 
 Aggregate functions allow you to carry out operations on matching results to further refine the traces returned.
-For more information on planned future work, refer to [How TraceQL works](./architecture).
 
 For example, to find traces where the total number of spans is greater than `10`:
 

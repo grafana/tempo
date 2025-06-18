@@ -38,7 +38,7 @@ sum by (status_code) (
 
 This metric is also shown in [the monitoring dashboards](../monitor/) (the left panel):
 
-<p align="center"><img src="../caching_memcached_connection_limit.png" alt="QPS and latency of requests to memcached"></p>
+![QPS and latency of requests to memcached](/media/docs/tempo/caching_memcached_connection_limit.png)
 
 Note that the already open connections continue to function. New connections are refused.
 
@@ -78,6 +78,6 @@ cache eviction rate, and increasing the cache hit rate.
 In order to decide the values of these configuration parameters, you can use a cache summary command in the [tempo-cli](../tempo_cli/) that
 prints a summary of bloom filter shards per day and per compaction level. The result looks something like this:
 
-<p align="center"><img src="../cache-summary.png" alt="Cache summary"></p>
+![Cache summary output](/media/docs/tempo/cache-summary.png)
 
 This image shows the bloom filter shards over 14 days and 6 compaction levels. This can be used to decide the configuration parameters.

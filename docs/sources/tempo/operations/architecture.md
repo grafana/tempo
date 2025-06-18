@@ -12,7 +12,7 @@ weight: 100
 This topic provides an overview of the major components of Tempo. Refer to the [example setups](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/example-demo-app/)
 or [deployment options](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/) for help deploying.
 
-<p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
+![Tempo architecture diagram](/media/docs/tempo/tempo_arch.png)
 
 Tempo comprises of the following top-level components.
 
