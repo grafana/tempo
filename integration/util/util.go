@@ -42,8 +42,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
 const (
@@ -709,59 +708,11 @@ func NewOtlpJaegerClient(endpoint string) (*OtlpJaegerClient, error) {
 }
 
 func (c *OtlpJaegerClient) EmitBatch(ctx context.Context, b *thrift.Batch) error {
-	resourceSpans := thriftBatchToResourceSpans(b)
-	traces := ptrace.NewTraces()
-	resourceSpans.CopyTo(traces.ResourceSpans().AppendEmpty())
+	traces, err := jaeger.ThriftToTraces(b)
+	if err != nil {
+		return err
+	}
 	return c.exporter.ConsumeTraces(ctx, traces)
-}
-
-func thriftBatchToResourceSpans(b *thrift.Batch) ptrace.ResourceSpans {
-	rs := ptrace.NewResourceSpans()
-	resource := rs.Resource()
-	if b.Process != nil {
-		resource.Attributes().PutStr("service.name", b.Process.ServiceName)
-		for _, tag := range b.Process.Tags {
-			if tag.Key == "service.name" {
-				continue
-			}
-			if tag.VStr != nil {
-				resource.Attributes().PutStr(tag.Key, *tag.VStr)
-			}
-		}
-	}
-	ss := rs.ScopeSpans().AppendEmpty()
-	for _, span := range b.Spans {
-		otlpSpan := ss.Spans().AppendEmpty()
-		otlpSpan.SetName(span.OperationName)
-		otlpSpan.SetStartTimestamp(pcommon.Timestamp(span.StartTime * int64(time.Microsecond)))
-		otlpSpan.SetEndTimestamp(pcommon.Timestamp((span.StartTime + span.Duration) * int64(time.Microsecond)))
-		otlpSpan.SetSpanID(uint64ToSpanID(span.SpanId))
-		otlpSpan.SetTraceID(jaegerTraceIDToBytes(span.TraceIdHigh, span.TraceIdLow))
-		otlpSpan.SetParentSpanID(uint64ToSpanID(span.ParentSpanId))
-		for _, tag := range span.Tags {
-			if tag.VStr != nil {
-				otlpSpan.Attributes().PutStr(tag.Key, *tag.VStr)
-			}
-		}
-	}
-	return rs
-}
-
-func uint64ToSpanID(id int64) [8]byte {
-	var b [8]byte
-	for i := 0; i < 8; i++ {
-		b[7-i] = byte(id >> (i * 8))
-	}
-	return b
-}
-
-func jaegerTraceIDToBytes(high, low int64) [16]byte {
-	var b [16]byte
-	for i := 0; i < 8; i++ {
-		b[7-i] = byte(high >> (i * 8))
-		b[15-i] = byte(low >> (i * 8))
-	}
-	return b
 }
 
 func (c *OtlpJaegerClient) EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error {
