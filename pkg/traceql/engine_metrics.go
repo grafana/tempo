@@ -50,59 +50,6 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 	return uint64(interval.Nanoseconds())
 }
 
-// IntervalCount is the number of intervals in the range with step.
-func IntervalCount(start, end, step uint64) int {
-	if isInstant(start, end, step) { // always 1 interval
-		return 1
-	}
-	start = alignStart(start, end, step)
-	end = alignEnd(start, end, step)
-
-	intervals := (end - start) / step
-	return int(intervals)
-}
-
-// TimestampOf the given interval with the start and step.
-func TimestampOf(interval, start, end, step uint64) uint64 {
-	start = alignStart(start, end, step)
-	// start as initial offset plus interval's offset
-	return start + (interval+1)*step
-}
-
-// IntervalOf the given timestamp within the range and step.
-// First interval is (start; start+step]
-// Last interval is (end-step; end]
-// The first interval's left border is limited to 0
-func IntervalOf(ts, start, end, step uint64) int {
-	if isInstant(start, end, step) { // always one interval
-		if !isTsValidForInstant(ts, start, end) {
-			return -1
-		}
-		return 0
-	}
-
-	start = alignStart(start, end, step)
-	end = alignEnd(start, end, step)
-
-	if !isTsValidForInterval(ts, start, end, step) {
-		return -1
-	}
-	if ts <= start { // to avoid overflow
-		return 0 // if pass validation and less than start, always first interval
-	}
-
-	offset := ts - start
-	// Calculate which interval the timestamp falls into
-	// Since intervals are right-closed: (start; start+step], (start+step; start+2*step], etc.
-	// we need to handle the case where ts is exactly on a step boundary
-	interval := offset / step
-	if interval*step == offset { // the same as offset % step == 0
-		// ts is exactly on a step boundary, so it belongs to the previous interval
-		interval--
-	}
-	return int(interval)
-}
-
 // isTsValidForInterval returns true if the timestamp is valid for the given range and step.
 func isTsValidForInterval(ts, start, end, step uint64) bool {
 	return ts > start && ts <= end && end != start && step != 0
@@ -111,23 +58,6 @@ func isTsValidForInterval(ts, start, end, step uint64) bool {
 // isTsValidForInstant returns true if the timestamp is valid for the given range for instant query.
 func isTsValidForInstant(ts, start, end uint64) bool {
 	return ts >= start && ts <= end && end != start
-}
-
-// IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.
-// TODO: I need to remove this function and make it part of Checker
-func IntervalOfMs(tsmills int64, start, end, step uint64) int {
-	ts := uint64(time.Duration(tsmills) * time.Millisecond)
-	instant := isInstant(start, end, step)
-	start -= start % uint64(time.Millisecond)
-	end -= end % uint64(time.Millisecond)
-
-	if instant {
-		if !isTsValidForInstant(ts, start, end) {
-			return -1
-		}
-		return 0
-	}
-	return IntervalOf(ts, start, end, step)
 }
 
 // TrimToBlockOverlap returns the aligned overlap between the given time and block ranges,
@@ -1472,9 +1402,12 @@ func (h *Histogram) Record(bucket float64, count int) {
 }
 
 type IntervalChecker interface {
+	// Interval the given timestamp within the range and step.
 	Interval(ts uint64) int
+	// IntervalMs is the same as Bucket except the input and calculations are in unix milliseconds.
 	IntervalMs(ts int64) int
 	TimestampOf(interval int) uint64
+	// IntervalCount is the number of intervals in the range with step.
 	IntervalCount() int
 }
 
@@ -1486,6 +1419,7 @@ func NewIntervalChecker(start, end, step uint64) IntervalChecker {
 	if isInstant(start, end, step) {
 		return &IntervalCheckerInstant{
 			start: start,
+			end:   end,
 		}
 	}
 	return &IntervalCheckerQueryRange{
@@ -1503,30 +1437,67 @@ type IntervalCheckerQueryRange struct {
 }
 
 func (i *IntervalCheckerQueryRange) Interval(ts uint64) int {
-	return IntervalOf(ts, i.start, i.end, i.step)
+	start := alignStart(i.start, i.end, i.step)
+	end := alignEnd(i.start, i.end, i.step)
+
+	if !isTsValidForInterval(ts, start, end, i.step) {
+		return -1
+	}
+	if ts <= start { // to avoid overflow
+		return 0 // if pass validation and less than start, always first interval
+	}
+
+	offset := ts - start
+	// Calculate which interval the timestamp falls into
+	// Since intervals are right-closed: (start; start+step], (start+step; start+2*step], etc.
+	// we need to handle the case where ts is exactly on a step boundary
+	interval := offset / i.step
+	if interval*i.step == offset { // the same as offset % step == 0
+		// ts is exactly on a step boundary, so it belongs to the previous interval
+		interval--
+	}
+	return int(interval)
 }
 
-func (i *IntervalCheckerQueryRange) IntervalMs(ts int64) int {
-	return IntervalOfMs(ts, i.start, i.end, i.step)
+func (i *IntervalCheckerQueryRange) IntervalMs(tsmill int64) int {
+	ts := uint64(time.Duration(tsmill) * time.Millisecond)
+	// TODO: it is not correct to change the values and is fixed in the next commit
+	i.start -= i.start % uint64(time.Millisecond)
+	i.end -= i.end % uint64(time.Millisecond)
+	return i.Interval(ts)
 }
 
 func (i *IntervalCheckerQueryRange) TimestampOf(interval int) uint64 {
-	return TimestampOf(uint64(interval), i.start, i.end, i.step)
+	start := alignStart(i.start, i.end, i.step)
+	// start as initial offset plus interval's offset
+	return start + (uint64(interval)+1)*i.step
 }
 
 func (i *IntervalCheckerQueryRange) IntervalCount() int {
-	return IntervalCount(i.start, i.end, i.step)
+	start := alignStart(i.start, i.end, i.step)
+	end := alignEnd(i.start, i.end, i.step)
+
+	intervals := (end - start) / i.step
+	return int(intervals)
 }
 
 type IntervalCheckerInstant struct {
-	start uint64
+	start, end uint64
 }
 
 func (i *IntervalCheckerInstant) Interval(ts uint64) int {
+	if !isTsValidForInstant(ts, i.start, i.end) {
+		return -1
+	}
 	return 0 // Instant queries only have one bucket
 }
 
-func (i *IntervalCheckerInstant) IntervalMs(ts int64) int {
+func (i *IntervalCheckerInstant) IntervalMs(tsmill int64) int {
+	ts := uint64(time.Duration(tsmill) * time.Millisecond)
+	if !isTsValidForInstant(ts, i.start, i.end) {
+		return -1
+	}
+
 	return 0 // Instant queries only have one bucket
 }
 
@@ -1535,7 +1506,7 @@ func (i *IntervalCheckerInstant) IntervalCount() int {
 }
 
 func (i *IntervalCheckerInstant) TimestampOf(interval int) uint64 {
-	return i.start
+	return i.end
 }
 
 type histSeries struct {
