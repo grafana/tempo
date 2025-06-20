@@ -61,6 +61,17 @@ var (
 	searchThroughput    = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
 	metadataThroughput  = queryThroughput.MustCurryWith(prometheus.Labels{"op": metadataOp})
 	metricsThroughput   = queryThroughput.MustCurryWith(prometheus.Labels{"op": metricsOp})
+
+	queryInspectedBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_bytes_inspected_total",
+		Help:      "Bytes read from storage using queries per tenant",
+	}, []string{"tenant", "op"})
+
+	traceByIDInspectedBytes = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
+	searchInspectedBytes    = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": searchOp})
+	metadataInspectedBytes  = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": metadataOp})
+	metricsInspectedBytes   = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": metricsOp})
 )
 
 type (
@@ -69,22 +80,22 @@ type (
 
 // todo: remove post hooks and implement as a handler
 func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(traceByIDCounter, sloTraceByIDCounter, traceByIDThroughput, cfg)
+	return sloHook(traceByIDCounter, sloTraceByIDCounter, traceByIDThroughput, traceByIDInspectedBytes, cfg)
 }
 
 func searchSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(searchCounter, sloSearchCounter, searchThroughput, cfg)
+	return sloHook(searchCounter, sloSearchCounter, searchThroughput, searchInspectedBytes, cfg)
 }
 
 func metadataSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(metadataCounter, sloMetadataCounter, metadataThroughput, cfg)
+	return sloHook(metadataCounter, sloMetadataCounter, metadataThroughput, metadataInspectedBytes, cfg)
 }
 
 func metricsSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(metricsCounter, sloMetricsCounter, metricsThroughput, cfg)
+	return sloHook(metricsCounter, sloMetricsCounter, metricsThroughput, metricsInspectedBytes, cfg)
 }
 
-func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec, throughputVec *prometheus.CounterVec, cfg SLOConfig) handlerPostHook {
+func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec, throughputVec *prometheus.CounterVec, inspectedBytesVec *prometheus.CounterVec, cfg SLOConfig) handlerPostHook {
 	return func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error) {
 		// most errors are SLO violations but we have few exceptions.
 		if err != nil {
@@ -130,6 +141,8 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 		if resp != nil && resp.StatusCode >= 500 {
 			return
 		}
+
+		inspectedBytesVec.WithLabelValues(tenant).Add(float64(bytesProcessed))
 
 		passedThroughput := false
 		// final check is throughput
