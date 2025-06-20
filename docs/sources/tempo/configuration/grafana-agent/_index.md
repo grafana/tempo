@@ -76,13 +76,13 @@ The Grafana Agent processes tracing data as it flows through the pipeline to mak
 
 The Agent supports batching of traces.
 Batching helps better compress the data, reduces the number of outgoing connections, and is a recommended best practice.
-To configure it, refer to the `batch` block in the [configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
+To configure it, refer to the `batch` block in the [configuration reference](https://grafana.com/docs/agent/<AGENT_VERSION>/static/configuration/traces-config/).
 
 #### Attributes manipulation
 
 The Grafana Agent allows for general manipulation of attributes on spans that pass through this agent.
 A common use may be to add an environment or cluster variable.
-To configure it, refer to the `attributes` block in the [configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
+To configure it, refer to the `attributes` block in the [configuration reference](https://grafana.com/docs/agent/<AGENT_VERSION>/static/configuration/traces-config/).
 
 #### Attaching metadata with Prometheus Service Discovery
 
@@ -114,7 +114,7 @@ All of Prometheus' [various service discovery mechanisms](https://prometheus.io/
 This means you can use the same `scrape_configs` between your metrics, logs, and traces to get the same set of labels,
 and easily transition between your observability data when moving from your metrics, logs, and traces.
 
-Refer to the `scrape_configs` block in the [configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
+Refer to the `scrape_configs` block in the [configuration reference](https://grafana.com/docs/agent/<AGENT_VERSION>/static/configuration/traces-config).
 
 #### Trace discovery through automatic logging
 
@@ -157,4 +157,4 @@ Aside from endpoint and authentication, the exporter also provides mechanisms fo
 and implements a queue buffering mechanism for transient failures, such as networking issues.
 
 To see all available options,
-refer to the `remote_write` block in the [Agent configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
+refer to the `remote_write` block in the [Agent configuration reference](https://grafana.com/docs/agent/<AGENT_VERSION>/static/configuration/traces-config/).
