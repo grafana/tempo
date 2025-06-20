@@ -274,7 +274,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					Processor: ProcessorOverrides{
 						SpanMetrics: SpanMetricsOverrides{
-							EnableTargetInfo: true,
+							EnableTargetInfo: boolPtr(true),
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
 									Name:        "test-name",
@@ -313,7 +313,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: true,
+									EnableTargetInfo: boolPtr(true),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "test-name",
@@ -345,7 +345,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					Processor: ProcessorOverrides{
 						SpanMetrics: SpanMetricsOverrides{
-							EnableTargetInfo: false,
+							EnableTargetInfo: boolPtr(false),
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
 									Name:        "test-name",
@@ -363,7 +363,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: true,
+									EnableTargetInfo: boolPtr(true),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "another-name",
@@ -380,7 +380,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: false,
+									EnableTargetInfo: boolPtr(false),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "id-name",
