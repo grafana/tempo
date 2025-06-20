@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type ConsumeTracesFunc func(context.Context, ptrace.Traces) error
@@ -42,6 +43,18 @@ func (c *clientMetadataCarrier) Keys() []string {
 		keys = append(keys, key)
 	}
 	return keys
+}
+
+type onlySampledTraces struct {
+	propagation.TextMapPropagator
+}
+
+func (o onlySampledTraces) Inject(ctx context.Context, carrier propagation.TextMapCarrier) {
+	sc := trace.SpanContextFromContext(ctx)
+	if !sc.IsSampled() {
+		return
+	}
+	o.TextMapPropagator.Inject(ctx, carrier)
 }
 
 func (f ConsumeTracesFunc) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
@@ -88,7 +101,8 @@ func (m *multiTenancyMiddleware) Wrap(next consumer.Traces) consumer.Traces {
 
 			// Extract trace context from HTTP headers
 			carrier := &clientMetadataCarrier{metadata: info.Metadata}
-			ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+			propagator := &onlySampledTraces{otel.GetTextMapPropagator()}
+			ctx = propagator.Extract(ctx, carrier)
 
 			orgIDs := info.Metadata.Get(user.OrgIDHeaderName)
 			clientAddr := "unknown"
