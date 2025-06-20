@@ -36,7 +36,7 @@ func (g *Generator) startKafka() {
 
 	g.kafkaWG.Add(1)
 	go g.listenKafka(ctx)
-	ingest.ExportPartitionLagMetrics(ctx, g.kafkaAdm, g.logger, g.cfg.Ingest, g.getAssignedActivePartitions)
+	ingest.ExportPartitionLagMetrics(ctx, g.kafkaAdm, g.logger, g.cfg.Ingest, g.getAssignedActivePartitions, g.kafkaClient.ForceMetadataRefresh)
 }
 
 func (g *Generator) stopKafka() {
