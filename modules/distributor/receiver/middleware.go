@@ -4,18 +4,44 @@ import (
 	"context"
 
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type ConsumeTracesFunc func(context.Context, ptrace.Traces) error
 
 func (f ConsumeTracesFunc) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
+}
+
+var _ propagation.TextMapCarrier = (*clientMetadataCarrier)(nil)
+
+// clientMetadataCarrier is a propagation.TextMapCarrier for client.Metadata
+type clientMetadataCarrier struct {
+	metadata client.Metadata
+}
+
+func (c *clientMetadataCarrier) Get(key string) string {
+	values := c.metadata.Get(key)
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func (c *clientMetadataCarrier) Set(string, string) {} // Not implemented as we only need extraction
+
+func (c *clientMetadataCarrier) Keys() []string {
+	var keys []string
+	for key := range c.metadata.Keys() {
+		keys = append(keys, key)
+	}
+	return keys
 }
 
 func (f ConsumeTracesFunc) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
@@ -57,8 +83,13 @@ func (m *multiTenancyMiddleware) Wrap(next consumer.Traces) consumer.Traces {
 		var err error
 		_, ctx, err = user.ExtractFromGRPCRequest(ctx)
 		if err != nil {
-			// Maybe its a HTTP request.
+			// Maybe it's an HTTP request.
 			info := client.FromContext(ctx)
+
+			// Extract trace context from HTTP headers
+			carrier := &clientMetadataCarrier{metadata: info.Metadata}
+			ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+
 			orgIDs := info.Metadata.Get(user.OrgIDHeaderName)
 			clientAddr := "unknown"
 			if info.Addr != nil {
