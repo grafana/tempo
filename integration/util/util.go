@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/e2e"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -41,6 +42,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
 const (
@@ -691,4 +693,28 @@ func NewPrometheus() *e2e.HTTPService {
 		e2e.NewHTTPReadinessProbe(9090, "/-/ready", 200, 299),
 		9090,
 	)
+}
+
+type OtlpJaegerClient struct {
+	exporter exporter.Traces
+}
+
+func NewOtlpJaegerClient(endpoint string) (*OtlpJaegerClient, error) {
+	exp, err := NewOtelGRPCExporter(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	return &OtlpJaegerClient{exporter: exp}, nil
+}
+
+func (c *OtlpJaegerClient) EmitBatch(ctx context.Context, b *thrift.Batch) error {
+	traces, err := jaeger.ThriftToTraces(b)
+	if err != nil {
+		return err
+	}
+	return c.exporter.ConsumeTraces(ctx, traces)
+}
+
+func (c *OtlpJaegerClient) EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error {
+	return errors.New("EmitZipkinBatch via OTLP not implemented")
 }
