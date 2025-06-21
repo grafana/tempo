@@ -70,7 +70,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		labels = append(labels, dimStatusMessage)
 	}
 
-	c := reclaimable.New(strutil.SanitizeLabelName, 10000)
+	c := reclaimable.New(strutil.SanitizeFullLabelName, 10000)
 
 	for _, d := range cfg.Dimensions {
 		labels = append(labels, SanitizeLabelNameWithCollisions(d, intrinsicLabels, c.Get))
@@ -258,7 +258,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
 			p.spanMetricsTargetInfo.SetForTargetInfo(targetInfoRegistryLabelValues, 1)
 		}
-		validatePromLabelNames(&labels, &labelValues)
 	}
 }
 
@@ -271,7 +270,7 @@ func validateUTF8LabelValues(v []string) error {
 	return nil
 }
 
-func validatePromLabelNames(labels *[]string, labelValues *[]string) {
+/*func validatePromLabelNames(labels *[]string, labelValues *[]string) {
 	// Remove invalid labels and their corresponding values in-place.
 	n := 0
 	for i, labelName := range *labels {
@@ -290,7 +289,7 @@ func validatePromLabelNames(labels *[]string, labelValues *[]string) {
 	}
 	*labels = (*labels)[:n]
 	*labelValues = (*labelValues)[:n]
-}
+}*/
 
 func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string, sanitizeFn sanitizeFn) {
 	// TODO allocate with known length, or take new params for existing buffers
