@@ -270,27 +270,6 @@ func validateUTF8LabelValues(v []string) error {
 	return nil
 }
 
-/*func validatePromLabelNames(labels *[]string, labelValues *[]string) {
-	// Remove invalid labels and their corresponding values in-place.
-	n := 0
-	for i, labelName := range *labels {
-		if len(labelName) == 0 {
-			continue
-		}
-		firstRune, _ := utf8.DecodeRuneInString(labelName)
-		if firstRune >= '0' && firstRune <= '9' {
-			continue
-		}
-		(*labels)[n] = labelName
-		if i < len(*labelValues) {
-			(*labelValues)[n] = (*labelValues)[i]
-		}
-		n++
-	}
-	*labels = (*labels)[:n]
-	*labelValues = (*labelValues)[:n]
-}*/
-
 func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string, sanitizeFn sanitizeFn) {
 	// TODO allocate with known length, or take new params for existing buffers
 	*keys = (*keys)[:0]

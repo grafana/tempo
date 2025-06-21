@@ -1411,8 +1411,6 @@ func TestValidatePromLabelNames(t *testing.T) {
 			labelValues := make([]string, len(tt.inputLabelValues))
 			copy(labelValues, tt.inputLabelValues)
 
-			// validatePromLabelNames(&labels, &labelValues)
-
 			assert.Equal(t, tt.expectedLabels, labels, "labels should match expected")
 			assert.Equal(t, tt.expectedLabelValues, labelValues, "label values should match expected")
 			assert.LessOrEqual(t, len(labelValues), len(labels), "values should not exceed labels in length")
