@@ -23,6 +23,8 @@ type Config struct {
 	MultiTenantQueriesEnabled bool                   `yaml:"multi_tenant_queries_enabled"`
 	ResponseConsumers         int                    `yaml:"response_consumers"`
 	Weights                   pipeline.WeightsConfig `yaml:"weights"`
+	MCPServer                 MCPServerConfig        `yaml:"mcp_server"`
+
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
 	// traceql, tag search, tag value search, trace by id and all streaming gRPC endpoints.
@@ -40,6 +42,10 @@ type Config struct {
 
 	// RF1After specifies the time after which RF1 logic is applied.
 	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
+}
+
+type MCPServerConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 type SearchConfig struct {
@@ -115,6 +121,12 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		RetryWithWeights:     true,
 		MaxRegexConditions:   1,
 		MaxTraceQLConditions: 4,
+	}
+
+	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
+	// explicit enabling
+	cfg.MCPServer = MCPServerConfig{
+		Enabled: false,
 	}
 
 	// set default max query size to 128 KiB, queries larger than this will be rejected

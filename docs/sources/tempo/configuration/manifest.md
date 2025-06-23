@@ -365,6 +365,8 @@ query_frontend:
         retry_with_weights: true
         max_traceql_conditions: 4
         max_regex_conditions: 1
+    mcp_server:
+        enabled: false
     max_query_expression_size_bytes: 131072
     rf1_after: 0001-01-01T00:00:00Z
 compactor:
