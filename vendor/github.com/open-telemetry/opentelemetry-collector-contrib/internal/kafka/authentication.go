@@ -47,20 +47,20 @@ func configureSASL(ctx context.Context, config configkafka.SASLConfig, saramaCon
 	saramaConfig.Net.SASL.Version = int16(config.Version)
 
 	switch config.Mechanism {
-	case "SCRAM-SHA-512":
+	case SCRAMSHA512:
 		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFcn: sha512.New} }
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
-	case "SCRAM-SHA-256":
+	case SCRAMSHA256:
 		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFcn: sha256.New} }
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
-	case "PLAIN":
+	case PLAIN:
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
-	case "AWS_MSK_IAM":
+	case AWSMSKIAM:
 		saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
 			return awsmsk.NewIAMSASLClient(config.AWSMSK.BrokerAddr, config.AWSMSK.Region, saramaConfig.ClientID)
 		}
 		saramaConfig.Net.SASL.Mechanism = awsmsk.Mechanism
-	case "AWS_MSK_IAM_OAUTHBEARER":
+	case AWSMSKIAMOAUTHBEARER:
 		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeOAuth
 		saramaConfig.Net.SASL.TokenProvider = &awsMSKTokenProvider{ctx: ctx, region: config.AWSMSK.Region}
 	}
