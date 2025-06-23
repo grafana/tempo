@@ -382,6 +382,8 @@ func (p *Processor) onComplete(e *store.Edge) {
 }
 
 func (p *Processor) onExpire(e *store.Edge) {
+	wasCounted := false
+
 	// If an edge is expired, we check if there are signs that the missing span is belongs to a "virtual node".
 	// These are nodes that are outside the user's reach (eg. an external service for payment processing),
 	// or that are not instrumented (eg. a frontend application).
@@ -398,6 +400,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 			}
 
 			p.onComplete(e)
+			wasCounted = true
 		}
 	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
 		// If client span does not have its matching server span, but has a peer attribute present,
@@ -409,8 +412,11 @@ func (p *Processor) onExpire(e *store.Edge) {
 		}
 
 		p.onComplete(e)
-	} else {
-		// there was no match and no information in the one found span to create a service graph edge. mark expired
+		wasCounted = true
+	}
+
+	// there was no match and no information in the one found span to create a service graph edge. mark expired
+	if !wasCounted {
 		p.metricExpiredEdges.Inc()
 	}
 }
