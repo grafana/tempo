@@ -1982,7 +1982,7 @@ overrides:
 
 ## Usage-report
 
-By default, Tempo reports anonymous usage data about the shape of a deployment to Grafana Labs.
+By default, Tempo reports anonymous usage data about the shape of a deployment to Grafana Labs. 
 This data is used to determine how common the deployment of certain features are, if a feature flag has been enabled,
 and which replication factor or compression levels are used.
 
