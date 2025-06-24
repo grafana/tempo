@@ -96,7 +96,7 @@ func (q *Work) ListJobs() []*Job {
 }
 
 func (q *Work) Prune(ctx context.Context) {
-	ctx, span := tracer.Start(ctx, "Prune")
+	_, span := tracer.Start(ctx, "Prune")
 	defer span.End()
 
 	q.mtx.Lock()
@@ -136,7 +136,7 @@ func (q *Work) Len() int {
 }
 
 func (q *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
-	ctx, span := tracer.Start(ctx, "GetJobForWorker")
+	_, span := tracer.Start(ctx, "GetJobForWorker")
 	defer span.End()
 
 	q.mtx.RLock()
