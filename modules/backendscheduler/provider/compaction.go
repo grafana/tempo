@@ -328,15 +328,14 @@ func (p *CompactionProvider) measureTenants() {
 	_, span := tracer.Start(context.Background(), "measureTenants")
 	defer span.End()
 
+	owns := func(_ string) bool {
+		return true
+	}
+
 	var blockSelector blockselector.CompactionBlockSelector
 	for _, tenant := range p.store.Tenants() {
 		blockSelector, _ = p.newBlockSelector(tenant)
-
-		yes := func(_ string) bool {
-			return true
-		}
-
-		tempodb.MeasureOutstandingBlocks(tenant, blockSelector, yes)
+		tempodb.MeasureOutstandingBlocks(tenant, blockSelector, owns)
 	}
 }
 
