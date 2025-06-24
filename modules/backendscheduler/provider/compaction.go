@@ -86,9 +86,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 	go func() {
 		defer close(jobs)
 
-		measureTicker := time.NewTicker(p.cfg.MeasureInterval)
-		defer measureTicker.Stop()
-
 		level.Info(p.logger).Log("msg", "compaction provider started")
 
 		var (
@@ -140,13 +137,26 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			case <-ctx.Done():
 				level.Info(p.logger).Log("msg", "compaction provider stopping")
 				return
-			case <-measureTicker.C:
-				// Measure the tenants to get their current compaction status
-				p.measureTenants()
 			case jobs <- job:
 				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
 				curTenantJobCount++
 				b.Reset()
+			}
+		}
+	}()
+
+	// Measure the tenants to get their current compaction status in a separate
+	// goroutine to avoid blocking the main job loop.
+	go func() {
+		measureTicker := time.NewTicker(p.cfg.MeasureInterval)
+		defer measureTicker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				level.Info(p.logger).Log("msg", "compaction provider measure ticker stopping")
+				return
+			case <-measureTicker.C:
+				p.measureTenants()
 			}
 		}
 	}()
@@ -277,6 +287,9 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 }
 
 func (p *CompactionProvider) measureTenants() {
+	_, span := tracer.Start(context.Background(), "measureTenants")
+	defer span.End()
+
 	var blockSelector blockselector.CompactionBlockSelector
 	for _, tenant := range p.store.Tenants() {
 		blockSelector, _ = p.newBlockSelector(tenant)
