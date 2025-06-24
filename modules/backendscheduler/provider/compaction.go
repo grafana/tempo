@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/tempodb/blockselector"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -92,13 +93,22 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			job               *work.Job
 			b                 = backoff.New(ctx, p.cfg.Backoff)
 			curTenantJobCount int
+			span              trace.Span
+			loopCtx           context.Context
+			spanStarted       bool
 		)
 
 		reset := func() {
 			metricTenantReset.WithLabelValues(p.curTenant.Value()).Inc()
+			span.AddEvent("tenant reset", trace.WithAttributes(
+				attribute.String("tenant_id", p.curTenant.Value()),
+				attribute.Int("job_count", curTenantJobCount),
+			))
 			p.curSelector = nil
 			p.curTenant = nil
 			curTenantJobCount = 0
+			span.End()
+			spanStarted = false
 		}
 
 		for {
@@ -107,10 +117,16 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				return
 			}
 
+			if !spanStarted {
+				loopCtx, span = tracer.Start(ctx, "compactionProviderLoop")
+				spanStarted = true
+			}
+
 			if p.curSelector == nil {
-				if !p.prepareNextTenant(ctx) {
+				if !p.prepareNextTenant(loopCtx) {
 					level.Info(p.logger).Log("msg", "received empty tenant", "waiting", b.NextDelay())
 					metricTenantBackoff.Inc()
+					span.AddEvent("tenant not prepared")
 					b.Wait()
 				}
 				continue
@@ -118,11 +134,12 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 			if curTenantJobCount >= p.cfg.MaxJobsPerTenant {
 				level.Info(p.logger).Log("msg", "max jobs per tenant reached, skipping to next tenant")
+				span.AddEvent("max jobs per tenant reached")
 				reset()
 				continue
 			}
 
-			job = p.createJob(ctx)
+			job = p.createJob(loopCtx)
 			if job == nil {
 				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant after delay", "waiting", b.NextDelay())
 				// we don't have a job, reset the curTenant and try again
@@ -136,11 +153,19 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			select {
 			case <-ctx.Done():
 				level.Info(p.logger).Log("msg", "compaction provider stopping")
+				span.AddEvent("context done")
+				span.End()
 				return
 			case jobs <- job:
 				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
 				curTenantJobCount++
 				b.Reset()
+				span.AddEvent("job created", trace.WithAttributes(
+					attribute.String("job_id", job.ID),
+					attribute.String("tenant_id", p.curTenant.Value()),
+				))
+				span.End()
+				spanStarted = false
 			}
 		}
 	}()
@@ -165,6 +190,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 }
 
 func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
+	_, span := tracer.Start(ctx, "prepareNextTenant")
+	defer span.End()
+
 	if p.curPriority.Len() == 0 {
 		p.prioritizeTenants(ctx)
 		if p.curPriority.Len() == 0 {
@@ -192,9 +220,16 @@ func (p *CompactionProvider) createJob(ctx context.Context) *work.Job {
 		span.AddEvent("not-enough-input-blocks", trace.WithAttributes(
 			attribute.Int("input_blocks", len(input)),
 		))
+
+		span.SetStatus(codes.Error, "not enough input blocks for compaction")
 		return nil
 	}
 
+	span.AddEvent("input blocks selected", trace.WithAttributes(
+		attribute.Int("input_blocks", len(input)),
+		attribute.StringSlice("input_block_ids", input),
+	))
+	span.SetStatus(codes.Ok, "compaction job created")
 	return &work.Job{
 		ID:   uuid.New().String(),
 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
