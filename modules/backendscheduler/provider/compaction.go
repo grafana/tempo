@@ -316,8 +316,11 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 
 	for _, tenant := range tenants {
 		priority = ts.PriorityForTenant(tenant.ID)
-		item = tenantselector.NewItem(tenant.ID, priority)
-		heap.Push(p.curPriority, item)
+
+		if priority > 0 {
+			item = tenantselector.NewItem(tenant.ID, priority)
+			heap.Push(p.curPriority, item)
+		}
 	}
 }
 
