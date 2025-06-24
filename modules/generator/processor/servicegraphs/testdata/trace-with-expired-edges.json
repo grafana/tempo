@@ -1,0 +1,105 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "2gZXnld4dYc=",
+              "name": "server-root",
+              "kind": "SPAN_KIND_SERVER",
+              "startTimeUnixNano": "1658320854877522688",
+              "endTimeUnixNano": "1658320854923357184",
+              "attributes": [],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            },
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "1gZXnld4dYc=",
+              "parentSpanId": "2gZXnld4dYc=",
+              "name": "client-matched`",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854877522688",
+              "endTimeUnixNano": "1658320854923357184",
+              "attributes": [],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "U/Mym4Y9qV0=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "server-matched",
+              "kind": "SPAN_KIND_SERVER",
+              "startTimeUnixNano": "1658320854877839616",
+              "endTimeUnixNano": "1658320854878545408",
+              "attributes": [],
+              "status": {}
+            },
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "3gZXnld4dYc=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "db-access",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854877839616",
+              "endTimeUnixNano": "1658320854878545408",
+              "attributes": [
+                {
+                  "key": "db.system",
+                  "value": {
+                    "stringValue": "mysql"
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "4gZXnld4dYc=",
+              "parentSpanId": "5gZXnld4dYc=",
+              "name": "unmatched",
+              "kind": "SPAN_KIND_SERVER",
+              "startTimeUnixNano": "1658320854877839616",
+              "endTimeUnixNano": "1658320854878545408",
+              "attributes": [],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
