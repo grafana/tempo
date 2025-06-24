@@ -175,11 +175,11 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-maintenanceTicker.C:
-			s.work.Prune()
+			s.work.Prune(ctx)
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
 			metricWorkFlushes.Inc()
-			if err != nil {
+			if err != nil && !errors.Is(err, context.Canceled) {
 				metricWorkFlushesFailed.Inc()
 				level.Error(log.Logger).Log("msg", "failed to flush work cache to backend", "error", err)
 			}
@@ -211,7 +211,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	span.SetAttributes(attribute.String("worker_id", req.WorkerId))
 
 	// Find jobs that already exist for this worker
-	j := s.work.GetJobForWorker(req.WorkerId)
+	j := s.work.GetJobForWorker(ctx, req.WorkerId)
 	if j != nil {
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
@@ -285,6 +285,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 // UpdateJob implements the BackendSchedulerServer interface
 func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
+	ctx, span := tracer.Start(ctx, "UpdateJob")
+	defer span.End()
+
 	j := s.work.GetJob(req.JobId)
 	if j == nil {
 		return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.NotFound, work.ErrJobNotFound.Error())

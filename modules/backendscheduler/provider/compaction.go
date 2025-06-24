@@ -182,7 +182,7 @@ func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 }
 
 func (p *CompactionProvider) createJob(ctx context.Context) *work.Job {
-	_, span := tracer.Start(ctx, "create-job")
+	_, span := tracer.Start(ctx, "createJob")
 	defer span.End()
 
 	span.SetAttributes(attribute.String("tenant_id", p.curTenant.Value()))
@@ -225,7 +225,7 @@ func (p *CompactionProvider) getNextBlockIDs(_ context.Context) ([]string, bool)
 func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 	tenants := []tenantselector.Tenant{}
 
-	_, span := tracer.Start(ctx, "prioritize-tenants")
+	_, span := tracer.Start(ctx, "prioritizeTenants")
 	defer span.End()
 
 	p.curPriority = tenantselector.NewPriorityQueue() // wipe and restart

@@ -14,6 +14,9 @@ import (
 )
 
 func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
+	_, span := tracer.Start(ctx, "flushWorkCache")
+	defer span.End()
+
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -38,6 +41,9 @@ func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
 }
 
 func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
+	_, span := tracer.Start(ctx, "flushWorkCacheToBackend")
+	defer span.End()
+
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
