@@ -1,13 +1,17 @@
 package work
 
 import (
+	"context"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	jsoniter "github.com/json-iterator/go"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("modules/backendscheduler/work")
 
 type Work struct {
 	Jobs map[string]*Job `json:"jobs"`
@@ -91,7 +95,10 @@ func (q *Work) ListJobs() []*Job {
 	return jobs
 }
 
-func (q *Work) Prune() {
+func (q *Work) Prune(ctx context.Context) {
+	ctx, span := tracer.Start(ctx, "Prune")
+	defer span.End()
+
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
@@ -128,12 +135,20 @@ func (q *Work) Len() int {
 	return count
 }
 
-func (q *Work) GetJobForWorker(workerID string) *Job {
+func (q *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
+	ctx, span := tracer.Start(ctx, "GetJobForWorker")
+	defer span.End()
+
 	q.mtx.RLock()
 	defer q.mtx.RUnlock()
 
 	for _, j := range q.Jobs {
-		if (j.IsRunning() || j.IsPending()) && j.WorkerID == workerID {
+		if j.GetWorkerID() != workerID {
+			continue
+		}
+
+		switch j.GetStatus() {
+		case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, tempopb.JobStatus_JOB_STATUS_RUNNING:
 			return j
 		}
 	}
