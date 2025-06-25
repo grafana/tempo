@@ -106,6 +106,7 @@ func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
 }
 
 func TestSpanMetrics_dimensions(t *testing.T) {
@@ -1345,75 +1346,42 @@ func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, b
 	}
 }
 
-func TestValidatePromLabelNames(t *testing.T) {
-	tests := []struct {
-		name                string
-		inputLabels         []string
-		inputLabelValues    []string
-		expectedLabels      []string
-		expectedLabelValues []string
-	}{
+func TestTargetInfoSkipsLabelsStartingWithNumber(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(1, nil)
+	batch.Resource.Attributes = []*common_v1.KeyValue{
 		{
-			name:                "all valid labels",
-			inputLabels:         []string{"valid_label", "AnotherValid", "_startsWithUnderscore", "a1b2c3", "labelWith123"},
-			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5"},
-			expectedLabels:      []string{"valid_label", "AnotherValid", "_startsWithUnderscore", "a1b2c3", "labelWith123"},
-			expectedLabelValues: []string{"value1", "value2", "value3", "value4", "value5"},
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
 		},
 		{
-			name:                "all invalid labels (start with number)",
-			inputLabels:         []string{"1startsWithNumber", "2foo", "3bar", "4baz", "5qux", "6quux"},
-			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
-			expectedLabels:      []string{},
-			expectedLabelValues: []string{},
+			Key:   "5badlabel",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "should-be-ignored"}},
 		},
 		{
-			name:                "mixed valid and invalid labels (start with number)",
-			inputLabels:         []string{"valid_label", "1invalid", "another_valid", "2bad", "_underscore", "3bad"},
-			inputLabelValues:    []string{"value1", "value2", "value3", "value4", "value5", "value6"},
-			expectedLabels:      []string{"valid_label", "another_valid", "_underscore"},
-			expectedLabelValues: []string{"value1", "value3", "value5"},
-		},
-		{
-			name:                "empty slices",
-			inputLabels:         []string{},
-			inputLabelValues:    []string{},
-			expectedLabels:      []string{},
-			expectedLabelValues: []string{},
-		},
-		{
-			name:                "invalid label names that start with numbers",
-			inputLabels:         []string{"123invalid", "4notvalid", "0zero"},
-			inputLabelValues:    []string{"value1", "value2", "value3"},
-			expectedLabels:      []string{},
-			expectedLabelValues: []string{},
-		},
-		{
-			name:                "edge case: single character valid labels",
-			inputLabels:         []string{"a", "Z", "_"},
-			inputLabelValues:    []string{"value1", "value2", "value3"},
-			expectedLabels:      []string{"a", "Z", "_"},
-			expectedLabelValues: []string{"value1", "value2", "value3"},
-		},
-		{
-			name:                "edge case: single character invalid labels (number)",
-			inputLabels:         []string{"1", "2", "3"},
-			inputLabelValues:    []string{"value1", "value2", "value3"},
-			expectedLabels:      []string{},
-			expectedLabelValues: []string{},
+			Key:   "good_label",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "should-appear"}},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			labels := make([]string, len(tt.inputLabels))
-			copy(labels, tt.inputLabels)
-			labelValues := make([]string, len(tt.inputLabelValues))
-			copy(labelValues, tt.inputLabelValues)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	// The produced target_info metric should not contain the bad label
+	lbls := labels.FromMap(map[string]string{
+		"job":        "test-service",
+		"good_label": "should-appear",
+	})
 
-			assert.Equal(t, tt.expectedLabels, labels, "labels should match expected")
-			assert.Equal(t, tt.expectedLabelValues, labelValues, "label values should match expected")
-			assert.LessOrEqual(t, len(labelValues), len(labels), "values should not exceed labels in length")
-		})
-	}
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
 }

@@ -280,7 +280,7 @@ func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 		// Skip empty string keys, which are out of spec but
 		// technically possible in the proto. These will cause
 		// issues downstream for metrics datasources
-		if key == "" {
+		if key == "" || (key[0] >= '0' && key[0] <= '9') {
 			continue
 		}
 		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !slices.Contains(exclude, key) {
