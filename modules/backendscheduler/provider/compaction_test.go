@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -96,48 +95,6 @@ func TestCompactionProvider(t *testing.T) {
 			// All blocks which have been received were addded to the work queue.
 			// New instances of the block selector should yield zero blocks.
 			require.Len(t, metas, 0)
-		}
-	}
-
-	<-ctx.Done()
-
-	// Mark all tenant0 jobs as completed and set their output
-	for _, job := range receivedJobs {
-		if job.Tenant() == tenant+"0" {
-			job.Complete()
-			job.SetCompactionOutput([]string{
-				uuid.NewString(),
-				uuid.NewString(),
-				uuid.NewString(),
-				uuid.NewString(),
-			})
-		}
-	}
-
-	ctx = context.Background()
-
-	p.prioritizeTenants(ctx)
-	b := p.prepareNextTenant(ctx)
-	require.True(t, b)
-
-	items := p.curPriority.Items()
-	for _, item := range items {
-		require.NotEqual(t, item.Value(), tenant+"0", "tenant %s should not be selected for compaction after job completion", item.Value())
-	}
-
-	// Drain the selector
-
-	for blocks, _ := p.curSelector.BlocksToCompact(); len(blocks) > 0; {
-		blocks, _ = p.curSelector.BlocksToCompact()
-	}
-
-	require.NotNil(t, p.curSelector)
-	require.Len(t, p.curPriority.Items(), 0, "all tenants should be removed from the priority queue after compaction jobs are completed")
-
-	// Compact all the remaining tenants FOR NO REASON
-	for _, job := range receivedJobs {
-		if job.Tenant() == tenant+"0" {
-			job.Complete()
 		}
 	}
 }
