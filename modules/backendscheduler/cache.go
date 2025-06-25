@@ -63,6 +63,9 @@ func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
 
 // loadWorkCache loads the work cache from the local filesystem
 func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "loadWorkCache")
+	defer span.End()
+
 	// Try to load the local work cache first, falling back to the backend if it doesn't exist.
 	workPath := filepath.Join(s.cfg.LocalWorkPath, backend.WorkFileName)
 	data, err := os.ReadFile(workPath)
@@ -81,12 +84,15 @@ func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
 
 	// Once the work cache is loaded, replay the work list on top of the
 	// blocklist to ensure we only hand out jobs for blocks which need visiting.
-	s.replayWorkOnBlocklist()
+	s.replayWorkOnBlocklist(ctx)
 
 	return nil
 }
 
 func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "loadWorkCacheFromBackend")
+	defer span.End()
+
 	reader, _, err := s.reader.Read(ctx, backend.WorkFileName, backend.KeyPath{}, nil)
 	if err != nil {
 		return err
@@ -109,7 +115,7 @@ func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
 
 	// Once the work cache is loaded, replay the work list on top of the
 	// blocklist to ensure we only hand out jobs for blocks which need visiting.
-	s.replayWorkOnBlocklist()
+	s.replayWorkOnBlocklist(ctx)
 
 	return nil
 }
