@@ -1,12 +1,14 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +23,8 @@ func TestApp_RunStop(t *testing.T) {
 	}()
 
 	config := NewDefaultConfig()
+	config.Server.HTTPListenPort = util.MustGetFreePort()
+	config.Server.GRPCListenPort = util.MustGetFreePort() // not used in the test; set to ensure conflict-free start
 	config.StorageConfig.Trace.Backend = backend.Local
 	config.StorageConfig.Trace.Local.Path = filepath.Join(tempDir, "tempo")
 	config.StorageConfig.Trace.WAL.Filepath = filepath.Join(tempDir, "wal")
@@ -35,7 +39,7 @@ func TestApp_RunStop(t *testing.T) {
 	}()
 
 	// check health endpoint is reachable
-	healthCheckURL := "http://localhost:3200/ready"
+	healthCheckURL := fmt.Sprintf("http://localhost:%d/ready", config.Server.HTTPListenPort)
 	require.Eventually(t, func() bool {
 		t.Log("Checking Tempo is up...")
 		resp, httpErr := http.Get(healthCheckURL)
