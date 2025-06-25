@@ -24,6 +24,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 )
 
@@ -241,6 +242,10 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	// Try to get a job from the merged channel
 	select {
 	case j := <-s.mergedJobs:
+		span.AddEvent("job received", trace.WithAttributes(
+			attribute.String("job_id", j.GetID()),
+		))
+
 		if j == nil {
 			// Channel closed, no jobs available
 			metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()

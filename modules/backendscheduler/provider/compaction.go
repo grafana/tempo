@@ -202,6 +202,7 @@ func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 
 	p.curTenant = heap.Pop(p.curPriority).(*tenantselector.Item)
 	if p.curTenant == nil {
+		span.AddEvent("no more tenants to compact")
 		return false
 	}
 
