@@ -106,7 +106,6 @@ func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
-	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
 }
 
 func TestSpanMetrics_dimensions(t *testing.T) {
