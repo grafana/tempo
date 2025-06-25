@@ -111,10 +111,10 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			if p.curSelector == nil {
+				b.Wait()
 				if !p.prepareNextTenant(ctx) {
 					level.Info(p.logger).Log("msg", "received empty tenant", "waiting", b.NextDelay())
 					metricTenantBackoff.Inc()
-					b.Wait()
 				}
 				continue
 			}
