@@ -1,6 +1,7 @@
 package work
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 func TestWorkLifecycle(t *testing.T) {
 	w := New(Config{PruneAge: 100 * time.Millisecond})
 	require.NotNil(t, w)
+
+	ctx := context.Background()
 
 	err := w.AddJob(&Job{ID: "1"})
 	require.NoError(t, err)
@@ -42,12 +45,12 @@ func TestWorkLifecycle(t *testing.T) {
 
 	j.Complete()
 	time.Sleep(200 * time.Millisecond)
-	w.Prune()
+	w.Prune(ctx)
 	require.Len(t, w.ListJobs(), 1)
 
 	jj.Fail()
 	time.Sleep(200 * time.Millisecond)
-	w.Prune()
+	w.Prune(ctx)
 	require.Len(t, w.ListJobs(), 0)
 
 	err = w.AddJob(&Job{ID: "3"})
@@ -105,6 +108,8 @@ func TestGetJobForWorker(t *testing.T) {
 	w := New(Config{PruneAge: 100 * time.Millisecond})
 	require.NotNil(t, w)
 
+	ctx := context.Background()
+
 	j1 := &Job{ID: "1"}
 	err := w.AddJob(j1)
 	require.NoError(t, err)
@@ -118,12 +123,12 @@ func TestGetJobForWorker(t *testing.T) {
 	j2.SetWorkerID("two")
 	j2.Start()
 
-	j1 = w.GetJobForWorker("one")
+	j1 = w.GetJobForWorker(ctx, "one")
 	require.NotNil(t, j1)
 	require.Equal(t, "1", j1.ID)
 	j1.Complete()
 
-	j1 = w.GetJobForWorker("one")
+	j1 = w.GetJobForWorker(ctx, "one")
 	require.Nil(t, j1)
 }
 
@@ -168,13 +173,15 @@ func TestDeadJobTimeout(t *testing.T) {
 	w := New(Config{PruneAge: time.Hour, DeadJobTimeout: 100 * time.Millisecond})
 	require.NotNil(t, w)
 
+	ctx := context.Background()
+
 	j := &Job{ID: "1", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"1"}}}}
 	err := w.AddJob(j)
 	require.NoError(t, err)
 	j.Start()
 
 	time.Sleep(200 * time.Millisecond)
-	w.Prune()
+	w.Prune(ctx)
 	require.Equal(t, w.Len(), 0)
 	require.Equal(t, j.GetStatus(), tempopb.JobStatus_JOB_STATUS_FAILED)
 }
