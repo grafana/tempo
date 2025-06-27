@@ -2641,7 +2641,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 		dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 		totalTraces := 50
-		wantTrIdx := rand.Intn(totalTraces)
+		wantTrIdx := rand.Intn(totalTraces) // nolint:gosec // G404: Use of weak random number generator
 		for i := 0; i < totalTraces; i++ {
 			var tr *tempopb.Trace
 			var id []byte
