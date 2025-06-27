@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	crand "crypto/rand"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -251,6 +252,8 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		{Query: "{} | select(.missing) | { !(.missing != nil)}"},
 		{Query: "{} | select(span.missing) | { !(span.missing != nil)}"},
 		{Query: "{} | select(resource.missing) | { !(resource.missing != nil)}"},
+		// search by traceID
+		{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)},
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		// conditions
@@ -285,6 +288,8 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 1"},
 		{Query: "{} | by(resource.service.name) | count() = 3"},
+		// search by traceID
+		{Query: fmt.Sprintf(`{trace:id!="%s"}`, wantMeta.TraceID)},
 	}
 
 	for _, req := range searchesThatMatch {
@@ -2600,4 +2605,139 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	require.Equal(t, []tempopb.TagValue{{Type: "int", Value: "3"}}, actual)
 	// test that callback is recording bytes read
 	require.Greater(t, mc.TotalValue(), uint64(100))
+}
+
+func TestSearchByShortTraceID(t *testing.T) {
+	for _, v := range encoding.AllEncodings() {
+		if v.Version() == v2.VersionString { // no support of the feature in v2
+			continue
+		}
+
+		blockVersion := v.Version()
+
+		tempDir := t.TempDir()
+		traceID := make([]byte, 8) // short trace ID
+		_, err := crand.Read(traceID)
+		require.NoError(t, err)
+		traceID = append(make([]byte, 8), traceID...) // adding leading zeros to make it 16 bytes
+
+		r, w, c, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
+		require.NoError(t, err)
+
+		err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
+		require.NoError(t, err)
+
+		ctx := t.Context()
+		r.EnablePolling(ctx, &mockJobSharder{})
+		wantID, wantTr, start, end, wantMeta := makeExpectedTrace(traceID)
+
+		// Write to wal
+		wal := w.WAL()
+
+		meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+		head, err := wal.NewBlock(meta, model.CurrentEncoding)
+		require.NoError(t, err)
+		dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+		totalTraces := 50
+		wantTrIdx := rand.Intn(totalTraces)
+		for i := 0; i < totalTraces; i++ {
+			var tr *tempopb.Trace
+			var id []byte
+			if i == wantTrIdx {
+				tr = wantTr
+				id = wantID
+			} else {
+				id = test.ValidTraceID(nil)
+				tr = test.MakeTrace(10, id)
+			}
+			b1, err := dec.PrepareForWrite(tr, start, end)
+			require.NoError(t, err)
+
+			b2, err := dec.ToObject([][]byte{b1})
+			require.NoError(t, err)
+			err = head.Append(id, b2, start, end, true)
+			require.NoError(t, err)
+		}
+
+		// Complete block
+		block, err := w.CompleteBlock(context.Background(), head)
+		require.NoError(t, err)
+
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, common.DefaultSearchOptions())
+		})
+
+		t.Run(fmt.Sprintf("%s: include trace id", v.Version()), func(t *testing.T) {
+			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)}
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.NotEmpty(t, res.Traces)
+
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.NotNil(t, actual, "search request: %v", req)
+
+			actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+			actual.SpanSets = nil
+			actual.ServiceStats = nil
+			require.Equal(t, wantMeta, actual, "search request: %v", req)
+		})
+
+		t.Run(fmt.Sprintf("%s: include span id", v.Version()), func(t *testing.T) {
+			spanID := "0000000000010203"
+			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id="%s"}`, spanID)}
+
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.NotEmpty(t, res.Traces)
+
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.NotNil(t, actual, "search request: %v", req)
+
+			var found bool
+			require.NotNil(t, actual.SpanSets)
+			for _, spanSet := range actual.SpanSets {
+				for _, span := range spanSet.Spans {
+					if span.SpanID == spanID {
+						found = true
+						break
+					}
+				}
+			}
+			require.True(t, found, "span id %s not found", spanID)
+
+			actual.SpanSet = nil
+			actual.SpanSets = nil
+			actual.ServiceStats = nil
+			require.Equal(t, wantMeta, actual, "search request: %v", req)
+		})
+
+		t.Run(fmt.Sprintf("%s: exclude trace id", v.Version()), func(t *testing.T) {
+			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id!="%s"}`, wantMeta.TraceID)}
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.NotEmpty(t, res.Traces)
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.Nil(t, actual, "search request: %v", req)
+		})
+
+		t.Run(fmt.Sprintf("%s: exclude span id", v.Version()), func(t *testing.T) {
+			spanID := "0000000000010203"
+			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id!="%s"}`, spanID)}
+
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.NotEmpty(t, res.Traces)
+
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.NotNil(t, actual, "search request: %v", req) // should find the target trace
+			require.NotNil(t, actual.SpanSets)                   // but should not find the target span
+
+			for _, spanSet := range actual.SpanSets {
+				for _, span := range spanSet.Spans {
+					require.NotEqual(t, spanID, span.SpanID)
+				}
+			}
+		})
+	}
 }
