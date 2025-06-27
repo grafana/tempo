@@ -1784,7 +1784,7 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, all
 			continue
 
 		case traceql.IntrinsicLinkSpanID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
 			if err != nil {
 				return nil, err
 			}
