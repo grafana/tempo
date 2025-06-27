@@ -1836,6 +1836,13 @@ func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Con
 	}
 }
 
+var testingCompactorConfig = &CompactorConfig{
+	ChunkSizeBytes:          10,
+	MaxCompactionRange:      time.Hour,
+	BlockRetention:          0,
+	CompactedBlockRetention: 0,
+}
+
 func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...runnerFn) {
 	// v2 doesn't support any search. just bail here before doing the work below to save resources
 	if blockVersion == v2.VersionString {
@@ -1853,12 +1860,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
+	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -1920,12 +1922,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	r, w, c, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
+	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -2403,12 +2400,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	r, w, c, err := New(testingConfig(tempDir, encoding.DefaultEncoding().Version(), nil), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
+	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
 	r.EnablePolling(ctx, &mockJobSharder{})
@@ -2462,12 +2454,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 func TestSearchForTagsAndTagValues(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
 
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
+	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
 	r.EnablePolling(context.Background(), &mockJobSharder{})
