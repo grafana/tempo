@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/bufferer"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -82,6 +83,7 @@ const (
 	BlockBuilder                  string = "block-builder"
 	BackendScheduler              string = "backend-scheduler"
 	BackendWorker                 string = "backend-worker"
+	Bufferer                      string = "bufferer"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -285,7 +287,7 @@ func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.DedicatedColumns = t.cfg.StorageConfig.Trace.Block.DedicatedColumns
 	t.cfg.Ingester.IngestStorageConfig = t.cfg.Ingest
 
-	// In SingleBinary mode don't try to discover parition from host name. Always use
+	// In SingleBinary mode don't try to discover partition from host name. Always use
 	// partition 0. This is for small installs or local/debugging setups.
 	singlePartition := t.cfg.Target == SingleBinary
 
@@ -623,6 +625,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Bufferer.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
@@ -745,6 +748,20 @@ func (t *App) initBackendWorker() (services.Service, error) {
 	return worker, nil
 }
 
+func (t *App) initBufferer() (services.Service, error) {
+	// In SingleBinary mode don't try to discover partition from host name.
+	// Always use partition 0. This is for small installs or local/debugging setups.
+	singlePartition := t.cfg.Target == SingleBinary
+
+	var err error
+	t.bufferer, err = bufferer.New(t.cfg.Bufferer, log.Logger, prometheus.DefaultRegisterer, singlePartition)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create bufferer: %w", err)
+	}
+
+	return t.bufferer, nil
+}
+
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
@@ -778,6 +795,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
 	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
 	mm.RegisterModule(BackendWorker, t.initBackendWorker)
+	mm.RegisterModule(Bufferer, t.initBufferer)
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -810,6 +828,7 @@ func (t *App) setupModuleManager() error {
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
+		Bufferer:                      {Common, MemberlistKV, PartitionRing},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},
