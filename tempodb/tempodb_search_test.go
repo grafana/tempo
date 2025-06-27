@@ -1809,6 +1809,33 @@ func actualForExpectedMeta(wantMeta *tempopb.TraceSearchMetadata, res *tempopb.S
 	return nil
 }
 
+func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Config {
+	return &Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(dir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              version,
+			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    10000,
+			DedicatedColumns:     dc,
+		},
+		WAL: &wal.Config{
+			Filepath:       path.Join(dir, "wal"),
+			IngestionSlack: time.Since(time.Time{}),
+		},
+		Search: &SearchConfig{
+			ChunkSizeBytes:  1_000_000,
+			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
+		BlocklistPoll: 0,
+	}
+}
+
 func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...runnerFn) {
 	// v2 doesn't support any search. just bail here before doing the work below to save resources
 	if blockVersion == v2.VersionString {
@@ -1823,30 +1850,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
 	}
-	r, w, c, err := New(&Config{
-		Backend: backend.Local,
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              blockVersion,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-			DedicatedColumns:     dc,
-		},
-		WAL: &wal.Config{
-			Filepath:       path.Join(tempDir, "wal"),
-			IngestionSlack: time.Since(time.Time{}),
-		},
-		Search: &SearchConfig{
-			ChunkSizeBytes:  1_000_000,
-			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
-		},
-		BlocklistPoll: 0,
-	}, nil, log.NewNopLogger())
+	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
@@ -1913,29 +1917,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
-		Backend: backend.Local,
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              blockVersion,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-		},
-		WAL: &wal.Config{
-			Filepath:       path.Join(tempDir, "wal"),
-			IngestionSlack: time.Since(time.Time{}),
-		},
-		Search: &SearchConfig{
-			ChunkSizeBytes:  1_000_000,
-			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
-		},
-		BlocklistPoll: 0,
-	}, nil, log.NewNopLogger())
+	r, w, c, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
@@ -2418,29 +2400,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 		tempDir = t.TempDir()
 	)
 
-	r, w, c, err := New(&Config{
-		Backend: backend.Local,
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-		},
-		WAL: &wal.Config{
-			Filepath:       path.Join(tempDir, "wal"),
-			IngestionSlack: time.Since(time.Time{}),
-		},
-		Search: &SearchConfig{
-			ChunkSizeBytes:  1_000_000,
-			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
-		},
-		BlocklistPoll: 0,
-	}, nil, log.NewNopLogger())
+	r, w, c, err := New(testingConfig(tempDir, encoding.DefaultEncoding().Version(), nil), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
