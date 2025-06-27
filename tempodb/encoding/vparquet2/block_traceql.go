@@ -1707,9 +1707,11 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 	}
 
 	var id []byte
-	id, err := util.HexStringToTraceID(s)
+	var err error
 	if isSpan {
 		id, err = util.HexStringToSpanID(s)
+	} else {
+		id, err = util.HexStringToTraceID(s)
 	}
 
 	if err != nil {
