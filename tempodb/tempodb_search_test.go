@@ -1867,7 +1867,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
-	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
 	searchesThatMatch, searchesThatDontMatch := searchTestSuite()
 
 	// Write to wal
@@ -1929,7 +1929,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
-	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
 	wantIDText := util.TraceIDToHexString(wantID)
 
 	searchesThatMatch := []*tempopb.SearchRequest{
@@ -2095,13 +2095,17 @@ func addTraceQL(req *tempopb.SearchRequest) {
 //   - expected - The exact search result that should be returned for every matching request
 //   - searchesThatMatch - List of search requests that are expected to match the trace
 //   - searchesThatDontMatch - List of requests that don't match the trace
-func makeExpectedTrace() (
+func makeExpectedTrace(traceID []byte) (
 	id []byte,
 	tr *tempopb.Trace,
 	start, end uint32,
 	expected *tempopb.TraceSearchMetadata,
 ) {
-	id = test.ValidTraceID(nil)
+	if traceID == nil {
+		id = test.ValidTraceID(nil)
+	} else {
+		id = traceID
+	}
 
 	start = 1000
 	end = 1001
