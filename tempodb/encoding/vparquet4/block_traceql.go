@@ -1,7 +1,6 @@
 package vparquet4
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -2513,8 +2512,6 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 	if err != nil {
 		return nil, nil
 	}
-
-	id = bytes.TrimLeft(id, "\x00")
 
 	switch op {
 	case traceql.OpEqual:
