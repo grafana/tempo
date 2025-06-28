@@ -136,6 +136,7 @@
 * [BUGFIX] Various edge case fixes for query range (TraceQL Metrics) [#4962](https://github.com/grafana/tempo/pull/4962) (@ruslan-mikhailov)
 * [BUGFIX] Fix mixin to include otlp_v1_traces http write route [#5072](https://github.com/grafana/tempo/pull/5072) (@mdisibio)
 * [BUGFIX] Fix `TempoBlockListRisingQuickly` alert grouping. [#4876](https://github.com/grafana/tempo/pull/4876) (@mapno)
+* [CHANGE] Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter.
 * [BUGFIX] Reset `SkipMetricsGeneration` before reuse. [#5117](https://github.com/grafana/tempo/pull/5117) (@flxbk)
 * [BUGFIX] Fix metrics generator host info processor overrides config. [#5118](https://github.com/grafana/tempo/pull/5118) (@rlankfo)
 * [BUGFIX] Fix metrics generator target_info to skip attributes with no name to prevent downstream errors [#5148](https://github.com/grafana/tempo/pull/5148) (@mdisibio)

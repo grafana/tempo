@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,19 +16,16 @@ import (
 
 	"github.com/go-test/deep"
 	"github.com/grafana/tempo/pkg/api"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	pkgutil "github.com/grafana/tempo/pkg/util"
 )
 
 var (
@@ -156,7 +152,7 @@ func main() {
 		tempoPushTLS:                    tempoPushTLS,
 	}
 
-	jaegerClient, err := newJaegerGRPCClient(vultureConfig, logger)
+	jaegerClient, err := util.NewOtlpJaegerClient(vultureConfig.tempoPushURL)
 	if err != nil {
 		panic(err)
 	}
@@ -273,7 +269,7 @@ func initTickers(
 // Don't attempt to read on the first iteration if we can't reasonably
 // expect the write loop to have fired yet.  Double the duration here to
 // avoid a race.
-func traceIsReady(info *util.TraceInfo, now time.Time, startTime time.Time, writeBackoff time.Duration, longBackoff time.Duration) bool {
+func traceIsReady(info *pkgutil.TraceInfo, now time.Time, startTime time.Time, writeBackoff time.Duration, longBackoff time.Duration) bool {
 	if info.Timestamp().Before(startTime.Add(2 * writeBackoff)) {
 		return false
 	}
@@ -281,11 +277,11 @@ func traceIsReady(info *util.TraceInfo, now time.Time, startTime time.Time, writ
 	return info.Ready(now, writeBackoff, longBackoff)
 }
 
-func doWrite(jaegerClient util.JaegerClient, tickerWrite *time.Ticker, interval time.Duration, config vultureConfiguration, l *zap.Logger) {
+func doWrite(jaegerClient pkgutil.JaegerClient, tickerWrite *time.Ticker, interval time.Duration, config vultureConfiguration, l *zap.Logger) {
 	go func() {
 		for now := range tickerWrite.C {
 			timestamp := now.Round(interval)
-			info := util.NewTraceInfo(timestamp, config.tempoOrgID)
+			info := pkgutil.NewTraceInfo(timestamp, config.tempoOrgID)
 
 			logger := l.With(
 				zap.String("org_id", config.tempoOrgID),
@@ -303,7 +299,7 @@ func doWrite(jaegerClient util.JaegerClient, tickerWrite *time.Ticker, interval 
 	}()
 }
 
-func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config vultureConfiguration, l *zap.Logger) {
+func queueFutureBatches(client pkgutil.JaegerClient, info *pkgutil.TraceInfo, config vultureConfiguration, l *zap.Logger) {
 	if info.LongWritesRemaining() == 0 {
 		return
 	}
@@ -340,6 +336,82 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 	}()
 }
 
+func doRead(httpClient httpclient.TempoHTTPClient, tickerRead *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+	if tickerRead != nil {
+		go func() {
+			for now := range tickerRead.C {
+				var seed time.Time
+				startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration, r)
+
+				logger := l.With(
+					zap.String("org_id", config.tempoOrgID),
+					zap.Int64("seed", seed.Unix()),
+				)
+
+				info := pkgutil.NewTraceInfo(seed, config.tempoOrgID)
+
+				// Don't query for a trace we don't expect to be complete
+				if !traceIsReady(info, now, startTime,
+					config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
+					continue
+				}
+
+				// query the trace
+				queryMetrics, err := queryTrace(httpClient, info, l)
+				if err != nil {
+					metricErrorTotal.Inc()
+					logger.Error("query for metrics failed",
+						zap.Error(err),
+					)
+				}
+				pushVultureMetrics(queryMetrics)
+			}
+		}()
+	}
+}
+
+func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+	if tickerSearch != nil {
+		go func() {
+			for now := range tickerSearch.C {
+				_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
+				logger := l.With(
+					zap.String("org_id", config.tempoOrgID),
+					zap.Int64("seed", seed.Unix()),
+				)
+
+				info := pkgutil.NewTraceInfo(seed, config.tempoOrgID)
+
+				if !traceIsReady(info, now, startTime,
+					config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
+					continue
+				}
+
+				// query a tag we expect the trace to be found within
+				searchMetrics, err := searchTag(httpClient, seed, config, l)
+				if err != nil {
+					metricErrorTotal.Inc()
+					logger.Error("search tag for metrics failed",
+						zap.Error(err),
+					)
+				}
+				pushVultureMetrics(searchMetrics)
+
+				// traceql query
+				traceqlSearchMetrics, err := searchTraceql(httpClient, seed, config, l)
+				if err != nil {
+					metricErrorTotal.Inc()
+					logger.Error("traceql query for metrics failed",
+						zap.Error(err),
+					)
+				}
+				pushVultureMetrics(traceqlSearchMetrics)
+			}
+		}()
+	}
+}
+
+func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
 func runChecker(
 	ticker *time.Ticker,
 	config vultureConfiguration,
@@ -362,7 +434,7 @@ func runChecker(
 				zap.Int64("seed", seed.Unix()),
 			)
 
-			info := util.NewTraceInfo(seed, config.tempoOrgID)
+			info := pkgutil.NewTraceInfo(seed, config.tempoOrgID)
 
 			// Don't query for a trace we don't expect to be complete
 			if !traceIsReady(info, now, startTime,
@@ -445,37 +517,6 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 	return newStart.Round(interval), ts.Round(interval)
 }
 
-func newJaegerGRPCClient(config vultureConfiguration, logger *zap.Logger) (*jaeger_grpc.Reporter, error) {
-	endpoint, err := getGRPCEndpoint(config.tempoPushURL)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("dialing grpc",
-		zap.String("endpoint", endpoint),
-	)
-
-	var dialOpts []grpc.DialOption
-
-	if config.tempoPushTLS {
-		dialOpts = []grpc.DialOption{
-			grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
-				InsecureSkipVerify: true,
-			})),
-		}
-	} else {
-		dialOpts = []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		}
-	}
-	// new jaeger grpc exporter
-	conn, err := grpc.NewClient(endpoint, dialOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), nil
-}
-
 func generateRandomInt(min, max int64, r *rand.Rand) int64 {
 	min++
 	var duration int64
@@ -490,7 +531,7 @@ func generateRandomInt(min, max int64, r *rand.Rand) int64 {
 
 func traceInTraces(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
 	for _, t := range traces {
-		equal, err := util.EqualHexStringTraceIDs(t.TraceID, traceID)
+		equal, err := pkgutil.EqualHexStringTraceIDs(t.TraceID, traceID)
 		if err != nil {
 			logger.Error("error comparing trace IDs", zap.Error(err))
 			continue
@@ -509,7 +550,7 @@ func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vulture
 		requested: 1,
 	}
 
-	info := util.NewTraceInfo(seed, config.tempoOrgID)
+	info := pkgutil.NewTraceInfo(seed, config.tempoOrgID)
 	hexID := info.HexID()
 
 	// Get the expected
@@ -519,7 +560,7 @@ func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vulture
 		return traceMetrics{}, err
 	}
 
-	attr := util.RandomAttrFromTrace(expected)
+	attr := pkgutil.RandomAttrFromTrace(expected)
 	if attr == nil {
 		tm.notFoundSearchAttribute++
 		return tm, fmt.Errorf("no search attr selected from trace")
@@ -530,7 +571,7 @@ func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vulture
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
 		zap.String("key", attr.Key),
-		zap.String("value", util.StringifyAnyValue(attr.Value)),
+		zap.String("value", pkgutil.StringifyAnyValue(attr.Value)),
 	)
 	logger.Info("searching Tempo via search tag")
 
@@ -538,7 +579,7 @@ func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vulture
 	//  around the seed.
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
-	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, pkgutil.StringifyAnyValue(attr.Value)), start, end)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -558,7 +599,7 @@ func searchTraceql(client httpclient.TempoHTTPClient, seed time.Time, config vul
 		requested: 1,
 	}
 
-	info := util.NewTraceInfo(seed, config.tempoOrgID)
+	info := pkgutil.NewTraceInfo(seed, config.tempoOrgID)
 	hexID := info.HexID()
 
 	// Get the expected
@@ -568,7 +609,7 @@ func searchTraceql(client httpclient.TempoHTTPClient, seed time.Time, config vul
 		return traceMetrics{}, err
 	}
 
-	attr := util.RandomAttrFromTrace(expected)
+	attr := pkgutil.RandomAttrFromTrace(expected)
 	if attr == nil {
 		tm.notFoundSearchAttribute++
 		return tm, fmt.Errorf("no search attr selected from trace")
@@ -579,13 +620,13 @@ func searchTraceql(client httpclient.TempoHTTPClient, seed time.Time, config vul
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
 		zap.String("key", attr.Key),
-		zap.String("value", util.StringifyAnyValue(attr.Value)),
+		zap.String("value", pkgutil.StringifyAnyValue(attr.Value)),
 	)
 	logger.Info("searching Tempo via traceql")
 
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
-	resp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	resp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{.%s = "%s"}`, attr.Key, pkgutil.StringifyAnyValue(attr.Value)), start, end)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -600,7 +641,7 @@ func searchTraceql(client httpclient.TempoHTTPClient, seed time.Time, config vul
 	return tm, nil
 }
 
-func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.Logger) (traceMetrics, error) {
+func queryTrace(client httpclient.TempoHTTPClient, info *pkgutil.TraceInfo, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -619,7 +660,7 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 	// We want to define a time range to reduce the number of lookups
 	trace, err := client.QueryTraceWithRange(hexID, start, end)
 	if err != nil {
-		if errors.Is(err, util.ErrTraceNotFound) {
+		if errors.Is(err, pkgutil.ErrTraceNotFound) {
 			tm.notFoundByID++
 		} else {
 			tm.requestFailed++
@@ -672,7 +713,7 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 		requested: 1,
 	}
 
-	info := util.NewTraceInfo(seed, config.tempoOrgID)
+	info := pkgutil.NewTraceInfo(seed, config.tempoOrgID)
 	hexID := info.HexID()
 
 	expected, err := info.ConstructTraceFromEpoch()
@@ -681,7 +722,7 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 		return traceMetrics{}, err
 	}
 
-	attr := util.RandomAttrFromTrace(expected)
+	attr := pkgutil.RandomAttrFromTrace(expected)
 	if attr == nil {
 		tm.notFoundSearchAttribute++
 		return tm, fmt.Errorf("no search attr selected from trace")
@@ -692,7 +733,7 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
 		zap.String("key", attr.Key),
-		zap.String("value", util.StringifyAnyValue(attr.Value)),
+		zap.String("value", pkgutil.StringifyAnyValue(attr.Value)),
 	)
 	logger.Info("searching Tempo via metrics")
 
@@ -701,7 +742,7 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 	end := seed.Add(30 * time.Minute).Unix()
 
 	resp, err := client.MetricsQueryRange(
-		fmt.Sprintf(`{.%s = "%s"} | count_over_time()`, attr.Key, util.StringifyAnyValue(attr.Value)),
+		fmt.Sprintf(`{.%s = "%s"} | count_over_time()`, attr.Key, pkgutil.StringifyAnyValue(attr.Value)),
 		int(start), int(end), "1m", 0,
 	)
 	if err != nil {
@@ -743,7 +784,7 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 	if config.tempoSearchBackoffDuration == 0 {
 		return tm, nil
 	}
-	searchResp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	searchResp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{.%s = "%s"}`, attr.Key, pkgutil.StringifyAnyValue(attr.Value)), start, end)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
