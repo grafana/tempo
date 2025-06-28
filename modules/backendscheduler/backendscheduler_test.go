@@ -31,9 +31,7 @@ import (
 var tenant = "test-tenant"
 
 func TestBackendScheduler(t *testing.T) {
-	cfg := Config{
-		TenantMeasurementInterval: 100 * time.Millisecond,
-	}
+	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.BackendFlushInterval = 100 * time.Millisecond
 
@@ -327,7 +325,6 @@ func (ownsEverythingSharder) Owns(_ string) bool {
 func TestProviderBasedScheduling(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	cfg.TenantMeasurementInterval = 100 * time.Millisecond
 	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
