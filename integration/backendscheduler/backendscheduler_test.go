@@ -255,7 +255,7 @@ func setupBackendWithEndpoint(t testing.TB, cfg *tempodb.Config, endpoint string
 		DedicatedColumns:     backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
 	}
 	cfg.WAL = &wal.Config{
-		Filepath: "/var/tempo/wal",
+		Filepath: t.TempDir(),
 	}
 	cfg.S3.Endpoint = endpoint
 
