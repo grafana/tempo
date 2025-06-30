@@ -337,6 +337,10 @@ func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) 
 	return 0, false
 }
 
+func (o *runtimeConfigOverridesManager) IngestStorageEnabled(userID string) bool {
+	return o.getOverridesForUser(userID).Ingestion.IngestStorageEnabled
+}
+
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
 func (o *runtimeConfigOverridesManager) MaxBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).Global.MaxBytesPerTrace

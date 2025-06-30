@@ -34,6 +34,7 @@ type Interface interface {
 	MaxGlobalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int
 	IngestionArtificialDelay(userID string) (time.Duration, bool)
+	IngestStorageEnabled(userID string) bool
 	MaxCompactionRange(userID string) time.Duration
 	Forwarders(userID string) []string
 	MaxBytesPerTagValuesQuery(userID string) int

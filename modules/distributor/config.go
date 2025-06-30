@@ -98,7 +98,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.KafkaWritePathEnabled {
+	if cfg.KafkaConfig.IsEnabled() {
 		if err := cfg.KafkaConfig.Validate(); err != nil {
 			return err
 		}

@@ -140,6 +140,10 @@ func (cfg *KafkaConfig) Validate() error {
 	return nil
 }
 
+func (cfg *KafkaConfig) IsEnabled() bool {
+	return cfg.Address != "" && cfg.Topic != ""
+}
+
 // GetConsumerGroup returns the consumer group to use for the given instanceID and partitionID.
 func (cfg *KafkaConfig) GetConsumerGroup(instanceID string, partitionID int32) string {
 	if cfg.ConsumerGroup == "" {
