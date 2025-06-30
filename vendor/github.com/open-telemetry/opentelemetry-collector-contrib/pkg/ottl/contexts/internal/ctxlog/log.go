@@ -75,6 +75,8 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 			return nil, ctxerror.New(nextPath.Name(), path.String(), Name, DocRef)
 		}
 		return accessSpanID[K](), nil
+	case "event_name":
+		return accessEventName[K](), nil
 	default:
 		return nil, ctxerror.New(path.Name(), path.String(), Name, DocRef)
 	}
@@ -326,6 +328,20 @@ func accessStringSpanID[K Context]() ottl.StandardGetSetter[K] {
 					return err
 				}
 				tCtx.GetLogRecord().SetSpanID(id)
+			}
+			return nil
+		},
+	}
+}
+
+func accessEventName[K Context]() ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (any, error) {
+			return tCtx.GetLogRecord().EventName(), nil
+		},
+		Setter: func(_ context.Context, tCtx K, val any) error {
+			if v, ok := val.(string); ok {
+				tCtx.GetLogRecord().SetEventName(v)
 			}
 			return nil
 		},

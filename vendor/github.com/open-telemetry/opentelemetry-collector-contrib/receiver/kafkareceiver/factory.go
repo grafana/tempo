@@ -29,16 +29,14 @@ const (
 func NewFactory() receiver.Factory {
 	return receiver.NewFactory(
 		metadata.Type,
-		func() component.Config {
-			return createDefaultConfig()
-		},
+		createDefaultConfig,
 		receiver.WithTraces(createTracesReceiver, metadata.TracesStability),
 		receiver.WithMetrics(createMetricsReceiver, metadata.MetricsStability),
 		receiver.WithLogs(createLogsReceiver, metadata.LogsStability),
 	)
 }
 
-func createDefaultConfig() *Config {
+func createDefaultConfig() component.Config {
 	return &Config{
 		ClientConfig:   configkafka.NewDefaultClientConfig(),
 		ConsumerConfig: configkafka.NewDefaultConsumerConfig(),
