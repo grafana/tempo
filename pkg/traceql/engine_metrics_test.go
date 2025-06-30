@@ -2003,7 +2003,6 @@ func TestTiesInBottomK(t *testing.T) {
 }
 
 func TestHistogramAggregator(t *testing.T) {
-	// nolint:gosec // G115
 	req := &tempopb.QueryRangeRequest{
 		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
 		End:       uint64(time.Now().UnixNano()),
@@ -2052,6 +2051,7 @@ func TestHistogramAggregator(t *testing.T) {
 				// t.Logf("Exemplars: %v", ts.Exemplars)
 
 				// check that the values are within the expected histogram buckets
+				require.Greater(t, len(ts.Values), 0, "Expected non-empty histogram values")
 				for _, value := range ts.Values {
 					require.GreaterOrEqual(t, value, 0.0, "Histogram values should be non-negative")
 				}
