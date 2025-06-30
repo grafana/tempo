@@ -1550,11 +1550,10 @@ func (h *HistogramAggregator) Results() SeriesSet {
 		quantileValues[i] = Log2Quantile(q, buckets)
 	}
 
-	var sortedIntervalBuckets [][]HistogramBucket
 	// Build results using the calculated quantile values
 	for _, in := range h.ss {
 		// Pre-sort all interval buckets once for efficiency
-		sortedIntervalBuckets = make([][]HistogramBucket, len(in.hist))
+		sortedIntervalBuckets := make([][]HistogramBucket, len(in.hist))
 		for i := range in.hist {
 			if len(in.hist[i].Buckets) > 0 {
 				// Create a copy and sort it once
