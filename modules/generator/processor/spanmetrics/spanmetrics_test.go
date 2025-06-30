@@ -216,7 +216,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 			lbls := labels.FromMap(tc.labels)
 			fmt.Println(lbls.String())
-			fmt.Println(testRegistry)
 
 			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
