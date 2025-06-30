@@ -339,3 +339,46 @@ func TestMetricsAggregate_extractConditions(t *testing.T) {
 		})
 	}
 }
+
+func TestSpanIDNormalization_extractConditions(t *testing.T) {
+	tests := []struct {
+		query           string
+		expectedOperand string
+	}{
+		{
+			query:           `{span:id="123"}`,
+			expectedOperand: "0000000000000123",
+		},
+		{
+			query:           `{span:id="abc"}`,
+			expectedOperand: "0000000000000abc",
+		},
+		{
+			query:           `{span:id="1234567890abcdef"}`,
+			expectedOperand: "1234567890abcdef",
+		},
+		{
+			query:           `{span:id="0123"}`,
+			expectedOperand: "0000000000000123",
+		},
+		{
+			query:           `{span:id="00000000000000123456789"}`,
+			expectedOperand: "00000000000000123456789",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			expr, err := Parse(tt.query)
+			require.NoError(t, err)
+
+			req := &FetchSpansRequest{}
+			expr.Pipeline.extractConditions(req)
+
+			require.Len(t, req.Conditions, 1)
+			require.Equal(t, IntrinsicSpanID, req.Conditions[0].Attribute.Intrinsic)
+			require.Len(t, req.Conditions[0].Operands, 1)
+			require.Equal(t, tt.expectedOperand, req.Conditions[0].Operands[0].EncodeToString(false))
+		})
+	}
+}

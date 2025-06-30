@@ -1,5 +1,23 @@
 package traceql
 
+import (
+	"strings"
+)
+
+// normalizeSpanIDOperand normalizes a Static operand for span ID
+func normalizeSpanIDOperand(operand Static) Static {
+	if operand.Type != TypeString {
+		return operand
+	}
+	spanID := operand.EncodeToString(false)
+	if len(spanID) >= 16 {
+		return operand // No normalization needed if already 16 characters or more
+	}
+
+	spanID = strings.Repeat("0", 16-len(spanID)) + spanID
+	return NewStaticString(spanID)
+}
+
 func (r RootExpr) extractConditions(request *FetchSpansRequest) {
 	r.Pipeline.extractConditions(request)
 	if r.MetricsPipeline != nil {
@@ -61,10 +79,15 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 					Operands:  nil,
 				})
 			} else {
+				operand := o.RHS.(Static)
+				if o.LHS.(Attribute).Intrinsic == IntrinsicSpanID {
+					operand = normalizeSpanIDOperand(operand)
+					o.RHS = operand // Update the operation with the normalized operand
+				}
 				request.appendCondition(Condition{
 					Attribute: o.LHS.(Attribute),
 					Op:        o.Op,
-					Operands:  []Static{o.RHS.(Static)},
+					Operands:  []Static{operand},
 				})
 			}
 		case Attribute:
@@ -107,10 +130,15 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 					Operands:  nil,
 				})
 			} else {
+				operand := o.LHS.(Static)
+				if o.RHS.(Attribute).Intrinsic == IntrinsicSpanID {
+					operand = normalizeSpanIDOperand(operand)
+					o.LHS = operand // Update the operation with the normalized operand
+				}
 				request.appendCondition(Condition{
 					Attribute: o.RHS.(Attribute),
 					Op:        o.Op,
-					Operands:  []Static{o.LHS.(Static)},
+					Operands:  []Static{operand},
 				})
 			}
 
