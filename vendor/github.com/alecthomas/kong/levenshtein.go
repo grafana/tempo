@@ -2,8 +2,8 @@ package kong
 
 import "unicode/utf8"
 
-// https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Go
-// License: https://creativecommons.org/licenses/by-sa/3.0/
+// Copied from https://github.com/daviddengcn/go-algs/blob/fe23fabd9d0670e4675326040ba7c285c7117b4c/ed/ed.go#L31
+// License: https://github.com/daviddengcn/go-algs/blob/fe23fabd9d0670e4675326040ba7c285c7117b4c/LICENSE
 func levenshtein(a, b string) int {
 	f := make([]int, utf8.RuneCountInString(b)+1)
 
