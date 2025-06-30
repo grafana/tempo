@@ -158,7 +158,7 @@ test-integration-poller: tools ## Run poller integration tests
 
 # runs only backendscheduler integration tests
 .PHONY: test-integration-backendscheduler
-test-integration-backendscheduler: tools ## Run backend-scheduler integration tests
+test-integration-backendscheduler: tools docker-tempo ## Run backend-scheduler integration tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/backendscheduler
 
 # runs only ingest integration tests
