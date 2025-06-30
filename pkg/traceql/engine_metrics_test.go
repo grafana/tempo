@@ -2418,9 +2418,11 @@ func TestHistogramAggregator_ExemplarBucketSelection(t *testing.T) {
 }
 
 func TestHistogramAggregator_ExemplarDistribution(t *testing.T) {
+	// Use fixed timestamps to ensure deterministic behavior
+	baseTime := time.Unix(1257894000, 0) // Fixed timestamp
 	req := &tempopb.QueryRangeRequest{
-		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
-		End:       uint64(time.Now().UnixNano()),
+		Start:     uint64(baseTime.UnixNano()),
+		End:       uint64(baseTime.Add(1 * time.Hour).UnixNano()),
 		Step:      uint64(15 * time.Second.Nanoseconds()),
 		Exemplars: 12, // Will be distributed: 12/3 = 4 per quantile
 	}
@@ -2434,14 +2436,14 @@ func TestHistogramAggregator_ExemplarDistribution(t *testing.T) {
 				{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
 			},
 			Samples: []tempopb.Sample{
-				{TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli(), Value: 10},
+				{TimestampMs: baseTime.UnixMilli(), Value: 10},
 			},
 			Exemplars: []tempopb.Exemplar{
-				{Value: 1.5, TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli()},
-				{Value: 1.6, TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli()},
-				{Value: 1.7, TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli()},
-				{Value: 1.8, TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli()},
-				{Value: 1.9, TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli()},
+				{Value: 1.5, TimestampMs: baseTime.UnixMilli()},
+				{Value: 1.6, TimestampMs: baseTime.UnixMilli()},
+				{Value: 1.7, TimestampMs: baseTime.UnixMilli()},
+				{Value: 1.8, TimestampMs: baseTime.UnixMilli()},
+				{Value: 1.9, TimestampMs: baseTime.UnixMilli()},
 			},
 		},
 	}
@@ -2531,9 +2533,11 @@ func TestLog2Quantile(t *testing.T) {
 }
 
 func TestHistogramAggregator_EdgeCases(t *testing.T) {
+	// Use fixed timestamps to ensure deterministic behavior
+	baseTime := time.Unix(1257894000, 0) // Fixed timestamp
 	req := &tempopb.QueryRangeRequest{
-		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
-		End:       uint64(time.Now().UnixNano()),
+		Start:     uint64(baseTime.UnixNano()),
+		End:       uint64(baseTime.Add(1 * time.Hour).UnixNano()),
 		Step:      uint64(15 * time.Second.Nanoseconds()),
 		Exemplars: 5,
 	}
@@ -2555,7 +2559,7 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
 					},
 					Samples: []tempopb.Sample{
-						{TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli(), Value: 5},
+						{TimestampMs: baseTime.UnixMilli(), Value: 5},
 					},
 					Exemplars: []tempopb.Exemplar{}, // No exemplars
 				},
@@ -2577,12 +2581,12 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
 					},
 					Samples: []tempopb.Sample{
-						{TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli(), Value: 5},
+						{TimestampMs: baseTime.UnixMilli(), Value: 5},
 					},
 					Exemplars: []tempopb.Exemplar{
 						{
 							Value:       10.0, // Much larger than bucket, should not match
-							TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli(),
+							TimestampMs: baseTime.UnixMilli(),
 						},
 					},
 				},
@@ -2616,12 +2620,12 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 }
 
 func TestHistogramAggregator_SemanticMatching(t *testing.T) {
-	// Use realistic time ranges: 1 hour ago to now, with 15-minute step
-	now := time.Now()
-	start := now.Add(-1 * time.Hour)
+	// Use fixed timestamps to ensure deterministic behavior
+	baseTime := time.Unix(1640995200, 0) // Fixed timestamp: 2022-01-01 00:00:00 UTC
+	start := baseTime
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(start.UnixNano()),
-		End:   uint64(now.UnixNano()),
+		End:   uint64(start.Add(1 * time.Hour).UnixNano()),
 		Step:  uint64(15 * time.Minute),
 	}
 	quantiles := []float64{0.5, 0.9, 0.99}
@@ -2728,11 +2732,12 @@ func createBucketSeries(bucketValue string, count int, timestampMs int64) *tempo
 
 func TestHistogramAggregator_LatencySpike(t *testing.T) {
 	// Simulate a latency spike: normal traffic, then a spike, then normal again
-	now := time.Now()
-	start := now.Add(-45 * time.Minute)
+	// Use fixed timestamps to ensure deterministic behavior
+	baseTime := time.Unix(1640995200, 0) // Fixed timestamp: 2022-01-01 00:00:00 UTC
+	start := baseTime
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(start.UnixNano()),
-		End:   uint64(now.UnixNano()),
+		End:   uint64(start.Add(45 * time.Minute).UnixNano()),
 		Step:  uint64(15 * time.Minute), // 3 intervals: normal, spike, normal
 	}
 	quantiles := []float64{0.5, 0.9, 0.99}
