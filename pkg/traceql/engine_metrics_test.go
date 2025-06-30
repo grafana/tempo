@@ -37,7 +37,13 @@ func TestStepRangeToIntervals(t *testing.T) {
 			start:    0,
 			end:      1,
 			step:     1,
-			expected: 2, // 0, 1, even multiple
+			expected: 1, // end-start == step -> instant query, only one interval
+		},
+		{
+			start:    0,
+			end:      3,
+			step:     1,
+			expected: 4, // 0, 1, 2, 3
 		},
 		{
 			start:    0,
@@ -54,8 +60,8 @@ func TestStepRangeToIntervals(t *testing.T) {
 
 func TestTimestampOf(t *testing.T) {
 	tc := []struct {
-		interval, start, step uint64
-		expected              uint64
+		interval, start, end, step uint64
+		expected                   uint64
 	}{
 		{
 			expected: 0,
@@ -64,12 +70,13 @@ func TestTimestampOf(t *testing.T) {
 			interval: 2,
 			start:    10, // aligned to 9
 			step:     3,
+			end:      100,
 			expected: 15, // 9, 12, 15 <-- intervals
 		},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, TimestampOf(c.interval, c.start, c.step))
+		require.Equal(t, c.expected, TimestampOf(c.interval, c.start, c.end, c.step))
 	}
 }
 
@@ -600,6 +607,166 @@ func TestCountOverTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, out, result)
 	require.Equal(t, len(result), seriesCount)
+}
+
+func TestCountOverTimeInstantNs(t *testing.T) {
+	// not rounded values to simulate real world data
+	start := 1*time.Second - 9*time.Nanosecond
+	end := 3*time.Second + 9*time.Nanosecond
+	step := end - start // for instant queries step == end-start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | count_over_time()",
+	}
+
+	in := []Span{
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(1),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(1),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(10),
+
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
+	}
+
+	out := SeriesSet{
+		`{__name__="count_over_time"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "__name__", Value: NewStaticString("count_over_time")},
+			},
+			Values:    []float64{4},
+			Exemplars: make([]Exemplar, 0),
+		},
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+	require.Equal(t, out, result)
+	require.Equal(t, len(result), seriesCount)
+}
+
+// TestCountOverTimeInstantNsWithCutoff simulates merge behavior in L2 and L3.
+func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
+	start := 1*time.Second + 300*time.Nanosecond // additional 300ns that can be accidentally dropped by ms conversion
+	end := 3 * time.Second
+	step := end - start // for instant queries step == end-start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | count_over_time()",
+	}
+
+	cutoff := 2*time.Second + 300*time.Nanosecond
+	// from start to cutoff
+	req1 := *req
+	req1.End = uint64(cutoff)
+	req1.Step = req1.End - req1.Start
+	// from cutoff to end
+	req2 := *req
+	req2.Start = uint64(cutoff)
+	req2.Step = req2.End - req2.Start
+
+	in1 := []Span{
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(1),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+
+		// outside of cutoff
+		newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+	}
+
+	in2 := []Span{
+		// outside of cutoff
+		newMockSpan(nil).WithStartTime(uint64(cutoff - time.Nanosecond)).WithDuration(1),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(cutoff)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(cutoff + time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(10),
+
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(1),
+		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
+	}
+
+	out := SeriesSet{
+		`{__name__="count_over_time"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "__name__", Value: NewStaticString("count_over_time")},
+			},
+			Values:    []float64{8},
+			Exemplars: make([]Exemplar, 0),
+		},
+	}
+
+	t.Run("merge in L2", func(t *testing.T) {
+		e := NewEngine()
+
+		layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+		require.NoError(t, err)
+
+		// process different series in L1
+		layer1, err := e.CompileMetricsQueryRange(&req1, 0, 0, false)
+		require.NoError(t, err)
+		for _, s := range in1 {
+			layer1.metricsPipeline.observe(s)
+		}
+		res1 := layer1.Results().ToProto(&req1)
+
+		layer1, err = e.CompileMetricsQueryRange(&req2, 0, 0, false)
+		require.NoError(t, err)
+		for _, s := range in2 {
+			layer1.metricsPipeline.observe(s)
+		}
+		res2 := layer1.Results().ToProto(&req2)
+
+		// merge in L2
+		layer2.metricsPipeline.observeSeries(res1)
+		layer2.metricsPipeline.observeSeries(res2)
+
+		result, seriesCount, err := processLayer3(req, layer2.Results())
+		require.NoError(t, err)
+		require.Equal(t, out, result)
+		require.Equal(t, len(result), seriesCount)
+	})
+
+	t.Run("merge in L3", func(t *testing.T) {
+		// process different series in L1+L2
+		res1, err := processLayer1AndLayer2(&req1, in1)
+		require.NoError(t, err)
+		res2, err := processLayer1AndLayer2(&req2, in2)
+		require.NoError(t, err)
+
+		// merge in L3
+		e := NewEngine()
+		layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+		require.NoError(t, err)
+
+		layer3.ObserveSeries(res1.ToProto(req))
+		layer3.ObserveSeries(res2.ToProto(req))
+
+		require.NoError(t, err)
+		require.Equal(t, out, layer3.Results())
+		require.Equal(t, len(layer3.Results()), layer3.Length())
+	})
 }
 
 func TestMinOverTimeForDuration(t *testing.T) {
@@ -1443,6 +1610,33 @@ func TestSecondStageTopK(t *testing.T) {
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
 }
 
+func TestSecondStageTopKInstant(t *testing.T) {
+	// Instant Queries are just Range Queries with a step that spans the entire range (end - start) + start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(8 * time.Second),
+		Step:  uint64(7 * time.Second),
+		Query: "{ } | rate() by (span.foo) | topk(2)",
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	result, _, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	// Instant queries return a single value for each series.
+	// so there should be only one value in each series and only two series in the result.
+	require.Equal(t, 2, len(result))
+
+	// bar and baz have more spans so they should be the top 2
+	require.Equal(t, 1, len(result[`{"span.foo"="bar"}`].Values))
+	require.Equal(t, 1, len(result[`{"span.foo"="baz"}`].Values))
+}
+
 func TestSecondStageTopKAverage(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
@@ -1486,10 +1680,39 @@ func TestSecondStageBottomK(t *testing.T) {
 	require.NoError(t, err)
 
 	// quax and baz have the lowest spans so they should be the bottom 2
-	resultBar := result[`{"span.foo"="quax"}`]
-	require.Equal(t, []float64{3, 3, 3, 3, 3, 3, 3, 3}, resultBar.Values)
+	resultQuax := result[`{"span.foo"="quax"}`]
+	require.Equal(t, []float64{3, 3, 3, 3, 3, 3, 3, 3}, resultQuax.Values)
 	resultBaz := result[`{"span.foo"="baz"}`]
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
+}
+
+func TestSecondStageBottomKInstant(t *testing.T) {
+	// Instant Queries are just Range Queries with a step that spans the entire range (end - start)
+	start := uint64(1 * time.Second)
+	end := uint64(8 * time.Second)
+	req := &tempopb.QueryRangeRequest{
+		Start: start,
+		End:   end,
+		Step:  end - start,
+		Query: "{ } | rate() by (span.foo) | bottomk(2)",
+	}
+
+	in := make([]Span, 0)
+	// 15 spans, at different start times across 3 series
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
+
+	result, _, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	// Instant queries return a single value for each series.
+	// so there should be only one value in each series and only two series in the result.
+	require.Equal(t, 2, len(result))
+
+	// quax and baz have the lowest spans so they should be the bottom 2
+	require.Equal(t, 1, len(result[`{"span.foo"="quax"}`].Values))
+	require.Equal(t, 1, len(result[`{"span.foo"="baz"}`].Values))
 }
 
 func TestProcessTopK(t *testing.T) {
@@ -1779,22 +2002,28 @@ func TestTiesInBottomK(t *testing.T) {
 }
 
 func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, int, error) {
+	res, err := processLayer1AndLayer2(req, inSpans...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Pass layer 2 to layer 3
+	// These are summed counts over time by bucket
+	return processLayer3(req, res)
+}
+
+func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (SeriesSet, error) {
 	e := NewEngine()
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	for _, spanSet := range inSpans {
+	for _, spanSet := range in {
 		layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		for _, s := range spanSet {
 			layer1.metricsPipeline.observe(s)
@@ -1805,14 +2034,19 @@ func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (Series
 		layer2.metricsPipeline.observeSeries(res.ToProto(req))
 	}
 
-	// Pass layer 2 to layer 3
-	// These are summed counts over time by bucket
-	res := layer2.Results()
-	layer3.ObserveSeries(res.ToProto(req))
-	seriesCount := layer3.Length()
-	// Layer 3 final results
+	return layer2.Results(), nil
+}
 
-	return layer3.Results(), seriesCount, nil
+func processLayer3(req *tempopb.QueryRangeRequest, res SeriesSet) (SeriesSet, int, error) {
+	e := NewEngine()
+
+	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	layer3.ObserveSeries(res.ToProto(req))
+	return layer3.Results(), layer3.Length(), nil
 }
 
 func randInt(minimum, maximum int) int {

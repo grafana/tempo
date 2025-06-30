@@ -52,8 +52,11 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 
 // IntervalCount is the number of intervals in the range with step.
 func IntervalCount(start, end, step uint64) int {
-	start = alignStart(start, step)
-	end = alignEnd(end, step)
+	if isInstant(start, end, step) { // always 1 interval
+		return 1
+	}
+	start = alignStart(start, end, step)
+	end = alignEnd(start, end, step)
 
 	intervals := (end - start) / step
 	intervals++
@@ -61,29 +64,48 @@ func IntervalCount(start, end, step uint64) int {
 }
 
 // TimestampOf the given interval with the start and step.
-func TimestampOf(interval, start, step uint64) uint64 {
-	start = alignStart(start, step)
+func TimestampOf(interval, start, end, step uint64) uint64 {
+	start = alignStart(start, end, step)
 	return start + interval*step
 }
 
 // IntervalOf the given timestamp within the range and step.
 func IntervalOf(ts, start, end, step uint64) int {
-	start = alignStart(start, step)
-	end = alignEnd(end, step) + step
+	if isInstant(start, end, step) { // always one interval
+		if !isTsValidForInterval(ts, start, end, step) {
+			return -1
+		}
+		return 0
+	}
 
-	if ts < start || ts > end || end == start || step == 0 {
-		// Invalid
+	start = alignStart(start, end, step)
+	end = alignEnd(start, end, step) + step
+
+	if !isTsValidForInterval(ts, start, end, step) {
 		return -1
 	}
 
 	return int((ts - start) / step)
 }
 
+// validateIntervalOf returns true if the timestamp is valid for the given range and step.
+func isTsValidForInterval(ts, start, end, step uint64) bool {
+	return ts >= start && ts <= end && end != start && step != 0
+}
+
 // IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.
 func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	ts := uint64(time.Duration(tsmills) * time.Millisecond)
+	instant := isInstant(start, end, step)
 	start -= start % uint64(time.Millisecond)
 	end -= end % uint64(time.Millisecond)
+
+	if instant {
+		if !isTsValidForInterval(ts, start, end, step) {
+			return -1
+		}
+		return 0
+	}
 	return IntervalOf(ts, start, end, step)
 }
 
@@ -142,7 +164,11 @@ func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
 }
 
 func IsInstant(req tempopb.QueryRangeRequest) bool {
-	return req.End-req.Start == req.Step
+	return isInstant(req.Start, req.End, req.Step)
+}
+
+func isInstant(start, end, step uint64) bool {
+	return end-start == step
 }
 
 // AlignRequest shifts the start and end times of the request to align with the step
@@ -155,22 +181,29 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 	}
 
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
-	req.Start = alignStart(req.Start, req.Step)
-	req.End = alignEnd(req.End, req.Step)
+	req.Start = alignStart(req.Start, req.End, req.Step)
+	req.End = alignEnd(req.Start, req.End, req.Step)
 }
 
 // Start time is rounded down to next step
-func alignStart(start, step uint64) uint64 {
+func alignStart(start, end, step uint64) uint64 {
 	if step == 0 {
 		return 0
 	}
+	if isInstant(start, end, step) {
+		return start
+	}
+
 	return start - start%step
 }
 
 // End time is rounded up to next step
-func alignEnd(end, step uint64) uint64 {
+func alignEnd(start, end, step uint64) uint64 {
 	if step == 0 {
 		return 0
+	}
+	if isInstant(start, end, step) {
+		return end
 	}
 
 	mod := end % step
@@ -254,13 +287,13 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 		}
 
 		start, end := req.Start, req.End
-		start = alignStart(start, req.Step)
-		end = alignEnd(end, req.Step)
+		start = alignStart(start, end, req.Step)
+		end = alignEnd(start, end, req.Step)
 
 		intervals := IntervalCount(start, end, req.Step)
 		samples := make([]tempopb.Sample, 0, intervals)
 		for i, value := range s.Values {
-			ts := TimestampOf(uint64(i), req.Start, req.Step)
+			ts := TimestampOf(uint64(i), req.Start, req.End, req.Step)
 
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
@@ -453,8 +486,8 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 		exemplars: make([]Exemplar, 0, maxExemplars),
 		exemplarBuckets: newBucketSet(
 			maxExemplars,
-			alignStart(start, step),
-			alignEnd(end, step),
+			alignStart(start, end, step),
+			alignEnd(start, end, step),
 		),
 	}
 }
@@ -1267,8 +1300,8 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 		ss: make(SeriesSet),
 		exemplarBuckets: newBucketSet(
 			exemplars,
-			alignStart(req.Start, req.Step),
-			alignEnd(req.End, req.Step),
+			alignStart(req.Start, req.End, req.Step),
+			alignEnd(req.Start, req.End, req.Step),
 		),
 		len:             l,
 		start:           req.Start,
@@ -1400,8 +1433,8 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exempl
 		step:  req.Step,
 		exemplarBuckets: newBucketSet(
 			exemplars,
-			alignStart(req.Start, req.Step),
-			alignEnd(req.End, req.Step),
+			alignStart(req.Start, req.End, req.Step),
+			alignEnd(req.Start, req.End, req.Step),
 		),
 	}
 }

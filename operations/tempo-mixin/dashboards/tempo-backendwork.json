@@ -129,7 +129,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -228,7 +228,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -352,7 +352,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -458,7 +458,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -580,7 +580,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -588,7 +588,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(tempo_backend_scheduler_jobs_active{namespace=~\"$namespace\"})",
+          "expr": "sum(tempo_backend_scheduler_jobs_active{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -676,7 +676,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -684,7 +684,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(tempo_backend_scheduler_jobs_completed_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum(rate(tempo_backend_scheduler_jobs_completed_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -772,7 +772,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -780,7 +780,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(tempo_backend_scheduler_jobs_failed_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum(rate(tempo_backend_scheduler_jobs_failed_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -868,7 +868,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -876,7 +876,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(tempo_backend_scheduler_jobs_retry{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum(rate(tempo_backend_scheduler_jobs_retry{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -965,7 +965,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -973,7 +973,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(tempo_backend_scheduler_jobs_not_found_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum(rate(tempo_backend_scheduler_jobs_not_found_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1062,7 +1062,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1070,13 +1070,231 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(tempo_backend_scheduler_provider_jobs_merged_total{namespace=~\"$namespace\"}[1h]))",
+          "expr": "sum(rate(tempo_backend_scheduler_provider_jobs_merged_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[1h]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "Merged Jobs / h",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${metrics}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 20
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "hidden",
+          "placement": "right",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (namespace, container, route)(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval]))",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Backend-scheduler request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${metrics}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 20
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "hidden",
+          "placement": "right",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+          "hide": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+          "hide": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Backend-scheduler request rate",
       "type": "timeseries"
     },
     {
@@ -1159,7 +1377,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1167,7 +1385,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(tempo_backend_scheduler_compaction_tenant_empty_job_total{namespace=~\"$namespace\"}[10m]))",
+          "expr": "sum(rate(tempo_backend_scheduler_compaction_tenant_empty_job_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[10m]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -1257,7 +1475,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1366,7 +1584,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1374,7 +1592,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(tempodb_compaction_outstanding_blocks{namespace=~\"$namespace\"}) by (container, tenant)\n",
+          "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", namespace=~\"$namespace\"}) by (container, tenant)\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1464,7 +1682,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1561,7 +1779,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1658,7 +1876,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1756,7 +1974,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1853,7 +2071,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -1861,7 +2079,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(tempo_backend_scheduler_compaction_tenant_reset_total{namespace=~\"$namespace\"}[1h]))",
+          "expr": "sum(rate(tempo_backend_scheduler_compaction_tenant_reset_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[1h]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -2007,7 +2225,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -2173,7 +2391,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -2320,7 +2538,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -2328,7 +2546,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "min(kube_horizontalpodautoscaler_status_desired_replicas{namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
+          "expr": "min(kube_horizontalpodautoscaler_status_desired_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -2339,7 +2557,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "min(kube_horizontalpodautoscaler_status_current_replicas{namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
+          "expr": "min(kube_horizontalpodautoscaler_status_current_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -2351,7 +2569,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "min(kube_horizontalpodautoscaler_spec_max_replicas{namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
+          "expr": "min(kube_horizontalpodautoscaler_spec_max_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -2363,7 +2581,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "min(kube_horizontalpodautoscaler_spec_min_replicas{namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
+          "expr": "min(kube_horizontalpodautoscaler_spec_min_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -2497,7 +2715,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -2505,7 +2723,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "min(kube_horizontalpodautoscaler_spec_target_metric{namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
+          "expr": "min(kube_horizontalpodautoscaler_spec_target_metric{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
           "format": "time_series",
           "legendFormat": "Target Autoscaling Metric",
           "range": true,
@@ -2517,7 +2735,7 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "min(kube_horizontalpodautoscaler_status_target_metric{namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
+          "expr": "min(kube_horizontalpodautoscaler_status_target_metric{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
           "format": "time_series",
           "hide": false,
           "legendFormat": "Actual Autoscaling Metric",
@@ -2652,7 +2870,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -2818,7 +3036,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.1",
       "targets": [
         {
           "datasource": {
@@ -2967,5 +3185,5 @@
   "timezone": "utc",
   "title": "Tempo - Backend Work",
   "uid": "eeht753h7e5tse",
-  "version": 10
+  "version": 17
 }

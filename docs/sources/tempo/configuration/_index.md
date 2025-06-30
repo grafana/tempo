@@ -51,6 +51,7 @@ The Tempo configuration options include:
         - [User-configurable overrides](#user-configurable-overrides)
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
+    - [Configure usage-reporting](#configure-usage-reporting)
   - [Cache](#cache)
 
 Additionally, you can review [TLS](network/tls/) to configure the cluster components to communicate over TLS, or receive traces over TLS.
@@ -95,7 +96,7 @@ server:
     [http_listen_address: <string>]
 
     # HTTP server listen port
-    [http_listen_port: <int> | default = 80]
+    [http_listen_port: <int> | default = 3200]
 
     # gRPC server listen host
     [grpc_listen_address: <string>]
@@ -141,13 +142,15 @@ Additional documentation and more advanced configuration options are available i
 distributor:
 
     # receiver configuration for different protocols
-    # config is passed down to opentelemetry receivers
-    # for a production deployment you should only enable the receivers you need!
+    # The config is passed down to OpenTelemetry receivers.
+    # By default, receivers listen to localhost and need a configured IP to
+    # listen on an external interface.
+    # For a production deployment, you should only enable the receivers you need.
     receivers:
         otlp:
             protocols:
-                grpc:
-                http:
+                grpc:    # default localhost:4317
+                http:    # default localhost:4318
         jaeger:
             protocols:
                 thrift_http:
@@ -712,7 +715,7 @@ query_frontend:
         [throughput_bytes_slo: <float> | default = 0 ]
 
         # The number of time windows to break a search up into when doing a most recent TraceQL search. This only impacts TraceQL
-        # searches with (most_recent=true)
+        # searches with (most_recent=true).
         [most_recent_shards: <int> | default = 200]
 
         # The number of shards to break ingester queries into.
@@ -1981,13 +1984,11 @@ overrides:
 
 ## Usage-report
 
-By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs.
+By default, Tempo reports anonymous usage data about the shape of a deployment to Grafana Labs.
 This data is used to determine how common the deployment of certain features are, if a feature flag has been enabled,
 and which replication factor or compression levels are used.
 
 By providing information on how people use Tempo, usage reporting helps the Tempo team decide where to focus their development and documentation efforts. No private information is collected, and all reports are completely anonymous.
-
-Reporting is controlled by a configuration option.
 
 The following configuration values are used:
 
@@ -1999,6 +2000,14 @@ The following configuration values are used:
 
 No performance data is collected.
 
+You can view the report by visiting this address on your Tempo instance:
+`http://localhost:3200/status/usage-stats`
+
+Refer to [Anonymous usage reporting](../configuration/anonymous-usage-reporting/) for detailed information on the information included in the report.
+
+### Configure usage-reporting
+
+Reporting is controlled by a configuration option.
 You can disable the automatic reporting of this generic information using the following
 configuration:
 

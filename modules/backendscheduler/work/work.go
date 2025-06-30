@@ -1,13 +1,17 @@
 package work
 
 import (
+	"context"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	jsoniter "github.com/json-iterator/go"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("modules/backendscheduler/work")
 
 type Work struct {
 	Jobs map[string]*Job `json:"jobs"`
@@ -41,6 +45,17 @@ func (q *Work) AddJob(j *Job) error {
 	q.Jobs[j.ID] = j
 
 	return nil
+}
+
+func (q *Work) StartJob(id string) {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j, ok := q.Jobs[id]; ok {
+		if j.IsPending() {
+			j.Start()
+		}
+	}
 }
 
 func (q *Work) GetJob(id string) *Job {
@@ -80,7 +95,10 @@ func (q *Work) ListJobs() []*Job {
 	return jobs
 }
 
-func (q *Work) Prune() {
+func (q *Work) Prune(ctx context.Context) {
+	_, span := tracer.Start(ctx, "Prune")
+	defer span.End()
+
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
@@ -117,12 +135,20 @@ func (q *Work) Len() int {
 	return count
 }
 
-func (q *Work) GetJobForWorker(workerID string) *Job {
+func (q *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
+	_, span := tracer.Start(ctx, "GetJobForWorker")
+	defer span.End()
+
 	q.mtx.RLock()
 	defer q.mtx.RUnlock()
 
 	for _, j := range q.Jobs {
-		if (j.IsRunning() || j.IsPending()) && j.WorkerID == workerID {
+		if j.GetWorkerID() != workerID {
+			continue
+		}
+
+		switch j.GetStatus() {
+		case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, tempopb.JobStatus_JOB_STATUS_RUNNING:
 			return j
 		}
 	}
@@ -130,9 +156,36 @@ func (q *Work) GetJobForWorker(workerID string) *Job {
 	return nil
 }
 
+func (q *Work) CompleteJob(id string) {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j, ok := q.Jobs[id]; ok {
+		j.Complete()
+	}
+}
+
+func (q *Work) FailJob(id string) {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j, ok := q.Jobs[id]; ok {
+		j.Fail()
+	}
+}
+
+func (q *Work) SetJobCompactionOutput(id string, output []string) {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j, ok := q.Jobs[id]; ok {
+		j.SetCompactionOutput(output)
+	}
+}
+
 func (q *Work) Marshal() ([]byte, error) {
-	q.mtx.RLock()
-	defer q.mtx.RUnlock()
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	return jsoniter.Marshal(q)
 }

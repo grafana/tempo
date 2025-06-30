@@ -41,8 +41,8 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 		step:                  q.Step,
 		exemplarBuckets: newBucketSet(
 			maxExemplars,
-			alignStart(q.Start, q.Step),
-			alignEnd(q.End, q.Step),
+			alignStart(q.Start, q.End, q.Step),
+			alignEnd(q.Start, q.End, q.Step),
 		),
 	}
 
@@ -539,8 +539,8 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 			average: newAverageSeries(intervals, maxExemplars, nil),
 			exemplarBuckets: newBucketSet(
 				maxExemplars,
-				alignStart(g.start, g.step),
-				alignEnd(g.end, g.step),
+				alignStart(g.start, g.end, g.step),
+				alignEnd(g.start, g.end, g.step),
 			),
 			initialized: true,
 		}

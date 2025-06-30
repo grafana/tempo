@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 )
 
@@ -31,6 +33,8 @@ var tracer = otel.Tracer("modules/backendscheduler")
 // BackendScheduler manages scheduling and execution of backend jobs
 type BackendScheduler struct {
 	services.Service
+
+	mtx sync.Mutex
 
 	cfg       Config
 	store     storage.Store
@@ -137,7 +141,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 
 				select {
 				case s.mergedJobs <- job:
-					metricProviderJobsMerged.WithLabelValues(fmt.Sprintf("%d", i)).Inc()
+					metricProviderJobsMerged.WithLabelValues(strconv.Itoa(i)).Inc()
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
 					return
@@ -162,12 +166,25 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 	maintenanceTicker := time.NewTicker(s.cfg.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
 
+	backendFlushTicker := time.NewTicker(s.cfg.BackendFlushInterval)
+	defer backendFlushTicker.Stop()
+
+	var err error
+
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-maintenanceTicker.C:
-			s.work.Prune()
+			s.work.Prune(ctx)
+		case <-backendFlushTicker.C:
+			err = s.flushWorkCacheToBackend(ctx)
+			metricWorkFlushes.Inc()
+			if err != nil && !errors.Is(err, context.Canceled) {
+				metricWorkFlushesFailed.Inc()
+				level.Error(log.Logger).Log("msg", "failed to flush work cache to backend", "error", err)
+			}
+
 		}
 	}
 }
@@ -176,6 +193,11 @@ func (s *BackendScheduler) stopping(_ error) error {
 	err := s.flushWorkCache(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to flush work cache on shutdown: %w", err)
+	}
+
+	err = s.flushWorkCacheToBackend(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to flush work cache to backend on shutdown: %w", err)
 	}
 
 	level.Info(log.Logger).Log("msg", "backend scheduler stopping")
@@ -190,7 +212,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	span.SetAttributes(attribute.String("worker_id", req.WorkerId))
 
 	// Find jobs that already exist for this worker
-	j := s.work.GetJobForWorker(req.WorkerId)
+	j := s.work.GetJobForWorker(ctx, req.WorkerId)
 	if j != nil {
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
@@ -198,7 +220,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			Detail: j.JobDetail,
 		}
 
-		// The job exists in memory, but may not have been persisted to the backend.
+		// The job exists in memory, but may not have been persisted to disk.
 		err := s.flushWorkCache(ctx)
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
@@ -220,6 +242,10 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	// Try to get a job from the merged channel
 	select {
 	case j := <-s.mergedJobs:
+		span.AddEvent("job received", trace.WithAttributes(
+			attribute.String("job_id", j.GetID()),
+		))
+
 		if j == nil {
 			// Channel closed, no jobs available
 			metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
@@ -238,7 +264,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
 		}
 
-		j.Start()
+		s.work.StartJob(j.ID)
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 
 		err = s.flushWorkCache(ctx)
@@ -249,7 +275,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 		span.SetAttributes(attribute.String("job_id", j.ID))
 
-		metricJobsCreated.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+		metricJobsCreated.WithLabelValues(resp.Detail.Tenant, resp.Type.String()).Inc()
 
 		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
 
@@ -264,6 +290,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 // UpdateJob implements the BackendSchedulerServer interface
 func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
+	ctx, span := tracer.Start(ctx, "UpdateJob")
+	defer span.End()
+
 	j := s.work.GetJob(req.JobId)
 	if j == nil {
 		return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.NotFound, work.ErrJobNotFound.Error())
@@ -272,13 +301,13 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
-		j.Complete()
+		s.work.CompleteJob(req.JobId)
 		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Dec()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
 		if req.Compaction != nil && req.Compaction.Output != nil {
-			j.SetCompactionOutput(req.Compaction.Output)
+			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 		}
 
 		err := s.flushWorkCache(ctx)
@@ -287,12 +316,12 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
-		err = s.loadBlocklistJobsForTenant(j.Tenant(), []*work.Job{j})
+		err = s.loadBlocklistJobsForTenant(ctx, j.Tenant(), []*work.Job{j})
 		if err != nil {
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
-		j.Fail()
+		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
@@ -312,18 +341,28 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	}, nil
 }
 
-func (s *BackendScheduler) replayWorkOnBlocklist() {
+func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) {
+	ctx, span := tracer.Start(ctx, "replayWorkOnBlocklist")
+	defer span.End()
+
 	var (
 		err           error
 		tenant        string
+		jobStatus     tempopb.JobStatus
 		perTenantJobs = make(map[string][]*work.Job)
 	)
 
 	// Get all the input blocks which have been successfully compacted
 	for _, j := range s.work.ListJobs() {
 		tenant = j.Tenant()
+		jobStatus = j.GetStatus()
 
-		if j.GetStatus() != tempopb.JobStatus_JOB_STATUS_SUCCEEDED {
+		// count the active jobs and update the metric
+		if jobStatus == tempopb.JobStatus_JOB_STATUS_RUNNING {
+			metricJobsActive.WithLabelValues(tenant, j.GetType().String()).Inc()
+		}
+
+		if jobStatus != tempopb.JobStatus_JOB_STATUS_SUCCEEDED {
 			continue
 		}
 
@@ -335,19 +374,29 @@ func (s *BackendScheduler) replayWorkOnBlocklist() {
 	}
 
 	for tenant, jobs := range perTenantJobs {
-		err = s.loadBlocklistJobsForTenant(tenant, jobs)
+		err = s.loadBlocklistJobsForTenant(ctx, tenant, jobs)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "failed to load blocklist jobs for tenant", "tenant", tenant, "error", err)
 		}
 	}
 }
 
-func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*work.Job) error {
+func (s *BackendScheduler) loadBlocklistJobsForTenant(ctx context.Context, tenant string, jobs []*work.Job) error {
+	_, span := tracer.Start(ctx, "loadBlocklistJobsForTenant")
+	defer span.End()
+
 	var (
 		metas     = s.store.BlockMetas(tenant)
 		oldBlocks []*backend.BlockMeta
 		u         backend.UUID
 		err       error
+		m         *backend.BlockMeta
+		ok        bool
+	)
+
+	span.SetAttributes(
+		attribute.String("tenant", tenant),
+		attribute.Int("job_count", len(jobs)),
 	)
 
 	for _, j := range jobs {
@@ -362,11 +411,8 @@ func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*wor
 				continue
 			}
 
-			for _, m := range metas {
-				if m.BlockID == u {
-					oldBlocks = append(oldBlocks, m)
-					break
-				}
+			if m, ok = foundMetaInMetas(metas, u); ok {
+				oldBlocks = append(oldBlocks, m)
 			}
 		}
 	}
@@ -377,6 +423,15 @@ func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*wor
 	}
 
 	return nil
+}
+
+func foundMetaInMetas(metas []*backend.BlockMeta, u backend.UUID) (*backend.BlockMeta, bool) {
+	for _, m := range metas {
+		if m.BlockID == u {
+			return m, true
+		}
+	}
+	return nil, false
 }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {

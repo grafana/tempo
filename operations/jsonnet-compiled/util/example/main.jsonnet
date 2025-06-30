@@ -26,6 +26,10 @@ tempo {
       pvc_size: '10Gi',
       pvc_storage_class: 'fast',
     },
+    backend_scheduler+: {
+      pvc_size: '200Mi',
+      pvc_storage_class: 'fast',
+    },
     distributor+: {
       replicas: 5,
       receivers: {

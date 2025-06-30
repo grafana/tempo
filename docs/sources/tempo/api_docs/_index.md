@@ -45,6 +45,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
+| [Prepare partition downscale](#prepare-partition-downscale) | Ingester | HTTP | `GET,POST,DELETE /ingester/prepare-partition-downscale` |
 | [Usage Metrics](#usage-metrics) | Distributor |  HTTP | `GET /usage_metrics` |
 | [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
 | [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
@@ -739,6 +740,22 @@ ingester service.
 {{< admonition type="note" >}}
 This is usually used at the time of scaling down a cluster.
 {{< /admonition >}}
+
+### Prepare partition downscale
+
+```
+GET,POST,DELETE /ingester/prepare-partition-downscale
+```
+
+This endpoint prepares the ingester's partition for downscaling by setting it to the `INACTIVE` state.
+
+A `GET` call to this endpoint returns a timestamp of when the partition was switched to the `INACTIVE` state, or 0, if the partition is not in the `INACTIVE` state.
+
+A `POST` call switches this ingester's partition to the `INACTIVE` state, if it isn't `INACTIVE` already, and returns the timestamp of when the switch to the `INACTIVE` state occurred.
+
+A `DELETE` call sets the partition back from the `INACTIVE` to the `ACTIVE` state.
+
+If the ingester is not configured to use ingest-storage, any call to this endpoint fails.
 
 ### Usage metrics
 
