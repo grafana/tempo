@@ -158,7 +158,7 @@ test-integration-poller: tools ## Run poller integration tests
 
 # runs only backendscheduler integration tests
 .PHONY: test-integration-backendscheduler
-test-integration-backendscheduler: tools ## Run poller integration tests
+test-integration-backendscheduler: tools ## Run backend-scheduler integration tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/backendscheduler
 
 # runs only ingest integration tests
@@ -168,7 +168,7 @@ test-e2e-ingest: tools docker-tempo ## Run end to end tests for ingest
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all ## Run all tests
-test-all: test-with-cover test-e2e test-e2e-deployments test-e2e-api test-integration-poller test-e2e-ingest
+test-all: test-with-cover test-e2e test-e2e-deployments test-e2e-api test-integration-poller test-integration-backendscheduler test-e2e-ingest
 
 .PHONY: test-bench
 test-bench: tools docker-tempo ## Run all benchmarks
