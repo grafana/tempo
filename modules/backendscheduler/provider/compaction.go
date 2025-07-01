@@ -123,11 +123,11 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			if p.curSelector == nil {
+				b.Wait()
 				if !p.prepareNextTenant(loopCtx) {
 					level.Info(p.logger).Log("msg", "received empty tenant", "waiting", b.NextDelay())
 					metricTenantBackoff.Inc()
 					span.AddEvent("tenant not prepared")
-					b.Wait()
 				}
 				continue
 			}
@@ -317,8 +317,11 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 
 	for _, tenant := range tenants {
 		priority = ts.PriorityForTenant(tenant.ID)
-		item = tenantselector.NewItem(tenant.ID, priority)
-		heap.Push(p.curPriority, item)
+
+		if priority >= blockselector.DefaultMinInputBlocks {
+			item = tenantselector.NewItem(tenant.ID, priority)
+			heap.Push(p.curPriority, item)
+		}
 	}
 }
 
@@ -344,29 +347,19 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		blocklist     = make([]*backend.BlockMeta, 0, len(fullBlocklist))
 	)
 
-	// Query the work for the jobs and build up a list of UUIDs which we can match against.
+	// Query the work for the jobs and build up a list of UUIDs which we can match against and skip on the selector.
 	var (
 		perTenantBlockIDs = make(map[backend.UUID]struct{})
 		bid               backend.UUID
 		err               error
-
-		jobTenant string
-		jobType   tempopb.JobType
-		jobStatus tempopb.JobStatus
 	)
 
 	for _, job := range p.sched.ListJobs() {
-		jobTenant = job.Tenant()
-		if jobTenant != tenantID {
+		if job.Tenant() != tenantID {
 			continue
 		}
 
-		if jobType = job.GetType(); jobType == tempopb.JobType_JOB_TYPE_UNSPECIFIED {
-			continue
-		}
-
-		jobStatus = job.GetStatus()
-		if jobStatus != tempopb.JobStatus_JOB_STATUS_RUNNING && jobStatus != tempopb.JobStatus_JOB_STATUS_UNSPECIFIED {
+		if job.GetType() == tempopb.JobType_JOB_TYPE_UNSPECIFIED {
 			continue
 		}
 
