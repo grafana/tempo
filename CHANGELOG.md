@@ -16,6 +16,7 @@
 * [ENHANCEMENT] Traceql performance improvement [#5218](https://github.com/grafana/tempo/pull/5218) (@mdisibio)
 * [ENHANCEMENT] Align traceql attribute struct for better performance [#5240](https://github.com/grafana/tempo/pull/5240) (@mdisibio)
 * [ENHANCEMENT] Enable HTTP writes in the multi-tenant example [#5297](https://github.com/grafana/tempo/pull/5297)
+* [ENHANCEMENT] Add Stop method [#5293](https://github.com/grafana/tempo/pull/5293) (@stephanos)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
 * [BUGFIX] Correct instant query calculation [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
 * [BUGFIX] Fix tracing context propagation in distributor HTTP write requests [#5312](https://github.com/grafana/tempo/pull/5312) (@mapno)
