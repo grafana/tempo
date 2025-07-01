@@ -1,10 +1,10 @@
 module github.com/grafana/tempo
 
-go 1.24.3
+go 1.24.4
 
 require (
 	cloud.google.com/go/storage v1.55.0
-	github.com/alecthomas/kong v1.11.0
+	github.com/alecthomas/kong v1.12.0
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/aws/aws-sdk-go v1.55.7
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -24,15 +24,15 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/grafana/dskit v0.0.0-20250529133336-ec9bc5b3a14e
-	github.com/grafana/e2e v0.1.1
+	github.com/grafana/dskit v0.0.0-20250529170946-28928403e61e
+	github.com/grafana/e2e v0.1.2-0.20250428181430-708d63bcc673
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jaegertracing/jaeger v1.67.0
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/klauspost/compress v1.18.0
-	github.com/minio/minio-go/v7 v7.0.92
+	github.com/minio/minio-go/v7 v7.0.94
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.127.0
@@ -42,8 +42,8 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.64.0
-	github.com/prometheus/prometheus v0.304.1
+	github.com/prometheus/common v0.65.0
+	github.com/prometheus/prometheus v0.304.2
 	github.com/prometheus/statsd_exporter v0.26.1
 	github.com/segmentio/fasthash v1.0.3
 	github.com/sony/gobreaker v0.4.1
@@ -71,7 +71,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.15.0
 	golang.org/x/time v0.12.0
-	google.golang.org/api v0.236.0
+	google.golang.org/api v0.239.0
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v2 v2.4.0
@@ -80,7 +80,7 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.1
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
@@ -123,13 +123,13 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.36.0
 	go.opentelemetry.io/proto/otlp v1.7.0
 	golang.org/x/net v0.41.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822
 )
 
 require (
 	cel.dev/expr v0.23.0 // indirect
 	cloud.google.com/go v0.121.1 // indirect
-	cloud.google.com/go/auth v0.16.1 // indirect
+	cloud.google.com/go/auth v0.16.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
 	cloud.google.com/go/iam v1.5.2 // indirect
@@ -200,7 +200,7 @@ require (
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
@@ -371,7 +371,7 @@ require (
 	go.opentelemetry.io/contrib/bridges/prometheus v0.61.0 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.36.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.60.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.15.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.35.0 // indirect
 	go.opentelemetry.io/contrib/propagators/jaeger v1.35.0 // indirect

@@ -27,5 +27,9 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("max_retries must be 0, since it is not respected")
 	}
 
+	if cfg.Compaction.MeasureInterval <= 0 {
+		return fmt.Errorf("measure_interval must be greater than 0")
+	}
+
 	return nil
 }

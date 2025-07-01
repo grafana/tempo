@@ -129,6 +129,8 @@
     },
     backend_scheduler: {
       replicas: 1,  // Only ever 1 backend-scheduler
+      pvc_size: error 'Must specify a backend_scheduler pvc size',
+      pvc_storage_class: error 'Must specify a backend_scheduler pvc storage class',
       resources: {
         requests: {
           cpu: '500m',
