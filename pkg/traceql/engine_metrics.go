@@ -1564,8 +1564,8 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 				hist:   make([]Histogram, h.len),
 				exemplarBuckets: newBucketSet(
 					h.exemplarLimit,
-					h.start,
-					h.end,
+					alignStart(h.start, h.end, h.step),
+					alignEnd(h.start, h.end, h.step),
 				),
 			}
 		}
