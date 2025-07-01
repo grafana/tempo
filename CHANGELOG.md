@@ -44,6 +44,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
 * [BUGFIX] Fix bug where most_recent=true wouldn't return most recent results when query overlapped ingesters and few other blocks.[#5438](https://github.com/grafana/tempo/pull/5438) (@joe-elliott)
 * [BUGFIX] Fix panic when counter series is missing during avg_over_time aggregation [#5300](https://github.com/grafana/tempo/pull/5300) (@ie-pham)
+* [BUGFIX] Fix search by spane:id with short span with no leading zeros [#5343](https://github.com/grafana/tempo/pull/5343) (@ruslan-mikhailov)
 
 # v2.8.1
 
