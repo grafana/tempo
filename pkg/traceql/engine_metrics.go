@@ -1422,6 +1422,7 @@ type HistogramAggregator struct {
 	start, end, step uint64
 	exemplarBuckets  *bucketSet
 	exemplarLimit    uint32
+	labelBuffer      Labels // Reusable buffer for both series and exemplar labels
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplars uint32) *HistogramAggregator {
@@ -1439,6 +1440,7 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exempl
 			alignEnd(req.Start, req.End, req.Step),
 		),
 		exemplarLimit: exemplars,
+		labelBuffer:   make(Labels, 0, 8), // Pre-allocate with reasonable capacity
 	}
 }
 
@@ -1446,14 +1448,14 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 	for _, ts := range in {
 		// Convert proto labels to traceql labels
 		// while at the same time stripping the bucket label
-		withoutBucket := make(Labels, 0, len(ts.Labels))
+		h.labelBuffer = h.labelBuffer[:0] // Reset buffer
 		var bucket Static
 		for _, l := range ts.Labels {
 			if l.Key == internalLabelBucket {
 				bucket = StaticFromAnyValue(l.Value)
 				continue
 			}
-			withoutBucket = append(withoutBucket, Label{
+			h.labelBuffer = append(h.labelBuffer, Label{
 				Name:  l.Key,
 				Value: StaticFromAnyValue(l.Value),
 			})
@@ -1464,13 +1466,19 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			continue
 		}
 
-		withoutBucketStr := withoutBucket.String()
+		withoutBucketStr := h.labelBuffer.String()
 
 		existing, ok := h.ss[withoutBucketStr]
 		if !ok {
+			// Create a copy of the labels since the buffer will be reused
+			withoutBucket := make(Labels, len(h.labelBuffer))
+			copy(withoutBucket, h.labelBuffer)
+
 			existing = histSeries{
 				labels: withoutBucket,
 				hist:   make([]Histogram, h.len),
+				// Pre-allocate exemplars slice with capacity hint to reduce allocations
+				exemplars: make([]Exemplar, 0, len(ts.Exemplars)),
 				exemplarBuckets: newBucketSet(
 					h.exemplarLimit,
 					alignStart(h.start, h.end, h.step),
@@ -1499,13 +1507,20 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if existing.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 			}
-			labels := make(Labels, 0, len(exemplar.Labels))
+
+			// Reuse label buffer to reduce allocations (same buffer as above, reused)
+			h.labelBuffer = h.labelBuffer[:0] // Reset length but keep capacity
 			for _, l := range exemplar.Labels {
-				labels = append(labels, Label{
+				h.labelBuffer = append(h.labelBuffer, Label{
 					Name:  l.Key,
 					Value: StaticFromAnyValue(l.Value),
 				})
 			}
+
+			// Create a copy of the labels since the buffer will be reused
+			labels := make(Labels, len(h.labelBuffer))
+			copy(labels, h.labelBuffer)
+
 			existing.exemplars = append(existing.exemplars, Exemplar{
 				Labels:      labels,
 				Value:       exemplar.Value,
