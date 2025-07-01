@@ -1494,7 +1494,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 		// Collect exemplars per series, not globally
 		for _, exemplar := range ts.Exemplars {
 			if existing.exemplarBuckets.testTotal() {
-				continue
+				break
 			}
 			if existing.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
