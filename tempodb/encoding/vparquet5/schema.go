@@ -173,6 +173,8 @@ type Span struct {
 	TraceState             string      `parquet:",snappy"`
 	StartTimeUnixNano      uint64      `parquet:",delta"`
 	StartTimeRounded       uint32      `parquet:",delta"`
+	StartTimeRounded60     uint32      `parquet:",delta"`
+	StartTimeRounded300    uint32      `parquet:",delta"`
 	DurationNano           uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
@@ -473,7 +475,9 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 					ss.StatusMessage = ""
 				}
 				ss.StartTimeUnixNano = s.StartTimeUnixNano
-				ss.StartTimeRounded = uint32(s.StartTimeUnixNano / uint64(time.Second) / 15) // Round to 15s intervals
+				ss.StartTimeRounded = uint32(s.StartTimeUnixNano / uint64(time.Second) / 15)     // Round to 15s intervals
+				ss.StartTimeRounded60 = uint32(s.StartTimeUnixNano / uint64(time.Minute))        // Round to 60s intervals
+				ss.StartTimeRounded300 = uint32(s.StartTimeUnixNano / uint64(time.Second) / 300) // Round to 300s intervals
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)

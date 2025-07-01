@@ -920,6 +920,8 @@ const (
 	columnPathSpanName            = "rs.list.element.ss.list.element.Spans.list.element.Name"
 	columnPathSpanStartTime       = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
 	columnPathSpanStartRounded    = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded"
+	columnPathSpanStartRounded60  = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded60"
+	columnPathSpanStartRounded300 = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded300"
 	columnPathSpanDuration        = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
 	columnPathSpanKind            = "rs.list.element.ss.list.element.Spans.list.element.Kind"
 	columnPathSpanStatusCode      = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
@@ -1886,11 +1888,17 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 				return nil, err
 			}
 
-			if cond.LowPrecision {
-				// When low precision is requested, we use the rounded start time.
+			switch {
+			case cond.LowPrecision >= 300*time.Second && cond.LowPrecision%(300*time.Second) == 0:
+				addPredicate(columnPathSpanStartRounded300, pred)
+				columnSelectAs[columnPathSpanStartRounded300] = columnPathSpanStartRounded300
+			case cond.LowPrecision >= 60*time.Second && cond.LowPrecision%(60*time.Second) == 0:
+				addPredicate(columnPathSpanStartRounded60, pred)
+				columnSelectAs[columnPathSpanStartRounded60] = columnPathSpanStartRounded60
+			case cond.LowPrecision >= 15*time.Second && cond.LowPrecision%(15*time.Second) == 0:
 				addPredicate(columnPathSpanStartRounded, pred)
 				columnSelectAs[columnPathSpanStartRounded] = columnPathSpanStartRounded
-			} else {
+			default:
 				addPredicate(columnPathSpanStartTime, pred)
 				columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
 			}
@@ -2870,6 +2878,12 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanStartRounded:
 			st := kv.Value.Uint32()
 			sp.startTimeUnixNanos = uint64(st) * uint64(time.Second) * 15
+		case columnPathSpanStartRounded60:
+			st := kv.Value.Uint32()
+			sp.startTimeUnixNanos = uint64(st) * uint64(time.Minute)
+		case columnPathSpanStartRounded300:
+			st := kv.Value.Uint32()
+			sp.startTimeUnixNanos = uint64(st) * uint64(time.Second) * 300
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos
