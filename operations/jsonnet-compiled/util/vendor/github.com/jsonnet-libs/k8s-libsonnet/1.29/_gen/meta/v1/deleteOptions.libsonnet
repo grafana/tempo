@@ -3,7 +3,7 @@
   '#':: d.pkg(name='deleteOptions', url='', help='"DeleteOptions may be provided when deleting an API object."'),
   '#new':: d.fn(help='new returns an instance of DeleteOptions', args=[d.arg(name='name', type=d.T.string)]),
   new(name): {
-    apiVersion: 'storage.k8s.io/v1beta1',
+    apiVersion: 'admission.k8s.io/v1',
     kind: 'DeleteOptions',
   } + self.metadata.withName(name=name),
   '#preconditions':: d.obj(help='"Preconditions must be fulfilled before an operation (update, delete, etc.) is carried out."'),

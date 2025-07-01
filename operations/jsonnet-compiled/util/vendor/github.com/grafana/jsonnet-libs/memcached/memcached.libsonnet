@@ -31,6 +31,10 @@ k {
       std.ceil((self.memory_limit_mb * self.overprovision_factor) + self.memory_request_overhead_mb) * 1024 * 1024,
     memory_limits_bytes::
       std.max(self.memory_limit_mb * 1.5 * 1024 * 1024, self.memory_request_bytes),
+    exporter_cpu_requests:: '50m',
+    exporter_cpu_limits:: '500m',
+    exporter_memory_request_bytes:: 50 * 1024 * 1024,
+    exporter_memory_limits_bytes:: 250 * 1024 * 1024,
     use_topology_spread:: false,
     topology_spread_max_skew:: 1,
     extended_options:: [],
@@ -59,7 +63,9 @@ k {
       container.withArgs([
         '--memcached.address=localhost:11211',
         '--web.listen-address=0.0.0.0:9150',
-      ]),
+      ]) +
+      $.util.resourcesRequests(self.exporter_cpu_requests, $.util.bytesToK8sQuantity(self.exporter_memory_request_bytes)) +
+      $.util.resourcesLimits(self.exporter_cpu_limits, $.util.bytesToK8sQuantity(self.exporter_memory_limits_bytes)),
 
     local statefulSet = $.apps.v1.statefulSet,
     local topologySpreadConstraints = k.core.v1.topologySpreadConstraint,
