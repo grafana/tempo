@@ -70,7 +70,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		labels = append(labels, dimStatusMessage)
 	}
 
-	c := reclaimable.New(strutil.SanitizeFullLabelName, 10000)
+	c := reclaimable.New(strutil.SanitizeLabelName, 10000)
 
 	for _, d := range cfg.Dimensions {
 		labels = append(labels, SanitizeLabelNameWithCollisions(d, intrinsicLabels, c.Get))
