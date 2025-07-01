@@ -2685,32 +2685,41 @@ func TestSearchByShortTraceID(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("%s: include span id", v.Version()), func(t *testing.T) {
-			spanID := "0000000000010203"
-			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id="%s"}`, spanID)}
+			expectedSpanID := "0000000000010203"
+			for name, query := range map[string]string{
+				"with leading zeros":       `{span:id="0000000000010203"}`,
+				"no leading zeros":         `{span:id="10203"}`,
+				"yoda: with leading zeros": `{"0000000000010203"=span:id}`,
+				"yoda: no leading zeros":   `{"10203"=span:id}`,
+			} {
+				t.Run(name, func(t *testing.T) {
+					req := &tempopb.SearchRequest{Query: query}
 
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
-			require.NoError(t, err, "search request: %+v", req)
-			require.NotEmpty(t, res.Traces)
+					res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+					require.NoError(t, err, "search request: %+v", req)
+					require.NotEmpty(t, res.Traces)
 
-			actual := actualForExpectedMeta(wantMeta, res)
-			require.NotNil(t, actual, "search request: %v", req)
+					actual := actualForExpectedMeta(wantMeta, res)
+					require.NotNil(t, actual, "search request: %v", req)
 
-			var found bool
-			require.NotNil(t, actual.SpanSets)
-			for _, spanSet := range actual.SpanSets {
-				for _, span := range spanSet.Spans {
-					if span.SpanID == spanID {
-						found = true
-						break
+					var found bool
+					require.NotNil(t, actual.SpanSets)
+					for _, spanSet := range actual.SpanSets {
+						for _, span := range spanSet.Spans {
+							if span.SpanID == expectedSpanID {
+								found = true
+								break
+							}
+						}
 					}
-				}
-			}
-			require.True(t, found, "span id %s not found", spanID)
+					require.True(t, found, "span id %s not found", expectedSpanID)
 
-			actual.SpanSet = nil
-			actual.SpanSets = nil
-			actual.ServiceStats = nil
-			require.Equal(t, wantMeta, actual, "search request: %v", req)
+					actual.SpanSet = nil
+					actual.SpanSets = nil
+					actual.ServiceStats = nil
+					require.Equal(t, wantMeta, actual, "search request: %v", req)
+				})
+			}
 		})
 
 		t.Run(fmt.Sprintf("%s: exclude trace id", v.Version()), func(t *testing.T) {
@@ -2723,21 +2732,29 @@ func TestSearchByShortTraceID(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("%s: exclude span id", v.Version()), func(t *testing.T) {
-			spanID := "0000000000010203"
-			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id!="%s"}`, spanID)}
+			expectedSpanID := "0000000000010203"
+			for name, query := range map[string]string{
+				"with leading zeros":       `{span:id!="0000000000010203"}`,
+				"no leading zeros":         `{span:id!="10203"}`,
+				"yoda: with leading zeros": `{"0000000000010203"!=span:id}`,
+				"yoda: no leading zeros":   `{"10203"!=span:id}`,
+			} {
+				t.Run(name, func(t *testing.T) {
+					req := &tempopb.SearchRequest{Query: query}
+					res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+					require.NoError(t, err, "search request: %+v", req)
+					require.NotEmpty(t, res.Traces)
 
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
-			require.NoError(t, err, "search request: %+v", req)
-			require.NotEmpty(t, res.Traces)
+					actual := actualForExpectedMeta(wantMeta, res)
+					require.NotNil(t, actual, "search request: %v", req) // should find the target trace
+					require.NotNil(t, actual.SpanSets)                   // but should not find the target span
 
-			actual := actualForExpectedMeta(wantMeta, res)
-			require.NotNil(t, actual, "search request: %v", req) // should find the target trace
-			require.NotNil(t, actual.SpanSets)                   // but should not find the target span
-
-			for _, spanSet := range actual.SpanSets {
-				for _, span := range spanSet.Spans {
-					require.NotEqual(t, spanID, span.SpanID)
-				}
+					for _, spanSet := range actual.SpanSets {
+						for _, span := range spanSet.Spans {
+							require.NotEqual(t, expectedSpanID, span.SpanID)
+						}
+					}
+				})
 			}
 		})
 	}
