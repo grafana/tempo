@@ -1021,7 +1021,7 @@ func (p ByteEqualPredicate) KeepPage(page pq.Page) bool {
 
 func (p ByteEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
-	return bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)
+	return bytes.Equal(vv, p.value)
 }
 
 var _ Predicate = (*ByteNotEqualPredicate)(nil)
@@ -1072,5 +1072,5 @@ func (p ByteNotEqualPredicate) KeepPage(page pq.Page) bool {
 
 func (p ByteNotEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
-	return !bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)
+	return !bytes.Equal(vv, p.value)
 }
