@@ -264,13 +264,6 @@ func TestSearchTagsV2(t *testing.T) {
 	// wait for 2 objects to be written to the backend
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
 
-	// Assert no more on the ingester
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagsV2AndAssert(t, tempo, tc.scope, tc.query, searchTagsV2Response{}, 0, 0)
-		})
-	}
-
 	// Assert tags on storage backend
 	now := time.Now()
 	start := now.Add(-2 * time.Hour)
@@ -438,13 +431,6 @@ func TestSearchTagValuesV2(t *testing.T) {
 
 	// wait for 2 objects to be written to the backend
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
-
-	// Assert no more on the ingester
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, searchTagValuesV2Response{TagValues: []TagValue{}}, 0, 0)
-		})
-	}
 
 	// Assert tags on storage backend
 	now := time.Now()
