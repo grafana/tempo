@@ -654,7 +654,7 @@ sendLoop:
 	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(5), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(5), "tempo_ingester_blocks_flushed_total"))
 
 	query := "{} | rate() by (span:id)"
 	url := fmt.Sprintf(

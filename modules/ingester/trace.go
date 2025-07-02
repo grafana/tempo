@@ -10,19 +10,21 @@ import (
 
 type liveTrace struct {
 	batches    [][]byte
-	lastAppend time.Time
 	traceID    []byte
 	start      uint32
 	end        uint32
 	decoder    model.SegmentDecoder
+	lastAppend time.Time
+	createdAt  time.Time
 }
 
 func newTrace(traceID []byte) *liveTrace {
 	return &liveTrace{
 		batches:    make([][]byte, 0, 10), // 10 for luck
-		lastAppend: time.Now(),
 		traceID:    traceID,
 		decoder:    model.MustNewSegmentDecoder(model.CurrentEncoding),
+		createdAt:  time.Now(),
+		lastAppend: time.Now(),
 	}
 }
 
