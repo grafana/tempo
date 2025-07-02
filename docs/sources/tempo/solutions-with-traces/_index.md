@@ -8,7 +8,7 @@ title: Use traces to find solutions
 menuTitle: Solutions with traces
 aliases:
   - ./introduction/solutions-with-traces/ # /docs/tempo/<TEMPO_VERSION>/introduction/solutions-with-traces/
-weight: 300
+weight: 150
 ---
 
 # Use traces to find solutions
