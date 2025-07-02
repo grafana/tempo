@@ -18,6 +18,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 // NOTE: This is a way to know if the contents of the semconv package have changed.
@@ -310,6 +311,46 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+}
+
+func TestServiceGraphs_expiredEdges(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.EnableVirtualNodeLabel = true
+	cfg.Wait = time.Nanosecond
+
+	const tenant = "expired-edge-test"
+
+	p := New(cfg, tenant, testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	/*
+		1 unmatched edge - root span with type server
+		1 matched edge - client/server spans
+		1 unmatched edge - client span with a db name
+		1 unmatched edge - server span. this should count as expired!
+	*/
+	request, err := loadTestData("testdata/trace-with-expired-edges.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	p.(*Processor).store.Expire()
+
+	expiredEdges, err := test.GetCounterVecValue(metricExpiredEdges, tenant)
+	require.NoError(t, err)
+	assert.Equal(t, 1.0, expiredEdges)
+
+	totalEdges, err := test.GetCounterVecValue(metricTotalEdges, tenant)
+	require.NoError(t, err)
+	assert.Equal(t, 4.0, totalEdges)
+
+	droppedSpans, err := test.GetCounterVecValue(metricDroppedSpans, tenant)
+	require.NoError(t, err)
+	assert.Equal(t, 0.0, droppedSpans)
 }
 
 func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {

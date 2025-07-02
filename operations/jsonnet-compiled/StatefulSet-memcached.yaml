@@ -48,5 +48,12 @@ spec:
         ports:
         - containerPort: 9150
           name: http-metrics
+        resources:
+          limits:
+            cpu: 500m
+            memory: 250Mi
+          requests:
+            cpu: 50m
+            memory: 50Mi
   updateStrategy:
     type: RollingUpdate
