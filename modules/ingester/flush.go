@@ -179,7 +179,7 @@ func (i *Ingester) cutAllInstancesToWal() {
 
 func (i *Ingester) cutOneInstanceToWal(instance *instance, immediate bool) {
 	// cut traces internally
-	err := instance.CutCompleteTraces(i.cfg.MaxTraceIdle, immediate)
+	err := instance.CutCompleteTraces(i.cfg.MaxTraceIdle, i.cfg.MaxTraceLive, immediate)
 	if err != nil {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut traces", "err", err)
 		return

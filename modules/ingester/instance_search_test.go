@@ -113,7 +113,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			assert.Len(t, sr.Traces, 0)
 
 			// Test after appending to WAL
-			require.NoError(t, i.CutCompleteTraces(0, true))
+			require.NoError(t, i.CutCompleteTraces(0, 0, true))
 
 			sr, err = i.Search(context.Background(), req)
 			assert.NoError(t, err)
@@ -593,7 +593,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	}
 
 	// traces have to be cut to show up in searches
-	err := i.CutCompleteTraces(0, true)
+	err := i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 
 	return ids, expectedTagValues, expectedEventTagValues, expectedLinkTagValues
@@ -659,7 +659,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		err := i.CutCompleteTraces(0, true)
+		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "error cutting complete traces")
 	})
 
@@ -747,7 +747,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	err := i.CutCompleteTraces(0, true)
+	err := i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 
 	blockID, err := i.CutBlockIfReady(0, 0, true)
@@ -809,7 +809,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.Equal(t, uint64(0), m.InspectedBytes)  // we don't search live traces
 
 	// Test after appending to WAL
-	err := i.CutCompleteTraces(0, true)
+	err := i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 	m = search()
 	require.Less(t, numBytes, m.InspectedBytes)
@@ -872,7 +872,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	cuts := 0
 	go concurrent(func() {
 		time.Sleep(250 * time.Millisecond)
-		err := i.CutCompleteTraces(0, true)
+		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(b, err, "error cutting complete traces")
 		cuts++
 	})

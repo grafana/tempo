@@ -336,8 +336,12 @@ ingester:
             [port: <int>]
 
     # amount of time a trace must be idle before flushing it to the wal.
-    # (default: 10s)
+    # (default: 5s)
     [trace_idle_period: <duration>]
+
+    # amount of time after which a trace is flushed to the wal regardless of idle period
+    # (default: 30s)
+    [trace_live_period: <duration>]
 
     # how often to sweep all tenants and move traces from live -> wal -> completed blocks.
     # (default: 10s)
@@ -517,8 +521,11 @@ metrics_generator:
             # How often to run the flush loop to cut idle traces and blocks
             [flush_check_period: <duration> | default = 10s]
 
-            # A trace is considered complete after this period of inactivity (no new spans recieved)
-            [trace_idle_period: <duration> | default = 10s]
+            # A trace is considered complete after this period of inactivity (no new spans received)
+            [trace_idle_period: <duration> | default = 5s]
+
+            # A trace is flushed after this period regardless of whether it is still receiving spans or not
+            [trace_live_period: <duration> | default = 30s]
 
             # Maximum duration which the head block can be appended to, before cutting it.
             [max_block_duration: <duration> | default = 1m]
