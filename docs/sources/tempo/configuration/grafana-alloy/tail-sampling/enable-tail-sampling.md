@@ -20,6 +20,14 @@ Alloy configuration files are written in [Alloy configuration syntax](https://gr
 * Use Grafana Alloy or OpenTelemetry Collector to collect traces from the application, generate metrics from traces, and apply sampling.
 * Send all traces to the data collector to generate accurate metrics.
 
+You’ll need to use a supported collector:
+  * Grafana Alloy >=1.0
+  * OTel Collector >= 0.94
+
+If you are using Grafana Cloud and Application Observability:
+
+* Disable metrics generation in Application Observability’s [configuration](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/manual/configure/)
+
 ## Configure tail sampling
 
 To start using tail sampling, define a sampling policy in your configuration file.
