@@ -14,6 +14,12 @@ but also run the risk of discarding relevant data that you'll later want.
 Tail sampling works with Grafana Alloy.
 Alloy configuration files are written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/get-started/configuration-syntax/).
 
+## Before you begin
+
+* You should have no sampling strategy at the application level.
+* Use Grafana Alloy or OpenTelemetry Collector to collect traces from the application, generate metrics from traces, and apply sampling.
+* Send all traces to the data collector to generate accurate metrics.
+
 ## Configure tail sampling
 
 To start using tail sampling, define a sampling policy in your configuration file.
