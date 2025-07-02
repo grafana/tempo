@@ -66,11 +66,8 @@ func TestBackendScheduler(t *testing.T) {
 	scheduler := util.NewTempoTarget("backend-scheduler", configFile)
 	require.NoError(t, s.StartAndWaitReady(scheduler))
 
-	// // Setup tempodb with local backend
-	// tempodbWriter := setupBackend(t, tmpDir)
+	// Setup tempodb with local backend
 	tempodbWriter := setupBackendWithEndpoint(t, &cfg.StorageConfig.Trace, e)
-
-	time.Sleep(5 * time.Second)
 
 	cases := []struct {
 		name                      string
@@ -87,7 +84,7 @@ func TestBackendScheduler(t *testing.T) {
 			expectedOutstandingBlocks: 0,
 		},
 		{
-			name:                      "a bunch of tenants with 12 blocks each 12 3 outstanding",
+			name:                      "a bunch of tenants with 12 blocks each 12 outstanding",
 			tenantCount:               11,
 			blockCount:                12,
 			expectedBlocks:            12,
