@@ -47,7 +47,7 @@ func TestInstance(t *testing.T) {
 	require.NotNil(t, response)
 	require.Equal(t, requestSz, i.traceSizeBytes)
 
-	err := i.CutCompleteTraces(0, true)
+	err := i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), i.traceSizeBytes)
 
@@ -86,7 +86,7 @@ func TestInstanceFind(t *testing.T) {
 
 	queryAll(t, i, ids, traces)
 
-	err := i.CutCompleteTraces(0, true)
+	err := i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 
 	for j := 0; j < numTraces; j++ {
@@ -187,7 +187,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	concurrent(func() {
-		err := i.CutCompleteTraces(0, true)
+		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "error cutting complete traces")
 	})
 
@@ -349,84 +349,111 @@ func TestInstanceLimits(t *testing.T) {
 	}
 }
 
-func TestInstanceCutCompleteTraces(t *testing.T) {
-	id := make([]byte, 16)
-	_, err := crand.Read(id)
-	require.NoError(t, err)
+func TestTracesToCut(t *testing.T) {
+	now := time.Now()
 
-	pastTrace := &liveTrace{
-		traceID:    id,
-		lastAppend: time.Now().Add(-time.Hour),
-	}
+	tcs := []struct {
+		name       string
+		idleCutoff time.Duration
+		liveCutoff time.Duration
+		immediate  bool
+		traces     []*liveTrace
 
-	id = make([]byte, 16)
-	_, err = crand.Read(id)
-	require.NoError(t, err)
-
-	nowTrace := &liveTrace{
-		traceID:    id,
-		lastAppend: time.Now().Add(time.Hour),
-	}
-
-	tt := []struct {
-		name             string
-		cutoff           time.Duration
-		immediate        bool
-		input            []*liveTrace
-		expectedExist    []*liveTrace
-		expectedNotExist []*liveTrace
+		expectedToCut int
 	}{
 		{
-			name:      "empty",
-			cutoff:    0,
-			immediate: false,
+			name:          "empty",
+			idleCutoff:    0,
+			liveCutoff:    0,
+			immediate:     false,
+			traces:        []*liveTrace{},
+			expectedToCut: 0,
 		},
 		{
-			name:             "cut immediate",
-			cutoff:           0,
-			immediate:        true,
-			input:            []*liveTrace{pastTrace, nowTrace},
-			expectedNotExist: []*liveTrace{pastTrace, nowTrace},
+			name:       "idle cutoff",
+			idleCutoff: time.Second,
+			liveCutoff: time.Hour, // large value to avoid cutting
+			immediate:  false,
+			traces: []*liveTrace{
+				{ // should not be cut because it's within idle cutoff
+					lastAppend: now,
+					createdAt:  now,
+				},
+				{ // should be cut b/c it was last appended before idle cutoff
+					lastAppend: now.Add(-2 * time.Second),
+					createdAt:  now.Add(-2 * time.Second),
+				},
+			},
+			expectedToCut: 1,
 		},
 		{
-			name:             "cut recent",
-			cutoff:           0,
-			immediate:        false,
-			input:            []*liveTrace{pastTrace, nowTrace},
-			expectedExist:    []*liveTrace{nowTrace},
-			expectedNotExist: []*liveTrace{pastTrace},
+			name:       "live cutoff",
+			idleCutoff: time.Hour, // large value to avoid cutting
+			liveCutoff: time.Second,
+			immediate:  false,
+			traces: []*liveTrace{
+				{ // should not be cut because it's within live cutoff
+					lastAppend: now,
+					createdAt:  now,
+				},
+				{ // should be cut b/c it was created before live cutoff
+					lastAppend: now.Add(-2 * time.Second),
+					createdAt:  now.Add(-2 * time.Second),
+				},
+			},
+			expectedToCut: 1,
 		},
 		{
-			name:             "cut all time",
-			cutoff:           2 * time.Hour,
-			immediate:        false,
-			input:            []*liveTrace{pastTrace, nowTrace},
-			expectedNotExist: []*liveTrace{pastTrace, nowTrace},
+			name:       "cut nothing",
+			idleCutoff: time.Hour,
+			liveCutoff: time.Hour,
+			immediate:  false,
+			traces: []*liveTrace{
+				{
+					lastAppend: now,
+					createdAt:  now,
+				},
+				{
+					lastAppend: now.Add(-2 * time.Second),
+					createdAt:  now.Add(-2 * time.Second),
+				},
+			},
+			expectedToCut: 0,
+		},
+		{
+			name:       "cut two",
+			idleCutoff: time.Second,
+			liveCutoff: time.Minute,
+			immediate:  false,
+			traces: []*liveTrace{
+				{
+					lastAppend: now,
+					createdAt:  now.Add(-2 * time.Minute), // should be cut b/c it was created before live cutoff
+				},
+				{
+					lastAppend: now.Add(-2 * time.Second), // should be cut b/c it was last appended before idle cutoff
+					createdAt:  now.Add(-time.Minute),
+				},
+				{
+					lastAppend: now, // should not be cut
+					createdAt:  now.Add(-time.Minute),
+				},
+			},
+			expectedToCut: 2,
 		},
 	}
 
-	for _, tc := range tt {
+	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			instance, _ := defaultInstance(t)
+			instance.traces = map[uint64]*liveTrace{}
 
-			for _, trace := range tc.input {
-				fp := util.HashForTraceID(trace.traceID)
-				instance.traces[fp] = trace
+			for i, trace := range tc.traces {
+				instance.traces[uint64(i)] = trace
 			}
 
-			err := instance.CutCompleteTraces(tc.cutoff, tc.immediate)
-			require.NoError(t, err)
-
-			require.Equal(t, len(tc.expectedExist), len(instance.traces))
-			for _, expectedExist := range tc.expectedExist {
-				_, ok := instance.traces[util.HashForTraceID(expectedExist.traceID)]
-				require.True(t, ok)
-			}
-
-			for _, expectedNotExist := range tc.expectedNotExist {
-				_, ok := instance.traces[util.HashForTraceID(expectedNotExist.traceID)]
-				require.False(t, ok)
-			}
+			tracesToCut := instance.tracesToCut(now, tc.idleCutoff, tc.liveCutoff, tc.immediate)
+			require.Equal(t, tc.expectedToCut, len(tracesToCut))
 		})
 	}
 }
@@ -494,7 +521,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			lastCutTime := instance.lastBlockCut
 
 			// Cut all traces to headblock for testing
-			err := instance.CutCompleteTraces(0, true)
+			err := instance.CutCompleteTraces(0, 0, true)
 			require.NoError(t, err)
 
 			blockID, err := instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
@@ -518,7 +545,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 func TestInstanceMetrics(t *testing.T) {
 	i, _ := defaultInstance(t)
 	cutAndVerify := func(v int) {
-		err := i.CutCompleteTraces(0, true)
+		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err)
 
 		liveTraces, err := test.GetGaugeVecValue(metricLiveTraces, testTenantID)
@@ -577,7 +604,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	assert.Equal(t, true, traceTooLargeCount > 0)
 
 	// Pushing still fails after flush
-	err = i.CutCompleteTraces(0, true)
+	err = i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 	response = i.PushBytesRequest(ctx, req)
 	_, _, traceTooLargeCount = CheckPushBytesError(response)
@@ -592,13 +619,13 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 
 	// Cut block 2x w/o while pushing other traces, but not the problematic trace! this will finally clear the trace
 	i.PushBytesRequest(ctx, makeRequestWithByteLimit(200, nil))
-	err = i.CutCompleteTraces(0, true)
+	err = i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 	_, err = i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 
 	i.PushBytesRequest(ctx, makeRequestWithByteLimit(200, nil))
-	err = i.CutCompleteTraces(0, true)
+	err = i.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 	_, err = i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
@@ -822,7 +849,7 @@ func TestInstanceClearOldBlocks(t *testing.T) {
 				request := makeRequest([]byte{})
 				instance.PushBytesRequest(ctx, request)
 
-				err := instance.CutCompleteTraces(0, true)
+				err := instance.CutCompleteTraces(0, 0, true)
 				require.NoError(t, err)
 
 				blockID, err := instance.CutBlockIfReady(0, 0, true)
@@ -927,7 +954,7 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 	require.False(b, errored, "push failed: %w", response.ErrorsByTrace)
 
 	// force the trace to be in a complete block
-	err := instance.CutCompleteTraces(0, true)
+	err := instance.CutCompleteTraces(0, 0, true)
 	require.NoError(b, err)
 	id, err := instance.CutBlockIfReady(0, 0, true)
 	require.NoError(b, err)
@@ -961,7 +988,7 @@ func benchmarkInstanceSearch(b testing.TB, writes int, reads int) {
 		require.False(b, errored, "push failed: %w", response.ErrorsByTrace)
 
 		if i%100 == 0 {
-			err := instance.CutCompleteTraces(0, true)
+			err := instance.CutCompleteTraces(0, 0, true)
 			require.NoError(b, err)
 		}
 	}
@@ -1067,7 +1094,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 	})
 
 	go concurrent(func() {
-		err := i.CutCompleteTraces(0, true)
+		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "error cutting complete traces")
 		traceFlushes++
 	})

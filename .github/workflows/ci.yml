@@ -99,6 +99,7 @@ jobs:
             test-e2e,
             test-e2e-api,
             test-integration-poller,
+            test-integration-backendscheduler,
             test-e2e-deployments,
             test-e2e-ingest,
           ]

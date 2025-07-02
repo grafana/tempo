@@ -22,7 +22,7 @@ ingester:
   flush_check_period: 1s
 storage:
   trace:
-    blocklist_poll: 2s
+    blocklist_poll: 1s
     blocklist_poll_stale_tenant_index: 1s # force components to always fall back to polling
     backend: s3
     s3:
@@ -35,8 +35,9 @@ storage:
       max_workers: 10
       queue_depth: 100
 backend_scheduler:
-  schedule_interval: 1s
-  tenant_priority_interval: 1s
+  provider:
+    compaction:
+      measure_interval: 1s
 backend_worker:
   backend_scheduler_addr: tempo-integration-backend-scheduler:9095
 backend_scheduler_client:

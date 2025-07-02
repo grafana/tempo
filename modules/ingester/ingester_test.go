@@ -66,7 +66,7 @@ func TestPushQueryAllEncodings(t *testing.T) {
 
 			// force cut all traces
 			for _, instance := range ingester.instances {
-				err := instance.CutCompleteTraces(0, true)
+				err := instance.CutCompleteTraces(0, 0, true)
 				require.NoError(t, err, "unexpected error cutting traces")
 			}
 
@@ -99,7 +99,7 @@ func TestFullTraceReturned(t *testing.T) {
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
-		err = instance.CutCompleteTraces(0, true)
+		err = instance.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
@@ -115,7 +115,7 @@ func TestFullTraceReturned(t *testing.T) {
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
-		err = instance.CutCompleteTraces(0, true)
+		err = instance.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
@@ -143,7 +143,7 @@ func TestWal(t *testing.T) {
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
-		err := instance.CutCompleteTraces(0, true)
+		err := instance.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
@@ -189,7 +189,7 @@ func TestWalDropsZeroLength(t *testing.T) {
 
 	// force cut all traces and wipe wal
 	for _, instance := range ingester.instances {
-		err := instance.CutCompleteTraces(0, true)
+		err := instance.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "unexpected error cutting traces")
 
 		blockID, err := instance.CutBlockIfReady(0, 0, true)
@@ -233,7 +233,7 @@ func TestSearchWAL(t *testing.T) {
 	require.NoError(t, inst.PushBytes(context.Background(), id, b1))
 
 	// Write wal
-	require.NoError(t, inst.CutCompleteTraces(0, true))
+	require.NoError(t, inst.CutCompleteTraces(0, 0, true))
 
 	// search WAL
 	ctx := user.InjectOrgID(context.Background(), "test")
@@ -267,7 +267,7 @@ func TestRediscoverLocalBlocks(t *testing.T) {
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
-		err := instance.CutCompleteTraces(0, true)
+		err := instance.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
@@ -307,7 +307,7 @@ func TestRediscoverDropsInvalidBlocks(t *testing.T) {
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
-		err := instance.CutCompleteTraces(0, true)
+		err := instance.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
@@ -361,7 +361,7 @@ func TestRediscoverDropsInvalidBlocks(t *testing.T) {
 	require.True(t, ok)
 
 	// Write wal
-	err := inst.CutCompleteTraces(0, true)
+	err := inst.CutCompleteTraces(0, 0, true)
 	require.NoError(t, err)
 	blockID, err := inst.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
@@ -477,7 +477,7 @@ func TestDedicatedColumns(t *testing.T) {
 	require.NoError(t, inst.PushBytes(context.Background(), id, b1))
 
 	// Write wal
-	require.NoError(t, inst.CutCompleteTraces(0, true))
+	require.NoError(t, inst.CutCompleteTraces(0, 0, true))
 
 	assert.Equal(t, cfg.Defaults.Storage.DedicatedColumns, inst.headBlock.BlockMeta().DedicatedColumns)
 

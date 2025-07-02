@@ -517,7 +517,8 @@ ingester:
     concurrent_flushes: 4
     flush_check_period: 10s
     flush_op_timeout: 5m0s
-    trace_idle_period: 10s
+    trace_idle_period: 5s
+    trace_live_period: 30s
     max_block_duration: 30m0s
     max_block_bytes: 524288000
     complete_block_timeout: 15m0s
@@ -641,7 +642,8 @@ metrics_generator:
                     column_index: false
                     offset_index: false
             flush_check_period: 10s
-            trace_idle_period: 10s
+            trace_idle_period: 5s
+            trace_live_period: 30s
             max_block_duration: 1m0s
             max_block_bytes: 500000000
             concurrency: 4
