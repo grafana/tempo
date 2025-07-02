@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"path"
 	"time"
@@ -328,7 +327,7 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 }
 
 func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (string, error) {
-	rw := httptest.NewRecorder()
+	rw := newResponseBuffer()
 	req = req.WithContext(ctx)
 
 	if req.Body == nil {
@@ -345,10 +344,10 @@ func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (s
 
 	handler.ServeHTTP(rw, req)
 
-	body := rw.Body.String()
+	body := rw.body.String()
 
-	if rw.Code != http.StatusOK {
-		return "", fmt.Errorf("tool failed with http status code %d and reason %s", rw.Code, body)
+	if rw.status != http.StatusOK {
+		return "", fmt.Errorf("tool failed with http status code %d and reason %s", rw.status, body)
 	}
 
 	return body, nil
@@ -378,4 +377,39 @@ func toolResult(body string, contentType string, encoding string, version string
 	}
 
 	return res
+}
+
+// responseBuffer
+type responseBuffer struct {
+	status      int
+	header      http.Header
+	body        *bytes.Buffer
+	wroteHeader bool
+}
+
+func newResponseBuffer() *responseBuffer {
+	return &responseBuffer{
+		status: http.StatusOK,
+		header: http.Header{},
+		body:   bytes.NewBuffer(nil),
+	}
+}
+
+func (rb *responseBuffer) Header() http.Header {
+	return rb.header
+}
+
+func (rb *responseBuffer) WriteHeader(code int) {
+	if rb.wroteHeader {
+		return // Prevent multiple calls
+	}
+	rb.status = code
+	rb.wroteHeader = true
+}
+
+func (rb *responseBuffer) Write(data []byte) (int, error) {
+	if !rb.wroteHeader {
+		rb.WriteHeader(http.StatusOK)
+	}
+	return rb.body.Write(data)
 }
