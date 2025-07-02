@@ -23,6 +23,7 @@ Alloy configuration files are written in [Alloy configuration syntax](https://gr
 ## Configure tail sampling
 
 To start using tail sampling, define a sampling policy in your configuration file.
+For more information about sampling policies, refer to the [Tail Sampling documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/policies-strategies/).
 
 If you're using a multi-instance deployment of Alloy,
 add load balancing and specify the resolving mechanism to find other Alloy instances in the setup.

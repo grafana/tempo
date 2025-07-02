@@ -7,7 +7,7 @@ weight: 700
 
 # Tail sampling policies and strategies
 
-[Tail sampling strategies](https://grafana.com/docs/tempo/latest/configuration/grafana-alloy/tail-sampling/) consider all, or a subset, of the spans that have been collected by an OpenTelemetry Collector [distribution](https://opentelemetry.io/docs/concepts/distributions/), such as [Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/).
+[Tail sampling strategies](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/) consider all, or a subset, of the spans that have been collected by an OpenTelemetry Collector [distribution](https://opentelemetry.io/docs/concepts/distributions/), such as [Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/).
 
 Tail sampling is currently defined as part of a telemetry pipeline.
 Alloy and other collectors are part of the `processing` set of components that are executed after telemetry has been received by Alloy, but before it is exported to a trace storage system such as to Grafana Tempo or Grafana Cloud Traces.
@@ -110,7 +110,7 @@ Sample data at the collector after metrics generation so that all traces are ava
 
 You can use `always_sample` when you want to capture all tracing data. This could be useful for troubleshooting.
 
-Refer to the <code>[always_sample](https://grafana.com/docs/<ALLOY_VERSION>/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#always_sample)</code> documentation for more information.` `
+Refer to the <code>[always_sample](https://grafana.com/docs/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#always_sample)</code> documentation for more information.` `
 
 ```alloy
 policy {
