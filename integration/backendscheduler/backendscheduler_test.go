@@ -63,7 +63,7 @@ func TestBackendScheduler(t *testing.T) {
 	e := b.Endpoint(b.HTTPPort())
 	t.Logf("Endpoint: %s", e)
 
-	scheduler := util.NewTempoTarget("backend-scheduler")
+	scheduler := util.NewTempoTarget(util.TargetBackendScheduler)
 	require.NoError(t, s.StartAndWaitReady(scheduler))
 
 	// Setup tempodb with local backend
@@ -142,7 +142,7 @@ func TestBackendScheduler(t *testing.T) {
 
 	// Delay starting the work to ensure we have a clean state of the data before
 	// the worker starts processing jobs.
-	worker := util.NewTempoTarget("backend-worker")
+	worker := util.NewTempoTarget(util.TargetBackendWorker)
 	require.NoError(t, s.StartAndWaitReady(worker))
 
 	// Allow the worker some time to process the blocks.
