@@ -600,7 +600,7 @@ func TestGetGrpcEndpoint(t *testing.T) {
 
 	got, err = getGRPCEndpoint("http://localhost")
 	require.NoError(t, err)
-	assert.Equal(t, "localhost:14250", got, "Address without a port should be defaulted to 14250")
+	assert.Equal(t, "localhost:4317", got, "Address without a port should be defaulted to 14250")
 }
 
 func TestNewOtlpThriftClient(t *testing.T) {

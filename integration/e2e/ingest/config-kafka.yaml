@@ -15,6 +15,10 @@ query_frontend:
 
 distributor:
   receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
     jaeger:
       protocols:
         grpc:
@@ -55,7 +59,6 @@ storage:
       version: vParquet3
     blocklist_poll: 1s
 
-
 overrides:
   user_configurable_overrides:
     enabled: true
@@ -72,4 +75,4 @@ ingest:
   enabled: true
   kafka:
     address: kafka:9092
-    topic:   tempo-ingest
+    topic: tempo-ingest
