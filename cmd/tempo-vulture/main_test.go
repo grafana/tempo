@@ -596,18 +596,18 @@ func TestGetGrpcEndpoint(t *testing.T) {
 
 	got, err := getGRPCEndpoint("http://localhost:4000")
 	require.NoError(t, err)
-	assert.Equal(t, "localhost:4000", got, "Address endpoint should keep the given port")
+	assert.Equal(t, "http://localhost:4000", got, "Address endpoint should keep the given port")
 
 	got, err = getGRPCEndpoint("http://localhost")
 	require.NoError(t, err)
-	assert.Equal(t, "localhost:14250", got, "Address without a port should be defaulted to 14250")
+	assert.Equal(t, "http://localhost:4317", got, "Address without a port should be defaulted to 4317")
 }
 
 func TestNewOtlpJaegerClient(t *testing.T) {
 	configValid := vultureConfiguration{
 		tempoPushURL: "localhost:4317",
 	}
-	clientValid, errValid := integrationutil.NewOtlpJaegerClient(configValid.tempoPushURL)
+	clientValid, errValid := integrationutil.NewOtlpThriftClient(configValid.tempoPushURL)
 	assert.NoError(t, errValid)
 	assert.NotNil(t, clientValid)
 }
