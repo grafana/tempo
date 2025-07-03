@@ -2911,3 +2911,42 @@ func TestHistogramAggregator_LatencySpike(t *testing.T) {
 		t.Logf("P99 exemplar: %.3f", ex.Value)
 	}
 }
+
+func TestLog2QuantileWithBucket(t *testing.T) {
+	buckets := []HistogramBucket{
+		{Max: 1.0, Count: 10}, // bucket 0
+		{Max: 2.0, Count: 20}, // bucket 1
+		{Max: 4.0, Count: 30}, // bucket 2
+		{Max: 8.0, Count: 40}, // bucket 3
+	}
+
+	tests := []struct {
+		name           string
+		quantile       float64
+		expectedBucket int
+	}{
+		{"p10", 0.1, 0},  // 10% of 100 = 10, should be in bucket 0
+		{"p30", 0.3, 1},  // 30% of 100 = 30, should be in bucket 1
+		{"p60", 0.6, 2},  // 60% of 100 = 60, should be in bucket 2
+		{"p90", 0.9, 3},  // 90% of 100 = 90, should be in bucket 3
+		{"p100", 1.0, 3}, // 100% should be in last bucket
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, bucketIdx := Log2QuantileWithBucket(tt.quantile, buckets)
+
+			// Verify we get a valid quantile value
+			require.Greater(t, value, 0.0, "Quantile value should be positive")
+
+			// Verify we get the expected bucket index
+			require.Equal(t, tt.expectedBucket, bucketIdx,
+				"Quantile %f should fall in bucket %d, got %d", tt.quantile, tt.expectedBucket, bucketIdx)
+
+			// Verify consistency with original Log2Quantile function
+			originalValue := Log2Quantile(tt.quantile, buckets)
+			require.Equal(t, originalValue, value,
+				"Log2QuantileWithBucket should return same value as Log2Quantile")
+		})
+	}
+}

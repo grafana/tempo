@@ -1681,11 +1681,18 @@ func Log2Bucketize(v uint64) float64 {
 // Log2Quantile returns the quantile given bucket labeled with float ranges and counts. Uses
 // exponential power-of-two interpolation between buckets as needed.
 func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
+	value, _ := Log2QuantileWithBucket(p, buckets)
+	return value
+}
+
+// Log2QuantileWithBucket returns both the quantile value and the bucket index where the quantile falls.
+// This avoids rescanning buckets when you need to determine which bucket contains a specific value.
+func Log2QuantileWithBucket(p float64, buckets []HistogramBucket) (float64, int) {
 	if math.IsNaN(p) ||
 		p < 0 ||
 		p > 1 ||
 		len(buckets) == 0 {
-		return 0
+		return 0, -1
 	}
 
 	totalCount := 0
@@ -1694,7 +1701,7 @@ func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 	}
 
 	if totalCount == 0 {
-		return 0
+		return 0, -1
 	}
 
 	// Maximum amount of samples to include. We round up to better handle
@@ -1725,7 +1732,7 @@ func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 		// Quantile is the max range for the bucket. No reason
 		// to enter interpolation below.
 		if total == maxSamples {
-			return b.Max
+			return b.Max, bucket
 		}
 	}
 
@@ -1744,7 +1751,7 @@ func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 		// There is no prior bucket, assume powers of 2
 		minV = maxV - 1
 	}
-	return math.Pow(2, minV+(maxV-minV)*interp)
+	return math.Pow(2, minV+(maxV-minV)*interp), bucket
 }
 
 var (
