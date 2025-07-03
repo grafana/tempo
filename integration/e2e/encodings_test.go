@@ -54,7 +54,7 @@ func TestEncodings(t *testing.T) {
 			require.NoError(t, s.StartAndWaitReady(tempo))
 
 			// Get port for the Jaeger gRPC receiver endpoint
-			c, err := util2.NewJaegerGRPCClient(tempo.Endpoint(14250))
+			c, err := util2.NewOtlpThriftClient(tempo.Endpoint(14250))
 			require.NoError(t, err)
 			require.NotNil(t, c)
 

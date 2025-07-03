@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,15 +16,12 @@ import (
 
 	"github.com/go-test/deep"
 	"github.com/grafana/tempo/pkg/api"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
+	utilpkg "github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -68,7 +64,7 @@ type traceMetrics struct {
 }
 
 const (
-	defaultJaegerGRPCEndpoint = 14250
+	defaultOTLPGRPCEndpoint = 4317
 )
 
 type vultureConfiguration struct {
@@ -156,7 +152,7 @@ func main() {
 		tempoPushTLS:                    tempoPushTLS,
 	}
 
-	jaegerClient, err := newJaegerGRPCClient(vultureConfig, logger)
+	jaegerClient, err := utilpkg.NewOtlpThriftClient(vultureConfig.tempoPushURL)
 	if err != nil {
 		panic(err)
 	}
@@ -234,7 +230,7 @@ func getGRPCEndpoint(endpoint string) (string, error) {
 	dialAddress := u.Host
 
 	if u.Port() == "" {
-		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultJaegerGRPCEndpoint)
+		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultOTLPGRPCEndpoint)
 	}
 	return dialAddress, nil
 }
@@ -443,37 +439,6 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), r), 0)
 
 	return newStart.Round(interval), ts.Round(interval)
-}
-
-func newJaegerGRPCClient(config vultureConfiguration, logger *zap.Logger) (*jaeger_grpc.Reporter, error) {
-	endpoint, err := getGRPCEndpoint(config.tempoPushURL)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("dialing grpc",
-		zap.String("endpoint", endpoint),
-	)
-
-	var dialOpts []grpc.DialOption
-
-	if config.tempoPushTLS {
-		dialOpts = []grpc.DialOption{
-			grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
-				InsecureSkipVerify: true,
-			})),
-		}
-	} else {
-		dialOpts = []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		}
-	}
-	// new jaeger grpc exporter
-	conn, err := grpc.NewClient(endpoint, dialOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), nil
 }
 
 func generateRandomInt(min, max int64, r *rand.Rand) int64 {

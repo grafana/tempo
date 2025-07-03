@@ -58,7 +58,7 @@ func TestPartitionDownscale(t *testing.T) {
 	require.NoError(t, distributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(partitionStateMatchers("Active")...)))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewJaegerGRPCClient(distributor.Endpoint(14250))
+	c, err := util.NewOtlpThriftClient(distributor.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 

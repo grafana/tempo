@@ -7,6 +7,10 @@ distributor:
       protocols:
         grpc:
           endpoint: "distributor-b:14250"
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "distributor-b:4317"
 
 ingester:
   lifecycler:
@@ -20,7 +24,7 @@ storage:
     backend: s3
     s3:
       bucket: tempo
-      endpoint: tempo_active_active-minio-9000:9000  # TODO: this is brittle, fix this eventually
+      endpoint: tempo_active_active-minio-9000:9000 # TODO: this is brittle, fix this eventually
       access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
       secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
       insecure: true
@@ -32,13 +36,12 @@ memberlist:
   abort_if_cluster_join_fails: false
   bind_port: 7946
   join_members:
-  - tempo_active_active-ingester-a-1:7946
-  - tempo_active_active-ingester-a-2:7946
-  - tempo_active_active-ingester-a-3:7946
-  - tempo_active_active-ingester-b-1:7946
-  - tempo_active_active-ingester-b-2:7946
-  - tempo_active_active-ingester-b-3:7946
-
+    - tempo_active_active-ingester-a-1:7946
+    - tempo_active_active-ingester-a-2:7946
+    - tempo_active_active-ingester-a-3:7946
+    - tempo_active_active-ingester-b-1:7946
+    - tempo_active_active-ingester-b-2:7946
+    - tempo_active_active-ingester-b-3:7946
 
 querier:
   secondary_ingester_ring: "ring-a"
