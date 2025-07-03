@@ -2217,8 +2217,8 @@ func TestHistogramAggregator(t *testing.T) {
 		exemplarCount int
 	}{
 		{"Small", 10, 5},
-		// {"Medium", 100, 20},
-		// {"Large", 1000, 100},
+		{"Medium", 100, 20},
+		{"Large", 1000, 100},
 	}
 
 	for _, tc := range cases {
