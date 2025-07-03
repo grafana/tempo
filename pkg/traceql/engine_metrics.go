@@ -1686,15 +1686,11 @@ func (h *HistogramAggregator) Results() SeriesSet {
 
 	// Build results using the calculated quantile values
 	for _, in := range h.ss {
-		// Pre-sort all interval buckets once for efficiency
-		sortedIntervalBuckets := make([][]HistogramBucket, len(in.hist))
 		for i := range in.hist {
 			if len(in.hist[i].Buckets) > 0 {
-				// Create a copy and sort it once
-				sortedIntervalBuckets[i] = make([]HistogramBucket, len(in.hist[i].Buckets))
-				copy(sortedIntervalBuckets[i], in.hist[i].Buckets)
-				sort.Slice(sortedIntervalBuckets[i], func(a, b int) bool {
-					return sortedIntervalBuckets[i][a].Max < sortedIntervalBuckets[i][b].Max
+				// Sort interval buckets in place for performance
+				sort.Slice(in.hist[i].Buckets, func(a, b int) bool {
+					return in.hist[i].Buckets[a].Max < in.hist[i].Buckets[b].Max
 				})
 			}
 		}
@@ -1712,17 +1708,18 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			}
 
 			for i := range in.hist {
-				if len(sortedIntervalBuckets[i]) == 0 {
+				if len(in.hist[i].Buckets) == 0 {
 					ts.Values[i] = 0.0
 					continue
 				}
 
-				// Use pre-sorted buckets for quantile calculation
-				ts.Values[i] = Log2Quantile(q, sortedIntervalBuckets[i])
+				// Use sorted buckets for quantile calculation
+				ts.Values[i] = Log2Quantile(q, in.hist[i].Buckets)
 			}
 
-			// Select exemplars using per-interval semantic matching with exemplars from this specific grouping
-			ts.Exemplars = h.selectExemplarsWithIntervalMatching(in.exemplars, sortedIntervalBuckets, qIdx)
+			// Select exemplars using value thresholds
+			// Use aggregated quantile values, not per-interval values, for consistent assignment
+			ts.Exemplars = h.selectExemplarsWithValueThresholds(in.exemplars, quantileValues, qIdx)
 
 			results[s] = ts
 		}
@@ -1730,35 +1727,17 @@ func (h *HistogramAggregator) Results() SeriesSet {
 	return results
 }
 
-// selectExemplarsWithIntervalMatching assigns exemplars based on their time interval context.
-// Each exemplar is compared against the quantile threshold from its specific interval.
-func (h *HistogramAggregator) selectExemplarsWithIntervalMatching(allExemplars []Exemplar, histSeries [][]HistogramBucket, quantileIdx int) []Exemplar {
-	if len(allExemplars) == 0 {
+// selectExemplarsWithValueThresholds assigns exemplars based on their values compared to quantile thresholds.
+// Each exemplar is compared against the aggregated quantile threshold values.
+func (h *HistogramAggregator) selectExemplarsWithValueThresholds(allExemplars []Exemplar, quantileValues []float64, quantileIdx int) []Exemplar {
+	if len(allExemplars) == 0 || len(quantileValues) == 0 {
 		return nil
 	}
 
 	var result []Exemplar
 	for _, exemplar := range allExemplars {
-		// Determine which time interval this exemplar belongs to
-		intervalIdx := IntervalOfMs(int64(exemplar.TimestampMs), h.start, h.end, h.step)
-		if intervalIdx < 0 || intervalIdx >= len(histSeries) {
-			continue // Exemplar outside our time range
-		}
-
-		// Get the histogram buckets for this specific interval
-		intervalBuckets := histSeries[intervalIdx]
-		if len(intervalBuckets) == 0 {
-			continue // No data in this interval
-		}
-
-		// Calculate quantile thresholds for all quantiles in this interval
-		intervalQuantileValues := make([]float64, len(h.qs))
-		for i, q := range h.qs {
-			intervalQuantileValues[i] = Log2Quantile(q, intervalBuckets)
-		}
-
-		// Assign exemplar to the appropriate quantile based on interval-specific thresholds
-		targetQuantileIdx := h.determineTargetQuantile(exemplar.Value, intervalQuantileValues)
+		// Assign exemplar to the appropriate quantile based on value-based thresholds
+		targetQuantileIdx := h.determineTargetQuantile(exemplar.Value, quantileValues)
 		if targetQuantileIdx == quantileIdx {
 			result = append(result, exemplar)
 		}
