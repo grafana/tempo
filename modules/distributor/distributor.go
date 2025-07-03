@@ -321,7 +321,7 @@ func New(
 	}
 	subservices = append(subservices, receivers)
 
-	if cfg.KafkaWritePathEnabled {
+	if cfg.KafkaConfig.IsEnabled() {
 		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, prometheus.WrapRegistererWithPrefix("tempo_distributor_", reg))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create kafka writer client: %w", err)
@@ -493,7 +493,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
 	}
 
-	if d.kafkaProducer != nil {
+	if d.cfg.KafkaWritePathEnabled || d.overrides.IngestStorageEnabled(userID) {
 		err := d.sendToKafka(ctx, userID, ringTokens, rebatchedTraces)
 		if err != nil {
 			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err)
