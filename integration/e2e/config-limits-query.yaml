@@ -9,10 +9,14 @@ distributor:
       protocols:
         grpc:
           endpoint: "tempo:14250"
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "tempo:4317"
 
 compactor:
   compaction:
-    block_retention: 1h            
+    block_retention: 1h
 
 overrides:
   defaults:

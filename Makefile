@@ -77,7 +77,7 @@ FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-p
 FILES_TO_JSONNETFMT=$(shell find ./operations/jsonnet ./operations/tempo-mixin -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -not -path "*/vendor/*" -print)
 
 ##@ Building
-.PHONY: tempo 	
+.PHONY: tempo
 tempo: ## Build tempo
 	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-$(GOARCH) $(BUILD_INFO) ./cmd/tempo
 
@@ -112,12 +112,12 @@ benchmark: tools ## Run benchmarks
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
-.PHONY: test-with-cover 
+.PHONY: test-with-cover
 test-with-cover: tools ## Run tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 # tests in pkg
-.PHONY: test-with-cover-pkg 
+.PHONY: test-with-cover-pkg
 test-with-cover-pkg: tools  ##  Run Tempo packages' tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
@@ -199,7 +199,7 @@ endif
 
 ##@ Docker Images
 
-.PHONY: docker-component 
+.PHONY: docker-component
 docker-component: check-component exe # not intended to be used directly
 	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
@@ -211,11 +211,11 @@ docker-component-multi: check-component # not intended to be used directly
 	docker buildx build -t grafana/$(COMPONENT) --platform linux/amd64,linux/arm64 --output type=docker -f ./cmd/$(COMPONENT)/Dockerfile .
 
 .PHONY: docker-component-debug
-docker-component-debug: check-component exe-debug 
+docker-component-debug: check-component exe-debug
 	docker build -t grafana/$(COMPONENT)-debug --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile_debug .
 	docker tag grafana/$(COMPONENT)-debug $(COMPONENT)-debug
 
-.PHONY: docker-tempo 
+.PHONY: docker-tempo
 docker-tempo: ## Build tempo docker image
 	COMPONENT=tempo make docker-component
 
@@ -236,7 +236,7 @@ docker-tempo-query: ## Build tempo query docker image
 
 .PHONY: docker-tempo-vulture
 docker-tempo-vulture: ## Build tempo vulture docker image
-	COMPONENT=tempo-vulture make docker-component
+	COMPONENT=tempo-vulture make docker-component-multi
 
 .PHONY: docker-images ## Build all docker images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
@@ -304,11 +304,11 @@ gen-proto:  ## Generate proto files
 
 ##@ Gen Traceql
 
-.PHONY: gen-traceql 
-gen-traceql: ## Generate traceql 
+.PHONY: gen-traceql
+gen-traceql: ## Generate traceql
 	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
 
-.PHONY: gen-traceql-local 
+.PHONY: gen-traceql-local
 gen-traceql-local: ## Generate traceq local
 	goyacc -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm y.output
 
@@ -316,7 +316,7 @@ gen-traceql-local: ## Generate traceq local
 ##@ Gen Parquet-Query
 
 .PHONY: gen-parquet-query
-gen-parquet-query:  ## Generate Parquet query 
+gen-parquet-query:  ## Generate Parquet query
 	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go
 
 ##@ Tempo tools
@@ -327,7 +327,7 @@ vendor-check: gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to d
 
 
 ### Tidy dependencies for tempo modules
-.PHONY: update-mod 
+.PHONY: update-mod
 update-mod: tools-update-mod ## Update module
 	go mod vendor
 	go mod tidy -e
@@ -338,8 +338,8 @@ $(GORELEASER):
 	go install github.com/goreleaser/goreleaser@v1.25.1
 
 .PHONY: release
-release: $(GORELEASER)  ## Release 
-	$(GORELEASER) release --rm-dist 
+release: $(GORELEASER)  ## Release
+	$(GORELEASER) release --rm-dist
 
 .PHONY: release-snapshot
 release-snapshot: $(GORELEASER) ## Release snapshot

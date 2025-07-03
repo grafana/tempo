@@ -7,6 +7,10 @@ distributor:
       protocols:
         grpc:
           endpoint: "distributor:14250"
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "tempo:4317"
   log_received_spans:
     enabled: true
 
@@ -19,9 +23,9 @@ ingester:
 metrics_generator:
   processor:
     service_graphs:
-      histogram_buckets: [1, 2]  # seconds
+      histogram_buckets: [1, 2] # seconds
     span_metrics:
-      histogram_buckets: [1, 2]  # seconds
+      histogram_buckets: [1, 2] # seconds
   registry:
     collection_interval: 1s
   storage:

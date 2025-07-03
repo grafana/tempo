@@ -10,7 +10,10 @@ distributor:
       protocols:
         grpc:
           endpoint: "tempo:14250"
-
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "tempo:4317"
 overrides:
   defaults:
     ingestion:

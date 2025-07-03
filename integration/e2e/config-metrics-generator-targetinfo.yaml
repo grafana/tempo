@@ -7,6 +7,10 @@ distributor:
       protocols:
         grpc:
           endpoint: "distributor:14250"
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "tempo:4317"
   log_received_spans:
     enabled: true
 
@@ -19,7 +23,7 @@ ingester:
 metrics_generator:
   processor:
     service_graphs:
-      histogram_buckets: [1, 2]  # seconds
+      histogram_buckets: [1, 2] # seconds
     span_metrics:
       histogram_buckets: [1, 2]
   registry:
@@ -50,4 +54,4 @@ overrides:
       max_active_series: 1000
       processor:
         span_metrics:
-          enable_target_info: true  # seconds
+          enable_target_info: true # seconds
