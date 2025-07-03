@@ -33,7 +33,7 @@ const (
 )
 
 func TestBackendScheduler(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	s, err := e2e.NewScenario("tempo-integration")
@@ -63,7 +63,7 @@ func TestBackendScheduler(t *testing.T) {
 	e := b.Endpoint(b.HTTPPort())
 	t.Logf("Endpoint: %s", e)
 
-	scheduler := util.NewTempoTarget("backend-scheduler", configFile)
+	scheduler := util.NewTempoTarget("backend-scheduler")
 	require.NoError(t, s.StartAndWaitReady(scheduler))
 
 	// Setup tempodb with local backend
@@ -142,7 +142,7 @@ func TestBackendScheduler(t *testing.T) {
 
 	// Delay starting the work to ensure we have a clean state of the data before
 	// the worker starts processing jobs.
-	worker := util.NewTempoTarget("backend-worker", configFile)
+	worker := util.NewTempoTarget("backend-worker")
 	require.NoError(t, s.StartAndWaitReady(worker))
 
 	// Allow the worker some time to process the blocks.
