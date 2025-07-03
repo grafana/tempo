@@ -1539,27 +1539,38 @@ type HistogramAggregator struct {
 	qs               []float64
 	len              int
 	start, end, step uint64
-	exemplarBuckets  *bucketSet
 	exemplarLimit    uint32
-	labelBuffer      Labels // Reusable buffer for both series and exemplar labels
+	labelBuffer      Labels // Reusable buffer for label processing
+
+	// Pre-computed values for IntervalOfMs optimization
+	isInstantQuery bool
+	alignedStart   uint64
+	alignedEnd     uint64
 }
 
-func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplars uint32) *HistogramAggregator {
-	l := IntervalCount(req.Start, req.End, req.Step)
+func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplarLimit uint32) *HistogramAggregator {
+	// Use existing alignment functions for consistency, then align to milliseconds
+	stepAlignedStart := alignStart(req.Start, req.End, req.Step)
+	stepAlignedEnd := alignEnd(req.Start, req.End, req.Step)
+
+	// Further align to millisecond boundaries for IntervalOfMs conversion
+	alignedStart := stepAlignedStart - stepAlignedStart%uint64(time.Millisecond)
+	alignedEnd := stepAlignedEnd - stepAlignedEnd%uint64(time.Millisecond)
+
 	return &HistogramAggregator{
-		qs:    qs,
-		ss:    make(map[string]histSeries),
-		len:   l,
-		start: req.Start,
-		end:   req.End,
-		step:  req.Step,
-		exemplarBuckets: newBucketSet(
-			exemplars,
-			alignStart(req.Start, req.End, req.Step),
-			alignEnd(req.Start, req.End, req.Step),
-		),
-		exemplarLimit: exemplars,
+		ss:            make(map[string]histSeries),
+		qs:            qs,
+		len:           IntervalCount(req.Start, req.End, req.Step),
+		start:         req.Start,
+		end:           req.End,
+		step:          req.Step,
+		exemplarLimit: exemplarLimit,
 		labelBuffer:   make(Labels, 0, 8), // Pre-allocate with reasonable capacity
+
+		// Optimization fields
+		isInstantQuery: isInstant(req.Start, req.End, req.Step),
+		alignedStart:   alignedStart,
+		alignedEnd:     alignedEnd,
 	}
 }
 
@@ -1612,7 +1623,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if sample.Value == 0 {
 				continue
 			}
-			j := IntervalOfMs(sample.TimestampMs, h.start, h.end, h.step)
+			j := h.fastIntervalOfMs(sample.TimestampMs)
 			if j >= 0 && j < len(existing.hist) {
 				existing.hist[j].Record(b, int(sample.Value))
 			}
@@ -1627,18 +1638,14 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 			}
 
-			// Reuse label buffer to reduce allocations (same buffer as above, reused)
-			h.labelBuffer = h.labelBuffer[:0] // Reset length but keep capacity
+			// Create exemplar labels
+			labels := make(Labels, 0, len(exemplar.Labels))
 			for _, l := range exemplar.Labels {
-				h.labelBuffer = append(h.labelBuffer, Label{
+				labels = append(labels, Label{
 					Name:  l.Key,
 					Value: StaticFromAnyValue(l.Value),
 				})
 			}
-
-			// Create a copy of the labels since the buffer will be reused
-			labels := make(Labels, len(h.labelBuffer))
-			copy(labels, h.labelBuffer)
 
 			existing.exemplars = append(existing.exemplars, Exemplar{
 				Labels:      labels,
@@ -1996,4 +2003,27 @@ func initSeriesInResult(result SeriesSet, key string, input SeriesSet, valueLeng
 	for j := range result[key].Values {
 		result[key].Values[j] = math.NaN()
 	}
+}
+
+// fastIntervalOfMs is an optimized version of IntervalOfMs that uses pre-computed values
+// to avoid expensive calculations in the hot path
+func (h *HistogramAggregator) fastIntervalOfMs(tsmills int64) int {
+	// Convert milliseconds to nanoseconds (this is still needed but optimized)
+	ts := uint64(tsmills) * uint64(time.Millisecond)
+
+	if h.isInstantQuery {
+		if ts >= h.alignedStart && ts <= h.alignedEnd {
+			return 0
+		}
+		return -1
+	}
+
+	// Skip alignment since we've pre-computed aligned values
+	// Validate bounds
+	if ts < h.alignedStart || ts > h.alignedEnd+h.step {
+		return -1
+	}
+
+	// Direct calculation without re-alignment
+	return int((ts - h.alignedStart) / h.step)
 }
