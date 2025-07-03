@@ -1735,7 +1735,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			for i := range histSlice {
 				histSlice[i] = Histogram{}
 			}
-			histogramSlicePool.Put(histSlice[:0])
+			histogramSlicePool.Put(histSlice[:0]) //nolint:all //SA6002
 		}
 	}
 
