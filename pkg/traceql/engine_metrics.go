@@ -1540,12 +1540,19 @@ type HistogramAggregator struct {
 	len              int
 	start, end, step uint64
 	exemplarLimit    uint32
-	labelBuffer      Labels // Reusable buffer for label processing
+	labelBuffer      Labels // Reusable buffer for all label processing
 
 	// Pre-computed values for IntervalOfMs optimization
 	isInstantQuery bool
 	alignedStart   uint64
 	alignedEnd     uint64
+}
+
+// histogramSlicePool is a sync.Pool for reusing histogram slices to reduce allocations
+var histogramSlicePool = sync.Pool{
+	New: func() any {
+		return make([]Histogram, 0)
+	},
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplarLimit uint32) *HistogramAggregator {
@@ -1604,9 +1611,21 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			withoutBucket := make(Labels, len(h.labelBuffer))
 			copy(withoutBucket, h.labelBuffer)
 
+			// Get histogram slice from pool and resize it
+			histSlice := histogramSlicePool.Get().([]Histogram)
+			if cap(histSlice) < h.len {
+				histSlice = make([]Histogram, h.len)
+			} else {
+				histSlice = histSlice[:h.len]
+				// Zero out the slice to ensure clean state
+				for i := range histSlice {
+					histSlice[i] = Histogram{}
+				}
+			}
+
 			existing = histSeries{
 				labels: withoutBucket,
-				hist:   make([]Histogram, h.len),
+				hist:   histSlice,
 				// Pre-allocate exemplars slice with capacity hint to reduce allocations
 				exemplars: make([]Exemplar, 0, len(ts.Exemplars)),
 				exemplarBuckets: newBucketSet(
@@ -1638,14 +1657,18 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 			}
 
-			// Create exemplar labels
-			labels := make(Labels, 0, len(exemplar.Labels))
+			// Create exemplar labels using reusable buffer
+			h.labelBuffer = h.labelBuffer[:0] // Reset buffer
 			for _, l := range exemplar.Labels {
-				labels = append(labels, Label{
+				h.labelBuffer = append(h.labelBuffer, Label{
 					Name:  l.Key,
 					Value: StaticFromAnyValue(l.Value),
 				})
 			}
+
+			// Create a copy of the labels since the buffer will be reused
+			labels := make(Labels, len(h.labelBuffer))
+			copy(labels, h.labelBuffer)
 
 			existing.exemplars = append(existing.exemplars, Exemplar{
 				Labels:      labels,
@@ -1731,6 +1754,19 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			results[s] = ts
 		}
 	}
+
+	// Return histogram slices to the pool now that we're done with them
+	for _, series := range h.ss {
+		if len(series.hist) > 0 {
+			// Clear the slice and return it to the pool
+			histSlice := series.hist
+			for i := range histSlice {
+				histSlice[i] = Histogram{}
+			}
+			histogramSlicePool.Put(histSlice[:0])
+		}
+	}
+
 	return results
 }
 
