@@ -2471,21 +2471,25 @@ func BenchmarkHistogramAggregator_Results(b *testing.B) {
 		{"Small_5Quantiles", 6, 10, 5, []float64{0.5, 0.75, 0.9, 0.95, 0.99}},
 		{"Medium_5Quantiles", 10, 100, 20, []float64{0.5, 0.75, 0.9, 0.95, 0.99}},
 		{"Large_5Quantiles", 20, 1000, 100, []float64{0.5, 0.75, 0.9, 0.95, 0.99}},
-		// These test high exemplar count (our per-interval optimization)
-		{"High_Exemplars", 15, 500, 200, []float64{0.5, 0.9, 0.99}},
+		// High exemplar density to test caching benefits
+		{"High_Exemplars", 10, 100, 200, []float64{0.5, 0.9, 0.99}},
 	}
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			// Pre-populate the aggregator with data (this setup is not benchmarked)
+			// Generate test data
 			series := generateTestTimeSeries(bm.seriesCount, bm.samplesCount, bm.exemplarCount, req.Start, req.End)
-			agg := NewHistogramAggregator(req, bm.quantiles, uint32(bm.exemplarCount)) // nolint: gosec // G115
-			agg.Combine(series)
 
-			// Benchmark only the Results() method
+			// Create histogram aggregator
+			h := NewHistogramAggregator(req, bm.quantiles, req.Exemplars)
+
+			// Combine the series (this is setup, not benchmarked)
+			h.Combine(series)
+
+			// Benchmark the Results method
 			b.ResetTimer()
-			for b.Loop() {
-				results := agg.Results()
+			for i := 0; i < b.N; i++ {
+				results := h.Results()
 				_ = results // Prevent optimization
 			}
 		})
