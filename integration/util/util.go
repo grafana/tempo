@@ -197,11 +197,11 @@ func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPSer
 }
 
 func NewTempoTarget(target Target, extraPorts ...int) *e2e.HTTPService {
-	return NewTempoTargetNamed(target, target.String(), "config.yaml", nil, extraPorts)
+	return NewTempoTargetNamed(target, target.String(), nil, extraPorts)
 }
 
 func NewTempoTargetWithArgs(target Target, extraArgs []string, extraPorts ...int) *e2e.HTTPService {
-	return NewTempoTargetNamed(target, target.String(), "config.yaml", extraArgs, extraPorts)
+	return NewTempoTargetNamed(target, target.String(), extraArgs, extraPorts)
 }
 
 func NewTempoTargetReplicas(target Target, replicaCount int, extraArgs []string, extraPorts ...int) []*e2e.HTTPService {
@@ -209,13 +209,14 @@ func NewTempoTargetReplicas(target Target, replicaCount int, extraArgs []string,
 
 	for i := range replicaCount {
 		name := fmt.Sprintf("%s-%d", target, i)
-		replicas = append(replicas, NewTempoTargetNamed(target, name, "config.yaml", extraArgs, extraPorts))
+		replicas = append(replicas, NewTempoTargetNamed(target, name, extraArgs, extraPorts))
 	}
 
 	return replicas
 }
 
-func NewTempoTargetNamed(target Target, name string, configFile string, extraArgs []string, exraPorts []int) *e2e.HTTPService {
+func NewTempoTargetNamed(target Target, name string, extraArgs []string, exraPorts []int) *e2e.HTTPService {
+	configFile := "config.yaml"
 	args := []string{
 		"-config.file=" + filepath.Join(e2e.ContainerSharedDir, configFile),
 		"-target=" + target.String(),
