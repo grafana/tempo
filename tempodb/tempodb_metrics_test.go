@@ -732,7 +732,6 @@ var queryRangeTestCases = []struct {
 				PromLabels: `{__name__="count_over_time"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 20_000, Value: 10}, // (10;20] - 10
 					{TimestampMs: 30_000, Value: 10},
 					{TimestampMs: 40_000, Value: 10},
 					{TimestampMs: 50_000, Value: 10},
@@ -744,7 +743,6 @@ var queryRangeTestCases = []struct {
 				PromLabels: `{__name__="count_over_time"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 20_000, Value: 2 * 10},
 					{TimestampMs: 30_000, Value: 2 * 10},
 					{TimestampMs: 40_000, Value: 2 * 10},
 					{TimestampMs: 50_000, Value: 2 * 10},
@@ -765,7 +763,6 @@ var queryRangeTestCases = []struct {
 				PromLabels: `{__name__="count_over_time"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 20_000, Value: 0},
 					{TimestampMs: 30_000, Value: 9},
 					{TimestampMs: 40_000, Value: 10},
 					{TimestampMs: 50_000, Value: 10},
@@ -777,7 +774,6 @@ var queryRangeTestCases = []struct {
 				PromLabels: `{__name__="count_over_time"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 20_000, Value: 0},
 					{TimestampMs: 30_000, Value: 2 * 9},
 					{TimestampMs: 40_000, Value: 2 * 10},
 					{TimestampMs: 50_000, Value: 2 * 10},
