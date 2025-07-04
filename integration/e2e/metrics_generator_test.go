@@ -49,7 +49,7 @@ func TestMetricsGenerator(t *testing.T) {
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewOtlpThriftClient(tempoDistributor.Endpoint(4317))
+	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -238,7 +238,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewOtlpThriftClient(tempoDistributor.Endpoint(4317))
+	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 

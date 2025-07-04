@@ -696,19 +696,21 @@ func NewPrometheus() *e2e.HTTPService {
 	)
 }
 
-type OtlpThriftClient struct {
+type JaegerToOTLPExporter struct {
 	exporter exporter.Traces
 }
 
-func NewOtlpThriftClient(endpoint string) (*OtlpThriftClient, error) {
+func NewJaegerToOTLPExporter(endpoint string) (*JaegerToOTLPExporter, error) {
 	exp, err := NewOtelGRPCExporter(endpoint)
 	if err != nil {
 		return nil, err
 	}
-	return &OtlpThriftClient{exporter: exp}, nil
+	return &JaegerToOTLPExporter{exporter: exp}, nil
 }
 
-func (c *OtlpThriftClient) EmitBatch(ctx context.Context, b *thrift.Batch) error {
+// EmitBatch converts a Jaeger Thrift batch to OpenTelemetry traces format
+// and forwards them to the configured OTLP endpoint.
+func (c *JaegerToOTLPExporter) EmitBatch(ctx context.Context, b *thrift.Batch) error {
 	traces, err := jaeger.ThriftToTraces(b)
 	if err != nil {
 		return err
@@ -716,6 +718,6 @@ func (c *OtlpThriftClient) EmitBatch(ctx context.Context, b *thrift.Batch) error
 	return c.exporter.ConsumeTraces(ctx, traces)
 }
 
-func (c *OtlpThriftClient) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) error {
+func (c *JaegerToOTLPExporter) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) error {
 	return errors.New("EmitZipkinBatch via OTLP not implemented")
 }

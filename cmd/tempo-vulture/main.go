@@ -156,7 +156,7 @@ func main() {
 
 	logger.Info("Tempo Vulture starting", zap.String("tempoQueryURL", vultureConfig.tempoQueryURL), zap.String("tempoPushURL", pushEndpoint))
 
-	jaegerClient, err := utilpkg.NewOtlpThriftClient(pushEndpoint)
+	jaegerClient, err := utilpkg.NewJaegerToOTLPExporter(pushEndpoint)
 	if err != nil {
 		panic(err)
 	}

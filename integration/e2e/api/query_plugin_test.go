@@ -34,7 +34,7 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempoQuery))
 	require.NoError(t, s.StartAndWaitReady(jaegerQuery))
 
-	jaegerClient, err := util.NewOtlpThriftClient(tempo.Endpoint(4317))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -91,7 +91,7 @@ func TestSearchUsingBackendTagsService(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempoQuery))
 	require.NoError(t, s.StartAndWaitReady(jaegerQuery))
 
-	jaegerClient, err := util.NewOtlpThriftClient(tempo.Endpoint(4317))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 

@@ -603,11 +603,11 @@ func TestGetGrpcEndpoint(t *testing.T) {
 	assert.Equal(t, "http://localhost:4317", got, "Address without a port should be defaulted to 4317")
 }
 
-func TestNewOtlpJaegerClient(t *testing.T) {
+func TestNewJaegerToOTLPExportert(t *testing.T) {
 	configValid := vultureConfiguration{
 		tempoPushURL: "localhost:4317",
 	}
-	clientValid, errValid := integrationutil.NewOtlpThriftClient(configValid.tempoPushURL)
+	clientValid, errValid := integrationutil.NewJaegerToOTLPExporter(configValid.tempoPushURL)
 	assert.NoError(t, errValid)
 	assert.NotNil(t, clientValid)
 }

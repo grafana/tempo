@@ -65,7 +65,7 @@ func TestQueryRangeExemplars(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewOtlpThriftClient(tempo.Endpoint(4317))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -458,7 +458,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewOtlpThriftClient(tempo.Endpoint(4317))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -494,7 +494,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewOtlpThriftClient(tempo.Endpoint(4317))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -558,7 +558,7 @@ func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewOtlpThriftClient(tempo.Endpoint(4317))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -623,7 +623,7 @@ func TestQueryRangeMaxSeriesDisabledQuerier(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewOtlpThriftClient(tempo.Endpoint(4317))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 

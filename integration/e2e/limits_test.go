@@ -52,7 +52,7 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util2.NewOtlpThriftClient(tempo.Endpoint(4317))
+	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -210,7 +210,7 @@ func TestQueryLimits(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util2.NewOtlpThriftClient(tempo.Endpoint(4317))
+	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -342,7 +342,7 @@ func TestQueryRateLimits(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util2.NewOtlpThriftClient(tempo.Endpoint(4317))
+	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 

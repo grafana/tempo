@@ -71,15 +71,15 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NoError(t, tempo2.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 	require.NoError(t, tempo3.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
-	c1, err := util.NewOtlpThriftClient(tempo1.Endpoint(4317))
+	c1, err := util.NewJaegerToOTLPExporter(tempo1.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c1)
 
-	c2, err := util.NewOtlpThriftClient(tempo2.Endpoint(4317))
+	c2, err := util.NewJaegerToOTLPExporter(tempo2.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c2)
 
-	c3, err := util.NewOtlpThriftClient(tempo3.Endpoint(4317))
+	c3, err := util.NewJaegerToOTLPExporter(tempo3.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c3)
 
