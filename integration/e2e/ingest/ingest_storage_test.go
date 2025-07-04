@@ -36,7 +36,7 @@ func TestIngest(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(matchers...)))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 

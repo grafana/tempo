@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,15 +16,12 @@ import (
 
 	"github.com/go-test/deep"
 	"github.com/grafana/tempo/pkg/api"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
+	utilpkg "github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -68,7 +64,7 @@ type traceMetrics struct {
 }
 
 const (
-	defaultJaegerGRPCEndpoint = 14250
+	defaultOTLPGRPCEndpoint = 4317
 )
 
 type vultureConfiguration struct {
@@ -140,8 +136,6 @@ func main() {
 		zapcore.DebugLevel,
 	))
 
-	logger.Info("Tempo Vulture starting")
-
 	vultureConfig := vultureConfiguration{
 		tempoQueryURL:                   tempoQueryURL,
 		tempoPushURL:                    tempoPushURL,
@@ -155,11 +149,18 @@ func main() {
 		tempoRecentTracesCutoffDuration: tempoRecentTracesCutoffDuration,
 		tempoPushTLS:                    tempoPushTLS,
 	}
-
-	jaegerClient, err := newJaegerGRPCClient(vultureConfig, logger)
+	pushEndpoint, err := getGRPCEndpoint(vultureConfig.tempoPushURL)
 	if err != nil {
 		panic(err)
 	}
+
+	logger.Info("Tempo Vulture starting", zap.String("tempoQueryURL", vultureConfig.tempoQueryURL), zap.String("tempoPushURL", pushEndpoint))
+
+	jaegerClient, err := utilpkg.NewJaegerToOTLPExporter(pushEndpoint)
+	if err != nil {
+		panic(err)
+	}
+
 	httpClient := httpclient.New(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID)
 
 	if !rf1After.IsZero() {
@@ -231,12 +232,12 @@ func getGRPCEndpoint(endpoint string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dialAddress := u.Host
+	url := u.String()
 
 	if u.Port() == "" {
-		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultJaegerGRPCEndpoint)
+		url = fmt.Sprintf("%s:%d", url, defaultOTLPGRPCEndpoint)
 	}
-	return dialAddress, nil
+	return url, nil
 }
 
 func initTickers(
@@ -443,37 +444,6 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), r), 0)
 
 	return newStart.Round(interval), ts.Round(interval)
-}
-
-func newJaegerGRPCClient(config vultureConfiguration, logger *zap.Logger) (*jaeger_grpc.Reporter, error) {
-	endpoint, err := getGRPCEndpoint(config.tempoPushURL)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("dialing grpc",
-		zap.String("endpoint", endpoint),
-	)
-
-	var dialOpts []grpc.DialOption
-
-	if config.tempoPushTLS {
-		dialOpts = []grpc.DialOption{
-			grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
-				InsecureSkipVerify: true,
-			})),
-		}
-	} else {
-		dialOpts = []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		}
-	}
-	// new jaeger grpc exporter
-	conn, err := grpc.NewClient(endpoint, dialOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), nil
 }
 
 func generateRandomInt(min, max int64, r *rand.Rand) int64 {
