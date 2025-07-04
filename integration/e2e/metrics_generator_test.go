@@ -32,9 +32,9 @@ func TestMetricsGenerator(t *testing.T) {
 	defer s.Close()
 
 	require.NoError(t, util.CopyFileToSharedDir(s, configMetricsGenerator, "config.yaml"))
-	tempoDistributor := util.NewTempoDistributor()
-	tempoIngester := util.NewTempoIngester(1)
-	tempoMetricsGenerator := util.NewTempoMetricsGenerator()
+	tempoDistributor := util.NewTempoTarget(util.TargetDistributor, 14250)
+	tempoIngester := util.NewTempoTarget(util.TargetIngester)
+	tempoMetricsGenerator := util.NewTempoTarget(util.TargetMetricsGenerator)
 	prometheus := util.NewPrometheus()
 	require.NoError(t, s.StartAndWaitReady(tempoDistributor, tempoIngester, tempoMetricsGenerator, prometheus))
 
@@ -221,9 +221,9 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 	defer s.Close()
 
 	require.NoError(t, util.CopyFileToSharedDir(s, configMetricsGeneratorTargetInfo, "config.yaml"))
-	tempoDistributor := util.NewTempoDistributor()
-	tempoIngester := util.NewTempoIngester(1)
-	tempoMetricsGenerator := util.NewTempoMetricsGenerator()
+	tempoDistributor := util.NewTempoTarget(util.TargetDistributor, 14250)
+	tempoIngester := util.NewTempoTarget(util.TargetIngester)
+	tempoMetricsGenerator := util.NewTempoTarget(util.TargetMetricsGenerator)
 	prometheus := util.NewPrometheus()
 	require.NoError(t, s.StartAndWaitReady(tempoDistributor, tempoIngester, tempoMetricsGenerator, prometheus))
 
