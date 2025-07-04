@@ -59,7 +59,6 @@ func IntervalCount(start, end, step uint64) int {
 	end = alignEnd(start, end, step)
 
 	intervals := (end - start) / step
-	intervals++
 	return int(intervals)
 }
 
@@ -67,11 +66,11 @@ func IntervalCount(start, end, step uint64) int {
 func TimestampOf(interval, start, end, step uint64) uint64 {
 	start = alignStart(start, end, step)
 	// start as initial offset plus interval's offset
-	return start + interval*step
+	return start + (interval+1)*step
 }
 
 // IntervalOf the given timestamp within the range and step.
-// First interval is (start-step; start]
+// First interval is (start; start+step]
 // Last interval is (end-step; end]
 // The first interval's left border is limited to 0
 func IntervalOf(ts, start, end, step uint64) int {
@@ -92,18 +91,13 @@ func IntervalOf(ts, start, end, step uint64) int {
 		return 0 // if pass validation and less than start, always first interval
 	}
 
-	interval := (ts - start + step - 1) / step
+	interval := (ts - start - 1) / step
 	return int(interval)
 }
 
 // isTsValidForInterval returns true if the timestamp is valid for the given range and step.
 func isTsValidForInterval(ts, start, end, step uint64) bool {
-	// we include values from interval (start-step;start] for first interval
-	var leftBorder uint64
-	if start > step {
-		leftBorder = start - step
-	} // else left border is 0
-	return ts > leftBorder && ts <= end && end != start && step != 0
+	return ts > start && ts <= end && end != start && step != 0
 }
 
 // isTsValidForInstant returns true if the timestamp is valid for the given range for instant query.

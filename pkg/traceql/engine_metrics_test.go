@@ -44,13 +44,13 @@ func TestStepRangeToIntervals(t *testing.T) {
 			start:    0,
 			end:      3,
 			step:     1,
-			expected: 4, // 0, 1, 2, 3
+			expected: 3, // 1, 2, 3
 		},
 		{
 			start:    0,
 			end:      10,
 			step:     3,
-			expected: 5, // 0, 3, 6, 9, 12
+			expected: 4, // 3, 6, 9, 12
 		},
 	}
 
@@ -72,7 +72,7 @@ func TestTimestampOf(t *testing.T) {
 			start:    10, // aligned to 9
 			step:     3,
 			end:      100,
-			expected: 15, // 9, 12, 15 <-- intervals
+			expected: 18, // 12, 15, 18 <-- intervals
 		},
 		// start <= step
 		{
@@ -80,21 +80,21 @@ func TestTimestampOf(t *testing.T) {
 			start:    1,
 			end:      10,
 			step:     1,
-			expected: 1,
+			expected: 2,
 		},
 		{
 			interval: 1,
 			start:    1,
 			end:      5,
 			step:     1,
-			expected: 2,
+			expected: 3,
 		},
 		{
 			interval: 4,
 			start:    1,
 			end:      5,
 			step:     1,
-			expected: 5,
+			expected: 6,
 		},
 		// start > step
 		{
@@ -102,17 +102,17 @@ func TestTimestampOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
-			expected: 10,
+			expected: 20,
 		},
 		{
 			interval: 2,
 			start:    10,
 			end:      50,
 			step:     10,
-			expected: 30, // 3rd interval: (20;30]
+			expected: 40, // 3rd interval: (10;20] (20;30] (30;40]
 		},
 		{
-			interval: 4,
+			interval: 3,
 			start:    10,
 			end:      50,
 			step:     10,
@@ -136,28 +136,28 @@ func TestIntervalOf(t *testing.T) {
 			ts:       0,
 			end:      1,
 			step:     1,
-			expected: -1, // we exclude ts = 0 as it will never be in the first interval (0; N]
+			expected: 0, // corner case. TODO: should we return -1?
 		},
 		{
 			ts:       10,
 			start:    1,
 			end:      10,
 			step:     1,
-			expected: 9, // 10th interval: (9;10]
+			expected: 8, // 9th interval: (9;10]
 		},
 		{
 			ts:       1,
 			start:    1,
 			end:      5,
 			step:     1,
-			expected: 0, // 1st interval: (0;1]
+			expected: -1, // should be excluded
 		},
 		{
 			ts:       2,
 			start:    1,
 			end:      5,
 			step:     1,
-			expected: 1, // 2nd interval: (1;2]
+			expected: 0, // 2nd interval: (1;2]
 		},
 		// start > step
 		{
@@ -165,35 +165,42 @@ func TestIntervalOf(t *testing.T) {
 			start:    10,
 			end:      50,
 			step:     10,
-			expected: 1, // 2nd interval: (10;20]
+			expected: 0, // first interval: (10;20]
 		},
 		{
 			ts:       5,
 			start:    10,
 			end:      50,
 			step:     10,
-			expected: 0, // 1st interval: (0;10]
+			expected: -1, // should be excluded
 		},
 		{
 			ts:       10,
 			start:    10,
 			end:      50,
 			step:     10,
-			expected: 0, // 1st interval: (0;10]
+			expected: -1, // should be excluded
 		},
 		{
 			ts:       20,
 			start:    10,
 			end:      50,
 			step:     10,
-			expected: 1, // 2nd interval: (10;20]
+			expected: 0, // first interval: (10;20]
+		},
+		{
+			ts:       25,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 1, // second interval: (20;30]
 		},
 		{
 			ts:       50,
 			start:    10,
 			end:      50,
 			step:     10,
-			expected: 4, // 5th interval: (40;50]
+			expected: 3, // 4th interval: (40;50]
 		},
 	}
 
@@ -555,7 +562,7 @@ func TestOptimizeFetchSpansRequest(t *testing.T) {
 
 func TestQuantileOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | quantile_over_time(duration, 0, 0.5, 1) by (span.foo)",
@@ -664,7 +671,7 @@ func percentileHelper(q float64, values ...float64) float64 {
 
 func TestCountOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | count_over_time() by (span.foo)",
@@ -873,7 +880,7 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 
 func TestMinOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(duration) by (span.foo)",
@@ -916,7 +923,7 @@ func TestMinOverTimeForDuration(t *testing.T) {
 
 func TestMinOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(span.buu)",
@@ -950,7 +957,7 @@ func TestMinOverTimeWithNoMatch(t *testing.T) {
 
 func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(span.http.status_code) by (span.foo)",
@@ -1022,7 +1029,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 
 func TestAvgOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo)",
@@ -1063,7 +1070,7 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 
 func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(1)",
@@ -1104,7 +1111,7 @@ func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
 
 func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration)",
@@ -1139,7 +1146,7 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 
 func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
@@ -1210,7 +1217,7 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 
 func TestAvgOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.buu)",
@@ -1244,7 +1251,7 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 
 func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
@@ -1390,7 +1397,7 @@ func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T
 
 func TestMaxOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(duration) by (span.foo)",
@@ -1433,7 +1440,7 @@ func TestMaxOverTimeForDuration(t *testing.T) {
 
 func TestMaxOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(span.buu)",
@@ -1467,7 +1474,7 @@ func TestMaxOverTimeWithNoMatch(t *testing.T) {
 
 func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(span.http.status_code) by (span.foo)",
@@ -1539,7 +1546,7 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 
 func TestSumOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(duration) by (span.foo)",
@@ -1583,7 +1590,7 @@ func TestSumOverTimeForDuration(t *testing.T) {
 
 func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(span.kafka.lag) by (span.foo)",
@@ -1655,7 +1662,7 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 
 func TestSumOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(span.buu)",
@@ -1688,7 +1695,7 @@ func TestSumOverTimeWithNoMatch(t *testing.T) {
 
 func TestHistogramOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | histogram_over_time(duration) by (span.foo)",
@@ -1761,7 +1768,7 @@ func TestHistogramOverTime(t *testing.T) {
 
 func TestSecondStageTopK(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | rate() by (span.foo) | topk(2)",
@@ -1812,7 +1819,7 @@ func TestSecondStageTopKInstant(t *testing.T) {
 
 func TestSecondStageTopKAverage(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(2)",
@@ -1837,7 +1844,7 @@ func TestSecondStageTopKAverage(t *testing.T) {
 
 func TestSecondStageBottomK(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | rate() by (span.foo) | bottomk(2)",
