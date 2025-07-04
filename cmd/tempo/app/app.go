@@ -124,7 +124,6 @@ func New(cfg Config) (*App, error) {
 
 func (t *App) setupAuthMiddleware() {
 	if t.cfg.MultitenancyIsEnabled() {
-
 		// don't check auth for these gRPC methods, since single call is used for multiple users
 		noGRPCAuthOn := []string{
 			"/frontend.Frontend/Process",
