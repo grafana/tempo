@@ -66,7 +66,9 @@ func IntervalCount(start, end, step uint64) int {
 // TimestampOf the given interval with the start and step.
 func TimestampOf(interval, start, end, step uint64) uint64 {
 	start = alignStart(start, end, step)
-	return start + interval*step
+	// start as initial offset plus interval's offest
+	// plus additional step as interval counts data to the left (past)
+	return start + interval*step + step
 }
 
 // IntervalOf the given timestamp within the range and step.
@@ -79,13 +81,15 @@ func IntervalOf(ts, start, end, step uint64) int {
 	}
 
 	start = alignStart(start, end, step)
-	end = alignEnd(start, end, step) + step
+	// we need also to reduce the start by one step but we do it on the last step to prevent overflow in edge case
+	end = alignEnd(start, end, step)
 
 	if !isTsValidForInterval(ts, start, end, step) {
 		return -1
 	}
 
-	return int((ts - start) / step)
+	// ts - (start - step) = ts - start + step
+	return int((ts - start + start) / step)
 }
 
 // validateIntervalOf returns true if the timestamp is valid for the given range and step.
