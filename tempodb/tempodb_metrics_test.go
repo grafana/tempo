@@ -719,6 +719,72 @@ var queryRangeTestCases = []struct {
 			},
 		},
 	},
+	{
+		name: "aligned start is not zero",
+		req: &tempopb.QueryRangeRequest{
+			Start: 20 * uint64(time.Second),
+			End:   50 * uint64(time.Second),
+			Step:  10 * uint64(time.Second),
+			Query: `{ } | count_over_time()`,
+		},
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="count_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 20_000, Value: 10}, // (10;20] - 10
+					{TimestampMs: 30_000, Value: 10},
+					{TimestampMs: 40_000, Value: 10},
+					{TimestampMs: 50_000, Value: 10},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="count_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 20_000, Value: 2 * 10},
+					{TimestampMs: 30_000, Value: 2 * 10},
+					{TimestampMs: 40_000, Value: 2 * 10},
+					{TimestampMs: 50_000, Value: 2 * 10},
+				},
+			},
+		},
+	},
+	{
+		name: "not aligned start is not zero",
+		req: &tempopb.QueryRangeRequest{
+			Start: 21 * uint64(time.Second),
+			End:   50 * uint64(time.Second),
+			Step:  10 * uint64(time.Second),
+			Query: `{ } | count_over_time()`,
+		},
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="count_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 20_000, Value: 0},
+					{TimestampMs: 30_000, Value: 9},
+					{TimestampMs: 40_000, Value: 10},
+					{TimestampMs: 50_000, Value: 10},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="count_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 20_000, Value: 0},
+					{TimestampMs: 30_000, Value: 2 * 9},
+					{TimestampMs: 40_000, Value: 2 * 10},
+					{TimestampMs: 50_000, Value: 2 * 10},
+				},
+			},
+		},
+	},
 }
 
 var expectedCompareTs = []*tempopb.TimeSeries{
