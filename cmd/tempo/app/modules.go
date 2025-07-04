@@ -753,6 +753,9 @@ func (t *App) initBufferer() (services.Service, error) {
 	// Always use partition 0. This is for small installs or local/debugging setups.
 	singlePartition := t.cfg.Target == SingleBinary
 
+	t.cfg.Bufferer.IngestConfig = t.cfg.Ingest
+	t.cfg.Bufferer.IngestConfig.Kafka.ConsumerGroup = bufferer.ConsumerGroup
+
 	var err error
 	t.bufferer, err = bufferer.New(t.cfg.Bufferer, log.Logger, prometheus.DefaultRegisterer, singlePartition)
 	if err != nil {

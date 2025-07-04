@@ -7,12 +7,16 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
 type Config struct {
 	LifecyclerConfig ring.LifecyclerConfig        `yaml:"lifecycler,omitempty"`
 	PartitionRing    ingester.PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
+
+	// This config is dynamically injected because defined outside the ingester config.
+	IngestConfig ingest.Config `yaml:"-"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
