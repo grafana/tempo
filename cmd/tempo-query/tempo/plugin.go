@@ -12,23 +12,24 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/go-logfmt/logfmt"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/user"
 	jaeger "github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
-
-	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
-	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
+	storagev2 "github.com/grafana/tempo/pkg/jaegerpb/storage/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -38,14 +39,11 @@ const (
 )
 
 const (
-	tagsSearchTag        = "tags"
-	serviceSearchTag     = "service.name"
-	operationSearchTag   = "name"
-	minDurationSearchTag = "minDuration"
-	maxDurationSearchTag = "maxDuration"
-	startTimeMaxTag      = "end"
-	startTimeMinTag      = "start"
-	numTracesSearchTag   = "limit"
+	serviceSearchTag   = "service.name"
+	operationSearchTag = "name"
+	startTimeMaxTag    = "end"
+	startTimeMinTag    = "start"
+	numTracesSearchTag = "limit"
 )
 
 var tlsVersions = map[string]uint16{
@@ -54,12 +52,6 @@ var tlsVersions = map[string]uint16{
 	"VersionTLS12": tls.VersionTLS12,
 	"VersionTLS13": tls.VersionTLS13,
 }
-
-var (
-	_ storage_v1.SpanReaderPluginServer         = (*Backend)(nil)
-	_ storage_v1.DependenciesReaderPluginServer = (*Backend)(nil)
-	_ storage_v1.SpanWriterPluginServer         = (*Backend)(nil)
-)
 
 var tracer = otel.Tracer("cmd/tempo-query/tempo")
 
@@ -75,16 +67,20 @@ type Backend struct {
 	tenantHeaderKey              string
 	QueryServicesDuration        *time.Duration
 	findTracesConcurrentRequests int
+
+	// storagev2.UnimplementedTraceReaderServer
+	// storagev2.UnimplementedDependencyReaderServer
 }
 
 func New(logger *zap.Logger, cfg *Config) (*Backend, error) {
+	_, span := tracer.Start(context.Background(), "tempo.New")
+	defer span.End()
 	httpClient, err := createHTTPClient(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	var queryServiceDuration *time.Duration
-
 	if cfg.QueryServicesDuration != "" {
 		queryDuration, err := time.ParseDuration(cfg.QueryServicesDuration)
 		if err != nil {
@@ -108,9 +104,8 @@ func New(logger *zap.Logger, cfg *Config) (*Backend, error) {
 
 func createHTTPClient(cfg *Config) (*http.Client, error) {
 	if !cfg.TLSEnabled {
-		return http.DefaultClient, nil
+		return otelhttp.DefaultClient, nil
 	}
-
 	config := &tls.Config{
 		InsecureSkipVerify: cfg.TLS.InsecureSkipVerify,
 		ServerName:         cfg.TLS.ServerName,
@@ -118,7 +113,6 @@ func createHTTPClient(cfg *Config) (*http.Client, error) {
 
 	// read ca certificates
 	if cfg.TLS.CAPath != "" {
-
 		caCert, err := os.ReadFile(cfg.TLS.CAPath)
 		if err != nil {
 			return nil, fmt.Errorf("error opening %s CA", cfg.TLS.CAPath)
@@ -154,11 +148,11 @@ func createHTTPClient(cfg *Config) (*http.Client, error) {
 		config.CipherSuites = cipherSuites
 	}
 	transport := &http.Transport{TLSClientConfig: config}
-	return &http.Client{Transport: transport}, nil
+	return &http.Client{Transport: otelhttp.NewTransport(transport)}, nil
 }
 
 func mapCipherNamesToIDs(cipherSuiteNames []string) ([]uint16, error) {
-	cipherSuites := []uint16{}
+	var cipherSuites []uint16
 	allCipherSuites := tlsCipherSuites()
 
 	for _, name := range cipherSuiteNames {
@@ -185,8 +179,9 @@ func tlsCipherSuites() map[string]uint16 {
 	return cipherSuites
 }
 
-func (b *Backend) GetDependencies(context.Context, *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error) {
-	return &storage_v1.GetDependenciesResponse{}, nil
+func (b *Backend) GetDependencies(context.Context, *storagev2.GetDependenciesRequest) (*storagev2.GetDependenciesResponse, error) {
+	// TODO: Implement if service graphs are enabled? (https://grafana.com/docs/tempo/latest/metrics-generator/service_graphs/)
+	return &storagev2.GetDependenciesResponse{}, nil
 }
 
 func (b *Backend) apiSchema() string {
@@ -196,27 +191,25 @@ func (b *Backend) apiSchema() string {
 	return "http"
 }
 
-func (b *Backend) GetTrace(req *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
-	jt, err := b.getTrace(stream.Context(), req.TraceID)
-	if err != nil {
-		return err
-	}
-
-	spans := make([]jaeger.Span, len(jt.Spans))
-	for i, span := range jt.Spans {
-		spans[i] = *span
-	}
-
-	return stream.Send(&storage_v1.SpansResponseChunk{Spans: spans})
-}
-
-func (b *Backend) getTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
-	url := fmt.Sprintf("%s://%s/api/traces/%s", b.apiSchema(), b.tempoBackend, traceID)
-
-	ctx, span := tracer.Start(ctx, "tempo-query.GetTrace")
+func (b *Backend) getTrace(ctx context.Context, traceID string, start, end *types.Timestamp) (*tempopb.TraceByIDResponse, error) {
+	ctx, span := tracer.Start(ctx, "tempo-query.getTrace")
 	defer span.End()
+	endpoint := fmt.Sprintf("%s://%s/api/v2/traces/%s", b.apiSchema(), b.tempoBackend, traceID)
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing Tempo URL: %w", err)
+	}
 
-	req, err := b.newGetRequest(ctx, url)
+	values := url.Values{}
+	if start != nil && start.Seconds > 0 {
+		values.Set("start", fmt.Sprintf("%d", start.Seconds))
+	}
+	if end != nil && end.Seconds > 0 {
+		values.Set("end", fmt.Sprintf("%d", end.Seconds))
+	}
+	u.RawQuery = values.Encode()
+
+	req, err := b.newGetRequest(ctx, u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -243,33 +236,11 @@ func (b *Backend) getTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("%s", body)
 	}
 
-	otTrace, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(body)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling body to otlp trace %v: %w", traceID, err)
+	var data = tempopb.TraceByIDResponse{}
+	if err := proto.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("error unmarshaling Tempo response: %w", err)
 	}
-
-	jaegerBatches := ot_jaeger.ProtoFromTraces(otTrace)
-
-	jaegerTrace := &jaeger.Trace{
-		Spans:      []*jaeger.Span{},
-		ProcessMap: []jaeger.Trace_ProcessMapping{},
-	}
-
-	span.AddEvent("build process map")
-	// otel proto conversion doesn't set jaeger processes
-	for _, batch := range jaegerBatches {
-		for _, s := range batch.Spans {
-			s.Process = batch.Process
-		}
-
-		jaegerTrace.Spans = append(jaegerTrace.Spans, batch.Spans...)
-		jaegerTrace.ProcessMap = append(jaegerTrace.ProcessMap, jaeger.Trace_ProcessMapping{
-			Process:   *batch.Process,
-			ProcessID: batch.Process.ServiceName,
-		})
-	}
-
-	return jaegerTrace, nil
+	return &data, nil
 }
 
 func (b *Backend) calculateTimeRange() (int64, int64) {
@@ -278,37 +249,39 @@ func (b *Backend) calculateTimeRange() (int64, int64) {
 	return start.Unix(), now.Unix()
 }
 
-func (b *Backend) GetServices(ctx context.Context, _ *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
-	ctx, span := tracer.Start(ctx, "tempo-query.GetOperations")
+func (b *Backend) GetServices(ctx context.Context, _ *storagev2.GetServicesRequest) (*storagev2.GetServicesResponse, error) {
+	ctx, span := tracer.Start(ctx, "tempo-query.GetServices")
 	defer span.End()
 
-	services, err := b.lookupTagValues(ctx, serviceSearchTag)
+	services, err := b.lookupTagValues(ctx, "resource."+serviceSearchTag, "")
 	if err != nil {
 		return nil, err
 	}
-	return &storage_v1.GetServicesResponse{Services: services}, nil
+	return &storagev2.GetServicesResponse{Services: services}, nil
 }
 
-func (b *Backend) GetOperations(ctx context.Context, _ *storage_v1.GetOperationsRequest) (*storage_v1.GetOperationsResponse, error) {
+func (b *Backend) GetOperations(ctx context.Context, r *storagev2.GetOperationsRequest) (*storagev2.GetOperationsResponse, error) {
 	ctx, span := tracer.Start(ctx, "tempo-query.GetOperations")
 	defer span.End()
 
-	tagValues, err := b.lookupTagValues(ctx, operationSearchTag)
+	tagValues, err := b.lookupTagValues(ctx, operationSearchTag,
+		fmt.Sprintf("{resource.service.name=%q}", strings.Replace(r.Service, "\"", "\\\"", -1)),
+	)
 	if err != nil {
+		b.logger.Error("failed to lookup tag values", zap.Error(err))
 		return nil, err
 	}
 
-	var operations []*storage_v1.Operation
+	var operations []*storagev2.Operation
 	for _, value := range tagValues {
-		operations = append(operations, &storage_v1.Operation{
+		operations = append(operations, &storagev2.Operation{
 			Name:     value,
 			SpanKind: "",
 		})
 	}
 
-	return &storage_v1.GetOperationsResponse{
-		OperationNames: tagValues,
-		Operations:     operations,
+	return &storagev2.GetOperationsResponse{
+		Operations: operations,
 	}, nil
 }
 
@@ -318,192 +291,247 @@ type job struct {
 }
 
 type jobResult struct {
-	traceID jaeger.TraceID
-	trace   *jaeger.Trace
+	traceID string
+	trace   *otlptracev1.TracesData
 	err     error
 }
 
-func worker(b *Backend, jobs <-chan job, results chan<- jobResult) {
+func worker(b *Backend, jobs <-chan job, results chan<- jobResult, start, end *types.Timestamp) {
 	for job := range jobs {
-		jaegerTrace, err := b.getTrace(job.ctx, job.traceID)
+		td, err := b.getTrace(job.ctx, job.traceID.String(), start, end)
 		results <- jobResult{
-			traceID: job.traceID,
-			trace:   jaegerTrace,
+			traceID: job.traceID.String(),
+			trace:   getOtlpTraceData(td),
 			err:     err,
 		}
 	}
 }
 
-func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v1.SpanReaderPlugin_FindTracesServer) error {
-	ctx, span := tracer.Start(stream.Context(), "tempo-query.FindTraces")
-	defer span.End()
-
-	resp, err := b.FindTraceIDs(ctx, &storage_v1.FindTraceIDsRequest{Query: req.Query})
-	if err != nil {
-		return err
+func stringValue(s string) *storagev2.AnyValue {
+	return &storagev2.AnyValue{
+		Value: &storagev2.AnyValue_StringValue{
+			StringValue: s,
+		},
 	}
-
-	span.AddEvent(fmt.Sprintf("Found %d trace IDs", len(resp.TraceIDs)))
-	b.logger.Info("FindTraces: fetching traces", zap.Int("traceids", len(resp.TraceIDs)))
-
-	numWorkers := b.findTracesConcurrentRequests
-	jobs := make(chan job, len(resp.TraceIDs))
-	results := make(chan jobResult, len(resp.TraceIDs))
-	var workersDone sync.WaitGroup
-	// Start workers
-	for w := 0; w < numWorkers; w++ {
-		workersDone.Add(1)
-		go func() { defer workersDone.Done(); worker(b, jobs, results) }()
-	}
-
-	// for every traceID, get the full trace
-	var jaegerTraces []*jaeger.Trace
-	for _, traceID := range resp.TraceIDs {
-		jobs <- job{
-			ctx:     ctx,
-			traceID: traceID,
-		}
-	}
-	close(jobs)
-	workersDone.Wait()
-
-	var failedTraces []jobResult
-	// Collecting results
-	for i := 0; i < len(resp.TraceIDs); i++ {
-		result := <-results
-		if result.err != nil {
-			// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
-			b.logger.Info("failed to get a trace", zap.Error(err), zap.String("traceid", result.traceID.String()))
-			span.AddEvent(fmt.Sprintf("could not get trace for traceID %v", result.traceID))
-			span.RecordError(err)
-			failedTraces = append(failedTraces, result)
-		} else {
-			jaegerTraces = append(jaegerTraces, result.trace)
-		}
-	}
-	close(results)
-	if len(failedTraces) > 0 {
-		b.logger.Info("FindTraces: failed to find traces, getTrace failed", zap.Int32("limit", req.Query.NumTraces), zap.Int("failed", len(failedTraces)))
-	}
-
-	span.AddEvent(fmt.Sprintf("Returning %d traces", len(jaegerTraces)))
-
-	for _, jt := range jaegerTraces {
-		spans := make([]jaeger.Span, len(jt.Spans))
-		for i, span := range jt.Spans {
-			spans[i] = *span
-		}
-		if err := stream.Send(&storage_v1.SpansResponseChunk{Spans: spans}); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
-func (b *Backend) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error) {
-	ctx, span := tracer.Start(ctx, "tempo-query.FindTraceIDs")
+func (b *Backend) FindTraces(r *storagev2.FindTracesRequest, s storagev2.TraceReader_FindTracesServer) error {
+	ctx, span := tracer.Start(s.Context(), "tempo-query.FindTraces")
 	defer span.End()
 
-	url := url.URL{
+	endpoint := url.URL{
 		Scheme: b.apiSchema(),
 		Host:   b.tempoBackend,
 		Path:   "api/search",
 	}
-	urlQuery := url.Query()
-	urlQuery.Set(minDurationSearchTag, r.Query.DurationMin.String())
-	urlQuery.Set(maxDurationSearchTag, r.Query.DurationMax.String())
-	urlQuery.Set(numTracesSearchTag, strconv.Itoa(int(r.Query.GetNumTraces())))
-	urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", r.Query.StartTimeMax.Unix()))
-	urlQuery.Set(startTimeMinTag, fmt.Sprintf("%d", r.Query.StartTimeMin.Unix()))
+	urlQuery := endpoint.Query()
+	urlQuery.Set(numTracesSearchTag, strconv.Itoa(int(r.Query.SearchDepth)))
 
-	queryParam, err := createTagsQueryParam(
-		r.Query.ServiceName,
-		r.Query.OperationName,
-		r.Query.Tags,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tags query parameter: %w", err)
+	if r.Query.StartTimeMin != nil {
+		urlQuery.Set(startTimeMinTag, fmt.Sprintf("%d", r.Query.StartTimeMin.Seconds))
 	}
-	urlQuery.Set(tagsSearchTag, queryParam)
+	if r.Query.StartTimeMax != nil {
+		urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", r.Query.StartTimeMax.Seconds))
+	}
 
-	url.RawQuery = urlQuery.Encode()
+	tags := make(map[string]*storagev2.AnyValue)
+	if r.Query.ServiceName != "" {
+		// I don't think it's possible to _not_ have a ServiceName - but let's cover this case as well.
+		tags["resource."+serviceSearchTag] = stringValue(r.Query.ServiceName)
+	}
+	if r.Query.OperationName != "" {
+		tags[operationSearchTag] = stringValue(r.Query.OperationName)
+	}
 
-	req, err := b.newGetRequest(ctx, url.String())
+	for _, v := range r.Query.Attributes {
+		switch v.Key {
+		case "error":
+			// Handle error=true / error=false which is special in Jaeger
+			if strings.EqualFold(v.Value.GetStringValue(), "true") {
+				tags["status"] = stringValue("error")
+			} else if strings.EqualFold(v.Value.GetStringValue(), "false") {
+				tags["status"] = stringValue("ok")
+			} else {
+				tags["."+v.Key] = v.Value
+			}
+		default:
+			tags["."+v.Key] = v.Value
+		}
+	}
+
+	tql, err := BuildTQL(tags)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to build TQL: %w", err)
+	}
+
+	tqlStringQ := fmt.Sprintf("{ %s }", ConditionsToString(tql, r.Query.DurationMin, r.Query.DurationMax))
+	urlQuery.Set("q", tqlStringQ)
+	b.logger.Debug("Tempo Query", zap.String("query", fmt.Sprintf("%v", urlQuery)))
+	endpoint.RawQuery = urlQuery.Encode()
+
+	req, err := b.newGetRequest(ctx, endpoint.String())
+	if err != nil {
+		return err
 	}
 
 	resp, err := b.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed GET to tempo: %w", err)
+		return fmt.Errorf("failed GET to tempo: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// if search endpoint returns 404, search is most likely not enabled
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil
+		b.logger.Info("Tempo search endpoint not found (404), perhaps search is not enabled.")
+		return s.Send(&otlptracev1.TracesData{ResourceSpans: make([]*otlptracev1.ResourceSpans, 0)})
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("error reading response from Tempo: got %s", resp.Status)
+		body, errRead := io.ReadAll(resp.Body)
+		if errRead != nil {
+			return fmt.Errorf("error reading response body from Tempo: %w (original status: %s)", errRead, resp.Status)
 		}
-		return nil, fmt.Errorf("%s", body)
+		return fmt.Errorf("tempo server returned error: %s - %s", resp.Status, string(body))
 	}
 
 	var searchResponse tempopb.SearchResponse
 	err = jsonpb.Unmarshal(resp.Body, &searchResponse)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshaling Tempo response: %w", err)
+		return fmt.Errorf("error unmarshaling Tempo search response: %w", err)
 	}
 
-	jaegerTraceIDs := make([]jaeger.TraceID, len(searchResponse.Traces))
+	if len(searchResponse.Traces) == 0 {
+		b.logger.Info("No traces found by initial search.")
+		return nil
+	}
 
-	for i, traceMetadata := range searchResponse.Traces {
-		jaegerTraceID, err := jaeger.TraceIDFromString(traceMetadata.TraceID)
-		if err != nil {
-			return nil, fmt.Errorf("could not convert traceID into Jaeger's traceID: %w", err)
+	jaegerTraceIDs := make([]jaeger.TraceID, 0, len(searchResponse.Traces))
+	for _, traceMetadata := range searchResponse.Traces {
+		jaegerTraceID, errConv := jaeger.TraceIDFromString(traceMetadata.TraceID)
+		if errConv != nil {
+			b.logger.Warn("Could not convert traceID from search result into Jaeger's traceID", zap.Error(errConv), zap.String("traceID", traceMetadata.TraceID))
+			continue
 		}
-		jaegerTraceIDs[i] = jaegerTraceID
+		jaegerTraceIDs = append(jaegerTraceIDs, jaegerTraceID)
 	}
 
-	return &storage_v1.FindTraceIDsResponse{TraceIDs: jaegerTraceIDs}, nil
+	if len(jaegerTraceIDs) == 0 {
+		b.logger.Info("No valid traceIDs after parsing search results.")
+		return s.Send(&otlptracev1.TracesData{ResourceSpans: make([]*otlptracev1.ResourceSpans, 0)})
+	}
+
+	numJobs := len(jaegerTraceIDs)
+	jobs := make(chan job, numJobs)
+	results := make(chan jobResult, numJobs)
+
+	numWorkers := b.findTracesConcurrentRequests
+	if numWorkers <= 0 {
+		numWorkers = 4 // Default
+	}
+	if numWorkers > numJobs {
+		numWorkers = numJobs
+	}
+
+	b.logger.Debug("Starting workers to fetch traces", zap.Int("num_workers", numWorkers), zap.Int("num_traces_to_fetch", numJobs))
+	for i := 0; i < numWorkers; i++ {
+		go worker(b, jobs, results, r.Query.StartTimeMin, r.Query.StartTimeMax)
+	}
+
+	for _, traceID := range jaegerTraceIDs {
+		jobs <- job{ctx: ctx, traceID: traceID}
+	}
+	close(jobs)
+
+	var td []*otlptracev1.TracesData
+	for i := 0; i < numJobs; i++ {
+		result := <-results
+		if result.err != nil {
+			if errors.Is(result.err, ErrTraceNotFound) {
+				b.logger.Debug("Trace not found by worker", zap.String("traceID", result.traceID))
+			} else {
+				b.logger.Warn("Failed to fetch trace via worker", zap.String("traceID", result.traceID), zap.Error(result.err))
+			}
+			continue
+		}
+		if result.trace != nil {
+			td = append(td, result.trace)
+		}
+	}
+
+	if len(td) == 0 {
+		b.logger.Info("No traces were successfully fetched after search.", zap.Int("search_results_count", len(searchResponse.Traces)))
+		return s.Send(&otlptracev1.TracesData{ResourceSpans: make([]*otlptracev1.ResourceSpans, 0)})
+	}
+	b.logger.Info("Successfully fetched traces, preparing to send.", zap.Int("num_traces_to_send", len(td)))
+
+	for _, traceData := range td {
+		if traceData == nil || len(traceData.ResourceSpans) == 0 {
+			b.logger.Debug("Skipping nil or empty traceData during send.")
+			continue
+		}
+		// Each traceData is an *otlptracev1.TracesData, send it directly
+		err = s.Send(traceData)
+		if err != nil {
+			b.logger.Error("Failed to send OTLP trace data", zap.Error(err))
+			return fmt.Errorf("failed to send OTLP trace data: %w", err)
+		}
+	}
+
+	b.logger.Info("Successfully sent all OTLP traces to client.")
+	return nil
 }
 
-func createTagsQueryParam(service string, operation string, tags map[string]string) (string, error) {
-	tagsBuilder := &strings.Builder{}
-	tagsEncoder := logfmt.NewEncoder(tagsBuilder)
-	err := tagsEncoder.EncodeKeyval(serviceSearchTag, service)
-	if err != nil {
-		return "", err
-	}
-	if operation != "" {
-		err := tagsEncoder.EncodeKeyval(operationSearchTag, operation)
+func (b *Backend) GetTraces(req *storagev2.GetTracesRequest, srv storagev2.TraceReader_GetTracesServer) error {
+	ctx, span := tracer.Start(srv.Context(), "tempo-query.GetTraces")
+	defer span.End()
+
+	for _, q := range req.Query {
+		if q == nil {
+			return fmt.Errorf("q is nil")
+		}
+		traceId, err := jaeger.TraceIDFromBytes(q.TraceId)
 		if err != nil {
-			return "", err
+			return fmt.Errorf("error converting traceId to jaeger TraceID: %w", err)
+		}
+		trace, err := b.getTrace(ctx, traceId.String(), q.StartTime, q.EndTime)
+		if err != nil {
+			if errors.Is(err, ErrTraceNotFound) {
+				b.logger.Debug("Trace not found", zap.String("traceID", traceId.String()))
+				continue
+			}
+			return fmt.Errorf("error getting trace: %w", err)
+		}
+		if trace == nil {
+			return fmt.Errorf("got a nil trace")
+		}
+		convertedTrace := getOtlpTraceData(trace)
+		if convertedTrace == nil {
+			return fmt.Errorf("failed to convert trace to OTLP format")
+		}
+		if err := srv.Send(convertedTrace); err != nil {
+			return fmt.Errorf("error sending trace: %w", err)
 		}
 	}
-	for k, v := range tags {
-		err := tagsEncoder.EncodeKeyval(k, v)
-		if err != nil {
-			return "", err
-		}
-	}
-	return tagsBuilder.String(), nil
+
+	return nil
 }
 
-func (b *Backend) lookupTagValues(ctx context.Context, tagName string) ([]string, error) {
-	var url string
-
-	if b.QueryServicesDuration == nil {
-		url = fmt.Sprintf("%s://%s/api/search/tag/%s/values", b.apiSchema(), b.tempoBackend, tagName)
-	} else {
+func (b *Backend) lookupTagValues(ctx context.Context, tagName string, query string) ([]string, error) {
+	q := url.Values{}
+	if b.QueryServicesDuration != nil {
 		startTime, endTime := b.calculateTimeRange()
-		url = fmt.Sprintf("%s://%s/api/search/tag/%s/values?start=%d&end=%d", b.apiSchema(), b.tempoBackend, tagName, startTime, endTime)
+		q.Set("start", fmt.Sprintf("%d", startTime))
+		q.Set("end", fmt.Sprintf("%d", endTime))
 	}
+	if query != "" {
+		q.Set("q", query)
+	}
+	u, err := url.Parse(fmt.Sprintf("%s://%s/api/v2/search/tag/%s/values", b.apiSchema(), b.tempoBackend, tagName))
+	if err != nil {
+		return nil, fmt.Errorf("error parsing Tempo URL: %w", err)
+	}
+	u.RawQuery = q.Encode()
 
-	req, err := b.newGetRequest(ctx, url)
+	req, err := b.newGetRequest(ctx, u.String())
 	if err != nil {
 		return nil, err
 	}
@@ -518,7 +546,6 @@ func (b *Backend) lookupTagValues(ctx context.Context, tagName string) ([]string
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil
 	}
-
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -527,21 +554,21 @@ func (b *Backend) lookupTagValues(ctx context.Context, tagName string) ([]string
 		return nil, fmt.Errorf("%s", body)
 	}
 
-	var searchLookupResponse tempopb.SearchTagValuesResponse
+	var searchLookupResponse tempopb.SearchTagValuesV2Response
 	err = jsonpb.Unmarshal(resp.Body, &searchLookupResponse)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshaling Tempo response: %w", err)
 	}
 
-	return searchLookupResponse.TagValues, nil
+	tagValues := make([]string, len(searchLookupResponse.TagValues))
+	for i, tagValue := range searchLookupResponse.TagValues {
+		tagValues[i] = tagValue.Value
+	}
+	return tagValues, nil
 }
 
-func (b *Backend) WriteSpan(context.Context, *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	return nil, nil
-}
-
-func (b *Backend) Close(context.Context, *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {
-	return nil, nil
+func (b *Backend) FindTraceIDs(ctx context.Context, req *storagev2.FindTracesRequest) (*storagev2.FindTraceIDsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FindTraceIDs not implemented")
 }
 
 func (b *Backend) newGetRequest(ctx context.Context, url string) (*http.Request, error) {
