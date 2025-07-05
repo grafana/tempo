@@ -151,6 +151,9 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 
 	i.subservicesWatcher = services.NewFailureWatcher()
 	i.subservicesWatcher.WatchService(i.lifecycler)
+	if ingestCfg := cfg.IngestStorageConfig; ingestCfg.Enabled {
+		i.subservicesWatcher.WatchService(i.ingestPartitionLifecycler)
+	}
 
 	i.Service = services.NewBasicService(i.starting, i.running, i.stopping)
 	return i, nil
