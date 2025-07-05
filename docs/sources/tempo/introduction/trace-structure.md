@@ -5,7 +5,7 @@ keywords:
   - spans
   - tracing
 title: Trace structure
-weight: 200
+weight: 300
 ---
 
 # Trace structure
