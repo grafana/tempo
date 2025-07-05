@@ -373,6 +373,10 @@ func (t *App) writeRuntimeConfig(w io.Writer, r *http.Request) error {
 		_, err := w.Write([]byte(fmt.Sprintf("overrides module not loaded in %s\n", t.cfg.Target)))
 		return err
 	}
+	_, err := w.Write([]byte("---\n"))
+	if err != nil {
+		return err
+	}
 	return t.Overrides.WriteStatusRuntimeConfig(w, r)
 }
 
