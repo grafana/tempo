@@ -213,15 +213,23 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
 
-	copyCfg.SpanMetrics.EnableTargetInfo = o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
+	if enableTargetInfo := o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID); enableTargetInfo {
+		copyCfg.SpanMetrics.EnableTargetInfo = enableTargetInfo
+	}
 
 	copyCfg.SpanMetrics.TargetInfoExcludedDimensions = o.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
 
-	copyCfg.ServiceGraphs.EnableClientServerPrefix = o.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)
+	if enableClientServerPrefix := o.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID); enableClientServerPrefix {
+		copyCfg.ServiceGraphs.EnableClientServerPrefix = enableClientServerPrefix
+	}
 
-	copyCfg.ServiceGraphs.EnableMessagingSystemLatencyHistogram = o.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID)
+	if enableMessagingSystemLatencyHistogram := o.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID); enableMessagingSystemLatencyHistogram {
+		copyCfg.ServiceGraphs.EnableMessagingSystemLatencyHistogram = enableMessagingSystemLatencyHistogram
+	}
 
-	copyCfg.ServiceGraphs.EnableVirtualNodeLabel = o.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID)
+	if enableVirtualNodeLabel := o.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID); enableVirtualNodeLabel {
+		copyCfg.ServiceGraphs.EnableVirtualNodeLabel = enableVirtualNodeLabel
+	}
 
 	if hostIdentifiers := o.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID); hostIdentifiers != nil {
 		copyCfg.HostInfo.HostIdentifiers = o.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)
