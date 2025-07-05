@@ -196,12 +196,9 @@ type ProducerConfig struct {
 
 func NewDefaultProducerConfig() ProducerConfig {
 	return ProducerConfig{
-		MaxMessageBytes: 1000000,
-		RequiredAcks:    WaitForLocal,
-		Compression:     "none",
-		CompressionParams: configcompression.CompressionParams{
-			Level: configcompression.DefaultCompressionLevel,
-		},
+		MaxMessageBytes:  1000000,
+		RequiredAcks:     WaitForLocal,
+		Compression:      "none",
 		FlushMaxMessages: 0,
 	}
 }

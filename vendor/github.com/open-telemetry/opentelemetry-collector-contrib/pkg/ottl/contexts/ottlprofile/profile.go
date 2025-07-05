@@ -37,7 +37,7 @@ var (
 func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
 	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.instrumentationScope)))
-	err = errors.Join(err, encoder.AddObject("profile", logprofile.Profile(tCtx.profile)))
+	err = errors.Join(err, encoder.AddObject("profile", logprofile.Profile{Profile: tCtx.profile, Dictionary: tCtx.dictionary}))
 	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
 	return err
 }
@@ -45,6 +45,7 @@ func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) err
 // TransformContext represents a profile and its associated hierarchy.
 type TransformContext struct {
 	profile              pprofile.Profile
+	dictionary           pprofile.ProfilesDictionary
 	instrumentationScope pcommon.InstrumentationScope
 	resource             pcommon.Resource
 	cache                pcommon.Map
@@ -56,9 +57,10 @@ type TransformContext struct {
 type TransformContextOption func(*TransformContext)
 
 // NewTransformContext creates a new TransformContext with the provided parameters.
-func NewTransformContext(profile pprofile.Profile, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeProfiles pprofile.ScopeProfiles, resourceProfiles pprofile.ResourceProfiles, options ...TransformContextOption) TransformContext {
+func NewTransformContext(profile pprofile.Profile, dictionary pprofile.ProfilesDictionary, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeProfiles pprofile.ScopeProfiles, resourceProfiles pprofile.ResourceProfiles, options ...TransformContextOption) TransformContext {
 	tc := TransformContext{
 		profile:              profile,
+		dictionary:           dictionary,
 		instrumentationScope: instrumentationScope,
 		resource:             resource,
 		cache:                pcommon.NewMap(),

@@ -10,6 +10,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxerror"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxutil"
 )
 
 func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
@@ -31,6 +32,11 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 		return accessIsMonotonic[K](), nil
 	case "data_points":
 		return accessDataPoints[K](), nil
+	case "metadata":
+		if path.Keys() == nil {
+			return accessMetadata[K](), nil
+		}
+		return accessMetadataKey[K](path.Keys()), nil
 	default:
 		return nil, ctxerror.New(path.Name(), path.String(), Name, DocRef)
 	}
@@ -186,6 +192,28 @@ func accessDataPoints[K Context]() ottl.StandardGetSetter[K] {
 				}
 			}
 			return nil
+		},
+	}
+}
+
+func accessMetadata[K Context]() ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (any, error) {
+			return tCtx.GetMetric().Metadata(), nil
+		},
+		Setter: func(_ context.Context, tCtx K, val any) error {
+			return ctxutil.SetMap(tCtx.GetMetric().Metadata(), val)
+		},
+	}
+}
+
+func accessMetadataKey[K Context](keys []ottl.Key[K]) ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(ctx context.Context, tCtx K) (any, error) {
+			return ctxutil.GetMapValue(ctx, tCtx, tCtx.GetMetric().Metadata(), keys)
+		},
+		Setter: func(ctx context.Context, tCtx K, val any) error {
+			return ctxutil.SetMapValue(ctx, tCtx, tCtx.GetMetric().Metadata(), keys, val)
 		},
 	}
 }
