@@ -145,3 +145,21 @@ The most important in terms of tail sampling is that routing occurs based on an 
 This can affect the target for trace ID spans before eventual consistency occurs.
 
 For an example manifest for a two layer OpenTelemetry Collector deployment based around Kubernetes services, refer to the [Kubernetes service resolver README](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/loadbalancingexporter/example/k8s-resolver/README.md).
+
+## Pipeline workflows
+
+When implementing tail sampling into your telemetry collection pipeline, there are some considerations that should be applied.
+The act of sampling reduces the amount of tracing telemetry data that's sent to Tempo.
+This can have an effect on observation of data inside Grafana.
+
+The following is a suggested pipeline that can be applied to both [Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/)  and the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), to carry out tail sampling, but also ensure that other telemetry signals are still fully rounded for observation from within Grafana and Grafana Cloud.
+
+This pipeline exists in the second layer of collectors, sent data by the load balancing layer, and is commonly deployed as a Kubernetes `StatefulSet` to ensure that each instance has a consistent identity. A realistic example pipeline could be made of up the following components:
+
+* The **OTLP Receiver** is the [OpenTelemetry Protocol](https://opentelemetry.io/docs/specs/otel/protocol/) (OTLP) receiver in this pipeline, and receives traces from the load balancing exporter. This receiver is responsible for initiating the processing pipeline within this collector layer.
+* The **Transform Processor** is used to modify any incoming trace spans before they are exported to other components in the pipeline. This allows the mutation of attributes (for example, deletion, mutation, insertion, etc.), as well as any other required [OpenTelemetry Transform Language](https://opentelemetry.io/docs/collector/transforming-telemetry/) (OTTL)-based operations. This component must come before metric generation Connectors or the tail sampling Processor so that required changes can be used for label names (for metrics) or policy matching (for tail sampling).
+* The **SpanMetrics Connector** is responsible for extracting metrics from the incoming traces, and can be used as a fork in the pipeline. These metrics include crucial information such as trace latency, error rates, and other performance indicators, which are essential for understanding the health and performance of your services. It's important to ensure that this Connector is configured to receive span data before any tail sampling occurs.
+* The **ServiceGraph Connector** generates service dependency graphs from the traces, and can be used as a fork in the pipeline or chained together with the span metrics connector. These graphs visually represent the interactions between various services in your system, helping to identify bottlenecks and understand the flow of requests. It's important to ensure that this Connector is configured to receive span data before any tail sampling occurs.
+* The **Tail Sampling Processor** is the core of the secondary collector layer. It applies the sampling policies you’ve configured to decide which traces should be retained and further processed. The sampling decision is made after the entire trace has been observed, or the decision wait time has elapsed, allowing the processor to make more informed choices based on the full context of the trace.
+* The **OTLP Exporter** exports the sampled traces (or generated span and service metrics) to Grafana Cloud via OTLP.
+* The **Prometheus Exporter** is optional. If metrics aren't sent via OTLP, then you can use this component to send Prometheus compatible metrics to [Mimir](https://grafana.com/oss/mimir/) or [Grafana Cloud Metrics](https://grafana.com/products/cloud/metrics/).
