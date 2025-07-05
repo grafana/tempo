@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -38,8 +39,6 @@ const (
 	attrTopic        = "topic"
 	attrPartition    = "partition"
 )
-
-var errMemoryLimiterDataRefused = errors.New("data refused due to high memory usage")
 
 type consumeMessageFunc func(ctx context.Context, message *sarama.ConsumerMessage) error
 
@@ -506,7 +505,7 @@ func (c *consumerGroupHandler) handleMessage(
 	c.telemetryBuilder.KafkaReceiverOffsetLag.Record(ctx, claim.HighWaterMarkOffset()-message.Offset-1, metric.WithAttributeSet(attrs))
 
 	if err := c.consumeMessage(ctx, message); err != nil {
-		if errorRequiresBackoff(err) && c.backOff != nil {
+		if c.backOff != nil && !consumererror.IsPermanent(err) {
 			backOffDelay := c.getNextBackoff()
 			if backOffDelay != backoff.Stop {
 				c.logger.Info("Backing off due to error from the next consumer.",
@@ -528,10 +527,19 @@ func (c *consumerGroupHandler) handleMessage(
 			c.logger.Info("Stop error backoff because the configured max_elapsed_time is reached",
 				zap.Duration("max_elapsed_time", c.backOff.MaxElapsedTime))
 		}
-		if c.messageMarking.After && c.messageMarking.OnError {
-			session.MarkMessage(message, "")
+		if c.messageMarking.After && !c.messageMarking.OnError {
+			// Only return an error if messages are marked after successful processing.
+			return err
 		}
-		return err
+		// We're either marking messages as consumed ahead of time (disregarding outcome),
+		// or after processing but including errors. Either way we should not return an error,
+		// as that will restart the consumer unnecessarily.
+		c.logger.Error("failed to consume message, skipping due to message_marking config",
+			zap.Error(err),
+			zap.String("topic", message.Topic),
+			zap.Int32("partition", claim.Partition()),
+			zap.Int64("offset", message.Offset),
+		)
 	}
 	if c.backOff != nil {
 		c.resetBackoff()
@@ -569,10 +577,6 @@ func newExponentialBackOff(config configretry.BackOffConfig) *backoff.Exponentia
 	backOff.MaxElapsedTime = config.MaxElapsedTime
 	backOff.Reset()
 	return backOff
-}
-
-func errorRequiresBackoff(err error) bool {
-	return err.Error() == errMemoryLimiterDataRefused.Error()
 }
 
 func newContextWithHeaders(ctx context.Context,

@@ -42,16 +42,16 @@ func TestShim_integration(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		receiverCfg       map[string]interface{}
+		receiverCfg       map[string]any
 		factory           exporter.Factory
 		exporterCfg       component.Config
 		expectedTransport string
 	}{
 		{
 			name: "otlpexporter",
-			receiverCfg: map[string]interface{}{
-				"otlp": map[string]interface{}{
-					"protocols": map[string]interface{}{
+			receiverCfg: map[string]any{
+				"otlp": map[string]any{
+					"protocols": map[string]any{
 						"grpc": nil,
 					},
 				},
@@ -60,7 +60,7 @@ func TestShim_integration(t *testing.T) {
 			exporterCfg: &otlpexporter.Config{
 				ClientConfig: configgrpc.ClientConfig{
 					Endpoint: "127.0.0.1:4317",
-					TLSSetting: configtls.ClientConfig{
+					TLS: configtls.ClientConfig{
 						Insecure: true,
 					},
 					Headers: headers,
@@ -70,9 +70,9 @@ func TestShim_integration(t *testing.T) {
 		},
 		{
 			name: "otlphttpexporter - JSON encoding",
-			receiverCfg: map[string]interface{}{
-				"otlp": map[string]interface{}{
-					"protocols": map[string]interface{}{
+			receiverCfg: map[string]any{
+				"otlp": map[string]any{
+					"protocols": map[string]any{
 						"http": nil,
 					},
 				},
@@ -89,9 +89,9 @@ func TestShim_integration(t *testing.T) {
 		},
 		{
 			name: "otlphttpexporter - proto encoding",
-			receiverCfg: map[string]interface{}{
-				"otlp": map[string]interface{}{
-					"protocols": map[string]interface{}{
+			receiverCfg: map[string]any{
+				"otlp": map[string]any{
+					"protocols": map[string]any{
 						"http": nil,
 					},
 				},
@@ -147,7 +147,7 @@ func TestShim_integration(t *testing.T) {
 	}
 }
 
-func runReceiverShim(t *testing.T, receiverCfg map[string]interface{}, pusher TracesPusher, reg prometheus.Registerer) func() {
+func runReceiverShim(t *testing.T, receiverCfg map[string]any, pusher TracesPusher, reg prometheus.Registerer) func() {
 	level := dslog.Level{}
 	_ = level.Set("info")
 
