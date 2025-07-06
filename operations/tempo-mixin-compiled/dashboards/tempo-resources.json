@@ -29,34 +29,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 1,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -69,10 +81,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"cortex-gw(-internal)?\"}[$__rate_interval]))",
@@ -96,75 +105,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 2,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -177,10 +161,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"cortex-gw(-internal)?\"})",
@@ -204,27 +185,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -245,41 +207,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 3,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 3,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\"})",
@@ -289,27 +257,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -342,34 +291,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 4,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 4,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -382,10 +343,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"distributor\"}[$__rate_interval]))",
@@ -409,75 +367,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 5,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -490,10 +423,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"distributor\"})",
@@ -517,27 +447,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -558,41 +469,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 6,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 6,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"})",
@@ -602,27 +519,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -655,34 +553,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 7,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 7,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -695,10 +605,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"}[$__rate_interval]))",
@@ -722,75 +629,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 8,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -803,10 +685,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"})",
@@ -830,27 +709,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -871,41 +731,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 9,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 9,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/ingester\"})",
@@ -915,27 +781,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -968,34 +815,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 10,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 10,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -1008,10 +867,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"metrics-generator\"}[$__rate_interval]))",
@@ -1035,75 +891,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 11,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -1116,10 +947,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"metrics-generator\"})",
@@ -1143,27 +971,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -1184,41 +993,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 12,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 12,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\"})",
@@ -1228,27 +1043,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -1281,34 +1077,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 13,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 13,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -1321,10 +1129,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"query-frontend\"}[$__rate_interval]))",
@@ -1348,75 +1153,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 14,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -1429,10 +1209,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"query-frontend\"})",
@@ -1456,27 +1233,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -1497,41 +1255,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 15,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 15,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\"})",
@@ -1541,27 +1305,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -1594,34 +1339,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 16,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 16,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -1634,10 +1391,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"querier\"}[$__rate_interval]))",
@@ -1661,75 +1415,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 17,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -1742,10 +1471,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"querier\"})",
@@ -1769,27 +1495,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -1810,41 +1517,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 18,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 18,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/querier\"})",
@@ -1854,27 +1567,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -1907,34 +1601,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 19,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 19,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -1947,10 +1653,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"}[$__rate_interval]))",
@@ -1974,75 +1677,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 20,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -2055,10 +1733,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"})",
@@ -2082,27 +1757,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -2123,41 +1779,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 21,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 21,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})",
@@ -2167,27 +1829,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -2220,34 +1863,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 22,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 22,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -2260,10 +1915,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\"}[$__rate_interval]))",
@@ -2287,75 +1939,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 23,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -2368,10 +1995,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 6,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"memcached\"})",
@@ -2395,27 +2019,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -2448,34 +2053,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 24,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 24,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -2488,10 +2105,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"backend-scheduler\"}[$__rate_interval]))",
@@ -2515,75 +2129,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 25,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -2596,10 +2185,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"backend-scheduler\"})",
@@ -2623,27 +2209,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -2664,41 +2231,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 26,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 26,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\"})",
@@ -2708,27 +2281,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -2761,34 +2315,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 27,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 27,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -2801,10 +2367,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"backend-worker\"}[$__rate_interval]))",
@@ -2828,75 +2391,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 28,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -2909,10 +2447,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"backend-worker\"})",
@@ -2936,27 +2471,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -2977,41 +2493,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 29,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 29,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\"})",
@@ -3021,27 +2543,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -3074,34 +2577,46 @@
    "height": "250px",
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 30,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 30,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -3114,10 +2629,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\"}[$__rate_interval]))",
@@ -3141,75 +2653,50 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "CPU",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 1,
      "id": 31,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "seriesOverrides": [
       {
        "alias": "limit",
@@ -3222,10 +2709,7 @@
        "fill": 0
       }
      ],
-     "spaceLength": 10,
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"block-builder\"})",
@@ -3249,27 +2733,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (workingset)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
@@ -3290,41 +2755,47 @@
      ]
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": "$datasource",
-     "fill": 1,
-     "id": 32,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
      },
-     "lines": true,
-     "linewidth": 1,
+     "id": 32,
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
      "span": 4,
-     "stack": false,
-     "steppedLine": false,
      "targets": [
       {
        "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/block-builder\"})",
@@ -3334,27 +2805,8 @@
        "legendLink": null
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
      "title": "Memory (go heap inuse)",
-     "tooltip": {
-      "shared": true,
-      "sort": 2,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
+     "type": "timeseries",
      "yaxes": [
       {
        "format": "bytes",
