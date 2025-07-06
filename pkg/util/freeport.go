@@ -21,6 +21,8 @@ import (
 // as "address already in use". Windows default behavior is already appropriate
 // in this regard; on that platform, `SO_REUSEADDR` has a different meaning and
 // should not be set (setting it may have unpredictable consequences).
+//
+// Copied from github.com/temporalio/temporal/blob/main/common/testing/freeport/freeport.go.
 func MustGetFreePort() int {
 	port, err := getFreePort("127.0.0.1")
 	if err != nil {
