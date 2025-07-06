@@ -84,6 +84,7 @@ type App struct {
 	MemberlistKV         *memberlist.KVInitService
 	backendScheduler     *backendscheduler.BackendScheduler
 	backendWorker        *backendworker.BackendWorker
+	signalsHandler       *signals.Handler
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
@@ -167,7 +168,7 @@ func (t *App) setupAuthMiddleware() {
 	}
 }
 
-// Run starts, and blocks until a signal is received.
+// Run starts, and blocks until a signal is received or Stop is called.
 func (t *App) Run() error {
 	if !t.ModuleManager.IsUserVisibleModule(t.cfg.Target) {
 		level.Warn(log.Logger).Log("msg", "selected target is an internal module, is this intended?", "target", t.cfg.Target)
@@ -217,7 +218,7 @@ func (t *App) Run() error {
 		// let's find out which module failed
 		for m, s := range serviceMap {
 			if s == service {
-				err = service.FailureCase()
+				err := service.FailureCase()
 				if errors.Is(err, modules.ErrStopProcess) {
 					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
 				} else if errors.Is(err, context.Canceled) {
@@ -234,9 +235,9 @@ func (t *App) Run() error {
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
 	// Setup signal handler. If signal arrives, we stop the manager, which stops all the services.
-	handler := signals.NewHandler(t.Server.Log())
+	t.signalsHandler = signals.NewHandler(t.Server.Log())
 	go func() {
-		handler.Loop()
+		t.signalsHandler.Loop()
 
 		shutdownRequested.Store(true)
 		t.Server.SetKeepAlivesEnabled(false)
@@ -256,6 +257,14 @@ func (t *App) Run() error {
 	}
 
 	return sm.AwaitStopped(context.Background())
+}
+
+// Stop the app. It panics if the app is not running.
+func (t *App) Stop() {
+	if t.signalsHandler == nil {
+		panic("app is not running")
+	}
+	t.signalsHandler.Stop()
 }
 
 func (t *App) writeStatusVersion(w io.Writer) error {
