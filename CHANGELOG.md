@@ -18,6 +18,7 @@
 * [ENHANCEMENT] Enable HTTP writes in the multi-tenant example [#5297](https://github.com/grafana/tempo/pull/5297)
 * [ENHANCEMENT] Drop invalid prometheus label names in spanmetrics processor [#5122](https://github.com/grafana/tempo/pull/5122) (@KyriosGN0)
 * [ENHANCEMENT] Added usage tracker example [#5356](https://github.com/grafana/tempo/pull/5356) (@javiermolinar)
+* [ENHANCEMENT] Update mixin dashboards to use timeseries panels and not graph [#5359](https://github.com/grafana/tempo/pull/5359) (@KyriosGN0)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
 * [BUGFIX] Correct instant query calculation [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
 * [BUGFIX] Fix tracing context propagation in distributor HTTP write requests [#5312](https://github.com/grafana/tempo/pull/5312) (@mapno)
