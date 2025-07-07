@@ -685,9 +685,6 @@ github.com/googleapis/gax-go/v2/internallog
 github.com/googleapis/gax-go/v2/internallog/grpclog
 github.com/googleapis/gax-go/v2/internallog/internal
 github.com/googleapis/gax-go/v2/iterator
-# github.com/gorilla/handlers v1.5.2
-## explicit; go 1.20
-github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
@@ -758,10 +755,6 @@ github.com/grafana/regexp/syntax
 # github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 ## explicit; go 1.14
 github.com/grpc-ecosystem/go-grpc-middleware
-# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1
-## explicit; go 1.23
-github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry
-github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata
 # github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3
 ## explicit; go 1.23.0
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
@@ -823,29 +816,7 @@ github.com/iancoleman/strcase
 github.com/inconshreveable/mousetrap
 # github.com/jaegertracing/jaeger v1.67.0
 ## explicit; go 1.23.7
-github.com/jaegertracing/jaeger/cmd/agent/app/configmanager
-github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc
-github.com/jaegertracing/jaeger/cmd/agent/app/reporter
-github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc
-github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext
-github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin
-github.com/jaegertracing/jaeger/cmd/internal/flags
-github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder
-github.com/jaegertracing/jaeger/internal/metrics/otelmetrics
-github.com/jaegertracing/jaeger/internal/metrics/prometheus
 github.com/jaegertracing/jaeger/model
-github.com/jaegertracing/jaeger/model/converter/thrift/jaeger
-github.com/jaegertracing/jaeger/model/converter/thrift/zipkin
-github.com/jaegertracing/jaeger/pkg/config/tlscfg
-github.com/jaegertracing/jaeger/pkg/discovery
-github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver
-github.com/jaegertracing/jaeger/pkg/healthcheck
-github.com/jaegertracing/jaeger/pkg/metrics
-github.com/jaegertracing/jaeger/pkg/netutils
-github.com/jaegertracing/jaeger/pkg/recoveryhandler
-github.com/jaegertracing/jaeger/pkg/telemetry
-github.com/jaegertracing/jaeger/pkg/version
-github.com/jaegertracing/jaeger/ports
 github.com/jaegertracing/jaeger/proto-gen/storage_v1
 github.com/jaegertracing/jaeger/thrift-gen/jaeger
 github.com/jaegertracing/jaeger/thrift-gen/zipkincore
@@ -855,7 +826,6 @@ github.com/jaegertracing/jaeger-idl/model/v1
 github.com/jaegertracing/jaeger-idl/proto-gen/api_v2
 github.com/jaegertracing/jaeger-idl/thrift-gen/agent
 github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger
-github.com/jaegertracing/jaeger-idl/thrift-gen/sampling
 github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore
 # github.com/jcmturner/aescts/v2 v2.0.0
 ## explicit; go 1.13
