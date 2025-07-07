@@ -50,7 +50,7 @@ Start with a smaller trace size limit of 15MB, and increase it as needed.
 With an average span size of 300 bytes, this allows for 50K spans per trace.
 
 Verify that you've configured a limit in `max_bytes_per_trace`.
-The max limit is 50MB and a `0` value disables it.
+The largest recommended limit is 60MB.
 
 Configure the limit in the per-tenant overrides:
 

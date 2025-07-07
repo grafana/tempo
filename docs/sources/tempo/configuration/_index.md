@@ -1833,7 +1833,7 @@ overrides:
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes. A value of 0 disables the size
-      # check. Max size is 50MB.
+      # check. 
       # This limit is used in 3 places:
       #  - During search, traces will be skipped when they exceed this threshold.
       #  - During ingestion, traces that exceed this threshold will be refused.
