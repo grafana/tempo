@@ -13,44 +13,46 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type Profile pprofile.Profile
+type Profile struct {
+	pprofile.Profile
+	Dictionary pprofile.ProfilesDictionary
+}
 
 func (p Profile) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
-	pp := pprofile.Profile(p)
 	var joinedErr error
 
-	vts, err := newValueTypes(p, pp.SampleType())
+	vts, err := newValueTypes(p, p.SampleType())
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("sample_type", vts))
 
-	ss, err := newSamples(p, pp.Sample())
+	ss, err := newSamples(p, p.Sample())
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("sample", ss))
 
-	encoder.AddInt64("time_nanos", int64(pp.Time()))
-	encoder.AddInt64("duration_nanos", int64(pp.Duration()))
+	encoder.AddInt64("time_nanos", int64(p.Time()))
+	encoder.AddInt64("duration_nanos", int64(p.Duration()))
 
-	vt, err := newValueType(p, pp.PeriodType())
+	vt, err := newValueType(p, p.PeriodType())
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddObject("period_type", vt))
 
-	encoder.AddInt64("period", pp.Period())
+	encoder.AddInt64("period", p.Period())
 
 	cs, err := p.getComments()
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("comments", cs))
 
-	dst, err := p.getString(pp.DefaultSampleTypeStrindex())
+	dst, err := p.getString(p.DefaultSampleTypeIndex())
 	joinedErr = errors.Join(joinedErr, err)
 	encoder.AddString("default_sample_type", dst)
 
-	pid := pp.ProfileID()
+	pid := p.ProfileID()
 	encoder.AddString("profile_id", hex.EncodeToString(pid[:]))
-	encoder.AddUint32("dropped_attributes_count", pp.DroppedAttributesCount())
-	encoder.AddString("original_payload_format", pp.OriginalPayloadFormat())
-	encoder.AddByteString("original_payload", pp.OriginalPayload().AsRaw())
+	encoder.AddUint32("dropped_attributes_count", p.DroppedAttributesCount())
+	encoder.AddString("original_payload_format", p.OriginalPayloadFormat())
+	encoder.AddByteString("original_payload", p.OriginalPayload().AsRaw())
 
-	ats, err := newAttributes(p, pp.AttributeIndices())
+	ats, err := newAttributes(p, p.AttributeIndices())
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("attributes", ats))
 
@@ -58,8 +60,7 @@ func (p Profile) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 }
 
 func (p Profile) getString(idx int32) (string, error) {
-	pp := pprofile.Profile(p)
-	strTable := pp.StringTable()
+	strTable := p.Dictionary.StringTable()
 	if idx >= int32(strTable.Len()) {
 		return "", fmt.Errorf("string index out of bounds: %d", idx)
 	}
@@ -67,8 +68,7 @@ func (p Profile) getString(idx int32) (string, error) {
 }
 
 func (p Profile) getFunction(idx int32) (function, error) {
-	pp := pprofile.Profile(p)
-	fnTable := pp.FunctionTable()
+	fnTable := p.Dictionary.FunctionTable()
 	if idx >= int32(fnTable.Len()) {
 		return function{}, fmt.Errorf("function index out of bounds: %d", idx)
 	}
@@ -76,8 +76,7 @@ func (p Profile) getFunction(idx int32) (function, error) {
 }
 
 func (p Profile) getMapping(idx int32) (mapping, error) {
-	pp := pprofile.Profile(p)
-	mTable := pp.MappingTable()
+	mTable := p.Dictionary.MappingTable()
 	if idx >= int32(mTable.Len()) {
 		return mapping{}, fmt.Errorf("mapping index out of bounds: %d", idx)
 	}
@@ -85,8 +84,7 @@ func (p Profile) getMapping(idx int32) (mapping, error) {
 }
 
 func (p Profile) getLink(idx int32) (link, error) {
-	pp := pprofile.Profile(p)
-	lTable := pp.LinkTable()
+	lTable := p.Dictionary.LinkTable()
 	if idx >= int32(lTable.Len()) {
 		return link{}, fmt.Errorf("link index out of bounds: %d", idx)
 	}
@@ -94,8 +92,7 @@ func (p Profile) getLink(idx int32) (link, error) {
 }
 
 func (p Profile) getLocations(start, length int32) (locations, error) {
-	pp := pprofile.Profile(p)
-	locTable := pp.LocationTable()
+	locTable := p.Dictionary.LocationTable()
 	if start >= int32(locTable.Len()) {
 		return locations{}, fmt.Errorf("location start index out of bounds: %d", start)
 	}
@@ -115,8 +112,7 @@ func (p Profile) getLocations(start, length int32) (locations, error) {
 }
 
 func (p Profile) getAttribute(idx int32) (attribute, error) {
-	pp := pprofile.Profile(p)
-	attrTable := pp.AttributeTable()
+	attrTable := p.Dictionary.AttributeTable()
 	if idx >= int32(attrTable.Len()) {
 		return attribute{}, fmt.Errorf("attribute index out of bounds: %d", idx)
 	}
@@ -504,11 +500,10 @@ type comments []string
 
 func (p Profile) getComments() (comments, error) {
 	var joinedErr error
-	pp := pprofile.Profile(p)
-	l := pp.CommentStrindices().Len()
+	l := p.CommentStrindices().Len()
 	cs := make(comments, 0, l)
 	for i := range l {
-		c, err := p.getString(pp.CommentStrindices().At(i))
+		c, err := p.getString(p.CommentStrindices().At(i))
 		if err != nil {
 			joinedErr = errors.Join(joinedErr, err)
 		}

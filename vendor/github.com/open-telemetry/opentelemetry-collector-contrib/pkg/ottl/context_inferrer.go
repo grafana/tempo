@@ -33,8 +33,11 @@ type contextInferrer interface {
 	inferFromStatements(statements []string) (string, error)
 	// inferFromConditions returns the OTTL context inferred from the given conditions.
 	inferFromConditions(conditions []string) (string, error)
-	// infer returns the OTTL context inferred from the given statements and conditions.
-	infer(statements []string, conditions []string) (string, error)
+	// inferFromValueExpressions returns the OTTL context inferred from the given value expressions.
+	inferFromValueExpressions(expressions []string) (string, error)
+	// infer returns the OTTL context inferred from the given statements, conditions,
+	// and value expressions.
+	infer(statements, conditions, valueExpressions []string) (string, error)
 }
 
 type priorityContextInferrer struct {
@@ -88,15 +91,19 @@ func withContextInferrerPriorities(priorities []string) priorityContextInferrerO
 }
 
 func (s *priorityContextInferrer) inferFromConditions(conditions []string) (inferredContext string, err error) {
-	return s.infer(nil, conditions)
+	return s.infer(nil, conditions, nil)
 }
 
 func (s *priorityContextInferrer) inferFromStatements(statements []string) (inferredContext string, err error) {
-	return s.infer(statements, nil)
+	return s.infer(statements, nil, nil)
 }
 
-func (s *priorityContextInferrer) infer(statements []string, conditions []string) (inferredContext string, err error) {
-	var statementsHints, conditionsHints []priorityContextInferrerHints
+func (s *priorityContextInferrer) inferFromValueExpressions(expressions []string) (inferredContext string, err error) {
+	return s.infer(nil, nil, expressions)
+}
+
+func (s *priorityContextInferrer) infer(statements, conditions, valueExprs []string) (inferredContext string, err error) {
+	var statementsHints, conditionsHints, valueExprsHints []priorityContextInferrerHints
 	if len(statements) > 0 {
 		statementsHints, err = s.getStatementsHints(statements)
 		if err != nil {
@@ -109,23 +116,30 @@ func (s *priorityContextInferrer) infer(statements []string, conditions []string
 			return "", err
 		}
 	}
+	if len(valueExprs) > 0 {
+		valueExprsHints, err = s.getValueExpressionsHints(valueExprs)
+		if err != nil {
+			return "", err
+		}
+	}
 	if s.telemetrySettings.Logger.Core().Enabled(zap.DebugLevel) {
-		s.telemetrySettings.Logger.Debug("Inferring context from statements and conditions",
+		s.telemetrySettings.Logger.Debug("Inferring OTTL context",
 			zap.Strings("candidates", maps.Keys(s.contextCandidate)),
 			zap.Any("priority", s.contextPriority),
 			zap.Strings("statements", statements),
 			zap.Strings("conditions", conditions),
+			zap.Strings("value_expressions", valueExprs),
 		)
 	}
-	return s.inferFromHints(append(statementsHints, conditionsHints...))
+	return s.inferFromHints(slices.Concat(statementsHints, conditionsHints, valueExprsHints))
 }
 
 func (s *priorityContextInferrer) inferFromHints(hints []priorityContextInferrerHints) (inferredContext string, err error) {
 	defer func() {
 		if inferredContext != "" {
-			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Inferred context: "%s"`, inferredContext))
+			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Inferred OTTL context: "%s"`, inferredContext))
 		} else {
-			s.telemetrySettings.Logger.Debug("Unable to infer context from statements", zap.Error(err))
+			s.telemetrySettings.Logger.Debug("Unable to infer OTTL context", zap.Error(err))
 		}
 	}()
 
@@ -279,6 +293,24 @@ func (s *priorityContextInferrer) getStatementsHints(statements []string) ([]pri
 		if parsed.WhereClause != nil {
 			parsed.WhereClause.accept(&visitor)
 		}
+		hints = append(hints, visitor)
+	}
+	return hints, nil
+}
+
+// getValueExpressionsHints extracts all path, function (converter) names, and enumSymbol
+// from the given value expressions. These values are used by the context inferrer as hints to
+// select a context in which the function/enum are supported.
+func (s *priorityContextInferrer) getValueExpressionsHints(exprs []string) ([]priorityContextInferrerHints, error) {
+	hints := make([]priorityContextInferrerHints, 0, len(exprs))
+	for _, expr := range exprs {
+		parsed, err := parseValueExpression(expr)
+		if err != nil {
+			return nil, err
+		}
+
+		visitor := newGrammarContextInferrerVisitor()
+		parsed.accept(&visitor)
 		hints = append(hints, visitor)
 	}
 	return hints, nil

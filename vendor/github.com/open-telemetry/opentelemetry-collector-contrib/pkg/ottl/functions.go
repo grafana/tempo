@@ -476,6 +476,12 @@ func (p *Parser[K]) buildSliceArg(argVal value, argType reflect.Type) (any, erro
 			return nil, err
 		}
 		return arg, nil
+	case strings.HasPrefix(name, "PSliceGetter"):
+		arg, err := buildSlice[PSliceGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
 	case strings.HasPrefix(name, "StringGetter"):
 		arg, err := buildSlice[StringGetter[K]](argVal, argType, p.buildArg, name)
 		if err != nil {
@@ -610,6 +616,12 @@ func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 			return nil, err
 		}
 		return StandardPMapGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "PSliceGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardPSliceGetter[K]{Getter: arg.Get}, nil
 	case strings.HasPrefix(name, "DurationGetter"):
 		arg, err := p.newGetter(argVal)
 		if err != nil {
