@@ -147,7 +147,7 @@ func (t *TraceInfo) generateRandomInt(min, max int64) int64 {
 	return number
 }
 
-func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *jaeger.Batch {
+func (t *TraceInfo) makeThriftBatch(traceIDHigh, traceIDLow int64) *jaeger.Batch {
 	var spans []*jaeger.Span
 	count := t.generateRandomInt(1, 5)
 	lastSpanID, nextSpanID := int64(0), int64(0)
@@ -156,8 +156,8 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *jaeger.Batch
 		nextSpanID = t.r.Int63()
 
 		spans = append(spans, &jaeger.Span{
-			TraceIdLow:    TraceIDLow,
-			TraceIdHigh:   TraceIDHigh,
+			TraceIdLow:    traceIDLow,
+			TraceIdHigh:   traceIDHigh,
 			SpanId:        nextSpanID,
 			ParentSpanId:  lastSpanID,
 			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
