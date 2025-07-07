@@ -62,7 +62,7 @@ overrides:
 
 Refer to the [Standard overrides](# https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) documentation for more information.
 
-If you exceed this size limit, you may be using long-running batch job traces. In this case, consider using span links to break them apart.
+If you have long-running batch job traces, consider using span links to break them apart.
 
 ## Large attributes
 
