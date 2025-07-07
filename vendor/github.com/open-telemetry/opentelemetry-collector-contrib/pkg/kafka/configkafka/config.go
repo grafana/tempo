@@ -196,12 +196,9 @@ type ProducerConfig struct {
 
 func NewDefaultProducerConfig() ProducerConfig {
 	return ProducerConfig{
-		MaxMessageBytes: 1000000,
-		RequiredAcks:    WaitForLocal,
-		Compression:     "none",
-		CompressionParams: configcompression.CompressionParams{
-			Level: configcompression.DefaultCompressionLevel,
-		},
+		MaxMessageBytes:  1000000,
+		RequiredAcks:     WaitForLocal,
+		Compression:      "none",
 		FlushMaxMessages: 0,
 	}
 }
@@ -333,7 +330,7 @@ type SASLConfig struct {
 	Username string `mapstructure:"username"`
 	// Password to be used on authentication
 	Password string `mapstructure:"password"`
-	// SASL Mechanism to be used, possible values are: (PLAIN, AWS_MSK_IAM, AWS_MSK_IAM_OAUTHBEARER, SCRAM-SHA-256 or SCRAM-SHA-512).
+	// SASL Mechanism to be used, possible values are: (PLAIN, AWS_MSK_IAM_OAUTHBEARER, SCRAM-SHA-256 or SCRAM-SHA-512).
 	Mechanism string `mapstructure:"mechanism"`
 	// SASL Protocol Version to be used, possible values are: (0, 1). Defaults to 0.
 	Version int `mapstructure:"version"`
@@ -343,7 +340,7 @@ type SASLConfig struct {
 
 func (c SASLConfig) Validate() error {
 	switch c.Mechanism {
-	case "AWS_MSK_IAM", "AWS_MSK_IAM_OAUTHBEARER":
+	case "AWS_MSK_IAM_OAUTHBEARER":
 		// TODO validate c.AWSMSK
 	case "PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512":
 		// Do nothing, valid mechanism
@@ -355,7 +352,7 @@ func (c SASLConfig) Validate() error {
 		}
 	default:
 		return fmt.Errorf(
-			"mechanism should be one of 'PLAIN', 'AWS_MSK_IAM', 'AWS_MSK_IAM_OAUTHBEARER', 'SCRAM-SHA-256' or 'SCRAM-SHA-512'. configured value %v",
+			"mechanism should be one of 'PLAIN', 'AWS_MSK_IAM_OAUTHBEARER', 'SCRAM-SHA-256' or 'SCRAM-SHA-512'. configured value %v",
 			c.Mechanism,
 		)
 	}
@@ -366,12 +363,10 @@ func (c SASLConfig) Validate() error {
 }
 
 // AWSMSKConfig defines the additional SASL authentication
-// measures needed to use AWS_MSK_IAM and AWS_MSK_IAM_OAUTHBEARER mechanism
+// measures needed to use the AWS_MSK_IAM_OAUTHBEARER mechanism
 type AWSMSKConfig struct {
 	// Region is the AWS region the MSK cluster is based in
 	Region string `mapstructure:"region"`
-	// BrokerAddr is the client is connecting to in order to perform the auth required
-	BrokerAddr string `mapstructure:"broker_addr"`
 }
 
 // KerberosConfig defines kerberos configuration.

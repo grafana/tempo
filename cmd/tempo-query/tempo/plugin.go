@@ -19,8 +19,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/user"
-	jaeger "github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	jaeger "github.com/jaegertracing/jaeger-idl/model/v1"
 
 	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,6 +28,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/grafana/tempo/cmd/tempo-query/jaeger/storage_v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 

@@ -21,6 +21,8 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
+var errInvalidSamplerConfiguration = errors.New("invalid sampler configuration")
+
 func tracerProvider(cfg configOptions, res *resource.Resource) (trace.TracerProvider, shutdownFunc, error) {
 	if cfg.opentelemetryConfig.TracerProvider == nil {
 		return noop.NewTracerProvider(), noopShutdown, nil
@@ -37,11 +39,91 @@ func tracerProvider(cfg configOptions, res *resource.Resource) (trace.TracerProv
 			errs = append(errs, err)
 		}
 	}
+	if s, err := sampler(cfg.opentelemetryConfig.TracerProvider.Sampler); err == nil {
+		opts = append(opts, sdktrace.WithSampler(s))
+	} else {
+		errs = append(errs, err)
+	}
 	if len(errs) > 0 {
 		return noop.NewTracerProvider(), noopShutdown, errors.Join(errs...)
 	}
 	tp := sdktrace.NewTracerProvider(opts...)
 	return tp, tp.Shutdown, nil
+}
+
+func parentBasedSampler(s *SamplerParentBased) (sdktrace.Sampler, error) {
+	var rootSampler sdktrace.Sampler
+	var opts []sdktrace.ParentBasedSamplerOption
+	var errs []error
+	var err error
+
+	if s.Root == nil {
+		rootSampler = sdktrace.AlwaysSample()
+	} else {
+		rootSampler, err = sampler(s.Root)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if s.RemoteParentSampled != nil {
+		remoteParentSampler, err := sampler(s.RemoteParentSampled)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			opts = append(opts, sdktrace.WithRemoteParentSampled(remoteParentSampler))
+		}
+	}
+	if s.RemoteParentNotSampled != nil {
+		remoteParentNotSampler, err := sampler(s.RemoteParentNotSampled)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			opts = append(opts, sdktrace.WithRemoteParentNotSampled(remoteParentNotSampler))
+		}
+	}
+	if s.LocalParentSampled != nil {
+		localParentSampler, err := sampler(s.LocalParentSampled)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			opts = append(opts, sdktrace.WithLocalParentSampled(localParentSampler))
+		}
+	}
+	if s.LocalParentNotSampled != nil {
+		localParentNotSampler, err := sampler(s.LocalParentNotSampled)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			opts = append(opts, sdktrace.WithLocalParentNotSampled(localParentNotSampler))
+		}
+	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+	return sdktrace.ParentBased(rootSampler, opts...), nil
+}
+
+func sampler(s *Sampler) (sdktrace.Sampler, error) {
+	if s == nil {
+		// If omitted, parent based sampler with a root of always_on is used.
+		return sdktrace.ParentBased(sdktrace.AlwaysSample()), nil
+	}
+	if s.ParentBased != nil {
+		return parentBasedSampler(s.ParentBased)
+	}
+	if s.AlwaysOff != nil {
+		return sdktrace.NeverSample(), nil
+	}
+	if s.AlwaysOn != nil {
+		return sdktrace.AlwaysSample(), nil
+	}
+	if s.TraceIDRatioBased != nil {
+		if s.TraceIDRatioBased.Ratio == nil {
+			return sdktrace.TraceIDRatioBased(1), nil
+		}
+		return sdktrace.TraceIDRatioBased(*s.TraceIDRatioBased.Ratio), nil
+	}
+	return nil, errInvalidSamplerConfiguration
 }
 
 func spanExporter(ctx context.Context, exporter SpanExporter) (sdktrace.SpanExporter, error) {
@@ -133,11 +215,13 @@ func otlpGRPCSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanE
 		opts = append(opts, otlptracegrpc.WithHeaders(headersConfig))
 	}
 
-	tlsConfig, err := createTLSConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
-	if err != nil {
-		return nil, err
+	if otlpConfig.Certificate != nil || otlpConfig.ClientCertificate != nil || otlpConfig.ClientKey != nil {
+		tlsConfig, err := createTLSConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(tlsConfig)))
 	}
-	opts = append(opts, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(tlsConfig)))
 
 	return otlptracegrpc.New(ctx, opts...)
 }

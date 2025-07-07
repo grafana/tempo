@@ -40,6 +40,21 @@ func NewConditionsGetter(conditions []string) ConditionsGetter {
 	return defaultOTTLGetter(conditions)
 }
 
+// ValueExpressionsGetter represents a set of value expressions to be parsed.
+//
+// Experimental: *NOTE* this API is subject to change or removal in the future.
+type ValueExpressionsGetter interface {
+	// GetValueExpressions retrieves the OTTL value expressions to be parsed
+	GetValueExpressions() []string
+}
+
+// NewValueExpressionsGetter creates a new ValueExpressionsGetter.
+//
+// Experimental: *NOTE* this API is subject to change or removal in the future.
+func NewValueExpressionsGetter(expressions []string) ValueExpressionsGetter {
+	return defaultOTTLGetter(expressions)
+}
+
 type defaultOTTLGetter []string
 
 func (d defaultOTTLGetter) GetStatements() []string {
@@ -47,6 +62,10 @@ func (d defaultOTTLGetter) GetStatements() []string {
 }
 
 func (d defaultOTTLGetter) GetConditions() []string {
+	return d
+}
+
+func (d defaultOTTLGetter) GetValueExpressions() []string {
 	return d
 }
 
@@ -108,11 +127,20 @@ type ParsedStatementsConverter[K any, R any] func(collection *ParserCollection[R
 // ParsedConditionsConverter is a function that converts the parsed ottl.Condition[K] into
 // a common representation to all parser collection contexts passed through WithParserCollectionContext.
 // Given each parser has its own transform context type, they must agree on a common type [R]
-// so it can be returned by the ParserCollection.ParseStatements and ParserCollection.ParseStatementsWithContext
+// so it can be returned by the ParserCollection.ParseConditions and ParserCollection.ParseConditionsWithContext
 // functions.
 //
 // Experimental: *NOTE* this API is subject to change or removal in the future.
 type ParsedConditionsConverter[K any, R any] func(collection *ParserCollection[R], conditions ConditionsGetter, parsedConditions []*Condition[K]) (R, error)
+
+// ParsedValueExpressionsConverter is a function that converts the parsed ottl.ValueExpression[K] into
+// a representation common to all parser collection contexts passed through WithParserCollectionContext.
+// Given each parser has its own transform context type, they must agree on a common type [R]
+// so it can be returned by the ParserCollection.ParseValueExpressions and ParserCollection.ParseValueExpressionsWithContext
+// functions.
+//
+// Experimental: *NOTE* this API is subject to change or removal in the future.
+type ParsedValueExpressionsConverter[K any, R any] func(collection *ParserCollection[R], expressions ValueExpressionsGetter, parsedValueExpressions []*ValueExpression[K]) (R, error)
 
 func newNopParsedStatementsConverter[K any]() ParsedStatementsConverter[K, any] {
 	return func(
@@ -134,6 +162,16 @@ func newNopParsedConditionsConverter[K any]() ParsedConditionsConverter[K, any] 
 	}
 }
 
+func newNopParsedValueExpressionsConverter[K any]() ParsedValueExpressionsConverter[K, any] {
+	return func(
+		_ *ParserCollection[any],
+		_ ValueExpressionsGetter,
+		parsedValueExpressions []*ValueExpression[K],
+	) (any, error) {
+		return parsedValueExpressions, nil
+	}
+}
+
 type (
 	// ParserCollectionContextOption is a configurable ParserCollectionContext option.
 	//
@@ -151,8 +189,9 @@ type (
 	//
 	// Experimental: *NOTE* this API is subject to change or removal in the future.
 	ParserCollectionContextParser[R any] struct {
-		parseStatements parserCollectionContextParserFunc[R, StatementsGetter]
-		parseConditions parserCollectionContextParserFunc[R, ConditionsGetter]
+		parseStatements       parserCollectionContextParserFunc[R, StatementsGetter]
+		parseConditions       parserCollectionContextParserFunc[R, ConditionsGetter]
+		parseValueExpressions parserCollectionContextParserFunc[R, ValueExpressionsGetter]
 	}
 )
 
@@ -189,6 +228,43 @@ func createConditionsParserWithConverter[K any, R any](converter ParsedCondition
 			pc,
 			conditions,
 			parsedConditions,
+		)
+	}
+}
+
+// createValueExpressionsParserWithConverter is a method to create the necessary parser wrapper and shadowing the K type.
+func createValueExpressionsParserWithConverter[K any, R any](converter ParsedValueExpressionsConverter[K, R], parser *Parser[K]) parserCollectionContextParserFunc[R, ValueExpressionsGetter] {
+	return func(pc *ParserCollection[R], context string, expressions ValueExpressionsGetter, prependPathsContext bool) (R, error) {
+		var err error
+		var parsingValueExpressions []string
+		if prependPathsContext {
+			originalValueExpressions := expressions.GetValueExpressions()
+			parsingValueExpressions = make([]string, 0, len(originalValueExpressions))
+			for _, expr := range originalValueExpressions {
+				prependedValueExpression, prependErr := parser.prependContextToValueExpressionPaths(context, expr)
+				if prependErr != nil {
+					err = prependErr
+					break
+				}
+				parsingValueExpressions = append(parsingValueExpressions, prependedValueExpression)
+			}
+			if err != nil {
+				return *new(R), err
+			}
+			if pc.modifiedLogging {
+				pc.logModifications(originalValueExpressions, parsingValueExpressions)
+			}
+		} else {
+			parsingValueExpressions = expressions.GetValueExpressions()
+		}
+		parsedValueExpressions, err := parser.ParseValueExpressions(parsingValueExpressions)
+		if err != nil {
+			return *new(R), err
+		}
+		return converter(
+			pc,
+			expressions,
+			parsedValueExpressions,
 		)
 	}
 }
@@ -238,6 +314,17 @@ func createStatementsParserWithConverter[K any, R any](converter ParsedStatement
 func WithConditionConverter[K any, R any](converter ParsedConditionsConverter[K, R]) ParserCollectionContextOption[K, R] {
 	return func(pcp *ParserCollectionContextParser[R], parser *Parser[K]) {
 		pcp.parseConditions = createConditionsParserWithConverter(converter, parser)
+	}
+}
+
+// WithValueExpressionConverter sets the value expression converter for the given context.
+// The provided converter function will be used to convert parsed OTTL value expressions into a common representation of type R.
+// The context's OTTL parser will parse the value expressions, and the converter function will transform the parsed value expressions into the desired representation.
+//
+// Experimental: *NOTE* this API is subject to change or removal in the future.
+func WithValueExpressionConverter[K any, R any](converter ParsedValueExpressionsConverter[K, R]) ParserCollectionContextOption[K, R] {
+	return func(pcp *ParserCollectionContextParser[R], parser *Parser[K]) {
+		pcp.parseValueExpressions = createValueExpressionsParserWithConverter(converter, parser)
 	}
 }
 
@@ -367,7 +454,7 @@ func (pc *ParserCollection[R]) ParseStatements(statements StatementsGetter, opti
 	var inferredContext string
 	var err error
 	if len(conditionsValues) > 0 {
-		inferredContext, err = pc.contextInferrer.infer(statementsValues, conditionsValues)
+		inferredContext, err = pc.contextInferrer.infer(statementsValues, conditionsValues, nil)
 	} else {
 		inferredContext, err = pc.contextInferrer.inferFromStatements(statementsValues)
 	}
@@ -467,6 +554,78 @@ func (pc *ParserCollection[R]) ParseConditionsWithContext(context string, condit
 		pc,
 		context,
 		conditions,
+		prependPathsContext,
+	)
+}
+
+// ParseValueExpressions parses the given expressions into [R] using the configured context's ottl.Parser
+// and subsequently calling the ParsedValueExpressionsConverter function.
+// The expression's context is automatically inferred from the [Path.Context] values, choosing the
+// highest priority context found.
+// If no contexts are present in the expressions, or if the inferred value is not supported by
+// the [ParserCollection], it returns an error.
+// If parsing the expressions fails, it returns the underlying [ottl.Parser.ParseValueExpressions] error.
+//
+// Experimental: *NOTE* this API is subject to change or removal in the future.
+func (pc *ParserCollection[R]) ParseValueExpressions(expressions ValueExpressionsGetter, options ...ParserCollectionContextInferenceOption) (R, error) {
+	expressionStrings := expressions.GetValueExpressions()
+
+	parseStatementsOpts := parseCollectionContextInferenceOptions{}
+	for _, opt := range options {
+		opt(&parseStatementsOpts)
+	}
+	conditionsValues := parseStatementsOpts.conditions
+
+	inferredContext, err := pc.contextInferrer.infer(nil, conditionsValues, expressionStrings)
+	if err != nil {
+		return *new(R), err
+	}
+
+	if inferredContext == "" {
+		return *new(R), fmt.Errorf(
+			"unable to infer context from expressions, path's first segment must be a valid context name: %+q, and at least one context must be capable of parsing all expressions: %+q",
+			pc.supportedContextNames(),
+			expressionStrings,
+		)
+	}
+
+	_, ok := pc.contextParsers[inferredContext]
+	if !ok {
+		return *new(R), fmt.Errorf(
+			`context "%s" inferred from the expressions %+q is not a supported context: %+q`,
+			inferredContext,
+			expressionStrings,
+			pc.supportedContextNames(),
+		)
+	}
+
+	return pc.ParseValueExpressionsWithContext(inferredContext, expressions, false)
+}
+
+// ParseValueExpressionsWithContext parses the given expressions into [R] using the configured
+// context's ottl.Parser and subsequently calling the ParsedValueExpressionsConverter function.
+// Unlike ParseValueExpressions, it uses the provided context and does not infer it
+// automatically. The context value must be supported by the [ParserCollection],
+// otherwise an error is returned.
+// If the expression's Path does not provide their Path.Context value, the prependPathsContext
+// argument should be set to true, so it rewrites the expressions prepending the missing paths
+// contexts.
+// If parsing the expressions fails, it returns the underlying [ottl.Parser.ParseValueExpressions] error.
+//
+// Experimental: *NOTE* this API is subject to change or removal in the future.
+func (pc *ParserCollection[R]) ParseValueExpressionsWithContext(context string, expressions ValueExpressionsGetter, prependPathsContext bool) (R, error) {
+	contextParser, ok := pc.contextParsers[context]
+	if !ok {
+		return *new(R), fmt.Errorf(`unknown context "%s" for value expressions: %v`, context, expressions.GetValueExpressions())
+	}
+	if contextParser.parseValueExpressions == nil {
+		return *new(R), fmt.Errorf(`context "%s" has no configured converter for value expressions: %v`, context, expressions.GetValueExpressions())
+	}
+
+	return contextParser.parseValueExpressions(
+		pc,
+		context,
+		expressions,
 		prependPathsContext,
 	)
 }

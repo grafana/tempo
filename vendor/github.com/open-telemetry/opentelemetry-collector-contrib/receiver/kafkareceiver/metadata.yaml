@@ -13,28 +13,104 @@ status:
 # TODO: Update the receiver to pass the tests
 tests:
   skip_lifecycle: true
+  goleak:
+    ignore:
+      top:
+        - github.com/twmb/franz-go/pkg/kfake.(*group).manage
+
+attributes:
+  topic:
+    description: The Kafka topic.
+    type: string
+  partition:
+    description: The Kafka topic partition.
+    type: int
+  node_id:
+    description: The Kafka node ID.
+    type: int
+  outcome:
+    description: The operation outcome.
+    type: string
+    enum: [success, failure]
 
 telemetry:
   metrics:
-    kafka_receiver_messages:
+    kafka_broker_connects:
       enabled: true
-      description: Number of received messages
+      description: The total number of connections opened.
+      extended_documentation: Only produced when franz-go is enabled.
+      optional: true
       unit: "1"
       sum:
         value_type: int
         monotonic: true
+      attributes: [node_id, outcome]
+    kafka_broker_closed:
+      enabled: true
+      description: The total number of connections closed.
+      extended_documentation: Only produced when franz-go is enabled.
+      optional: true
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [node_id]
+    kafka_broker_throttling_duration:
+      enabled: true
+      description: The throttling duration in ms imposed by the broker when receiving messages.
+      extended_documentation: Only produced when franz-go is enabled.
+      optional: true
+      unit: ms
+      histogram:
+        value_type: int
+      attributes: [node_id]
+    kafka_receiver_messages:
+      enabled: true
+      description: The number of received messages.
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [node_id, topic, partition, outcome]
+    kafka_receiver_bytes:
+      enabled: true
+      description: The size in bytes of received messages seen by the broker.
+      extended_documentation: Only produced when franz-go is enabled.
+      optional: true
+      unit: By
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [node_id, topic, partition, outcome]
+    kafka_receiver_bytes_uncompressed:
+      enabled: true
+      description: The uncompressed size in bytes of received messages seen by the client.
+      unit: By
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [node_id, topic, partition, outcome]
+    kafka_receiver_latency:
+      enabled: true
+      description: The time it took in ms to receive a batch of messages.
+      unit: ms
+      histogram:
+        value_type: int
+      attributes: [node_id, topic, partition, outcome]
     kafka_receiver_current_offset:
       enabled: true
       description: Current message offset
       unit: "1"
       gauge:
         value_type: int
+      attributes: [topic, partition]
     kafka_receiver_offset_lag:
       enabled: true
       description: Current offset lag
       unit: "1"
       gauge:
         value_type: int
+      attributes: [topic, partition]
     kafka_receiver_partition_start:
       enabled: true
       description: Number of started partitions
@@ -56,6 +132,7 @@ telemetry:
       sum:
         value_type: int
         monotonic: true
+      attributes: [topic, partition]
     kafka_receiver_unmarshal_failed_log_records:
       enabled: true
       description: Number of log records failed to be unmarshaled
@@ -63,6 +140,7 @@ telemetry:
       sum:
         value_type: int
         monotonic: true
+      attributes: [topic, partition]
     kafka_receiver_unmarshal_failed_spans:
       enabled: true
       description: Number of spans failed to be unmarshaled
@@ -70,3 +148,4 @@ telemetry:
       sum:
         value_type: int
         monotonic: true
+      attributes: [topic, partition]
