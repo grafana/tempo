@@ -1859,7 +1859,7 @@ go.opentelemetry.io/contrib/propagators/jaeger
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/samplers/jaegerremote
 go.opentelemetry.io/contrib/samplers/jaegerremote/internal/utils
-# go.opentelemetry.io/otel v1.36.0
+# go.opentelemetry.io/otel v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel
 go.opentelemetry.io/otel/attribute
@@ -1882,6 +1882,7 @@ go.opentelemetry.io/otel/semconv/v1.25.0
 go.opentelemetry.io/otel/semconv/v1.26.0
 go.opentelemetry.io/otel/semconv/v1.27.0
 go.opentelemetry.io/otel/semconv/v1.30.0
+go.opentelemetry.io/otel/semconv/v1.34.0
 go.opentelemetry.io/otel/semconv/v1.6.1
 go.opentelemetry.io/otel/semconv/v1.9.0
 # go.opentelemetry.io/otel/bridge/opencensus v1.36.0
@@ -1967,7 +1968,7 @@ go.opentelemetry.io/otel/log/internal/global
 go.opentelemetry.io/otel/log/noop
 # go.opentelemetry.io/otel/log/logtest v0.0.0-20250602073710-889a4862b40f
 ## explicit; go 1.23.0
-# go.opentelemetry.io/otel/metric v1.36.0
+# go.opentelemetry.io/otel/metric v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/metric
 go.opentelemetry.io/otel/metric/embedded
@@ -1992,7 +1993,7 @@ go.opentelemetry.io/otel/sdk/metric/internal
 go.opentelemetry.io/otel/sdk/metric/internal/aggregate
 go.opentelemetry.io/otel/sdk/metric/internal/x
 go.opentelemetry.io/otel/sdk/metric/metricdata
-# go.opentelemetry.io/otel/trace v1.36.0
+# go.opentelemetry.io/otel/trace v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
