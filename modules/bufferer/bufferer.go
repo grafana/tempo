@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -16,16 +15,10 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -33,6 +26,12 @@ const (
 	ConsumerGroup       = "bufferer"
 	buffererServiceName = "bufferer"
 )
+
+type Overrides interface {
+	MaxLocalTracesPerUser(userID string) int
+	MaxBytesPerTrace(userID string) int
+	DedicatedColumns(userID string) backend.DedicatedColumns
+}
 
 type Buffer struct {
 	services.Service
@@ -46,61 +45,48 @@ type Buffer struct {
 	ingestPartitionID         int32
 	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
 
-	client      *kgo.Client
-	adminClient *kadm.Client
-	decoder     *ingest.Decoder
+	client  *kgo.Client
+	decoder *ingest.Decoder
 
 	reader *PartitionReader
 
-	// Data processing components
-	wal    *wal.WAL
+	// Multi-tenant instances
+	instancesMtx sync.RWMutex
+	instances    map[string]*instance
+	wal          *wal.WAL
+	overrides    Overrides
+
+	// Global offset tracking and cut coordination
+	blockStartOffset            int64 // TODO: Should be fetched from replay
+	totalBlockBytesSinceLastCut int64
+	lastCutTime                 time.Time
+	cutInterval                 time.Duration
+	cutDataSize                 int64
+	lastKafkaOffset             int64
+
+	// Background processing
 	ctx    context.Context
 	cancel func()
 	wg     sync.WaitGroup
-	enc    encoding.VersionedEncoding
-
-	// Block management
-	blocksMtx      sync.RWMutex
-	headBlock      common.WALBlock
-	walBlocks      map[uuid.UUID]common.WALBlock
-	completeBlocks map[uuid.UUID]*ingester.LocalBlock
-	lastCutTime    time.Time
-
-	// Live traces
-	liveTracesMtx sync.Mutex
-	liveTraces    *livetraces.LiveTraces[*v1.ResourceSpans]
-	traceSizes    *tracesizes.Tracker
-
-	// Hard cut tracking
-	blockStartOffset   int64
-	totalBlockBytes    int64
-	lastHardCutTime    time.Time
-	hardCutInterval    time.Duration
-	hardCutDataSize    int64
-	hardCutRequested   atomic.Bool // Signal that a hard cut is needed
-	lastKafkaOffset    atomic.Int64 // Last processed Kafka offset
 }
 
-func New(cfg Config, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*Buffer, error) {
+func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*Buffer, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	b := &Buffer{
-		cfg:            cfg,
-		logger:         logger,
-		reg:            reg,
-		decoder:        ingest.NewDecoder(),
-		ctx:            ctx,
-		cancel:         cancel,
-		enc:            encoding.DefaultEncoding(), // TODO(mapno): configurable?
-		walBlocks:      map[uuid.UUID]common.WALBlock{},
-		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
-		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 30*time.Second, 5*time.Minute),
-		traceSizes:     tracesizes.New(),
+		cfg:       cfg,
+		logger:    logger,
+		reg:       reg,
+		decoder:   ingest.NewDecoder(),
+		ctx:       ctx,
+		cancel:    cancel,
+		instances: make(map[string]*instance),
+		overrides: overrides,
 
-		// Hard cut configuration - 5 minutes or 100MB
-		hardCutInterval: 5 * time.Minute,
-		hardCutDataSize: 100 * 1024 * 1024, // 100MB
-		lastHardCutTime: time.Now(),
+		// Cut configuration - 5 minutes or 100MB
+		cutInterval: 5 * time.Minute,
+		cutDataSize: 100 * 1024 * 1024, // 100MB
+		lastCutTime: time.Now(),
 	}
 
 	var err error
@@ -182,10 +168,11 @@ func (b *Buffer) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
-	// Start background loops
-	b.wg.Add(2)
+	// Start background loops for completing blocks
+	b.wg.Add(3)
 	go b.cutLoop()
 	go b.deleteLoop()
+	go b.completeLoop()
 
 	return nil
 }
@@ -207,97 +194,159 @@ func (b *Buffer) stopping(err error) error {
 	b.cancel()
 	b.wg.Wait()
 
-	// Cut all remaining traces
-	if cutErr := b.cutIdleTraces(true); cutErr != nil {
-		level.Error(b.logger).Log("msg", "failed to cut remaining traces on shutdown", "err", cutErr)
+	// Cut all remaining traces and blocks for all tenants
+	b.instancesMtx.RLock()
+	for tenantID, inst := range b.instances {
+		if cutErr := inst.cutIdleTraces(true); cutErr != nil {
+			level.Error(b.logger).Log("msg", "failed to cut remaining traces on shutdown", "tenant", tenantID, "err", cutErr)
+		}
+		if _, cutErr := inst.cutBlocks(true); cutErr != nil {
+			level.Error(b.logger).Log("msg", "failed to cut head block on shutdown", "tenant", tenantID, "err", cutErr)
+		}
 	}
-
-	// Cut head block
-	if cutErr := b.cutBlocks(true); cutErr != nil {
-		level.Error(b.logger).Log("msg", "failed to cut head block on shutdown", "err", cutErr)
-	}
+	b.instancesMtx.RUnlock()
 
 	return b.reader.stop(err)
 }
 
+func (b *Buffer) completeLoop() {
+	defer b.wg.Done()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Complete blocks for all tenants
+			b.instancesMtx.RLock()
+			for _, inst := range b.instances {
+				// Look for WAL blocks that need completion
+				inst.blocksMtx.RLock()
+				// TODO: Concurrency? Maybe only signal the instance but continue going?
+				for id := range inst.walBlocks {
+					err := inst.completeBlock(id)
+					if err != nil { // TODO: What to do?
+						level.Error(b.logger).Log("msg", "failed to complete block", "id", id, "err", err)
+					}
+				}
+				inst.blocksMtx.RUnlock()
+			}
+			b.instancesMtx.RUnlock()
+
+		case <-b.ctx.Done():
+			return
+		}
+	}
+}
+
 func (b *Buffer) consume(_ context.Context, rs []record, minOffset, maxOffset, totalBytes int64) error {
-	// Initialize block offset tracking if this is the first batch
+	// Update global offset tracking
 	if b.blockStartOffset == 0 {
 		b.blockStartOffset = minOffset
 	}
+	b.totalBlockBytesSinceLastCut += totalBytes
+	b.lastKafkaOffset = maxOffset
 
-	// Update tracking (non-blocking)
-	b.totalBlockBytes += totalBytes
-	b.lastKafkaOffset.Store(maxOffset)
-
-	// Process records
+	// Process records by tenant
 	for _, record := range rs {
+		var pushReq *tempopb.PushBytesRequest
 		pushReq, err := b.decoder.Decode(record.content)
 		if err != nil {
 			return fmt.Errorf("decoding record: %w", err)
 		}
 
-		b.pushBytes(time.Now(), pushReq, record.tenantID)
+		// Get or create tenant instance
+		inst, err := b.getOrCreateInstance(record.tenantID)
+		if err != nil {
+			level.Error(b.logger).Log("msg", "failed to get instance for tenant", "tenant", record.tenantID, "err", err)
+			continue
+		}
+
+		// Push data to tenant instance (no offset tracking at instance level)
+		inst.pushBytes(time.Now(), pushReq)
 	}
 
-	// Check if we should signal a hard cut (non-blocking check)
-	if b.shouldTriggerHardCut() {
-		// Just set a flag - don't do the actual cutting here
-		if b.hardCutRequested.CompareAndSwap(false, true) {
-			level.Info(b.logger).Log("msg", "hard cut requested due to time/size limits",
-				"start_offset", b.blockStartOffset, "end_offset", maxOffset, "bytes", b.totalBlockBytes)
-		}
+	// Check if we should trigger a coordinated cut (global decision)
+	if b.shouldTriggerCut() {
+		level.Info(b.logger).Log("msg", "triggering coordinated cut",
+			"start_offset", b.blockStartOffset, "end_offset", maxOffset, "bytes", b.totalBlockBytesSinceLastCut)
+		b.performCut()
 	}
 
 	return nil
 }
 
-func (b *Buffer) shouldTriggerHardCut() bool {
+func (b *Buffer) getOrCreateInstance(tenantID string) (*instance, error) {
+	b.instancesMtx.RLock()
+	inst, ok := b.instances[tenantID]
+	b.instancesMtx.RUnlock()
+
+	if ok {
+		return inst, nil
+	}
+
+	b.instancesMtx.Lock()
+	defer b.instancesMtx.Unlock()
+
+	// Double-check in case another goroutine created it
+	if inst, ok := b.instances[tenantID]; ok {
+		return inst, nil
+	}
+
+	// Create new instance
+	inst, err := newInstance(tenantID, b.wal, b.overrides, b.logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
+	}
+
+	b.instances[tenantID] = inst
+	return inst, nil
+}
+
+func (b *Buffer) shouldTriggerCut() bool {
 	// Time-based cut
-	if time.Since(b.lastHardCutTime) >= b.hardCutInterval {
+	if time.Since(b.lastCutTime) >= b.cutInterval {
 		return true
 	}
 
 	// Size-based cut
-	if b.totalBlockBytes >= b.hardCutDataSize {
+	if b.totalBlockBytesSinceLastCut >= b.cutDataSize {
 		return true
 	}
 
 	return false
 }
 
-func (b *Buffer) pushBytes(ts time.Time, req *tempopb.PushBytesRequest, tenantID string) {
-	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
-	for i, traceBytes := range req.Traces {
-		if i >= len(req.Ids) {
-			level.Warn(b.logger).Log("msg", "mismatched traces and ids length")
-			break
+func (b *Buffer) performCut() {
+	level.Info(b.logger).Log("msg", "performing coordinated cut",
+		"start_offset", b.blockStartOffset, "end_offset", b.lastKafkaOffset, "bytes", b.totalBlockBytesSinceLastCut)
+
+	// Cut all tenant instances at the same global offset
+	b.instancesMtx.RLock()
+	// TODO: Add concurrency? Only signal to instance?
+	for tenantID, inst := range b.instances {
+		// Cut idle traces first
+		err := inst.cutIdleTraces(true) // Immediate cut
+		if err != nil {
+			level.Error(b.logger).Log("msg", "failed to cut idle traces during cut", "tenant", tenantID, "err", err)
 		}
 
-		traceID := req.Ids[i]
-
-		// Unmarshal the trace
-		trace := &tempopb.Trace{}
-		if err := trace.Unmarshal(traceBytes.Slice); err != nil {
-			level.Error(b.logger).Log("msg", "failed to unmarshal trace", "err", err)
-			continue
+		// Then cut blocks - all tenants cut at the same global offset
+		blockID, err := inst.cutBlocks(true) // Immediate cut
+		if err != nil {
+			level.Error(b.logger).Log("msg", "failed to cut blocks during cut", "tenant", tenantID, "err", err)
+		} else if blockID != uuid.Nil {
+			// Store offset metadata for this block (global offsets)
+			inst.setBlockOffsetMetadata(blockID, b.blockStartOffset, b.lastKafkaOffset)
 		}
-
-		b.liveTracesMtx.Lock()
-		// Push each batch in the trace to live traces
-		for _, batch := range trace.ResourceSpans {
-			if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
-				continue
-			}
-
-			// Push to live traces with basic limits
-			if !b.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, 10000, 0) {
-				level.Warn(b.logger).Log("msg", "dropped trace due to live traces limit", "tenant", tenantID)
-				continue
-			}
-		}
-		b.liveTracesMtx.Unlock()
 	}
+	b.instancesMtx.RUnlock()
+
+	// Reset global tracking for next block
+	b.blockStartOffset = b.lastKafkaOffset + 1
+	b.totalBlockBytesSinceLastCut = 0
+	b.lastCutTime = time.Now()
 }
 
 func (b *Buffer) cutLoop() {
@@ -309,56 +358,27 @@ func (b *Buffer) cutLoop() {
 	for {
 		select {
 		case <-flushTicker.C:
-			// Regular trace cuts (live traces -> head block)
-			err := b.cutIdleTraces(false)
-			if err != nil {
-				level.Error(b.logger).Log("msg", "failed to cut idle traces", "err", err)
+			// Process all tenant instances for regular cuts
+			b.instancesMtx.RLock()
+			// TODO(mapno): Add concurrency or make it async for when we're handling a lot of tenants
+			for tenantID, inst := range b.instances {
+				// Regular trace cuts (live traces -> head block)
+				err := inst.cutIdleTraces(false)
+				if err != nil {
+					level.Error(b.logger).Log("msg", "failed to cut idle traces", "tenant", tenantID, "err", err)
+				}
+
+				// Regular block cuts
+				_, err = inst.cutBlocks(false)
+				if err != nil {
+					level.Error(b.logger).Log("msg", "failed to cut blocks", "tenant", tenantID, "err", err)
+				}
 			}
-			
-			// Check for requested hard cuts (non-blocking)
-			if b.hardCutRequested.Load() {
-				b.performHardCut()
-			}
-			
-			// Safety check: if we haven't had a hard cut in too long, force one
-			// This prevents unbounded block growth if Kafka consumption stalls
-			if time.Since(b.lastHardCutTime) > 2*b.hardCutInterval {
-				level.Warn(b.logger).Log("msg", "forcing hard cut due to stale block", 
-					"last_cut_ago", time.Since(b.lastHardCutTime))
-				
-				b.performHardCut()
-			}
+			b.instancesMtx.RUnlock()
 
 		case <-b.ctx.Done():
 			return
 		}
-	}
-}
-
-func (b *Buffer) performHardCut() {
-	// Clear the request flag first to prevent duplicate cuts
-	b.hardCutRequested.Store(false)
-	
-	endOffset := b.lastKafkaOffset.Load()
-	
-	level.Info(b.logger).Log("msg", "performing hard cut",
-		"start_offset", b.blockStartOffset, "end_offset", endOffset, "bytes", b.totalBlockBytes)
-
-	// Cut idle traces first
-	err := b.cutIdleTraces(true) // Immediate cut
-	if err != nil {
-		level.Error(b.logger).Log("msg", "failed to cut idle traces during hard cut", "err", err)
-	}
-
-	// Then cut blocks
-	err = b.cutBlocks(true) // Immediate cut
-	if err != nil {
-		level.Error(b.logger).Log("msg", "failed to cut blocks during hard cut", "err", err)
-	} else {
-		// Reset tracking for next block only on successful cut
-		b.blockStartOffset = endOffset + 1
-		b.totalBlockBytes = 0
-		b.lastHardCutTime = time.Now()
 	}
 }
 
@@ -371,221 +391,18 @@ func (b *Buffer) deleteLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			err := b.deleteOldBlocks()
-			if err != nil {
-				level.Error(b.logger).Log("msg", "failed to delete old blocks", "err", err)
+			// Clean up old blocks for all tenants
+			b.instancesMtx.RLock()
+			for tenantID, inst := range b.instances {
+				err := inst.deleteOldBlocks()
+				if err != nil {
+					level.Error(b.logger).Log("msg", "failed to delete old blocks", "tenant", tenantID, "err", err)
+				}
 			}
+			b.instancesMtx.RUnlock()
 
 		case <-b.ctx.Done():
 			return
 		}
 	}
-}
-
-func (b *Buffer) cutIdleTraces(immediate bool) error {
-	b.liveTracesMtx.Lock()
-	tracesToCut := b.liveTraces.CutIdle(time.Now(), immediate)
-	b.liveTracesMtx.Unlock()
-
-	if len(tracesToCut) == 0 {
-		return nil
-	}
-
-	for _, t := range tracesToCut {
-		tr := &tempopb.Trace{
-			ResourceSpans: t.Batches,
-		}
-
-		err := b.writeHeadBlock(t.ID, tr)
-		if err != nil {
-			return err
-		}
-	}
-
-	b.blocksMtx.Lock()
-	defer b.blocksMtx.Unlock()
-	if b.headBlock != nil {
-		return b.headBlock.Flush()
-	}
-	return nil
-}
-
-func (b *Buffer) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
-	b.blocksMtx.Lock()
-	defer b.blocksMtx.Unlock()
-
-	if b.headBlock == nil {
-		err := b.resetHeadBlock()
-		if err != nil {
-			return err
-		}
-	}
-
-	// Get trace timestamp bounds
-	var start, end uint64
-	for _, batch := range tr.ResourceSpans {
-		for _, ss := range batch.ScopeSpans {
-			for _, s := range ss.Spans {
-				if start == 0 || s.StartTimeUnixNano < start {
-					start = s.StartTimeUnixNano
-				}
-				if s.EndTimeUnixNano > end {
-					end = s.EndTimeUnixNano
-				}
-			}
-		}
-	}
-
-	// Convert from unix nanos to unix seconds
-	startSeconds := uint32(start / uint64(time.Second))
-	endSeconds := uint32(end / uint64(time.Second))
-
-	return b.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
-}
-
-func (b *Buffer) resetHeadBlock() error {
-	meta := &backend.BlockMeta{
-		BlockID:           backend.NewUUID(),
-		TenantID:          "default", // Use default tenant for now
-		ReplicationFactor: backend.MetricsGeneratorReplicationFactor,
-		// Store offset range in custom metadata (this is a simplified approach)
-		// In a real implementation, you might want to extend the BlockMeta or use a different mechanism
-	}
-	block, err := b.wal.NewBlock(meta, "v2") // Use v2 encoding
-	if err != nil {
-		return err
-	}
-	b.headBlock = block
-	b.lastCutTime = time.Now()
-	return nil
-}
-
-func (b *Buffer) cutBlocks(immediate bool) error {
-	b.blocksMtx.Lock()
-	defer b.blocksMtx.Unlock()
-
-	if b.headBlock == nil || b.headBlock.DataLength() == 0 {
-		return nil
-	}
-
-	maxBlockDuration := 5 * time.Minute
-	maxBlockBytes := uint64(100 * 1024 * 1024) // 100MB
-
-	if !immediate && time.Since(b.lastCutTime) < maxBlockDuration && b.headBlock.DataLength() < maxBlockBytes {
-		return nil
-	}
-
-	// Final flush
-	err := b.headBlock.Flush()
-	if err != nil {
-		return fmt.Errorf("failed to flush head block: %w", err)
-	}
-
-	id := (uuid.UUID)(b.headBlock.BlockMeta().BlockID)
-	b.walBlocks[id] = b.headBlock
-
-	// Log the offset range for this block
-	level.Info(b.logger).Log("msg", "queueing wal block for completion",
-		"block", id.String(),
-		"start_offset", b.blockStartOffset,
-		"bytes", b.totalBlockBytes)
-
-	err = b.resetHeadBlock()
-	if err != nil {
-		return fmt.Errorf("failed to resetHeadBlock: %w", err)
-	}
-
-	go b.completeBlock(id)
-
-	return nil
-}
-
-func (b *Buffer) completeBlock(id uuid.UUID) {
-	b.blocksMtx.RLock()
-	walBlock := b.walBlocks[id]
-	b.blocksMtx.RUnlock()
-
-	if walBlock == nil {
-		level.Warn(b.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
-		return
-	}
-
-	// Create completed block
-	reader := backend.NewReader(b.wal.LocalBackend())
-	writer := backend.NewWriter(b.wal.LocalBackend())
-
-	iter, err := walBlock.Iterator()
-	if err != nil {
-		level.Error(b.logger).Log("msg", "failed to get WAL block iterator", "id", id, "err", err)
-		return
-	}
-	defer iter.Close()
-
-	newMeta, err := b.enc.CreateBlock(b.ctx, &common.BlockConfig{}, walBlock.BlockMeta(), iter, reader, writer)
-	if err != nil {
-		level.Error(b.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
-		return
-	}
-
-	newBlock, err := b.enc.OpenBlock(newMeta, reader)
-	if err != nil {
-		level.Error(b.logger).Log("msg", "failed to open complete block", "id", id, "err", err)
-		return
-	}
-
-	b.blocksMtx.Lock()
-	// Verify the WAL block still exists
-	if _, ok := b.walBlocks[id]; !ok {
-		level.Warn(b.logger).Log("msg", "WAL block disappeared while being completed, deleting complete block", "id", id)
-		err := b.wal.LocalBackend().ClearBlock(id, "default")
-		if err != nil {
-			level.Error(b.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
-		}
-		b.blocksMtx.Unlock()
-		return
-	}
-
-	b.completeBlocks[id] = ingester.NewLocalBlock(b.ctx, newBlock, b.wal.LocalBackend())
-
-	err = walBlock.Clear()
-	if err != nil {
-		level.Error(b.logger).Log("msg", "failed to clear WAL block", "id", id, "err", err)
-	}
-	delete(b.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
-	b.blocksMtx.Unlock()
-
-	level.Info(b.logger).Log("msg", "completed block", "id", id.String())
-}
-
-func (b *Buffer) deleteOldBlocks() error {
-	b.blocksMtx.Lock()
-	defer b.blocksMtx.Unlock()
-
-	cutoff := time.Now().Add(-1 * time.Hour) // Delete blocks older than 1 hour
-
-	for id, walBlock := range b.walBlocks {
-		if walBlock.BlockMeta().EndTime.Before(cutoff) {
-			if _, ok := b.completeBlocks[id]; !ok {
-				level.Warn(b.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
-			}
-			err := walBlock.Clear()
-			if err != nil {
-				return err
-			}
-			delete(b.walBlocks, id)
-		}
-	}
-
-	for id, completeBlock := range b.completeBlocks {
-		if completeBlock.BlockMeta().EndTime.Before(cutoff) {
-			level.Info(b.logger).Log("msg", "deleting complete block", "block", id.String())
-			err := b.wal.LocalBackend().ClearBlock(id, "default")
-			if err != nil {
-				return err
-			}
-			delete(b.completeBlocks, id)
-		}
-	}
-
-	return nil
 }

@@ -757,7 +757,7 @@ func (t *App) initBufferer() (services.Service, error) {
 	t.cfg.Bufferer.IngestConfig.Kafka.ConsumerGroup = bufferer.ConsumerGroup
 
 	var err error
-	t.bufferer, err = bufferer.New(t.cfg.Bufferer, log.Logger, prometheus.DefaultRegisterer, singlePartition)
+	t.bufferer, err = bufferer.New(t.cfg.Bufferer, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bufferer: %w", err)
 	}

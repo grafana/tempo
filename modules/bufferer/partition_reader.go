@@ -112,7 +112,7 @@ func (r *PartitionReader) stop(error) error {
 
 func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 	mErr := multierror.New()
-	fetches.EachError(func(s string, i int32, err error) {
+	fetches.EachError(func(_ string, _ int32, err error) {
 		// kgo advises to "restart" the kafka client if the returned error is a kerr.Error.
 		// Recreating the client would cause duplicate metrics registration, so we don't do it for now.
 		mErr.Add(err)

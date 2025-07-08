@@ -1143,7 +1143,8 @@ bufferer:
         join_after: 0s
         min_ready_duration: 15s
         interface_names:
-            - en0
+            - eth0
+            - docker0
         enable_inet6: false
         final_sleep: 0s
         tokens_file_path: ""
@@ -1152,7 +1153,7 @@ bufferer:
         readiness_check_ring_health: true
         address: ""
         port: 0
-        id: Marios-MacBook-Pro-2.local
+        id: pkrvmfkh1xnbeme
     partition_ring:
         kvstore:
             store: memberlist
