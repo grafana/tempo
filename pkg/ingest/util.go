@@ -35,6 +35,9 @@ func IngesterPartitionID(ingesterID string) (int32, error) {
 }
 
 func HandleKafkaError(err error, forceMetadataRefresh func()) {
+	if err == nil {
+		return
+	}
 	errString := err.Error()
 
 	switch {
