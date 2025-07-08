@@ -83,5 +83,5 @@ This data helps you locate problem areas, often in places you never would have a
 For more information about traces, refer to:
 
 * [Traces and telemetry](./telemetry)
-* [User journeys: How tracing can help you](./solutions-with-traces)
+* [User journeys: How tracing can help you](../solutions-with-traces)
 * [Glossary](./glossary)

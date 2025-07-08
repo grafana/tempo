@@ -6,6 +6,8 @@ keywords:
   - tracing
 title: Diagnose errors with traces
 menuTitle: Diagnose errors with traces
+aliases:
+  - ../introduction/solutions-with-traces/traces-diagnose-errors/ # /docs/tempo/latest/introduction/solutions-with-traces/traces-diagnose-errors/
 weight: 400
 refs:
   traceql:

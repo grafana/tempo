@@ -6,6 +6,8 @@ keywords:
   - tracing
 title: Identify bottlenecks and establish SLOs
 menuTitle: Identify bottlenecks and establish SLOs
+aliases:
+  - ../introduction/solutions-with-traces/traces-app-insights/ # /docs/tempo/<TEMPO_VERSION>/introduction/solutions-with-traces/traces-app-insights/
 weight: 320
 refs:
   metrics-generator:

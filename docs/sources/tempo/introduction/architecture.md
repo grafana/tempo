@@ -2,9 +2,9 @@
 title: Tempo architecture
 description: Learn about Tempo architectural decisions and operational implications.
 aliases:
- - ../architecture/architecture # https://grafana.com/docs/tempo/<TEMPO_VERSION>/architecture/architecture/
  - ../architecture # https://grafana.com/docs/tempo/<TEMPO_VERSION>/architecture/
-weight: 100
+ - ../operations/architecture/ # /docs/tempo/latest/operations/architecture/
+weight: 400
 ---
 
 # Tempo architecture
