@@ -207,7 +207,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		b.logger,
 		b.cfg.IngestStorageConfig,
 		b.getAssignedPartitions,
-		b.kafkaClient.ForceMetadataRefresh
+		b.kafkaClient.ForceMetadataRefresh)
 
 	return nil
 }
