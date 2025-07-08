@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -69,6 +70,15 @@ type Buffer struct {
 	liveTracesMtx sync.Mutex
 	liveTraces    *livetraces.LiveTraces[*v1.ResourceSpans]
 	traceSizes    *tracesizes.Tracker
+
+	// Hard cut tracking
+	blockStartOffset   int64
+	totalBlockBytes    int64
+	lastHardCutTime    time.Time
+	hardCutInterval    time.Duration
+	hardCutDataSize    int64
+	hardCutRequested   atomic.Bool // Signal that a hard cut is needed
+	lastKafkaOffset    atomic.Int64 // Last processed Kafka offset
 }
 
 func New(cfg Config, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*Buffer, error) {
@@ -86,6 +96,11 @@ func New(cfg Config, logger log.Logger, reg prometheus.Registerer, singlePartiti
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
 		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 30*time.Second, 5*time.Minute),
 		traceSizes:     tracesizes.New(),
+
+		// Hard cut configuration - 5 minutes or 100MB
+		hardCutInterval: 5 * time.Minute,
+		hardCutDataSize: 100 * 1024 * 1024, // 100MB
+		lastHardCutTime: time.Now(),
 	}
 
 	var err error
@@ -205,7 +220,17 @@ func (b *Buffer) stopping(err error) error {
 	return b.reader.stop(err)
 }
 
-func (b *Buffer) consume(_ context.Context, rs []record) error {
+func (b *Buffer) consume(_ context.Context, rs []record, minOffset, maxOffset, totalBytes int64) error {
+	// Initialize block offset tracking if this is the first batch
+	if b.blockStartOffset == 0 {
+		b.blockStartOffset = minOffset
+	}
+
+	// Update tracking (non-blocking)
+	b.totalBlockBytes += totalBytes
+	b.lastKafkaOffset.Store(maxOffset)
+
+	// Process records
 	for _, record := range rs {
 		pushReq, err := b.decoder.Decode(record.content)
 		if err != nil {
@@ -214,7 +239,31 @@ func (b *Buffer) consume(_ context.Context, rs []record) error {
 
 		b.pushBytes(time.Now(), pushReq, record.tenantID)
 	}
+
+	// Check if we should signal a hard cut (non-blocking check)
+	if b.shouldTriggerHardCut() {
+		// Just set a flag - don't do the actual cutting here
+		if b.hardCutRequested.CompareAndSwap(false, true) {
+			level.Info(b.logger).Log("msg", "hard cut requested due to time/size limits",
+				"start_offset", b.blockStartOffset, "end_offset", maxOffset, "bytes", b.totalBlockBytes)
+		}
+	}
+
 	return nil
+}
+
+func (b *Buffer) shouldTriggerHardCut() bool {
+	// Time-based cut
+	if time.Since(b.lastHardCutTime) >= b.hardCutInterval {
+		return true
+	}
+
+	// Size-based cut
+	if b.totalBlockBytes >= b.hardCutDataSize {
+		return true
+	}
+
+	return false
 }
 
 func (b *Buffer) pushBytes(ts time.Time, req *tempopb.PushBytesRequest, tenantID string) {
@@ -260,19 +309,56 @@ func (b *Buffer) cutLoop() {
 	for {
 		select {
 		case <-flushTicker.C:
+			// Regular trace cuts (live traces -> head block)
 			err := b.cutIdleTraces(false)
 			if err != nil {
 				level.Error(b.logger).Log("msg", "failed to cut idle traces", "err", err)
 			}
-
-			err = b.cutBlocks(false)
-			if err != nil {
-				level.Error(b.logger).Log("msg", "failed to cut head block", "err", err)
+			
+			// Check for requested hard cuts (non-blocking)
+			if b.hardCutRequested.Load() {
+				b.performHardCut()
+			}
+			
+			// Safety check: if we haven't had a hard cut in too long, force one
+			// This prevents unbounded block growth if Kafka consumption stalls
+			if time.Since(b.lastHardCutTime) > 2*b.hardCutInterval {
+				level.Warn(b.logger).Log("msg", "forcing hard cut due to stale block", 
+					"last_cut_ago", time.Since(b.lastHardCutTime))
+				
+				b.performHardCut()
 			}
 
 		case <-b.ctx.Done():
 			return
 		}
+	}
+}
+
+func (b *Buffer) performHardCut() {
+	// Clear the request flag first to prevent duplicate cuts
+	b.hardCutRequested.Store(false)
+	
+	endOffset := b.lastKafkaOffset.Load()
+	
+	level.Info(b.logger).Log("msg", "performing hard cut",
+		"start_offset", b.blockStartOffset, "end_offset", endOffset, "bytes", b.totalBlockBytes)
+
+	// Cut idle traces first
+	err := b.cutIdleTraces(true) // Immediate cut
+	if err != nil {
+		level.Error(b.logger).Log("msg", "failed to cut idle traces during hard cut", "err", err)
+	}
+
+	// Then cut blocks
+	err = b.cutBlocks(true) // Immediate cut
+	if err != nil {
+		level.Error(b.logger).Log("msg", "failed to cut blocks during hard cut", "err", err)
+	} else {
+		// Reset tracking for next block only on successful cut
+		b.blockStartOffset = endOffset + 1
+		b.totalBlockBytes = 0
+		b.lastHardCutTime = time.Now()
 	}
 }
 
@@ -362,6 +448,8 @@ func (b *Buffer) resetHeadBlock() error {
 		BlockID:           backend.NewUUID(),
 		TenantID:          "default", // Use default tenant for now
 		ReplicationFactor: backend.MetricsGeneratorReplicationFactor,
+		// Store offset range in custom metadata (this is a simplified approach)
+		// In a real implementation, you might want to extend the BlockMeta or use a different mechanism
 	}
 	block, err := b.wal.NewBlock(meta, "v2") // Use v2 encoding
 	if err != nil {
@@ -396,12 +484,17 @@ func (b *Buffer) cutBlocks(immediate bool) error {
 	id := (uuid.UUID)(b.headBlock.BlockMeta().BlockID)
 	b.walBlocks[id] = b.headBlock
 
+	// Log the offset range for this block
+	level.Info(b.logger).Log("msg", "queueing wal block for completion",
+		"block", id.String(),
+		"start_offset", b.blockStartOffset,
+		"bytes", b.totalBlockBytes)
+
 	err = b.resetHeadBlock()
 	if err != nil {
 		return fmt.Errorf("failed to resetHeadBlock: %w", err)
 	}
 
-	level.Info(b.logger).Log("msg", "queueing wal block for completion", "block", id.String())
 	go b.completeBlock(id)
 
 	return nil

@@ -27,7 +27,7 @@ type record struct {
 	content  []byte
 }
 
-type consumeFn func(context.Context, []record) error
+type consumeFn func(context.Context, []record, int64, int64, int64) error // records, minOffset, maxOffset, totalBytes
 
 type PartitionReader struct {
 	services.Service
@@ -44,8 +44,6 @@ type PartitionReader struct {
 	metrics partitionReaderMetrics
 
 	logger log.Logger
-
-	// TODO: Sync committer ?
 }
 
 func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, topic string, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
@@ -126,19 +124,22 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 	records := make([]record, 0, len(fetches.Records()))
 
 	var (
-		minOffset = int64(math.MaxInt64)
-		maxOffset = int64(0)
+		minOffset  = int64(math.MaxInt64)
+		maxOffset  = int64(0)
+		totalBytes = int64(0)
 	)
-	fetches.EachRecord(func(r *kgo.Record) {
-		minOffset = min(minOffset, r.Offset)
-		maxOffset = max(maxOffset, r.Offset)
+	fetches.EachRecord(func(rec *kgo.Record) {
+		minOffset = min(minOffset, rec.Offset)
+		maxOffset = max(maxOffset, rec.Offset)
+		totalBytes += int64(len(rec.Value))
 		records = append(records, record{
-			content:  r.Value,
-			tenantID: string(r.Key),
+			content:  rec.Value,
+			tenantID: string(rec.Key),
 		})
 	})
 
-	err := r.consume(ctx, records)
+	// Pass offset and byte information to the bufferer
+	err := r.consume(ctx, records, minOffset, maxOffset, totalBytes)
 	if err != nil {
 		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "min_offset", minOffset, "max_offset", maxOffset, "err", err)
 		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
