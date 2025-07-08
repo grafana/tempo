@@ -15,8 +15,29 @@ keywords:
 
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
 
+<!-- WARNING: This file is loaded by /modules/frontend/mcp.go and served to LLMs through the MCP protocol. It -->
+<!-- should be kept terse and to the point. Links and videos and such are bad. Examples are good! The below "mcp-cutoff" 
+<!-- is used to remove everything above. -->
+<!-- TODO: Anthropic suggests using xml tags to organize content delivered to an LLM. Can we tag this content with xml tags  -->
+<!-- that make both hugo and llms happy? -->
+<!-- mcp-cutoff -->
+
 TraceQL supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`,
-`histogram_over_time`, and `compare` functions.
+`histogram_over_time`, and `compare` functions. These methods can be appended to any TraceQL query to calculate and 
+return the desired metrics like:
+
+```
+{} | rate()
+```
+
+Note that `topk` and `bottomk` are also supported to only return a subset of series. These can only be added 
+after a metrics query like:
+
+```
+{} | rate() by (resource.service.name) | topk(10)
+```
+
+Read on for a full listing of functions and examples.
 
 ## Available functions
 

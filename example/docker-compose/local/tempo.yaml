@@ -13,6 +13,8 @@ cache:
         addresses: dns+memcached:11211
 
 query_frontend:
+  mcp_server:
+    enabled: true
   search:
     duration_slo: 5s
     throughput_bytes_slo: 1.073741824e+09

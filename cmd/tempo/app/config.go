@@ -186,6 +186,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 
+	if c.Frontend.MCPServer.Enabled {
+		warnings = append(warnings, warnMCPServerEnabled)
+	}
+
 	for _, dc := range c.StorageConfig.Trace.Block.DedicatedColumns {
 		err := dc.Validate()
 		if err != nil {
@@ -306,6 +310,11 @@ var (
 	warnBlockAndWALVersionMismatch = ConfigWarning{
 		Message: "c.BlockConfig.BlockCfg.Version != c.WAL.Version",
 		Explain: "Block version and WAL version must match. WAL version will be set to block version",
+	}
+
+	warnMCPServerEnabled = ConfigWarning{
+		Message: "c.Frontend.MCPServer.Enabled is enabled.",
+		Explain: "Querying Tempo with an LLM will result in tracing data being sent to the LLM. Review your LLM provider's documentation and confirm you are comfortable with this.",
 	}
 )
 
