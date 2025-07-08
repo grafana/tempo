@@ -27,6 +27,8 @@ type LocalBlock struct {
 	writer backend.Writer
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
+	startOffset atomic.Int64
+	endOffset   atomic.Int64
 }
 
 var (

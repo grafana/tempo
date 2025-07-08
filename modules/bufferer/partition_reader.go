@@ -67,7 +67,7 @@ func newPartitionReader(client *kgo.Client, partitionID int32, topic string, con
 
 	r.curCursor.Store(-2) // TODO: Pass cursor from bufferer
 
-	r.Service = services.NewBasicService(r.start, r.run, r.stop)
+	r.Service = services.NewBasicService(r.start, r.running, r.stop)
 	return r, nil
 }
 
@@ -75,7 +75,7 @@ func (r *PartitionReader) start(context.Context) error {
 	return nil
 }
 
-func (r *PartitionReader) run(ctx context.Context) error {
+func (r *PartitionReader) running(ctx context.Context) error {
 	consumeCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
