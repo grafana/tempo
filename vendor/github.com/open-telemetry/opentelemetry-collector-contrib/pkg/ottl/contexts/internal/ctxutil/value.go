@@ -74,16 +74,9 @@ func getIndexableValue[K any](ctx context.Context, tCtx K, value pcommon.Value, 
 	for index := 0; index < len(keys); index++ {
 		switch val.Type() {
 		case pcommon.ValueTypeMap:
-			s, err := keys[index].String(ctx, tCtx)
+			s, err := GetMapKeyName(ctx, tCtx, keys[index])
 			if err != nil {
 				return nil, err
-			}
-			if s == nil {
-				resString, err := FetchValueFromExpression[K, string](ctx, tCtx, keys[index])
-				if err != nil {
-					return nil, fmt.Errorf("unable to resolve a string index in map: %w", err)
-				}
-				s = resString
 			}
 			val, ok = val.Map().Get(*s)
 			if !ok {
@@ -128,16 +121,9 @@ func SetIndexableValue[K any](ctx context.Context, tCtx K, currentValue pcommon.
 	for index := 0; index < len(keys); index++ {
 		switch currentValue.Type() {
 		case pcommon.ValueTypeMap:
-			s, err := keys[index].String(ctx, tCtx)
+			s, err := GetMapKeyName(ctx, tCtx, keys[index])
 			if err != nil {
 				return err
-			}
-			if s == nil {
-				resString, err := FetchValueFromExpression[K, string](ctx, tCtx, keys[index])
-				if err != nil {
-					return fmt.Errorf("unable to resolve a string index in map: %w", err)
-				}
-				s = resString
 			}
 			potentialValue, ok := currentValue.Map().Get(*s)
 			if !ok {

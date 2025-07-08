@@ -60,7 +60,7 @@ func TestShim_integration(t *testing.T) {
 			exporterCfg: &otlpexporter.Config{
 				ClientConfig: configgrpc.ClientConfig{
 					Endpoint: "127.0.0.1:4317",
-					TLSSetting: configtls.ClientConfig{
+					TLS: configtls.ClientConfig{
 						Insecure: true,
 					},
 					Headers: headers,

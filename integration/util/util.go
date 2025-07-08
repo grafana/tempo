@@ -21,8 +21,8 @@ import (
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/e2e"
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -388,7 +388,7 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
 	otlpCfg.ClientConfig = configgrpc.ClientConfig{
 		Endpoint: endpoint,
-		TLSSetting: configtls.ClientConfig{
+		TLS: configtls.ClientConfig{
 			Insecure: true,
 		},
 	}
