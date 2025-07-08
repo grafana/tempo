@@ -722,8 +722,8 @@ To configure metamonitoring, you need to create a `metamonitoring-values.yaml` f
 1. Navigate to your Grafana instance (Grafana Cloud or self-hosted).
 
 1. Check that metrics are being collected:
-   - Go to **Explore** > **Prometheus**
-   - Query for Tempo metrics like `tempo_build_info` or `tempo_distributor_spans_received_total`
+   - Go to **Explore** > **Prometheus**.
+   - Query for Tempo metrics like `tempo_build_info` or `tempo_distributor_spans_received_total`.
 
 1. Check that logs are being collected:
    - Go to **Explore** > **Loki**
