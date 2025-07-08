@@ -1144,7 +1144,6 @@ bufferer:
         min_ready_duration: 15s
         interface_names:
             - eth0
-            - docker0
         enable_inet6: false
         final_sleep: 0s
         tokens_file_path: ""
@@ -1153,7 +1152,7 @@ bufferer:
         readiness_check_ring_health: true
         address: ""
         port: 0
-        id: pkrvmfkh1xnbeme
+        id: hostname
     partition_ring:
         kvstore:
             store: memberlist
