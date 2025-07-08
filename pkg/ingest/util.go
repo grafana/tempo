@@ -34,12 +34,8 @@ func IngesterPartitionID(ingesterID string) (int32, error) {
 	return int32(ingesterSeq), nil
 }
 
-func HandleKafkaError(err error, forceMetadataRefresh func()) (retriable bool) {
-	if err == nil {
-		return false
-	}
+func HandleKafkaError(err error, forceMetadataRefresh func()) {
 	errString := err.Error()
-	retriable = kerr.IsRetriable(err)
 
 	switch {
 	// We're asking a broker which is no longer the leader. For a partition. We should refresh our metadata and try again.
@@ -69,9 +65,6 @@ func HandleKafkaError(err error, forceMetadataRefresh func()) (retriable bool) {
 		forceMetadataRefresh()
 	case strings.Contains(errString, unknownBroker):
 		forceMetadataRefresh()
-		retriable = true
 		// The client's metadata refreshed after we called Broker(). It should already be refreshed, so we can retry immediately.
 	}
-
-	return retriable
 }

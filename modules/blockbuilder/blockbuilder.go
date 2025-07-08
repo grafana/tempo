@@ -526,10 +526,8 @@ func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) 
 		if err == nil {
 			break
 		}
-		retryable := ingest.HandleKafkaError(err, b.kafkaClient.ForceMetadataRefresh)
-		if retryable {
-			boff.Wait()
-		}
+		ingest.HandleKafkaError(err, b.kafkaClient.ForceMetadataRefresh)
+		boff.Wait()
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch partition offsets: %w", err)

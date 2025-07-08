@@ -69,10 +69,8 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 					if err == nil {
 						break
 					}
-					retryable := HandleKafkaError(err, forceMetadataRefresh)
-					if retryable {
-						boff.Wait()
-					}
+					HandleKafkaError(err, forceMetadataRefresh)
+					boff.Wait()
 				}
 
 				if err != nil {
