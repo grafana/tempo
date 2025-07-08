@@ -95,7 +95,7 @@ For additional information, refer to [`otelcol.processor.tail_sampling` componen
 | [span_count](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#span_count-block)               | Samples based on the minimum number of spans within the observed trace.                                        | Limiting sampled data to a specific number of spans within a trace.     |
 | [status_code](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#status_code-block)             | Samples based upon the status code, either OK, Error, or Unset.                                                | Capturing erroring traces.                                              |
 | [string_attribute](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#string_attribute-block)   | Samples based on string attributes (resource and record) value matches.                                        | Filtering specific services or database queries.                        |
-| [trace_state](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#trace_state-block)             | Samples based on TraceState value matches. |
+| [trace_state](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#trace_state-block)             | Samples based on TraceState value matches. | Implementing complex sampling strategies that rely on trace context. |
 
 
 ## Sampling policies and use cases
