@@ -1008,6 +1008,8 @@ backend_scheduler:
                 min_period: 100ms
                 max_period: 10s
                 max_retries: 0
+            min_input_blocks: 2
+            max_input_blocks: 4
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:
