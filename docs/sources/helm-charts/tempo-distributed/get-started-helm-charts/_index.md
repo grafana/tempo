@@ -637,6 +637,7 @@ Setting up metamonitoring for Tempo and GET uses the `k8s-monitoring` Helm chart
 For more information about this Helm chart, refer to [k8s-monitoring README](https://github.com/grafana/k8s-monitoring-helm/blob/main/charts/k8s-monitoring/README.md).
 ### Configure metamonitoring
 
+To configure metamonitoring, you need to create a `metamonitoring-values.yaml` file and use the k8s-monitoring Helm chart. 
 1. Create a `metamonitoring-values.yaml` file for the k8s-monitoring configuration:
 
    ```yaml
