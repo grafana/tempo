@@ -633,7 +633,8 @@ After creating a user and access policy using the plugin, you can configure a da
 ## Set up metamonitoring
 
 Metamonitoring provides observability for your Tempo deployment by collecting metrics and logs from the Tempo components themselves. This helps you monitor the health and performance of your tracing infrastructure.
-
+Setting up metamonitoring for Tempo and GET uses the `k8s-monitoring` Helm chart. 
+For more information about this Helm chart, refer to [k8s-monitoring README](https://github.com/grafana/k8s-monitoring-helm/blob/main/charts/k8s-monitoring/README.md).
 ### Configure metamonitoring
 
 1. Create a `metamonitoring-values.yaml` file for the k8s-monitoring configuration:
