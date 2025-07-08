@@ -19,6 +19,7 @@ type Config struct {
 	Search               *tempodb.SearchConfig `yaml:"search"`
 	FlushCheckPeriod     time.Duration         `yaml:"flush_check_period"`
 	TraceIdlePeriod      time.Duration         `yaml:"trace_idle_period"`
+	TraceLivePeriod      time.Duration         `yaml:"trace_live_period"`
 	MaxBlockDuration     time.Duration         `yaml:"max_block_duration"`
 	MaxBlockBytes        uint64                `yaml:"max_block_bytes"`
 	Concurrency          uint                  `yaml:"concurrency"`
@@ -53,7 +54,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Concurrency = 4
 	cfg.FlushCheckPeriod = 10 * time.Second
-	cfg.TraceIdlePeriod = 10 * time.Second
+	cfg.TraceIdlePeriod = 5 * time.Second
+	cfg.TraceLivePeriod = 30 * time.Second
 	cfg.MaxBlockDuration = 1 * time.Minute
 	cfg.MaxBlockBytes = 500_000_000
 	cfg.MaxLiveTracesBytes = 250_000_000

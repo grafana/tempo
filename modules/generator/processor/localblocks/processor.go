@@ -108,7 +108,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
 		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
-		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }),
+		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.TraceIdlePeriod, cfg.TraceLivePeriod),
 		traceSizes:     tracesizes.New(),
 		ctx:            ctx,
 		cancel:         cancel,
@@ -673,8 +673,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Len()))
 	metricLiveTraceBytes.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Size()))
 
-	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
-	tracesToCut := p.liveTraces.CutIdle(since, immediate)
+	tracesToCut := p.liveTraces.CutIdle(time.Now(), immediate)
 
 	p.liveTracesMtx.Unlock()
 

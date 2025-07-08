@@ -136,8 +136,9 @@ func TestSLOHook(t *testing.T) {
 			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
 			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
+			inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{"tenant"})
 
-			hook := sloHook(allCounter, sloCounter, throughputVec, tc.cfg)
+			hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, tc.cfg)
 
 			resp := &http.Response{
 				StatusCode: tc.httpStatusCode,
@@ -166,8 +167,9 @@ func TestBadRequest(t *testing.T) {
 	allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 	sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
 	throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
+	inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{"tenant"})
 
-	hook := sloHook(allCounter, sloCounter, throughputVec, SLOConfig{
+	hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, SLOConfig{
 		DurationSLO:        10 * time.Second,
 		ThroughputBytesSLO: 100,
 	})
@@ -361,9 +363,10 @@ func TestCanceledRequest(t *testing.T) {
 			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
 			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
+			inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{"tenant"})
 
 			// anything over 10s is considered outside SLO
-			hook := sloHook(allCounter, sloCounter, throughputVec, SLOConfig{
+			hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, SLOConfig{
 				DurationSLO:        10 * time.Second,
 				ThroughputBytesSLO: 100,
 			})

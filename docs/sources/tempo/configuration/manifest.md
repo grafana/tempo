@@ -515,7 +515,8 @@ ingester:
     concurrent_flushes: 4
     flush_check_period: 10s
     flush_op_timeout: 5m0s
-    trace_idle_period: 10s
+    trace_idle_period: 5s
+    trace_live_period: 30s
     max_block_duration: 30m0s
     max_block_bytes: 524288000
     complete_block_timeout: 15m0s
@@ -639,7 +640,8 @@ metrics_generator:
                     column_index: false
                     offset_index: false
             flush_check_period: 10s
-            trace_idle_period: 10s
+            trace_idle_period: 5s
+            trace_live_period: 30s
             max_block_duration: 1m0s
             max_block_bytes: 500000000
             concurrency: 4
@@ -979,11 +981,11 @@ cache:
         writeback_buffer: 10000
     caches: []
 backend_scheduler:
-    tenant_measurement_interval: 1m0s
     work:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
     maintenance_interval: 1m0s
+    backend_flush_interval: 1m0s
     provider:
         retention:
             interval: 1h0m0s
@@ -1007,6 +1009,7 @@ backend_scheduler:
                 max_period: 10s
                 max_retries: 0
     job_timeout: 15s
+    local_work_path: /var/tempo
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600

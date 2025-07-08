@@ -185,7 +185,7 @@
             ||| % [$._config.namespace, $._config.group_by_job],
             'for': '15m',
             labels: {
-              severity: 'warning',
+              severity: 'critical',
             },
             annotations: {
               message: '{{ $labels.job }} failed to reload overrides.',
@@ -266,30 +266,44 @@
             },
           },
           {
-            alert: 'TempoPartitionLagWarning',
+            alert: 'TempoMetricsGeneratorPartitionLagCritical',
             expr: |||
-              max by (%s, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", group=~"%s"}) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.alerts.partition_lag_group_filter, $._config.alerts.partition_lag_warning_seconds],
-            'for': '5m',
-            labels: {
-              severity: 'warning',
-            },
-            annotations: {
-              message: 'Tempo partition {{ $labels.partition }} in consumer group {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.partition_lag_warning_seconds, $._config.per_cluster_label],
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
-            },
-          },
-          {
-            alert: 'TempoPartitionLagCritical',
-            expr: |||
-              max by (%s, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", group=~"%s"}) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.alerts.partition_lag_group_filter, $._config.alerts.partition_lag_critical_seconds],
+              max by (%s, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container="%s"}) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.metrics_generator, $._config.alerts.partition_lag_critical_seconds],
             'for': '5m',
             labels: {
               severity: 'critical',
             },
             annotations: {
               message: 'Tempo partition {{ $labels.partition }} in consumer group {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.partition_lag_critical_seconds, $._config.per_cluster_label],
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
+            },
+          },
+          {
+            alert: 'TempoBlockBuilderPartitionLagWarning',
+            expr: |||
+              max by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container="%s"}[6m])) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_warning_seconds],
+            'for': '5m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo ingest partition {{ $labels.partition }} for blockbuilder {{ $labels.pod }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.block_builder_partition_lag_critical_seconds, $._config.per_cluster_label],
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
+            },
+          },
+          {
+            alert: 'TempoBlockBuilderPartitionLagCritical',
+            expr: |||
+              max by (%s, partition) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.block_builder, $._config.alerts.block_builder_partition_lag_critical_seconds],
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo ingest partition {{ $labels.partition }} for blockbuilder {{ $labels.pod }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.block_builder_partition_lag_critical_seconds, $._config.per_cluster_label],
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
             },
           },

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/google/uuid"
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
@@ -26,6 +28,29 @@ const (
 	configQueryRangeMaxSeriesDisabledQuerier = "config-query-range-max-series-disabled-querier.yaml"
 )
 
+type queryRangeRequest struct {
+	Query     string    `json:"query"`
+	Start     time.Time `json:"start"`     // default: now - 5m
+	End       time.Time `json:"end"`       // default: now + 1m
+	Step      string    `json:"step"`      // default: 5s
+	Exemplars int       `json:"exemplars"` // default: 100
+}
+
+func (r *queryRangeRequest) SetDefaults() {
+	if r.Start.IsZero() {
+		r.Start = time.Now().Add(-5 * time.Minute)
+	}
+	if r.End.IsZero() {
+		r.End = time.Now().Add(time.Minute)
+	}
+	if r.Step == "" {
+		r.Step = "5s"
+	}
+	if r.Exemplars == 0 {
+		r.Exemplars = 100
+	}
+}
+
 // Set debugMode to true to print the response body
 var debugMode = false
 
@@ -40,7 +65,7 @@ func TestQueryRangeExemplars(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -65,6 +90,13 @@ sendLoop:
 					1, "my operation",
 					"res_val2", "span_val2",
 					"res_attr", "span_attr",
+				),
+			))
+			require.NoError(t, jaegerClient.EmitBatch(context.Background(),
+				util.MakeThriftBatchWithSpanCountAttributeAndName(
+					1, "operation with high cardinality",
+					uuid.New().String(), uuid.New().String(),
+					"res_high_cardinality", "span_high_cardinality",
 				),
 			))
 		case <-timer.C:
@@ -123,7 +155,11 @@ sendLoop:
 			"{status != error} | count_over_time() by (status)",
 		} {
 			t.Run(fmt.Sprintf("%s: %s", exeplarsCase.name, query), func(t *testing.T) {
-				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, exeplarsCase.exemplars, debugMode)
+				req := queryRangeRequest{
+					Query:     query,
+					Exemplars: exeplarsCase.exemplars,
+				}
+				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 				require.NotNil(t, queryRangeRes)
 				require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
 				if query == "{} | quantile_over_time(duration, .5, 0.9, 0.99)" {
@@ -200,12 +236,17 @@ sendLoop:
 		},
 	} {
 		t.Run(testCase.query, func(t *testing.T) {
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), testCase.query, 100, debugMode)
+			req := queryRangeRequest{
+				Query:     testCase.query,
+				Exemplars: 100,
+			}
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 			require.NotNil(t, queryRangeRes)
-			require.Equal(t, len(queryRangeRes.GetSeries()), 2)
+			require.Equal(t, len(queryRangeRes.GetSeries()), 3) // value 1, value 2 and nil (high cardinality's span has no such attribute)
 
 			// Verify that all exemplars in this series belongs to the right series
 			// by matching attribute values
+			var skippedForNilAttr bool
 			for _, series := range queryRangeRes.Series {
 				// search attribute value for the series
 				var expectedAttrValue string
@@ -214,6 +255,10 @@ sendLoop:
 						expectedAttrValue = label.Value.GetStringValue()
 						break
 					}
+				}
+				if (expectedAttrValue == "" || expectedAttrValue == "nil") && !skippedForNilAttr { // one attribute is empty, so we skip it
+					skippedForNilAttr = true
+					continue
 				}
 				require.NotEmpty(t, expectedAttrValue)
 
@@ -233,8 +278,12 @@ sendLoop:
 	}
 
 	// invalid query
-	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}", 100)
-	require.Equal(t, 400, res.StatusCode)
+	t.Run("invalid query", func(t *testing.T) {
+		req := queryRangeRequest{Query: "{. a}"}
+		req.SetDefaults()
+		res := doRequest(t, tempo.Endpoint(tempoPort), "api/metrics/query_range", queryRangeRequest{Query: "{. a}"})
+		require.Equal(t, 400, res.StatusCode)
+	})
 
 	// query with empty results
 	for _, query := range []string{
@@ -244,7 +293,7 @@ sendLoop:
 		`{span.randomattr = "doesnotexist"} | count_over_time()`,
 	} {
 		t.Run(query, func(t *testing.T) {
-			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, 100, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), queryRangeRequest{Query: query, Exemplars: 100})
 			require.NotNil(t, queryRangeRes)
 			// it has time series but they are empty and has no exemplars
 			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
@@ -255,6 +304,144 @@ sendLoop:
 			require.Equal(t, 0, exemplarCount)
 		})
 	}
+
+	for _, testCase := range []struct {
+		name      string
+		query     string
+		step      string
+		converter func([]tempopb.Sample) float64
+	}{
+		{
+			name:      "count_over_time",
+			query:     "{} | count_over_time()",
+			step:      "1s",
+			converter: sumSamples,
+		},
+		{
+			name:      "sum_over_time",
+			query:     "{} | sum_over_time(duration)",
+			step:      "1s",
+			converter: sumSamples,
+		},
+		{
+			name:      "max_over_time",
+			query:     "{} | max_over_time(duration)",
+			step:      "1s",
+			converter: maxSamples,
+		},
+		{
+			name:      "min_over_time",
+			query:     "{} | min_over_time(duration)",
+			step:      "1s",
+			converter: minSamples,
+		},
+		{
+			name:      "1m step",
+			query:     "{} | count_over_time()",
+			step:      "1m",
+			converter: sumSamples,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			req := queryRangeRequest{
+				Query: testCase.query,
+				// Query range truncates the start and end to the step, while instant query does not.
+				// We need to truncate the start and end to the step to align the interval for query range and instant query.
+				Start: time.Now().Add(-5 * time.Minute).Truncate(time.Minute),
+				End:   time.Now().Add(time.Minute).Truncate(time.Minute),
+				Step:  testCase.step,
+			}
+
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
+			require.NotNil(t, queryRangeRes)
+			require.Equal(t, 1, len(queryRangeRes.GetSeries()))
+
+			expectedValue := testCase.converter(queryRangeRes.Series[0].Samples)
+
+			instantQueryRes := callInstantQuery(t, tempo.Endpoint(tempoPort), req)
+			require.NotNil(t, instantQueryRes)
+			require.Equal(t, 1, len(instantQueryRes.GetSeries()))
+			require.InDelta(t, expectedValue, instantQueryRes.GetSeries()[0].Value, 0.000001)
+		})
+	}
+
+	for _, testCase := range []struct {
+		name        string
+		query       string
+		expectedNum int
+	}{
+		{
+			name:        "top 1 by span attribute",
+			query:       "{ } | rate() by (span.span_high_cardinality) | topk(1)",
+			expectedNum: 1,
+		},
+		{
+			name:        "top 10 by span attribute",
+			query:       "{ } | rate() by (span.span_high_cardinality) | topk(10)",
+			expectedNum: 10,
+		},
+		{
+			name:        "top 2 by resource attribute",
+			query:       "{ } | rate() by (resource.res_high_cardinality) | topk(2)",
+			expectedNum: 2,
+		},
+		{
+			name:        "bottom 1 by resource attribute",
+			query:       "{ } | rate() by (resource.res_high_cardinality) | bottomk(1)",
+			expectedNum: 1,
+		},
+		{
+			name:        "bootom 10 by resource attribute",
+			query:       "{ } | rate() by (resource.res_high_cardinality) | bottomk(10)",
+			expectedNum: 10,
+		},
+		{
+			name:        "bottom 2 by span attribute",
+			query:       "{ } | rate() by (span.span_high_cardinality) | bottomk(2)",
+			expectedNum: 2,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			req := queryRangeRequest{
+				Query: testCase.query,
+				Start: time.Now().Add(-5 * time.Minute),
+				End:   time.Now().Add(time.Minute),
+				Step:  "1m",
+			}
+
+			instantQueryRes := callInstantQuery(t, tempo.Endpoint(tempoPort), req)
+			require.NotNil(t, instantQueryRes)
+			require.Equal(t, testCase.expectedNum, len(instantQueryRes.GetSeries()))
+		})
+	}
+}
+
+func sumSamples(samples []tempopb.Sample) float64 {
+	var sum float64
+	for _, sample := range samples {
+		sum += sample.Value
+	}
+	return sum
+}
+
+func maxSamples(samples []tempopb.Sample) float64 {
+	maxValue := math.Inf(-1)
+	for _, sample := range samples {
+		if sample.Value > maxValue {
+			maxValue = sample.Value
+		}
+	}
+	return maxValue
+}
+
+func minSamples(samples []tempopb.Sample) float64 {
+	minValue := math.Inf(1)
+	for _, sample := range samples {
+		if sample.Value < minValue {
+			minValue = sample.Value
+		}
+	}
+	return minValue
 }
 
 // TestQueryRangeSingleTrace checks count for a single trace
@@ -271,7 +458,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -284,7 +471,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 
 	// Query the trace by count. As we have only one trace, we should get one dot with value 1
 	query := "{} | count_over_time()"
-	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, 100, debugMode)
+	queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), queryRangeRequest{Query: query, Exemplars: 100})
 	require.NotNil(t, queryRangeRes)
 	require.Equal(t, len(queryRangeRes.GetSeries()), 1)
 
@@ -307,7 +494,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -371,7 +558,7 @@ func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -436,7 +623,7 @@ func TestQueryRangeMaxSeriesDisabledQuerier(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -467,7 +654,7 @@ sendLoop:
 	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(5), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(5), "tempo_ingester_blocks_flushed_total"))
 
 	query := "{} | rate() by (span:id)"
 	url := fmt.Sprintf(
@@ -501,15 +688,35 @@ sendLoop:
 	require.Equal(t, spanCount, len(queryRangeRes.GetSeries()))
 }
 
-func callQueryRange(t *testing.T, endpoint, query string, exemplars int, printBody bool) tempopb.QueryRangeResponse {
-	res := doRequest(t, endpoint, query, exemplars)
+func callInstantQuery(t *testing.T, endpoint string, req queryRangeRequest) tempopb.QueryInstantResponse {
+	req.SetDefaults()
+	res := doRequest(t, endpoint, "api/metrics/query", req)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Read body and print it
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	if printBody {
-		fmt.Println(string(body))
+	if debugMode {
+		t.Logf("Response body: %s", string(body))
+	}
+
+	instantQueryRes := tempopb.QueryInstantResponse{}
+	readBody := strings.NewReader(string(body))
+	err = new(jsonpb.Unmarshaler).Unmarshal(readBody, &instantQueryRes)
+	require.NoError(t, err)
+	return instantQueryRes
+}
+
+func callQueryRange(t *testing.T, endpoint string, req queryRangeRequest) tempopb.QueryRangeResponse {
+	req.SetDefaults()
+	res := doRequest(t, endpoint, "api/metrics/query_range", req)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	// Read body and print it
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	if debugMode {
+		t.Logf("Response body: %s", string(body))
 	}
 
 	queryRangeRes := tempopb.QueryRangeResponse{}
@@ -519,24 +726,25 @@ func callQueryRange(t *testing.T, endpoint, query string, exemplars int, printBo
 	return queryRangeRes
 }
 
-func doRequest(t *testing.T, endpoint, query string, exemplars int) *http.Response {
-	url := buildURL(endpoint, fmt.Sprintf("%s with(exemplars=true)", query), exemplars)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func doRequest(t *testing.T, host, endpoint string, req queryRangeRequest) *http.Response {
+	req.Query = fmt.Sprintf("%s with(exemplars=true)", req.Query)
+	url := buildURL(host, endpoint, req)
+	rawReq, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := http.DefaultClient.Do(rawReq)
 	require.NoError(t, err)
 	return res
 }
 
-func buildURL(endpoint, query string, exemplars int) string {
+func buildURL(host, endpoint string, req queryRangeRequest) string {
 	return fmt.Sprintf(
-		"http://%s/api/metrics/query_range?query=%s&start=%d&end=%d&step=%s&exemplars=%d",
-		endpoint,
-		url.QueryEscape(query),
-		time.Now().Add(-5*time.Minute).UnixNano(),
-		time.Now().Add(time.Minute).UnixNano(),
-		"5s",
-		exemplars,
+		"http://%s/%s?query=%s&start=%d&end=%d&step=%s&exemplars=%d",
+		host, endpoint,
+		url.QueryEscape(req.Query),
+		req.Start.UnixNano(),
+		req.End.UnixNano(),
+		req.Step,
+		req.Exemplars,
 	)
 }

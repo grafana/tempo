@@ -44,7 +44,7 @@ Grafana.
 4. Tail logs of a container (for example, tempo):
 
 ```bash
-docker logs local_tempo_1 -f
+docker compose logs tempo -f
 ```
 
 5. To stop the setup use:

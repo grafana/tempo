@@ -70,7 +70,7 @@ For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo
 [Grafana Agent Flow](/docs/agent/<AGENT_VERSION>/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
 Flow configuration files are written in River instead of YAML.
 
-Grafana Agent Flow uses the [`otelcol.processor.tail_sampling component`](/docs/agent/<ALLOY_VERSION>/flow/reference/components/otelcol/otelcol.processor.tail_sampling/)` for tail-based sampling.
+Grafana Agent Flow uses the [`otelcol.processor.tail_sampling component`](https://grafana.com/docs/agent/<AGENT_VERSION>/flow/reference/components/otelcol.processor.tail_sampling/) for tail-based sampling.
 
 ```river
 otelcol.receiver.otlp "otlp_receiver" {
