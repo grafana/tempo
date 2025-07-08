@@ -1017,7 +1017,7 @@ github.com/oklog/ulid/v2
 # github.com/olekukonko/tablewriter v0.0.5
 ## explicit; go 1.12
 github.com/olekukonko/tablewriter
-# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.127.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.129.0
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter/internal/metadata
@@ -1049,7 +1049,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filter
 # github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.129.0
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka
-# github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.127.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.129.0
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.129.0
@@ -1094,7 +1094,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.129.0
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.127.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.129.0
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.129.0
@@ -1129,7 +1129,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceive
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/unmarshaler
-# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.127.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.129.0
 ## explicit; go 1.23.0
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver/internal/metadata
@@ -1832,13 +1832,13 @@ go.opentelemetry.io/collector/service/hostcapabilities
 # go.opentelemetry.io/contrib/bridges/otelzap v0.11.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/bridges/otelzap
-# go.opentelemetry.io/contrib/bridges/prometheus v0.61.0
+# go.opentelemetry.io/contrib/bridges/prometheus v0.62.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/bridges/prometheus
 # go.opentelemetry.io/contrib/detectors/gcp v1.36.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/detectors/gcp
-# go.opentelemetry.io/contrib/exporters/autoexport v0.61.0
+# go.opentelemetry.io/contrib/exporters/autoexport v0.62.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/exporters/autoexport
 # go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0
@@ -1915,17 +1915,17 @@ go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/agent
 go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/jaeger
 go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/zipkincore
 go.opentelemetry.io/otel/exporters/jaeger/internal/third_party/thrift/lib/go/thrift
-# go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.12.2
+# go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.13.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/transform
-# go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.12.2
+# go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.13.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/transform
-# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.36.0
+# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal
@@ -1933,7 +1933,7 @@ go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/envco
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/oconf
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/transform
-# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.36.0
+# go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp/internal
@@ -1962,16 +1962,16 @@ go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/retry
 # go.opentelemetry.io/otel/exporters/prometheus v0.59.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/exporters/prometheus
-# go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.12.2
+# go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.13.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/exporters/stdout/stdoutlog
-# go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.36.0
+# go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/exporters/stdout/stdoutmetric
 # go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/exporters/stdout/stdouttrace
-# go.opentelemetry.io/otel/log v0.12.2
+# go.opentelemetry.io/otel/log v0.13.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/log
 go.opentelemetry.io/otel/log/embedded
@@ -1994,7 +1994,7 @@ go.opentelemetry.io/otel/sdk/internal/x
 go.opentelemetry.io/otel/sdk/resource
 go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/tracetest
-# go.opentelemetry.io/otel/sdk/log v0.12.2
+# go.opentelemetry.io/otel/sdk/log v0.13.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/sdk/log
 # go.opentelemetry.io/otel/sdk/metric v1.37.0
