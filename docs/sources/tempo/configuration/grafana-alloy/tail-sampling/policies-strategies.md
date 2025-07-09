@@ -1,7 +1,7 @@
 ---
 title: Tail sampling policies and strategies
 menuTitle: Tail sampling policies and strategies
-description: Learn about tail sampling policies and strategies in Tempo and Grafana Alloy.
+description: Learn about tail sampling policies and strategies in Grafana Tempo and Grafana Alloy.
 weight: 700
 ---
 
