@@ -482,6 +482,7 @@ func (b *BlockBuilder) commitOffset(ctx context.Context, offset kadm.Offset, gro
 		if err == nil {
 			break
 		}
+		ingest.HandleKafkaError(err, b.kafkaClient.ForceMetadataRefresh)
 		level.Warn(b.logger).Log(
 			"msg", "failed to commit offset, retrying",
 			"err", err,
