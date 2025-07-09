@@ -92,15 +92,15 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 				Samples: []tempopb.Sample{
 					{
 						TimestampMs: 1100_000,
-						Value:       4,
+						Value:       0.04, // 4 jobs * 1 count * (1.0/100 step) = 0.04
 					},
 					{
 						TimestampMs: 1200_000,
-						Value:       8,
+						Value:       0.08, // 4 jobs * 2 count * (1.0/100 step) = 0.08
 					},
 					{
 						TimestampMs: 1300_000,
-						Value:       0,
+						Value:       0, // No data for this timestamp
 					},
 				},
 			},
