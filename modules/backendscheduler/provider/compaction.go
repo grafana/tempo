@@ -32,11 +32,17 @@ type CompactionConfig struct {
 	Compactor        tempodb.CompactorConfig `yaml:"compaction"`
 	MaxJobsPerTenant int                     `yaml:"max_jobs_per_tenant"`
 	Backoff          backoff.Config          `yaml:"backoff"`
+	MinInputBlocks   int                     `yaml:"min_input_blocks"`
+	MaxInputBlocks   int                     `yaml:"max_input_blocks"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.MeasureInterval, prefix+"backend-scheduler.compaction-provider.measure-interval", time.Minute, "Interval at which to metric tenant blocklist")
 	f.IntVar(&cfg.MaxJobsPerTenant, prefix+"backend-scheduler.max-jobs-per-tenant", 1000, "Maximum number of jobs to run per tenant before moving on to the next tenant")
+
+	// Compaction
+	f.IntVar(&cfg.MinInputBlocks, prefix+".min-input-blocks", blockselector.DefaultMinInputBlocks, "Minimum number of blocks to compact in a single job.")
+	f.IntVar(&cfg.MaxInputBlocks, prefix+".max-input-blocks", blockselector.DefaultMaxInputBlocks, "Maximum number of blocks to compact in a single job.")
 
 	// Backoff
 	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
@@ -242,7 +248,7 @@ func (p *CompactionProvider) createJob(ctx context.Context) *work.Job {
 }
 
 func (p *CompactionProvider) getNextBlockIDs(_ context.Context) ([]string, bool) {
-	ids := make([]string, 0, blockselector.DefaultMaxInputBlocks)
+	ids := make([]string, 0, p.cfg.MaxInputBlocks)
 
 	toBeCompacted, _ := p.curSelector.BlocksToCompact()
 
@@ -254,7 +260,7 @@ func (p *CompactionProvider) getNextBlockIDs(_ context.Context) ([]string, bool)
 		ids = append(ids, b.BlockID.String())
 	}
 
-	return ids, len(ids) >= blockselector.DefaultMinInputBlocks
+	return ids, len(ids) >= p.cfg.MinInputBlocks
 }
 
 // prioritizeTenants prioritizes tenants based on the number of outstanding blocks.
@@ -318,7 +324,7 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 	for _, tenant := range tenants {
 		priority = ts.PriorityForTenant(tenant.ID)
 
-		if priority >= blockselector.DefaultMinInputBlocks {
+		if priority >= p.cfg.MinInputBlocks {
 			item = tenantselector.NewItem(tenant.ID, priority)
 			heap.Push(p.curPriority, item)
 		}
@@ -393,7 +399,7 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		window,
 		p.cfg.Compactor.MaxCompactionObjects,
 		p.cfg.Compactor.MaxBlockBytes,
-		blockselector.DefaultMinInputBlocks,
-		blockselector.DefaultMaxInputBlocks,
+		p.cfg.MinInputBlocks,
+		p.cfg.MaxInputBlocks,
 	), len(blocklist)
 }
