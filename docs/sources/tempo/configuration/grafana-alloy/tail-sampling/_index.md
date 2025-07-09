@@ -16,22 +16,23 @@ Sampling is the process of determining which traces to store (in Tempo or Grafan
 
 Sampling functionality exists in both [Grafana Alloy](https://grafana.com/docs/alloy/) and the OpenTelemetry Collector. Alloy can collect, process, and export telemetry signals, with configuration files written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/get-started/configuration-syntax/).
 
-Refer to [Enable tail sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/) for instructions.
-
 ## Head and tail sampling
 
 When sampling, you can use a head or tail sampling strategy.
 
 With a head sampling strategy, the decision to sample the trace is usually made as early as possible and doesn’t need to take into account the whole trace.
 It’s a simple but effective sampling strategy.
-Refer to the [Head sampling documentation](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/collector/sampling/head/#head-sampling) for [Application Observability](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/) for more information.
 
 With a tail sampling strategy, the decision to sample a trace is made after considering all or most of the spans. For example, tail sampling is a good option to sample only traces that have errors or traces with long request duration.
 Tail sampling is more complex to configure, implement, and maintain but is the recommended sampling strategy for large systems with a high telemetry volume.
 
-For more information about sampling, refer to the [OpenTelemetry Sampling](https://opentelemetry.io/docs/concepts/sampling/) documentation.
-
 ![Tail sampling overview and components with Tempo, Alloy, and Grafana](/media/docs/tempo/sampling/tempo-tail-based-sampling.svg)
+
+### Resources
+
+* [OpenTelemetry Sampling](https://opentelemetry.io/docs/concepts/sampling/)
+* Sampling in Grafana Cloud Traces: [Head sampling](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/collector/sampling/head/) and [Tail sampling](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/collector/sampling/tail/)
+* [Enable tail sampling in Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/)
 
 ## Sampling and telemetry correlation
 
@@ -152,7 +153,7 @@ When implementing tail sampling into your telemetry collection pipeline, there a
 The act of sampling reduces the amount of tracing telemetry data that's sent to Tempo.
 This can have an effect on observation of data inside Grafana.
 
-The following is a suggested pipeline that can be applied to both [Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/)  and the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), to carry out tail sampling, but also ensure that other telemetry signals are still fully rounded for observation from within Grafana and Grafana Cloud.
+The following is a suggested pipeline that can be applied to both [Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/)  and the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), to carry out tail sampling, but also ensure that other telemetry signals are still captured for observation from within Grafana and Grafana Cloud.
 
 This pipeline exists in the second layer of collectors, sent data by the load balancing layer, and is commonly deployed as a Kubernetes `StatefulSet` to ensure that each instance has a consistent identity. A realistic example pipeline could be made of up the following components:
 
