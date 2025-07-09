@@ -31,7 +31,7 @@ Tail sampling is more complex to configure, implement, and maintain but is the r
 ### Resources
 
 * [OpenTelemetry Sampling](https://opentelemetry.io/docs/concepts/sampling/)
-* Sampling in Grafana Cloud Traces: [Head sampling](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/collector/sampling/head/) and [Tail sampling](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/collector/sampling/tail/)
+* Sampling in Grafana Cloud Traces: [Head sampling](https://grafana.com/docs/opentelemetry/collector/sampling/head/) and [Tail sampling](https://grafana.com/docs/opentelemetry/collector/sampling/tail/)
 * [Enable tail sampling in Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/)
 
 ## Sampling and telemetry correlation
