@@ -5,7 +5,7 @@ description: Set up monitoring for Tempo
 weight: 20
 ---
 
-# Set up monitoring for Tempo :
+# Set up monitoring for Tempo 
 
 You can set up monitoring for Tempo using an existing or new cluster.
 If you don't have a cluster available, you can use the linked documentation to set up the Tempo, Mimir, and Grafana using Helm or you can use Grafana Cloud.
