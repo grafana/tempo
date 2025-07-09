@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -241,6 +243,7 @@ func (s *blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printF
 type genericAttrSummary struct {
 	totalBytes uint64
 	attributes map[string]uint64 // key: attribute name, value: total bytes
+	skipped    []string
 	dedicated  map[string]struct{}
 }
 
@@ -286,6 +289,7 @@ func aggregateAttributes(pf *parquet.File, definitionLevel int, keyPath string, 
 	var (
 		totalBytes uint64
 		attributes = make(map[string]uint64, 1000)
+		skippedMap = make(map[string]struct{}, 1000)
 	)
 
 	for res, err := attrIter.Next(); res != nil; res, err = attrIter.Next() {
@@ -296,6 +300,7 @@ func aggregateAttributes(pf *parquet.File, definitionLevel int, keyPath string, 
 		for _, e := range res.OtherEntries {
 			if stats, ok := e.Value.(*attrStats); ok {
 				if stats.isArray {
+					skippedMap[stats.name] = struct{}{}
 					continue
 				}
 
@@ -309,6 +314,7 @@ func aggregateAttributes(pf *parquet.File, definitionLevel int, keyPath string, 
 	return genericAttrSummary{
 		totalBytes: totalBytes,
 		attributes: attributes,
+		skipped:    slices.Collect(maps.Keys(skippedMap)),
 		dedicated:  make(map[string]struct{}),
 	}, nil
 }
@@ -385,6 +391,7 @@ func printSummary(scope string, max int, summary genericAttrSummary, simple bool
 		fmt.Println("")
 	} else {
 		fmt.Printf("Top %d %s attributes by size\n", max, scope)
+		fmt.Printf("Skipped array attributes: %d\n", len(summary.skipped))
 		for _, a := range attrList {
 
 			name := a.name
