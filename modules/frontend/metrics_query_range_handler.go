@@ -88,6 +88,9 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
 		}
+		if queryRangeReq.Start > queryRangeReq.Step {
+			queryRangeReq.Start -= queryRangeReq.Step
+		}
 
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 

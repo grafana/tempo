@@ -59,38 +59,50 @@ func IntervalCount(start, end, step uint64) int {
 	end = alignEnd(start, end, step)
 
 	intervals := (end - start) / step
-	intervals++
 	return int(intervals)
 }
 
 // TimestampOf the given interval with the start and step.
 func TimestampOf(interval, start, end, step uint64) uint64 {
 	start = alignStart(start, end, step)
-	return start + interval*step
+	// start as initial offset plus interval's offset
+	return start + (interval+1)*step
 }
 
 // IntervalOf the given timestamp within the range and step.
+// First interval is (start; start+step]
+// Last interval is (end-step; end]
+// The first interval's left border is limited to 0
 func IntervalOf(ts, start, end, step uint64) int {
 	if isInstant(start, end, step) { // always one interval
-		if !isTsValidForInterval(ts, start, end, step) {
+		if !isTsValidForInstant(ts, start, end) {
 			return -1
 		}
 		return 0
 	}
 
 	start = alignStart(start, end, step)
-	end = alignEnd(start, end, step) + step
+	end = alignEnd(start, end, step)
 
 	if !isTsValidForInterval(ts, start, end, step) {
 		return -1
 	}
+	if ts <= start { // to avoid overflow
+		return 0 // if pass validation and less than start, always first interval
+	}
 
-	return int((ts - start) / step)
+	interval := (ts - start - 1) / step
+	return int(interval)
 }
 
-// validateIntervalOf returns true if the timestamp is valid for the given range and step.
+// isTsValidForInterval returns true if the timestamp is valid for the given range and step.
 func isTsValidForInterval(ts, start, end, step uint64) bool {
-	return ts >= start && ts <= end && end != start && step != 0
+	return ts > start && ts <= end && end != start && step != 0
+}
+
+// isTsValidForInstant returns true if the timestamp is valid for the given range for instant query.
+func isTsValidForInstant(ts, start, end uint64) bool {
+	return ts >= start && ts <= end && end != start
 }
 
 // IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.
@@ -101,7 +113,7 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	end -= end % uint64(time.Millisecond)
 
 	if instant {
-		if !isTsValidForInterval(ts, start, end, step) {
+		if !isTsValidForInstant(ts, start, end) {
 			return -1
 		}
 		return 0
@@ -1132,7 +1144,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		for i, s := range ss.Spans {
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
-				if st < e.start || st >= e.end {
+				if st <= e.start || st > e.end {
 					continue
 				}
 			}
