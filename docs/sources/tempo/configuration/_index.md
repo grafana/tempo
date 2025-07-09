@@ -280,7 +280,7 @@ If you prefer a different balance of CPU/Memory and bandwidth, consider disablin
 For a discussion on alternatives, refer to [this discussion thread](https://github.com/grafana/tempo/discussions/4683). ([#4696](https://github.com/grafana/tempo/pull/4696)).
 
 
-Disabling comrpession may provide some performance boosts.
+Disabling compression may provide some performance boosts.
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
 However, you may notice an increase in ingester data and network traffic especially for larger clusters.
