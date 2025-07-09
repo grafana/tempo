@@ -17,7 +17,7 @@ Alloy configuration files are written in [Alloy configuration syntax](https://gr
 ## Before you begin
 
 * You should have no sampling strategy at the application level.
-* Use Grafana Alloy or OpenTelemetry Collector to collect traces from the application, generate metrics from traces, and apply sampling.
+* Use Grafana Alloy or the OpenTelemetry Collector to collect traces from the application, generate metrics from traces, and apply sampling.
 * Send all traces to the data collector to generate accurate metrics.
 
 You’ll need to use a supported collector:
