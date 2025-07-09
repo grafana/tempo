@@ -29,78 +29,78 @@ helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 ```
 
-2. Generate `values.yml`.
+1. Generate `values.yml`.
 
-```yaml
-cluster:
-  name: traces # Name of the cluster, this will populate the cluster label
+    ```yaml
+    cluster:
+    name: traces # Name of the cluster, this will populate the cluster label
 
-integrations:
-  tempo:
-    instances:
-      - name: "traces" # This is the name for the instance label that will be reported.
-        namespaces:
-          - traces # This is the namespace that will be searched for tempo instances, change this accordingly
-        metrics:
-          enabled: true
-          portName: prom-metrics
-        logs:
-          enabled: true
-        labelSelectors:
-          app.kubernetes.io/name: tempo
+    integrations:
+    tempo:
+        instances:
+        - name: "traces" # This is the name for the instance label that will be reported.
+            namespaces:
+            - traces # This is the namespace that will be searched for tempo instances, change this accordingly
+            metrics:
+            enabled: true
+            portName: prom-metrics
+            logs:
+            enabled: true
+            labelSelectors:
+            app.kubernetes.io/name: tempo
 
-  alloy:
-    name: "traces-monitoring"
+    alloy:
+        name: "traces-monitoring"
 
-destinations:
-  - name: "metrics"
-    type: prometheus
-    url: "<url>" # URL for prometheus, this can be found under your Grafana Cloud account and should look similiar to "https://prometheus-us-central1.grafana.net/api/prom/push", if using local Prometheus use that url
-    auth:
-      type: basic
-      username: "<username>"
-      password: "<password>"
+    destinations:
+    - name: "metrics"
+        type: prometheus
+        url: "<url>" # URL for prometheus, this can be found under your Grafana Cloud account and should look similiar to "https://prometheus-us-central1.grafana.net/api/prom/push", if using local Prometheus use that url
+        auth:
+        type: basic
+        username: "<username>"
+        password: "<password>"
 
-  - name: "logs"
-    type: loki
-    url: "<url>" # URL for loki, this can be found under your Grafana Cloud account and should look similiar to "https://logs-prod-us-central1.grafana.net/loki/api/v1/push", if using local Loki use that url
-    auth:
-      type: basic
-      username: "<username>" 
-      password: "<password>"
+    - name: "logs"
+        type: loki
+        url: "<url>" # URL for loki, this can be found under your Grafana Cloud account and should look similiar to "https://logs-prod-us-central1.grafana.net/loki/api/v1/push", if using local Loki use that url
+        auth:
+        type: basic
+        username: "<username>" 
+        password: "<password>"
 
-alloy-metrics:
-  enabled: true
+    alloy-metrics:
+    enabled: true
 
-podLogs:
-  enabled: true
-  gatherMethod: kubernetesApi
-  namespaces: [traces] # Set to namespace from above under instances.
-  collector: alloy-singleton
+    podLogs:
+    enabled: true
+    gatherMethod: kubernetesApi
+    namespaces: [traces] # Set to namespace from above under instances.
+    collector: alloy-singleton
 
-alloy-singleton:
-  enabled: true
+    alloy-singleton:
+    enabled: true
 
-alloy-metrics:
-  enabled: true # This will send Grafana Alloy metrics to ensure the monitoring is working properly.
-```
+    alloy-metrics:
+    enabled: true # This will send Grafana Alloy metrics to ensure the monitoring is working properly.
+    ```
 
-3. Install the Helm chart using the following command create Grafana Alloy instances to scrape metrics and logs:
+1. Install the Helm chart using the following command create Grafana Alloy instances to scrape metrics and logs:
 
-```
- helm install k8s-monitoring grafana/k8s-monitoring \
-  --namespace monitoring \
-  --create-namespace \
-  -f values.yml
-```
+    ```
+    helm install k8s-monitoring grafana/k8s-monitoring \
+    --namespace monitoring \
+    --create-namespace \
+    -f values.yml
+    ```
 
 
-4. View Logs and Metrics
+1. View Logs and Metrics
 
-Log into Grafana Cloud. Select metrics drilldown and select `cluster=<cluster.name>` where cluster.name is the name specified in the values.yml. Do the same for logs drilldown.
+    Log into Grafana Cloud. Select metrics drilldown and select `cluster=<cluster.name>` where cluster.name is the name specified in the values.yml. Do the same for logs drilldown.
 
-This example doesn’t include ingestion for any other data such as traces for sending to Tempo, but can be included with some configuration updates.
-Refer to [Configure Alloy to remote-write to Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/) for more information.
+    This example doesn’t include ingestion for any other data such as traces for sending to Tempo, but can be included with some configuration updates.
+    Refer to [Configure Alloy to remote-write to Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/) for more information.
 
 ## Install Tempo dashboards in Grafana
 
