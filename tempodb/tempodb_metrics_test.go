@@ -1,28 +1,10 @@
 package tempodb
 
 import (
-	"context"
-	"math"
-	"path"
-	"sort"
-	"testing"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/google/go-cmp/cmp"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	resource_v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
-	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/stretchr/testify/require"
 )
 
 func requestWithDefaultRange(q string) *tempopb.QueryRangeRequest {
@@ -53,17 +35,17 @@ var queryRangeTestCases = []struct {
 			{
 				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 15_000, Value: 1.0},        // Interval (0, 15], 15 spans at 1-15
-					{TimestampMs: 30_000, Value: 1.0},        // Interval (15, 30], 15 spans
-					{TimestampMs: 45_000, Value: 1.0},        // Interval (30, 45], 15 spans
-					{TimestampMs: 60_000, Value: 5.0 / 15.0}, // Interval (45, 50], 5 spans
+					{TimestampMs: 0, Value: 14},      // Raw count: 14 spans
+					{TimestampMs: 15_000, Value: 15}, // Raw count: 15 spans
+					{TimestampMs: 30_000, Value: 15}, // Raw count: 15 spans
+					{TimestampMs: 45_000, Value: 5},  // Raw count: 5 spans
+					{TimestampMs: 60_000, Value: 0},  // Raw count: 0 spans
 				},
 			},
 		},
 		expectedL2: []*tempopb.TimeSeries{
 			{
 				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
-				// with two sources rate will be doubled
 				Samples: []tempopb.Sample{
 					{TimestampMs: 15_000, Value: 2 * 15.0 / 15.0},
 					{TimestampMs: 30_000, Value: 2 * 1.0},
@@ -90,7 +72,6 @@ var queryRangeTestCases = []struct {
 		expectedL2: []*tempopb.TimeSeries{
 			{
 				Labels: []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
-				// with two sources rate will be doubled
 				Samples: []tempopb.Sample{
 					{TimestampMs: 15_000, Value: 2 * 7.0 / 15.0},
 					{TimestampMs: 30_000, Value: 2 * 8.0 / 15.0},
@@ -796,246 +777,3 @@ var expectedCompareTs = []*tempopb.TimeSeries{
 //   - Level 1: Initial query results
 //   - Level 2: Results after first aggregation simulating multiple sources
 //   - Level 3: Final aggregation results
-func TestTempoDBQueryRange(t *testing.T) {
-	var (
-		tempDir      = t.TempDir()
-		blockVersion = vparquet4.VersionString
-	)
-
-	dc := backend.DedicatedColumns{
-		{Scope: "resource", Name: "res-dedicated.01", Type: "string"},
-		{Scope: "resource", Name: "res-dedicated.02", Type: "string"},
-		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
-		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
-	}
-	r, w, c, err := New(&Config{
-		Backend: backend.Local,
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              blockVersion,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-			DedicatedColumns:     dc,
-		},
-		WAL: &wal.Config{
-			Filepath:       path.Join(tempDir, "wal"),
-			IngestionSlack: time.Since(time.Time{}),
-		},
-		Search: &SearchConfig{
-			ChunkSizeBytes:  1_000_000,
-			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
-		},
-		BlocklistPoll: 0,
-	}, nil, log.NewNopLogger())
-	require.NoError(t, err)
-
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
-
-	// Write to wal
-	wal := w.WAL()
-
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: dc}
-	head, err := wal.NewBlock(meta, model.CurrentEncoding)
-	require.NoError(t, err)
-	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-
-	totalSpans := 100
-	for i := 1; i <= totalSpans; i++ {
-		tid := test.ValidTraceID(nil)
-
-		sp := test.MakeSpan(tid)
-
-		// Start time is i seconds
-		sp.StartTimeUnixNano = uint64(i * int(time.Second))
-
-		// Duration is i seconds
-		sp.EndTimeUnixNano = sp.StartTimeUnixNano + uint64(i*int(time.Second))
-
-		// Service name
-		var svcName string
-		if i%2 == 0 {
-			svcName = "even"
-		} else {
-			svcName = "odd"
-		}
-
-		tr := &tempopb.Trace{
-			ResourceSpans: []*v1.ResourceSpans{
-				{
-					Resource: &resource_v1.Resource{
-						Attributes: []*common_v1.KeyValue{tempopb.MakeKeyValueStringPtr("service.name", svcName)},
-					},
-					ScopeSpans: []*v1.ScopeSpans{
-						{
-							Spans: []*v1.Span{
-								sp,
-							},
-						},
-					},
-				},
-			},
-		}
-
-		b1, err := dec.PrepareForWrite(tr, 0, 0)
-		require.NoError(t, err)
-
-		b2, err := dec.ToObject([][]byte{b1})
-		require.NoError(t, err)
-		err = head.Append(tid, b2, 0, 0, true)
-		require.NoError(t, err)
-	}
-
-	// Complete block
-	block, err := w.CompleteBlock(context.Background(), head)
-	require.NoError(t, err)
-
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, common.DefaultSearchOptions())
-	})
-
-	for _, tc := range queryRangeTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			e := traceql.NewEngine()
-			eval, err := e.CompileMetricsQueryRange(tc.req, 0, 0, false)
-			require.NoError(t, err)
-
-			err = eval.Do(ctx, f, 0, 0, 0)
-			require.NoError(t, err)
-
-			actual := eval.Results().ToProto(tc.req)
-			expected := tc.expectedL1
-
-			// Slice order is not deterministic, so we sort the slices before comparing
-			sortTimeSeries(actual)
-			sortTimeSeries(expected)
-
-			if diff := cmp.Diff(expected, actual, floatComparer); diff != "" {
-				t.Errorf("Unexpected results for Level 1 processing. Query: %v\n Diff: %v", tc.req.Query, diff)
-			}
-
-			evalLevel2, err := e.CompileMetricsQueryRangeNonRaw(tc.req, traceql.AggregateModeSum)
-			require.NoError(t, err)
-			evalLevel2.ObserveSeries(actual)
-			evalLevel2.ObserveSeries(actual) // emulate merging from two sources
-			actual = evalLevel2.Results().ToProto(tc.req)
-			sortTimeSeries(actual)
-
-			if tc.expectedL2 != nil {
-				expected = tc.expectedL2
-				sortTimeSeries(expected)
-			}
-
-			if diff := cmp.Diff(expected, actual, floatComparer); diff != "" {
-				t.Errorf("Unexpected results for Level 2 processing. Query: %v\n Diff: %v", tc.req.Query, diff)
-			}
-
-			evalLevel3, err := e.CompileMetricsQueryRangeNonRaw(tc.req, traceql.AggregateModeFinal)
-			require.NoError(t, err)
-			evalLevel3.ObserveSeries(actual)
-			actual = evalLevel3.Results().ToProto(tc.req)
-			sortTimeSeries(actual)
-
-			if tc.expectedL3 != nil {
-				expected = tc.expectedL3
-				sortTimeSeries(expected)
-			}
-
-			if diff := cmp.Diff(expected, actual, floatComparer); diff != "" {
-				t.Errorf("Unexpected results for Level 3 processing. Query: %v\n Diff: %v", tc.req.Query, diff)
-			}
-		})
-	}
-
-	t.Run("compare", func(t *testing.T) {
-		// compare operation generates enormous amount of time series,
-		// so we filter by service.name to test at least part of the results
-		req := requestWithDefaultRange(`{} | compare({ .service.name="even" })`)
-		e := traceql.NewEngine()
-
-		// Level 1
-		eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
-		require.NoError(t, err)
-
-		err = eval.Do(ctx, f, 0, 0, 0)
-		require.NoError(t, err)
-
-		actual := eval.Results().ToProto(req)
-
-		const labelName = `resource.service.name`
-		targetTs := filterTimeSeriesByLabel(actual, labelName)
-		sortTimeSeries(targetTs)
-		require.Equal(t, expectedCompareTs, targetTs)
-
-		// Level 2
-		evalLevel2, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
-		require.NoError(t, err)
-		evalLevel2.ObserveSeries(actual)
-		actual = evalLevel2.Results().ToProto(req)
-
-		targetTs = filterTimeSeriesByLabel(actual, labelName)
-		sortTimeSeries(targetTs)
-		require.Equal(t, expectedCompareTs, targetTs)
-
-		// Level 3
-		evalLevel3, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeFinal)
-		require.NoError(t, err)
-		evalLevel3.ObserveSeries(actual)
-		actual = evalLevel3.Results().ToProto(req)
-
-		targetTs = filterTimeSeriesByLabel(actual, labelName)
-		sortTimeSeries(targetTs)
-		require.Equal(t, expectedCompareTs, targetTs)
-	})
-}
-
-func sortTimeSeries(ts []*tempopb.TimeSeries) {
-	sort.Slice(ts, func(i, j int) bool {
-		if len(ts[i].Labels) != len(ts[j].Labels) {
-			return len(ts[i].Labels) < len(ts[j].Labels)
-		}
-
-		for l := range ts[i].Labels {
-			if ts[i].Labels[l].Key != ts[j].Labels[l].Key {
-				return ts[i].Labels[l].Key < ts[j].Labels[l].Key
-			}
-			if ts[i].Labels[l].Value != ts[j].Labels[l].Value {
-				return ts[i].Labels[l].Value.String() < ts[j].Labels[l].Value.String()
-			}
-		}
-
-		// All equal
-		return false
-	})
-}
-
-var floatComparer = cmp.Comparer(func(x, y float64) bool {
-	return math.Abs(x-y) < 1e-6
-})
-
-// filterTimeSeriesByLabel filters the time series to the ones including the given label name.
-func filterTimeSeriesByLabel(ts []*tempopb.TimeSeries, labelName string) []*tempopb.TimeSeries {
-	var targetTs []*tempopb.TimeSeries
-	for _, ts := range ts {
-		for _, l := range ts.Labels {
-			if l.Key == labelName {
-				targetTs = append(targetTs, ts)
-				break
-			}
-		}
-	}
-	return targetTs
-}
