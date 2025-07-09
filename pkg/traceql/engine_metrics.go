@@ -1272,6 +1272,7 @@ type SimpleAggregator struct {
 	aggregationFunc  func(existingValue float64, newValue float64) float64
 	start, end, step uint64
 	initWithNaN      bool
+	resultMultiplier float64 // Optional multiplier applied to final results (1.0 = no change)
 }
 
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, exemplars uint32) *SimpleAggregator {
@@ -1303,12 +1304,13 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 			alignStart(req.Start, req.End, req.Step),
 			alignEnd(req.Start, req.End, req.Step),
 		),
-		len:             l,
-		start:           req.Start,
-		end:             req.End,
-		step:            req.Step,
-		aggregationFunc: f,
-		initWithNaN:     initWithNaN,
+		len:              l,
+		start:            req.Start,
+		end:              req.End,
+		step:             req.Step,
+		aggregationFunc:  f,
+		initWithNaN:      initWithNaN,
+		resultMultiplier: 1.0, // Default: no multiplier
 	}
 }
 
@@ -1378,7 +1380,27 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 }
 
 func (b *SimpleAggregator) Results() SeriesSet {
-	return b.ss
+	// If no multiplier is needed, return the series set as-is
+	if b.resultMultiplier == 1.0 {
+		return b.ss
+	}
+
+	// Apply multiplier to final results
+	results := make(SeriesSet)
+	for k, ts := range b.ss {
+		// Create a copy with multiplier applied
+		multipliedValues := make([]float64, len(ts.Values))
+		for i, value := range ts.Values {
+			multipliedValues[i] = value * b.resultMultiplier
+		}
+
+		results[k] = TimeSeries{
+			Labels:    ts.Labels,
+			Values:    multipliedValues,
+			Exemplars: ts.Exemplars,
+		}
+	}
+	return results
 }
 
 func (b *SimpleAggregator) Length() int {
@@ -1768,4 +1790,14 @@ func initSeriesInResult(result SeriesSet, key string, input SeriesSet, valueLeng
 	for j := range result[key].Values {
 		result[key].Values[j] = math.NaN()
 	}
+}
+
+// NewRateSeriesAggregator creates a series aggregator for rate() that sums counts
+// across multiple sources and then applies the rate multiplier (1/step_seconds)
+func NewRateSeriesAggregator(req *tempopb.QueryRangeRequest, exemplars uint32) *SimpleAggregator {
+	rateMult := 1.0 / time.Duration(req.Step).Seconds()
+
+	agg := NewSimpleCombiner(req, sumAggregation, exemplars)
+	agg.resultMultiplier = rateMult
+	return agg
 }
