@@ -21,8 +21,8 @@ Alloy configuration files are written in [Alloy configuration syntax](https://gr
 * Send all traces to the data collector to generate accurate metrics.
 
 You’ll need to use a supported collector:
-  * Grafana Alloy >=1.0
-  * OTel Collector >= 0.94
+  * Grafana Alloy >=1.0 ([documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/set-up/install/))
+  * OTel Collector >= 0.94 ([documentation](https://opentelemetry.io/docs/collector/))
 
 If you are using Grafana Cloud and Application Observability:
 
