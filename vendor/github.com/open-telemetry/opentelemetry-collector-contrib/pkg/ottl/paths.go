@@ -31,3 +31,9 @@ func getBooleanExpressionPaths(be *booleanExpression) []path {
 	be.accept(visitor)
 	return visitor.paths
 }
+
+func getValuePaths(v *value) []path {
+	visitor := &grammarPathVisitor{}
+	v.accept(visitor)
+	return visitor.paths
+}

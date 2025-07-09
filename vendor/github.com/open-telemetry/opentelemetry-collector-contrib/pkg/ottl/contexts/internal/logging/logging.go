@@ -168,8 +168,8 @@ func (m Metric) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddString("name", mm.Name())
 	encoder.AddString("unit", mm.Unit())
 	encoder.AddString("type", mm.Type().String())
+	err := encoder.AddObject("metadata", Map(mm.Metadata()))
 
-	var err error
 	switch mm.Type() {
 	case pmetric.MetricTypeSum:
 		encoder.AddString("aggregation_temporality", mm.Sum().AggregationTemporality().String())

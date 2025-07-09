@@ -242,15 +242,15 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	// Try to get a job from the merged channel
 	select {
 	case j := <-s.mergedJobs:
-		span.AddEvent("job received", trace.WithAttributes(
-			attribute.String("job_id", j.GetID()),
-		))
-
 		if j == nil {
 			// Channel closed, no jobs available
 			metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrNilJob.Error())
 		}
+
+		span.AddEvent("job received", trace.WithAttributes(
+			attribute.String("job_id", j.GetID()),
+		))
 
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,

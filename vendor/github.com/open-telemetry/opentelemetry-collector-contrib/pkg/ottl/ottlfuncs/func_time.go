@@ -62,6 +62,8 @@ func Time[K any](inputTime ottl.StringGetter[K], format string, location ottl.Op
 		inputTimeLocale = &l
 	}
 
+	ctimeSubstitutes := timeutils.GetStrptimeNativeSubstitutes(format)
+
 	return func(ctx context.Context, tCtx K) (any, error) {
 		t, err := inputTime.Get(ctx, tCtx)
 		if err != nil {
@@ -77,6 +79,10 @@ func Time[K any](inputTime ottl.StringGetter[K], format string, location ottl.Op
 			timestamp, err = timeutils.ParseGotime(gotimeFormat, t, loc)
 		}
 		if err != nil {
+			var timeErr *time.ParseError
+			if errors.As(err, &timeErr) {
+				return nil, timeutils.ToStrptimeParseError(timeErr, format, ctimeSubstitutes)
+			}
 			return nil, err
 		}
 		return timestamp, nil

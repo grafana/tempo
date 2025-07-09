@@ -13,7 +13,7 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/model/labels"
@@ -49,7 +49,7 @@ func TestMetricsGenerator(t *testing.T) {
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewJaegerGRPCClient(tempoDistributor.Endpoint(14250))
+	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -238,7 +238,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewJaegerGRPCClient(tempoDistributor.Endpoint(14250))
+	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 

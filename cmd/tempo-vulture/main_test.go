@@ -15,10 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	integrationutil "github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
+	util "github.com/grafana/tempo/pkg/util"
 )
 
 func TestHasMissingSpans(t *testing.T) {
@@ -595,44 +596,20 @@ func TestGetGrpcEndpoint(t *testing.T) {
 
 	got, err := getGRPCEndpoint("http://localhost:4000")
 	require.NoError(t, err)
-	assert.Equal(t, "localhost:4000", got, "Address endpoint should keep the given port")
+	assert.Equal(t, "http://localhost:4000", got, "Address endpoint should keep the given port")
 
 	got, err = getGRPCEndpoint("http://localhost")
 	require.NoError(t, err)
-	assert.Equal(t, "localhost:14250", got, "Address without a port should be defaulted to 14250")
+	assert.Equal(t, "http://localhost:4317", got, "Address without a port should be defaulted to 4317")
 }
 
-func TestNewJaegerGRPCClient(t *testing.T) {
-	config := vultureConfiguration{
-		tempoOrgID:                "orgID",
-		tempoWriteBackoffDuration: time.Second,
-		tempoPushURL:              "http://localhost",
+func TestNewJaegerToOTLPExportert(t *testing.T) {
+	configValid := vultureConfiguration{
+		tempoPushURL: "localhost:4317",
 	}
-	client, err := newJaegerGRPCClient(config, zap.NewNop())
-
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
-
-	config = vultureConfiguration{
-		tempoOrgID:                "orgID",
-		tempoWriteBackoffDuration: time.Second,
-		tempoPushTLS:              true,
-		tempoPushURL:              "http://localhost",
-	}
-	client, err = newJaegerGRPCClient(config, zap.NewNop())
-
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
-
-	config = vultureConfiguration{
-		tempoOrgID:                "orgID",
-		tempoWriteBackoffDuration: time.Second,
-		tempoPushURL:              "http://%gh&%ij",
-	}
-	client, err = newJaegerGRPCClient(config, zap.NewNop())
-
-	assert.Error(t, err)
-	assert.Nil(t, client)
+	clientValid, errValid := integrationutil.NewJaegerToOTLPExporter(configValid.tempoPushURL)
+	assert.NoError(t, errValid)
+	assert.NotNil(t, clientValid)
 }
 
 func TestQueryMetrics(t *testing.T) {

@@ -48,7 +48,7 @@ func TestCompactionProvider(t *testing.T) {
 
 	// Push some data to a few tenants
 	tenantCount := 3
-	for i := 0; i < tenantCount; i++ {
+	for i := range tenantCount {
 		testTenant := tenant + strconv.Itoa(i)
 		writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
 	}
@@ -80,11 +80,12 @@ func TestCompactionProvider(t *testing.T) {
 	for _, job := range receivedJobs {
 		require.NotNil(t, job)
 		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, job.Type)
+		require.Greater(t, len(job.GetCompactionInput()), 0)
 		require.NotEqual(t, "", job.Tenant())
 		require.NotEqual(t, "", job.ID)
 
 		// Check that the newBlockSelector does not include the input blocks
-		for i := 0; i < tenantCount; i++ {
+		for i := range tenantCount {
 			testTenant := tenant + strconv.Itoa(i)
 			twbs, _ := p.newBlockSelector(testTenant)
 			require.NotNil(t, twbs)
@@ -98,14 +99,93 @@ func TestCompactionProvider(t *testing.T) {
 	}
 }
 
-func collectAllMetas(bs blockselector.CompactionBlockSelector) []*backend.BlockMeta {
-	metas, _ := bs.BlocksToCompact()
+func TestCompactionProvider_EmptyStart(t *testing.T) {
+	cfg := CompactionConfig{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.MaxJobsPerTenant = 1
+	cfg.MeasureInterval = 100 * time.Millisecond
+	cfg.Backoff.MinBackoff = 30 * time.Millisecond // twice the poll cycle
+	cfg.Backoff.MaxBackoff = 50 * time.Millisecond
 
-	for newMetas, _ := bs.BlocksToCompact(); len(newMetas) > 0; {
-		metas = append(metas, newMetas...)
+	tmpDir := t.TempDir()
+
+	var (
+		ctx, cancel  = context.WithTimeout(context.Background(), 5*time.Second)
+		store, _, ww = newStore(ctx, t, tmpDir)
+	)
+
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	w := work.New(work.Config{})
+
+	p := NewCompactionProvider(
+		cfg,
+		test.NewTestingLogger(t),
+		store,
+		limits,
+		w,
+	)
+
+	b := p.prepareNextTenant(ctx)
+	require.False(t, b, "no tenant should be found")
+	require.Nil(t, p.curTenant, "a tenant should not be set")
+	require.Nil(t, p.curSelector, "a block selector should not be set")
+
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
+	time.Sleep(150 * time.Millisecond)
+
+	b = p.prepareNextTenant(ctx)
+	require.False(t, b, "no tenant with a single block should be found")
+	require.Nil(t, p.curTenant, "a tenant should not be set")
+	require.Nil(t, p.curSelector, "a block selector should not be set")
+
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
+	time.Sleep(150 * time.Millisecond)
+
+	b = p.prepareNextTenant(ctx)
+	require.True(t, b, "tenant with two blocks should be found")
+	require.NotNil(t, p.curTenant, "a tenant should be set")
+	require.NotNil(t, p.curSelector, "a block selector should be set")
+
+	jobChan := p.Start(ctx)
+	require.NotNil(t, jobChan, "job channel should not be nil")
+
+	blocksSeen := make(map[string]struct{})
+	var metas []*backend.BlockMeta
+
+	for job := range jobChan {
+		require.NotNil(t, job, "job should not be nil")
+		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, job.Type, "job type should be compaction")
+		require.Equal(t, tenant, job.Tenant(), "job tenant should match the current tenant")
+		require.Greater(t, len(job.GetCompactionInput()), 0, "compaction input should not be empty")
+
+		metas = store.BlockMetas(tenant)
+
+		// Add each job to the work queue, so we don't process the blocks within.
+		err = w.AddJob(job)
+		require.NoError(t, err, "should be able to add job to work queue")
+
+		for _, blockID := range job.GetCompactionInput() {
+			_, seen := blocksSeen[blockID]
+			require.False(t, seen, "block ID %s should not have been seen before", blockID)
+			blocksSeen[blockID] = struct{}{}
+
+			u := backend.MustParse(blockID)
+			if _, ok := foundMetaInMetas(metas, u); ok {
+				// metas = append(metas, meta)
+				err = store.MarkBlockCompacted(tenant, u)
+				require.NoError(t, err, "should be able to mark block %s compacted for tenant %s", blockID, tenant)
+			}
+		}
+		require.Greater(t, len(metas), 0, "there should be some block metas to compact")
+
 	}
-
-	return metas
 }
 
 func newStore(ctx context.Context, t testing.TB, tmpDir string) (storage.Store, backend.RawReader, backend.RawWriter) {
@@ -147,10 +227,11 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 
 func writeTenantBlocks(ctx context.Context, t *testing.T, w backend.Writer, tenant string, count int) {
 	var err error
-	for i := 0; i < count; i++ {
+	for range count {
 		meta := &backend.BlockMeta{
 			BlockID:  backend.NewUUID(),
 			TenantID: tenant,
+			Version:  encoding.LatestEncoding().Version(),
 		}
 
 		err = w.WriteBlockMeta(ctx, meta)
@@ -158,8 +239,27 @@ func writeTenantBlocks(ctx context.Context, t *testing.T, w backend.Writer, tena
 	}
 }
 
+func foundMetaInMetas(metas []*backend.BlockMeta, u backend.UUID) (*backend.BlockMeta, bool) {
+	for _, m := range metas {
+		if m.BlockID == u {
+			return m, true
+		}
+	}
+	return nil, false
+}
+
 type ownsEverythingSharder struct{}
 
 func (ownsEverythingSharder) Owns(_ string) bool {
 	return true
+}
+
+func collectAllMetas(bs blockselector.CompactionBlockSelector) []*backend.BlockMeta {
+	metas, _ := bs.BlocksToCompact()
+
+	for newMetas, _ := bs.BlocksToCompact(); len(newMetas) > 0; {
+		metas = append(metas, newMetas...)
+	}
+
+	return metas
 }

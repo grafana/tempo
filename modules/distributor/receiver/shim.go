@@ -14,8 +14,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
+
 	"github.com/prometheus/client_golang/prometheus"
-	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -46,11 +46,11 @@ const (
 )
 
 var (
-	metricPushDuration = promauto.NewHistogram(prom_client.HistogramOpts{
+	metricPushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "distributor_push_duration_seconds",
 		Help:                            "Records the amount of time to push a batch to the ingester.",
-		Buckets:                         prom_client.DefBuckets,
+		Buckets:                         prometheus.DefBuckets,
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
@@ -254,15 +254,15 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		case "otlp":
 			otlpRecvCfg := cfg.(*otlpreceiver.Config)
 
-			if otlpRecvCfg.HTTP != nil {
-				otlpRecvCfg.HTTP.ServerConfig.IncludeMetadata = true
+			if otlpRecvCfg.HTTP.HasValue() {
+				otlpRecvCfg.HTTP.Get().ServerConfig.IncludeMetadata = true
 				cfg = otlpRecvCfg
 			}
 
 		case "zipkin":
 			zipkinRecvCfg := cfg.(*zipkinreceiver.Config)
 
-			zipkinRecvCfg.ServerConfig.IncludeMetadata = true
+			zipkinRecvCfg.IncludeMetadata = true
 			cfg = zipkinRecvCfg
 
 		case "jaeger":

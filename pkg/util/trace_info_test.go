@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

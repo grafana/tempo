@@ -65,7 +65,7 @@ func TestQueryRangeExemplars(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -458,7 +458,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -494,7 +494,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -558,7 +558,7 @@ func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -623,7 +623,7 @@ func TestQueryRangeMaxSeriesDisabledQuerier(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -654,7 +654,7 @@ sendLoop:
 	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(5), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(5), "tempo_ingester_blocks_flushed_total"))
 
 	query := "{} | rate() by (span:id)"
 	url := fmt.Sprintf(

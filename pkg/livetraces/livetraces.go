@@ -13,26 +13,32 @@ type LiveTraceBatchT interface {
 }
 
 type LiveTrace[T LiveTraceBatchT] struct {
-	ID        []byte
-	timestamp time.Time
-	Batches   []T
+	ID      []byte
+	Batches []T
 
-	sz uint64
+	lastAppend time.Time
+	createdAt  time.Time
+	sz         uint64
 }
 
 type LiveTraces[T LiveTraceBatchT] struct {
 	hash   hash.Hash64
 	Traces map[uint64]*LiveTrace[T]
 
+	maxIdleTime time.Duration
+	maxLiveTime time.Duration
+
 	sz     uint64
 	szFunc func(T) uint64
 }
 
-func New[T LiveTraceBatchT](sizeFunc func(T) uint64) *LiveTraces[T] {
+func New[T LiveTraceBatchT](sizeFunc func(T) uint64, maxIdleTime, maxLiveTime time.Duration) *LiveTraces[T] {
 	return &LiveTraces[T]{
-		hash:   fnv.New64(),
-		Traces: make(map[uint64]*LiveTrace[T]),
-		szFunc: sizeFunc,
+		hash:        fnv.New64(),
+		Traces:      make(map[uint64]*LiveTrace[T]),
+		szFunc:      sizeFunc,
+		maxIdleTime: maxIdleTime,
+		maxLiveTime: maxLiveTime,
 	}
 }
 
@@ -67,7 +73,8 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 		}
 
 		tr = &LiveTrace[T]{
-			ID: traceID,
+			ID:        traceID,
+			createdAt: ts,
 		}
 		l.Traces[token] = tr
 	}
@@ -83,15 +90,18 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 	l.sz += sz
 
 	tr.Batches = append(tr.Batches, batch)
-	tr.timestamp = ts
+	tr.lastAppend = ts
 	return true
 }
 
-func (l *LiveTraces[T]) CutIdle(idleSince time.Time, immediate bool) []*LiveTrace[T] {
+func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) []*LiveTrace[T] {
 	res := []*LiveTrace[T]{}
 
+	idleSince := now.Add(-l.maxIdleTime)
+	liveSince := now.Add(-l.maxLiveTime)
+
 	for k, tr := range l.Traces {
-		if tr.timestamp.Before(idleSince) || immediate {
+		if tr.lastAppend.Before(idleSince) || tr.createdAt.Before(liveSince) || immediate {
 			res = append(res, tr)
 			l.sz -= tr.sz
 			delete(l.Traces, k)

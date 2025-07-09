@@ -32,7 +32,6 @@ import (
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -53,7 +52,7 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util2.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -211,7 +210,7 @@ func TestQueryLimits(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util2.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -272,9 +271,6 @@ func TestLimitsPartialSuccess(t *testing.T) {
 
 	// otel grpc exporter
 	exporter, err := util2.NewOtelGRPCExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-
-	err = exporter.Start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
 
 	// make request
@@ -346,7 +342,7 @@ func TestQueryRateLimits(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util2.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 

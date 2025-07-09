@@ -8,7 +8,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "c014522d7d2c9ccba70556ec75a31cdde8907fe1",
+      "version": "1cd23af7f31e8ee2f4e6abe16b466c7bfc0ce82a",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -18,8 +18,8 @@
           "subdir": "memcached"
         }
       },
-      "version": "c014522d7d2c9ccba70556ec75a31cdde8907fe1",
-      "sum": "Cc715Y3rgTuimgDFIw+FaKzXSJGRYwt1pFTMbdrNBD8="
+      "version": "1cd23af7f31e8ee2f4e6abe16b466c7bfc0ce82a",
+      "sum": "f+DYmgxR3spwx8DbIyY4+qSaFsshg/SE+MDG6jUQhJg="
     },
     {
       "source": {
@@ -28,8 +28,8 @@
           "subdir": "1.29"
         }
       },
-      "version": "84aed0f9591ba86a3035e7ebe3557cb012039890",
-      "sum": "i2w3hGbgQmaB73t5LJHSioPOVdYv8ZBvivHiDwZJVyI="
+      "version": "14aa0545f3b789c3fa4ffe19ef9709ec5fa8c147",
+      "sum": "rD6FKvLBJtT+gRJDOz6z8iUzvjf/BiH8vdkyIcZMsno="
     },
     {
       "source": {

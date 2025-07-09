@@ -31,6 +31,10 @@ k {
       std.ceil((self.memory_limit_mb * self.overprovision_factor) + self.memory_request_overhead_mb) * 1024 * 1024,
     memory_limits_bytes::
       std.max(self.memory_limit_mb * 1.5 * 1024 * 1024, self.memory_request_bytes),
+    exporter_cpu_requests:: null,
+    exporter_cpu_limits:: null,
+    exporter_memory_requests:: null,
+    exporter_memory_limits:: null,
     use_topology_spread:: false,
     topology_spread_max_skew:: 1,
     extended_options:: [],
@@ -59,7 +63,10 @@ k {
       container.withArgs([
         '--memcached.address=localhost:11211',
         '--web.listen-address=0.0.0.0:9150',
-      ]),
+      ]) +
+      // Only add requests or limits if they've been set to a non-null value
+      (if self.exporter_cpu_requests == null && self.exporter_memory_requests == null then {} else $.util.resourcesRequests(self.exporter_cpu_requests, self.exporter_memory_requests)) +
+      (if self.exporter_cpu_limits == null && self.exporter_memory_limits == null then {} else $.util.resourcesLimits(self.exporter_cpu_limits, self.exporter_memory_limits)),
 
     local statefulSet = $.apps.v1.statefulSet,
     local topologySpreadConstraints = k.core.v1.topologySpreadConstraint,
