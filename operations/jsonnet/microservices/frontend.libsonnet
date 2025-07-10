@@ -22,7 +22,7 @@
   },
 
   tempo_query_frontend_container::
-    container.new(target_name, $._images.tempo) +
+    container.new(target_name, $._images.tempo_query_frontend) +
     container.withPorts($.tempo_query_frontend_ports) +
     container.withArgs($.util.mapToFlags($.tempo_query_frontend_args)) +
     (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +

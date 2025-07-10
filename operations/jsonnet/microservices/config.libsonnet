@@ -6,6 +6,16 @@
     rollout_operator: 'grafana/rollout-operator:v0.23.0',
     memcached: 'memcached:1.6.38-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.15.2',
+
+    tempo_compactor: self.tempo,
+    tempo_distributor: self.tempo,
+    tempo_ingester: self.tempo,
+    tempo_querier: self.tempo,
+    tempo_query_frontend: self.tempo,
+    tempo_metrics_generator: self.tempo,
+    tempo_block_builder: self.tempo,
+    tempo_backend_scheduler: self.tempo,
+    tempo_backend_worker: self.tempo,
   },
 
   _config+:: {

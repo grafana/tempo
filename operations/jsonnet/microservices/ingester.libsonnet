@@ -31,7 +31,7 @@
     + pvc.mixin.metadata.withNamespace($._config.namespace),
 
   tempo_ingester_container::
-    container.new(target_name, $._images.tempo) +
+    container.new(target_name, $._images.tempo_ingester) +
     container.withPorts($.tempo_ingester_ports) +
     container.withArgs($.util.mapToFlags($.tempo_ingester_args)) +
     (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +

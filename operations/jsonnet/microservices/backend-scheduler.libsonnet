@@ -35,7 +35,7 @@
 
 
   tempo_backend_scheduler_container::
-    container.new(target_name, $._images.tempo) +
+    container.new(target_name, $._images.tempo_backend_scheduler) +
     container.withPorts($.tempo_backend_scheduler_ports) +
     container.withArgs($.util.mapToFlags($.tempo_backend_scheduler_args)) +
     container.withVolumeMounts([
