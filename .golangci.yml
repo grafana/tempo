@@ -41,6 +41,9 @@ linters:
       - std-error-handling
     rules:
       - linters:
+          - forbidigo
+        path: cmd
+      - linters:
           - unused
         path: integration/e2e
       - path: (.+)\.go$

@@ -357,8 +357,7 @@ func aggregateSingleColumn(pf *parquet.File, colName string) (uint64, error) {
 
 		var val parquet.Value
 		for _, e := range res.Entries {
-			switch e.Key {
-			case "value":
+			if e.Key == "value" {
 				val = e.Value
 			}
 		}
