@@ -548,6 +548,15 @@ func TestRemoteWriteHeaders(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	require.NoError(t, overrides.WriteStatusRuntimeConfig(buff, req))
 
+	// Verify the YAML output can be unmarshalled back
+	var runtimeConfig struct {
+		Defaults           Overrides          `yaml:"defaults"`
+		PerTenantOverrides perTenantOverrides `yaml:",inline"`
+	}
+	require.NoError(t, yaml.UnmarshalStrict(buff.Bytes(), &runtimeConfig))
+
+	assert.Equal(t, "<secret>", string(runtimeConfig.Defaults.MetricsGenerator.RemoteWriteHeaders["Authorization"]))
+
 	fmt.Println(buff.String())
 }
 
