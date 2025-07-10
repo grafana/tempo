@@ -15,7 +15,7 @@ var tracer = otel.Tracer("modules/backendscheduler/work")
 
 type Work struct {
 	Jobs map[string]*Job `json:"jobs"`
-	mtx  sync.RWMutex
+	mtx  sync.Mutex      // Changed from sync.RWMutex to sync.Mutex for better performance
 	cfg  Config
 }
 
@@ -59,8 +59,8 @@ func (q *Work) StartJob(id string) {
 }
 
 func (q *Work) GetJob(id string) *Job {
-	q.mtx.RLock()
-	defer q.mtx.RUnlock()
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	if v, ok := q.Jobs[id]; ok {
 		return v
@@ -77,7 +77,7 @@ func (q *Work) RemoveJob(id string) {
 }
 
 func (q *Work) ListJobs() []*Job {
-	q.mtx.RLock()
+	q.mtx.Lock()
 
 	jobs := make([]*Job, 0, len(q.Jobs))
 	for _, j := range q.Jobs {
@@ -85,7 +85,7 @@ func (q *Work) ListJobs() []*Job {
 	}
 
 	// Not defered to unlock while sorting
-	q.mtx.RUnlock()
+	q.mtx.Unlock()
 
 	// sort jobs by creation time
 	sort.Slice(jobs, func(i, j int) bool {
@@ -121,8 +121,8 @@ func (q *Work) Prune(ctx context.Context) {
 
 // Len returns the jobs which are pending execution.
 func (q *Work) Len() int {
-	q.mtx.RLock()
-	defer q.mtx.RUnlock()
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	var count int
 	for _, j := range q.Jobs {
@@ -139,8 +139,8 @@ func (q *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
 	_, span := tracer.Start(ctx, "GetJobForWorker")
 	defer span.End()
 
-	q.mtx.RLock()
-	defer q.mtx.RUnlock()
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	for _, j := range q.Jobs {
 		if j.GetWorkerID() != workerID {

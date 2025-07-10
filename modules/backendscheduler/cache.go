@@ -11,16 +11,23 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
 	_, span := tracer.Start(ctx, "flushWorkCache")
 	defer span.End()
 
+	// Event: Starting lock acquisition
+	span.AddEvent("lock.acquire.start")
 	s.mtx.Lock()
+	span.AddEvent("lock.acquired")
 	defer s.mtx.Unlock()
 
+	// Event: Starting marshal operation
+	span.AddEvent("marshal.start")
 	b, err := s.work.Marshal()
+	span.AddEvent("marshal.complete")
 	if err != nil {
 		return fmt.Errorf("failed to marshal work cache: %w", err)
 	}
@@ -32,10 +39,22 @@ func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
 		return fmt.Errorf("error creating directory %q: %w", s.cfg.LocalWorkPath, err)
 	}
 
+	// Event: Starting file write
+	span.AddEvent("writeFile.start")
 	err = os.WriteFile(workPath, b, 0o600)
+	span.AddEvent("writeFile.complete")
 	if err != nil {
 		return fmt.Errorf("error writing %q: %w", workPath, err)
 	}
+
+	// Add final attributes for observability
+	span.SetAttributes(
+		attribute.Int("work_cache.file_size_bytes", len(b)),
+		attribute.String("work_cache.file_path", workPath),
+	)
+
+	// Record file size metric for trending and alerting
+	metricWorkCacheFileSize.Observe(float64(len(b)))
 
 	return nil
 }
