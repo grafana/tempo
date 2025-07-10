@@ -3,6 +3,7 @@ package work
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +11,21 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
+
+// isRaceEnabled returns true if the race detector is enabled
+func isRaceEnabled() bool {
+	b, ok := debug.ReadBuildInfo()
+	if !ok {
+		return false
+	}
+
+	for _, s := range b.Settings {
+		if s.Key == "-race" && s.Value == "true" {
+			return true
+		}
+	}
+	return false
+}
 
 // createTestWork creates a Work instance with many jobs to simulate production load
 func createTestWork(tb testing.TB, numJobs int) *Work {
@@ -145,6 +161,12 @@ func TestLockContentionScenario(t *testing.T) {
 	wg.Wait()
 	elapsed := time.Since(start)
 
+	// Adjust timeout based on race detector overhead
+	timeout := 5 * time.Second
+	if isRaceEnabled() {
+		timeout = 30 * time.Second // Race detector adds ~13x overhead
+	}
+
 	t.Logf("Lock contention test completed in %v", elapsed)
-	require.True(t, elapsed < 5*time.Second, "Lock contention test took too long: %v", elapsed)
+	require.True(t, elapsed < timeout, "Lock contention test took too long: %v (timeout: %v, race detector: %v)", elapsed, timeout, isRaceEnabled())
 }
