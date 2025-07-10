@@ -164,7 +164,7 @@ func TestLockContentionScenario(t *testing.T) {
 	// Adjust timeout based on race detector overhead
 	timeout := 5 * time.Second
 	if isRaceEnabled() {
-		timeout = 30 * time.Second // Race detector adds ~13x overhead
+		timeout = 40 * time.Second // Race detector adds ~13x overhead
 	}
 
 	t.Logf("Lock contention test completed in %v", elapsed)
