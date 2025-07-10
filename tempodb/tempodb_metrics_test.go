@@ -55,11 +55,11 @@ var queryRangeTestCases = []struct {
 				PromLabels: `{__name__="rate"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 0, Value: 14.0 / 15.0},     // First interval starts at 1, so it only has 14 spans
-					{TimestampMs: 15_000, Value: 1.0},        // Spans every 1 second
-					{TimestampMs: 30_000, Value: 1.0},        // Spans every 1 second
-					{TimestampMs: 45_000, Value: 5.0 / 15.0}, // Interval [45,50) has 5 spans
-					{TimestampMs: 60_000, Value: 0},          // I think this is a bug that we extend out an extra interval
+					{TimestampMs: 0, Value: 14},      // Raw count: 14 spans
+					{TimestampMs: 15_000, Value: 15}, // Raw count: 15 spans
+					{TimestampMs: 30_000, Value: 15}, // Raw count: 15 spans
+					{TimestampMs: 45_000, Value: 5},  // Raw count: 5 spans
+					{TimestampMs: 60_000, Value: 0},  // Raw count: 0 spans
 				},
 			},
 		},
@@ -67,13 +67,27 @@ var queryRangeTestCases = []struct {
 			{
 				PromLabels: `{__name__="rate"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
-				// with two sources rate will be doubled
+				// Sum counts from two sources
 				Samples: []tempopb.Sample{
-					{TimestampMs: 0, Value: 2 * 14.0 / 15.0},
-					{TimestampMs: 15_000, Value: 2 * 1.0},
-					{TimestampMs: 30_000, Value: 2 * 1.0},
-					{TimestampMs: 45_000, Value: 2 * 5.0 / 15.0},
-					{TimestampMs: 60_000, Value: 0},
+					{TimestampMs: 0, Value: 28},      // 14 + 14 = 28 spans
+					{TimestampMs: 15_000, Value: 30}, // 15 + 15 = 30 spans
+					{TimestampMs: 30_000, Value: 30}, // 15 + 15 = 30 spans
+					{TimestampMs: 45_000, Value: 10}, // 5 + 5 = 10 spans
+					{TimestampMs: 60_000, Value: 0},  // 0 + 0 = 0 spans
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="rate"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
+				// Apply rate multiplier to summed counts: count / step_seconds
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 28.0 / 15.0},      // 28 spans / 15 seconds
+					{TimestampMs: 15_000, Value: 30.0 / 15.0}, // 30 spans / 15 seconds = 2.0
+					{TimestampMs: 30_000, Value: 30.0 / 15.0}, // 30 spans / 15 seconds = 2.0
+					{TimestampMs: 45_000, Value: 10.0 / 15.0}, // 10 spans / 15 seconds
+					{TimestampMs: 60_000, Value: 0},           // 0 spans
 				},
 			},
 		},
@@ -86,11 +100,11 @@ var queryRangeTestCases = []struct {
 				PromLabels: `{__name__="rate"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 0, Value: 7.0 / 15.0},      // Interval [ 1, 14], 7 spans at 2, 4, 6, 8, 10, 12, 14
-					{TimestampMs: 15_000, Value: 7.0 / 15.0}, // Interval [15, 29], 7 spans at 16, 18, 20, 22, 24, 26, 28
-					{TimestampMs: 30_000, Value: 8.0 / 15.0}, // Interval [30, 44], 8 spans at 30, 32, 34, 36, 38, 40, 42, 44
-					{TimestampMs: 45_000, Value: 2.0 / 15.0}, // Interval [45, 50), 2 spans at 46, 48
-					{TimestampMs: 60_000, Value: 0},          // I think this is a bug that we extend out an extra interval
+					{TimestampMs: 0, Value: 7},      // Raw count: 7 spans at 2, 4, 6, 8, 10, 12, 14
+					{TimestampMs: 15_000, Value: 7}, // Raw count: 7 spans at 16, 18, 20, 22, 24, 26, 28
+					{TimestampMs: 30_000, Value: 8}, // Raw count: 8 spans at 30, 32, 34, 36, 38, 40, 42, 44
+					{TimestampMs: 45_000, Value: 2}, // Raw count: 2 spans at 46, 48
+					{TimestampMs: 60_000, Value: 0}, // Raw count: 0 spans // I think this is a bug that we extend out an extra interval
 				},
 			},
 		},
@@ -98,13 +112,27 @@ var queryRangeTestCases = []struct {
 			{
 				PromLabels: `{__name__="rate"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
-				// with two sources rate will be doubled
+				// Sum counts from two sources
 				Samples: []tempopb.Sample{
-					{TimestampMs: 0, Value: 2 * 7.0 / 15.0},
-					{TimestampMs: 15_000, Value: 2 * 7.0 / 15.0},
-					{TimestampMs: 30_000, Value: 2 * 8.0 / 15.0},
-					{TimestampMs: 45_000, Value: 2 * 2.0 / 15.0},
-					{TimestampMs: 60_000, Value: 0},
+					{TimestampMs: 0, Value: 14},      // 7 + 7 = 14 spans
+					{TimestampMs: 15_000, Value: 14}, // 7 + 7 = 14 spans
+					{TimestampMs: 30_000, Value: 16}, // 8 + 8 = 16 spans
+					{TimestampMs: 45_000, Value: 4},  // 2 + 2 = 4 spans
+					{TimestampMs: 60_000, Value: 0},  // 0 + 0 = 0 spans
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="rate"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
+				// Apply rate multiplier to summed counts: count / step_seconds
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 14.0 / 15.0},      // 14 spans / 15 seconds
+					{TimestampMs: 15_000, Value: 14.0 / 15.0}, // 14 spans / 15 seconds
+					{TimestampMs: 30_000, Value: 16.0 / 15.0}, // 16 spans / 15 seconds
+					{TimestampMs: 45_000, Value: 4.0 / 15.0},  // 4 spans / 15 seconds
+					{TimestampMs: 60_000, Value: 0},           // 0 spans
 				},
 			},
 		},
