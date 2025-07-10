@@ -31,7 +31,7 @@
     + pvc.mixin.metadata.withNamespace($._config.namespace),
 
   tempo_metrics_generator_container::
-    container.new(target_name, $._images.tempo) +
+    container.new(target_name, $._images.tempo_metrics_generator) +
     container.withPorts($.tempo_metrics_generator_ports) +
     container.withArgs($.util.mapToFlags($.tempo_metrics_generator_args)) +
     container.withVolumeMounts([
