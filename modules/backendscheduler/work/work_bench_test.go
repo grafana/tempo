@@ -12,7 +12,7 @@ import (
 )
 
 // createTestWork creates a Work instance with many jobs to simulate production load
-func createTestWork(numJobs int) *Work {
+func createTestWork(tb testing.TB, numJobs int) *Work {
 	cfg := Config{
 		PruneAge:       time.Hour,
 		DeadJobTimeout: time.Hour,
@@ -34,7 +34,8 @@ func createTestWork(numJobs int) *Work {
 				},
 			},
 		}
-		w.AddJob(job)
+		err := w.AddJob(job)
+		require.NoError(tb, err, "Failed to add job %d", i)
 	}
 
 	return w
@@ -54,7 +55,7 @@ func BenchmarkWorkContention(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
-			w := createTestWork(tc.numJobs)
+			w := createTestWork(b, tc.numJobs)
 
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
@@ -80,7 +81,7 @@ func BenchmarkWorkContention(b *testing.B) {
 					}
 
 					// 5. Simulate marshal operation (read-heavy)
-					w.Marshal()
+					_, _ = w.Marshal()
 				}
 			})
 		})
@@ -101,7 +102,7 @@ func BenchmarkWorkMarshal(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
-			w := createTestWork(tc.numJobs)
+			w := createTestWork(b, tc.numJobs)
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -116,7 +117,7 @@ func BenchmarkWorkMarshal(b *testing.B) {
 
 // TestLockContentionScenario demonstrates the lock contention scenario
 func TestLockContentionScenario(t *testing.T) {
-	w := createTestWork(1000)
+	w := createTestWork(t, 1000)
 
 	// Simulate high contention scenario
 	var wg sync.WaitGroup
@@ -136,7 +137,7 @@ func TestLockContentionScenario(t *testing.T) {
 				w.GetJobForWorker(ctx, workerID)
 				w.Len()
 				w.ListJobs()
-				w.Marshal()
+				_, _ = w.Marshal()
 			}
 		}(fmt.Sprintf("worker-%d", i))
 	}
