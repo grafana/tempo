@@ -142,13 +142,15 @@ Additional documentation and more advanced configuration options are available i
 distributor:
 
     # receiver configuration for different protocols
-    # config is passed down to opentelemetry receivers
-    # for a production deployment you should only enable the receivers you need!
+    # The config is passed down to OpenTelemetry receivers.
+    # By default, receivers listen to localhost and need a configured IP to
+    # listen on an external interface.
+    # For a production deployment, you should only enable the receivers you need.
     receivers:
         otlp:
             protocols:
-                grpc:
-                http:
+                grpc:    # default localhost:4317
+                http:    # default localhost:4318
         jaeger:
             protocols:
                 thrift_http:
@@ -280,7 +282,7 @@ If you prefer a different balance of CPU/Memory and bandwidth, consider disablin
 For a discussion on alternatives, refer to [this discussion thread](https://github.com/grafana/tempo/discussions/4683). ([#4696](https://github.com/grafana/tempo/pull/4696)).
 
 
-Disabling comrpession may provide some performance boosts.
+Disabling compression may provide some performance boosts.
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
 However, you may notice an increase in ingester data and network traffic especially for larger clusters.
@@ -1824,7 +1826,7 @@ overrides:
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes. A value of 0 disables the size
-      # check.
+      # check. 
       # This limit is used in 3 places:
       #  - During search, traces will be skipped when they exceed this threshold.
       #  - During ingestion, traces that exceed this threshold will be refused.

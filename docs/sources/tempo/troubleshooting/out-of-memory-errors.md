@@ -30,17 +30,17 @@ Refer to the [configuration for distributors](https://grafana.com/docs/tempo/<TE
 
 ## Max trace size
 
-Traces which are long-running (minutes or hours) or large (100K - 1M spans) will spike the memory usage of each component when it is encountered.
-This is because Tempo treats traces as single units, and keeps all data for a trace together to enable features like structural queries and analysis.
+Traces which are long-running (minutes or hours) or large (100K - 1M spans) spike the memory usage of each component when the large trace is encountered.
+Tempo treats traces as single units, and keeps all data for a trace together to enable features like structural queries and analysis.
 
-When reading a large trace, it can spike the memory usage of the read components:
+Reading a large trace can spike the memory usage of the read components:
 
 * query-frontend
 * querier
 * ingester
 * metrics-generator
 
-When writing a large trace, it can spike the memory usage of the write components:
+Writing a large trace can spike the memory usage of the write components:
 
 * ingester
 * compactor
@@ -49,7 +49,8 @@ When writing a large trace, it can spike the memory usage of the write component
 Start with a smaller trace size limit of 15MB, and increase it as needed.
 With an average span size of 300 bytes, this allows for 50K spans per trace.
 
-Always ensure that the limit is configured, and the largest recommended limit is 60 MB.
+Verify that you've configured a limit in `max_bytes_per_trace`.
+The largest recommended limit is 60MB.
 
 Configure the limit in the per-tenant overrides:
 
@@ -59,7 +60,9 @@ overrides:
         max_bytes_per_trace: 1.5e+07
 ```
 
-Refer to the [Overrides](# https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) documentation for more information.
+Refer to the [Standard overrides](# https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) documentation for more information.
+
+If you have long-running batch job traces, consider using span links to break them apart.
 
 ## Large attributes
 
