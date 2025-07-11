@@ -1540,19 +1540,16 @@ type HistogramAggregator struct {
 	len              int
 	start, end, step uint64
 	exemplarLimit    uint32
-	labelBuffer      Labels // Reusable buffer for all label processing
+	// Reusable buffer for all label processing
+	labelBuffer Labels
 
 	// Pre-computed values for IntervalOfMs optimization
 	isInstantQuery bool
 	alignedStart   uint64
 	alignedEnd     uint64
-}
 
-// histogramSlicePool is a sync.Pool for reusing histogram slices to reduce allocations
-var histogramSlicePool = sync.Pool{
-	New: func() any {
-		return make([]Histogram, 0)
-	},
+	// Pool for reusing histogram slices
+	histogramSlicePool sync.Pool
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplarLimit uint32) *HistogramAggregator {
@@ -1578,6 +1575,12 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exempl
 		isInstantQuery: isInstant(req.Start, req.End, req.Step),
 		alignedStart:   alignedStart,
 		alignedEnd:     alignedEnd,
+		histogramSlicePool: sync.Pool{
+			New: func() any {
+				// Initialize with a zero-length slice to avoid allocations
+				return make([]Histogram, 0)
+			},
+		},
 	}
 }
 
@@ -1612,15 +1615,13 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			copy(withoutBucket, h.labelBuffer)
 
 			// Get histogram slice from pool and resize it
-			histSlice := histogramSlicePool.Get().([]Histogram)
+			histSlice := h.histogramSlicePool.Get().([]Histogram)
 			if cap(histSlice) < h.len {
 				histSlice = make([]Histogram, h.len)
 			} else {
 				histSlice = histSlice[:h.len]
 				// Zero out the slice to ensure clean state
-				for i := range histSlice {
-					histSlice[i] = Histogram{}
-				}
+				clear(histSlice)
 			}
 
 			existing = histSeries{
@@ -1760,10 +1761,8 @@ func (h *HistogramAggregator) Results() SeriesSet {
 		if len(series.hist) > 0 {
 			// Clear the slice and return it to the pool
 			histSlice := series.hist
-			for i := range histSlice {
-				histSlice[i] = Histogram{}
-			}
-			histogramSlicePool.Put(histSlice[:0]) //nolint:all //SA6002
+			clear(histSlice)
+			h.histogramSlicePool.Put(histSlice[:0]) //nolint:all //SA6002
 		}
 	}
 
