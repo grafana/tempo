@@ -1,9 +1,13 @@
 ---
 title: Deploy on Linux
 menuTitle: Deploy on Linux
-description: Learn how to deploy Tempo on Linux
+description: Learn how to deploy a single Tempo instance on a single node on Linux.
 weight: 400
+aliases:
+  - ../../linux/ # /docs/tempo/latest/setup/linux/
 ---
+
+{{< docs/alias from="/docs/tempo/latest/setup/linux/" to="/docs/tempo/latest/setup/deploy/locally/linux" >}}
 
 # Deploy on Linux
 
@@ -17,7 +21,7 @@ These instructions focus on a [monolithic installation](../deployment/). You can
 
 To follow this guide, you need:
 
-- A running Grafana instance (see [installation instructions](/docs/grafana/latest/setup-grafana/installation/))
+- A running Grafana instance (refer to [the installation instructions](/docs/grafana/latest/setup-grafana/installation/))
 - An Amazon S3 compatible object store
 - Git, Docker, and docker-compose plugin installed to test Tempo
 

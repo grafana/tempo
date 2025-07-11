@@ -9,6 +9,8 @@ aliases:
 weight: 250
 ---
 
+{{< docs/alias from="/docs/tempo/latest/setup/size/" to="/docs/tempo/latest/setup/plan/size/" >}}
+
 # Size the cluster
 
 Resource requirements for your Grafana Tempo cluster depend on the amount and rate of data processed, retained, and queried.
