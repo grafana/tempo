@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
+	"sync"
 	"text/tabwriter"
 	"time"
-
-	"github.com/grafana/tempo/pkg/parquetinspect/inspect"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
@@ -25,59 +26,69 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 )
 
-var (
-	vparquet2SpanAttrs = []string{
-		vparquet2.FieldSpanAttrVal,
-	}
-	vparquet2ResourceAttrs = []string{
-		vparquet2.FieldResourceAttrVal,
-	}
-	vparquet3SpanAttrs = []string{
-		vparquet3.FieldSpanAttrVal,
-	}
-	vparquet3ResourceAttrs = []string{
-		vparquet3.FieldResourceAttrVal,
-	}
-	vparquet4SpanAttrs = []string{
-		vparquet4.FieldSpanAttrVal,
-	}
-	vparquet4ResourceAttrs = []string{
-		vparquet4.FieldResourceAttrVal,
-	}
-)
-
-func spanPathsForVersion(v string) (string, []string) {
-	switch v {
-	case vparquet2.VersionString:
-		return vparquet2.FieldSpanAttrKey, vparquet2SpanAttrs
-	case vparquet3.VersionString:
-		return vparquet3.FieldSpanAttrKey, vparquet3SpanAttrs
-	case vparquet4.VersionString:
-		return vparquet4.FieldSpanAttrKey, vparquet4SpanAttrs
-	}
-	return "", nil
+type attributePaths struct {
+	span scopeAttributePath
+	res  scopeAttributePath
 }
 
-func resourcePathsForVersion(v string) (string, []string) {
-	switch v {
-	case vparquet2.VersionString:
-		return vparquet2.FieldResourceAttrKey, vparquet2ResourceAttrs
-	case vparquet3.VersionString:
-		return vparquet3.FieldResourceAttrKey, vparquet3ResourceAttrs
-	case vparquet4.VersionString:
-		return vparquet4.FieldResourceAttrKey, vparquet4ResourceAttrs
-	}
-	return "", nil
+type scopeAttributePath struct {
+	defLevel           int
+	keyPath            string
+	valPath            string
+	isArrayPath        string
+	dedicatedColsPaths []string
 }
 
-func dedicatedColPathForVersion(i int, scope backend.DedicatedColumnScope, v string) string {
+func pathsForVersion(v string) attributePaths {
 	switch v {
+	case vparquet2.VersionString:
+		return attributePaths{
+			span: scopeAttributePath{
+				defLevel: vparquet2.DefinitionLevelResourceSpansILSSpanAttrs,
+				keyPath:  vparquet2.FieldSpanAttrKey,
+				valPath:  vparquet2.FieldSpanAttrVal,
+			},
+			res: scopeAttributePath{
+				defLevel: vparquet2.DefinitionLevelResourceAttrs,
+				keyPath:  vparquet2.FieldResourceAttrKey,
+				valPath:  vparquet2.FieldResourceAttrVal,
+			},
+		}
 	case vparquet3.VersionString:
-		return vparquet3.DedicatedResourceColumnPaths[scope][backend.DedicatedColumnTypeString][i]
+		return attributePaths{
+			span: scopeAttributePath{
+				defLevel:           vparquet3.DefinitionLevelResourceSpansILSSpanAttrs,
+				keyPath:            vparquet3.FieldSpanAttrKey,
+				valPath:            vparquet3.FieldSpanAttrVal,
+				dedicatedColsPaths: vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+			},
+			res: scopeAttributePath{
+				defLevel:           vparquet3.DefinitionLevelResourceAttrs,
+				keyPath:            vparquet3.FieldResourceAttrKey,
+				valPath:            vparquet3.FieldResourceAttrVal,
+				dedicatedColsPaths: vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+			},
+		}
 	case vparquet4.VersionString:
-		return vparquet4.DedicatedResourceColumnPaths[scope][backend.DedicatedColumnTypeString][i]
+		return attributePaths{
+			span: scopeAttributePath{
+				defLevel:           vparquet4.DefinitionLevelResourceSpansILSSpanAttrs,
+				keyPath:            vparquet4.FieldSpanAttrKey,
+				valPath:            vparquet4.FieldSpanAttrVal,
+				isArrayPath:        vparquet4.FieldSpanAttrIsArray,
+				dedicatedColsPaths: vparquet4.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
+			},
+			res: scopeAttributePath{
+				defLevel:           vparquet4.DefinitionLevelResourceAttrs,
+				keyPath:            vparquet4.FieldResourceAttrKey,
+				valPath:            vparquet4.FieldResourceAttrVal,
+				isArrayPath:        vparquet4.FieldResourceAttrIsArray,
+				dedicatedColsPaths: vparquet4.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
+			},
+		}
+	default:
+		panic("unsupported version")
 	}
-	return ""
 }
 
 type analyseBlockCmd struct {
@@ -153,15 +164,16 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 
 	fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
 
+	paths := pathsForVersion(meta.Version)
+
 	// Aggregate span attributes
-	spanKey, spanVals := spanPathsForVersion(meta.Version)
-	spanAttrsSummary, err := aggregateAttributes(pf, spanKey, spanVals)
+	spanAttrsSummary, err := aggregateAttributes(pf, paths.span.defLevel, paths.span.keyPath, paths.span.valPath, paths.span.isArrayPath)
 	if err != nil {
 		return nil, err
 	}
 
 	// add up dedicated span attribute columns
-	spanDedicatedSummary, err := aggregateDedicatedColumns(pf, backend.DedicatedColumnScopeSpan, meta)
+	spanDedicatedSummary, err := aggregateDedicatedColumns(pf, backend.DedicatedColumnScopeSpan, meta, paths.span.dedicatedColsPaths)
 	if err != nil {
 		return nil, err
 	}
@@ -173,14 +185,13 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 	spanAttrsSummary.totalBytes += spanDedicatedSummary.totalBytes
 
 	// Aggregate resource attributes
-	resourceKey, resourceVals := resourcePathsForVersion(meta.Version)
-	resourceAttrsSummary, err := aggregateAttributes(pf, resourceKey, resourceVals)
+	resourceAttrsSummary, err := aggregateAttributes(pf, paths.res.defLevel, paths.res.keyPath, paths.res.valPath, paths.res.isArrayPath)
 	if err != nil {
 		return nil, err
 	}
 
 	// add up dedicated resource attribute columns
-	resourceDedicatedSummary, err := aggregateDedicatedColumns(pf, backend.DedicatedColumnScopeResource, meta)
+	resourceDedicatedSummary, err := aggregateDedicatedColumns(pf, backend.DedicatedColumnScopeResource, meta, paths.res.dedicatedColsPaths)
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +243,7 @@ func (s *blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printF
 type genericAttrSummary struct {
 	totalBytes uint64
 	attributes map[string]uint64 // key: attribute name, value: total bytes
+	skipped    []string
 	dedicated  map[string]struct{}
 }
 
@@ -240,51 +252,74 @@ type attribute struct {
 	bytes uint64
 }
 
-func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) (genericAttrSummary, error) {
-	keyIdx, _, _ := pq.GetColumnIndexByPath(pf, keyPath)
-	valueIdxs := make([]int, 0, len(valuePaths))
-	for _, v := range valuePaths {
-		idx, _, _ := pq.GetColumnIndexByPath(pf, v)
-		valueIdxs = append(valueIdxs, idx)
+type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator
+
+func makeIterFunc(ctx context.Context, pf *parquet.File) makeIterFn {
+	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
+		if index == -1 {
+			panic("column not found in parquet file:" + name)
+		}
+
+		opts := []pq.SyncIteratorOpt{
+			pq.SyncIteratorOptColumnName(name),
+			pq.SyncIteratorOptPredicate(predicate),
+			pq.SyncIteratorOptSelectAs(selectAs),
+			pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
+		}
+
+		return pq.NewSyncIterator(ctx, pf.RowGroups(), index, opts...)
+	}
+}
+
+func aggregateAttributes(pf *parquet.File, definitionLevel int, keyPath string, valuePath string, isArrayPath string) (genericAttrSummary, error) {
+	makeIter := makeIterFunc(context.Background(), pf)
+
+	iters := []pq.Iterator{
+		makeIter(keyPath, nil, "key"),
+		makeIter(valuePath, nil, "value"),
+	}
+	if isArrayPath != "" {
+		iters = append(iters, makeIter(isArrayPath, nil, "isArray"))
 	}
 
-	opts := inspect.AggregateOptions{
-		GroupByColumn: keyIdx,
-		Columns:       valueIdxs,
-	}
-	rowStats, err := inspect.NewAggregateCalculator(pf, opts)
-	if err != nil {
-		return genericAttrSummary{}, err
-	}
+	attrIter := pq.NewJoinIterator(definitionLevel, iters, &attrStatsCollector{})
+	defer attrIter.Close()
 
-	attrMap := make(map[string]uint64)
-	totalBytes := uint64(0)
+	var (
+		totalBytes uint64
+		attributes = make(map[string]uint64, 1000)
+		skippedMap = make(map[string]struct{}, 1000)
+	)
 
-	for {
-		row, err := rowStats.NextRow()
+	for res, err := attrIter.Next(); res != nil; res, err = attrIter.Next() {
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
 			return genericAttrSummary{}, err
 		}
 
-		cells := row.Cells()
+		for _, e := range res.OtherEntries {
+			if stats, ok := e.Value.(*attrStats); ok {
+				if stats.isArray {
+					skippedMap[stats.name] = struct{}{}
+					continue
+				}
 
-		name := cells[0].(string)
-		bytes := uint64(cells[1].(int))
-		attrMap[name] = bytes
-		totalBytes += bytes
+				attributes[stats.name] += stats.bytes
+				totalBytes += stats.bytes
+				putStats(stats)
+			}
+		}
 	}
 
 	return genericAttrSummary{
 		totalBytes: totalBytes,
-		attributes: attrMap,
+		attributes: attributes,
+		skipped:    slices.Collect(maps.Keys(skippedMap)),
 		dedicated:  make(map[string]struct{}),
 	}, nil
 }
 
-func aggregateDedicatedColumns(pf *parquet.File, scope backend.DedicatedColumnScope, meta *backend.BlockMeta) (genericAttrSummary, error) {
+func aggregateDedicatedColumns(pf *parquet.File, scope backend.DedicatedColumnScope, meta *backend.BlockMeta, paths []string) (genericAttrSummary, error) {
 	attrMap := make(map[string]uint64)
 	totalBytes := uint64(0)
 
@@ -294,8 +329,7 @@ func aggregateDedicatedColumns(pf *parquet.File, scope backend.DedicatedColumnSc
 			continue
 		}
 
-		path := dedicatedColPathForVersion(i, scope, meta.Version)
-		sz, err := aggregateColumn(pf, path)
+		sz, err := aggregateSingleColumn(pf, paths[i])
 		if err != nil {
 			return genericAttrSummary{}, err
 		}
@@ -311,29 +345,28 @@ func aggregateDedicatedColumns(pf *parquet.File, scope backend.DedicatedColumnSc
 	}, nil
 }
 
-func aggregateColumn(pf *parquet.File, colName string) (uint64, error) {
-	idx, _, _ := pq.GetColumnIndexByPath(pf, colName)
-	calc, err := inspect.NewRowStatCalculator(pf, inspect.RowStatOptions{
-		Columns: []int{idx},
-	})
-	if err != nil {
-		return 0, err
-	}
+func aggregateSingleColumn(pf *parquet.File, colName string) (uint64, error) {
+	iter := makeIterFunc(context.Background(), pf)(colName, nil, "value")
 
-	totalBytes := uint64(0)
-	for {
-		row, err := calc.NextRow()
+	var totalBytes uint64
+
+	for res, err := iter.Next(); res != nil; res, err = iter.Next() {
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
 			return 0, err
 		}
 
-		cells := row.Cells()
+		var val parquet.Value
+		for _, e := range res.Entries {
+			if e.Key == "value" {
+				val = e.Value
+			}
+		}
 
-		bytes := uint64(cells[1].(int))
-		totalBytes += bytes
+		if val.IsNull() {
+			continue
+		}
+
+		totalBytes += val.Uint64() // for strings Uint64() returns the length of the string
 	}
 
 	return totalBytes, nil
@@ -357,6 +390,7 @@ func printSummary(scope string, max int, summary genericAttrSummary, simple bool
 		fmt.Println("")
 	} else {
 		fmt.Printf("Top %d %s attributes by size\n", max, scope)
+		fmt.Printf("Skipped array attributes: %d\n", len(summary.skipped))
 		for _, a := range attrList {
 
 			name := a.name
@@ -406,4 +440,78 @@ func topN(n int, attrs map[string]uint64) []attribute {
 		top = top[:n]
 	}
 	return top
+}
+
+var _ pq.GroupPredicate = (*attrStatsCollector)(nil)
+
+type attrStats struct {
+	name    string
+	bytes   uint64
+	isArray bool
+	isNull  bool
+}
+
+var statsPool = sync.Pool{
+	New: func() interface{} {
+		return &attrStats{}
+	},
+}
+
+func putStats(s *attrStats) {
+	s.name = ""
+	s.bytes = 0
+	s.isArray = false
+	s.isNull = false
+	statsPool.Put(s)
+}
+
+func getStats() *attrStats {
+	return statsPool.Get().(*attrStats)
+}
+
+type attrStatsCollector struct{}
+
+func (a attrStatsCollector) String() string {
+	return "attrStatsCollector{}"
+}
+
+func (a attrStatsCollector) KeepGroup(res *pq.IteratorResult) bool {
+	var stats *attrStats
+
+	for _, e := range res.OtherEntries {
+		if s, ok := e.Value.(*attrStats); ok {
+			stats = s
+			break
+		}
+	}
+
+	if stats == nil {
+		stats = getStats()
+	}
+
+	for _, e := range res.Entries {
+		switch e.Key {
+		case "key":
+			stats.name = e.Value.String()
+		case "value":
+			if e.Value.IsNull() {
+				stats.isNull = true
+			} else {
+				stats.bytes += e.Value.Uint64() // for strings Uint64() returns the length of the string
+			}
+		case "isArray":
+			if !stats.isArray {
+				stats.isArray = e.Value.Boolean()
+			}
+		}
+	}
+
+	res.Reset()
+	if stats.isNull {
+		putStats(stats)
+		return false
+	}
+
+	res.AppendOtherValue("stats", stats)
+	return true
 }
