@@ -125,14 +125,8 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	case metricsAggregateRate:
 		// For rate(), only apply the rate multiplier at the final stage
 		// At raw and sum stages, just count spans like count_over_time()
-		switch mode {
-		case AggregateModeRaw, AggregateModeSum:
-			innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
-		case AggregateModeFinal:
-			innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
-		default:
-			innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
-		}
+		// At final stage, also just count spans - rate multiplier is applied by series aggregator
+		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarNaN
 
