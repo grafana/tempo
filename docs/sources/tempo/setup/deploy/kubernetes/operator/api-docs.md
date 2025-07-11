@@ -5,6 +5,7 @@ description: Operator configuration and CRD specifications
 weight: 1000
 aliases:
   - /docs/tempo/operator/api-docs
+  - /docs/tempo/setup/operator/api-docs
 ---
 
 # Operator configuration and CRD specifications
