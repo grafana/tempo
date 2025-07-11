@@ -477,6 +477,13 @@ func (p *Poller) pollBlock(
 	var compactedBlockMeta *backend.CompactedBlockMeta
 
 	if !compacted {
+		noCompact, flagErr := p.reader.HasNoCompactFlag(derivedCtx, blockID, tenantID)
+		if flagErr != nil {
+			return nil, nil, fmt.Errorf("failed to check nocompact flag: %w", flagErr)
+		}
+		if noCompact {
+			return nil, nil, nil
+		}
 		blockMeta, err = p.reader.BlockMeta(derivedCtx, blockID, tenantID)
 	}
 	// if the normal meta doesn't exist maybe it's compacted.
