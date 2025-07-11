@@ -36,7 +36,7 @@ Logs let you know what's happening to your application.
 
 ## Traces
 
-Traces add further to the observability picture by telling you what happens at each step or action in a data pathway. Traces provide the map&mdash;the where&mdash;something is going wrong.
+Traces add further to the observability picture by telling you what happens at each step or action in a data pathway. Traces provide the map--the where--something is going wrong.
 A trace provides a graphic representation of how long each step in the data flow pathway takes to complete. For example, how long a HTTP request, a database lookup, or a call to a third party service takes.
 It can show where requests initiate and finish, as well as how your system responds.
 This data helps you locate problem areas and assess their impact, often in places you never would have anticipated or found without this ability to trace the request flow.

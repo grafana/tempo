@@ -5,6 +5,8 @@ description: Learn how to deploy Tempo using Kubernetes and Tanka
 weight: 500
 ---
 
+
+
 # Deploy on Kubernetes with Tanka
 
 Using this deployment guide, you can deploy Tempo to Kubernetes using a Jsonnet library and [Grafana Tanka](https://tanka.dev) to create a development cluster or sand-boxed environment.

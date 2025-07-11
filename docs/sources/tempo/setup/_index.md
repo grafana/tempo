@@ -21,22 +21,15 @@ To set up Tempo, you need to:
 How you choose to deploy Tempo depends upon your tracing needs.
 Tempo has two deployment modes: monolithic or microservices.
 
-Read [Plan your deployment](deployment/) to determine the best method to deploy Tempo.
+Refer to [Plan your deployment](deployment/) to determine the best method to deploy Tempo.
 
 ## Deploy Tempo
 
-Once you have decided how to deploy Tempo, you can install and set up Tempo. For additional samples, refer to the [Example setups](../getting-started/example-demo-app/) topic.
+Once you have decided the best method, you can deploy and set up Tempo.
 
-Grafana Tempo is available as a [pre-compiled binary, OS_specific packaging](https://github.com/grafana/tempo/releases), and [Docker image](https://github.com/grafana/tempo/tree/main/example/docker-compose).
+Grafana Tempo is available as a [pre-compiled binary, OS-specific packaging](https://github.com/grafana/tempo/releases), and [Docker image](https://github.com/grafana/tempo/tree/main/example/docker-compose).
 
-The following procedures provide example Tempo deployments that you can use as a starting point:
-
-- [Deploy with Helm](helm-chart/) (microservices and monolithic)
-- [Deploy with Tempo Operator](operator/) (microservices)
-- [Deploy on Linux](linux/) (monolithic)
-- [Deploy on Kubernetes using Tanka](tanka/) (microservices)
-
-You can also use Docker to deploy Tempo using [the Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose).
+Refer to [Deploy Tempo](deploy/) for instructions for deploying using Kubernetes and deploying locally.
 
 ## Test your installation
 
@@ -45,7 +38,8 @@ Once Tempo is deployed, you can test Tempo by visualizing traces data:
 - Using a [test application for a Tempo cluster](set-up-test-app/) for the Kubernetes with Tanka setup
 - Using a [Docker example](linux/) to test the Linux setup
 
-These visualizations test Kubernetes with Tanka and Linux procedures. They do not check optional configuration you have enabled.
+These visualizations test Kubernetes with Tanka and Linux procedures.
+They don't check optional configuration you have enabled.
 
 ## (Optional) Configure Tempo services
 

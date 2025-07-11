@@ -2,7 +2,7 @@
 title: Command line flags
 menuTitle: Command line flags
 description: Reference for Tempo command line flags
-weight: 650
+weight: 900
 ---
 
 # Command line flags
@@ -23,9 +23,15 @@ Tempo provides various command-line flags to configure its behavior when startin
 
 ## Target flag
 
+The deployment mode is determined by the runtime configuration `target`, or
+by using the `-target` flag on the command line.
+The default target is `all`, which is the monolithic deployment mode.
+
 | Flag | Description | Default |
 | --- | --- | --- |
 | `--target` | Target module to run | `all` |
+
+Refer to the [Plan your Tempo deployment](../plan/) documentation for information on deployment modes.
 
 ## Authentication and multitenancy
 

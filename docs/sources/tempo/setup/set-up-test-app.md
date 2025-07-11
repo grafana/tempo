@@ -5,6 +5,8 @@ description: Learn how to set up a test app for your Tempo cluster and visualize
 weight: 600
 ---
 
+{{< docs/alias from="/docs/tempo/latest/setup/set-up-test-app/" to="/docs/tempo/latest/setup/test/set-up-test-app/" >}}
+
 # Set up a test application for a Tempo cluster
 
 Once you've set up a Grafana Tempo cluster, you need to write some traces to it and then query the traces from within Grafana.
@@ -140,6 +142,7 @@ Update the endpoints if you have altered the endpoint targets.
   ```bash
   kubectl port-forward services/grafana-alloy 4317:4317 --namespace grafana-alloy
   ```
+
 3. Alternatively, a cronjob can be created to send traces periodically based on this template:
 
 ```
