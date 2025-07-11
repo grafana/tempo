@@ -79,6 +79,45 @@
           ]
         }
       ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "internal-consumer"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-net",
+            "version": "0.27.1"
+          },
+          "spans": [
+            {
+              "traceId": "q0o5CtL+O4U0QEyfciOjkA==",
+              "spanId": "TZs4v7dQT40=",
+              "name": "Consumed",
+              "kind": "SPAN_KIND_CONSUMER",
+              "startTimeUnixNano": "1658320854877839616",
+              "endTimeUnixNano": "1658320854878545408",
+              "attributes": [
+                {
+                  "key": "peer.service",
+                  "value": {
+                    "stringValue": "external-producer"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
     }
   ]
 }
