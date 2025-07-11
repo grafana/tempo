@@ -153,17 +153,19 @@ func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 type MockReader struct {
 	sync.Mutex
 
-	T                 []string
-	BlocksFn          func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error)
-	M                 *BlockMeta // meta
-	BlockMetaFn       func(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
-	TenantIndexFn     func(ctx context.Context, tenantID string) (*TenantIndex, error)
-	R                 []byte // read
-	Range             []byte // ReadRange
-	ReadFn            func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
-	BlockMetaCalls    map[string]map[uuid.UUID]int
-	BlockIDs          []uuid.UUID // blocks
-	CompactedBlockIDs []uuid.UUID // blocks
+	T                     []string
+	BlocksFn              func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error)
+	M                     *BlockMeta // meta
+	BlockMetaFn           func(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
+	TenantIndexFn         func(ctx context.Context, tenantID string) (*TenantIndex, error)
+	HasNoCompactFlagFn    func(ctx context.Context, blockID uuid.UUID, tenantID string) (bool, error)
+	R                     []byte // read
+	Range                 []byte // ReadRange
+	ReadFn                func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
+	BlockMetaCalls        map[string]map[uuid.UUID]int
+	HasNoCompactFlagCalls map[string]map[uuid.UUID]int
+	BlockIDs              []uuid.UUID // blocks
+	CompactedBlockIDs     []uuid.UUID // blocks
 }
 
 func (m *MockReader) Find(_ context.Context, _ KeyPath, _ FindFunc) error {
@@ -228,6 +230,26 @@ func (m *MockReader) TenantIndex(ctx context.Context, tenantID string) (*TenantI
 	return &TenantIndex{}, nil
 }
 
+func (m *MockReader) HasNoCompactFlag(ctx context.Context, blockID uuid.UUID, tenantID string) (bool, error) {
+	m.Lock()
+	defer m.Unlock()
+
+	// Track calls for testing
+	if m.HasNoCompactFlagCalls == nil {
+		m.HasNoCompactFlagCalls = make(map[string]map[uuid.UUID]int)
+	}
+	if _, ok := m.HasNoCompactFlagCalls[tenantID]; !ok {
+		m.HasNoCompactFlagCalls[tenantID] = make(map[uuid.UUID]int)
+	}
+	m.HasNoCompactFlagCalls[tenantID][blockID]++
+
+	if m.HasNoCompactFlagFn != nil {
+		return m.HasNoCompactFlagFn(ctx, blockID, tenantID)
+	}
+
+	return false, nil
+}
+
 func (m *MockReader) Shutdown() {}
 
 // MockWriter
@@ -258,6 +280,14 @@ func (m *MockWriter) CloseAppend(context.Context, AppendTracker) error {
 }
 
 func (m *MockWriter) Delete(context.Context, string, KeyPath) error {
+	return nil
+}
+
+func (m *MockWriter) WriteNoCompactFlag(context.Context, uuid.UUID, string) error {
+	return nil
+}
+
+func (m *MockWriter) DeleteNoCompactFlag(context.Context, uuid.UUID, string) error {
 	return nil
 }
 
