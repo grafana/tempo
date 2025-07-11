@@ -12,6 +12,12 @@ import (
 
 // writeBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer
 func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, indexBytes []byte, b *common.ShardedBloomFilter) error {
+	// write nocompact flag first to prevent compaction before completion
+	err := w.WriteNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+	if err != nil {
+		return fmt.Errorf("unexpected error writing nocompact flag: %w", err)
+	}
+
 	blooms, err := b.Marshal()
 	if err != nil {
 		return err
@@ -40,6 +46,12 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	err = w.WriteBlockMeta(ctx, meta)
 	if err != nil {
 		return fmt.Errorf("unexpected error writing meta: %w", err)
+	}
+
+	// Remove nocompact flag - block is now complete and can be compacted
+	err = w.DeleteNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+	if err != nil {
+		return fmt.Errorf("unexpected error removing nocompact flag: %w", err)
 	}
 
 	return nil
