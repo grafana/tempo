@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/dskit/signals"
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
+	"github.com/grafana/tempo/modules/bufferer"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/common/version"
 	"go.uber.org/atomic"
@@ -84,6 +85,7 @@ type App struct {
 	MemberlistKV         *memberlist.KVInitService
 	backendScheduler     *backendscheduler.BackendScheduler
 	backendWorker        *backendworker.BackendWorker
+	bufferer             *bufferer.Buffer
 	signalsHandler       *signals.Handler
 
 	HTTPAuthMiddleware       middleware.Interface

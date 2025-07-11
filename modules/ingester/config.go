@@ -45,7 +45,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.LifecyclerConfig.RingConfig.ReplicationFactor = 1
 	cfg.LifecyclerConfig.RingConfig.HeartbeatTimeout = 5 * time.Minute
 
-	cfg.IngesterPartitionRing.RegisterFlags(f)
+	cfg.IngesterPartitionRing.RegisterFlags(prefix, f)
 
 	cfg.ConcurrentFlushes = 4
 	cfg.FlushCheckPeriod = 10 * time.Second
