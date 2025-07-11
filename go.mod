@@ -33,7 +33,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/minio/minio-go/v7 v7.0.94
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
-	github.com/olekukonko/tablewriter v0.0.5
+	github.com/olekukonko/tablewriter v1.0.8
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.129.0
 	github.com/opentracing-contrib/go-grpc v0.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0
@@ -263,6 +263,8 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/oklog/ulid/v2 v2.1.0 // indirect
+	github.com/olekukonko/errors v0.0.0-20250405072817-4e6d85265da6 // indirect
+	github.com/olekukonko/ll v0.0.8 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.129.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.124.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.129.0 // indirect
