@@ -266,9 +266,9 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)
 }
 
-func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool {
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool) {
 	if enableVirtualNodeLabel, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableVirtualNodeLabel(); ok {
-		return enableVirtualNodeLabel
+		return enableVirtualNodeLabel, true
 	}
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID)
 }
@@ -294,9 +294,9 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsD
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsDimensions(userID)
 }
 
-func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) {
 	if enableTargetInfo, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetEnableTargetInfo(); ok {
-		return enableTargetInfo
+		return enableTargetInfo, true
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
 }
