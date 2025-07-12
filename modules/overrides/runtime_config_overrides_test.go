@@ -433,7 +433,8 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			defer cleanup()
 
 			for user, expectedVal := range tt.expectedEnableTargetInfo {
-				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(user))
+				enableTargetInfoValue, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(user)
+				assert.Equal(t, expectedVal, enableTargetInfoValue)
 			}
 
 			for user, expectedVal := range tt.expectedDimensionMappings {

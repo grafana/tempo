@@ -28,8 +28,8 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 	t.Run("test enable service graph flags", func(t *testing.T) {
 		o := &mockOverrides{
 			serviceGraphsEnableClientServerPrefix:              true,
-			serviceGraphsEnableVirtualNodeLabel:                true,
-			serviceGraphsEnableMessagingSystemLatencyHistogram: true,
+			serviceGraphsEnableVirtualNodeLabel:                boolPtr(true),
+			serviceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
 		}
 
 		copied, err := original.copyWithOverrides(o, "tenant")
@@ -145,4 +145,8 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			},
 		}, copied.SpanMetrics.FilterPolicies)
 	})
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
