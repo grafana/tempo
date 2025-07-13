@@ -11,15 +11,44 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
 )
+
+func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.DatabaseNameAttributes = []string{"db.name"}
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	// Create a span with a custom database name attribute
+	request, err := loadTestData("testdata/trace-with-queue-database4.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	// The server label should be set to the value of custom.db.name
+	labels := labels.FromMap(map[string]string{
+		"client":          "mythical-server",
+		"server":          "postgres",
+		"connection_type": "database",
+		"beast":           "",
+		"god":             "",
+	})
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
+}
 
 // NOTE: This is a way to know if the contents of the semconv package have changed.
 // Since we rely on the key contents in the span attributes, we want to know if
@@ -438,6 +467,17 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 		},
 		{
 			name:        "semconv125NetworkPeerWithoutPort",
+			fixturePath: "testdata/trace-with-queue-database5.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "withCustomDatabaseNameAttribute",
 			fixturePath: "testdata/trace-with-queue-database5.json",
 			databaseLabels: labels.FromMap(map[string]string{
 				"client":          "mythical-server",
