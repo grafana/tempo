@@ -300,6 +300,14 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	e.ServerLatencySec = spanDurationSec(span)
 
 	// Set the service name by order of precedence
+	if len(p.Cfg.DatabaseNameAttributes) > 0 {
+		for _, attrName := range p.Cfg.DatabaseNameAttributes {
+			if name, ok := processor_util.FindAttributeValue(attrName, resourceAttr, span.Attributes); ok {
+				e.ServerService = name
+				return
+			}
+		}
+	}
 
 	// Check for peer.service
 	if name, ok := processor_util.FindAttributeValue(string(semconv.PeerServiceKey), resourceAttr, span.Attributes); ok {
