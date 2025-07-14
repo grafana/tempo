@@ -69,6 +69,11 @@ func newBucketSet(exemplars uint32, start, end uint64) *bucketSet {
 	interval := end - start
 	bucketWidth := interval / uint64(buckets)
 
+	// Set minimum bucket width to 1ms if the calculated width is 0
+	if bucketWidth == 0 {
+		bucketWidth = 1 // Minimum 1ms bucket width
+	}
+
 	return &bucketSet{
 		sz:          int(buckets),
 		maxTotal:    int(exemplars),

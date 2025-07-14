@@ -103,3 +103,27 @@ func TestBucketSetSingleExemplar(t *testing.T) {
 	assert.False(t, s.addAndTest(tsMilli), "ts=%d should be added to bucket", 100)
 	assert.True(t, s.addAndTest(tsMilli), "ts=%d should not be added to bucket", 100)
 }
+
+func TestBucketSet_BucketWidth(t *testing.T) {
+	// Test that bucketWidth is never 0
+	t.Run("bucketWidth never zero", func(t *testing.T) {
+		testCases := []struct {
+			name  string
+			start uint64
+			end   uint64
+		}{
+			{"instant query", 1000, 1000},
+			{"sub-millisecond range", 1000000, 1000000 + 500}, // 500 nanoseconds
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				bucketSet := newBucketSet(100, tc.start, tc.end)
+
+				if bucketSet.bucketWidth == 0 {
+					t.Errorf("bucketWidth should never be 0, got %d", bucketSet.bucketWidth)
+				}
+			})
+		}
+	})
+}
