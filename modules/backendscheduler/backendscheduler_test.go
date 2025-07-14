@@ -432,3 +432,81 @@ func TestProviderBasedScheduling(t *testing.T) {
 	require.GreaterOrEqual(t, retentionJobs, 1)
 	require.GreaterOrEqual(t, compactionJobs, 1)
 }
+
+func TestBackendScheduler_RejectsDuplicateJobs(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.BackendFlushInterval = 100 * time.Millisecond
+
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	var (
+		ctx, cancel   = context.WithCancel(context.Background())
+		store, rr, ww = newStore(ctx, t, tmpDir)
+	)
+
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = s.stopping(nil)
+		require.NoError(t, err)
+	})
+
+	originalJob := &work.Job{
+		ID:   "original-job",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant: "test-tenant",
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{"block1", "block2", "block3"},
+			},
+		},
+	}
+
+	err = s.work.AddJob(originalJob)
+	require.NoError(t, err)
+	s.work.StartJob(originalJob.ID)
+
+	duplicateJob := &work.Job{
+		ID:   "duplicate-job",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant: "test-tenant",
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{"block2", "block4", "block5"}, // block2 overlaps
+			},
+		},
+	}
+
+	// Add the duplicate job to the merged jobs channel
+	s.mergedJobs <- duplicateJob
+
+	req := &tempopb.NextJobRequest{
+		WorkerId: "test-worker2",
+	}
+
+	resp, err := s.Next(ctx, req)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate block received")
+	require.Equal(t, &tempopb.NextJobResponse{}, resp)
+
+	// Verify the duplicate job was not added to the work cache
+	duplicateJobFromCache := s.work.GetJob(duplicateJob.ID)
+	require.Nil(t, duplicateJobFromCache, "Duplicate job should not be in the work cache")
+
+	// Verify the original job is still running
+	originalJobFromCache := s.work.GetJob(originalJob.ID)
+	require.NotNil(t, originalJobFromCache)
+	require.True(t, originalJobFromCache.IsRunning())
+}

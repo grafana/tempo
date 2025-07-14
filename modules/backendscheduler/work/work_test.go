@@ -208,6 +208,97 @@ func TestMarshal(t *testing.T) {
 	require.Equal(t, w.GetJob("1").ID, w2.GetJob("1").ID)
 }
 
+func TestHasOverlappingCompactionJob(t *testing.T) {
+	w := New(Config{})
+
+	newJob := &Job{
+		ID:   "job1",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{"block1", "block2"},
+			},
+		},
+	}
+	require.False(t, w.HasOverlappingCompactionJob(newJob), "Should not find overlap when no jobs exist")
+
+	err := w.AddJob(&Job{
+		ID:   "existing1",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{"block1", "block3"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.True(t, w.HasOverlappingCompactionJob(newJob), "Should detect overlap with existing job")
+
+	nonOverlappingJob := &Job{
+		ID:   "job2",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{"block4", "block5"},
+			},
+		},
+	}
+	require.False(t, w.HasOverlappingCompactionJob(nonOverlappingJob), "Should not detect overlap with different blocks")
+
+	failedJob := &Job{
+		ID:   "failed1",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{"block6", "block7"},
+			},
+		},
+	}
+	err = w.AddJob(failedJob)
+	require.NoError(t, err)
+	failedJob.Fail()
+
+	jobWithFailedOverlap := &Job{
+		ID:   "job3",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{"block6", "block8"},
+			},
+		},
+	}
+	require.True(t, w.HasOverlappingCompactionJob(jobWithFailedOverlap), "Should detect overlap even with failed job (conservative approach)")
+
+	retentionJob := &Job{
+		ID:   "retention1",
+		Type: tempopb.JobType_JOB_TYPE_RETENTION,
+	}
+	require.False(t, w.HasOverlappingCompactionJob(retentionJob), "Retention jobs should not cause overlap")
+
+	sameIDJob := &Job{
+		ID:   "existing1", // Same ID as existing job
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{"block1", "block3"}, // Same blocks
+			},
+		},
+	}
+	require.False(t, w.HasOverlappingCompactionJob(sameIDJob), "Job should not overlap with itself")
+
+	emptyJob := &Job{
+		ID:   "empty1",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{},
+			},
+		},
+	}
+	require.False(t, w.HasOverlappingCompactionJob(emptyJob), "Job with no input blocks should not overlap")
+}
+
 func TestJsonMarshal(t *testing.T) {
 	w := New(Config{PruneAge: 100 * time.Millisecond})
 	require.NotNil(t, w)
