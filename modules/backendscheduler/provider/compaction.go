@@ -147,11 +147,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 			job = p.createJob(loopCtx)
 			if job == nil {
-				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant after delay", "waiting", b.NextDelay())
+				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant")
 				// we don't have a job, reset the curTenant and try again
 				metricTenantEmptyJob.Inc()
-				// Avoid CPU spin
-				b.Wait()
 				reset()
 				continue
 			}
