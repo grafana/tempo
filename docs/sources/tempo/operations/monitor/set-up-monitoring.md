@@ -10,6 +10,8 @@ weight: 20
 You can set up monitoring for Tempo using an existing or new cluster.
 If you don't have a cluster available, you can use the linked documentation to set up the Tempo, Mimir, and Grafana using Helm or you can use Grafana Cloud.
 
+You can use this procedure to set up monitoring for Tempo running in monolithic (single binary) or microservices modes.
+
 To set up monitoring, you need to:
 
 * Use Grafana Alloy to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/).
