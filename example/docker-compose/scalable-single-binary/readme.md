@@ -2,12 +2,12 @@
 
 ** Note: This method of deploying Tempo is referred to by documentation as "scalable monolithic mode" **
 
-In this example Tempo is configured to write data to MinIO which presents an
+In this example, Tempo is configured to write data to MinIO which presents an
 S3-compatible API.  Additionally, `memberlist` is enabled to demonstrate how a
 single binary can run all services and still make use of the cluster-awareness
 that `memberlist` provides.
 
-1. Start up the local stack.
+1. Start the the local stack.
 
 ```console
 docker compose up -d
