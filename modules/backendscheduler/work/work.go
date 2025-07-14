@@ -3,7 +3,6 @@ package work
 import (
 	"context"
 	"slices"
-	"sort"
 	"sync"
 	"time"
 
@@ -79,19 +78,12 @@ func (q *Work) RemoveJob(id string) {
 
 func (q *Work) ListJobs() []*Job {
 	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	jobs := make([]*Job, 0, len(q.Jobs))
 	for _, j := range q.Jobs {
 		jobs = append(jobs, j)
 	}
-
-	// Not defered to unlock while sorting
-	q.mtx.Unlock()
-
-	// sort jobs by creation time
-	sort.Slice(jobs, func(i, j int) bool {
-		return jobs[i].GetCreatedTime().Before(jobs[j].GetCreatedTime())
-	})
 
 	return jobs
 }
