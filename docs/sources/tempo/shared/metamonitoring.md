@@ -35,7 +35,7 @@ helm repo update
 
     ```yaml
     cluster:
-    name: traces # Name of the cluster, this will populate the cluster label
+    name: traces # Name of the cluster. This populates the cluster label.
 
     integrations:
     tempo:
