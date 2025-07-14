@@ -31,7 +31,7 @@ helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 ```
 
-1. Generate `values.yml`.
+1. Create a new file named `values.yml`. Add the following example into values.yml file and save it.
 
     ```yaml
     cluster:
