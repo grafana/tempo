@@ -87,6 +87,7 @@ require (
 	github.com/grafana/gomemcache v0.0.0-20250318131618-74242eea118d
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jaegertracing/jaeger-idl v0.6.0
+	github.com/mark3labs/mcp-go v0.31.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.129.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.129.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.129.0
@@ -321,6 +322,7 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
