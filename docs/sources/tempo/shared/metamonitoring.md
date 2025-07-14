@@ -40,9 +40,9 @@ helm repo update
     integrations:
     tempo:
         instances:
-        - name: "traces" # This is the name for the instance label that will be reported.
+        - name: "traces" # This is the name for the instance label that reports.
             namespaces:
-            - traces # This is the namespace that will be searched for tempo instances, change this accordingly
+            - traces # This is the namespace that is searched for Tempo instances. Change this accordingly.
             metrics:
             enabled: true
             portName: prom-metrics
