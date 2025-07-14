@@ -19,7 +19,9 @@ Metamonitoring for Tempo is handled by the [Grafana Kubernetes Helm chart](https
 
 ## Steps
 
-1. Add the Grafana Helm Chart repository, or update if already added. This will be using the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) and the `values.yml` file will be to set parameters in the Helm chart.
+This procudure uses the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) and the `values.yml` file sets parameters in the Helm chart.
+
+1. Add the Grafana Helm Chart repository, or update, if already added. 
 
 ```
 helm repo add grafana https://grafana.github.io/helm-charts
