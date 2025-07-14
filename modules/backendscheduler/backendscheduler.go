@@ -252,6 +252,17 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			attribute.String("job_id", j.GetID()),
 		))
 
+		// Check for overlapping compaction jobs before assigning this job
+		// This prevents the race condition where duplicate jobs are created
+		// for the same block IDs before the work cache is updated
+		if s.work.HasOverlappingCompactionJob(j) {
+			span.AddEvent("job rejected due to overlapping blocks")
+
+			level.Info(log.Logger).Log("msg", "rejected job due to overlapping compaction blocks", "job_id", j.ID, "worker", req.WorkerId)
+			metricJobsRejectedDuplicate.WithLabelValues(j.JobDetail.Tenant).Inc()
+			return &tempopb.NextJobResponse{}, status.Error(codes.AlreadyExists, ErrDuplicateBlock.Error())
+		}
+
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
 			Type:   j.Type,

@@ -2,6 +2,7 @@ package work
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -181,6 +182,47 @@ func (q *Work) SetJobCompactionOutput(id string, output []string) {
 	if j, ok := q.Jobs[id]; ok {
 		j.SetCompactionOutput(output)
 	}
+}
+
+// HasOverlappingCompactionJob checks if there are any existing jobs that have
+// overlapping block IDs with the given job's compaction input. This prevents
+// scheduling duplicate compaction work on the same blocks.
+func (q *Work) HasOverlappingCompactionJob(newJob *Job) bool {
+	// Only check for compaction jobs
+	if newJob.Type != tempopb.JobType_JOB_TYPE_COMPACTION {
+		return false
+	}
+
+	// Extract input blocks from new job (access directly under job's lock)
+	newJob.mtx.RLock()
+	var newJobInput []string
+	if newJob.JobDetail.Compaction != nil {
+		newJobInput = newJob.JobDetail.Compaction.Input
+	}
+	newJob.mtx.RUnlock()
+
+	if len(newJobInput) == 0 {
+		return false
+	}
+
+	// Check each job for overlaps (no Work lock held during iteration)
+	for _, existingJob := range q.ListJobs() {
+		// Skip if it's the same job ID
+		if existingJob.ID == newJob.ID {
+			continue
+		}
+
+		// Check for overlapping block IDs
+		// Use proper accessor method to avoid data race
+		existingInput := existingJob.GetCompactionInput()
+		for _, existingBlockID := range existingInput {
+			if slices.Contains(newJobInput, existingBlockID) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (q *Work) Marshal() ([]byte, error) {
