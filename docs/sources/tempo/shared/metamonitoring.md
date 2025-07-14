@@ -15,7 +15,7 @@ labels:
 [//]: # 'Any links should be fully qualified and not relative: /docs/grafana/ instead of ../grafana/.'
 
 
-Metamonitoring for Tempo is handled by the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) (>=v2.1). Using Grafana Alloy to collect metrics and logs. Metamonitoring can be used with both distributed and single binary deployments of Tempo.
+Metamonitoring for Tempo is handled by the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) (>=v2.1). Using Grafana Alloy to collect metrics and logs. Metamonitoring can be used with both microservices and single binary deployments of Tempo.
 
 ## Steps
 
