@@ -1,6 +1,5 @@
 services:
-
-   # Tempo runs as user 10001, and docker compose creates the volume as root.
+  # Tempo runs as user 10001, and docker compose creates the volume as root.
   # As such, we need to chown the volume in order for Tempo to start correctly.
   init:
     image: &tempoImage grafana/tempo:latest
@@ -14,18 +13,22 @@ services:
 
   tempo:
     image: *tempoImage
-    command: [ "-config.file=/etc/tempo.yaml" ]
+    command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ../shared/tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo
     ports:
-      - "3200:3200"   # tempo
-      - "14250:14250"  # jaeger ingest grpc
+      - "3200:3200" # tempo
+      - "4317:4317" # otlp grpc
     depends_on:
       - init
 
   vulture:
-    image: grafana/tempo-vulture:latest
-    command: [ "-tempo-query-url=http://tempo:3200", "-tempo-push-url=http://tempo:14250" ]
+    image: grafana/tempo-vulture:local
+    command:
+      [
+        "-tempo-query-url=http://tempo:3200",
+        "-tempo-push-url=http://tempo:4317",
+      ]
     depends_on:
       - tempo

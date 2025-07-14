@@ -2,3 +2,9 @@ status:
   disable_codecov_badge: true
   codeowners:
     active: [pavolloffay, MovieStoreGuy, axw]
+
+tests:
+  goleak:
+    ignore:
+      top:
+        - github.com/twmb/franz-go/pkg/kfake.(*group).manage

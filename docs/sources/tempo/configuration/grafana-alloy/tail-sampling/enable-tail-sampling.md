@@ -14,9 +14,24 @@ but also run the risk of discarding relevant data that you'll later want.
 Tail sampling works with Grafana Alloy.
 Alloy configuration files are written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/get-started/configuration-syntax/).
 
+## Before you begin
+
+* You should have no sampling strategy at the application level.
+* Use Grafana Alloy or the OpenTelemetry Collector to collect traces from the application, generate metrics from traces, and apply sampling.
+* Send all traces to the data collector to generate accurate metrics.
+
+You’ll need to use a supported collector:
+  * Grafana Alloy >=1.0 ([documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/set-up/install/))
+  * OTel Collector >= 0.94 ([documentation](https://opentelemetry.io/docs/collector/))
+
+If you are using Grafana Cloud and Application Observability:
+
+* Disable metrics generation in Application Observability’s [configuration](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/manual/configure/)
+
 ## Configure tail sampling
 
 To start using tail sampling, define a sampling policy in your configuration file.
+For more information about sampling policies, refer to the [Tail Sampling documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/policies-strategies/).
 
 If you're using a multi-instance deployment of Alloy,
 add load balancing and specify the resolving mechanism to find other Alloy instances in the setup.

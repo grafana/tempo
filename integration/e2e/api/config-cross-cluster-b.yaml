@@ -7,6 +7,10 @@ distributor:
       protocols:
         grpc:
           endpoint: "distributor-b:14250"
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "distributor-b:4317"
 
 ingester:
   lifecycler:
