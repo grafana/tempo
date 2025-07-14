@@ -1547,9 +1547,6 @@ type HistogramAggregator struct {
 	isInstantQuery bool
 	alignedStart   uint64
 	alignedEnd     uint64
-
-	// Pool for reusing histogram slices
-	histogramSlicePool sync.Pool
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplarLimit uint32) *HistogramAggregator {
@@ -1575,12 +1572,6 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exempl
 		isInstantQuery: isInstant(req.Start, req.End, req.Step),
 		alignedStart:   alignedStart,
 		alignedEnd:     alignedEnd,
-		histogramSlicePool: sync.Pool{
-			New: func() any {
-				// Initialize with a zero-length slice to avoid allocations
-				return make([]Histogram, 0)
-			},
-		},
 	}
 }
 
@@ -1614,15 +1605,9 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			withoutBucket := make(Labels, len(h.labelBuffer))
 			copy(withoutBucket, h.labelBuffer)
 
-			// Get histogram slice from pool and resize it
-			histSlice := h.histogramSlicePool.Get().([]Histogram)
-			if cap(histSlice) < h.len {
-				histSlice = make([]Histogram, h.len)
-			} else {
-				histSlice = histSlice[:h.len]
-				// Zero out the slice to ensure clean state
-				clear(histSlice)
-			}
+			// Create a fresh histogram slice for each series to avoid sharing memory
+			// Pool reuse was causing data contamination between series
+			histSlice := make([]Histogram, h.len)
 
 			existing = histSeries{
 				labels: withoutBucket,
@@ -1753,16 +1738,6 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			ts.Exemplars = h.selectExemplarsWithValueThresholds(in.exemplars, quantileValues, qIdx)
 
 			results[s] = ts
-		}
-	}
-
-	// Return histogram slices to the pool now that we're done with them
-	for _, series := range h.ss {
-		if len(series.hist) > 0 {
-			// Clear the slice and return it to the pool
-			histSlice := series.hist
-			clear(histSlice)
-			h.histogramSlicePool.Put(histSlice[:0]) //nolint:all //SA6002
 		}
 	}
 
