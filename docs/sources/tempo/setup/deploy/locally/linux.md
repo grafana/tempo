@@ -159,17 +159,20 @@ To verify that Tempo is working, run the following command:
 systemctl is-active tempo
 ```
 
-You should see the status `active` returned. If you do not, check that the configuration file is correct, and then restart the service. You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
+You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service. You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
 
 Verify that your storage bucket has received data by signing in to your storage provider and determining that a file has been written to storage. It should be called `tempo_cluster_seed.json`.
 
 ## Test your installation
 
-Once Tempo is running, you can use the K6 with Traces Docker example to verify that trace data is sent to Tempo. This procedure sets up a sample data source in Grafana to read from Tempo.
+Once Tempo is running, you can use the K6 with Traces Docker example to verify that trace data is sent to Tempo.
+This procedure sets up a sample data source in Grafana to read from Tempo.
 
 ### Backend storage configuration
 
-The Tempo examples running with docker-compose all include a version of Tempo and a storage backend like S3 and GCS. Because Tempo is installed with a backend storage configured, you need to change the `docker-compose.yaml` file to remove Tempo and instead point trace storage to the installed version. These steps are included in this section.
+The Tempo examples running with docker-compose all include a version of Tempo and a storage backend like S3 and GCS.
+Because Tempo is installed with a backend storage configured, you need to change the `docker-compose.yaml` file to remove Tempo and instead point trace storage to the installed version.
+These steps are included in this section.
 
 ### Network configuration
 
@@ -223,14 +226,15 @@ Docker compose uses an internal networking bridge to connect all of the defined 
     Save the file and exit your editor.
 
 1. Edit the Prometheus configuration file so it uses the Tempo service as a scrape target. Change the target to the local Linux host IP address. Edit the `tempo/example/shared/prometheus.yaml` file, and alter the `tempo` job to replace `tempo:3200` with the Linux machine host IP address.
-   ```
+   ```yaml
      - job_name: 'tempo'
    	static_configs:
      	- targets: [ '10.128.0.104:3200' ]
    ```
     Save the file and exit your editor.**
+
 1. Start the three services that are defined in the docker-compose file:
-   ```
+   ```bash
    docker compose up -d
    ```
 
@@ -248,9 +252,8 @@ Docker compose uses an internal networking bridge to connect all of the defined 
 1. Once logged in, navigate to the **Explore** page, select the Tempo data source and select the **Search** tab. Select **Run query** to list the recent traces stored in Tempo. Select one to view the trace diagram:
    {{< figure align="center" src="/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-builder-span-details-v11.png" alt="Use the query builder to explore tracing data in Grafana" >}}
 
-
-1. Alter the Tempo configuration to point to the instance of Prometheus running in docker compose. To do so, edit the configuration at `/etc/tempo/config.yaml` and change the `storage` block under the `metrics_generator` section so that the remote write url is `http://localhost:9090`. The configuration section should look like this:
-   ```
+1. Alter the Tempo configuration to point to the instance of Prometheus running in docker compose. To do so, edit the configuration at `/etc/tempo/config.yaml` and change the `storage` block under the `metrics_generator` section so that the remote write URL is `http://localhost:9090`. The configuration section should look like this:
+   ```yaml
     storage:
         path: /var/tempo/generator/wal
         remote_write:

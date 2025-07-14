@@ -143,38 +143,38 @@ Update the endpoints if you have altered the endpoint targets.
   kubectl port-forward services/grafana-alloy 4317:4317 --namespace grafana-alloy
   ```
 
-3. Alternatively, a cronjob can be created to send traces periodically based on this template:
+3. Alternatively, you can create a cronjob to send traces periodically based on this template:
 
-```
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: sample-traces
-spec:
-  concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 2
-  schedule: "0 * * * *"
-  jobTemplate:
-    spec:
-      backoffLimit: 0
-      ttlSecondsAfterFinished: 3600
-      template:
-        spec:
-          containers:
-          - name: traces
-            image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.96.0
-            args:
-              - traces
-              - --otlp-insecure
-              - --rate
-              - "20"
-              - --duration
-              - 5s
-              - --otlp-endpoint
-              - grafana-alloy.grafana-alloy.svc.cluster.local:4317
-          restartPolicy: Never
-```
+   ```
+   apiVersion: batch/v1
+   kind: CronJob
+   metadata:
+     name: sample-traces
+   spec:
+     concurrencyPolicy: Forbid
+     successfulJobsHistoryLimit: 1
+     failedJobsHistoryLimit: 2
+     schedule: "0 * * * *"
+     jobTemplate:
+       spec:
+         backoffLimit: 0
+         ttlSecondsAfterFinished: 3600
+         template:
+           spec:
+             containers:
+             - name: traces
+               image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.96.0
+               args:
+                 - traces
+                 - --otlp-insecure
+                 - --rate
+                 - "20"
+                 - --duration
+                 - 5s
+                 - --otlp-endpoint
+                 - grafana-alloy.grafana-alloy.svc.cluster.local:4317
+             restartPolicy: Never
+   ```
 
 To view the tracing data:
 
@@ -211,8 +211,8 @@ This procedure installs the application on your cluster so you can generate mean
    ```bash
 	   kubectl apply -f mythical-beasts-service.yaml,mythical-beasts-persistentvolumeclaim.yaml,mythical-beasts-deployment.yaml
    ```
-1. Once the application is deployed, go to Grafana Enterprise and select the **Explore** menu item.
+1. Once the application is deployed, go to Grafana and select the **Explore** menu item.
 1. Select the **Tempo data source** from the list of data sources.
 1. Select the `Search` Query type for the data source.
 1. Select **Run query**.
-1. Traces from the application will be displayed in the traces **Explore** panel.
+1. Traces from the application are displayed in the traces **Explore** panel.
