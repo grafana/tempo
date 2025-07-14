@@ -57,7 +57,7 @@ helm repo update
     destinations:
     - name: "metrics"
         type: prometheus
-        url: "<url>" # URL for prometheus, this can be found under your Grafana Cloud account and should look similiar to "https://prometheus-us-central1.grafana.net/api/prom/push", if using local Prometheus use that url
+        url: "<url>" # URL for Prometheus. Located under your Grafana Cloud account and should look similar to "https://prometheus-us-central1.grafana.net/api/prom/push". If you're using local Prometheus, use that URL.
         auth:
         type: basic
         username: "<username>"
@@ -65,7 +65,7 @@ helm repo update
 
     - name: "logs"
         type: loki
-        url: "<url>" # URL for loki, this can be found under your Grafana Cloud account and should look similiar to "https://logs-prod-us-central1.grafana.net/loki/api/v1/push", if using local Loki use that url
+        url: "<url>" # URL for Loki. Located under your Grafana Cloud account and should look similar to "https://logs-prod-us-central1.grafana.net/loki/api/v1/push". If you're using local Loki, use that URL.
         auth:
         type: basic
         username: "<username>" 
@@ -84,10 +84,10 @@ helm repo update
     enabled: true
 
     alloy-metrics:
-    enabled: true # This will send Grafana Alloy metrics to ensure the monitoring is working properly.
+    enabled: true # Sends Grafana Alloy metrics to ensure the monitoring is working properly.
     ```
 
-1. Install the Helm chart using the following command create Grafana Alloy instances to scrape metrics and logs:
+1. Install the Helm chart using the following command to create Grafana Alloy instances to scrape metrics and logs:
 
     ```
     helm install k8s-monitoring grafana/k8s-monitoring \
@@ -96,10 +96,10 @@ helm repo update
     -f values.yml
     ```
 
-
-1. View Logs and Metrics
-
-    Log into Grafana Cloud. Select metrics drilldown and select `cluster=<cluster.name>` where cluster.name is the name specified in the values.yml. Do the same for logs drilldown.
+1. Verify that data is being sent to Grafana or Grafana Cloud. 
+    - Log into Grafana or Grafana Cloud. 
+    - Select Metrics Drilldown and select `cluster=<cluster.name>` where `cluster.name` is the name specified in the `values.yml` file. 
+    - Do the same for Logs Drilldown.
 
     This example doesn’t include ingestion for any other data such as traces for sending to Tempo, but can be included with some configuration updates.
     Refer to [Configure Alloy to remote-write to Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/) for more information.
