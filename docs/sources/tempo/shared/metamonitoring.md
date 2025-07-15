@@ -34,56 +34,56 @@ helm repo update
 
     ```yaml
     cluster:
-    name: traces # Name of the cluster. This populates the cluster label.
+        name: traces # Name of the cluster. This populates the cluster label.
 
     integrations:
-    tempo:
-        instances:
-        - name: "traces" # This is the name for the instance label that reports.
-            namespaces:
-            - traces # This is the namespace that is searched for Tempo instances. Change this accordingly.
-            metrics:
-            enabled: true
-            portName: prom-metrics
-            logs:
-            enabled: true
-            labelSelectors:
-            app.kubernetes.io/name: tempo
+        tempo:
+            instances:
+              - name: "traces" # This is the name for the instance label that reports.
+                namespaces:
+                    - traces # This is the namespace that is searched for Tempo instances. Change this accordingly.
+                metrics:
+                    enabled: true
+                    portName: prom-metrics
+                logs:
+                    enabled: true
+                labelSelectors:
+                    app.kubernetes.io/name: tempo
 
     alloy:
         name: "traces-monitoring"
 
     destinations:
     - name: "metrics"
-        type: prometheus
-        url: "<url>" # URL for Prometheus. Should look similar to "https://<prometheus host>/api/prom/push".
-        auth:
+      type: prometheus
+      url: "<url>" # URL for Prometheus. Should look similar to "https://<prometheus host>/api/prom/push".
+      auth:
         type: basic
         username: "<username>"
         password: "<password>"
 
     - name: "logs"
-        type: loki
-        url: "<url>" # URL for Loki. Should look similar to "https://<loki host>/loki/api/v1/push".
-        auth:
+      type: loki
+      url: "<url>" # URL for Loki. Should look similar to "https://<loki host>/loki/api/v1/push".
+      auth:
         type: basic
         username: "<username>" 
         password: "<password>"
 
     alloy-metrics:
-    enabled: true
+        enabled: true
 
     podLogs:
-    enabled: true
-    gatherMethod: kubernetesApi
-    namespaces: [traces] # Set to namespace from above under instances.
-    collector: alloy-singleton
+        enabled: true
+        gatherMethod: kubernetesApi
+        namespaces: [traces] # Set to namespace from above under instances.
+        collector: alloy-singleton
 
     alloy-singleton:
-    enabled: true
+        enabled: true
 
     alloy-metrics:
-    enabled: true # Sends Grafana Alloy metrics to ensure the monitoring is working properly.
+        enabled: true # Sends Grafana Alloy metrics to ensure the monitoring is working properly.
     ```
 
 1. Install the Helm chart using the following command to create Grafana Alloy instances to scrape metrics and logs:
