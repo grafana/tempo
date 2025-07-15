@@ -29,6 +29,7 @@
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [BUGFIX] Fix search by trace:id with short trace ID [#5331](https://github.com/grafana/tempo/pull/5331) (@ruslan-mikhailov)
+* [BUGFIX] Fix non-deterministic most_recent=true query results by making shard completion times deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
 
 # v2.8.1
 
