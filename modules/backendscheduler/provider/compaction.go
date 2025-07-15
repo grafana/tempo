@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"flag"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -68,7 +69,8 @@ type CompactionProvider struct {
 	lastPrioritizeTime time.Time
 
 	// Recent jobs cache for duplicate block ID prevention.
-	recentJobs map[string][]string
+	recentJobs    map[string][]string
+	recentJobsMtx sync.Mutex
 }
 
 func NewCompactionProvider(
@@ -380,7 +382,9 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 
 	for _, job := range p.sched.ListJobs() {
 		// Clean up recent jobs cache when we find a job which has been persisted
+		p.recentJobsMtx.Lock()
 		delete(p.recentJobs, job.ID)
+		p.recentJobsMtx.Unlock()
 
 		if job.Tenant() != tenantID {
 			continue
@@ -403,6 +407,7 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	}
 
 	// Also include blocks from recent jobs cache to prevent duplicate job creation
+	p.recentJobsMtx.Lock()
 	for _, recentBlockIDs := range p.recentJobs {
 		for _, blockID := range recentBlockIDs {
 			bid, err = backend.ParseUUID(blockID)
@@ -413,6 +418,7 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 			perTenantBlockIDs[bid] = struct{}{}
 		}
 	}
+	p.recentJobsMtx.Unlock()
 
 	for _, block := range fullBlocklist {
 		if _, ok := perTenantBlockIDs[block.BlockID]; ok {
@@ -452,5 +458,7 @@ func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
 	blockIDs := make([]string, len(job.JobDetail.Compaction.Input))
 	copy(blockIDs, job.JobDetail.Compaction.Input)
 
+	p.recentJobsMtx.Lock()
 	p.recentJobs[job.ID] = blockIDs
+	p.recentJobsMtx.Unlock()
 }
