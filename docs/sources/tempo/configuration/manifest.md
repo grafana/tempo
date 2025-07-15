@@ -1006,12 +1006,9 @@ backend_scheduler:
                 max_time_per_tenant: 5m0s
                 compaction_cycle: 30s
             max_jobs_per_tenant: 1000
-            backoff:
-                min_period: 100ms
-                max_period: 10s
-                max_retries: 0
             min_input_blocks: 2
             max_input_blocks: 4
+            min_cycle_interval: 30s
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:
