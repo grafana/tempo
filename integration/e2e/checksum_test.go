@@ -34,7 +34,6 @@ func TestS3Checksum(t *testing.T) {
 		"CRC32",
 		"CRC32C",
 		"CRC64NVME",
-		"Invalid", // fallbacks to CRC32C
 	}
 
 	for _, checksumType := range checksumTypes {

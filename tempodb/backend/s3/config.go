@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -94,6 +95,13 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.HedgeRequestsUpTo = 2
 
 	f.StringVar(&cfg.ChecksumType, util.PrefixConfig(prefix, "s3.checksum_type"), ChecksumCRC32C, fmt.Sprintf("checksum algorithm to use for S3 operations. Supported values: %s. Default: %s", strings.Join(supportedChecksumTypes, ", "), ChecksumCRC32C))
+}
+
+func (cfg *Config) Validate() error {
+	if !slices.Contains(supportedChecksumTypes, cfg.ChecksumType) {
+		return fmt.Errorf("invalid checksum type %s, supported values: %s", cfg.ChecksumType, strings.Join(supportedChecksumTypes, ", "))
+	}
+	return nil
 }
 
 func (cfg *Config) checksumType() minio.ChecksumType {
