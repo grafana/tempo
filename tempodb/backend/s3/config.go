@@ -9,6 +9,7 @@ import (
 
 	"github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/flagext"
+	minio "github.com/minio/minio-go/v7"
 
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -24,10 +25,19 @@ const (
 	// SSES3 config type constant to configure S3 server side encryption with AES-256
 	// https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html
 	SSES3 = "SSE-S3"
+
+	// Supported checksum types
+	ChecksumNone      = "None"
+	ChecksumSHA256    = "SHA256"
+	ChecksumSHA1      = "SHA1"
+	ChecksumCRC32     = "CRC32"
+	ChecksumCRC32C    = "CRC32C"
+	ChecksumCRC64NVME = "CRC64NVME"
 )
 
 var (
-	supportedSSETypes = []string{SSEKMS, SSES3}
+	supportedSSETypes      = []string{SSEKMS, SSES3}
+	supportedChecksumTypes = []string{ChecksumNone, ChecksumSHA256, ChecksumSHA1, ChecksumCRC32, ChecksumCRC32C, ChecksumCRC64NVME}
 
 	errUnsupportedSSEType = errors.New("unsupported S3 SSE type")
 )
@@ -65,6 +75,7 @@ type Config struct {
 	NativeAWSAuthEnabled  bool      `yaml:"native_aws_auth_enabled"`
 	ListBlocksConcurrency int       `yaml:"list_blocks_concurrency"`
 	SSE                   SSEConfig `yaml:"sse"`
+	ChecksumType          string    `yaml:"checksum_type"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -81,6 +92,27 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.SSE.KMSKeyID, util.PrefixConfig(prefix, "s3.sse.kms-key-id"), "", "KMS Key ID used to encrypt objects in S3")
 	f.StringVar(&cfg.SSE.KMSEncryptionContext, util.PrefixConfig(prefix, "s3.sse.kms-encryption-context"), "", "KMS Encryption Context used for object encryption. It expects JSON formatted string.")
 	cfg.HedgeRequestsUpTo = 2
+
+	f.StringVar(&cfg.ChecksumType, util.PrefixConfig(prefix, "s3.checksum_type"), ChecksumCRC32C, fmt.Sprintf("checksum algorithm to use for S3 operations. Supported values: %s. Default: %s", strings.Join(supportedChecksumTypes, ", "), ChecksumCRC32C))
+}
+
+func (cfg *Config) checksumType() minio.ChecksumType {
+	switch cfg.ChecksumType {
+	case ChecksumNone:
+		return minio.ChecksumNone
+	case ChecksumSHA256:
+		return minio.ChecksumSHA256
+	case ChecksumSHA1:
+		return minio.ChecksumSHA1
+	case ChecksumCRC32:
+		return minio.ChecksumCRC32
+	case ChecksumCRC32C:
+		return minio.ChecksumCRC32C
+	case ChecksumCRC64NVME:
+		return minio.ChecksumCRC64NVME
+	default:
+		return minio.ChecksumCRC32C
+	}
 }
 
 func (cfg *Config) PathMatches(other *Config) bool {

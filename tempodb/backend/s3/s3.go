@@ -162,6 +162,7 @@ func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 		StorageClass:         rw.cfg.StorageClass,
 		UserMetadata:         rw.cfg.Metadata,
 		ServerSideEncryption: rw.sse,
+		AutoChecksum:         rw.cfg.checksumType(),
 	}
 }
 
