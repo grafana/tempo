@@ -62,6 +62,12 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 }
 
 func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, bloom *common.ShardedBloomFilter, index *index) error {
+	// write nocompact flag first to prevent compaction before completion
+	err := w.WriteNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+	if err != nil {
+		return fmt.Errorf("unexpected error writing nocompact flag: %w", err)
+	}
+
 	// bloom
 	blooms, err := bloom.Marshal()
 	if err != nil {
@@ -97,6 +103,12 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	err = w.WriteBlockMeta(ctx, meta)
 	if err != nil {
 		return fmt.Errorf("unexpected error writing meta: %w", err)
+	}
+
+	// Remove nocompact flag - block is now complete and can be compacted
+	err = w.DeleteNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+	if err != nil {
+		return fmt.Errorf("unexpected error removing nocompact flag: %w", err)
 	}
 
 	return nil

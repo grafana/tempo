@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -292,4 +294,43 @@ func TestTenantIndexFallback(t *testing.T) {
 	idx, err = r.TenantIndex(ctx, tenantID)
 	assert.ErrorIs(t, err, ErrDoesNotExist)
 	assert.Nil(t, idx)
+}
+
+func TestNoCompactFlag(t *testing.T) {
+	ctx := context.Background()
+	tenantID := "test-tenant"
+	blockID := uuid.New()
+
+	rawReader := &MockRawReader{}
+	rawWriter := &MockRawWriter{}
+	rawReader.ReadFn = func(_ context.Context, name string, keyPath KeyPath, _ *CacheInfo) (io.ReadCloser, int64, error) {
+		key := strings.Join(keyPath, "/") + "/" + name
+		val, ok := rawWriter.writeBuffer[key]
+		if !ok {
+			return nil, 0, ErrDoesNotExist
+		}
+		return io.NopCloser(bytes.NewReader(val)), int64(len(val)), nil
+	}
+
+	reader := NewReader(rawReader)
+	writer := NewWriter(rawWriter)
+
+	hasFlag, err := reader.HasNoCompactFlag(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	assert.False(t, hasFlag)
+
+	err = writer.WriteNoCompactFlag(ctx, blockID, tenantID)
+	require.NoError(t, err)
+
+	hasFlag, err = reader.HasNoCompactFlag(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	assert.True(t, hasFlag)
+
+	err = writer.DeleteNoCompactFlag(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]map[string]int{
+		NoCompactFileName: {
+			fmt.Sprintf("%s/%s", tenantID, blockID.String()): 1,
+		},
+	}, rawWriter.deleteCalls)
 }

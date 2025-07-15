@@ -847,3 +847,118 @@ func TestCreateLegacyCache(t *testing.T) {
 		})
 	}
 }
+
+func TestNoCompactFlag(t *testing.T) {
+	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := c.EnableCompaction(ctx, &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	r.EnablePolling(ctx, &mockJobSharder{})
+
+	// Create a test block
+	blockID := backend.NewUUID()
+	wal := w.WAL()
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
+	require.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	// Add some test data
+	id := test.ValidTraceID(nil)
+	req := test.MakeTrace(10, id)
+	writeTraceToWal(t, head, dec, id, req, 0, 0)
+
+	// Complete the block - this should write the nocompact flag and then remove it
+	complete, err := w.CompleteBlock(ctx, head)
+	require.NoError(t, err)
+	completedBlockID := complete.BlockMeta().BlockID
+
+	// Verify the nocompact flag was removed after block completion
+	rw := r.(*readerWriter)
+	hasFlag, err := rw.r.HasNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+	require.NoError(t, err)
+	assert.False(t, hasFlag, "nocompact flag should be removed after block completion")
+
+	// Poll to update the blocklist
+	rw.pollBlocklist(ctx)
+
+	// Verify the block is available for compaction
+	blocklist := rw.blocklist.Metas(testTenantID)
+	assert.Len(t, blocklist, 1)
+	assert.Equal(t, completedBlockID, blocklist[0].BlockID)
+}
+
+func TestNoCompactFlagPreventCompaction(t *testing.T) {
+	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := c.EnableCompaction(ctx, &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	r.EnablePolling(ctx, &mockJobSharder{})
+
+	// Create a test block
+	blockID := backend.NewUUID()
+	wal := w.WAL()
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
+	require.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	// Add some test data
+	id := test.ValidTraceID(nil)
+	req := test.MakeTrace(10, id)
+	writeTraceToWal(t, head, dec, id, req, 0, 0)
+
+	// Complete the block
+	complete, err := w.CompleteBlock(ctx, head)
+	require.NoError(t, err)
+	completedBlockID := complete.BlockMeta().BlockID
+
+	// Manually add a nocompact flag to simulate an in-progress block
+	rw := r.(*readerWriter)
+	err = rw.w.WriteNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+	require.NoError(t, err)
+
+	// Verify the flag exists
+	hasFlag, err := rw.r.HasNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+	require.NoError(t, err)
+	assert.True(t, hasFlag, "nocompact flag should exist")
+
+	// Poll to update the blocklist
+	rw.pollBlocklist(ctx)
+
+	// Verify the block is NOT available for compaction (should be filtered out)
+	blocklist := rw.blocklist.Metas(testTenantID)
+	assert.Len(t, blocklist, 0, "block with nocompact flag should be excluded from compaction")
+
+	// Remove the nocompact flag
+	err = rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+	require.NoError(t, err)
+
+	// Poll again
+	rw.pollBlocklist(ctx)
+
+	// Now the block should be available for compaction
+	blocklist = rw.blocklist.Metas(testTenantID)
+	assert.Len(t, blocklist, 1, "block without nocompact flag should be included for compaction")
+	assert.Equal(t, completedBlockID, blocklist[0].BlockID)
+}
