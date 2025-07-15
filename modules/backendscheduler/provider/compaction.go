@@ -34,6 +34,7 @@ type CompactionConfig struct {
 	Backoff          backoff.Config          `yaml:"backoff"`
 	MinInputBlocks   int                     `yaml:"min_input_blocks"`
 	MaxInputBlocks   int                     `yaml:"max_input_blocks"`
+	MinCycleInterval time.Duration           `yaml:"min_cycle_interval"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -48,6 +49,9 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
 	f.DurationVar(&cfg.Backoff.MaxBackoff, prefix+".backoff-max-period", 10*time.Second, "Maximum delay when backing off.")
 	cfg.Backoff.MaxRetries = 0
+
+	// Tenant prioritization
+	f.DurationVar(&cfg.MinCycleInterval, prefix+".min-cycle-interval", 30*time.Second, "Minimum time between tenant prioritization cycles to prevent excessive CPU usage when no work is available.")
 
 	cfg.Compactor = tempodb.CompactorConfig{}
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
@@ -65,9 +69,10 @@ type CompactionProvider struct {
 	sched Scheduler
 
 	// Dependencies needed for tenant selection
-	curPriority *tenantselector.PriorityQueue
-	curTenant   *tenantselector.Item
-	curSelector blockselector.CompactionBlockSelector
+	curPriority        *tenantselector.PriorityQueue
+	curTenant          *tenantselector.Item
+	curSelector        blockselector.CompactionBlockSelector
+	lastPrioritizeTime time.Time
 }
 
 func NewCompactionProvider(
@@ -200,7 +205,22 @@ func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 	defer span.End()
 
 	if p.curPriority.Len() == 0 {
+		// Rate limit calls to prioritizeTenants to prevent excessive CPU usage
+		// when cycling through tenants with no available work.  We only expect new
+		// work for tenants after a the next blocklist poll.
+		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
+			waitTime := p.cfg.MinCycleInterval - elapsed
+			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization", "wait_time", waitTime)
+			select {
+			case <-ctx.Done():
+				return false
+			case <-time.After(waitTime):
+				// Continue to prioritizeTenants
+			}
+		}
+
 		p.prioritizeTenants(ctx)
+		p.lastPrioritizeTime = time.Now()
 		if p.curPriority.Len() == 0 {
 			return false
 		}
