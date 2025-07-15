@@ -31,8 +31,6 @@ func TestCompactionProvider(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.MaxJobsPerTenant = 2
 	cfg.MeasureInterval = 100 * time.Millisecond
-	cfg.Backoff.MinBackoff = 10 * time.Millisecond
-	cfg.Backoff.MaxBackoff = 100 * time.Millisecond
 	cfg.MinCycleInterval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
@@ -105,8 +103,6 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.MaxJobsPerTenant = 1
 	cfg.MeasureInterval = 100 * time.Millisecond
-	cfg.Backoff.MinBackoff = 30 * time.Millisecond // twice the poll cycle
-	cfg.Backoff.MaxBackoff = 50 * time.Millisecond
 	cfg.MinCycleInterval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()

@@ -9,7 +9,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/backendscheduler/work/tenantselector"
 	"github.com/grafana/tempo/modules/overrides"
@@ -31,10 +30,10 @@ type CompactionConfig struct {
 	MeasureInterval  time.Duration           `yaml:"measure_interval"`
 	Compactor        tempodb.CompactorConfig `yaml:"compaction"`
 	MaxJobsPerTenant int                     `yaml:"max_jobs_per_tenant"`
-	Backoff          backoff.Config          `yaml:"backoff"`
-	MinInputBlocks   int                     `yaml:"min_input_blocks"`
-	MaxInputBlocks   int                     `yaml:"max_input_blocks"`
-	MinCycleInterval time.Duration           `yaml:"min_cycle_interval"`
+	// Backoff          backoff.Config          `yaml:"backoff"`
+	MinInputBlocks   int           `yaml:"min_input_blocks"`
+	MaxInputBlocks   int           `yaml:"max_input_blocks"`
+	MinCycleInterval time.Duration `yaml:"min_cycle_interval"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -44,11 +43,6 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	// Compaction
 	f.IntVar(&cfg.MinInputBlocks, prefix+".min-input-blocks", blockselector.DefaultMinInputBlocks, "Minimum number of blocks to compact in a single job.")
 	f.IntVar(&cfg.MaxInputBlocks, prefix+".max-input-blocks", blockselector.DefaultMaxInputBlocks, "Maximum number of blocks to compact in a single job.")
-
-	// Backoff
-	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
-	f.DurationVar(&cfg.Backoff.MaxBackoff, prefix+".backoff-max-period", 10*time.Second, "Maximum delay when backing off.")
-	cfg.Backoff.MaxRetries = 0
 
 	// Tenant prioritization
 	f.DurationVar(&cfg.MinCycleInterval, prefix+".min-cycle-interval", 30*time.Second, "Minimum time between tenant prioritization cycles to prevent excessive CPU usage when no work is available.")
@@ -102,7 +96,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 		var (
 			job               *work.Job
-			b                 = backoff.New(ctx, p.cfg.Backoff)
 			curTenantJobCount int
 			span              trace.Span
 			loopCtx           context.Context
@@ -134,12 +127,16 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			if p.curSelector == nil {
-				b.Wait()
 				if !p.prepareNextTenant(loopCtx) {
-					level.Info(p.logger).Log("msg", "received empty tenant", "waiting", b.NextDelay())
+					level.Info(p.logger).Log("msg", "received empty tenant")
 					metricTenantBackoff.Inc()
 					span.AddEvent("tenant not prepared")
 				}
+
+				if p.curTenant != nil {
+					level.Info(p.logger).Log("msg", "new tenant selected", "tenant_id", p.curTenant.Value())
+				}
+
 				continue
 			}
 
@@ -152,11 +149,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 			job = p.createJob(loopCtx)
 			if job == nil {
-				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant after delay", "waiting", b.NextDelay())
+				level.Info(p.logger).Log("msg", "tenant exhausted")
 				// we don't have a job, reset the curTenant and try again
 				metricTenantEmptyJob.Inc()
-				// Avoid CPU spin
-				b.Wait()
 				reset()
 				continue
 			}
@@ -170,7 +165,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			case jobs <- job:
 				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
 				curTenantJobCount++
-				b.Reset()
 				span.AddEvent("job created", trace.WithAttributes(
 					attribute.String("job_id", job.ID),
 					attribute.String("tenant_id", p.curTenant.Value()),
