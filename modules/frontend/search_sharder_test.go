@@ -907,7 +907,7 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 1,
 			searchEnd: 50,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 8, CompletedThroughSeconds: 1},
+				{TotalJobs: 8, CompletedThroughSeconds: 50}, // 50 - (0+1)*50 = 0, but clamped to 50 since maxShards=1
 			},
 		},
 		{
@@ -915,8 +915,8 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 2,
 			searchEnd: 50,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 4, CompletedThroughSeconds: 30},
-				{TotalJobs: 4, CompletedThroughSeconds: 1},
+				{TotalJobs: 4, CompletedThroughSeconds: 25}, // 50 - (0+1)*25 = 25
+				{TotalJobs: 4, CompletedThroughSeconds: 1},  // 50 - (1+1)*25 = 0, clamped to 1
 			},
 		},
 		{
@@ -924,9 +924,9 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 3,
 			searchEnd: 50,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 2, CompletedThroughSeconds: 40},
-				{TotalJobs: 2, CompletedThroughSeconds: 30},
-				{TotalJobs: 4, CompletedThroughSeconds: 1},
+				{TotalJobs: 2, CompletedThroughSeconds: 34}, // 50 - (0+1)*16 = 34
+				{TotalJobs: 2, CompletedThroughSeconds: 18}, // 50 - (1+1)*16 = 18
+				{TotalJobs: 4, CompletedThroughSeconds: 2},  // 50 - (2+1)*16 = 2
 			},
 		},
 		{
@@ -934,10 +934,10 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 4,
 			searchEnd: 50,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 2, CompletedThroughSeconds: 40},
-				{TotalJobs: 2, CompletedThroughSeconds: 30},
-				{TotalJobs: 2, CompletedThroughSeconds: 20},
-				{TotalJobs: 2, CompletedThroughSeconds: 1},
+				{TotalJobs: 2, CompletedThroughSeconds: 38}, // 50 - (0+1)*12 = 38
+				{TotalJobs: 2, CompletedThroughSeconds: 26}, // 50 - (1+1)*12 = 26
+				{TotalJobs: 2, CompletedThroughSeconds: 14}, // 50 - (2+1)*12 = 14
+				{TotalJobs: 2, CompletedThroughSeconds: 2},  // 50 - (3+1)*12 = 2
 			},
 		},
 		{
@@ -945,10 +945,10 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 5,
 			searchEnd: 50,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 2, CompletedThroughSeconds: 40},
-				{TotalJobs: 2, CompletedThroughSeconds: 30},
-				{TotalJobs: 2, CompletedThroughSeconds: 20},
-				{TotalJobs: 2, CompletedThroughSeconds: 10},
+				{TotalJobs: 2, CompletedThroughSeconds: 40}, // 50 - (0+1)*10 = 40
+				{TotalJobs: 2, CompletedThroughSeconds: 30}, // 50 - (1+1)*10 = 30
+				{TotalJobs: 2, CompletedThroughSeconds: 20}, // 50 - (2+1)*10 = 20
+				{TotalJobs: 2, CompletedThroughSeconds: 10}, // 50 - (3+1)*10 = 10
 			},
 		},
 		{
@@ -956,9 +956,9 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 4,
 			searchEnd: 35,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 4, CompletedThroughSeconds: 30},
-				{TotalJobs: 2, CompletedThroughSeconds: 20},
-				{TotalJobs: 2, CompletedThroughSeconds: 10},
+				{TotalJobs: 4, CompletedThroughSeconds: 27}, // 35 - (0+1)*8 = 27
+				{TotalJobs: 2, CompletedThroughSeconds: 19}, // 35 - (1+1)*8 = 19
+				{TotalJobs: 2, CompletedThroughSeconds: 11}, // 35 - (2+1)*8 = 11
 			},
 		},
 		{
@@ -966,8 +966,8 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 4,
 			searchEnd: 25,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 6, CompletedThroughSeconds: 20},
-				{TotalJobs: 2, CompletedThroughSeconds: 10},
+				{TotalJobs: 6, CompletedThroughSeconds: 19}, // 25 - (0+1)*6 = 19
+				{TotalJobs: 2, CompletedThroughSeconds: 13}, // 25 - (1+1)*6 = 13
 			},
 		},
 		{
@@ -975,8 +975,8 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 2,
 			searchEnd: 35,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 4, CompletedThroughSeconds: 30},
-				{TotalJobs: 4, CompletedThroughSeconds: 1},
+				{TotalJobs: 4, CompletedThroughSeconds: 18}, // 35 - (0+1)*17 = 18
+				{TotalJobs: 4, CompletedThroughSeconds: 1},  // 35 - (1+1)*17 = 1
 			},
 		},
 	}

@@ -457,7 +457,8 @@ func backendJobsFunc(blocks []*backend.BlockMeta, targetBytesPerRequest int, max
 			//  end comparison b/c there's no point in ending a shard that can't release any results
 			if blocksInShard >= blocksPerShard && currentShard < maxShards-1 && b.EndTime.Unix() < int64(end) {
 				if shardIterCallback != nil {
-					shardIterCallback(jobsInShard, bytesInShard, uint32(b.EndTime.Unix()))
+					shardCompletionTime := calculateShardCompletionTime(end, maxShards, currentShard)
+					shardIterCallback(jobsInShard, bytesInShard, shardCompletionTime)
 				}
 				currentShard++
 
@@ -471,7 +472,23 @@ func backendJobsFunc(blocks []*backend.BlockMeta, targetBytesPerRequest int, max
 		//  this is the least impactful shard to place extra jobs in as it is searched last. if we make it here the chances of this being an exhaustive search
 		//  are higher
 		if shardIterCallback != nil && jobsInShard > 0 {
-			shardIterCallback(jobsInShard, bytesInShard, 1) // final shard can cover all time. we don't need to be precise
+			finalShardCompletionTime := calculateShardCompletionTime(end, maxShards, currentShard)
+			shardIterCallback(jobsInShard, bytesInShard, finalShardCompletionTime)
 		}
 	}
+}
+
+func calculateShardCompletionTime(queryEnd uint32, maxShards int, currentShard int) uint32 {
+	if maxShards <= 1 {
+		return queryEnd
+	}
+
+	timeSlotSize := queryEnd / uint32(maxShards)
+	completionTime := queryEnd - uint32(currentShard+1)*timeSlotSize
+
+	if completionTime < 1 {
+		completionTime = 1
+	}
+
+	return completionTime
 }
