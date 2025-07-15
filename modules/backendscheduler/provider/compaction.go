@@ -66,6 +66,9 @@ type CompactionProvider struct {
 	curTenant          *tenantselector.Item
 	curSelector        blockselector.CompactionBlockSelector
 	lastPrioritizeTime time.Time
+
+	// Recent jobs cache for duplicate block ID prevention.
+	recentJobs map[string][]string
 }
 
 func NewCompactionProvider(
@@ -82,6 +85,7 @@ func NewCompactionProvider(
 		overrides:   overrides,
 		curPriority: tenantselector.NewPriorityQueue(),
 		sched:       scheduler,
+		recentJobs:  make(map[string][]string),
 	}
 }
 
@@ -144,7 +148,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 			job = p.createJob(loopCtx)
 			if job == nil {
-				level.Info(p.logger).Log("msg", "tenant exhausted")
+				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant")
 				// we don't have a job, reset the curTenant and try again
 				metricTenantEmptyJob.Inc()
 				reset()
@@ -158,6 +162,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				span.End()
 				return
 			case jobs <- job:
+				// Job successfully sent, add to recent jobs cache
+				p.addToRecentJobs(job)
+
 				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
 				curTenantJobCount++
 				span.AddEvent("job created", trace.WithAttributes(
@@ -372,6 +379,9 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	)
 
 	for _, job := range p.sched.ListJobs() {
+		// Clean up recent jobs cache when we find a job which has been persisted
+		delete(p.recentJobs, job.ID)
+
 		if job.Tenant() != tenantID {
 			continue
 		}
@@ -392,9 +402,21 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		}
 	}
 
+	// Also include blocks from recent jobs cache to prevent duplicate job creation
+	for _, recentBlockIDs := range p.recentJobs {
+		for _, blockID := range recentBlockIDs {
+			bid, err = backend.ParseUUID(blockID)
+			if err != nil {
+				level.Error(p.logger).Log("msg", "failed to parse recent job block ID", "block_id", blockID, "err", err)
+				continue
+			}
+			perTenantBlockIDs[bid] = struct{}{}
+		}
+	}
+
 	for _, block := range fullBlocklist {
 		if _, ok := perTenantBlockIDs[block.BlockID]; ok {
-			// Skip blocks that are already in the input list from another job
+			// Skip blocks that are already in the input list from another job or recent jobs
 			continue
 		}
 
@@ -413,4 +435,22 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.MinInputBlocks,
 		p.cfg.MaxInputBlocks,
 	), len(blocklist)
+}
+
+// addToRecentJobs adds a job to the recent jobs cache
+func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
+	if job.Type != tempopb.JobType_JOB_TYPE_COMPACTION || job.JobDetail.Compaction == nil {
+		return
+	}
+
+	// Don't cache jobs with empty input
+	if len(job.JobDetail.Compaction.Input) == 0 {
+		return
+	}
+
+	// Copy the input block IDs
+	blockIDs := make([]string, len(job.JobDetail.Compaction.Input))
+	copy(blockIDs, job.JobDetail.Compaction.Input)
+
+	p.recentJobs[job.ID] = blockIDs
 }
