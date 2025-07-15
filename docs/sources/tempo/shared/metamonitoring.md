@@ -15,7 +15,9 @@ labels:
 [//]: # 'Any links should be fully qualified and not relative: /docs/grafana/ instead of ../grafana/.'
 
 
-Metamonitoring for Tempo is handled by the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) (>=v2.1). Using Grafana Alloy to collect metrics and logs. Metamonitoring can be used with both microservices and single binary deployments of Tempo.
+Metamonitoring for Tempo is handled by the [Grafana Kubernetes Helm chart](https://github.com/grafana/k8s-monitoring-helm) (>=v2.1). Metamonitoring can be used with both microservices and single binary deployments of Tempo.
+
+The Helm chart configures Grafana Alloy to collect metrics and logs.
 
 ## Steps
 
@@ -24,10 +26,7 @@ This procudure uses the [Grafana Kubernetes Helm chart](https://github.com/grafa
 1. Add the Grafana Helm Chart repository, or update, if already added. 
 
 ```
-helm repo add grafana https://grafana.github.io/helm-charts
-```
-
-```
+helm repo add grafana https://grafana.github.io/helm-charts  
 helm repo update
 ```
 
@@ -57,7 +56,7 @@ helm repo update
     destinations:
     - name: "metrics"
         type: prometheus
-        url: "<url>" # URL for Prometheus. Located under your Grafana Cloud account and should look similar to "https://prometheus-us-central1.grafana.net/api/prom/push". If you're using local Prometheus, use that URL.
+        url: "<url>" # URL for Prometheus. Should look similar to "https://<prometheus host>/api/prom/push".
         auth:
         type: basic
         username: "<username>"
@@ -65,7 +64,7 @@ helm repo update
 
     - name: "logs"
         type: loki
-        url: "<url>" # URL for Loki. Located under your Grafana Cloud account and should look similar to "https://logs-prod-us-central1.grafana.net/loki/api/v1/push". If you're using local Loki, use that URL.
+        url: "<url>" # URL for Loki. Should look similar to "https://<loki host>/loki/api/v1/push".
         auth:
         type: basic
         username: "<username>" 
@@ -96,8 +95,8 @@ helm repo update
     -f values.yml
     ```
 
-1. Verify that data is being sent to Grafana or Grafana Cloud. 
-    - Log into Grafana or Grafana Cloud. 
+1. Verify that data is being sent to Grafana. 
+    - Log into Grafana. 
     - Select Metrics Drilldown and select `cluster=<cluster.name>` where `cluster.name` is the name specified in the `values.yml` file. 
     - Do the same for Logs Drilldown.
 
