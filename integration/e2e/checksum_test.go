@@ -38,14 +38,18 @@ func TestS3Checksum(t *testing.T) {
 
 	for _, checksumType := range checksumTypes {
 		t.Run(checksumType, func(t *testing.T) {
+			t.Parallel()
+
 			t.Logf("Setting up scenario for checksum type: %s", checksumType)
-			s, err := e2e.NewScenario("tempo_e2e")
+			networkName := "tempo_e2e_" + checksumType
+			s, err := e2e.NewScenario(networkName)
 			require.NoError(t, err)
 			defer s.Close()
 
 			t.Log("Prepare run config")
 			tmplConfig := map[string]any{
 				"ChecksumType": checksumType,
+				"NetworkName":  s.NetworkName(),
 			}
 			config, err := util.CopyTemplateToSharedDir(s, configS3Checksum, "config.yaml", tmplConfig)
 			require.NoError(t, err)
