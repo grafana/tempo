@@ -28,17 +28,18 @@ const (
 	SSES3 = "SSE-S3"
 
 	// Supported checksum types
-	ChecksumNone      = "None"
-	ChecksumSHA256    = "SHA256"
-	ChecksumSHA1      = "SHA1"
-	ChecksumCRC32     = "CRC32"
-	ChecksumCRC32C    = "CRC32C"
-	ChecksumCRC64NVME = "CRC64NVME"
+	ChecksumUseDefault = ""
+	ChecksumNone       = "None"
+	ChecksumSHA256     = "SHA256"
+	ChecksumSHA1       = "SHA1"
+	ChecksumCRC32      = "CRC32"
+	ChecksumCRC32C     = "CRC32C"
+	ChecksumCRC64NVME  = "CRC64NVME"
 )
 
 var (
 	supportedSSETypes      = []string{SSEKMS, SSES3}
-	supportedChecksumTypes = []string{ChecksumNone, ChecksumSHA256, ChecksumSHA1, ChecksumCRC32, ChecksumCRC32C, ChecksumCRC64NVME}
+	supportedChecksumTypes = []string{ChecksumNone, ChecksumSHA256, ChecksumSHA1, ChecksumCRC32, ChecksumCRC32C, ChecksumCRC64NVME, ChecksumUseDefault}
 
 	errUnsupportedSSEType = errors.New("unsupported S3 SSE type")
 )
@@ -114,7 +115,7 @@ func (cfg *Config) checksumType() minio.ChecksumType {
 		return minio.ChecksumSHA1
 	case ChecksumCRC32:
 		return minio.ChecksumCRC32
-	case ChecksumCRC32C:
+	case ChecksumCRC32C, ChecksumUseDefault:
 		return minio.ChecksumCRC32C
 	case ChecksumCRC64NVME:
 		return minio.ChecksumCRC64NVME
