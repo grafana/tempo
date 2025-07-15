@@ -30,10 +30,9 @@ type CompactionConfig struct {
 	MeasureInterval  time.Duration           `yaml:"measure_interval"`
 	Compactor        tempodb.CompactorConfig `yaml:"compaction"`
 	MaxJobsPerTenant int                     `yaml:"max_jobs_per_tenant"`
-	// Backoff          backoff.Config          `yaml:"backoff"`
-	MinInputBlocks   int           `yaml:"min_input_blocks"`
-	MaxInputBlocks   int           `yaml:"max_input_blocks"`
-	MinCycleInterval time.Duration `yaml:"min_cycle_interval"`
+	MinInputBlocks   int                     `yaml:"min_input_blocks"`
+	MaxInputBlocks   int                     `yaml:"max_input_blocks"`
+	MinCycleInterval time.Duration           `yaml:"min_cycle_interval"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -129,8 +128,8 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			if p.curSelector == nil {
 				if !p.prepareNextTenant(loopCtx) {
 					level.Info(p.logger).Log("msg", "received empty tenant")
-					metricTenantBackoff.Inc()
-					span.AddEvent("tenant not prepared")
+					metricEmptyTenantCycle.Inc()
+					span.AddEvent("no tenant selected")
 				}
 
 				if p.curTenant != nil {
