@@ -19,6 +19,21 @@ type Work struct {
 	cfg  Config
 }
 
+// NewWork creates a work instance based on configuration
+// This factory allows seamless migration from original to sharded implementation
+func NewWork(cfg Config) Interface {
+	if cfg.Sharded {
+		return NewSharded(cfg)
+	}
+	return New(cfg)
+}
+
+// NewWorkWithSharding explicitly creates a sharded work instance
+// This provides access to sharding-specific optimizations
+func NewWorkWithSharding(cfg Config) ShardedWorkInterface {
+	return NewSharded(cfg)
+}
+
 func New(cfg Config) *Work {
 	return &Work{
 		// track jobs, keyed by job ID
@@ -42,6 +57,26 @@ func (q *Work) AddJob(j *Job) error {
 	j.CreatedTime = time.Now()
 	j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
 
+	q.Jobs[j.ID] = j
+
+	return nil
+}
+
+// AddJobPreservingState adds a job while preserving its existing state
+// This is used for migration to preserve job status, timing, etc.
+func (q *Work) AddJobPreservingState(j *Job) error {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if j == nil {
+		return ErrJobNil
+	}
+
+	if _, ok := q.Jobs[j.ID]; ok {
+		return ErrJobAlreadyExists
+	}
+
+	// Preserve all existing state - don't modify the job
 	q.Jobs[j.ID] = j
 
 	return nil
@@ -195,4 +230,35 @@ func (q *Work) Unmarshal(data []byte) error {
 	defer q.mtx.Unlock()
 
 	return jsoniter.Unmarshal(data, q)
+}
+
+// Migration helpers
+
+// MigrateToSharded converts an existing Work instance to ShardedWork
+// This preserves all existing jobs during the transition
+func MigrateToSharded(original Interface, cfg Config) (ShardedWorkInterface, error) {
+	sharded := NewSharded(cfg)
+
+	// Copy all jobs from original to sharded
+	jobs := original.ListJobs()
+	for _, job := range jobs {
+		err := sharded.AddJob(job)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return sharded, nil
+}
+
+// IsSharded checks if a WorkInterface is actually a sharded implementation
+func IsSharded(w Interface) bool {
+	_, ok := w.(ShardedWorkInterface)
+	return ok
+}
+
+// AsSharded safely casts a WorkInterface to ShardedWorkInterface if possible
+func AsSharded(w Interface) (ShardedWorkInterface, bool) {
+	sw, ok := w.(ShardedWorkInterface)
+	return sw, ok
 }

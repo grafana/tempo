@@ -40,7 +40,7 @@ type BackendScheduler struct {
 	store     storage.Store
 	overrides overrides.Interface
 
-	work *work.Work
+	work work.Interface
 
 	reader backend.RawReader
 	writer backend.RawWriter
@@ -69,7 +69,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 		cfg:        cfg,
 		store:      store,
 		overrides:  overrides,
-		work:       work.New(cfg.Work),
+		work:       work.NewWork(cfg.Work),
 		reader:     reader,
 		writer:     writer,
 		mergedJobs: make(chan *work.Job, 1),
@@ -111,7 +111,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder)
 	}
 
-	err := s.loadWorkCache(ctx)
+	err := s.loadWorkCacheOptimized(ctx)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return fmt.Errorf("failed to load work cache: %w", err)
 	}
@@ -187,7 +187,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 }
 
 func (s *BackendScheduler) stopping(_ error) error {
-	err := s.flushWorkCache(context.Background())
+	err := s.flushWorkCacheOptimized(context.Background(), nil) // nil = flush all shards
 	if err != nil {
 		return fmt.Errorf("failed to flush work cache on shutdown: %w", err)
 	}
@@ -218,7 +218,8 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		}
 
 		// The job exists in memory, but may not have been persisted to disk.
-		err := s.flushWorkCache(ctx)
+		// Use optimized flush that only writes affected shards
+		err := s.flushWorkCacheOptimized(ctx, []string{j.ID})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
@@ -264,7 +265,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		s.work.StartJob(j.ID)
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 
-		err = s.flushWorkCache(ctx)
+		err = s.flushWorkCacheOptimized(ctx, []string{j.ID})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
@@ -307,7 +308,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 		}
 
-		err := s.flushWorkCache(ctx)
+		err := s.flushWorkCacheOptimized(ctx, []string{req.JobId})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
@@ -323,7 +324,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
 
-		err := s.flushWorkCache(ctx)
+		err := s.flushWorkCacheOptimized(ctx, []string{req.JobId})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
