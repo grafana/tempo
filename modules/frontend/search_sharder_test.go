@@ -907,7 +907,7 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 1,
 			searchEnd: 50,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 8, CompletedThroughSeconds: 50}, // 50 - (0+1)*50 = 0, but clamped to 50 since maxShards=1
+				{TotalJobs: 8, CompletedThroughSeconds: 1}, // 50 - (0+1)*49 = 1
 			},
 		},
 		{
