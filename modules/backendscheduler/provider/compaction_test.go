@@ -191,7 +191,7 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 	provider := &CompactionProvider{
 		logger:          log.NewNopLogger(),
 		sched:           &mockScheduler{},
-		outstandingJobs: make(map[string][]string),
+		outstandingJobs: make(map[string][]backend.UUID),
 	}
 
 	// Cache starts empty

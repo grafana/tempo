@@ -69,7 +69,7 @@ type CompactionProvider struct {
 	lastPrioritizeTime time.Time
 
 	// Recent jobs cache for duplicate block ID prevention.
-	outstandingJobs    map[string][]string
+	outstandingJobs    map[string][]backend.UUID
 	outstandingJobsMtx sync.Mutex
 }
 
@@ -87,7 +87,7 @@ func NewCompactionProvider(
 		overrides:       overrides,
 		curPriority:     tenantselector.NewPriorityQueue(),
 		sched:           scheduler,
-		outstandingJobs: make(map[string][]string),
+		outstandingJobs: make(map[string][]backend.UUID),
 	}
 }
 
@@ -410,12 +410,7 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	p.outstandingJobsMtx.Lock()
 	for _, recentBlockIDs := range p.outstandingJobs {
 		for _, blockID := range recentBlockIDs {
-			bid, err = backend.ParseUUID(blockID)
-			if err != nil {
-				level.Error(p.logger).Log("msg", "failed to parse recent job block ID", "block_id", blockID, "err", err)
-				continue
-			}
-			inProgressBlockIDs[bid] = struct{}{}
+			inProgressBlockIDs[blockID] = struct{}{}
 		}
 	}
 	p.outstandingJobsMtx.Unlock()
@@ -455,8 +450,15 @@ func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
 	}
 
 	// Copy the input block IDs
-	blockIDs := make([]string, len(job.JobDetail.Compaction.Input))
-	copy(blockIDs, job.JobDetail.Compaction.Input)
+	blockIDs := make([]backend.UUID, len(job.JobDetail.Compaction.Input))
+	for i, blockID := range job.JobDetail.Compaction.Input {
+		bid, err := backend.ParseUUID(blockID)
+		if err != nil {
+			level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
+			return
+		}
+		blockIDs[i] = bid
+	}
 
 	p.outstandingJobsMtx.Lock()
 	p.outstandingJobs[job.ID] = blockIDs
