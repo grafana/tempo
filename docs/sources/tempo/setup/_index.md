@@ -1,6 +1,6 @@
 ---
 title: Set up Tempo
-menuTitle: Set up
+menuTitle: Set up Tempo
 description: Learn how to set up a Tempo server or cluster and visualize data.
 aliases:
 - /docs/tempo/setup
