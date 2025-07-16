@@ -1,13 +1,13 @@
 ---
-title: Set up a test application for a Tempo cluster
-menuTitle: Set up a test application for a Tempo cluster
-description: Learn how to set up a test app for your Tempo cluster and visualize data.
+title: Test Kubernetes deployment using a test application
+menuTitle: Test Kubernetes deployment
+description: Test your Tempo deployment on Kubernetes.
 weight: 600
 ---
 
 {{< docs/alias from="/docs/tempo/latest/setup/set-up-test-app/" to="/docs/tempo/latest/setup/test/set-up-test-app/" >}}
 
-# Set up a test application for a Tempo cluster
+# Test Kubernetes deployment using a test application
 
 Once you've set up a Grafana Tempo cluster, you need to write some traces to it and then query the traces from within Grafana.
 This procedure uses Tempo in microservices mode.
@@ -26,71 +26,14 @@ Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for mo
 
 ## Configure Grafana Alloy to remote-write to Tempo
 
-This section uses a [Grafana Alloy Helm chart](/docs/alloy/<ALLOY_VERSION>/set-up/install/kubernetes/) deployment to send traces to Tempo.
+{{< admonition type="note" >}}
+You can skip this section if you have already configured Alloy to send traces to Tempo.
+{{< /admonition >}}
 
-To do this, you need to create a configuration that can be used by Alloy to receive and export traces in OTLP `protobuf` format.
+[//]: # 'Shared content for best practices for traces'
+[//]: # 'This content is located in /tempo/docs/sources/shared/best-practices-traces.md'
 
-1. Create a new `values.yaml` file which we'll use as part of the Alloy install.
-
-1. Edit the `values.yaml` file and add the following configuration to it:
-   ```yaml
-   alloy:
-     extraPorts:
-       - name: otlp-grpc
-         port: 4317
-         targetPort: 4317
-         protocol: TCP
-     configMap:
-       create: true
-       content: |-
-         // Creates a receiver for OTLP gRPC.
-         // You can easily add receivers for other protocols by using the correct component
-         // from the reference list at: https://grafana.com/docs/alloy/latest/reference/components/
-         otelcol.receiver.otlp "otlp_receiver" {
-           // Listen on all available bindable addresses on port 4317 (which is the
-           // default OTLP gRPC port) for the OTLP protocol.
-           grpc {
-             endpoint = "0.0.0.0:4317"
-           }
-
-           // Output straight to the OTLP gRPC exporter. We would usually do some processing
-           // first, most likely batch processing, but for this example we pass it straight
-           // through.
-           output {
-             traces = [
-               otelcol.exporter.otlp.tempo.input,
-             ]
-           }
-         }
-
-         // Define an OTLP gRPC exporter to send all received traces to GET.
-         // The unique label 'tempo' is added to uniquely identify this exporter.
-         otelcol.exporter.otlp "tempo" {
-             // Define the client for exporting.
-             client {
-                 // Send to the locally running Tempo instance, on port 4317 (OTLP gRPC).
-                 endpoint = "http://tempo-cluster-distributor.tempo.svc.cluster.local:4317"
-                 // Disable TLS for OTLP remote write.
-                 tls {
-                     // The connection is insecure.
-                     insecure = true
-                     // Do not verify TLS certificates when connecting.
-                     insecure_skip_verify = true
-                 }
-             }
-         }
-   ```
-   Ensure that you use the specific namespace you've installed Tempo in for the OTLP exporter. In the line:
-   ```yaml
-   endpoint = "http://tempo-cluster-distributor.tempo.svc.cluster.local:3100"
-   ```
-   change `tempo` to reference the namespace where Tempo is installed, for example:  `http://tempo-cluster-distributor.my-tempo-namespaces.svc.cluster.local:3100`.
-
-1. Deploy Alloy using Helm:
-   ```bash
-   helm install -f values.yaml grafana-alloy grafana/alloy
-   ```
-   If you deploy Alloy into a specific namespace, create the namespace first and specify it to Helm by appending `--namespace=<grafana-alloy-namespace>` to the end of the command.
+{{< docs/shared source="tempo" lookup="alloy-remote-write-tempo.md" version="latest" >}}
 
 ## Create a Grafana Tempo data source
 

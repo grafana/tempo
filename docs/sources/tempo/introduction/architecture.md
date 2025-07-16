@@ -62,7 +62,7 @@ The Query Frontend is the component called by, for example, Grafana when a user 
 The Query Frontend is responsible for calling one or more Queriers to carry out examination of potential blocks of data where span data for matching traces may exist in parallel, to speed up result response time (dependent on multiple Queriers being configured).
 Requests by the Query Frontend can be split across multiple Queriers, which all work in parallel to retrieve results quickly.
 The more Queriers available, generally the quicker a result response.
-When Queriers have returned enough reponses, the Query Frontend is responsible for concatenating all of the span data returned by each individual Querier together to send a response to the requester.
+When Queriers have returned enough responses, the Query Frontend is responsible for concatenating all of the span data returned by each individual Querier together to send a response to the requester.
 
 The Query Frontend is responsible for sharding the search space for an incoming query.
 
@@ -90,7 +90,7 @@ Queries should be sent to the Query Frontend.
 
 The Compactor is responsible for ensuring that the stored data is both compressed and deduplicated (more on deduplication in the advanced course).
 The compactor is also responsible for expiring data after the retention period for that data has been reached.
-Compactors are not constantly running, but are scheduled to run at frequent intervals to deal with any uncompacted data that has been stored by the Ingesters.
+Compactors run on scheduled frequent intervals to deal with data that is not compacted and has been stored by the Ingesters.
 Compaction takes into account the data stored for specific traces to minimize search space on queries.
 
 ### Object storage
@@ -109,7 +109,7 @@ This is an **optional** component that derives metrics from ingested traces and 
 
 There are three fundamentally important things to keep in mind with traces:
 
-* There is no concept of the 'end' of a trace. A trace can start with any span which holds a unique trace ID that has not been seen by Tempo previously. However, spans can be continually added at any point in the future.
+* There is no concept of the 'end' of a trace. A trace can start with any span which holds a unique trace ID that hasn't been seen by Tempo previously. However, spans can be continually added at any point in the future.
 
 * When a trace ID is queried in Tempo, it returns all of the currently stored/ingested spans that belong to that trace and present them in a mapped response (that is, a graph of parent/child/sibling relationships between spans) that allow, for example, Grafana to then visually render those traces.
 

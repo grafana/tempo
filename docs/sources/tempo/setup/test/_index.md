@@ -3,7 +3,7 @@ title: Test Tempo
 menuTitle: Test Tempo
 description: Instructions for testing your Tempo deployment
 weight: 500
-draft: true
+# draft: true
 ---
 
 <!-- This page is not finished. It's hidden from the published doc site by draft: true. -->

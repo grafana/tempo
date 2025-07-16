@@ -159,9 +159,11 @@ To verify that Tempo is working, run the following command:
 systemctl is-active tempo
 ```
 
-You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service. You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
+You should see the status `active` returned. If you don't, check that the configuration file is correct, and then restart the service.
+You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
 
-Verify that your storage bucket has received data by signing in to your storage provider and determining that a file has been written to storage. It should be called `tempo_cluster_seed.json`.
+Verify that your storage bucket has received data by signing in to your storage provider and determining that a file has been written to storage.
+It should be called `tempo_cluster_seed.json`.
 
 ## Test your installation
 
