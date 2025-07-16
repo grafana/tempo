@@ -480,7 +480,7 @@ func backendJobsFunc(blocks []*backend.BlockMeta, targetBytesPerRequest int, max
 
 func calculateShardCompletionTime(queryEnd uint32, maxShards int, currentShard int) uint32 {
 	if maxShards <= 1 {
-		return queryEnd
+		return 1
 	}
 
 	timeSlotSize := queryEnd / uint32(maxShards)
