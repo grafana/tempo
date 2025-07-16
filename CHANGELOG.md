@@ -23,6 +23,7 @@
 * [ENHANCEMENT] Drop invalid prometheus label names in spanmetrics processor [#5122](https://github.com/grafana/tempo/pull/5122) (@KyriosGN0)
 * [ENHANCEMENT] Added usage tracker example [#5356](https://github.com/grafana/tempo/pull/5356) (@javiermolinar)
 * [ENHANCEMENT] Add Stop method [#5293](https://github.com/grafana/tempo/pull/5293) (@stephanos)
+* [ENHANCEMENT] Use peer attributes to determine the name of a client service virtual node in the service gra0ph [#5381](https://github.com/grafana/tempo/pull/5381) (@martenm)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
 * [BUGFIX] Correct instant query calculation [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
 * [BUGFIX] Fix tracing context propagation in distributor HTTP write requests [#5312](https://github.com/grafana/tempo/pull/5312) (@mapno)
