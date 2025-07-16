@@ -28,7 +28,7 @@ const (
 
 func TestS3Checksum(t *testing.T) {
 	checksumTypes := []string{
-		"None",
+		"",
 		"SHA256",
 		"SHA1",
 		"CRC32",

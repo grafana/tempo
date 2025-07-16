@@ -29,7 +29,6 @@ const (
 
 	// Supported checksum types
 	ChecksumUseDefault = ""
-	ChecksumNone       = "None"
 	ChecksumSHA256     = "SHA256"
 	ChecksumSHA1       = "SHA1"
 	ChecksumCRC32      = "CRC32"
@@ -39,7 +38,7 @@ const (
 
 var (
 	supportedSSETypes      = []string{SSEKMS, SSES3}
-	supportedChecksumTypes = []string{ChecksumNone, ChecksumSHA256, ChecksumSHA1, ChecksumCRC32, ChecksumCRC32C, ChecksumCRC64NVME, ChecksumUseDefault}
+	supportedChecksumTypes = []string{ChecksumSHA256, ChecksumSHA1, ChecksumCRC32, ChecksumCRC32C, ChecksumCRC64NVME, ChecksumUseDefault}
 
 	errUnsupportedSSEType = errors.New("unsupported S3 SSE type")
 )
@@ -95,7 +94,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.SSE.KMSEncryptionContext, util.PrefixConfig(prefix, "s3.sse.kms-encryption-context"), "", "KMS Encryption Context used for object encryption. It expects JSON formatted string.")
 	cfg.HedgeRequestsUpTo = 2
 
-	f.StringVar(&cfg.ChecksumType, util.PrefixConfig(prefix, "s3.checksum_type"), ChecksumCRC32C, fmt.Sprintf("checksum algorithm to use for S3 operations. Supported values: %s. Default: %s", strings.Join(supportedChecksumTypes, ", "), ChecksumCRC32C))
+	f.StringVar(&cfg.ChecksumType, util.PrefixConfig(prefix, "s3.checksum_type"), ChecksumUseDefault, fmt.Sprintf("checksum algorithm to use for S3 operations. Supported values: %s. Default: %s", strings.Join(supportedChecksumTypes, ", "), ChecksumCRC32C))
 }
 
 func (cfg *Config) Validate() error {
@@ -107,7 +106,7 @@ func (cfg *Config) Validate() error {
 
 func (cfg *Config) checksumType() minio.ChecksumType {
 	switch cfg.ChecksumType {
-	case ChecksumNone:
+	case ChecksumUseDefault:
 		return minio.ChecksumNone
 	case ChecksumSHA256:
 		return minio.ChecksumSHA256
@@ -115,7 +114,7 @@ func (cfg *Config) checksumType() minio.ChecksumType {
 		return minio.ChecksumSHA1
 	case ChecksumCRC32:
 		return minio.ChecksumCRC32
-	case ChecksumCRC32C, ChecksumUseDefault:
+	case ChecksumCRC32C:
 		return minio.ChecksumCRC32C
 	case ChecksumCRC64NVME:
 		return minio.ChecksumCRC64NVME
