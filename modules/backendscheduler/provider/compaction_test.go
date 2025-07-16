@@ -189,13 +189,13 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 	// Create a test provider
 	provider := &CompactionProvider{
-		logger:     log.NewNopLogger(),
-		sched:      &mockScheduler{},
-		recentJobs: make(map[string][]string),
+		logger:          log.NewNopLogger(),
+		sched:           &mockScheduler{},
+		outstandingJobs: make(map[string][]string),
 	}
 
 	// Cache starts empty
-	require.Len(t, provider.recentJobs, 0, "Cache should start empty")
+	require.Len(t, provider.outstandingJobs, 0, "Cache should start empty")
 
 	job1 := &work.Job{
 		ID:   "job1",
@@ -208,9 +208,9 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 	}
 
 	provider.addToRecentJobs(job1)
-	require.Len(t, provider.recentJobs, 1, "Cache should contain one job")
-	require.Contains(t, provider.recentJobs, "job1", "Cache should contain job1")
-	require.Equal(t, []string{"block1", "block2"}, provider.recentJobs["job1"], "Cache should contain correct blocks")
+	require.Len(t, provider.outstandingJobs, 1, "Cache should contain one job")
+	require.Contains(t, provider.outstandingJobs, "job1", "Cache should contain job1")
+	require.Equal(t, []string{"block1", "block2"}, provider.outstandingJobs["job1"], "Cache should contain correct blocks")
 
 	job2 := &work.Job{
 		ID:   "job2",
@@ -223,8 +223,8 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 	}
 
 	provider.addToRecentJobs(job2)
-	require.Len(t, provider.recentJobs, 2, "Cache should contain two jobs")
-	require.Equal(t, []string{"block3", "block4"}, provider.recentJobs["job2"], "Cache should contain correct blocks for job2")
+	require.Len(t, provider.outstandingJobs, 2, "Cache should contain two jobs")
+	require.Equal(t, []string{"block3", "block4"}, provider.outstandingJobs["job2"], "Cache should contain correct blocks for job2")
 
 	// Non-compaction job should not be added to cache
 	retentionJob := &work.Job{
@@ -233,7 +233,7 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 	}
 
 	provider.addToRecentJobs(retentionJob)
-	require.Len(t, provider.recentJobs, 2, "Non-compaction jobs should not be added to cache")
+	require.Len(t, provider.outstandingJobs, 2, "Non-compaction jobs should not be added to cache")
 
 	// Empty compaction input should not be added
 	emptyJob := &work.Job{
@@ -247,7 +247,7 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 	}
 
 	provider.addToRecentJobs(emptyJob)
-	require.Len(t, provider.recentJobs, 2, "Jobs with empty input should not be added to cache")
+	require.Len(t, provider.outstandingJobs, 2, "Jobs with empty input should not be added to cache")
 }
 
 func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *testing.T) {
@@ -324,10 +324,10 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 	}
 
 	// Verify that all received jobs are present in the recent jobs cache
-	require.Len(t, p.recentJobs, len(receivedJobs), "Recent jobs cache should contain all received jobs")
+	require.Len(t, p.outstandingJobs, len(receivedJobs), "Recent jobs cache should contain all received jobs")
 	for _, job := range receivedJobs {
-		require.Contains(t, p.recentJobs, job.ID, "Recent jobs cache should contain job %s", job.ID)
-		require.Equal(t, job.GetCompactionInput(), p.recentJobs[job.ID], "Recent jobs cache should contain correct blocks for job %s", job.ID)
+		require.Contains(t, p.outstandingJobs, job.ID, "Recent jobs cache should contain job %s", job.ID)
+		require.Equal(t, job.GetCompactionInput(), p.outstandingJobs[job.ID], "Recent jobs cache should contain correct blocks for job %s", job.ID)
 	}
 
 	// Now add a job to the work queue and verify it is removed from the recent jobs cache
@@ -340,7 +340,7 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 	require.NotNil(t, twbs)
 
 	// Verify the recent jobs cache was cleaned up
-	require.NotContains(t, p.recentJobs, firstJob.ID, "Job should be removed from recent jobs cache after being added to work queue")
+	require.NotContains(t, p.outstandingJobs, firstJob.ID, "Job should be removed from recent jobs cache after being added to work queue")
 
 	metas := collectAllMetas(twbs)
 	// Verify that the blocks in the first job are not present in the metas
@@ -353,8 +353,8 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 
 	// Verify that the remaining jobs are still in the cache
 	for _, job := range receivedJobs[1:] {
-		require.Contains(t, p.recentJobs, job.ID, "Recent jobs cache should still contain job %s", job.ID)
-		require.Equal(t, job.GetCompactionInput(), p.recentJobs[job.ID], "Recent jobs cache should contain correct blocks for job %s", job.ID)
+		require.Contains(t, p.outstandingJobs, job.ID, "Recent jobs cache should still contain job %s", job.ID)
+		require.Equal(t, job.GetCompactionInput(), p.outstandingJobs[job.ID], "Recent jobs cache should contain correct blocks for job %s", job.ID)
 	}
 }
 

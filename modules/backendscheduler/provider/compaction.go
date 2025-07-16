@@ -69,8 +69,8 @@ type CompactionProvider struct {
 	lastPrioritizeTime time.Time
 
 	// Recent jobs cache for duplicate block ID prevention.
-	recentJobs    map[string][]string
-	recentJobsMtx sync.Mutex
+	outstandingJobs    map[string][]string
+	outstandingJobsMtx sync.Mutex
 }
 
 func NewCompactionProvider(
@@ -81,13 +81,13 @@ func NewCompactionProvider(
 	scheduler Scheduler,
 ) *CompactionProvider {
 	return &CompactionProvider{
-		cfg:         cfg,
-		logger:      logger,
-		store:       store,
-		overrides:   overrides,
-		curPriority: tenantselector.NewPriorityQueue(),
-		sched:       scheduler,
-		recentJobs:  make(map[string][]string),
+		cfg:             cfg,
+		logger:          logger,
+		store:           store,
+		overrides:       overrides,
+		curPriority:     tenantselector.NewPriorityQueue(),
+		sched:           scheduler,
+		outstandingJobs: make(map[string][]string),
 	}
 }
 
@@ -375,16 +375,16 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 
 	// Query the work for the jobs and build up a list of UUIDs which we can match against and skip on the selector.
 	var (
-		perTenantBlockIDs = make(map[backend.UUID]struct{})
-		bid               backend.UUID
-		err               error
+		inProgressBlockIDs = make(map[backend.UUID]struct{})
+		bid                backend.UUID
+		err                error
 	)
 
 	for _, job := range p.sched.ListJobs() {
 		// Clean up recent jobs cache when we find a job which has been persisted
-		p.recentJobsMtx.Lock()
-		delete(p.recentJobs, job.ID)
-		p.recentJobsMtx.Unlock()
+		p.outstandingJobsMtx.Lock()
+		delete(p.outstandingJobs, job.ID)
+		p.outstandingJobsMtx.Unlock()
 
 		if job.Tenant() != tenantID {
 			continue
@@ -402,26 +402,26 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 				level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
 				continue
 			}
-			perTenantBlockIDs[bid] = struct{}{}
+			inProgressBlockIDs[bid] = struct{}{}
 		}
 	}
 
 	// Also include blocks from recent jobs cache to prevent duplicate job creation
-	p.recentJobsMtx.Lock()
-	for _, recentBlockIDs := range p.recentJobs {
+	p.outstandingJobsMtx.Lock()
+	for _, recentBlockIDs := range p.outstandingJobs {
 		for _, blockID := range recentBlockIDs {
 			bid, err = backend.ParseUUID(blockID)
 			if err != nil {
 				level.Error(p.logger).Log("msg", "failed to parse recent job block ID", "block_id", blockID, "err", err)
 				continue
 			}
-			perTenantBlockIDs[bid] = struct{}{}
+			inProgressBlockIDs[bid] = struct{}{}
 		}
 	}
-	p.recentJobsMtx.Unlock()
+	p.outstandingJobsMtx.Unlock()
 
 	for _, block := range fullBlocklist {
-		if _, ok := perTenantBlockIDs[block.BlockID]; ok {
+		if _, ok := inProgressBlockIDs[block.BlockID]; ok {
 			// Skip blocks that are already in the input list from another job or recent jobs
 			continue
 		}
@@ -458,7 +458,7 @@ func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
 	blockIDs := make([]string, len(job.JobDetail.Compaction.Input))
 	copy(blockIDs, job.JobDetail.Compaction.Input)
 
-	p.recentJobsMtx.Lock()
-	p.recentJobs[job.ID] = blockIDs
-	p.recentJobsMtx.Unlock()
+	p.outstandingJobsMtx.Lock()
+	p.outstandingJobs[job.ID] = blockIDs
+	p.outstandingJobsMtx.Unlock()
 }
