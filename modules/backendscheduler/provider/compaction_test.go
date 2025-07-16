@@ -194,6 +194,13 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 		outstandingJobs: make(map[string][]backend.UUID),
 	}
 
+	var (
+		block1 = backend.NewUUID()
+		block2 = backend.NewUUID()
+		block3 = backend.NewUUID()
+		block4 = backend.NewUUID()
+	)
+
 	// Cache starts empty
 	require.Len(t, provider.outstandingJobs, 0, "Cache should start empty")
 
@@ -202,7 +209,7 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 		JobDetail: tempopb.JobDetail{
 			Compaction: &tempopb.CompactionDetail{
-				Input: []string{"block1", "block2"},
+				Input: []string{block1.String(), block2.String()},
 			},
 		},
 	}
@@ -210,21 +217,21 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 	provider.addToRecentJobs(job1)
 	require.Len(t, provider.outstandingJobs, 1, "Cache should contain one job")
 	require.Contains(t, provider.outstandingJobs, "job1", "Cache should contain job1")
-	require.Equal(t, []string{"block1", "block2"}, provider.outstandingJobs["job1"], "Cache should contain correct blocks")
+	require.Equal(t, []backend.UUID{block1, block2}, provider.outstandingJobs["job1"], "Cache should contain correct blocks")
 
 	job2 := &work.Job{
 		ID:   "job2",
 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 		JobDetail: tempopb.JobDetail{
 			Compaction: &tempopb.CompactionDetail{
-				Input: []string{"block3", "block4"},
+				Input: []string{block3.String(), block4.String()},
 			},
 		},
 	}
 
 	provider.addToRecentJobs(job2)
 	require.Len(t, provider.outstandingJobs, 2, "Cache should contain two jobs")
-	require.Equal(t, []string{"block3", "block4"}, provider.outstandingJobs["job2"], "Cache should contain correct blocks for job2")
+	require.Equal(t, []backend.UUID{block3, block4}, provider.outstandingJobs["job2"], "Cache should contain correct blocks for job2")
 
 	// Non-compaction job should not be added to cache
 	retentionJob := &work.Job{
@@ -327,7 +334,12 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 	require.Len(t, p.outstandingJobs, len(receivedJobs), "Recent jobs cache should contain all received jobs")
 	for _, job := range receivedJobs {
 		require.Contains(t, p.outstandingJobs, job.ID, "Recent jobs cache should contain job %s", job.ID)
-		require.Equal(t, job.GetCompactionInput(), p.outstandingJobs[job.ID], "Recent jobs cache should contain correct blocks for job %s", job.ID)
+
+		require.Equal(t, len(job.GetCompactionInput()), len(p.outstandingJobs[job.ID]), "Recent jobs cache should contain correct number of blocks for job %s", job.ID)
+		for _, blockID := range job.GetCompactionInput() {
+			u := backend.MustParse(blockID)
+			require.Equal(t, u.String(), blockID, "Block ID %s should match the UUID format", blockID)
+		}
 	}
 
 	// Now add a job to the work queue and verify it is removed from the recent jobs cache
@@ -354,7 +366,12 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 	// Verify that the remaining jobs are still in the cache
 	for _, job := range receivedJobs[1:] {
 		require.Contains(t, p.outstandingJobs, job.ID, "Recent jobs cache should still contain job %s", job.ID)
-		require.Equal(t, job.GetCompactionInput(), p.outstandingJobs[job.ID], "Recent jobs cache should contain correct blocks for job %s", job.ID)
+		require.Equal(t, len(job.GetCompactionInput()), len(p.outstandingJobs[job.ID]), "Recent jobs cache should contain correct number of blocks for job %s", job.ID)
+		for _, blockID := range job.GetCompactionInput() {
+			u := backend.MustParse(blockID)
+			require.Equal(t, u.String(), blockID, "Block ID %s should match the UUID format", blockID)
+		}
+
 	}
 }
 

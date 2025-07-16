@@ -174,10 +174,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBlocklistPollConcurrency)
 	}
 
-	if c.BackendScheduler.Work.PruneAge <= (c.StorageConfig.Trace.BlocklistPoll * 2) {
-		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
-	}
-
 	if c.Distributor.LogReceivedSpans.Enabled {
 		warnings = append(warnings, warnLogReceivedTraces)
 	}
@@ -247,6 +243,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 
 	if c.BlockBuilder.BlockConfig.BlockCfg.Version != c.BlockBuilder.WAL.Version {
 		warnings = append(warnings, warnBlockAndWALVersionMismatch)
+	}
+
+	if c.BackendScheduler.Work.PruneAge <= (c.StorageConfig.Trace.BlocklistPoll * 2) {
+		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
 
 	return warnings
