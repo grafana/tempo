@@ -43,7 +43,7 @@ var (
 // Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting
 // stale data. For efficiency this is not detected automatically from changes inthe assigned
 // partition callback.
-func ExportPartitionLagMetrics(ctx context.Context, client *kadm.Client, partitionClient *PartitionOffsetClient, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
+func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, partitionClient *PartitionOffsetClient, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
 	go func() {
 		var (
 			waitTime = time.Second * 15
@@ -66,7 +66,7 @@ func ExportPartitionLagMetrics(ctx context.Context, client *kadm.Client, partiti
 				assignedPartitions := getAssignedActivePartitions()
 				boff.Reset()
 				for boff.Ongoing() {
-					lag, err = getGroupLag(ctx, client, partitionClient, group, assignedPartitions)
+					lag, err = getGroupLag(ctx, admClient, partitionClient, group, assignedPartitions)
 					if err == nil {
 						break
 					}
