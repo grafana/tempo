@@ -336,7 +336,7 @@ func (rw *Azure) ReadRange(ctx context.Context, name string, keypath backend.Key
 func (rw *Azure) Shutdown() {
 }
 
-func (rw *Azure) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
+func (rw *Azure) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, version backend.Version) (backend.Version, error) {
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
@@ -353,7 +353,7 @@ func (rw *Azure) WriteVersioned(ctx context.Context, name string, keypath backen
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
-	err = rw.Write(ctx, name, keypath, data, -1, nil)
+	err = rw.Write(ctx, name, keypath, data, size, nil)
 	if err != nil {
 		return "", err
 	}

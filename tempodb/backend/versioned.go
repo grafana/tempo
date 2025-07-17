@@ -27,7 +27,7 @@ type VersionedReaderWriter interface {
 
 	// WriteVersioned data to an object, if the version does not match the request will fail with
 	// ErrVersionDoesNotMatch. If the operation will create a new file, pass VersionNew.
-	WriteVersioned(ctx context.Context, name string, keypath KeyPath, data io.Reader, version Version) (Version, error)
+	WriteVersioned(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, version Version) (Version, error)
 
 	// DeleteVersioned an object, if the version does not match the request will fail with
 	// ErrVersionDoesNotMatch.
@@ -48,8 +48,8 @@ func NewFakeVersionedReaderWriter(r RawReader, w RawWriter) *FakeVersionedReader
 	return &FakeVersionedReaderWriter{r, w}
 }
 
-func (f *FakeVersionedReaderWriter) WriteVersioned(ctx context.Context, name string, keypath KeyPath, data io.Reader, _ Version) (Version, error) {
-	err := f.Write(ctx, name, keypath, data, -1, nil)
+func (f *FakeVersionedReaderWriter) WriteVersioned(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, _ Version) (Version, error) {
+	err := f.Write(ctx, name, keypath, data, size, nil)
 	return VersionNew, err
 }
 
