@@ -1225,6 +1225,7 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
+		"{} | rate() with(sample=0.1)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
 		"{} | rate() by (span.http.url)", // High cardinality attribute
@@ -1232,6 +1233,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",
 		"{} | quantile_over_time(duration, .99, .9, .5)",
+		"{} | quantile_over_time(duration, .99, .9, .5) with(sample=0.1)",
 		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",

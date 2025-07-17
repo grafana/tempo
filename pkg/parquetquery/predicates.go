@@ -371,6 +371,72 @@ func (p *OrPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
+type AndPredicate struct {
+	preds []Predicate
+}
+
+var _ Predicate = (*AndPredicate)(nil)
+
+func NewAndPredicate(preds ...Predicate) *AndPredicate {
+	return &AndPredicate{
+		preds: preds,
+	}
+}
+
+func (p *AndPredicate) String() string {
+	var preds []string
+	for _, pred := range p.preds {
+		if pred != nil {
+			preds = append(preds, pred.String())
+		} else {
+			preds = append(preds, "nil")
+		}
+	}
+	return fmt.Sprintf("AndPredicate{%s}", strings.Join(preds, ","))
+}
+
+func (p *AndPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	for _, p := range p.preds {
+		if p == nil {
+			// Nil means ok
+			continue
+		}
+		if !p.KeepColumnChunk(c) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (p *AndPredicate) KeepPage(page pq.Page) bool {
+	for _, p := range p.preds {
+		if p == nil {
+			// Nil means ok
+			continue
+		}
+		if !p.KeepPage(page) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (p *AndPredicate) KeepValue(v pq.Value) bool {
+	for _, p := range p.preds {
+		if p == nil {
+			// Nil means ok
+			continue
+		}
+		if !p.KeepValue(v) {
+			return false
+		}
+	}
+
+	return true
+}
+
 type InstrumentedPredicate struct {
 	Pred                  Predicate // Optional, if missing then just keeps metrics with no filtering
 	InspectedColumnChunks int64

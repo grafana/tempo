@@ -41,6 +41,7 @@ type MetricsCompare struct {
 	baselineExemplars   []Exemplar
 	selectionExemplars  []Exemplar
 	seriesAgg           SeriesAggregator
+	multiplier          float64
 }
 
 type staticWithCounts struct {
@@ -66,7 +67,7 @@ func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	// because we're already selecting all.
 }
 
-func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode, sample float64) {
 	switch mode {
 	case AggregateModeRaw:
 		m.qstart = q.Start
@@ -77,6 +78,10 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		m.selections = make(map[Attribute]map[StaticMapKey]staticWithCounts)
 		m.baselineTotals = make(map[Attribute][]float64)
 		m.selectionTotals = make(map[Attribute][]float64)
+		m.multiplier = 1.0
+		if sample > 0 {
+			m.multiplier = float64(int(1.0 / sample))
+		}
 
 	case AggregateModeSum:
 		m.seriesAgg = NewSimpleCombiner(q, sumAggregation, maxExemplars)
@@ -203,8 +208,8 @@ func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
 }
 
 func (m *MetricsCompare) result() SeriesSet {
-	// In the other modes return these results
 	if m.seriesAgg != nil {
+		// In job-level mode the series come from the series aggregator.
 		return m.seriesAgg.Results()
 	}
 
@@ -284,6 +289,15 @@ func (m *MetricsCompare) result() SeriesSet {
 	}
 	for _, e := range m.selectionExemplars {
 		addExemplar(internalLabelTypeSelectionTotal, e)
+	}
+
+	// Multiply to account for sampling as needed.
+	if m.multiplier != 1.0 {
+		for _, s := range ss {
+			for i := range s.Values {
+				s.Values[i] *= m.multiplier
+			}
+		}
 	}
 
 	return ss

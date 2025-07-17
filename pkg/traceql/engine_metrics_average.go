@@ -32,7 +32,7 @@ func newAverageOverTimeMetricsAggregator(attr Attribute, by []Attribute) *averag
 	}
 }
 
-func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode AggregateMode, sample float64) {
 	a.seriesAgg = &averageOverTimeSeriesAggregator{
 		weightedAverageSeries: make(map[string]*averageSeries),
 		len:                   IntervalCount(q.Start, q.End, q.Step),
@@ -47,7 +47,7 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 	}
 
 	if mode == AggregateModeRaw {
-		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step)
+		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step, sample)
 	}
 
 	a.mode = mode
@@ -364,6 +364,7 @@ type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 	start           uint64
 	end             uint64
 	step            uint64
+	sample          float64
 
 	// Data
 	series     map[F]avgOverTimeSeries[S]
@@ -374,7 +375,7 @@ type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 
 var _ SpanAggregator = (*avgOverTimeSpanAggregator[FastStatic1, StaticVals1])(nil)
 
-func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64) SpanAggregator {
+func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64, sample float64) SpanAggregator {
 	lookups := make([][]Attribute, len(by))
 	for i, attr := range by {
 		if attr.Intrinsic == IntrinsicNone && attr.Scope == AttributeScopeNone {
@@ -393,19 +394,19 @@ func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, st
 
 	switch aggNum {
 	case 2:
-		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step, sample)
 	case 3:
-		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step, sample)
 	case 4:
-		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step, sample)
 	case 5:
-		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step, sample)
 	default:
-		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step, sample)
 	}
 }
 
-func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64) SpanAggregator {
+func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64, sample float64) SpanAggregator {
 	var fn func(s Span) float64
 
 	switch attr {
@@ -431,6 +432,7 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 		start:           start,
 		end:             end,
 		step:            step,
+		sample:          sample,
 	}
 }
 
@@ -499,6 +501,11 @@ func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
+	multiplier := 1.0
+	if g.sample > 0 {
+		multiplier = float64(int(1.0 / g.sample))
+	}
+
 	ss := SeriesSet{}
 
 	for _, s := range g.series {
@@ -506,8 +513,12 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 		s.average.labels = labels
 		// Average series
 		averageSeries := s.average.getAvgSeries()
+
 		// Count series
 		countSeries := s.average.getCountSeries()
+		for i := range countSeries.Values {
+			countSeries.Values[i] *= multiplier
+		}
 
 		ss[promLabelsAvg] = averageSeries
 		ss[countSeries.Labels.String()] = countSeries

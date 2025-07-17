@@ -852,7 +852,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
-	metricsPipeline.init(req, mode)
+	metricsPipeline.init(req, mode, 0)
 	mfe := &MetricsFrontendEvaluator{
 		metricsPipeline: metricsPipeline,
 	}
@@ -898,8 +898,13 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplars = v
 	}
 
+	samplePercent, samplePercentOk := expr.Hints.GetFloat(HintSample, allowUnsafeQueryHints)
+	if samplePercentOk {
+		storageReq.Sample = samplePercent
+	}
+
 	// This initializes all step buffers, counters, etc
-	metricsPipeline.init(req, AggregateModeRaw)
+	metricsPipeline.init(req, AggregateModeRaw, samplePercent)
 
 	me := &MetricsEvaluator{
 		storageReq:        storageReq,
@@ -1058,6 +1063,7 @@ type MetricsEvaluator struct {
 	metricsPipeline                 firstStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
+	multiplier                      float64
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -1190,7 +1196,17 @@ func (e *MetricsEvaluator) Results() SeriesSet {
 	// can only be processed on the frontend.
 	// we could do this but it would require knowing if the first stage functions
 	// can be pushed down to second stage or not so we are skipping it for now, and will handle it later.
-	return e.metricsPipeline.result()
+	ss := e.metricsPipeline.result()
+
+	/*if e.multiplier != 1.0 {
+		for _, s := range ss {
+			for i := range s.Values {
+				s.Values[i] *= e.multiplier
+			}
+		}
+	}*/
+
+	return ss
 }
 
 func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {

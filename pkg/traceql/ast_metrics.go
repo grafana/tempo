@@ -11,7 +11,7 @@ import (
 type firstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
-	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
+	init(req *tempopb.QueryRangeRequest, mode AggregateMode, sample float64)
 	observe(Span) // TODO - batching?
 	observeExemplar(Span)
 	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
@@ -34,6 +34,7 @@ type MetricsAggregate struct {
 	agg        SpanAggregator
 	seriesAgg  SeriesAggregator
 	exemplarFn getExemplar
+	multiplier float64
 	// Type of operation for simple aggregatation in layers 2 and 3
 	simpleAggregationOp SimpleAggregationOp
 }
@@ -94,38 +95,48 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	}
 }
 
-func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode, sample float64) {
 	// Raw mode:
 
 	var innerAgg func() VectorAggregator
 	var byFunc func(Span) (Static, bool)
 	var byFuncLabel string
 
+	var possibleMultiplier float64
+	if sample > 0 {
+		possibleMultiplier = float64(int(1.0 / sample))
+	}
+
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarNaN
+		a.multiplier = possibleMultiplier
 
 	case metricsAggregateMinOverTime:
 		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, minOverTimeAggregation) }
 		a.simpleAggregationOp = minOverTimeAggregation
 		a.exemplarFn = exemplarFnFor(a.attr)
+		a.multiplier = 1.0
 
 	case metricsAggregateMaxOverTime:
 		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, maxOverTimeAggregation) }
 		a.simpleAggregationOp = maxOverTimeAggregation
 		a.exemplarFn = exemplarFnFor(a.attr)
+		a.multiplier = 1.0
 
 	case metricsAggregateSumOverTime:
 		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, sumOverTimeAggregation) }
 		a.simpleAggregationOp = sumOverTimeAggregation
 		a.exemplarFn = exemplarFnFor(a.attr)
+		a.multiplier = possibleMultiplier
 
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarNaN
+		a.multiplier = possibleMultiplier
 
 	case metricsAggregateHistogramOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
@@ -133,6 +144,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		byFuncLabel = internalLabelBucket
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarNaN // Histogram final series are counts so exemplars are placeholders
+		a.multiplier = possibleMultiplier
 
 	case metricsAggregateQuantileOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
@@ -140,6 +152,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		byFuncLabel = internalLabelBucket
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarFnFor(a.attr)
+		a.multiplier = possibleMultiplier
 	}
 
 	switch mode {
@@ -268,7 +281,15 @@ func (a *MetricsAggregate) observeSeries(ss []*tempopb.TimeSeries) {
 
 func (a *MetricsAggregate) result() SeriesSet {
 	if a.agg != nil {
-		return a.agg.Series()
+		ss := a.agg.Series()
+		if a.multiplier != 1.0 {
+			for _, s := range ss {
+				for i := range s.Values {
+					s.Values[i] *= a.multiplier
+				}
+			}
+		}
+		return ss
 	}
 
 	// In the frontend-version the results come from
