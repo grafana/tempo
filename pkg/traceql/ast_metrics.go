@@ -102,7 +102,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	var byFunc func(Span) (Static, bool)
 	var byFuncLabel string
 
-	var possibleMultiplier float64
+	possibleMultiplier := 1.0
 	if sample > 0 {
 		possibleMultiplier = float64(int(1.0 / sample))
 	}
