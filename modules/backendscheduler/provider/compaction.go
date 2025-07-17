@@ -416,12 +416,10 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	p.outstandingJobsMtx.Unlock()
 
 	for _, block := range fullBlocklist {
-		if _, ok := inProgressBlockIDs[block.BlockID]; ok {
-			// Skip blocks that are already in the input list from another job or recent jobs
-			continue
+		if _, ok := inProgressBlockIDs[block.BlockID]; !ok {
+			// Include blocks that are not already in the input list from another job or recent jobs
+			blocklist = append(blocklist, block)
 		}
-
-		blocklist = append(blocklist, block)
 	}
 
 	if window == 0 {
