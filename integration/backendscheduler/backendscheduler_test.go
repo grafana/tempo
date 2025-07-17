@@ -134,7 +134,7 @@ func TestBackendScheduler(t *testing.T) {
 		})
 	}
 
-	time.Sleep(5 * time.Second) // Wait for polling and measurement to catch up
+	time.Sleep(8 * time.Second) // Wait for polling and measurement to catch up
 
 	// NOTE: the compaction provider has a channel capacity of 1, and the
 	// backendscheduler has a channel capacity of 1.  This means that the
