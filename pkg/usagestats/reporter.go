@@ -232,7 +232,7 @@ func (rep *Reporter) writeSeedFile(ctx context.Context, seed ClusterSeed) error 
 	if err != nil {
 		return err
 	}
-	return rep.writer.Write(ctx, backend.ClusterSeedFileName, []string{}, bytes.NewReader(data), -1, nil)
+	return rep.writer.Write(ctx, backend.ClusterSeedFileName, []string{}, bytes.NewReader(data), int64(len(data)), nil)
 }
 
 // running inits the reporter seed and start sending report for every interval
