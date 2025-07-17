@@ -23,11 +23,10 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
+const topicName = "test"
+
 func TestPartitionOffsetClient_FetchPartitionsLastProducedOffsets(t *testing.T) {
-	const (
-		numPartitions = 3
-		topicName     = "test"
-	)
+	const numPartitions = 3
 
 	var (
 		ctx             = context.Background()
@@ -39,7 +38,7 @@ func TestPartitionOffsetClient_FetchPartitionsLastProducedOffsets(t *testing.T) 
 
 		var (
 			_, clusterAddr = testkafka.CreateCluster(t, numPartitions, topicName)
-			kafkaCfg       = createTestKafkaConfig(clusterAddr, topicName)
+			kafkaCfg       = createTestKafkaConfig(clusterAddr)
 			client         = createTestKafkaClient(t, kafkaCfg)
 			reader         = NewPartitionOffsetClient(client, topicName)
 		)
@@ -49,18 +48,18 @@ func TestPartitionOffsetClient_FetchPartitionsLastProducedOffsets(t *testing.T) 
 		assert.Equal(t, map[int32]int64{0: 0, 1: 0, 2: 0}, getPartitionsOffsets(offsets))
 
 		// Write some records.
-		produceRecord(ctx, t, client, topicName, 0, []byte("message 1"))
-		produceRecord(ctx, t, client, topicName, 0, []byte("message 2"))
-		produceRecord(ctx, t, client, topicName, 1, []byte("message 3"))
+		produceRecord(ctx, t, client, 0, []byte("message 1"))
+		produceRecord(ctx, t, client, 0, []byte("message 2"))
+		produceRecord(ctx, t, client, 1, []byte("message 3"))
 
 		offsets, err = reader.FetchPartitionsLastProducedOffsets(ctx, allPartitionIDs)
 		require.NoError(t, err)
 		assert.Equal(t, map[int32]int64{0: 2, 1: 1, 2: 0}, getPartitionsOffsets(offsets))
 
 		// Write more records.
-		produceRecord(ctx, t, client, topicName, 0, []byte("message 4"))
-		produceRecord(ctx, t, client, topicName, 1, []byte("message 5"))
-		produceRecord(ctx, t, client, topicName, 2, []byte("message 6"))
+		produceRecord(ctx, t, client, 0, []byte("message 4"))
+		produceRecord(ctx, t, client, 1, []byte("message 5"))
+		produceRecord(ctx, t, client, 2, []byte("message 6"))
 
 		offsets, err = reader.FetchPartitionsLastProducedOffsets(ctx, allPartitionIDs)
 		require.NoError(t, err)
@@ -78,7 +77,7 @@ func TestPartitionOffsetClient_FetchPartitionsLastProducedOffsets(t *testing.T) 
 		cluster, clusterAddr := testkafka.CreateCluster(t, numPartitions, topicName)
 
 		// Configure a short retry timeout.
-		kafkaCfg := createTestKafkaConfig(clusterAddr, topicName)
+		kafkaCfg := createTestKafkaConfig(clusterAddr)
 		kafkaCfg.LastProducedOffsetRetryTimeout = time.Second
 
 		client := createTestKafkaClient(t, kafkaCfg)
@@ -109,7 +108,7 @@ func TestPartitionOffsetClient_FetchPartitionsLastProducedOffsets(t *testing.T) 
 		cluster, clusterAddr := testkafka.CreateCluster(t, numPartitions, topicName)
 
 		// Configure a short retry timeout.
-		kafkaCfg := createTestKafkaConfig(clusterAddr, topicName)
+		kafkaCfg := createTestKafkaConfig(clusterAddr)
 		kafkaCfg.LastProducedOffsetRetryTimeout = time.Second
 
 		client := createTestKafkaClient(t, kafkaCfg)
@@ -139,7 +138,7 @@ func TestPartitionOffsetClient_FetchPartitionsLastProducedOffsets(t *testing.T) 
 		cluster, clusterAddr := testkafka.CreateCluster(t, numPartitions, topicName)
 
 		// Configure a short retry timeout.
-		kafkaCfg := createTestKafkaConfig(clusterAddr, topicName)
+		kafkaCfg := createTestKafkaConfig(clusterAddr)
 		kafkaCfg.LastProducedOffsetRetryTimeout = time.Second
 
 		client := createTestKafkaClient(t, kafkaCfg)
@@ -182,7 +181,7 @@ func getPartitionsOffsets(offsets kadm.ListedOffsets) map[int32]int64 {
 	return partitionOffsets
 }
 
-func createTestKafkaConfig(clusterAddr, topicName string) KafkaConfig {
+func createTestKafkaConfig(clusterAddr string) KafkaConfig {
 	cfg := KafkaConfig{}
 	flagext.DefaultValues(&cfg)
 
@@ -218,11 +217,11 @@ func createTestKafkaClient(t *testing.T, cfg KafkaConfig) *kgo.Client {
 	return client
 }
 
-func produceRecord(ctx context.Context, t *testing.T, writeClient *kgo.Client, topicName string, partitionID int32, content []byte) int64 {
-	return produceRecordWithVersion(ctx, t, writeClient, topicName, partitionID, content, 1)
+func produceRecord(ctx context.Context, t *testing.T, writeClient *kgo.Client, partitionID int32, content []byte) int64 {
+	return produceRecordWithVersion(ctx, t, writeClient, partitionID, content, 1)
 }
 
-func produceRecordWithVersion(ctx context.Context, t *testing.T, writeClient *kgo.Client, topicName string, partitionID int32, content []byte, version int) int64 {
+func produceRecordWithVersion(ctx context.Context, t *testing.T, writeClient *kgo.Client, partitionID int32, content []byte, version int) int64 {
 	rec := &kgo.Record{
 		Value:     content,
 		Topic:     topicName,
