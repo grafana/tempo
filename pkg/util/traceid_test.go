@@ -15,11 +15,11 @@ func TestHexStringToTraceID(t *testing.T) {
 		expectError error
 	}{
 		{
-			id:       "12",
+			id:       "00000000000000000000000000000012",
 			expected: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12},
 		},
 		{
-			id:       "1234567890abcdef", // 64 bit
+			id:       "00000000000000001234567890abcdef", // 64 bit
 			expected: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
 		},
 		{
@@ -36,7 +36,7 @@ func TestHexStringToTraceID(t *testing.T) {
 			expected: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
 		},
 		{
-			id:          "1234567890abcdef ", // trailing space
+			id:          "000000000000000000000000000012a0 ", // trailing space
 			expected:    nil,
 			expectError: errors.New("trace IDs can only contain hex characters: invalid character ' ' at position 17"),
 		},
