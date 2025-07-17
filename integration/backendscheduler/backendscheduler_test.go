@@ -138,15 +138,16 @@ func TestBackendScheduler(t *testing.T) {
 
 	// NOTE: the compaction provider has a channel capacity of 1, and the
 	// backendscheduler has a channel capacity of 1.  This means that the
-	// compaction provider can create 3 jobs before they are processed in the
+	// compaction provider can create 4 jobs before they are processed in the
 	// Next call of the scheduler.
-	// - one in the merged channel
+	// - one recorded before pushing into the compaction provider channel
 	// - one in the compaction provider channel
 	// - one between the provider pull and the scheduler push
+	// - one in the merged channel
 
 	// NOTE: Since the measurement of outstanding blocks also skips the
 	// blocks from jobs which have not been processed, we expect our
-	// outstanding blocks to be N - 12, where N is the actual outstanding
+	// outstanding blocks to be N - 16, where N is the actual outstanding
 	// blocks minus 4 blocks per job for those which are on the way to the
 	// scheduler.  The order of tenants is non-defined when all tenants have
 	// the same block count, so we don't know which tenant will be first.
@@ -155,12 +156,12 @@ func TestBackendScheduler(t *testing.T) {
 
 	// NOTE: Due to timing of the and window selection, we may not fully populate
 	// a job, and we may end up with jobs which between 2 and 4 blocks
-	// outstanding.  This means that for the three jobs not yet recorded, we
-	// should expect to have between 6 and 12 blocks short of the actual
+	// outstanding.  This means that for the four jobs not yet recorded, we
+	// should expect to have between 6 and 16 blocks short of the actual
 	// outstanding count.
 
-	expectedTotalOutstandingMin := totalOutstanding - 12
-	expectedTotalOutstandingMax := totalOutstanding - 6
+	expectedTotalOutstandingMin := totalOutstanding - 16
+	expectedTotalOutstandingMax := totalOutstanding - 8
 
 	outstanding, err := scheduler.SumMetrics([]string{"tempodb_compaction_outstanding_blocks"})
 	require.NoError(t, err)

@@ -157,6 +157,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				continue
 			}
 
+			// Job successfully created, add to recent jobs cache before we send it.
+			p.addToRecentJobs(job)
+
 			select {
 			case <-ctx.Done():
 				level.Info(p.logger).Log("msg", "compaction provider stopping")
@@ -164,9 +167,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				span.End()
 				return
 			case jobs <- job:
-				// Job successfully sent, add to recent jobs cache
-				p.addToRecentJobs(job)
-
 				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
 				curTenantJobCount++
 				span.AddEvent("job created", trace.WithAttributes(
