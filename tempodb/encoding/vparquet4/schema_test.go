@@ -434,7 +434,7 @@ func TestTraceToParquet(t *testing.T) {
 			},
 			expected: Trace{
 				TraceID:         traceID,
-				TraceIDText:     "102030405060708090a0b0c0d0e0f",
+				TraceIDText:     "000102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
 				ServiceStats: map[string]ServiceStats{
@@ -547,7 +547,7 @@ func TestTraceToParquet(t *testing.T) {
 			},
 			expected: Trace{
 				TraceID:         traceID,
-				TraceIDText:     "102030405060708090a0b0c0d0e0f",
+				TraceIDText:     "000102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
 				ServiceStats: map[string]ServiceStats{
@@ -668,7 +668,7 @@ func TestTraceToParquet(t *testing.T) {
 			},
 			expected: Trace{
 				TraceID:           traceID,
-				TraceIDText:       "102030405060708090a0b0c0d0e0f",
+				TraceIDText:       "000102030405060708090a0b0c0d0e0f",
 				RootSpanName:      "span-with-event",
 				RootServiceName:   "service-a",
 				StartTimeUnixNano: 1000,
