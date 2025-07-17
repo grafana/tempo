@@ -43,7 +43,7 @@ var (
 // Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting
 // stale data. For efficiency this is not detected automatically from changes inthe assigned
 // partition callback.
-func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
+func ExportPartitionLagMetrics(ctx context.Context, client *kadm.Client, partitionClient *PartitionOffsetClient, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
 	go func() {
 		var (
 			waitTime = time.Second * 15
@@ -63,9 +63,10 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 					lag kadm.GroupLag
 					err error
 				)
+				assignedPartitions := getAssignedActivePartitions()
 				boff.Reset()
 				for boff.Ongoing() {
-					lag, err = getGroupLag(ctx, admClient, topic, group)
+					lag, err = getGroupLag(ctx, client, partitionClient, group, assignedPartitions)
 					if err == nil {
 						break
 					}
@@ -77,7 +78,7 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 					level.Error(log).Log("msg", "metric lag failed:", "err", err, "retries", boff.NumRetries())
 					continue
 				}
-				for _, p := range getAssignedActivePartitions() {
+				for _, p := range assignedPartitions {
 					l, ok := lag.Lookup(topic, p)
 					if ok {
 						metricPartitionLag.WithLabelValues(group, strconv.Itoa(int(p))).Set(float64(l.Lag))
@@ -115,7 +116,7 @@ func ResetLagMetricsForRevokedPartitions(group string, partitions []int32) {
 // the lag is the difference between the last produced offset and the offset committed in the consumer group.
 // Otherwise, if the block builder didn't commit an offset for a given partition yet (e.g. block builder is
 // running for the first time), then the lag is the difference between the last produced offset and fallbackOffsetMillis.
-func getGroupLag(ctx context.Context, admClient *kadm.Client, topic, group string) (kadm.GroupLag, error) {
+func getGroupLag(ctx context.Context, admClient *kadm.Client, partitionClient *PartitionOffsetClient, group string, assignedPartitions []int32) (kadm.GroupLag, error) {
 	offsets, err := admClient.FetchOffsets(ctx, group)
 	if err != nil {
 		if !errors.Is(err, kerr.GroupIDNotFound) {
@@ -126,11 +127,11 @@ func getGroupLag(ctx context.Context, admClient *kadm.Client, topic, group strin
 		return nil, fmt.Errorf("fetch offsets got error in response: %w", err)
 	}
 
-	startOffsets, err := admClient.ListStartOffsets(ctx, topic)
+	startOffsets, err := partitionClient.FetchPartitionsStartProducedOffsets(ctx, assignedPartitions)
 	if err != nil {
 		return nil, err
 	}
-	endOffsets, err := admClient.ListEndOffsets(ctx, topic)
+	endOffsets, err := partitionClient.FetchPartitionsLastProducedOffsets(ctx, assignedPartitions)
 	if err != nil {
 		return nil, err
 	}
