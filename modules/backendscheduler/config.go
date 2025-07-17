@@ -49,7 +49,7 @@ func ValidateConfig(cfg *Config) error {
 	// If the prune age is too short, work could get deleted before the
 	// newBlockSelector is able to delete the temporary entry.
 	if cfg.ProviderConfig.Compaction.MeasureInterval > cfg.Work.PruneAge/2 {
-		return fmt.Errorf("provider.compaction.measure_interval must be at least twice the work.prune_age, got %s and %s", cfg.ProviderConfig.Compaction.MeasureInterval, cfg.Work.PruneAge/2)
+		return fmt.Errorf("provider.compaction.measure_interval must be no more than half of work.prune_age; tenant measurement should happen at least twice as often as the work prune, got %s and %s", cfg.ProviderConfig.Compaction.MeasureInterval, cfg.Work.PruneAge/2)
 	}
 
 	return nil
