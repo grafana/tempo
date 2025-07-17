@@ -4,6 +4,7 @@ description: Configure the Grafana Alloy to work with Tempo
 weight: 550
 aliases:
 - /docs/tempo/grafana-alloy
+- ../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
 ---
 
 # Grafana Alloy
@@ -13,7 +14,7 @@ In addition, you can use Alloy pipelines to do other tasks, such as configure al
 
 You can use Alloy as an alternative to either of these solutions or combine it into a hybrid system of multiple collectors and agents.
 You can deploy Alloy anywhere within your IT infrastructure and pair it with your Grafana LGTM stack, a telemetry backend from Grafana Cloud, or any other compatible backend from any other vendor.
-Alloy is flexible, and you can easily configure it to fit your needs in on-prem, cloud-only, or a mix of both.
+Alloy is flexible, and you can easily configure it to fit your needs for on-premise, cloud-only, or a mix of both.
 
 It's commonly used as a tracing pipeline, offloading traces from the
 application and forwarding them to a storage backend.
@@ -110,7 +111,7 @@ For a closer look into the feature, visit [Automatic logging](https://grafana.co
 Alloy implements tail-based sampling for distributed tracing systems and multi-instance Alloy deployments.
 With this feature, you can make sampling decisions based on data from a trace, rather than exclusively with probabilistic methods.
 
-For a detailed description, refer to [Tail-based sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-based-sampling).
+For a detailed description, refer to [Tail sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-based-sampling).
 
 #### Generating metrics from spans
 

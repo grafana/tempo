@@ -5,7 +5,7 @@ description: Learn how to set up instrumentation for distributed tracing.
 weight: 500
 ---
 
-# Instrument for distributed tracing
+# Set up instrumentation
 
 Client instrumentation is the first building block to a functioning distributed tracing visualization pipeline.
 Client instrumentation is the process of adding instrumentation points in the application that create and offload spans.
@@ -13,15 +13,66 @@ Client instrumentation is the process of adding instrumentation points in the ap
 Check out these resources for help instrumenting tracing with your favorite languages.
 Most of these guides include complete end-to-end examples with Grafana, Loki, Mimir, and Tempo.
 
+## Goal
+
+Add instrumentation to your application to collect metrics, logs, and traces, and send this telemetry data to Tempo.
+
+## Before you begin
+
+* Access to code: You can modify or deploy your application code
+* Supported language: Your application uses Java, .NET, JavaScript, Python, PHP, Go, or another language supported by OpenTelemetry
+* Data destination: You have access to Tempo
+
+{{< admonition type="note" >}}
+For Kubernetes deployments, you don’t need direct code access if you use the OpenTelemetry Operator.
+{{< /admonition >}}
+
+## Instrumentation methods
+
+Choose from the following instrumentation approaches:
+
+Grafana distributions: OpenTelemetry SDKs from Grafana with additional features
+
+* [Grafana OpenTelemetry Java](https://grafana.com/docs/opentelemetry/instrument/grafana-java/) (JVM agent, no code changes required, includes support for Scala and Kotlin)
+* [Grafana OpenTelemetry .NET](https://grafana.com/docs/opentelemetry/instrument/grafana-dotnet/)
+
+Upstream distributions: OpenTelemetry SDKs maintained by the community
+
+* [OpenTelemetry JavaScript](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/instrument/node/)
+* [OpenTelemetry Python](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/instrument/python/)
+* [OpenTelemetry PHP](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/instrument/php/)
+* [OpenTelemetry Go](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/instrument/go/)
+
+Grafana Beyla: Zero-code instrumentation of applications using eBPF technology
+
+* [Grafana Beyla documentation](https://grafana.com/docs/opentelemetry/instrument/beyla/)
+* Works with all languages and frameworks
+* Requires no code changes
+* Requires Linux with Kernel 5.8 or higher with BPF Type Format (BTF) enabled
+
+OpenTelemetry Operator: For Kubernetes deployments
+
+* [OpenTelemetry Operator documentation](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/instrument/opentelemetry-operator/)
+* Injects OpenTelemetry instrumentation into Kubernetes workloads
+* Requires no application code changes
+
+### Comparison of instrumentation methods
+
+| Method | Code changes | Language support | Use case |
+|---|---|---|---|
+| Grafana OpenTelemetry Java | Not required (JVM agent) | Java | Offers advanced instrumentation features and Grafana support. |
+| Grafana OpenTelemetry .NET | Required | .NET | Offers advanced instrumentation features and Grafana support. |
+| Upstream OpenTelemetry SDKs | Required | Multiple languages | Provides standard instrumentation with community support. |
+| Grafana Beyla | Not required | Any language | Enables quick setup for any language, supports legacy applications, and requires Linux kernel 5.8+ with BTF enabled. |
+| OpenTelemetry Operator | Not required | Multiple languages | Manages and injects instrumentation in Kubernetes deployments. |
+
+
 ## Instrumentation frameworks
 
 Most of the popular client instrumentation frameworks have SDKs in the most commonly used programming languages.
 You should pick one according to your application needs.
 
 OpenTelemetry has the most active development in the community and may be a better long-term choice.
-
-* [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
-* [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
 
 ## OpenTelemetry
 
@@ -58,7 +109,7 @@ Jaeger client libraries have been deprecated. For more information, refer to the
 
 - [Zipkin Language Specific Instrumentation](https://zipkin.io/pages/tracers_instrumentation.html)
 
-## Grafana Blog
+### Grafana Blog
 
 The Grafana blog periodically features instrumentation posts.
 
@@ -68,7 +119,7 @@ The Grafana blog periodically features instrumentation posts.
 - [.NET](https://grafana.com/blog/2021/02/11/instrumenting-a-.net-web-api-using-opentelemetry-tempo-and-grafana-cloud/)
 - [Python](https:/grafana.com/blog/2021/05/04/get-started-with-distributed-tracing-and-grafana-tempo-using-foobar-a-demo-written-in-python/)
 
-## Community resources
+### Community resources
 
 - [NodeJS](https://github.com/mnadeem/nodejs-opentelemetry-tempo)
 - [Java Spring Boot](https://github.com/mnadeem/boot-opentelemetry-tempo)
