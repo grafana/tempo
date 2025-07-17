@@ -36,6 +36,7 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 func TestProtoToParquetEmptyTrace(t *testing.T) {
 	want := &Trace{
 		TraceID:       make([]byte, 16),
+		TraceIDText: "00000000000000000000000000000000",
 		ResourceSpans: nil,
 	}
 
@@ -156,7 +157,7 @@ func TestTraceToParquet(t *testing.T) {
 			},
 			expected: Trace{
 				TraceID:         traceID,
-				TraceIDText:     "102030405060708090a0b0c0d0e0f",
+				TraceIDText:     "000102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
 				ResourceSpans: []ResourceSpans{{
@@ -234,7 +235,7 @@ func TestTraceToParquet(t *testing.T) {
 			},
 			expected: Trace{
 				TraceID:         traceID,
-				TraceIDText:     "102030405060708090a0b0c0d0e0f",
+				TraceIDText:     "000102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
 				ResourceSpans: []ResourceSpans{{
