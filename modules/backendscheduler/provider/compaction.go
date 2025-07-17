@@ -132,10 +132,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 					span.AddEvent("no tenant selected")
 				}
 
-				if p.curTenant != nil {
-					level.Info(p.logger).Log("msg", "new tenant selected", "tenant_id", p.curTenant.Value())
-				}
-
 				continue
 			}
 
@@ -224,6 +220,8 @@ func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 		span.AddEvent("no more tenants to compact")
 		return false
 	}
+
+	level.Info(p.logger).Log("msg", "new tenant selected", "tenant_id", p.curTenant.Value())
 
 	p.curSelector, _ = p.newBlockSelector(p.curTenant.Value())
 	return true
