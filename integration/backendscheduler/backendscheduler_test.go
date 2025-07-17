@@ -145,21 +145,18 @@ func TestBackendScheduler(t *testing.T) {
 	// - one between the provider pull and the scheduler push
 	// - one in the merged channel
 
-	// NOTE: Since the measurement of outstanding blocks also skips the
-	// blocks from jobs which have not been processed, we expect our
-	// outstanding blocks to be N - 16, where N is the actual outstanding
-	// blocks minus 4 blocks per job for those which are on the way to the
-	// scheduler.  The order of tenants is non-defined when all tenants have
-	// the same block count, so we don't know which tenant will be first.
-	// Measure total outstanding blocks instead of per tenant for this
-	// reason.
+	// NOTE: Since the measurement of outstanding blocks also skips the blocks
+	// from jobs which have not been processed, we expect our outstanding blocks
+	// to be N-M, where N is the actual outstanding blocks and M is the number of
+	// blocks attached to jobs which have not been recorded by the scheduler. The
+	// order of tenants is non-defined when all tenants have the same block
+	// count, so we don't know which tenant will be first. Measure total
+	// outstanding blocks instead of per tenant for this reason.
 
-	// NOTE: Due to timing of the and window selection, we may not fully populate
-	// a job, and we may end up with jobs which between 2 and 4 blocks
-	// outstanding.  This means that for the four jobs not yet recorded, we
-	// should expect to have between 6 and 16 blocks short of the actual
-	// outstanding count.
-
+	// NOTE: Due to timing and window selection, we may not fully populate a job,
+	// and we may end up with jobs which between 2 and 4 blocks outstanding.
+	// - 4 jobs not yet recorded by the scheduler (no worker running yet)
+	// - between 2 and 4 blocks per job (default settings)
 	expectedTotalOutstandingMin := totalOutstanding - 16
 	expectedTotalOutstandingMax := totalOutstanding - 8
 
