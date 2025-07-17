@@ -24,7 +24,7 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	if cfg.Compaction.MinCycleInterval <= 0 {
-		return fmt.Errorf("min_cycle_interval must be greater than 0")
+		return fmt.Errorf("min_cycle_interval must be greater than 0, and should be at least a few seconds for practical use")
 	}
 
 	if cfg.Compaction.MeasureInterval <= 0 {
