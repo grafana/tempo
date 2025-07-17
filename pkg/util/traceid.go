@@ -22,7 +22,7 @@ func TraceIDToHexString(byteID []byte) string {
 	id := unsafe.String(p, len(dst))
 	// remove leading zeros
 	id = strings.TrimLeft(id, "0")
-	return id
+	return fmt.Sprintf("%032s", id)
 }
 
 // SpanIDToHexString converts a span ID to its string representation and WITHOUT removing any leading zeros.
