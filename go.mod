@@ -59,8 +59,8 @@ require (
 	go.opentelemetry.io/collector/pdata v1.35.0
 	go.opentelemetry.io/collector/semconv v0.128.1-0.20250610090210-188191247685 // indirect
 	go.opentelemetry.io/otel v1.37.0
-	go.opentelemetry.io/otel/bridge/opencensus v1.36.0
-	go.opentelemetry.io/otel/bridge/opentracing v1.36.0
+	go.opentelemetry.io/otel/bridge/opencensus v1.37.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.37.0
 	go.opentelemetry.io/otel/metric v1.37.0
 	go.opentelemetry.io/otel/sdk v1.37.0
 	go.opentelemetry.io/otel/trace v1.37.0
