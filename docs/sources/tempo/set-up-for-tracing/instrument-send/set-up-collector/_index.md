@@ -28,36 +28,27 @@ Here's how it works:
 
 Using a collector provides a hassle-free option, especially when dealing with multiple applications or microservices, allowing you to centralize the profiling process without changing your application's codebase.
 
-Refer to [Collect and forward data with Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
-
-
-
-
-
-## Grafana Alloy
+## Use Grafana Alloy
 
 Grafana Labs maintains and supports Grafana Alloy, which packages various upstream OpenTelemetry Collector components. Alloy provides stability, support, and integration with Grafana Labs products.
 
-## Grafana Alloy for Kubernetes
+Refer to [Grafana Alloy](/docs/tempo<TEMPO_VERSION>setup-up-for-tracing/setup-up-collector/grafana-alloy) for information about Alloy and it's tracing capabilities.
+
+Refer to [Collect and forward data with Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
+
+### Grafana Alloy for Kubernetes
 
 If you deploy your application in Kubernetes, use the Grafana Kubernetes Monitoring helm chart. This chart supports [Kubernetes Monitoring](https://github.com/grafana/opentelemetry-docs/blob/main/docs/grafana-cloud/monitor-infrastructure/kubernetes-monitoring), Grafana Cloud, and [Application Observability](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/).
 
 Refer to [Kubernetes Monitoring with Grafana Alloy](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/collector/grafana-alloy-kubernetes) to get started.
 
-## OpenTelemetry Collector
+### Use the OpenTelemetry Collector
 
 The OpenTelemetry project maintainers and the Cloud Native Computing Foundation maintain the upstream OpenTelemetry Collector. This is a community-supported project.
 
 Refer to the [OpenTelemetry Collector](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/collector/opentelemetry-collector) documentation to use the upstream OpenTelemetry Collector with Grafana Labs products.
 
-## Kubernetes OpenTelemetry Operator
+### Kubernetes OpenTelemetry Operator
 
 If you use the upstream Collector and deploy your application in Kubernetes, you can use the [OpenTelemetry Operator](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/instrument/opentelemetry-operator) to instrument your application and send telemetry data to Grafana Cloud without modifying your services.
 
-## Next steps
-
-* [Send and ingest OTLP data in a backend](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/ingest)
-* [Instrument your applications to send telemetry data to your Collector](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/instrument)
-* [Gain insights from your telemetry data using Grafana](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/insights)
-* [Explore the Grafana Alloy GitHub repository](https://github.com/grafana/alloy)
-* [Consult the official OpenTelemetry Collector documentation](https://opentelemetry.io/docs/collector/)

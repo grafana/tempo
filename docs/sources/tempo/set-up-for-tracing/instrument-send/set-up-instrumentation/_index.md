@@ -16,13 +16,11 @@ When sending traces to Tempo, you can choose between four methods:
 * Manual instrumentation involves adding code to create spans and traces, giving full control over collected data.
 * Hybrid instrumentation, which combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
 
+To generate and gather traces, you need to:
 
-
-In generate and gather traces, you need to:
-
-1. Set up a collector to receive traces from your application
-1. Select an instrumentation method to use with your application
-1. Instrument your application to generate traces
+1. [Set up a collector](../set-up-collector/) to receive traces from your application
+1. [Choose an instrumentation method to use with your application](../choose-instrumentation-method/)
+1. [Set up instrumentation](./set-up-instrumentation/) to generate traces
 
 ## How instrumentation works
 
@@ -39,27 +37,6 @@ There is an alternative/companion to manual instrumentation, Auto-instrumentatio
 
 These libraries usually include those dealing with networking, so for example a request coming into a service might be via an auto-instrumented HTTP library, which would then start a trace until it sent a response back via HTTP to the requester. Along the course of the request, the service might use other libraries that process data, and if they are also auto-instrumented then new spans will be generated for the trace that include suitable attributes.
 
-
-## Collect and forward traces with auto-instrumentation using Grafana Alloy or OpenTelemetry collectors
-
-You can send data from your application using Grafana Alloy or OpenTelemetry Collector (OTel) collectors.
-
-[Grafana Alloy](https://grafana.com/docs/alloy/latest/) is a vendor-neutral distribution of the OpenTelemetry (OTel) Collector.
-Alloy uniquely combines the very best OSS observability signals in the community.
-Grafana Alloy uses configuration file written using River.
-
-Alloy is a component that runs alongside your application and periodically gathers tracing data from it.
-This method is suitable when you want to collect tracing from applications without modifying their source code.
-
-Here's how it works:
-
-1. Install and configure the collector on the same machine or container where your application is running.
-2. The collector periodically retrieves your application's performance tracing data, regardless of the language or technology stack your application is using.
-3. The captured traces are then sent to the Tempo server for storage and analysis.
-
-Using a collector provides a hassle-free option, especially when dealing with multiple applications or microservices, allowing you to centralize the profiling process without changing your application's codebase.
-
-Refer to [Collect and forward data with Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
 
 If you are using OTel or Alloy, refer to [Instrument an application with OpenTelemetry](https://grafana.com/docs/opentelemetry/instrument/) for more information. These instructions are specific to Grafana Cloud, but can be adapted for self-hosted Tempo.
 

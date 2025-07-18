@@ -7,6 +7,9 @@ aliases:
 - ../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
 ---
 
+{{< docs/alias from="/docs/tempo/latest/configuration/grafana-alloy/" to="/docs/tempo/latest/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/" >}}
+
+
 # Grafana Alloy
 
 Grafana Alloy offers native pipelines for OTel, Prometheus, Pyroscope, Loki, and many other metrics, logs, traces, and profile tools.
@@ -51,6 +54,8 @@ To use Alloy for tracing, you need to:
 1. [Set up Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/set-up/)
 2. [Configure Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/configure/)
 3. Set up any additional features
+
+Refer to [Collect and forward data with Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
 
 ## Set up pipeline processing
 
