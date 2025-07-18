@@ -47,7 +47,7 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 func TestProtoToParquetEmptyTrace(t *testing.T) {
 	want := &Trace{
 		TraceID:       make([]byte, 16),
-		TraceIDText: "00000000000000000000000000000000",
+		TraceIDText:   "00000000000000000000000000000000",
 		ResourceSpans: nil,
 		ServiceStats:  map[string]ServiceStats{},
 	}
