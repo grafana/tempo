@@ -986,6 +986,7 @@ backend_scheduler:
     work:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
+        sharded: false
     maintenance_interval: 1m0s
     backend_flush_interval: 1m0s
     provider:
