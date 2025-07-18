@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
-	"github.com/grafana/tempo/docs"
+	"github.com/grafana/tempo/modules/frontend/docs"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -38,18 +38,20 @@ const (
 	MetaTypeAttributeValues = "attribute-values"
 )
 
-func (s *MCPServer) handleTraceQLQuery(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	metricMCPToolCalls.WithLabelValues(toolDocsTraceQLQuery).Inc()
-	level.Info(s.logger).Log("msg", "traceql query tool requested")
+func (s *MCPServer) handleTraceQLDocs(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolDocsTraceQL).Inc()
 
-	return toolResult(trimDocs(docs.TraceQLMain), MetaTypeDocumentation, "markdown", "1"), nil
-}
+	docType, err := request.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
-func (s *MCPServer) handleTraceQLMetrics(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	metricMCPToolCalls.WithLabelValues(toolDocsTraceQLMetrics).Inc()
-	level.Info(s.logger).Log("msg", "traceql metrics tool requested")
+	level.Info(s.logger).Log("msg", "traceql docs requested", "doc_type", docType)
 
-	return toolResult(trimDocs(docs.TraceQLMetrics), MetaTypeDocumentation, "markdown", "1"), nil
+	// Get the appropriate documentation content based on the requested type
+	content := docs.GetDocsContent(docType)
+
+	return toolResult(content, MetaTypeDocumentation, "markdown", "1"), nil
 }
 
 // handleSearch handles the traceql-search tool

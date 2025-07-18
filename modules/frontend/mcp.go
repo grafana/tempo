@@ -3,24 +3,27 @@ package frontend
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/middleware"
-	"github.com/grafana/tempo/docs"
+	frontendDocs "github.com/grafana/tempo/modules/frontend/docs"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 const (
-	docsCutoff = "<!-- mcp-cutoff -->" // Marker to indicate where to cut off the documentation content
+	docsTraceQLQueryURI      = "docs://traceql/query"
+	docsTraceQLMetricsURI    = "docs://traceql/metrics"
+	docsTraceQLBasicURI      = "docs://traceql/basic"
+	docsTraceQLAggregatesURI = "docs://traceql/aggregates"
+	docsTraceQLStructuralURI = "docs://traceql/structural"
 
-	docsTraceQLQueryURI   = "docs://traceql/query"
-	docsTraceQLMetricsURI = "docs://traceql/metrics"
-
-	docsTraceQLQueryDescription   = "Documentation on TraceQL search. Best for retrieval of traces. This covers basic attributes all the way through aggregates, pipelining, structural queries, and more. Includes examples."
-	docsTraceQLMetricsDescription = "Documentation on TraceQL metrics. Best for aggregating traces into metrics to understand patterns and trends. This covers how to use TraceQL to generate metrics from tracing data."
+	docsTraceQLQueryDescription      = "Documentation on TraceQL search. Best for retrieval of traces. This covers basic attributes all the way through aggregates, pipelining, structural queries, and more. Includes examples."
+	docsTraceQLMetricsDescription    = "Documentation on TraceQL metrics. Best for aggregating traces into metrics to understand patterns and trends. This covers how to use TraceQL to generate metrics from tracing data."
+	docsTraceQLBasicDescription      = "Basic TraceQL documentation covering intrinsics, operators, and attribute syntaxes. Includes overview of other doc types."
+	docsTraceQLAggregatesDescription = "TraceQL aggregates documentation covering count, sum, and other aggregation functions."
+	docsTraceQLStructuralDescription = "TraceQL structural queries documentation covering advanced query patterns and structural operations."
 
 	docsTraceQLMimeType = "text/markdown"
 
@@ -31,8 +34,7 @@ const (
 	toolGetTrace              = "get-trace"
 	toolGetAttributeNames     = "get-attribute-names"
 	toolGetAttributeValues    = "get-attribute-values"
-	toolDocsTraceQLQuery      = "docs-traceql-query"
-	toolDocsTraceQLMetrics    = "docs-traceql-metrics"
+	toolDocsTraceQL           = "docs-traceql"
 )
 
 // fakeHTTPAuthMiddleware is a middleware that does nothing, used when multitenancy is disabled
@@ -96,25 +98,67 @@ func (s *MCPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // setupResources registers MCP resources for TraceQL documentation
 func (s *MCPServer) setupResources() {
-	traceQLQuery := mcp.NewResource(
-		docsTraceQLQueryURI,
-		"TraceQL Query Docs",
-		mcp.WithResourceDescription(docsTraceQLQueryDescription),
+	// Basic TraceQL docs
+	traceQLBasic := mcp.NewResource(
+		docsTraceQLBasicURI,
+		"TraceQL Basic Docs",
+		mcp.WithResourceDescription(docsTraceQLBasicDescription),
 		mcp.WithMIMEType(docsTraceQLMimeType),
 	)
 
-	s.mcpServer.AddResource(traceQLQuery, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-		level.Info(s.logger).Log("msg", "traceql query resource requested")
+	s.mcpServer.AddResource(traceQLBasic, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		level.Info(s.logger).Log("msg", "traceql basic resource requested")
 
 		return []mcp.ResourceContents{
 			mcp.TextResourceContents{
-				URI:      docsTraceQLQueryURI,
+				URI:      docsTraceQLBasicURI,
 				MIMEType: docsTraceQLMimeType,
-				Text:     trimDocs(docs.TraceQLMain),
+				Text:     frontendDocs.GetDocsContent(frontendDocs.DocsTypeBasic),
 			},
 		}, nil
 	})
 
+	// Aggregates TraceQL docs
+	traceQLAggregates := mcp.NewResource(
+		docsTraceQLAggregatesURI,
+		"TraceQL Aggregates Docs",
+		mcp.WithResourceDescription(docsTraceQLAggregatesDescription),
+		mcp.WithMIMEType(docsTraceQLMimeType),
+	)
+
+	s.mcpServer.AddResource(traceQLAggregates, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		level.Info(s.logger).Log("msg", "traceql aggregates resource requested")
+
+		return []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      docsTraceQLAggregatesURI,
+				MIMEType: docsTraceQLMimeType,
+				Text:     frontendDocs.GetDocsContent(frontendDocs.DocsTypeAggregates),
+			},
+		}, nil
+	})
+
+	// Structural TraceQL docs
+	traceQLStructural := mcp.NewResource(
+		docsTraceQLStructuralURI,
+		"TraceQL Structural Docs",
+		mcp.WithResourceDescription(docsTraceQLStructuralDescription),
+		mcp.WithMIMEType(docsTraceQLMimeType),
+	)
+
+	s.mcpServer.AddResource(traceQLStructural, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		level.Info(s.logger).Log("msg", "traceql structural resource requested")
+
+		return []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      docsTraceQLStructuralURI,
+				MIMEType: docsTraceQLMimeType,
+				Text:     frontendDocs.GetDocsContent(frontendDocs.DocsTypeStructural),
+			},
+		}, nil
+	})
+
+	// Metrics TraceQL docs
 	traceQLMetrics := mcp.NewResource(
 		docsTraceQLMetricsURI,
 		"TraceQL Metrics Docs",
@@ -129,7 +173,27 @@ func (s *MCPServer) setupResources() {
 			mcp.TextResourceContents{
 				URI:      docsTraceQLMetricsURI,
 				MIMEType: docsTraceQLMimeType,
-				Text:     trimDocs(docs.TraceQLMetrics),
+				Text:     frontendDocs.GetDocsContent(frontendDocs.DocsTypeMetrics),
+			},
+		}, nil
+	})
+
+	// Keep the legacy query resource for backward compatibility
+	traceQLQuery := mcp.NewResource(
+		docsTraceQLQueryURI,
+		"TraceQL Query Docs",
+		mcp.WithResourceDescription(docsTraceQLQueryDescription),
+		mcp.WithMIMEType(docsTraceQLMimeType),
+	)
+
+	s.mcpServer.AddResource(traceQLQuery, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		level.Info(s.logger).Log("msg", "traceql query resource requested")
+
+		return []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      docsTraceQLQueryURI,
+				MIMEType: docsTraceQLMimeType,
+				Text:     frontendDocs.GetDocsContent(frontendDocs.DocsTypeBasic),
 			},
 		}, nil
 	})
@@ -215,23 +279,13 @@ func (s *MCPServer) setupTools() {
 
 	// docs tools - these are defined as tools as well as resources b/c claude code never asks for resources but it will nicely
 	// request the content from these docs tools.
-	traceQLAdvanced := mcp.NewTool(toolDocsTraceQLQuery,
+	traceQLDocs := mcp.NewTool(toolDocsTraceQL,
 		mcp.WithDescription(docsTraceQLQueryDescription),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("The type of TraceQL documentation to retrieve"),
+			mcp.Enum(frontendDocs.DocsTypeBasic, frontendDocs.DocsTypeAggregates, frontendDocs.DocsTypeStructural, frontendDocs.DocsTypeMetrics),
+		),
 	)
-	s.mcpServer.AddTool(traceQLAdvanced, s.handleTraceQLQuery)
-
-	traceQLMetrics := mcp.NewTool(toolDocsTraceQLMetrics,
-		mcp.WithDescription(docsTraceQLMetricsDescription),
-	)
-	s.mcpServer.AddTool(traceQLMetrics, s.handleTraceQLMetrics)
-}
-
-// trimDocs trims the documentation content at the cutoff marker. this allows us
-// to load docs that are rendered by hugo but cut things off like their metadata
-func trimDocs(content string) string {
-	// Trim the content at the cutoff marker
-	if idx := strings.Index(content, docsCutoff); idx != -1 {
-		return content[idx+len(docsCutoff):]
-	}
-	return content
+	s.mcpServer.AddTool(traceQLDocs, s.handleTraceQLDocs)
 }
