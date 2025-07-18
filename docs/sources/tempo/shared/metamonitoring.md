@@ -25,10 +25,10 @@ This procudure uses the [Grafana Kubernetes Helm chart](https://github.com/grafa
 
 1. Add the Grafana Helm Chart repository, or update, if already added. 
 
-```
-helm repo add grafana https://grafana.github.io/helm-charts  
-helm repo update
-```
+    ```
+    helm repo add grafana https://grafana.github.io/helm-charts  
+    helm repo update
+    ```
 
 1. Create a new file named `values.yml`. Add the following example into your `values.yml` file and save it. Where indicated, add the values specific to your instance.
 
