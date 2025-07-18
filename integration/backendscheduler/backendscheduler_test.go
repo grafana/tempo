@@ -28,11 +28,32 @@ import (
 )
 
 const (
-	tenant     = "test"
-	configFile = "config.yaml"
+	tenant = "test"
 )
 
-func TestBackendScheduler(t *testing.T) {
+func TestBackendSchedulerConfigurations(t *testing.T) {
+	cases := []struct {
+		name       string
+		configFile string
+	}{
+		{
+			name:       "default",
+			configFile: "config.yaml",
+		},
+		{
+			name:       "default-with-sharding",
+			configFile: "config_sharded.yaml",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			testWithConfig(t, tc.configFile)
+		})
+	}
+}
+
+func testWithConfig(t *testing.T, configFile string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
