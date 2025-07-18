@@ -75,6 +75,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnNativeAWSAuthEnabled,
 				warnConfiguredLegacyCache,
 				warnTraceByIDConcurrentShards,
+				warnBackendSchedulerPruneAgeLessThanBlocklistPoll,
 			},
 		},
 		{
