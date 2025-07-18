@@ -119,6 +119,10 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 		return nil, fmt.Errorf("config is nil")
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
 	l := log.Logger
 
 	core, err := createCore(cfg, false)
@@ -162,6 +166,7 @@ func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 		StorageClass:         rw.cfg.StorageClass,
 		UserMetadata:         rw.cfg.Metadata,
 		ServerSideEncryption: rw.sse,
+		AutoChecksum:         rw.cfg.checksumType(),
 	}
 }
 

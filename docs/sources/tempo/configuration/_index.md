@@ -1144,6 +1144,10 @@ storage:
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
 
+            # Optional
+            # Example: "checksum_type: CRC32C"
+            # Checksum algorithm to use for S3 operations. Supported values: None, SHA256, SHA1, CRC32, CRC32C, CRC64NVME. Default: CRC32C
+            [checksum_type: <string>]
 
             [sse: <map[string]string>]:
               # Optional
