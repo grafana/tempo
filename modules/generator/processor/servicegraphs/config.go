@@ -49,6 +49,9 @@ type Config struct {
 
 	// EnableVirtualNodeLabel enables additional labels for uninstrumented services
 	EnableVirtualNodeLabel bool `yaml:"enable_virtual_node_label"`
+
+	// DatabaseNameAttributes the list of attribute names used to identify the database name from span attributes.
+	DatabaseNameAttributes []string `yaml:"database_name_attributes"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -66,4 +69,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.PeerAttributes = peerAttr
 
 	cfg.EnableMessagingSystemLatencyHistogram = false
+
+	cfg.DatabaseNameAttributes = []string{}
 }

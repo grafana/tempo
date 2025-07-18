@@ -462,6 +462,9 @@ metrics_generator:
             # Enables additional labels for services and virtual nodes.
             [enable_virtual_node_label: <bool> | default = false]
 
+            # list of attribute names used to identify the database name from span attributes. if not set the order is peer.service -> server.address -> network.peer.address -> db.name
+            [database_name_attributes: <list of string> | default = []]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
@@ -1833,7 +1836,7 @@ overrides:
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes. A value of 0 disables the size
-      # check. 
+      # check.
       # This limit is used in 3 places:
       #  - During search, traces will be skipped when they exceed this threshold.
       #  - During ingestion, traces that exceed this threshold will be refused.
