@@ -9,30 +9,30 @@ aliases:
 
 # Set up your collector
 
-An OpenTelemetry Collector distribution provides a way to receive, process, and export telemetry data independent of the vendor.
+## Collect and forward traces with auto-instrumentation using Grafana Alloy or OpenTelemetry collectors
 
-For production observability, Grafana Labs recommends Grafana Alloy. Alloy is an OpenTelemetry Collector distribution from Grafana Labs. It enables correlation between infrastructure and application observability.
+You can send data from your application using Grafana Alloy or OpenTelemetry Collector (OTel) collectors.
 
-Telemetry data pipelines with an OpenTelemetry Collector distribution offer these benefits:
+[Grafana Alloy](https://grafana.com/docs/alloy/latest/) is a vendor-neutral distribution of the OpenTelemetry (OTel) Collector.
+Alloy uniquely combines the very best OSS observability signals in the community.
+Grafana Alloy uses configuration file written using River.
 
-1. Cost control: A Collector aggregates and drops telemetry data and sends relevant data to reduce costs
-2. Scalability and reliability: A Collector buffers and retries sending data, so you don't lose data during connection issues
-3. Flexibility: A Collector simplifies configuration and manages data pipelines through enrichment, transformation, redaction, and routing
+Alloy is a component that runs alongside your application and periodically gathers tracing data from it.
+This method is suitable when you want to collect tracing from applications without modifying their source code.
 
-This document details the following ways to use an OpenTelemetry Collector with Grafana Labs products:
+Here's how it works:
 
-* Grafana Alloy: Use the Grafana Labs-supported OpenTelemetry Collector distribution, recommended for most production environments.
-* Grafana Alloy for Kubernetes: Deploy Grafana Alloy in Kubernetes using the Grafana Kubernetes Monitoring Helm chart.
-* OpenTelemetry Collector (Upstream): Use the community-supported upstream OpenTelemetry Collector.
-* Kubernetes OpenTelemetry Operator: Manage deployments of the upstream OpenTelemetry Collector on Kubernetes.
+1. Install and configure the collector on the same machine or container where your application is running.
+2. The collector periodically retrieves your application's performance tracing data, regardless of the language or technology stack your application is using.
+3. The captured traces are then sent to the Tempo server for storage and analysis.
 
-## Before you begin
+Using a collector provides a hassle-free option, especially when dealing with multiple applications or microservices, allowing you to centralize the profiling process without changing your application's codebase.
 
-Before you set up an OpenTelemetry Collector distribution, ensure you have the following:
+Refer to [Collect and forward data with Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
 
-* An application or service generating telemetry data, or a data source you want to collect from
-* A destination for your telemetry data, such as a Grafana observability stack (Grafana Tempo, Grafana Mimir, Grafana Loki) or Grafana Cloud.
-* Network connectivity for the Collector to receive data from sources and send data to destinations
+
+
+
 
 ## Grafana Alloy
 

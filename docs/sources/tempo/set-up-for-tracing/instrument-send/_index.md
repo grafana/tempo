@@ -15,16 +15,18 @@ weight: 350
 Client instrumentation is the first building block to a functioning distributed tracing visualization pipeline.
 Instrumentation handles how traces are generated.
 
+Instrumentation is the act of modifying the source code of a service to emit span information tied to a common trace ID.
+Traces themselves are a metaobject, comprised of nothing but spans that hold the same ID.
+
 In generate and gather traces, you need to:
 
-* Set up a collector to receive traces from your application
-* Select an instrumentation method to use with your application
-* Instrument your application to generate traces
+1. Set up a collector to receive traces from your application
+1. Select an instrumentation method to use with your application
+1. Instrument your application to generate traces
 
 ## What is instrumentation?
 
-Instrumentation is the act of modifying the source code of a service to emit span information tied to a common trace ID.
-Traces themselves are a metaobject, comprised of nothing but spans that hold the same ID.
+
 
 To add instrumentation, the code for a service uses a Software Development Kit (SDK) which supplies language-specific libraries that allow the:
 
