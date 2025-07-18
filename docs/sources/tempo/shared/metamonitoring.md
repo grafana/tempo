@@ -108,7 +108,7 @@ helm repo update
 Alloy scrapes metrics from Tempo and sends them to Mimir or another Prometheus compatible time-series database.
 You can then monitor Tempo using the mixin.
 
-Tempo ships with a mixin that includes:
+Tempo ships with mixins that includes:
 
 * Relevant dashboards for overseeing the health of Tempo as a whole, as well as its individual components
 * Recording rules that simplify the generation of metrics for dashboards and free-form queries
