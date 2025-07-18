@@ -1,14 +1,14 @@
 ---
-title: Test Tempo
-menuTitle: Test Tempo
-description: Instructions for testing your Tempo deployment
+title: Validate deployment
+menuTitle: Validate deployment
+description: Instructions for validating your Tempo deployment
 weight: 500
 # draft: true
 ---
 
 <!-- This page is not finished. It's hidden from the published doc site by draft: true. -->
 
-# Test your Tempo deployment
+# Validate your Tempo deployment
 
 To test your Tempo deployment, you can follow these steps to ensure that traces are being sent and received correctly.
 This guide assumes you have already set up a Tempo instance and have Grafana configured to query it.
