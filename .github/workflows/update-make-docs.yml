@@ -14,4 +14,4 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: grafana/writers-toolkit/update-make-docs@9ccaaf1f78c5c045229e7088e816925311c67abc
+      - uses: grafana/writers-toolkit/update-make-docs@26df2e0640e6e39081b15f664288ea299ff920a8
