@@ -24,8 +24,11 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					HistogramBuckets:         floatArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)),
 				},
 				SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-					Dimensions:                   strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
-					EnableTargetInfo:             boolPtr(overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)),
+					Dimensions: strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
+					EnableTargetInfo: func() *bool {
+						val, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
+						return boolPtr(val)
+					}(),
 					FilterPolicies:               filterPoliciesPtr(overrides.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)),
 					HistogramBuckets:             floatArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID)),
 					TargetInfoExcludedDimensions: strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)),
