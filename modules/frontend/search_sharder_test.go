@@ -520,11 +520,7 @@ func TestIngesterRequests(t *testing.T) {
 		require.Equal(t, len(tc.expectedURI), actualSearchResponse.TotalJobs)
 		if len(tc.expectedURI) > 0 {
 			require.Equal(t, len(tc.expectedURI), int(actualSearchResponse.Shards[0].TotalJobs))
-			expectedCompletedThrough := math.MaxUint32      // normal ingester shard completes no time on purpose
-			if searchReq.Start == 0 && searchReq.End == 0 { // ingester only search completes all time on purpose
-				expectedCompletedThrough = 1
-			}
-			require.Equal(t, expectedCompletedThrough, int(actualSearchResponse.Shards[0].CompletedThroughSeconds))
+			require.Equal(t, 1, int(actualSearchResponse.Shards[0].CompletedThroughSeconds))
 		} else {
 			require.Equal(t, 0, len(actualSearchResponse.Shards))
 		}
@@ -907,7 +903,7 @@ func TestBackendShards(t *testing.T) {
 			maxShards: 1,
 			searchEnd: 50,
 			expected: []combiner.SearchShards{
-				{TotalJobs: 8, CompletedThroughSeconds: 1},
+				{TotalJobs: 8, CompletedThroughSeconds: math.MaxUint32},
 			},
 		},
 		{
@@ -916,7 +912,7 @@ func TestBackendShards(t *testing.T) {
 			searchEnd: 50,
 			expected: []combiner.SearchShards{
 				{TotalJobs: 4, CompletedThroughSeconds: 30},
-				{TotalJobs: 4, CompletedThroughSeconds: 1},
+				{TotalJobs: 4, CompletedThroughSeconds: math.MaxUint32},
 			},
 		},
 		{
@@ -926,7 +922,7 @@ func TestBackendShards(t *testing.T) {
 			expected: []combiner.SearchShards{
 				{TotalJobs: 2, CompletedThroughSeconds: 40},
 				{TotalJobs: 2, CompletedThroughSeconds: 30},
-				{TotalJobs: 4, CompletedThroughSeconds: 1},
+				{TotalJobs: 4, CompletedThroughSeconds: math.MaxUint32},
 			},
 		},
 		{
@@ -937,7 +933,7 @@ func TestBackendShards(t *testing.T) {
 				{TotalJobs: 2, CompletedThroughSeconds: 40},
 				{TotalJobs: 2, CompletedThroughSeconds: 30},
 				{TotalJobs: 2, CompletedThroughSeconds: 20},
-				{TotalJobs: 2, CompletedThroughSeconds: 1},
+				{TotalJobs: 2, CompletedThroughSeconds: math.MaxUint32},
 			},
 		},
 		{
@@ -976,7 +972,7 @@ func TestBackendShards(t *testing.T) {
 			searchEnd: 35,
 			expected: []combiner.SearchShards{
 				{TotalJobs: 4, CompletedThroughSeconds: 30},
-				{TotalJobs: 4, CompletedThroughSeconds: 1},
+				{TotalJobs: 4, CompletedThroughSeconds: math.MaxUint32},
 			},
 		},
 	}
