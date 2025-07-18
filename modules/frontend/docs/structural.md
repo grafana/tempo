@@ -1,7 +1,7 @@
 # TraceQL Structural Operators Documentation
 
 ## Overview
-Structural operators in TraceQL examine the hierarchical relationships between spans within a trace. These operators help you find traces based on parent-child relationships and span ordering.
+Structural operators in TraceQL examine the hierarchical relationships between spans within a trace. These operators help you find traces based on parent-child relationships and span ordering. **Important** For all structural operators (except union) only the spans matching the right hand side conditions are returned.
 
 ## Structural Operators
 
