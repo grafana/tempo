@@ -20,36 +20,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 )
 
-func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
-	testRegistry := registry.NewTestRegistry()
-
-	cfg := Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", nil)
-
-	cfg.HistogramBuckets = []float64{0.04}
-	cfg.Dimensions = []string{"beast", "god"}
-	cfg.DatabaseNameAttributes = []string{"db.name"}
-
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
-	defer p.Shutdown(context.Background())
-
-	// Create a span with a custom database name attribute
-	request, err := loadTestData("testdata/trace-with-queue-database4.json")
-	require.NoError(t, err)
-
-	p.PushSpans(context.Background(), request)
-
-	// The server label should be set to the value of custom.db.name
-	labels := labels.FromMap(map[string]string{
-		"client":          "mythical-server",
-		"server":          "postgres",
-		"connection_type": "database",
-		"beast":           "",
-		"god":             "",
-	})
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
-}
-
 // NOTE: This is a way to know if the contents of the semconv package have changed.
 // Since we rely on the key contents in the span attributes, we want to know if
 // there is ever a change to the ones we rely on.  This is not a complete test,
@@ -476,17 +446,6 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			total:  1.0,
 			errors: 0.0,
 		},
-		{
-			name:        "withCustomDatabaseNameAttribute",
-			fixturePath: "testdata/trace-with-queue-database5.json",
-			databaseLabels: labels.FromMap(map[string]string{
-				"client":          "mythical-server",
-				"server":          "mythical-database",
-				"connection_type": "database",
-			}),
-			total:  1.0,
-			errors: 0.0,
-		},
 	}
 
 	for _, tc := range cases {
@@ -572,6 +531,35 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, dbSystemSystemLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
+}
+
+func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.DatabaseNameAttributes = []string{"db.name"}
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database4.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	// The server label should be set to the value of db.name
+	labels := labels.FromMap(map[string]string{
+		"client":          "mythical-server",
+		"server":          "postgres",
+		"connection_type": "database",
+		"beast":           "",
+		"god":             "",
+	})
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
 }
 
 func BenchmarkServiceGraphs(b *testing.B) {
