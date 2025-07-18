@@ -546,6 +546,35 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
 }
 
+func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.DatabaseNameAttributes = []string{"db.name"}
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database4.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	// The server label should be set to the value of db.name
+	labels := labels.FromMap(map[string]string{
+		"client":          "mythical-server",
+		"server":          "postgres",
+		"connection_type": "database",
+		"beast":           "",
+		"god":             "",
+	})
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
+}
+
 func BenchmarkServiceGraphs(b *testing.B) {
 	testRegistry := registry.NewTestRegistry()
 
