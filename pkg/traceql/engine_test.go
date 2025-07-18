@@ -171,7 +171,7 @@ func TestEngine_Execute(t *testing.T) {
 	}
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
 		{
-			TraceID:         "1",
+			TraceID:         "00000000000000000000000000000001",
 			RootServiceName: "my-service",
 			RootTraceName:   "HTTP GET",
 			ServiceStats: map[string]*tempopb.ServiceStats{
