@@ -49,7 +49,7 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ring_members"}, e2e.WithLabelMatchers(isServiceActiveMatcher("ingester")...), e2e.WaitMissingMetrics))
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ring_members"}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
 
-	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(14250))
+	c, err := util.NewJaegerToOTLPExporter(tempoDistributor.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
