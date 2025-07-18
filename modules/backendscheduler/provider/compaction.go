@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"flag"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -66,6 +67,10 @@ type CompactionProvider struct {
 	curTenant          *tenantselector.Item
 	curSelector        blockselector.CompactionBlockSelector
 	lastPrioritizeTime time.Time
+
+	// Recent jobs cache for duplicate block ID prevention.
+	outstandingJobs    map[string][]backend.UUID
+	outstandingJobsMtx sync.Mutex
 }
 
 func NewCompactionProvider(
@@ -76,12 +81,13 @@ func NewCompactionProvider(
 	scheduler Scheduler,
 ) *CompactionProvider {
 	return &CompactionProvider{
-		cfg:         cfg,
-		logger:      logger,
-		store:       store,
-		overrides:   overrides,
-		curPriority: tenantselector.NewPriorityQueue(),
-		sched:       scheduler,
+		cfg:             cfg,
+		logger:          logger,
+		store:           store,
+		overrides:       overrides,
+		curPriority:     tenantselector.NewPriorityQueue(),
+		sched:           scheduler,
+		outstandingJobs: make(map[string][]backend.UUID),
 	}
 }
 
@@ -144,12 +150,15 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 			job = p.createJob(loopCtx)
 			if job == nil {
-				level.Info(p.logger).Log("msg", "tenant exhausted")
+				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant")
 				// we don't have a job, reset the curTenant and try again
 				metricTenantEmptyJob.Inc()
 				reset()
 				continue
 			}
+
+			// Job successfully created, add to recent jobs cache before we send it.
+			p.addToRecentJobs(job)
 
 			select {
 			case <-ctx.Done():
@@ -366,12 +375,17 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 
 	// Query the work for the jobs and build up a list of UUIDs which we can match against and skip on the selector.
 	var (
-		perTenantBlockIDs = make(map[backend.UUID]struct{})
-		bid               backend.UUID
-		err               error
+		inProgressBlockIDs = make(map[backend.UUID]struct{})
+		bid                backend.UUID
+		err                error
 	)
 
 	for _, job := range p.sched.ListJobs() {
+		// Clean up recent jobs cache when we find a job which has been persisted
+		p.outstandingJobsMtx.Lock()
+		delete(p.outstandingJobs, job.ID)
+		p.outstandingJobsMtx.Unlock()
+
 		if job.Tenant() != tenantID {
 			continue
 		}
@@ -388,17 +402,24 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 				level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
 				continue
 			}
-			perTenantBlockIDs[bid] = struct{}{}
+			inProgressBlockIDs[bid] = struct{}{}
 		}
 	}
 
-	for _, block := range fullBlocklist {
-		if _, ok := perTenantBlockIDs[block.BlockID]; ok {
-			// Skip blocks that are already in the input list from another job
-			continue
+	// Also include blocks from recent jobs cache to prevent duplicate job creation
+	p.outstandingJobsMtx.Lock()
+	for _, recentBlockIDs := range p.outstandingJobs {
+		for _, blockID := range recentBlockIDs {
+			inProgressBlockIDs[blockID] = struct{}{}
 		}
+	}
+	p.outstandingJobsMtx.Unlock()
 
-		blocklist = append(blocklist, block)
+	for _, block := range fullBlocklist {
+		if _, ok := inProgressBlockIDs[block.BlockID]; !ok {
+			// Include blocks that are not already in the input list from another job or recent jobs
+			blocklist = append(blocklist, block)
+		}
 	}
 
 	if window == 0 {
@@ -413,4 +434,31 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.MinInputBlocks,
 		p.cfg.MaxInputBlocks,
 	), len(blocklist)
+}
+
+// addToRecentJobs adds a job to the recent jobs cache
+func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
+	if job.Type != tempopb.JobType_JOB_TYPE_COMPACTION || job.JobDetail.Compaction == nil {
+		return
+	}
+
+	// Don't cache jobs with empty input
+	if len(job.JobDetail.Compaction.Input) == 0 {
+		return
+	}
+
+	// Copy the input block IDs
+	blockIDs := make([]backend.UUID, len(job.JobDetail.Compaction.Input))
+	for i, blockID := range job.JobDetail.Compaction.Input {
+		bid, err := backend.ParseUUID(blockID)
+		if err != nil {
+			level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
+			return
+		}
+		blockIDs[i] = bid
+	}
+
+	p.outstandingJobsMtx.Lock()
+	p.outstandingJobs[job.ID] = blockIDs
+	p.outstandingJobsMtx.Unlock()
 }

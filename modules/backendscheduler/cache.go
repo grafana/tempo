@@ -72,7 +72,7 @@ func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
 		return fmt.Errorf("failed to marshal work cache: %w", err)
 	}
 
-	err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), -1, nil)
+	err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), int64(len(b)), nil)
 	if err != nil {
 		return fmt.Errorf("failed to flush work cache: %w", err)
 	}

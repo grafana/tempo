@@ -497,7 +497,7 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 func (rw *readerWriter) Shutdown() {
 }
 
-func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
+func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, version backend.Version) (backend.Version, error) {
 	// Note there is a potential data race here because S3 does not support conditional headers. If
 	// another process writes to the same object in between ReadVersioned and Write its changes will
 	// be overwritten.
@@ -518,7 +518,7 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	}
 
 	// TODO extract Write to a separate method which returns minio.UploadInfo, saves us a GetObject request
-	err = rw.Write(ctx, name, keypath, data, -1, nil)
+	err = rw.Write(ctx, name, keypath, data, size, nil)
 	if err != nil {
 		return "", err
 	}
