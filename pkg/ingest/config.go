@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/flagext"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -84,6 +85,10 @@ type KafkaConfig struct {
 
 	TargetConsumerLagAtStartup time.Duration `yaml:"target_consumer_lag_at_startup"`
 	MaxConsumerLagAtStartup    time.Duration `yaml:"max_consumer_lag_at_startup"`
+
+	// The fetch backoff config to use in the concurrent fetchers (when enabled). This setting
+	// is just used to change the default backoff in tests.
+	concurrentFetchersFetchBackoffConfig backoff.Config `yaml:"-"`
 }
 
 func (cfg *KafkaConfig) RegisterFlags(f *flag.FlagSet) {

@@ -60,6 +60,10 @@ func (c *Cluster) ControlKey(key kmsg.Key, fn controlFn) {
 	}
 }
 
+func (c *Cluster) KeepControl() {
+	c.fake.KeepControl()
+}
+
 func (c *Cluster) ensureConsumerGroupExists(consumerGroup string) {
 	if _, ok := c.committedOffsets[consumerGroup]; ok {
 		return
@@ -146,13 +150,11 @@ func (c *Cluster) offsetFetch(kreq kmsg.Request) (kmsg.Response, error, bool) {
 				})
 			}
 		}
-	} else {
-		if c.committedOffsets[consumerGroup][partitionID] >= 0 {
-			partitionsResp = append(partitionsResp, kmsg.OffsetFetchResponseGroupTopicPartition{
-				Partition: partitionID,
-				Offset:    c.committedOffsets[consumerGroup][partitionID],
-			})
-		}
+	} else if c.committedOffsets[consumerGroup][partitionID] >= 0 {
+		partitionsResp = append(partitionsResp, kmsg.OffsetFetchResponseGroupTopicPartition{
+			Partition: partitionID,
+			Offset:    c.committedOffsets[consumerGroup][partitionID],
+		})
 	}
 
 	// Prepare the list topics for which there are some committed offsets.

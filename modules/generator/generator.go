@@ -83,6 +83,7 @@ type Generator struct {
 	kafkaStop          func()
 	kafkaClient        *ingest.Client
 	kafkaAdm           *kadm.Client
+	partitionClient    *ingest.PartitionOffsetClient
 	partitionRing      ring.PartitionRingReader
 	partitionMtx       sync.RWMutex
 	assignedPartitions []int32
@@ -213,6 +214,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 
 		g.kafkaAdm = kadm.NewClient(g.kafkaClient.Client)
+		g.partitionClient = ingest.NewPartitionOffsetClient(g.kafkaClient.Client, g.cfg.Ingest.Kafka.Topic)
 	}
 
 	return nil

@@ -126,7 +126,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateCluster(t, 1, testTopic)
+	k, address := testkafka.CreateCluster(t, 100, testTopic)
 
 	kafkaCommits := atomic.NewInt32(0)
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
