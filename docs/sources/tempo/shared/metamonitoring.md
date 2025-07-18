@@ -106,7 +106,7 @@ helm repo update
 ## Install Tempo dashboards in Grafana
 
 Alloy scrapes metrics from Tempo and sends them to Mimir or another Prometheus compatible time-series database.
-You can then monitor Tempo using the mixin.
+You can then monitor Tempo using the mixins.
 
 Tempo ships with mixins that includes:
 
