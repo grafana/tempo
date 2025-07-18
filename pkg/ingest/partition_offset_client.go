@@ -18,23 +18,17 @@ const (
 
 	// kafkaOffsetEnd is a special offset value that means the end of the partition.
 	kafkaOffsetEnd = int64(-1)
-
-	// ReaderMetricsPrefix is the reader metrics prefix used by the ingest storage.
-	ReaderMetricsPrefix = "cortex_ingest_storage_reader"
 )
 
 // partitionOffsetClient is a client used to read partition offsets.
 type PartitionOffsetClient struct {
 	client *kgo.Client
-	admin  *kadm.Client
-
-	topic string
+	topic  string
 }
 
 func NewPartitionOffsetClient(client *kgo.Client, topic string) *PartitionOffsetClient {
 	return &PartitionOffsetClient{
 		client: client,
-		admin:  kadm.NewClient(client),
 		topic:  topic,
 	}
 }
@@ -63,7 +57,8 @@ func (p *PartitionOffsetClient) FetchPartitionsStartProducedOffsets(ctx context.
 
 // fetchPartitionsEndOffsets returns the end offset of each partition in input. This function returns
 // error if fails to get the offset of any partition (no partial result is returned).
-func (p *PartitionOffsetClient) fetchPartitionsOffsets(ctx context.Context, timestamp int64, partitionIDs []int32) (kadm.ListedOffsets, error) {
+// fetchOffsets are documented here: https://github.com/twmb/franz-go/blob/master/pkg/kmsg/generated.go#L5781-L5808
+func (p *PartitionOffsetClient) fetchPartitionsOffsets(ctx context.Context, fetchOffset int64, partitionIDs []int32) (kadm.ListedOffsets, error) {
 	list := kadm.ListedOffsets{
 		p.topic: make(map[int32]kadm.ListedOffset, len(partitionIDs)),
 	}
@@ -74,7 +69,7 @@ func (p *PartitionOffsetClient) fetchPartitionsOffsets(ctx context.Context, time
 	for _, partitionID := range partitionIDs {
 		partitionReq := kmsg.NewListOffsetsRequestTopicPartition()
 		partitionReq.Partition = partitionID
-		partitionReq.Timestamp = timestamp
+		partitionReq.Timestamp = fetchOffset
 
 		topicReq.Partitions = append(topicReq.Partitions, partitionReq)
 	}

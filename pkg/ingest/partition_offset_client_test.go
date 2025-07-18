@@ -194,7 +194,6 @@ func createTestKafkaConfig(clusterAddr string) KafkaConfig {
 	cfg.Address = clusterAddr
 	cfg.Topic = topicName
 	cfg.WriteTimeout = 5 * time.Second
-	cfg.FetchConcurrencyMax = 2
 	cfg.concurrentFetchersFetchBackoffConfig = fastFetchBackoffConfig
 
 	return cfg

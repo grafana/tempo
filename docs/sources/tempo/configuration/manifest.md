@@ -220,7 +220,6 @@ distributor:
         producer_max_buffered_bytes: 0
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
-        fetch_concurrency_max: 0
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
     max_attribute_bytes: 2048
@@ -716,7 +715,6 @@ ingest:
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
-        fetch_concurrency_max: 0
 block_builder:
     instance_id: hostname
     assigned_partitions: {}

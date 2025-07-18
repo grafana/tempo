@@ -86,8 +86,6 @@ type KafkaConfig struct {
 	TargetConsumerLagAtStartup time.Duration `yaml:"target_consumer_lag_at_startup"`
 	MaxConsumerLagAtStartup    time.Duration `yaml:"max_consumer_lag_at_startup"`
 
-	FetchConcurrencyMax int `yaml:"fetch_concurrency_max"`
-
 	// The fetch backoff config to use in the concurrent fetchers (when enabled). This setting
 	// is just used to change the default backoff in tests.
 	concurrentFetchersFetchBackoffConfig backoff.Config `yaml:"-"`
