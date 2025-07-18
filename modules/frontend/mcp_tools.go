@@ -40,7 +40,7 @@ const (
 
 func (s *MCPServer) handleTraceQLDocs(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	metricMCPToolCalls.WithLabelValues(toolDocsTraceQL).Inc()
-	
+
 	docType, err := request.RequireString("name")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
