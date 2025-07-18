@@ -263,8 +263,7 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.MaxJobsPerTenant = 1000 // Set high enough so we don't hit the limit
 	cfg.MeasureInterval = 100 * time.Millisecond
-	cfg.Backoff.MinBackoff = 10 * time.Millisecond
-	cfg.Backoff.MaxBackoff = 100 * time.Millisecond
+	cfg.MinCycleInterval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
 
