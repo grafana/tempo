@@ -52,6 +52,7 @@ To see a list of available Paths for each Open Telemetry Signal, checkout the li
 | `Metric`                | [Metric](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/contexts/ottlmetric/README.md)               |
 | `Datapoint`             | [DataPoint](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/contexts/ottldatapoint/README.md)         |
 | `Log`                   | [Log](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/contexts/ottllog/README.md)                     |
+| `Profile`               | [Profile](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/contexts/ottlprofile/README.md)             |
 
 OTTL does not support cross-signal interactions at this time. That means you cannot write a statement like
 

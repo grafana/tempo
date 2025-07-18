@@ -190,8 +190,12 @@ func (r *IteratorResult) Reset() {
 }
 
 func (r *IteratorResult) Append(rr *IteratorResult) {
-	r.Entries = append(r.Entries, rr.Entries...)
-	r.OtherEntries = append(r.OtherEntries, rr.OtherEntries...)
+	if len(rr.Entries) > 0 {
+		r.Entries = append(r.Entries, rr.Entries...)
+	}
+	if len(rr.OtherEntries) > 0 {
+		r.OtherEntries = append(r.OtherEntries, rr.OtherEntries...)
+	}
 }
 
 func (r *IteratorResult) AppendValue(k string, v pq.Value) {
@@ -313,7 +317,7 @@ func (o PoolOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
 	j.pool = o.pool
 }
 
-type SyncIteratorOpt func(*SyncIterator)
+type SyncIteratorOpt func(i *SyncIterator)
 
 // SyncIteratorOptIntern enables interning of string values.
 // This is useful when the same string value is repeated many times.
@@ -325,6 +329,49 @@ func SyncIteratorOptIntern() SyncIteratorOpt {
 	}
 }
 
+// SyncIteratorOptPredicate uses the given predicate to filter column values.
+func SyncIteratorOptPredicate(p Predicate) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.filter = p
+	}
+}
+
+// SyncIteratorOptColumnName sets the column name for the iterator.
+// This is used for tracing and debugging only. All work is done
+// using the column index which is a required parameter on creation.
+func SyncIteratorOptColumnName(columnName string) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.columnName = columnName
+	}
+}
+
+// SyncIteratorOptSelectAs returns the values of the columns with this name
+// in the IteratorResult. By default the iterator only looks for matches and
+// returns their row numbers. This option is used when you also want the actual
+// found values back.
+func SyncIteratorOptSelectAs(selectAs string) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.selectAs = selectAs
+	}
+}
+
+// SyncIteratorOptBufferSize overrides the default buffer size. This is how many
+// values are unpacked from the column on each read.
+func SyncIteratorOptBufferSize(bufferSize int) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.readSize = bufferSize
+	}
+}
+
+// SyncIteratorOptMaxDefinitionLevel specifies the maximum definition level that
+// can be expected for this column. Allows for better efficiency, but not
+// required for correct behavior.
+func SyncIteratorOptMaxDefinitionLevel(maxDefinitionLevel int) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.maxDefinitionLevel = maxDefinitionLevel
+	}
+}
+
 // SyncIterator is a synchronous column iterator. It scans through the given row
 // groups and column, and applies the optional predicate to each chunk, page, and value.
 // Results are read by calling Next() until it returns nil.
@@ -332,6 +379,7 @@ type SyncIterator struct {
 	// Config
 	column     int
 	columnName string
+	selectAs   string
 	rgs        []pq.RowGroup
 	rgsMin     []RowNumber
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
@@ -362,7 +410,14 @@ type SyncIterator struct {
 
 var _ Iterator = (*SyncIterator)(nil)
 
-func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, maxDefinitionLevel int, opts ...SyncIteratorOpt) *SyncIterator {
+// NewSyncIterator iterates values in a column of a parquet file. Required values
+// are the numeric column index and the row groups to iterate over.  The column index
+// can be found by name using GetColumnIndexByPath.  By default it does the minimal
+// amount of work, which is to scan for matches (using the given predicate if specified),
+// and return their row values. To retrieve the found values back, pass SyncIteratorOptSelectAs.
+//
+// Not safe for concurrent use.
+func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ...SyncIteratorOpt) *SyncIterator {
 	// Assign row group bounds.
 	// Lower bound is inclusive
 	// Upper bound is exclusive, points at the first row of the next group
@@ -376,41 +431,37 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rn.Skip(rg.NumRows())
 	}
 
-	_, span := tracer.Start(ctx, "syncIterator", trace.WithAttributes(
-		attribute.Int("columnIndex", column),
-		attribute.String("column", columnName),
-	))
-
-	at := IteratorResult{}
-	if selectAs != "" {
-		// Preallocate 1 entry with the given name.
-		at.Entries = []struct {
-			Key   string
-			Value pq.Value
-		}{
-			{Key: selectAs},
-		}
-	}
-
 	// Create the iterator
 	i := &SyncIterator{
-		span:               span,
 		column:             column,
-		columnName:         columnName,
 		rgs:                rgs,
-		readSize:           readSize,
+		readSize:           1000, // default value
 		rgsMin:             rgsMin,
 		rgsMax:             rgsMax,
-		filter:             filter,
 		curr:               EmptyRowNumber(),
-		at:                 at,
-		maxDefinitionLevel: maxDefinitionLevel,
+		at:                 IteratorResult{},
+		maxDefinitionLevel: MaxDefinitionLevel, // default value
 	}
 
 	// Apply options
 	for _, opt := range opts {
 		opt(i)
 	}
+
+	if i.selectAs != "" {
+		// Preallocate 1 entry with the given name.
+		i.at.Entries = []struct {
+			Key   string
+			Value pq.Value
+		}{
+			{Key: i.selectAs},
+		}
+	}
+
+	_, i.span = tracer.Start(ctx, "syncIterator", trace.WithAttributes(
+		attribute.Int("columnIndex", column),
+		attribute.String("column", i.columnName),
+	))
 
 	return i
 }
@@ -1100,7 +1151,17 @@ outer:
 }
 
 func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
-	err := j.seekAll(t, d)
+	done, err := j.seekAllRequired(t, d)
+	if err != nil {
+		return nil, err
+	}
+
+	if done {
+		// A required iterator is exhausted, no reason to seek the remaining
+		return nil, nil
+	}
+
+	err = j.seekAllOptional(t, d)
 	if err != nil {
 		return nil, err
 	}
@@ -1109,7 +1170,6 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 }
 
 func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
-	t = TruncateRowNumber(d, t)
 	if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
 		j.peeksRequired[iterNum], err = j.required[iterNum].SeekTo(t, d)
 		if err != nil {
@@ -1119,8 +1179,7 @@ func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
 	return nil
 }
 
-func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
-	t = TruncateRowNumber(d, t)
+func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (done bool, err error) {
 	for iterNum, iter := range j.required {
 		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
 			j.peeksRequired[iterNum], err = iter.SeekTo(t, d)
@@ -1129,10 +1188,14 @@ func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 			}
 			if j.peeksRequired[iterNum] == nil {
 				// A required iterator is exhausted, no reason to seek the remaining
-				return nil
+				return true, nil
 			}
 		}
 	}
+	return
+}
+
+func (j *LeftJoinIterator) seekAllOptional(t RowNumber, d int) (err error) {
 	for iterNum, iter := range j.optional {
 		if j.peeksOptional[iterNum] == nil || CompareRowNumbers(d, j.peeksOptional[iterNum].RowNumber, t) == -1 {
 			j.peeksOptional[iterNum], err = iter.SeekTo(t, d)
@@ -1170,7 +1233,6 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 			// Collect matches
 			for peeks[i] != nil && EqualRowNumber(j.definitionLevel, peeks[i].RowNumber, rowNumber) {
 				result.Append(peeks[i])
-				// peeks[i].Release()
 				peeks[i], err = iters[i].Next()
 				if err != nil {
 					return
@@ -1179,7 +1241,9 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 		}
 	}
 
-	err = j.seekAll(rowNumber, j.definitionLevel)
+	// Collect is only called after we have found a match among all
+	// required iterators, therefore we only need to seek the optional ones to same location.
+	err = j.seekAllOptional(rowNumber, j.definitionLevel)
 	if err != nil {
 		return nil, err
 	}

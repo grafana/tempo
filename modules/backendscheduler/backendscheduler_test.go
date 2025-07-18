@@ -31,9 +31,7 @@ import (
 var tenant = "test-tenant"
 
 func TestBackendScheduler(t *testing.T) {
-	cfg := Config{
-		TenantMeasurementInterval: 100 * time.Millisecond,
-	}
+	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.BackendFlushInterval = 100 * time.Millisecond
 
@@ -69,15 +67,13 @@ func TestBackendScheduler(t *testing.T) {
 		require.Equal(t, "", resp.JobId)
 	})
 
-	_ = backend.NewReader(rr)
-	w := backend.NewWriter(ww)
-
 	tenantCount := 5
+	tenantBlockIDs := make(map[string][]backend.UUID)
 
 	// Push some data to a few tenants
-	for i := 0; i < tenantCount; i++ {
+	for i := range tenantCount {
 		testTenant := tenant + strconv.Itoa(i)
-		writeTenantBlocks(ctx, t, w, testTenant, 10)
+		tenantBlockIDs[testTenant] = writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 10)
 	}
 
 	time.Sleep(500 * time.Millisecond)
@@ -130,6 +126,17 @@ func TestBackendScheduler(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updateResp)
+
+		// Once the job is updated, ensure that the store no longer contains the job input block IDs
+		metas := store.BlockMetas(resp.Detail.Tenant)
+
+		for _, b := range resp.Detail.Compaction.Input {
+			require.Contains(t, tenantBlockIDs[resp.Detail.Tenant], backend.MustParse(b))
+
+			for _, m := range metas {
+				require.NotEqual(t, m.BlockID, backend.MustParse(b))
+			}
+		}
 
 		t.Run("the store does not contain the metas which have been compacted", func(t *testing.T) {
 			metas := store.BlockMetas(resp.Detail.Tenant)
@@ -305,17 +312,25 @@ func TestProtoMarshaler(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func writeTenantBlocks(ctx context.Context, t *testing.T, w backend.Writer, tenant string, count int) {
-	var err error
-	for i := 0; i < count; i++ {
+func writeTenantBlocks(ctx context.Context, t *testing.T, w backend.Writer, tenant string, count int) []backend.UUID {
+	var (
+		err      error
+		blockIDs []backend.UUID
+	)
+
+	for range count {
 		meta := &backend.BlockMeta{
 			BlockID:  backend.NewUUID(),
 			TenantID: tenant,
 		}
 
+		blockIDs = append(blockIDs, meta.BlockID)
+
 		err = w.WriteBlockMeta(ctx, meta)
 		require.NoError(t, err)
 	}
+
+	return blockIDs
 }
 
 type ownsEverythingSharder struct{}
@@ -327,7 +342,6 @@ func (ownsEverythingSharder) Owns(_ string) bool {
 func TestProviderBasedScheduling(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	cfg.TenantMeasurementInterval = 100 * time.Millisecond
 	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
@@ -346,11 +360,13 @@ func TestProviderBasedScheduling(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
+	tenantBlockIDs := make(map[string][]backend.UUID)
+
 	// Push some data to a few tenants
 	tenantCount := 3
-	for i := 0; i < tenantCount; i++ {
+	for i := range tenantCount {
 		testTenant := tenant + strconv.Itoa(i)
-		writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
+		tenantBlockIDs[testTenant] = writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
 	}
 
 	time.Sleep(500 * time.Millisecond)

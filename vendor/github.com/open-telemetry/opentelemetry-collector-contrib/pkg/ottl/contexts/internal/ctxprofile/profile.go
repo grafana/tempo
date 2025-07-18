@@ -20,6 +20,7 @@ import (
 
 type ProfileContext interface {
 	GetProfile() pprofile.Profile
+	GetProfilesDictionary() pprofile.ProfilesDictionary
 }
 
 func PathGetSetter[K ProfileContext](path ottl.Path[K]) (ottl.GetSetter[K], error) {
@@ -31,22 +32,8 @@ func PathGetSetter[K ProfileContext](path ottl.Path[K]) (ottl.GetSetter[K], erro
 		return accessSampleType[K](), nil
 	case "sample":
 		return accessSample[K](), nil
-	case "mapping_table":
-		return accessMappingTable[K](), nil
-	case "location_table":
-		return accessLocationTable[K](), nil
 	case "location_indices":
 		return accessLocationIndices[K](), nil
-	case "function_table":
-		return accessFunctionTable[K](), nil
-	case "attribute_table":
-		return accessAttributeTable[K](), nil
-	case "attribute_units":
-		return accessAttributeUnits[K](), nil
-	case "link_table":
-		return accessLinkTable[K](), nil
-	case "string_table":
-		return accessStringTable[K](), nil
 	case "time_unix_nano":
 		return accessTimeUnixNano[K](), nil
 	case "time":
@@ -61,8 +48,8 @@ func PathGetSetter[K ProfileContext](path ottl.Path[K]) (ottl.GetSetter[K], erro
 		return accessPeriod[K](), nil
 	case "comment_string_indices":
 		return accessCommentStringIndices[K](), nil
-	case "default_sample_type_string_index":
-		return accessDefaultSampleTypeStringIndex[K](), nil
+	case "default_sample_type_index":
+		return accessDefaultSampleTypeIndex[K](), nil
 	case "profile_id":
 		nextPath := path.Next()
 		if nextPath != nil {
@@ -80,6 +67,11 @@ func PathGetSetter[K ProfileContext](path ottl.Path[K]) (ottl.GetSetter[K], erro
 		return accessOriginalPayloadFormat[K](), nil
 	case "original_payload":
 		return accessOriginalPayload[K](), nil
+	case "attributes":
+		if path.Keys() == nil {
+			return accessAttributes[K](), nil
+		}
+		return accessAttributesKey(path.Keys()), nil
 	default:
 		return nil, ctxerror.New(path.Name(), path.String(), Name, DocRef)
 	}
@@ -113,34 +105,6 @@ func accessSample[K ProfileContext]() ottl.StandardGetSetter[K] {
 	}
 }
 
-func accessMappingTable[K ProfileContext]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().MappingTable(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.MappingSlice); ok {
-				v.CopyTo(tCtx.GetProfile().MappingTable())
-			}
-			return nil
-		},
-	}
-}
-
-func accessLocationTable[K ProfileContext]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().LocationTable(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.LocationSlice); ok {
-				v.CopyTo(tCtx.GetProfile().LocationTable())
-			}
-			return nil
-		},
-	}
-}
-
 func accessLocationIndices[K ProfileContext]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
@@ -148,73 +112,6 @@ func accessLocationIndices[K ProfileContext]() ottl.StandardGetSetter[K] {
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
 			return ctxutil.SetCommonIntSliceValues[int32](tCtx.GetProfile().LocationIndices(), val)
-		},
-	}
-}
-
-func accessFunctionTable[K ProfileContext]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().FunctionTable(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.FunctionSlice); ok {
-				v.CopyTo(tCtx.GetProfile().FunctionTable())
-			}
-			return nil
-		},
-	}
-}
-
-func accessAttributeTable[K ProfileContext]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().AttributeTable(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.AttributeTableSlice); ok {
-				v.CopyTo(tCtx.GetProfile().AttributeTable())
-			}
-			return nil
-		},
-	}
-}
-
-func accessAttributeUnits[K ProfileContext]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().AttributeUnits(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.AttributeUnitSlice); ok {
-				v.CopyTo(tCtx.GetProfile().AttributeUnits())
-			}
-			return nil
-		},
-	}
-}
-
-func accessLinkTable[K ProfileContext]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().LinkTable(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.LinkSlice); ok {
-				v.CopyTo(tCtx.GetProfile().LinkTable())
-			}
-			return nil
-		},
-	}
-}
-
-func accessStringTable[K ProfileContext]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().StringTable().AsRaw(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			return ctxutil.SetCommonTypedSliceValues[string](tCtx.GetProfile().StringTable(), val)
 		},
 	}
 }
@@ -314,14 +211,14 @@ func accessCommentStringIndices[K ProfileContext]() ottl.StandardGetSetter[K] {
 	}
 }
 
-func accessDefaultSampleTypeStringIndex[K ProfileContext]() ottl.StandardGetSetter[K] {
+func accessDefaultSampleTypeIndex[K ProfileContext]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return int64(tCtx.GetProfile().DefaultSampleTypeStrindex()), nil
+			return int64(tCtx.GetProfile().DefaultSampleTypeIndex()), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
 			if i, ok := val.(int64); ok {
-				tCtx.GetProfile().SetDefaultSampleTypeStrindex(int32(i))
+				tCtx.GetProfile().SetDefaultSampleTypeIndex(int32(i))
 			}
 			return nil
 		},
@@ -416,6 +313,46 @@ func accessOriginalPayload[K ProfileContext]() ottl.StandardGetSetter[K] {
 				tCtx.GetProfile().OriginalPayload().FromRaw(v)
 			}
 			return nil
+		},
+	}
+}
+
+func accessAttributes[K ProfileContext]() ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (any, error) {
+			return pprofile.FromAttributeIndices(tCtx.GetProfilesDictionary().AttributeTable(), tCtx.GetProfile()), nil
+		},
+		Setter: func(_ context.Context, tCtx K, val any) error {
+			m, err := ctxutil.GetMap(val)
+			if err != nil {
+				return err
+			}
+			tCtx.GetProfile().AttributeIndices().FromRaw([]int32{})
+			for k, v := range m.All() {
+				if err := pprofile.PutAttribute(tCtx.GetProfilesDictionary().AttributeTable(), tCtx.GetProfile(), k, v); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+}
+
+func accessAttributesKey[K Context](key []ottl.Key[K]) ottl.StandardGetSetter[K] {
+	return ottl.StandardGetSetter[K]{
+		Getter: func(ctx context.Context, tCtx K) (any, error) {
+			return ctxutil.GetMapValue[K](ctx, tCtx, pprofile.FromAttributeIndices(tCtx.GetProfilesDictionary().AttributeTable(), tCtx.GetProfile()), key)
+		},
+		Setter: func(ctx context.Context, tCtx K, val any) error {
+			newKey, err := ctxutil.GetMapKeyName(ctx, tCtx, key[0])
+			if err != nil {
+				return err
+			}
+			v := pcommon.NewValueEmpty()
+			if err = ctxutil.SetIndexableValue[K](ctx, tCtx, v, val, key[1:]); err != nil {
+				return err
+			}
+			return pprofile.PutAttribute(tCtx.GetProfilesDictionary().AttributeTable(), tCtx.GetProfile(), *newKey, v)
 		},
 	}
 }

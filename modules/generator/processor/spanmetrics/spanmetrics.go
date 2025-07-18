@@ -80,7 +80,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels, c.Get))
 	}
 
-	err := validateLabelValues(labels)
+	err := validateUTF8LabelValues(labels)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	err := validateLabelValues(labelValues)
+	err := validateUTF8LabelValues(labelValues)
 	if err != nil {
 		p.invalidUTF8Counter.Inc()
 		return
@@ -261,7 +261,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func validateLabelValues(v []string) error {
+func validateUTF8LabelValues(v []string) error {
 	for _, value := range v {
 		if !utf8.ValidString(value) {
 			return fmt.Errorf("invalid utf8 string: %s", value)
@@ -280,7 +280,7 @@ func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 		// Skip empty string keys, which are out of spec but
 		// technically possible in the proto. These will cause
 		// issues downstream for metrics datasources
-		if key == "" {
+		if key == "" || (key[0] >= '0' && key[0] <= '9') {
 			continue
 		}
 		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !slices.Contains(exclude, key) {

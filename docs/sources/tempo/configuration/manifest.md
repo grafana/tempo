@@ -365,6 +365,8 @@ query_frontend:
         retry_with_weights: true
         max_traceql_conditions: 4
         max_regex_conditions: 1
+    mcp_server:
+        enabled: false
     max_query_expression_size_bytes: 131072
     rf1_after: 0001-01-01T00:00:00Z
 compactor:
@@ -515,7 +517,8 @@ ingester:
     concurrent_flushes: 4
     flush_check_period: 10s
     flush_op_timeout: 5m0s
-    trace_idle_period: 10s
+    trace_idle_period: 5s
+    trace_live_period: 30s
     max_block_duration: 30m0s
     max_block_bytes: 524288000
     complete_block_timeout: 15m0s
@@ -639,7 +642,8 @@ metrics_generator:
                     column_index: false
                     offset_index: false
             flush_check_period: 10s
-            trace_idle_period: 10s
+            trace_idle_period: 5s
+            trace_live_period: 30s
             max_block_duration: 1m0s
             max_block_bytes: 500000000
             concurrency: 4
@@ -979,7 +983,6 @@ cache:
         writeback_buffer: 10000
     caches: []
 backend_scheduler:
-    tenant_measurement_interval: 1m0s
     work:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
@@ -1003,10 +1006,9 @@ backend_scheduler:
                 max_time_per_tenant: 5m0s
                 compaction_cycle: 30s
             max_jobs_per_tenant: 1000
-            backoff:
-                min_period: 100ms
-                max_period: 10s
-                max_retries: 0
+            min_input_blocks: 2
+            max_input_blocks: 4
+            min_cycle_interval: 30s
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:

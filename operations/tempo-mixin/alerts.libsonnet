@@ -185,7 +185,7 @@
             ||| % [$._config.namespace, $._config.group_by_job],
             'for': '15m',
             labels: {
-              severity: 'warning',
+              severity: 'critical',
             },
             annotations: {
               message: '{{ $labels.job }} failed to reload overrides.',

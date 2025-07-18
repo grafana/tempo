@@ -2,17 +2,19 @@ name: Dependabot Auto-Approve & Merge
 
 on: pull_request
 
-permissions:
-  pull-requests: write
-  contents: write  # Needed to merge PRs via gh CLI
-
 jobs:
   auto-approve-and-merge:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
+      pull-requests: write
+      contents: write # Needed to merge PRs via gh CLI
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'grafana/tempo'
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Fetch Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b
@@ -35,8 +37,8 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: tempo
       - name: Approve Dependabot PR
-        # Only path updates 
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' 
+        # Only patch updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: gh pr review --approve -b "Automatically approved dependency update"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

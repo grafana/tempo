@@ -21,11 +21,12 @@ import (
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/e2e"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
@@ -41,6 +42,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
 const (
@@ -143,6 +145,7 @@ func NewNamedTempoDistributor(name string, extraArgs ...string) *e2e.HTTPService
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
 		3200,
 		14250,
+		4317, // otlp grpc
 	)
 
 	s.SetBackoff(TempoBackoff())
@@ -261,7 +264,8 @@ func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPSer
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
 		3200,  // http all things
-		14250, // jaeger grpc ingest
+		14250, // jaeger grpc ingest,
+		4317,
 		// 9411,  // zipkin ingest (used by load)
 	)
 
@@ -384,12 +388,16 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
 	otlpCfg.ClientConfig = configgrpc.ClientConfig{
 		Endpoint: endpoint,
-		TLSSetting: configtls.ClientConfig{
+		TLS: configtls.ClientConfig{
 			Insecure: true,
 		},
 	}
+	// Disable retries to get immediate error feedback
+	otlpCfg.RetryConfig.Enabled = false
+	// Disable queueing
+	otlpCfg.QueueConfig.Enabled = false
 	logger, _ := zap.NewDevelopment()
-	return factory.CreateTraces(
+	te, err := factory.CreateTraces(
 		context.Background(),
 		exporter.Settings{
 			ID: component.MustNewID(factory.Type().String()),
@@ -402,19 +410,14 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 		},
 		otlpCfg,
 	)
-}
-
-func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
-	// new jaeger grpc exporter
-	conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
-	logger, err := zap.NewDevelopment()
+	err = te.Start(context.Background(), componenttest.NewNopHost())
 	if err != nil {
 		return nil, err
 	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), err
+	return te, nil
 }
 
 func NewSearchGRPCClient(ctx context.Context, endpoint string) (tempopb.StreamingQuerierClient, error) {
@@ -691,4 +694,30 @@ func NewPrometheus() *e2e.HTTPService {
 		e2e.NewHTTPReadinessProbe(9090, "/-/ready", 200, 299),
 		9090,
 	)
+}
+
+type JaegerToOTLPExporter struct {
+	exporter exporter.Traces
+}
+
+func NewJaegerToOTLPExporter(endpoint string) (*JaegerToOTLPExporter, error) {
+	exp, err := NewOtelGRPCExporter(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	return &JaegerToOTLPExporter{exporter: exp}, nil
+}
+
+// EmitBatch converts a Jaeger Thrift batch to OpenTelemetry traces format
+// and forwards them to the configured OTLP endpoint.
+func (c *JaegerToOTLPExporter) EmitBatch(ctx context.Context, b *thrift.Batch) error {
+	traces, err := jaeger.ThriftToTraces(b)
+	if err != nil {
+		return err
+	}
+	return c.exporter.ConsumeTraces(ctx, traces)
+}
+
+func (c *JaegerToOTLPExporter) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) error {
+	return errors.New("EmitZipkinBatch via OTLP not implemented")
 }

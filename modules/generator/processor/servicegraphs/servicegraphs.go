@@ -382,7 +382,7 @@ func (p *Processor) onComplete(e *store.Edge) {
 }
 
 func (p *Processor) onExpire(e *store.Edge) {
-	p.metricExpiredEdges.Inc()
+	wasCounted := false
 
 	// If an edge is expired, we check if there are signs that the missing span is belongs to a "virtual node".
 	// These are nodes that are outside the user's reach (eg. an external service for payment processing),
@@ -391,15 +391,23 @@ func (p *Processor) onExpire(e *store.Edge) {
 	if len(e.ClientService) == 0 {
 		// If the client service is not set, it means that the span could have been initiated by an external system,
 		// like a frontend application or an engineer via `curl`.
-		// We check if the span we have is the root span, and if so, we set the client service to "user".
+		// We check if the span we have is the root span, and if so, we set the client service appropriately.
 		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 {
-			e.ClientService = "user"
+
+			// If a peer attribute is present, it is used to name the external client service.
+			if len(e.PeerNode) > 0 {
+				e.ClientService = e.PeerNode
+			} else {
+				// Request came from an unknown source. No information inferred from the peer attributes.
+				e.ClientService = "user"
+			}
 
 			if p.Cfg.EnableVirtualNodeLabel {
 				e.Dimensions[virtualNodeLabel] = "client"
 			}
 
 			p.onComplete(e)
+			wasCounted = true
 		}
 	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
 		// If client span does not have its matching server span, but has a peer attribute present,
@@ -411,6 +419,12 @@ func (p *Processor) onExpire(e *store.Edge) {
 		}
 
 		p.onComplete(e)
+		wasCounted = true
+	}
+
+	// there was no match and no information in the one found span to create a service graph edge. mark expired
+	if !wasCounted {
+		p.metricExpiredEdges.Inc()
 	}
 }
 

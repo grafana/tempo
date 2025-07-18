@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -17,6 +16,7 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/grafana/tempo/cmd/tempo-query/jaeger/storage_v1"
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 )
 

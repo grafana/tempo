@@ -19,7 +19,6 @@ func TestCache(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	cfg.TenantMeasurementInterval = 100 * time.Millisecond
 	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
 	cfg.LocalWorkPath = tmpDir + "/work"
 

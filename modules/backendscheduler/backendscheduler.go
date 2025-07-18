@@ -24,6 +24,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 )
 
@@ -175,11 +176,11 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-maintenanceTicker.C:
-			s.work.Prune()
+			s.work.Prune(ctx)
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
 			metricWorkFlushes.Inc()
-			if err != nil {
+			if err != nil && !errors.Is(err, context.Canceled) {
 				metricWorkFlushesFailed.Inc()
 				level.Error(log.Logger).Log("msg", "failed to flush work cache to backend", "error", err)
 			}
@@ -211,7 +212,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	span.SetAttributes(attribute.String("worker_id", req.WorkerId))
 
 	// Find jobs that already exist for this worker
-	j := s.work.GetJobForWorker(req.WorkerId)
+	j := s.work.GetJobForWorker(ctx, req.WorkerId)
 	if j != nil {
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
@@ -246,6 +247,10 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrNilJob.Error())
 		}
+
+		span.AddEvent("job received", trace.WithAttributes(
+			attribute.String("job_id", j.GetID()),
+		))
 
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
@@ -285,6 +290,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 // UpdateJob implements the BackendSchedulerServer interface
 func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
+	ctx, span := tracer.Start(ctx, "UpdateJob")
+	defer span.End()
+
 	j := s.work.GetJob(req.JobId)
 	if j == nil {
 		return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.NotFound, work.ErrJobNotFound.Error())
@@ -308,7 +316,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
-		err = s.loadBlocklistJobsForTenant(j.Tenant(), []*work.Job{j})
+		err = s.loadBlocklistJobsForTenant(ctx, j.Tenant(), []*work.Job{j})
 		if err != nil {
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
@@ -333,7 +341,10 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	}, nil
 }
 
-func (s *BackendScheduler) replayWorkOnBlocklist() {
+func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) {
+	ctx, span := tracer.Start(ctx, "replayWorkOnBlocklist")
+	defer span.End()
+
 	var (
 		err           error
 		tenant        string
@@ -363,19 +374,29 @@ func (s *BackendScheduler) replayWorkOnBlocklist() {
 	}
 
 	for tenant, jobs := range perTenantJobs {
-		err = s.loadBlocklistJobsForTenant(tenant, jobs)
+		err = s.loadBlocklistJobsForTenant(ctx, tenant, jobs)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "failed to load blocklist jobs for tenant", "tenant", tenant, "error", err)
 		}
 	}
 }
 
-func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*work.Job) error {
+func (s *BackendScheduler) loadBlocklistJobsForTenant(ctx context.Context, tenant string, jobs []*work.Job) error {
+	_, span := tracer.Start(ctx, "loadBlocklistJobsForTenant")
+	defer span.End()
+
 	var (
 		metas     = s.store.BlockMetas(tenant)
 		oldBlocks []*backend.BlockMeta
 		u         backend.UUID
 		err       error
+		m         *backend.BlockMeta
+		ok        bool
+	)
+
+	span.SetAttributes(
+		attribute.String("tenant", tenant),
+		attribute.Int("job_count", len(jobs)),
 	)
 
 	for _, j := range jobs {
@@ -390,11 +411,8 @@ func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*wor
 				continue
 			}
 
-			for _, m := range metas {
-				if m.BlockID == u {
-					oldBlocks = append(oldBlocks, m)
-					break
-				}
+			if m, ok = foundMetaInMetas(metas, u); ok {
+				oldBlocks = append(oldBlocks, m)
 			}
 		}
 	}
@@ -405,6 +423,15 @@ func (s *BackendScheduler) loadBlocklistJobsForTenant(tenant string, jobs []*wor
 	}
 
 	return nil
+}
+
+func foundMetaInMetas(metas []*backend.BlockMeta, u backend.UUID) (*backend.BlockMeta, bool) {
+	for _, m := range metas {
+		if m.BlockID == u {
+			return m, true
+		}
+	}
+	return nil, false
 }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {
