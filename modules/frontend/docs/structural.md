@@ -132,6 +132,5 @@ Find which services call the user service:
 
 ## Performance Considerations
 - Structural operators can be expensive on large traces
-- Use specific span selections to reduce the search space
 - Consider using logical operators (`&&`, `||`) instead when span relationships aren't required
 - Combine with other filters to improve performance

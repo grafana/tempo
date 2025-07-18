@@ -1,7 +1,7 @@
 # TraceQL Basic Query Documentation
 
 ## Overview
-TraceQL is a query language for searching and filtering traces. Queries are expressions evaluated on one trace at a time, structured as a set of chained expressions called a pipeline.
+TraceQL is a query language for searching and filtering traces. Queries are expressions evaluated on one trace at a time, structured as a set of chained expressions called a pipeline. TraceQL selection can not answer broad questions about trace data. It can only find specific traces. Use metrics for broader questions.
 
 ## Query Structure
 TraceQL queries use curly brackets `{}` to select spans from traces. Each query expression filters spans based on conditions.
@@ -67,6 +67,8 @@ Attributes use dot notation `<scope>.`:
 - `||` - OR (either condition can be true)
 
 ## Spanset Operators
+Spanset operators allow conditions to be asserted on different spans within a trace. Also see strutural operators.
+
 - `{condA} && {condB}` - Both conditions found matches
 - `{condA} || {condB}` - Either condition found matches
 
@@ -132,5 +134,5 @@ Attributes use dot notation `<scope>.`:
 
 ## Performance Tips
 - Use trace-level intrinsics (`trace:duration`, `trace:rootName`, `trace:rootService`) when possible for better performance
-- Prefer specific span selections over broad queries
 - Use appropriate scopes to limit data scanning
+- Use specific span selections to reduce data processing

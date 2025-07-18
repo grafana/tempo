@@ -143,7 +143,6 @@ The `step` parameter controls the granularity of time-series data:
 - Configured via Grafana Explore or API
 
 ## Performance Tips
-- Use specific span selections to reduce data processing
 - Group by high-cardinality fields carefully
 - Use topk/bottomk to limit result sets
 - Consider using instant queries for single-point-in-time analysis

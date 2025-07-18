@@ -1,7 +1,7 @@
 # TraceQL Aggregates Documentation
 
 ## Overview
-TraceQL aggregates allow you to perform calculations on sets of spans within traces. These functions help analyze patterns and trends in your trace data.
+TraceQL aggregates allow you to perform calculations on sets of spans within traces. These functions help select individual traces based on aggregate data in the spans.
 
 ## Available Aggregate Functions
 - `count` - Count of spans in the spanset
@@ -87,5 +87,3 @@ This finds services with more than 1 error span per trace.
 
 ## Performance Notes
 - Aggregates are computed per trace
-- Use specific span selections to improve performance
-- Trace-level intrinsics (trace:duration, trace:rootName, trace:rootService) are more performant than span-level intrinsics
