@@ -217,8 +217,8 @@ func createTestKafkaClient(t *testing.T, cfg KafkaConfig) *kgo.Client {
 	return client
 }
 
-func produceRecord(ctx context.Context, t *testing.T, writeClient *kgo.Client, partitionID int32, content []byte) int64 {
-	return produceRecordWithVersion(ctx, t, writeClient, partitionID, content, 1)
+func produceRecord(ctx context.Context, t *testing.T, writeClient *kgo.Client, partitionID int32, content []byte) {
+	_ := produceRecordWithVersion(ctx, t, writeClient, partitionID, content, 1)
 }
 
 func produceRecordWithVersion(ctx context.Context, t *testing.T, writeClient *kgo.Client, partitionID int32, content []byte, version int) int64 {
