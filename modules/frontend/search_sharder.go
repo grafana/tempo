@@ -249,14 +249,15 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 		}
 	}
 
-	// add one shard that covers no time at all. this will force the combiner to wait
-	//  for ingester requests to complete before moving on to the backend requests
+	// if we are querying ingesters, let's add a shard that represents that work
 	ingesterJobs := len(reqCh)
-	resp.TotalJobs = ingesterJobs
-	resp.Shards = append(resp.Shards, combiner.SearchShards{
-		TotalJobs:               uint32(ingesterJobs),
-		CompletedThroughSeconds: math.MaxUint32,
-	})
+	if ingesterJobs > 0 {
+		resp.TotalJobs = ingesterJobs
+		resp.Shards = append(resp.Shards, combiner.SearchShards{
+			TotalJobs:               uint32(ingesterJobs),
+			CompletedThroughSeconds: 1, // all ingester jobs complete "through" all time
+		})
+	}
 
 	return resp, nil
 }
@@ -471,7 +472,7 @@ func backendJobsFunc(blocks []*backend.BlockMeta, targetBytesPerRequest int, max
 		//  this is the least impactful shard to place extra jobs in as it is searched last. if we make it here the chances of this being an exhaustive search
 		//  are higher
 		if shardIterCallback != nil && jobsInShard > 0 {
-			shardIterCallback(jobsInShard, bytesInShard, 1) // final shard can cover all time. we don't need to be precise
+			shardIterCallback(jobsInShard, bytesInShard, math.MaxUint32) // final shard can cover all time.
 		}
 	}
 }
