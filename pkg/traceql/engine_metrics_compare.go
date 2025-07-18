@@ -144,8 +144,7 @@ func (m *MetricsCompare) observe(span Span) {
 func (m *MetricsCompare) processAttribute(a Attribute, v Static) {
 	// We don't group by attributes of these types because the
 	// cardinality isn't useful.
-	switch v.Type {
-	case TypeDuration:
+	if v.Type == TypeDuration {
 		return
 	}
 
