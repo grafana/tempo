@@ -75,6 +75,7 @@ type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
 	CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error)
 	CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
+	DeleteNoCompactFlag(ctx context.Context, tenantID string, blockID backend.UUID) error
 	WAL() *wal.WAL
 }
 
@@ -282,6 +283,10 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 	}
 
 	return backendBlock, nil
+}
+
+func (rw *readerWriter) DeleteNoCompactFlag(ctx context.Context, tenantID string, blockID backend.UUID) error {
+	return rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(blockID), tenantID)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {
