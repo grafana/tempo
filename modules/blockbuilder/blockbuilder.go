@@ -463,6 +463,8 @@ outer:
 		"processed_records", processedRecords,
 	)
 
+	writer.allowCompaction(ctx, b.writer)
+
 	return lastRec.Timestamp, offset.At, nil
 }
 
