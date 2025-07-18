@@ -12,6 +12,7 @@ import (
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
+	"github.com/grafana/tempo/modules/bufferer"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -62,6 +63,7 @@ type Config struct {
 	BackendScheduler      backendscheduler.Config        `yaml:"backend_scheduler,omitempty"`
 	BackenSchedulerClient backendscheduler_client.Config `yaml:"backend_scheduler_client,omitempty"`
 	BackendWorker         backendworker.Config           `yaml:"backend_worker,omitempty"`
+	Bufferer              bufferer.Config                `yaml:"bufferer,omitempty"`
 }
 
 func NewDefaultConfig() *Config {
@@ -144,6 +146,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.CacheProvider.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "cache"), f)
 	c.BackendScheduler.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-scheduler"), f)
 	c.BackendWorker.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-worker"), f)
+	c.Bufferer.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "bufferer"), f)
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled
