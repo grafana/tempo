@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/livetraces"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/tracesizes"
@@ -25,15 +26,15 @@ type offsetMetadata struct {
 }
 
 type instance struct {
-	instanceID string
-	logger     log.Logger
+	tenantID string
+	logger   log.Logger
 
 	// WAL and encoding
 	wal *wal.WAL
 	enc encoding.VersionedEncoding
 
 	// Block management
-	blocksMtx      sync.RWMutex
+	blocksMtx      sync.Mutex
 	headBlock      common.WALBlock
 	walBlocks      map[uuid.UUID]common.WALBlock
 	completeBlocks map[uuid.UUID]*ingester.LocalBlock
@@ -45,26 +46,37 @@ type instance struct {
 	traceSizes    *tracesizes.Tracker
 
 	// Block offset metadata (set during coordinated cuts)
-	blockOffsetMeta map[uuid.UUID]offsetMetadata
+	// blockOffsetMeta map[uuid.UUID]offsetMetadata // TODO: Used for checking data integrity
+
+	// Kafka offset tracking for watermark-based commits
+	traceOffsets      map[string]int64 // traceID -> offset mapping
+	flushedOffsets    []int64          // Offsets that have been flushed to disk
+	lastFlushedOffset int64            // Last offset that was successfully flushed to disk
+	offsetMtx         sync.RWMutex
+
+	// Watermark callback
+	watermarkCallback func(string, int64)
 
 	// Overrides
 	overrides Overrides
 }
 
-func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger log.Logger, watermarkCallback func(string, int64)) (*instance, error) {
 	enc := encoding.DefaultEncoding()
 
 	i := &instance{
-		instanceID:      instanceID,
-		logger:          log.With(logger, "tenant", instanceID),
-		wal:             wal,
-		enc:             enc,
-		walBlocks:       map[uuid.UUID]common.WALBlock{},
-		completeBlocks:  map[uuid.UUID]*ingester.LocalBlock{},
-		liveTraces:      livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 30*time.Second, 5*time.Minute),
-		traceSizes:      tracesizes.New(),
-		overrides:       overrides,
-		blockOffsetMeta: make(map[uuid.UUID]offsetMetadata),
+		tenantID:       instanceID,
+		logger:         log.With(logger, "tenant", instanceID),
+		wal:            wal,
+		enc:            enc,
+		walBlocks:      map[uuid.UUID]common.WALBlock{},
+		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
+		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 30*time.Second, 5*time.Minute),
+		traceSizes:     tracesizes.New(),
+		overrides:      overrides,
+		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
+		traceOffsets:      make(map[string]int64),
+		watermarkCallback: watermarkCallback,
 	}
 
 	err := i.resetHeadBlock()
@@ -75,7 +87,7 @@ func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger lo
 	return i, nil
 }
 
-func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
+func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest, offset int64) {
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
 		if j >= len(req.Ids) {
@@ -86,8 +98,8 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 		traceID := req.Ids[j]
 
 		// Check tenant limits
-		maxTraces := i.overrides.MaxLocalTracesPerUser(i.instanceID)
-		maxBytes := i.overrides.MaxBytesPerTrace(i.instanceID)
+		maxTraces := i.overrides.MaxLocalTracesPerUser(i.tenantID)
+		maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
 
 		// Unmarshal the trace
 		trace := &tempopb.Trace{}
@@ -111,23 +123,74 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 
 			// Push to live traces with tenant-specific limits
 			if !i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, maxTracesLimit, uint64(maxBytes)) {
-				level.Warn(i.logger).Log("msg", "dropped trace due to live traces limit", "tenant", i.instanceID)
+				level.Warn(i.logger).Log("msg", "dropped trace due to live traces limit", "tenant", i.tenantID)
 				continue
 			}
 		}
 		i.liveTracesMtx.Unlock()
 	}
+
+	i.setTraceOffsets(req.Ids, offset)
 }
 
-func (i *instance) setBlockOffsetMetadata(blockID uuid.UUID, startOffset, endOffset int64) {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-	i.blockOffsetMeta[blockID] = offsetMetadata{
-		startOffset: startOffset,
-		endOffset:   endOffset,
+func (i *instance) setTraceOffsets(traceIDs [][]byte, offset int64) {
+	i.offsetMtx.Lock()
+	defer i.offsetMtx.Unlock()
+
+	// Associate each trace ID with its Kafka offset
+	for _, traceID := range traceIDs {
+		traceIDStr := string(traceID)
+		i.traceOffsets[traceIDStr] = offset
 	}
-	level.Info(i.logger).Log("msg", "set block offset metadata",
-		"block", blockID.String(), "start_offset", startOffset, "end_offset", endOffset)
+
+	level.Debug(i.logger).Log("msg", "set trace offsets", "offset", offset, "trace_count", len(traceIDs))
+}
+
+func (i *instance) updateWatermarkAfterFlush(flushedTraceIDs [][]byte) {
+	i.offsetMtx.Lock()
+	defer i.offsetMtx.Unlock()
+
+	if len(flushedTraceIDs) == 0 {
+		return
+	}
+
+	// Collect offsets for the specific traces that were flushed
+	var newlyFlushedOffsets []int64
+	for _, traceID := range flushedTraceIDs {
+		traceIDStr := string(traceID)
+		if offset, exists := i.traceOffsets[traceIDStr]; exists {
+			newlyFlushedOffsets = append(newlyFlushedOffsets, offset)
+			// Remove from pending map since it's now flushed
+			delete(i.traceOffsets, traceIDStr)
+		}
+	}
+
+	if len(newlyFlushedOffsets) == 0 {
+		return
+	}
+
+	// Add to flushed offsets
+	i.flushedOffsets = append(i.flushedOffsets, newlyFlushedOffsets...)
+
+	// Find the maximum flushed offset
+	maxOffset := i.lastFlushedOffset
+	for _, offset := range newlyFlushedOffsets {
+		if offset > maxOffset {
+			maxOffset = offset
+		}
+	}
+
+	// Update the last flushed offset
+	if maxOffset > i.lastFlushedOffset {
+		i.lastFlushedOffset = maxOffset
+
+		// Call watermark callback if set
+		if i.watermarkCallback != nil {
+			i.watermarkCallback(i.tenantID, maxOffset)
+		}
+
+		level.Debug(i.logger).Log("msg", "updated last flushed offset", "offset", maxOffset, "flushed_traces", len(flushedTraceIDs))
+	}
 }
 
 func (i *instance) cutIdleTraces(immediate bool) error {
@@ -139,6 +202,8 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 		return nil
 	}
 
+	// Collect the trace IDs that will be flushed
+	var flushedTraceIDs [][]byte
 	for _, t := range tracesToCut {
 		tr := &tempopb.Trace{
 			ResourceSpans: t.Batches,
@@ -148,12 +213,22 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 		if err != nil {
 			return err
 		}
+
+		// Add to list of traces that will be flushed
+		flushedTraceIDs = append(flushedTraceIDs, t.ID)
 	}
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 	if i.headBlock != nil {
-		return i.headBlock.Flush()
+		err := i.headBlock.Flush()
+		if err != nil {
+			return err
+		}
+
+		// Update watermark after successful flush, passing the specific trace IDs
+		i.updateWatermarkAfterFlush(flushedTraceIDs)
+		return nil
 	}
 	return nil
 }
@@ -192,15 +267,15 @@ func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
 }
 
 func (i *instance) resetHeadBlock() error {
-	dedicatedColumns := i.overrides.DedicatedColumns(i.instanceID)
+	dedicatedColumns := i.overrides.DedicatedColumns(i.tenantID)
 
 	meta := &backend.BlockMeta{
 		BlockID:           backend.NewUUID(),
-		TenantID:          i.instanceID,
+		TenantID:          i.tenantID,
 		DedicatedColumns:  dedicatedColumns,
 		ReplicationFactor: backend.BuffererReplicationFactor,
 	}
-	block, err := i.wal.NewBlock(meta, i.enc.Version())
+	block, err := i.wal.NewBlock(meta, model.CurrentEncoding)
 	if err != nil {
 		return err
 	}
@@ -247,9 +322,9 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 }
 
 func (i *instance) completeBlock(id uuid.UUID) error {
-	i.blocksMtx.RLock()
+	i.blocksMtx.Lock()
 	walBlock := i.walBlocks[id]
-	i.blocksMtx.RUnlock()
+	i.blocksMtx.Unlock()
 
 	if walBlock == nil {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
@@ -283,7 +358,7 @@ func (i *instance) completeBlock(id uuid.UUID) error {
 	// Verify the WAL block still exists
 	if _, ok := i.walBlocks[id]; !ok {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared while being completed, deleting complete block", "id", id)
-		err := i.wal.LocalBackend().ClearBlock(id, i.instanceID)
+		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
 		if err != nil {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
 		}
@@ -328,7 +403,7 @@ func (i *instance) deleteOldBlocks() error {
 			flushedTime := completeBlock.FlushedTime()
 			if !flushedTime.IsZero() { // Only delete if flushed
 				level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
-				err := i.wal.LocalBackend().ClearBlock(id, i.instanceID)
+				err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
 				if err != nil {
 					return err
 				}

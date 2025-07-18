@@ -749,12 +749,15 @@ func (t *App) initBackendWorker() (services.Service, error) {
 }
 
 func (t *App) initBufferer() (services.Service, error) {
+	if !t.cfg.Ingest.Enabled {
+		return services.NewIdleService(nil, nil), nil
+	}
+
 	// In SingleBinary mode don't try to discover partition from host name.
 	// Always use partition 0. This is for small installs or local/debugging setups.
 	singlePartition := t.cfg.Target == SingleBinary
 
 	t.cfg.Bufferer.IngestConfig = t.cfg.Ingest
-	t.cfg.Bufferer.IngestConfig.Kafka.ConsumerGroup = bufferer.ConsumerGroup
 
 	var err error
 	t.bufferer, err = bufferer.New(t.cfg.Bufferer, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)

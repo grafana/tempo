@@ -85,7 +85,7 @@ type App struct {
 	MemberlistKV         *memberlist.KVInitService
 	backendScheduler     *backendscheduler.BackendScheduler
 	backendWorker        *backendworker.BackendWorker
-	bufferer             *bufferer.Buffer
+	bufferer             *bufferer.Bufferer
 	signalsHandler       *signals.Handler
 
 	HTTPAuthMiddleware       middleware.Interface

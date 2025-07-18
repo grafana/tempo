@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -25,17 +27,17 @@ import (
 type record struct {
 	tenantID string
 	content  []byte
+	offset   int64
 }
 
-type consumeFn func(context.Context, []record, int64, int64, int64) error // records, minOffset, maxOffset, totalBytes
+type consumeFn func(context.Context, []record) error
 
 type PartitionReader struct {
 	services.Service
 
-	partitionID int32
-	topic       string
-
-	curCursor atomic.Int64
+	partitionID   int32
+	consumerGroup string
+	topic         string
 
 	client *kgo.Client
 	adm    *kadm.Client
@@ -44,26 +46,32 @@ type PartitionReader struct {
 	metrics partitionReaderMetrics
 
 	logger log.Logger
+
+	// Watermark-based commit management
+	highWatermark  atomic.Int64
+	watermarkChan  chan int64
+	commitInterval time.Duration
+	wg             sync.WaitGroup
 }
 
-func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, topic string, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
-	return newPartitionReader(client, partitionID, topic, consume, logger, metrics)
+	return newPartitionReader(client, partitionID, cfg, consume, logger, metrics)
 }
 
-func newPartitionReader(client *kgo.Client, partitionID int32, topic string, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
 	r := &PartitionReader{
-		partitionID: partitionID,
-		topic:       topic,
-		curCursor:   atomic.Int64{},
-		client:      client,
-		adm:         kadm.NewClient(client),
-		consume:     consume,
-		metrics:     metrics,
-		logger:      log.With(logger, "partition", partitionID),
+		partitionID:    partitionID,
+		consumerGroup:  cfg.ConsumerGroup,
+		topic:          cfg.Topic,
+		client:         client,
+		adm:            kadm.NewClient(client),
+		consume:        consume,
+		metrics:        metrics,
+		logger:         log.With(logger, "partition", partitionID),
+		watermarkChan:  make(chan int64, 100), // Buffered channel for watermark updates
+		commitInterval: 10 * time.Second,      // Commit every 10 seconds
 	}
-
-	r.curCursor.Store(-2) // TODO: Pass cursor from bufferer
 
 	r.Service = services.NewBasicService(r.start, r.running, r.stop)
 	return r, nil
@@ -83,6 +91,10 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	}
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
+
+	// Start async commit goroutine
+	r.wg.Add(1)
+	go r.commitLoop(ctx)
 
 	for ctx.Err() == nil {
 		fetches := r.client.PollFetches(ctx)
@@ -104,6 +116,11 @@ func (r *PartitionReader) running(ctx context.Context) error {
 
 func (r *PartitionReader) stop(error) error {
 	level.Info(r.logger).Log("msg", "stopping partition reader")
+
+	close(r.watermarkChan)
+
+	// Signal shutdown to commit loop
+	r.wg.Wait()
 
 	r.client.Close()
 
@@ -135,17 +152,16 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 		records = append(records, record{
 			content:  rec.Value,
 			tenantID: string(rec.Key),
+			offset:   rec.Offset,
 		})
 	})
 
 	// Pass offset and byte information to the bufferer
-	err := r.consume(ctx, records, minOffset, maxOffset, totalBytes)
+	err := r.consume(ctx, records)
 	if err != nil {
 		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "min_offset", minOffset, "max_offset", maxOffset, "err", err)
 		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
 	}
-
-	r.curCursor.Store(maxOffset)
 }
 
 func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
@@ -163,12 +179,6 @@ func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
 }
 
 func (r *PartitionReader) fetchLastCommittedOffsetWithRetries(ctx context.Context) (offset kgo.Offset, err error) {
-	// TODO(mapno): Take the highest of either?
-	cursor := r.curCursor.Load()
-	if cursor > 0 {
-		return kgo.NewOffset().At(cursor), nil
-	}
-
 	retry := backoff.New(ctx, backoff.Config{
 		MinBackoff: 100 * time.Millisecond,
 		MaxBackoff: 2 * time.Second,
@@ -194,7 +204,7 @@ func (r *PartitionReader) fetchLastCommittedOffsetWithRetries(ctx context.Contex
 }
 
 func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Offset, error) {
-	offsets, err := r.adm.FetchOffsets(ctx, ConsumerGroup)
+	offsets, err := r.adm.FetchOffsets(ctx, r.consumerGroup)
 	if errors.Is(err, kerr.UnknownTopicOrPartition) {
 		// In case we are booting up for the first time ever against this topic.
 		return kgo.NewOffset().AtStart(), nil
@@ -208,6 +218,83 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 		return kgo.NewOffset().AtStart(), nil
 	}
 	return kgo.NewOffset().At(offset.At), nil
+}
+
+func (r *PartitionReader) updateWatermark(offset int64) {
+	wm := r.highWatermark.Load()
+	if offset > wm {
+		r.highWatermark.CompareAndSwap(wm, offset)
+
+		// Send watermark update to commit loop (non-blocking)
+		select {
+		case r.watermarkChan <- offset:
+		default:
+			// Channel full, skip this update (newer ones will come)
+		}
+	}
+}
+
+func (r *PartitionReader) commitLoop(ctx context.Context) {
+	defer r.wg.Done()
+
+	ticker := time.NewTicker(r.commitInterval)
+	defer ticker.Stop()
+
+	lastCommittedOffset := int64(-1)
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Final commit on shutdown
+			r.commitCurrentWatermark(lastCommittedOffset)
+			return
+		case <-ticker.C:
+			// Periodic commit
+			lastCommittedOffset = r.commitCurrentWatermark(lastCommittedOffset)
+		case newWatermark := <-r.watermarkChan:
+			// Process watermark updates but don't commit immediately
+			// Just update our tracking, commits happen on timer
+			level.Debug(r.logger).Log("msg", "received watermark update", "offset", newWatermark)
+			r.highWatermark.Store(newWatermark)
+		}
+	}
+}
+
+func (r *PartitionReader) commitCurrentWatermark(lastCommittedOffset int64) int64 {
+	currentWatermark := r.highWatermark.Load()
+
+	if currentWatermark > lastCommittedOffset {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		err := r.commitOffset(ctx, currentWatermark)
+		if err != nil {
+			level.Error(r.logger).Log("msg", "failed to commit watermark", "offset", currentWatermark, "err", err)
+			return lastCommittedOffset // Return old offset on failure
+		}
+
+		return currentWatermark
+	}
+
+	return lastCommittedOffset
+}
+
+func (r *PartitionReader) commitOffset(ctx context.Context, offset int64) error {
+	// Use the admin client to commit the offset
+	offsets := make(kadm.Offsets)
+	offsets.Add(kadm.Offset{
+		Topic:     r.topic,
+		Partition: r.partitionID,
+		At:        offset + 1,
+	})
+
+	_, err := r.adm.CommitOffsets(ctx, r.consumerGroup, offsets)
+	if err != nil {
+		return fmt.Errorf("failed to commit kafka offset %d: %w", offset, err)
+	}
+
+	level.Info(r.logger).Log("msg", "committed kafka offset", "offset", offset)
+	return nil
 }
 
 type partitionReaderMetrics struct {

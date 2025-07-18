@@ -1,6 +1,6 @@
 server:
   http_listen_port: 3200
-  log_level: info
+  log_level: debug
 
 distributor:
   kafka_write_path_enabled: true
@@ -88,3 +88,6 @@ block_builder:
   assigned_partitions:
     block-builder-0: [0,2]
     block-builder-1: [1]
+
+usage_report:
+  reporting_enabled: false

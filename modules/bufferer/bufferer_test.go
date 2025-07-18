@@ -11,6 +11,18 @@ import (
 
 type mockOverrides struct{}
 
+// mockPartitionReader implements WatermarkUpdater for testing
+
+type mockPartitionReader struct {
+	updateWatermarkFunc func(offset int64)
+}
+
+func (m *mockPartitionReader) updateWatermark(offset int64) {
+	if m.updateWatermarkFunc != nil {
+		m.updateWatermarkFunc(offset)
+	}
+}
+
 func (m *mockOverrides) MaxLocalTracesPerUser(string) int {
 	return 10000
 }
@@ -23,85 +35,87 @@ func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 	return nil
 }
 
-func TestInstanceCreation(t *testing.T) {
+func TestBufferCreation(t *testing.T) {
 	// This is a basic test to ensure the buffer structure is correct
 
-	b := &Buffer{
-		logger:    log.NewNopLogger(),
-		instances: make(map[string]*instance),
-		overrides: &mockOverrides{},
+	b := &Bufferer{
+		logger:           log.NewNopLogger(),
+		instances:        make(map[string]*instance),
+		overrides:        &mockOverrides{},
+		tenantWatermarks: make(map[string]int64),
 	}
 
 	// Basic validation that the buffer is set up correctly
 	assert.NotNil(t, b.logger)
 	assert.NotNil(t, b.instances)
 	assert.NotNil(t, b.overrides)
+	assert.NotNil(t, b.tenantWatermarks)
 	assert.Equal(t, 0, len(b.instances))
+	assert.Equal(t, 0, len(b.tenantWatermarks))
 }
 
-func TestCutLogic(t *testing.T) {
-	b := &Buffer{
-		logger:      log.NewNopLogger(),
-		cutInterval: 5 * time.Minute,
-		cutDataSize: 100 * 1024 * 1024,                // 100MB
-		lastCutTime: time.Now().Add(-6 * time.Minute), // 6 minutes ago
+func TestMaxWatermarkCalculation(t *testing.T) {
+	b := &Bufferer{
+		logger:           log.NewNopLogger(),
+		instances:        make(map[string]*instance),
+		overrides:        &mockOverrides{},
+		tenantWatermarks: make(map[string]int64),
 	}
 
-	// Should trigger time-based cut
-	assert.True(t, b.shouldTriggerCut())
+	// Start with empty watermarks
+	b.updateTenantWatermark("tenant1", 100)
+	assert.Equal(t, int64(100), b.lastCommittedOffset)
 
-	// Reset time, test size-based cut
-	b.lastCutTime = time.Now()
-	b.totalBlockBytesSinceLastCut = 101 * 1024 * 1024 // 101MB
-	assert.True(t, b.shouldTriggerCut())
+	// Add more tenants with different watermarks
+	b.updateTenantWatermark("tenant2", 200) // Higher
+	b.updateTenantWatermark("tenant3", 150) // Middle
+	b.updateTenantWatermark("tenant4", 50)  // Lower
 
-	// Reset both - should not trigger
-	b.lastCutTime = time.Now()
-	b.totalBlockBytesSinceLastCut = 50 * 1024 * 1024 // 50MB
-	assert.False(t, b.shouldTriggerCut())
+	// Should use maximum watermark (200)
+	assert.Equal(t, int64(200), b.lastCommittedOffset)
+	assert.Equal(t, int64(100), b.tenantWatermarks["tenant1"])
+	assert.Equal(t, int64(200), b.tenantWatermarks["tenant2"])
+	assert.Equal(t, int64(150), b.tenantWatermarks["tenant3"])
+	assert.Equal(t, int64(50), b.tenantWatermarks["tenant4"])
+
+	// Update one tenant to an even higher value
+	b.updateTenantWatermark("tenant1", 300)
+	assert.Equal(t, int64(300), b.lastCommittedOffset)
 }
 
-func TestGlobalOffsetTracking(t *testing.T) {
-	b := &Buffer{
-		logger:      log.NewNopLogger(),
-		cutInterval: 1 * time.Minute,
-		cutDataSize: 1024,                             // Small size to trigger quickly
-		lastCutTime: time.Now().Add(-2 * time.Minute), // Old enough to trigger
+func TestPartitionReaderWatermarkManagement(t *testing.T) {
+	// Test the PartitionReader's watermark update logic directly
+
+	pr := &PartitionReader{
+		logger:         log.NewNopLogger(),
+		watermarkChan:  make(chan int64, 10),
+		commitInterval: 100 * time.Millisecond, // Fast for testing
 	}
 
-	// Initially no data should be tracked
-	assert.Equal(t, int64(0), b.blockStartOffset)
-	assert.Equal(t, int64(0), b.totalBlockBytesSinceLastCut)
-	assert.Equal(t, int64(0), b.lastKafkaOffset)
+	// Test watermark updates
+	pr.updateWatermark(100)
+	assert.Equal(t, int64(100), pr.highWatermark)
 
-	// Simulate first consumption - should initialize block start
-	b.blockStartOffset = 100
-	b.totalBlockBytesSinceLastCut += 2048 // 2KB > 1KB limit
-	b.lastKafkaOffset = 200
+	// Test watermark doesn't go backwards
+	pr.updateWatermark(50)
+	assert.Equal(t, int64(100), pr.highWatermark) // Should not change
 
-	// Should trigger cut due to data size
-	assert.True(t, b.shouldTriggerCut())
+	// Test watermark can advance
+	pr.updateWatermark(200)
+	assert.Equal(t, int64(200), pr.highWatermark)
 
-	// Offset should be updated
-	assert.Equal(t, int64(100), b.blockStartOffset)
-	assert.Equal(t, int64(2048), b.totalBlockBytesSinceLastCut)
-	assert.Equal(t, int64(200), b.lastKafkaOffset)
-}
-
-func TestCoordinatedCut(t *testing.T) {
-	b := &Buffer{
-		logger:    log.NewNopLogger(),
-		instances: make(map[string]*instance),
-		overrides: &mockOverrides{},
+	// Test channel receives updates
+	select {
+	case offset := <-pr.watermarkChan:
+		assert.Equal(t, int64(100), offset)
+	case <-time.After(time.Second):
+		t.Fatal("Should have received watermark update")
 	}
 
-	// Basic validation that coordinated cuts work at buffer level
-	assert.NotNil(t, b.logger)
-	assert.NotNil(t, b.instances)
-	assert.NotNil(t, b.overrides)
-	assert.Equal(t, 0, len(b.instances))
-
-	// Cut logic should exist at buffer level
-	assert.NotNil(t, b.shouldTriggerCut)
-	assert.NotNil(t, b.performCut)
+	select {
+	case offset := <-pr.watermarkChan:
+		assert.Equal(t, int64(200), offset)
+	case <-time.After(time.Second):
+		t.Fatal("Should have received second watermark update")
+	}
 }

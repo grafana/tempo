@@ -2,9 +2,7 @@ package bufferer
 
 import (
 	"flag"
-	"os"
 
-	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -30,13 +28,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
 	cfg.WAL.Version = encoding.DefaultEncoding().Version()
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		_ = level.Error(log.Logger).Log("msg", "failed to get hostname", "err", err)
-		os.Exit(1)
-	}
-	f.StringVar(&cfg.LifecyclerConfig.ID, prefix+".lifecycler.ID", hostname, "ID to register in the ring.")
+	f.StringVar(&cfg.WAL.Filepath, prefix+".wal.path", "/var/tempo/bufferer/traces", "Path at which store WAL blocks.")
 }
 
 func (cfg *Config) Validate() error {
