@@ -20,7 +20,7 @@ const (
 	kafkaOffsetEnd = int64(-1)
 )
 
-// partitionOffsetClient is a client used to read partition offsets.
+// PartitionOffsetClient is a client used to read partition offsets.
 type PartitionOffsetClient struct {
 	client *kgo.Client
 	topic  string
@@ -33,10 +33,8 @@ func NewPartitionOffsetClient(client *kgo.Client, topic string) *PartitionOffset
 	}
 }
 
-// FetchPartitionsLastProducedOffsets fetches and returns the last produced offsets for all input partitions. The offset is
-// -1 if a partition has been created but no record has been produced yet. The returned offsets for each partition
+// FetchPartitionsLastProducedOffsets fetches and returns the last produced offsets for all input partitions.  The returned offsets for each partition
 // are guaranteed to be always updated (no stale or cached offsets returned).
-//
 // The Kafka client used under the hood may retry a failed request until the retry timeout is hit.
 func (p *PartitionOffsetClient) FetchPartitionsLastProducedOffsets(ctx context.Context, partitionIDs []int32) (_ kadm.ListedOffsets, returnErr error) {
 	// Skip lookup and don't track any metric if no partition was requested.
@@ -46,6 +44,9 @@ func (p *PartitionOffsetClient) FetchPartitionsLastProducedOffsets(ctx context.C
 	return p.fetchPartitionsOffsets(ctx, kafkaOffsetEnd, partitionIDs)
 }
 
+// // FetchPartitionsStartOffsets fetches and returns the earliest available offsets for all input partitions. The returned offsets for each partition
+// are guaranteed to be always updated (no stale or cached offsets returned).
+// The Kafka client used under the hood may retry a failed request until the retry timeout is hit.
 func (p *PartitionOffsetClient) FetchPartitionsStartProducedOffsets(ctx context.Context, partitionIDs []int32) (_ kadm.ListedOffsets, returnErr error) {
 	// Skip lookup and don't track any metric if no partition was requested.
 	if len(partitionIDs) == 0 {
@@ -55,9 +56,14 @@ func (p *PartitionOffsetClient) FetchPartitionsStartProducedOffsets(ctx context.
 	return p.fetchPartitionsOffsets(ctx, kafkaOffsetStart, partitionIDs)
 }
 
-// fetchPartitionsEndOffsets returns the end offset of each partition in input. This function returns
-// error if fails to get the offset of any partition (no partial result is returned).
-// fetchOffsets are documented here: https://github.com/twmb/franz-go/blob/master/pkg/kmsg/generated.go#L5781-L5808
+// fetchPartitionsOffsets fetches and returns offsets for the specified partitions using Kafka's ListOffsets API.
+// The fetchOffset parameter determines which offsets to retrieve:
+//   - kafkaOffsetStart (-2): earliest available offset in each partition
+//   - kafkaOffsetEnd (-1): next offset to be produced (high watermark) in each partition
+//   - specific timestamp: offset of the first message at or after the given timestamp
+//
+// This function returns an error if it fails to get the offset of any partition (no partial results are returned).
+// The Kafka ListOffsets API is documented here: https://github.com/twmb/franz-go/blob/master/pkg/kmsg/generated.go#L5781-L5808
 func (p *PartitionOffsetClient) fetchPartitionsOffsets(ctx context.Context, fetchOffset int64, partitionIDs []int32) (kadm.ListedOffsets, error) {
 	list := kadm.ListedOffsets{
 		p.topic: make(map[int32]kadm.ListedOffset, len(partitionIDs)),
