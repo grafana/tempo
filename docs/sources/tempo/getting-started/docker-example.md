@@ -2,7 +2,7 @@
 title: Quick start for Tempo
 menuTitle: Quick start for Tempo
 description: Use Docker to quickly view traces using K-6 and Tempo
-weight: 600
+weight: 200
 killercoda:
   title: Quick start for Tempo
   description: Use Docker to quickly view traces using K-6 and Tempo
@@ -18,6 +18,9 @@ killercoda:
 <!-- INTERACTIVE page intro.md START -->
 
 # Quick start for Tempo
+
+Using this quick start, you can set up a Tempo instance using Docker Compose so you can play and understand how Tempo works.
+If you want to use Tempo in production, refer to the [Set up Tempo]() documentation.
 
 The Tempo repository provides [multiple examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) to help you quickly get started using Tempo and distributed tracing data.
 

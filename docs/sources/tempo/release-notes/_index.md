@@ -1,7 +1,7 @@
 ---
 title: Release notes
 description: Release notes for Grafana Tempo
-weight: 100
+weight: 900
 ---
 
 # Release notes
