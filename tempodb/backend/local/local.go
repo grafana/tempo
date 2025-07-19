@@ -109,6 +109,12 @@ func (rw *Backend) Append(ctx context.Context, name string, keypath backend.KeyP
 	return dst, nil
 }
 
+// AbortAppend implements backend.Writer
+func (rw *Backend) AbortAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	// TODO: implement AbortAppend
+	return nil
+}
+
 // CloseAppend implements backend.Writer
 func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
 	if err := ctx.Err(); err != nil {
