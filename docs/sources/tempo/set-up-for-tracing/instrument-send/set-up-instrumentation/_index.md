@@ -10,19 +10,23 @@ weight: 500
 Client instrumentation is the first building block to a functioning distributed tracing visualization pipeline.
 Client instrumentation is the process of adding instrumentation points in the application that create and offload spans.
 
-When sending traces to Tempo, you can choose between four methods:
-* Auto-instrumentation applies instrumentation automatically using agents or middleware, without code changes.
-* Zero-code instrumentation, which uses eBPF technology to instrument applications without code changes.
-* Manual instrumentation involves adding code to create spans and traces, giving full control over collected data.
-* Hybrid instrumentation, which combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
-
 To generate and gather traces, you need to:
 
 1. [Set up a collector](../set-up-collector/) to receive traces from your application
 1. [Choose an instrumentation method to use with your application](../choose-instrumentation-method/)
 1. [Set up instrumentation](./set-up-instrumentation/) to generate traces
 
-## How instrumentation works
+## Choose an instrumentation methods
+
+When sending traces to Tempo, you can choose between four methods:
+
+* Auto-instrumentation applies instrumentation automatically using agents or middleware, without code changes.
+* Zero-code instrumentation, which uses eBPF technology to instrument applications without code changes. [Grafana Beyla](https://grafana.com/docs/beyla/latest/) is an example of a zero-code instrumentation tool.
+* Manual instrumentation involves adding code to create spans and traces, giving full control over collected data.
+* Hybrid instrumentation, which combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
+
+Refer to the section below to learn mre about the
+### Instrumentation methods
 
 To add instrumentation, the code for a service uses a Software Development Kit (SDK) which supplies language-specific libraries that allow the:
 
@@ -31,12 +35,17 @@ To add instrumentation, the code for a service uses a Software Development Kit (
 * Addition of span attributes to add contextual information to each span, as well as span links and events.
 * Closure of spans when a unit of work is complete.
 
-Adding code to carry out these operations is known as Manual Instrumentation, as it requires manual intervention by an engineer to write code to deal with traces, as well as to determine where in the code traces/spans should start, the attributes and other data that should be attached to spans, and where traces/spans should end.
+Adding code to carry out these operations is known as manual instrumentation, as it requires manual intervention by an engineer to write code to deal with traces, as well as to determine where in the code traces/spans should start, the attributes and other data that should be attached to spans, and where traces/spans should end.
 
-There is an alternative/companion to manual instrumentation, Auto-instrumentation. Auto-instrumentation is the act of allowing a tracing SDK to determine where traces/spans should start, what information should be added to spans, and where traces/spans should stop. Essentially, manual instrumentation is pre-packaged for a large number of popular frameworks and libraries which are used inside a service's code, and it is these libraries/frameworks that are actually emitting spans for a trace.
+Auto-instrumentation is the act of allowing a tracing SDK to determine where traces/spans should start, what information should be added to spans, and where traces/spans should stop.
 
-These libraries usually include those dealing with networking, so for example a request coming into a service might be via an auto-instrumented HTTP library, which would then start a trace until it sent a response back via HTTP to the requester. Along the course of the request, the service might use other libraries that process data, and if they are also auto-instrumented then new spans will be generated for the trace that include suitable attributes.
+Essentially, auto-instrumentation is pre-packaged for a large number of popular frameworks and libraries which are used inside a service's code, and it's these libraries/frameworks that are actually emitting spans for a trace.
 
+Zero-code instrumentation uses eBPF technology to instrument applications without code changes.
+
+Hybrid instrumentation combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
+
+Refer to [About instrumentation](./about-instrumentation/) for more information.
 
 If you are using OTel or Alloy, refer to [Instrument an application with OpenTelemetry](https://grafana.com/docs/opentelemetry/instrument/) for more information. These instructions are specific to Grafana Cloud, but can be adapted for self-hosted Tempo.
 
@@ -46,7 +55,7 @@ Grafana Beyla is an eBPF-based application auto-instrumentation tool to easily g
 
 Refer to [Set up Beyla](https://grafana.com/docs/beyla/<BEYLA_VERSION>/setup/) for information about how to instrument using Beyla.
 
-## Instrumentation frameworks
+## Select an instrumentation framework
 
 Most of the popular client instrumentation frameworks have SDKs in the most commonly used programming languages.
 You should pick one according to your application needs.

@@ -19,11 +19,20 @@ To add instrumentation, the code for a service uses a Software Development Kit (
 
 Adding code to carry out these operations is known as **manual instrumentation**, as it requires manual intervention by an engineer to write code to deal with traces, as well as to determine where in the code traces/spans should start, the attributes and other data that should be attached to spans, and where traces/spans should end.
 
-There is an alternative/companion to manual instrumentation, **auto-instrumentation**. Auto-instrumentation is the act of allowing a tracing SDK to determine where traces/spans should start, what information should be added to spans, and where traces/spans should stop. Essentially, manual instrumentation is pre-packaged for a large number of popular frameworks and libraries which are used inside a service's code, and it is these libraries/frameworks that are actually emitting spans for a trace.
+There is an alternative/companion to manual instrumentation, **auto-instrumentation**.
+Auto-instrumentation is the act of allowing a tracing SDK to determine where traces/spans should start, what information should be added to spans, and where traces/spans should stop.
+Essentially, manual instrumentation is pre-packaged for a large number of popular frameworks and libraries which are used inside a service's code, and it's these libraries/frameworks that are actually emitting spans for a trace.
 
-These libraries usually include those dealing with networking, so for example a request coming into a service might be via an auto-instrumented HTTP library, which would then start a trace until it sent a response back via HTTP to the requester. Along the course of the request, the service might use other libraries that process data, and if they are also auto-instrumented then new spans will be generated for the trace that include suitable attributes.
+**Zero-code instrumentation** uses eBPF technology to instrument applications without code changes.
+[Grafana Beyla](https://grafana.com/docs/beyla/<BEYLA_VERSION>/) is an example of a zero-code instrumentation tool.
 
-This produces a trace that can be very useful, but ultimately will not include any spans that are specific to service code that isn't executing library commands. Because of this, the best traced services are usually those that include a mixture of auto and manual instrumentation.
+**Hybrid instrumentation** combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
+
+These libraries usually include those dealing with networking, so for example a request coming into a service might be via an auto-instrumented HTTP library, which would then start a trace until it sent a response back via HTTP to the requester.
+Along the course of the request, the service might use other libraries that process data, and if they're also auto-instrumented then new spans are generated for the trace that include suitable attributes.
+
+This produces a trace that can be very useful, but ultimately doesn't include any spans that are specific to service code that isn't executing library commands.
+Because of this, the best traced services are usually those that include a mixture of auto and manual instrumentation.
 
 Traces usually exist in relation to a request made to an application, and spans are generated when new units of work occur whilst processing that request. A trace usually ends when a response to the request is sent.
 
@@ -41,7 +50,7 @@ This is called trace propagation, and the actual mechanics of it alter depending
 
 ![Distributed Trace Propagation](/media/docs/tempo/architecture/Tempo-TracePropagation.png)
 
-Many instrumentation SDKs, include propagators that can handle a number of different transport protocols, and when matched with appropriate auto-instrumentation mean that an engineer doesn't even have to consider writing any code to inject the downstream data with the trace information, it gets handled automatically (for example in the case of HTTP, headers are included that specifically deal with trace information that gets extracted by the Opentelementry SDK in the downstream service to carry on a trace).
+Many instrumentation SDKs, include propagators that can handle a number of different transport protocols, and when matched with appropriate auto-instrumentation mean that an engineer doesn't even have to consider writing any code to inject the downstream data with the trace information, it gets handled automatically (for example in the case of HTTP, headers are included that specifically deal with trace information that gets extracted by the OpenTelemetry SDK in the downstream service to carry on a trace).
 
 The [W3C Trace Context](https://www.w3.org/TR/trace-context/) is the default way of sending propagation information in OpenTelemetry SDKs.
 However, the SDK also allows you to provide custom propagators to it instead, which means that if an application uses a custom protocol or networking scheme, engineers can write propagators and extractors to handle these as well.
