@@ -84,7 +84,7 @@ func testWithConfig(t *testing.T, configFile string) {
 	e := b.Endpoint(b.HTTPPort())
 	t.Logf("Endpoint: %s", e)
 
-	scheduler := util.NewTempoTarget("backend-scheduler", configFile)
+	scheduler := util.NewTempoTarget("backend-scheduler", "config.yaml")
 	require.NoError(t, s.StartAndWaitReady(scheduler))
 
 	// Setup tempodb with local backend
@@ -201,7 +201,7 @@ func testWithConfig(t *testing.T, configFile string) {
 
 	// Delay starting the work to ensure we have a clean state of the data before
 	// the worker starts processing jobs.
-	worker := util.NewTempoTarget("backend-worker", configFile)
+	worker := util.NewTempoTarget("backend-worker", "config.yaml")
 	require.NoError(t, s.StartAndWaitReady(worker))
 
 	// Allow the worker some time to process the blocks.
