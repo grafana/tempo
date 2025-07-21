@@ -765,6 +765,11 @@ func (t *App) initBufferer() (services.Service, error) {
 		return nil, fmt.Errorf("failed to create bufferer: %w", err)
 	}
 
+	// TODO: Support downscaling
+	// t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
+	// 	Path("/bufferer/prepare-partition-downscale").
+	// 	Handler(http.HandlerFunc(t.bufferer.PreparePartitionDownscaleHandler))
+
 	return t.bufferer, nil
 }
 

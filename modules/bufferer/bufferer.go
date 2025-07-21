@@ -194,7 +194,7 @@ func (b *Bufferer) running(ctx context.Context) error {
 
 func (b *Bufferer) stopping(error) error {
 	// Stop consuming
-	err := services.StopAndAwaitTerminated(b.ctx, b.reader)
+	err := services.StopAndAwaitTerminated(context.Background(), b.reader)
 	if err != nil {
 		level.Warn(b.logger).Log("msg", "failed to stop reader", "err", err)
 		return err
@@ -202,6 +202,7 @@ func (b *Bufferer) stopping(error) error {
 
 	// Cancel and wait for async loops to return
 	b.cancel()
+	b.flushqueues.Close()
 	b.wg.Wait()
 
 	// Flush all data to disk
@@ -273,7 +274,6 @@ func (b *Bufferer) getOrCreateInstance(tenantID string) (*instance, error) {
 }
 
 func (b *Bufferer) cutToWalLoop(instance *instance) {
-
 	defer b.wg.Done()
 
 	// TODO: We don't reply blocks atm, we should do this when we replay blocks.
@@ -380,7 +380,6 @@ func (b *Bufferer) completeLoop() {
 	for {
 		select {
 		case <-b.ctx.Done():
-			b.flushqueues.Close()
 			return
 		default:
 			o := b.flushqueues.Dequeue()
