@@ -1,11 +1,14 @@
 ---
-title: Generate metrics from spans
-menuTitle: Generate metrics from spans
+title: Use Alloy to generate metrics from spans
+menuTitle: Use Alloy to generate metrics from spans
 description: Span metrics allow you to generate metrics from your tracing data automatically.
 weight:
 aliases:
-- /docs/tempo/grafana-alloy/span-metrics
+  - /docs/tempo/grafana-alloy/span-metrics
+  -
 ---
+
+{{< docs/alias from="/docs/tempo/latest/configuration/grafana-alloy/span-metrics/" to="/docs/tempo/latest/metrics-from-traces/span-metrics-alloy/" >}}
 
 # Generate metrics from spans
 

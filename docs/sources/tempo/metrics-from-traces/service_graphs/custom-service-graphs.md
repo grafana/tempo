@@ -24,9 +24,9 @@ The metrics-generator creates multiple metrics, including `traces_service_graph_
 1. In Grafana, [create a new dashboard](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/create-dashboard/).
 2.  Add two variables:
     - Data source of type `Prometheus`.
-  ![Custom service graph Grafana data source variable](../custom-service-graph-var-datasource.png)
+  ![Custom service graph Grafana data source variable](/media/docs/tempo/metrics/custom-service-graph-var-datasource.png)
     - Service of type `Label values`, enable multi-value option
-  ![Custom service graph service variable](../custom-service-graph-var-service.png)
+  ![Custom service graph service variable](/media/docs/tempo/metrics/custom-service-graph-var-service.png)
 
 ### Add a panel
 
@@ -47,7 +47,7 @@ The metrics-generator creates multiple metrics, including `traces_service_graph_
 4. Use Instant query type.
 5. If you encounter issues, switch to the Table data visualization. Refer to the [Node graph panel](/docs/grafana/latest/panels-visualizations/visualizations/node-graph/) documentation for more options and expected data shape.
 
-![Custom service graph panel view](../custom-service-graph-with-query.png)
+![Custom service graph panel view](/media/docs/tempo/metrics/custom-service-graph-var-service.png)
 
 All data transformations are done with the Prometheus `label_join` operators.
 

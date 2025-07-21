@@ -15,7 +15,7 @@ Instrumentation handles how traces are generated.
 To learn more about instrumentation, refer to [About instrumentation](./about-instrumentation/).
 
 Instrumentation is the act of modifying the source code of a service to emit span information tied to a common trace ID.
-Traces themselves are a metaobject, comprised of nothing but spans that hold the same ID.
+Traces themselves are a meta-object, comprised of nothing but spans that hold the same ID.
 
 To instrument your application or service, you need to:
 

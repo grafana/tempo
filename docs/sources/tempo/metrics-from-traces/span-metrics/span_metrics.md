@@ -1,20 +1,20 @@
 ---
 aliases:
   - ../server_side_metrics/span_metrics/ # /docs/tempo/latest/server_side_metrics/span_metrics/
-title: Span metrics
+title: Use the span metrics processor
 description: The span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 weight: 200
 refs:
   cardinality:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/cardinality/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/cardinality/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/cardinality/
 ---
 
-# Span metrics
+# Use the span metrics processor
 
-The span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
+Part of the metrics-generator, the span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 
 Span metrics generate two metrics:
 
@@ -215,4 +215,4 @@ In this way, a flexible approach to filtering can be achieved to ensure that onl
 
 ## Example
 
-<p align="center"><img src="../span-metrics-example.png" alt="Span metrics overview"></p>
+<p align="center"><img src="/media/docs/tempo/metrics/span-metrics-example.png" alt="Span metrics overview"></p>

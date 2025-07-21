@@ -2,8 +2,11 @@
 title: Metrics from traces
 description: Learn about how we can correlate traces and metrics.
 weight: 700
+aliases:
+  - /docs/tempo/latest/getting-started/metrics-from-traces/
 ---
 
+{{< docs/alias from="/docs/tempo/latest/getting-started/metrics-from-traces/" to="/docs/tempo/latest/metrics-from-traces/" >}}
 # Metrics from traces
 
 Metrics provide a powerful insight into the systems you are monitoring with your observability strategy.

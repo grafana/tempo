@@ -8,7 +8,7 @@ weight: 200
 refs:
   cardinality:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/cardinality/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/cardinality/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/cardinality/
 ---
@@ -29,7 +29,7 @@ To learn more about cardinality and how to perform a dry run of the metrics-gene
 To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `service-graphs` generator.
 For more information, refer to the [configuration details](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
 
-To enable service graphs when using Grafana Alloy, refer to the [Grafana Alloy and service graphs documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/service-graphs/).
+To enable service graphs when using Grafana Alloy, refer to the [Grafana Alloy and service graphs documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service-graphs/service-graphs-alloy/).
 
 ### Enable service graphs in Grafana
 

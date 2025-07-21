@@ -4,6 +4,8 @@ aliases:
 title: Multitenancy support
 description: Learn about multitenancy support in the metrics-generator.
 weight: 600
+aliases:
+  - ../../metrics-generator/multitenancy/ # /docs/tempo/<TEMPO_VERSION>/metrics-generator/multitenancy/
 ---
 
 # Multitenancy support

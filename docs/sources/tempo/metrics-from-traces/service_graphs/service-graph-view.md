@@ -57,18 +57,18 @@ The service graph view provides a span metrics visualization (table) and service
 You can select any information in the table that has an underline to show more detailed information.
 You can also select any node in the service graph to display additional information.
 
-![Service graph with extended information](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph-prom.png)
+![Service graph with extended information](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph.png)
 
 ### Error rate example
 
-Let’s say we want to learn more about why `cortex.Ingester` has the highest error rates.
+Let’s say you want to learn more about why `cortex.Ingester` has the highest error rates.
 Selecting the second row of the Error rate column displays details about the span metrics in a new window on the right side.
 
-<p align="center"><img src="../apm-error-rate-example.png" alt="Error rate example"></p>
+<p align="center"><img src="/media/docs/tempo/metrics/apm-error-rate-example.png" alt="Error rate example"></p>
 
 The metrics query used to generate the data appears in the **Metrics browser** field.
 
-<p align="center"><img src="../apm-error-example-editor.png" alt="Error example query editor"></p>
+<p align="center"><img src="/media/docs/tempo/metrics/apm-error-example-editor.png" alt="Error example query editor"></p>
 
 ## Span metrics table
 
@@ -154,10 +154,10 @@ Filters can be removed by selecting the filter drop-down and choosing **– remo
 
 Each field or label represents a key-value pair. Number 1 selects a service as the label whose value is `Go-http-client` (2). The second key-value pair has a client as a label whose value is `02e807`.
 
-<p align="center"><img src="../apm-filter-example-numbered.png" alt="Filter example with numbers"></p>
+<p align="center"><img src="..//media/docs/tempo/metrics/apm-filter-example-numbered.png" alt="Filter example with numbers"></p>
 
 If your metrics queries are too specific, they may not return any results.
 
 Updating the filter to be less specific returns a result. In this case, the results show only span metrics data associated with the `span_name` label with a value of `/base.Ruler/Rules`. No service graph data was available.
 
-<p align="center"><img src="../apm-filter-example2.png" alt="Filter example with one results"></p>
+<p align="center"><img src="/media/docs/tempo/metrics/apm-filter-example2.png" alt="Filter example with one results"></p>

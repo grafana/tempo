@@ -9,7 +9,7 @@ keywords:
 refs:
   metrics-generator:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/
 ---

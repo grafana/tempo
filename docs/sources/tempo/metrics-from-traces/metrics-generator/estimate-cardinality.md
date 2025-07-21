@@ -1,33 +1,35 @@
 ---
 title: Estimate cardinality from traces
 menuTitle: Estimate cardinality
-description: Service graphs help you understand the structure of a distributed system and the connections and dependencies between its components.
+description: Estimate cardinality from traces to understand the impact of service graphs.
 weight: 400
+aliases:
+  - ../../metrics-generator/service-graphs/estimate-cardinality/ # /docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graphs/estimate-cardinality/
 ---
 
 ## Estimate cardinality from traces
 
 Cardinality can pose a problem when you have lots of services.
 There isn't a direct formula or solution to this issue.
-The following guide should help estimate the cardinality that the feature will generate.
+The following guide should help estimate the cardinality that a feature generates.
 
-For more information on cardinality, refer to the [Cardinality](../../cardinality/) documentation.
+For more information on cardinality, refer to the [Cardinality](../cardinality/) documentation.
 
 ### How to estimate the cardinality
 
 The amount of edges depends on the number of nodes in the system and the direction of the requests between them.
-Let’s call this amount hops. Every hop will be a unique combination of client + server labels.
+Let’s call this amount hops. Every hop is a unique combination of client + server labels.
 
 For example:
 
-- A system with 3 nodes `(A, B, C)` of which A only calls B and B only calls C will have 2 hops `(A → B, B → C)`
-- A system with 3 nodes `(A, B, C)` that call each other (i.e., all bidirectional link) will have 6 hops `(A → B, B → A, B → C, C → B, A → C, C → A)`
+- A system with 3 nodes `(A, B, C)` of which `A` only calls `B` and `B` only calls `C` will have 2 hops `(A → B, B → C)`
+- A system with 3 nodes `(A, B, C)` that call each other (that is, all bidirectional links) will have 6 hops `(A → B, B → A, B → C, C → B, A → C, C → A)`
 
-We can’t calculate the amount of hops automatically based upon the nodes,
+You can’t calculate the amount of hops automatically based upon the nodes,
 but it should be a value between `#services - 1` and `#services!`.
 
-If we know the amount of hops in a system, we can calculate the cardinality of the generated
-[service graphs](../) (assuming `#hb` is the number of histogram buckets):
+If you know the amount of hops in a system, you can calculate the cardinality of the generated
+service graphs (assuming `#hb` is the number of histogram buckets):
 
 ```
   traces_service_graph_request_total: #hops
@@ -38,7 +40,7 @@ If we know the amount of hops in a system, we can calculate the cardinality of t
   traces_service_graph_dropped_spans_total: #services (absolute worst case)
 ```
 
-Finally, we get the following cardinality estimation:
+Finally, you get the following cardinality estimation:
 
 ```
   Sum: [([2 * #hb] + 2) * #hops] + [2 * #services]

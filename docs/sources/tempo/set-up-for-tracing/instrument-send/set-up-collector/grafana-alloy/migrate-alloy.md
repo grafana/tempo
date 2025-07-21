@@ -4,6 +4,8 @@ description: Provides links to documentation to migrate to Grafana Alloy.
 weight: 100
 ---
 
+{{< docs/alias from="/docs/tempo/latest/configuration/grafana-alloy/migrate-alloy/" to="/docs/tempo/latest/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/migrate-alloy/" >}}
+
 # Migrate to Alloy
 
 Grafana Alloy is the new name for the Grafana Labs distribution of the OpenTelemetry collector.
