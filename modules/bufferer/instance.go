@@ -48,20 +48,11 @@ type instance struct {
 	// Block offset metadata (set during coordinated cuts)
 	// blockOffsetMeta map[uuid.UUID]offsetMetadata // TODO: Used for checking data integrity
 
-	// Kafka offset tracking for watermark-based commits
-	traceOffsets      map[string]int64 // traceID -> offset mapping
-	flushedOffsets    []int64          // Offsets that have been flushed to disk
-	lastFlushedOffset int64            // Last offset that was successfully flushed to disk
-	offsetMtx         sync.RWMutex
-
-	// Watermark callback
-	watermarkCallback func(string, int64)
-
 	// Overrides
 	overrides Overrides
 }
 
-func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger log.Logger, watermarkCallback func(string, int64)) (*instance, error) {
+func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger log.Logger) (*instance, error) {
 	enc := encoding.DefaultEncoding()
 
 	i := &instance{
@@ -75,8 +66,6 @@ func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger lo
 		traceSizes:     tracesizes.New(),
 		overrides:      overrides,
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
-		traceOffsets:      make(map[string]int64),
-		watermarkCallback: watermarkCallback,
 	}
 
 	err := i.resetHeadBlock()
@@ -129,68 +118,6 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest, offset
 		}
 		i.liveTracesMtx.Unlock()
 	}
-
-	i.setTraceOffsets(req.Ids, offset)
-}
-
-func (i *instance) setTraceOffsets(traceIDs [][]byte, offset int64) {
-	i.offsetMtx.Lock()
-	defer i.offsetMtx.Unlock()
-
-	// Associate each trace ID with its Kafka offset
-	for _, traceID := range traceIDs {
-		traceIDStr := string(traceID)
-		i.traceOffsets[traceIDStr] = offset
-	}
-
-	level.Debug(i.logger).Log("msg", "set trace offsets", "offset", offset, "trace_count", len(traceIDs))
-}
-
-func (i *instance) updateWatermarkAfterFlush(flushedTraceIDs [][]byte) {
-	i.offsetMtx.Lock()
-	defer i.offsetMtx.Unlock()
-
-	if len(flushedTraceIDs) == 0 {
-		return
-	}
-
-	// Collect offsets for the specific traces that were flushed
-	var newlyFlushedOffsets []int64
-	for _, traceID := range flushedTraceIDs {
-		traceIDStr := string(traceID)
-		if offset, exists := i.traceOffsets[traceIDStr]; exists {
-			newlyFlushedOffsets = append(newlyFlushedOffsets, offset)
-			// Remove from pending map since it's now flushed
-			delete(i.traceOffsets, traceIDStr)
-		}
-	}
-
-	if len(newlyFlushedOffsets) == 0 {
-		return
-	}
-
-	// Add to flushed offsets
-	i.flushedOffsets = append(i.flushedOffsets, newlyFlushedOffsets...)
-
-	// Find the maximum flushed offset
-	maxOffset := i.lastFlushedOffset
-	for _, offset := range newlyFlushedOffsets {
-		if offset > maxOffset {
-			maxOffset = offset
-		}
-	}
-
-	// Update the last flushed offset
-	if maxOffset > i.lastFlushedOffset {
-		i.lastFlushedOffset = maxOffset
-
-		// Call watermark callback if set
-		if i.watermarkCallback != nil {
-			i.watermarkCallback(i.tenantID, maxOffset)
-		}
-
-		level.Debug(i.logger).Log("msg", "updated last flushed offset", "offset", maxOffset, "flushed_traces", len(flushedTraceIDs))
-	}
 }
 
 func (i *instance) cutIdleTraces(immediate bool) error {
@@ -227,7 +154,6 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 		}
 
 		// Update watermark after successful flush, passing the specific trace IDs
-		i.updateWatermarkAfterFlush(flushedTraceIDs)
 		return nil
 	}
 	return nil

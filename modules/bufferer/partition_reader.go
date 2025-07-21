@@ -49,7 +49,6 @@ type PartitionReader struct {
 
 	// Watermark-based commit management
 	highWatermark  atomic.Int64
-	watermarkChan  chan int64
 	commitInterval time.Duration
 	wg             sync.WaitGroup
 }
@@ -69,8 +68,7 @@ func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaC
 		consume:        consume,
 		metrics:        metrics,
 		logger:         log.With(logger, "partition", partitionID),
-		watermarkChan:  make(chan int64, 100), // Buffered channel for watermark updates
-		commitInterval: 10 * time.Second,      // Commit every 10 seconds
+		commitInterval: 10 * time.Second, // Commit every 10 seconds
 	}
 
 	r.Service = services.NewBasicService(r.start, r.running, r.stop)
@@ -117,8 +115,6 @@ func (r *PartitionReader) running(ctx context.Context) error {
 func (r *PartitionReader) stop(error) error {
 	level.Info(r.logger).Log("msg", "stopping partition reader")
 
-	close(r.watermarkChan)
-
 	// Signal shutdown to commit loop
 	r.wg.Wait()
 
@@ -144,6 +140,7 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 		minOffset  = int64(math.MaxInt64)
 		maxOffset  = int64(0)
 		totalBytes = int64(0)
+		lastOffset = int64(0)
 	)
 	fetches.EachRecord(func(rec *kgo.Record) {
 		minOffset = min(minOffset, rec.Offset)
@@ -154,7 +151,10 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 			tenantID: string(rec.Key),
 			offset:   rec.Offset,
 		})
+		lastOffset = max(lastOffset, rec.Offset)
 	})
+
+	r.highWatermark.Swap(lastOffset)
 
 	// Pass offset and byte information to the bufferer
 	err := r.consume(ctx, records)
@@ -220,20 +220,6 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 	return kgo.NewOffset().At(offset.At), nil
 }
 
-func (r *PartitionReader) updateWatermark(offset int64) {
-	wm := r.highWatermark.Load()
-	if offset > wm {
-		r.highWatermark.CompareAndSwap(wm, offset)
-
-		// Send watermark update to commit loop (non-blocking)
-		select {
-		case r.watermarkChan <- offset:
-		default:
-			// Channel full, skip this update (newer ones will come)
-		}
-	}
-}
-
 func (r *PartitionReader) commitLoop(ctx context.Context) {
 	defer r.wg.Done()
 
@@ -251,11 +237,6 @@ func (r *PartitionReader) commitLoop(ctx context.Context) {
 		case <-ticker.C:
 			// Periodic commit
 			lastCommittedOffset = r.commitCurrentWatermark(lastCommittedOffset)
-		case newWatermark := <-r.watermarkChan:
-			// Process watermark updates but don't commit immediately
-			// Just update our tracking, commits happen on timer
-			level.Debug(r.logger).Log("msg", "received watermark update", "offset", newWatermark)
-			r.highWatermark.Store(newWatermark)
 		}
 	}
 }

@@ -69,27 +69,21 @@ type Bufferer struct {
 	ctx    context.Context
 	cancel func()
 	wg     sync.WaitGroup
-
-	// Watermark-based commit tracking
-	tenantWatermarks    map[string]int64 // tenantID -> last safely committed offset
-	watermarkMtx        sync.RWMutex
-	lastCommittedOffset int64
 }
 
 func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*Bufferer, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	b := &Bufferer{
-		cfg:              cfg,
-		logger:           logger,
-		reg:              reg,
-		decoder:          ingest.NewDecoder(),
-		ctx:              ctx,
-		cancel:           cancel,
-		instances:        make(map[string]*instance),
-		overrides:        overrides,
-		tenantWatermarks: make(map[string]int64),
-		flushqueues:      flushqueues.NewPriorityQueue(metricCompleteQueueLength),
+		cfg:         cfg,
+		logger:      logger,
+		reg:         reg,
+		decoder:     ingest.NewDecoder(),
+		ctx:         ctx,
+		cancel:      cancel,
+		instances:   make(map[string]*instance),
+		overrides:   overrides,
+		flushqueues: flushqueues.NewPriorityQueue(metricCompleteQueueLength),
 	}
 
 	var err error
@@ -246,39 +240,6 @@ func (b *Bufferer) consume(_ context.Context, rs []record) error {
 	return nil
 }
 
-func (b *Bufferer) updateTenantWatermark(tenantID string, flushedOffset int64) {
-	b.watermarkMtx.Lock()
-	defer b.watermarkMtx.Unlock()
-
-	if b.tenantWatermarks[tenantID] < flushedOffset {
-		b.tenantWatermarks[tenantID] = flushedOffset
-		level.Debug(b.logger).Log("msg", "updated tenant watermark", "tenant", tenantID, "offset", flushedOffset)
-	}
-
-	// Check if we can advance the global commit point
-	if len(b.tenantWatermarks) == 0 {
-		return
-	}
-
-	// Use maximum watermark to prevent data duplication
-	// Better to lose some data than process it twice
-	maxWatermark := int64(0)
-	for _, watermark := range b.tenantWatermarks {
-		if watermark > maxWatermark {
-			maxWatermark = watermark
-		}
-	}
-
-	// Push watermark update to PartitionReader (async)
-	if maxWatermark > b.lastCommittedOffset {
-		if b.reader != nil {
-			b.reader.updateWatermark(maxWatermark)
-		}
-		b.lastCommittedOffset = maxWatermark
-		level.Debug(b.logger).Log("msg", "pushed watermark update", "offset", maxWatermark)
-	}
-}
-
 func (b *Bufferer) getOrCreateInstance(tenantID string) (*instance, error) {
 	b.instancesMtx.RLock()
 	inst, ok := b.instances[tenantID]
@@ -297,7 +258,7 @@ func (b *Bufferer) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, b.wal, b.overrides, b.logger, b.updateTenantWatermark)
+	inst, err := newInstance(tenantID, b.wal, b.overrides, b.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}
