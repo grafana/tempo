@@ -87,7 +87,7 @@ require (
 	github.com/grafana/gomemcache v0.0.0-20250318131618-74242eea118d
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jaegertracing/jaeger-idl v0.6.0
-	github.com/mark3labs/mcp-go v0.31.0
+	github.com/mark3labs/mcp-go v0.34.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.129.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.129.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.129.0
