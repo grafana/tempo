@@ -235,7 +235,7 @@ func (b *Bufferer) consume(_ context.Context, rs []record) error {
 		}
 
 		// Push data to tenant instance
-		inst.pushBytes(time.Now(), pushReq, record.offset)
+		inst.pushBytes(time.Now(), pushReq)
 	}
 
 	return nil

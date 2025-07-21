@@ -56,7 +56,7 @@ func TestBufferer(t *testing.T) {
 		instances: make(map[string]*instance),
 		overrides: &mockOverrides{},
 	}
-	
+
 	assert.NotNil(t, b)
 	assert.NotNil(t, b.logger)
 	assert.Equal(t, 0, len(b.instances))

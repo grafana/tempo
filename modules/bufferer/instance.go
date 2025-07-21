@@ -20,11 +20,6 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-type offsetMetadata struct {
-	startOffset int64
-	endOffset   int64
-}
-
 type instance struct {
 	tenantID string
 	logger   log.Logger
@@ -76,7 +71,7 @@ func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger lo
 	return i, nil
 }
 
-func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest, offset int64) {
+func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
 		if j >= len(req.Ids) {
