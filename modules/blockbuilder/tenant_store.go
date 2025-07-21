@@ -51,6 +51,8 @@ type tenantStore struct {
 }
 
 func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
+	cfg.BlockCfg.CreateWithNoCompactFlag = true // blockbuilder creates blocks with the nocompact flag set by default
+
 	s := &tenantStore{
 		tenantID:      tenantID,
 		idGenerator:   util.NewDeterministicIDGenerator(tenantID, partitionID, startOffset),
