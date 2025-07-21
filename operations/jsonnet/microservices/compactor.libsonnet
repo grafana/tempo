@@ -20,7 +20,7 @@
   },
 
   tempo_compactor_container::
-    container.new(target_name, $._images.tempo) +
+    container.new(target_name, $._images.tempo_compactor) +
     container.withPorts($.tempo_compactor_ports) +
     container.withArgs($.util.mapToFlags($.tempo_compactor_args)) +
     (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +

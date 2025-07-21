@@ -393,7 +393,7 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 func (rw *readerWriter) Shutdown() {
 }
 
-func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
+func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, version backend.Version) (backend.Version, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	derivedCtx, span := tracer.Start(ctx, "gcs.WriteVersioned", trace.WithAttributes(
 		attribute.String("object", name),

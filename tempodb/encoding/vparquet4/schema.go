@@ -60,12 +60,14 @@ const (
 	DefinitionLevelResourceSpansILSSpanLinkAttrs  = 5
 
 	FieldResourceAttrKey       = "rs.list.element.Resource.Attrs.list.element.Key"
+	FieldResourceAttrIsArray   = "rs.list.element.Resource.Attrs.list.element.IsArray"
 	FieldResourceAttrVal       = "rs.list.element.Resource.Attrs.list.element.Value.list.element"
 	FieldResourceAttrValInt    = "rs.list.element.Resource.Attrs.list.element.ValueInt.list.element"
 	FieldResourceAttrValDouble = "rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element"
 	FieldResourceAttrValBool   = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
 
 	FieldSpanAttrKey       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
+	FieldSpanAttrIsArray   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.IsArray"
 	FieldSpanAttrVal       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
 	FieldSpanAttrValInt    = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
 	FieldSpanAttrValDouble = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"

@@ -206,7 +206,8 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		b.kadm,
 		b.logger,
 		b.cfg.IngestStorageConfig,
-		b.getAssignedPartitions)
+		b.getAssignedPartitions,
+		b.kafkaClient.ForceMetadataRefresh)
 
 	return nil
 }
@@ -481,6 +482,7 @@ func (b *BlockBuilder) commitOffset(ctx context.Context, offset kadm.Offset, gro
 		if err == nil {
 			break
 		}
+		ingest.HandleKafkaError(err, b.kafkaClient.ForceMetadataRefresh)
 		level.Warn(b.logger).Log(
 			"msg", "failed to commit offset, retrying",
 			"err", err,
@@ -507,33 +509,60 @@ func formatActivePartitions(partitions []int32) string {
 // end record offset. Based on that it sort the partitions by lag
 func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) ([]partitionState, error) {
 	var (
-		ps    = make([]partitionState, 0, len(partitions))
-		group = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
-		topic = b.cfg.IngestStorageConfig.Kafka.Topic
+		ps          = make([]partitionState, 0, len(partitions))
+		commits     kadm.OffsetResponses
+		endsOffsets kadm.ListedOffsets
+		err         error
 	)
 
-	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
+	boff := backoff.New(ctx, backoff.Config{
+		MinBackoff: 100 * time.Millisecond,
+		MaxBackoff: time.Minute,
+		MaxRetries: 5,
+	})
+	for boff.Ongoing() {
+		commits, endsOffsets, err = b.getPartitionOffsets(ctx)
+		if err == nil {
+			break
+		}
+		ingest.HandleKafkaError(err, b.kafkaClient.ForceMetadataRefresh)
+		boff.Wait()
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch partition offsets: %w", err)
 	}
-	if err := commits.Error(); err != nil {
-		return nil, err
-	}
-
-	endsOffsets, err := b.kadm.ListEndOffsets(ctx, topic)
-	if err != nil {
-		return nil, err
-	}
-	if err := endsOffsets.Error(); err != nil {
-		return nil, err
-	}
-
 	for _, partition := range partitions {
 		p := b.getPartitionState(partition, commits, endsOffsets)
 		ps = append(ps, p)
 	}
 
 	return ps, nil
+}
+
+// todo: this function fetches the offsets for all the partitions including the ones that are not assigned to this block builder.
+// improve it to only fetch the offsets for the assigned partitions
+func (b *BlockBuilder) getPartitionOffsets(ctx context.Context) (kadm.OffsetResponses, kadm.ListedOffsets, error) {
+	var (
+		topic = b.cfg.IngestStorageConfig.Kafka.Topic
+		group = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+	)
+	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := commits.Error(); err != nil {
+		return nil, nil, err
+	}
+
+	endsOffsets, err := b.kadm.ListEndOffsets(ctx, topic)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := endsOffsets.Error(); err != nil {
+		return nil, nil, err
+	}
+
+	return commits, endsOffsets, nil
 }
 
 // Returns the existing state of a partition. Including the last committed record and the last one

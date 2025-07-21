@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
@@ -269,6 +270,13 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 			data := w.Body.String()
 			require.Contains(t, data, "user_configurable_overrides")
 			require.Contains(t, data, "my-other-forwarder")
+
+			// Verify the YAML output can be unmarshalled back
+			var config map[string]interface{}
+			require.NoError(t, yaml.UnmarshalStrict(w.Body.Bytes(), &config))
+
+			require.Contains(t, config, "defaults")
+			require.Contains(t, config, "overrides")
 
 			res := w.Result()
 			require.Equal(t, "text/plain; charset=utf-8", res.Header.Get(tempo_api.HeaderContentType))

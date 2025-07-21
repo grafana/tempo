@@ -80,6 +80,7 @@ const (
 	PathSpanMetricsSummary  = "/api/metrics/summary"
 	PathMetricsQueryInstant = "/api/metrics/query"
 	PathMetricsQueryRange   = "/api/metrics/query_range"
+	PathMCP                 = "/api/mcp"
 
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"

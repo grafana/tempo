@@ -5,8 +5,14 @@
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [CHANGE] Adjust the definition of `tempo_metrics_generator_processor_service_graphs_expired_edges` to exclude edges that are counted in the service graph. [#5319](https://github.com/grafana/tempo/pull/5319) (@joe-elliott)
 * [CHANGE] Update Go to version 1.24.4 [#5323](https://github.com/grafana/tempo/pull/5323) (@stoewer)
+* [CHANGE] Command tempo-cli analyse block(s) excludes attributes with array values [#5380](https://github.com/grafana/tempo/pull/5380) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Drop unused `backend_scheduler.tenant_measurement_interval`, use `backend_scheduler.compaction.measure_interval` instead. [#5328](https://github.com/grafana/tempo/pull/5328) (@zalegrala)
+* [CHANGE] Allow configuration of min/max input blocks for compaction provider. [#5373](https://github.com/grafana/tempo/pull/5373) (@zalegrala)
+* [CHANGE] **BREAKING CHANGE** Add require minimum time between tenant sorting in backend-scheduler. [#5410](https://github.com/grafana/tempo/pull/5410) (@zalegrala)
+The configuration for `backend_scheduler.provider.compaction.backoff` has been removed.
+Additionally the `compaction_tenant_backoff_total` metric has been renamed to `compaction_empty_tenant_cycle_total` for clarity.
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
+* [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
 * [FEATURE] Add counter `query_frontend_bytes_inspected_total`, which shows the total number of bytes read from disk and object storage [#5310](https://github.com/grafana/tempo/pull/5310) (@carles-grafana)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [ENHANCEMENT] Add endpoint for partition downscaling [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
@@ -19,11 +25,16 @@
 * [ENHANCEMENT] Enable HTTP writes in the multi-tenant example [#5297](https://github.com/grafana/tempo/pull/5297)
 * [ENHANCEMENT] Drop invalid prometheus label names in spanmetrics processor [#5122](https://github.com/grafana/tempo/pull/5122) (@KyriosGN0)
 * [ENHANCEMENT] Added usage tracker example [#5356](https://github.com/grafana/tempo/pull/5356) (@javiermolinar)
+* [ENHANCEMENT] Add Stop method [#5293](https://github.com/grafana/tempo/pull/5293) (@stephanos)
+* [ENHANCEMENT] Use peer attributes to determine the name of a client service virtual node in the service gra0ph [#5381](https://github.com/grafana/tempo/pull/5381) (@martenm)
+* [ENHANCEMENT] Put actual size for writing to backend [#5413](https://github.com/grafana/tempo/pull/5413) (@ruslan-mikhailov)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
 * [BUGFIX] Correct instant query calculation [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
 * [BUGFIX] Fix tracing context propagation in distributor HTTP write requests [#5312](https://github.com/grafana/tempo/pull/5312) (@mapno)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
-* [ENHANCEMENT] Add Stop method [#5293](https://github.com/grafana/tempo/pull/5293) (@stephanos)
+* [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
+* [BUGFIX] Fix search by trace:id with short trace ID [#5331](https://github.com/grafana/tempo/pull/5331) (@ruslan-mikhailov)
+* [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
 
 # v2.8.1
 

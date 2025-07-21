@@ -51,7 +51,8 @@ For example, you might not collect spans for an external service for payment pro
 
 Virtual nodes can be detected in two different ways:
 
-- The root span has `span.kind` set to `server`. This indicates that the request has initiated by an external system that's not instrumented, like a frontend application or an engineer via `curl`.
+- The root span has `span.kind` set to `server` or `consumer`. This indicates that the request or message was initiated by an external system that's not instrumented, like a frontend application or an engineer via `curl`.
+   - When no service name can be inferred from the span peer attributes, the name of the service defaults to `user`.
 - A `client` span doesn't have its matching `server` span, but has a peer attribute present. In this case, assume that a call was made to an external service, for which Tempo won't receive spans.
    - The default peer attributes are `peer.service`, `db.name` and `db.system`.
    - The order of the attributes is important, as the first one is used as the virtual node name.

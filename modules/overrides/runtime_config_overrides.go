@@ -263,6 +263,11 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 		return err
 	}
 
+	_, err = w.Write([]byte("---\n"))
+	if err != nil {
+		return err
+	}
+
 	_, err = w.Write(out)
 	if err != nil {
 		return err

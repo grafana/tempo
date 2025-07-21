@@ -24,7 +24,7 @@
   },
 
   tempo_backend_worker_container::
-    container.new(target_name, $._images.tempo) +
+    container.new(target_name, $._images.tempo_backend_worker) +
     container.withPorts($.tempo_backend_worker_ports) +
     container.withArgs($.util.mapToFlags($.tempo_backend_worker_args)) +
     container.withVolumeMounts([
