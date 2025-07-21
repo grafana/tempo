@@ -38,7 +38,7 @@ ingester:
       store: memberlist
   flush_object_storage: false
 
-bufferer:
+live_store:
   lifecycler:
     ring:
       kvstore:
@@ -63,8 +63,8 @@ memberlist:
   abort_if_cluster_join_fails: false
   bind_port: 7946
   join_members:
-    - bufferer-0:7946
-    - bufferer-1:7946
+    - live-store-0:7946
+    - live-store-1:7946
 
 overrides:
   user_configurable_overrides:

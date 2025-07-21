@@ -19,7 +19,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/bufferer"
+	"github.com/grafana/tempo/modules/livestore"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -83,7 +83,7 @@ const (
 	BlockBuilder                  string = "block-builder"
 	BackendScheduler              string = "backend-scheduler"
 	BackendWorker                 string = "backend-worker"
-	Bufferer                      string = "bufferer"
+	LiveStore                     string = "live-store"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -628,7 +628,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
-	t.cfg.Bufferer.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.LiveStore.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
@@ -751,7 +751,7 @@ func (t *App) initBackendWorker() (services.Service, error) {
 	return worker, nil
 }
 
-func (t *App) initBufferer() (services.Service, error) {
+func (t *App) initLiveStore() (services.Service, error) {
 	if !t.cfg.Ingest.Enabled {
 		return services.NewIdleService(nil, nil), nil
 	}
@@ -760,20 +760,20 @@ func (t *App) initBufferer() (services.Service, error) {
 	// Always use partition 0. This is for small installs or local/debugging setups.
 	singlePartition := t.cfg.Target == SingleBinary
 
-	t.cfg.Bufferer.IngestConfig = t.cfg.Ingest
+	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
 
 	var err error
-	t.bufferer, err = bufferer.New(t.cfg.Bufferer, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
+	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create bufferer: %w", err)
+		return nil, fmt.Errorf("failed to create liveStore: %w", err)
 	}
 
 	// TODO: Support downscaling
 	// t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
-	// 	Path("/bufferer/prepare-partition-downscale").
-	// 	Handler(http.HandlerFunc(t.bufferer.PreparePartitionDownscaleHandler))
+	// 	Path("/live-store/prepare-partition-downscale").
+	// 	Handler(http.HandlerFunc(t.liveStore.PreparePartitionDownscaleHandler))
 
-	return t.bufferer, nil
+	return t.liveStore, nil
 }
 
 func (t *App) setupModuleManager() error {
@@ -809,7 +809,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
 	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
 	mm.RegisterModule(BackendWorker, t.initBackendWorker)
-	mm.RegisterModule(Bufferer, t.initBufferer)
+	mm.RegisterModule(LiveStore, t.initLiveStore)
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -842,7 +842,7 @@ func (t *App) setupModuleManager() error {
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
-		Bufferer:                      {Common, MemberlistKV, PartitionRing},
+		LiveStore:                     {Common, MemberlistKV, PartitionRing},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},

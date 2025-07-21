@@ -1100,7 +1100,7 @@ backend_worker:
         instance_addr: ""
         enable_inet6: false
         wait_active_instance_timeout: 10m0s
-bufferer:
+live_store:
     lifecycler:
         ring:
             kvstore:

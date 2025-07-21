@@ -26,10 +26,10 @@ memberlist:
   join_members:
     - ingester-0:7946
     - ingester-1:7946
-    - bufferer-zone-a-0:7946
-    - bufferer-zone-a-1:7946
-    - bufferer-zone-b-0:7946
-    - bufferer-zone-b-1:7946
+    - live-store-zone-a-0:7946
+    - live-store-zone-a-1:7946
+    - live-store-zone-b-0:7946
+    - live-store-zone-b-1:7946
 
 compactor:
   compaction:

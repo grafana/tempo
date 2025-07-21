@@ -1,4 +1,4 @@
-package bufferer
+package livestore
 
 import (
 	"testing"
@@ -37,7 +37,7 @@ func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 func TestBufferCreation(t *testing.T) {
 	// This is a basic test to ensure the buffer structure is correct
 
-	b := &Bufferer{
+	b := &LiveStore{
 		logger:    log.NewNopLogger(),
 		instances: make(map[string]*instance),
 		overrides: &mockOverrides{},
@@ -50,8 +50,8 @@ func TestBufferCreation(t *testing.T) {
 	assert.Equal(t, 0, len(b.instances))
 }
 
-func TestBufferer(t *testing.T) {
-	b := &Bufferer{
+func TestLiveStore(t *testing.T) {
+	b := &LiveStore{
 		logger:    log.NewNopLogger(),
 		instances: make(map[string]*instance),
 		overrides: &mockOverrides{},

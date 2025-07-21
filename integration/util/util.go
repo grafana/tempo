@@ -254,12 +254,12 @@ func NewNamedTempoBlockBuilder(name string, replica int, extraArgs ...string) *e
 	return s
 }
 
-func NewTempoBufferer(replica int, extraArgs ...string) *e2e.HTTPService {
-	return NewNamedTempoBufferer("bufferer", replica, extraArgs...)
+func NewTempoLiveStore(replica int, extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoLiveStore("live-store", replica, extraArgs...)
 }
 
-func NewNamedTempoBufferer(name string, replica int, extraArgs ...string) *e2e.HTTPService {
-	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=bufferer"}
+func NewNamedTempoLiveStore(name string, replica int, extraArgs ...string) *e2e.HTTPService {
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=live-store"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(

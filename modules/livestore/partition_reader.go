@@ -1,4 +1,4 @@
-package bufferer
+package livestore
 
 import (
 	"context"
@@ -156,7 +156,7 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 
 	r.highWatermark.Swap(lastOffset)
 
-	// Pass offset and byte information to the bufferer
+	// Pass offset and byte information to the live-store
 	err := r.consume(ctx, records)
 	if err != nil {
 		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "min_offset", minOffset, "max_offset", maxOffset, "err", err)

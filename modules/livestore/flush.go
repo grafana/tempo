@@ -1,4 +1,4 @@
-package bufferer
+package livestore
 
 import (
 	"time"

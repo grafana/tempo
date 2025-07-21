@@ -1,4 +1,4 @@
-package bufferer
+package livestore
 
 import (
 	"context"
@@ -194,7 +194,7 @@ func (i *instance) resetHeadBlock() error {
 		BlockID:           backend.NewUUID(),
 		TenantID:          i.tenantID,
 		DedicatedColumns:  dedicatedColumns,
-		ReplicationFactor: backend.BuffererReplicationFactor,
+		ReplicationFactor: backend.LiveStoreReplicationFactor,
 	}
 	block, err := i.wal.NewBlock(meta, model.CurrentEncoding)
 	if err != nil {

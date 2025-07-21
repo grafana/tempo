@@ -12,27 +12,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBufferer(t *testing.T) {
+func TestLiveStore(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 
 	// copy config template to shared directory and expand template variables
-	require.NoError(t, util.CopyFileToSharedDir(s, "config-bufferer.yaml", "config.yaml"))
+	require.NoError(t, util.CopyFileToSharedDir(s, "config-live-store.yaml", "config.yaml"))
 
 	kafka := e2edb.NewKafka()
 	require.NoError(t, s.StartAndWaitReady(kafka))
 
-	bufferer0 := util.NewTempoBufferer(0)
-	bufferer1 := util.NewTempoBufferer(1)
-	require.NoError(t, s.StartAndWaitReady(bufferer0, bufferer1))
+	liveStore0 := util.NewTempoLiveStore(0)
+	liveStore1 := util.NewTempoLiveStore(1)
+	require.NoError(t, s.StartAndWaitReady(liveStore0, liveStore1))
 
 	// Wait until joined to partition ring
 	matchers := []*labels.Matcher{
 		{Type: labels.MatchEqual, Name: "state", Value: "Active"},
 		{Type: labels.MatchEqual, Name: "name", Value: "ingester-partitions"},
 	}
-	require.NoError(t, bufferer0.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(matchers...)))
+	require.NoError(t, liveStore0.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(matchers...)))
 
 	ingester0 := util.NewTempoIngester(0)
 	ingester1 := util.NewTempoIngester(1)

@@ -1,4 +1,4 @@
-package bufferer
+package livestore
 
 import (
 	"flag"
@@ -28,7 +28,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
 	cfg.WAL.Version = encoding.DefaultEncoding().Version()
-	f.StringVar(&cfg.WAL.Filepath, prefix+".wal.path", "/var/tempo/bufferer/traces", "Path at which store WAL blocks.")
+	f.StringVar(&cfg.WAL.Filepath, prefix+".wal.path", "/var/tempo/live-store/traces", "Path at which store WAL blocks.")
 }
 
 func (cfg *Config) Validate() error {

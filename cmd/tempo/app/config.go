@@ -12,7 +12,6 @@ import (
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
-	"github.com/grafana/tempo/modules/bufferer"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -21,6 +20,7 @@ import (
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/livestore"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
@@ -63,7 +63,7 @@ type Config struct {
 	BackendScheduler      backendscheduler.Config        `yaml:"backend_scheduler,omitempty"`
 	BackenSchedulerClient backendscheduler_client.Config `yaml:"backend_scheduler_client,omitempty"`
 	BackendWorker         backendworker.Config           `yaml:"backend_worker,omitempty"`
-	Bufferer              bufferer.Config                `yaml:"bufferer,omitempty"`
+	LiveStore             livestore.Config               `yaml:"live_store,omitempty"`
 }
 
 func NewDefaultConfig() *Config {
@@ -146,7 +146,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.CacheProvider.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "cache"), f)
 	c.BackendScheduler.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-scheduler"), f)
 	c.BackendWorker.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-worker"), f)
-	c.Bufferer.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "bufferer"), f)
+	c.LiveStore.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "liveStore"), f)
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled

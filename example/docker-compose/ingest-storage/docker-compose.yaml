@@ -55,62 +55,62 @@ services:
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-  bufferer-zone-a-0:
+  live-store-zone-a-0:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=bufferer -config.file=/etc/tempo.yaml"
+    command: "-target=live-store -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-    hostname: bufferer-zone-a-0
+    hostname: live-store-zone-a-0
   # Uncomment the following lines to enable tracing
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-  bufferer-zone-a-1:
+  live-store-zone-a-1:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=bufferer -config.file=/etc/tempo.yaml"
+    command: "-target=live-store -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-    hostname: bufferer-zone-a-1
+    hostname: live-store-zone-a-1
   # Uncomment the following lines to enable tracing
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-  bufferer-zone-b-0:
+  live-store-zone-b-0:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=bufferer -config.file=/etc/tempo.yaml"
+    command: "-target=live-store -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-    hostname: bufferer-zone-b-0
+    hostname: live-store-zone-b-0
   # Uncomment the following lines to enable tracing
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-  bufferer-zone-b-1:
+  live-store-zone-b-1:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=bufferer -config.file=/etc/tempo.yaml"
+    command: "-target=live-store -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
-    hostname: bufferer-zone-b-1
+    hostname: live-store-zone-b-1
   # Uncomment the following lines to enable tracing
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318

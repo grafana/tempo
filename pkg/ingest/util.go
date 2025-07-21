@@ -34,7 +34,7 @@ func IngesterPartitionID(ingesterID string) (int32, error) {
 	return int32(ingesterSeq), nil
 }
 
-func BuffererConsumerGroupID(instanceID string) (string, error) {
+func LiveStoreConsumerGroupID(instanceID string) (string, error) {
 	match := ingesterIDRegexp.FindStringSubmatch(instanceID)
 	if len(match) == 0 {
 		return "", fmt.Errorf("instance ID %s doesn't match regular expression %q", instanceID, ingesterIDRegexp.String())
