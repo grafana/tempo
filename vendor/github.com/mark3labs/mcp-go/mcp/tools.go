@@ -461,6 +461,72 @@ func (r CallToolRequest) RequireBoolSlice(key string) ([]bool, error) {
 	return nil, fmt.Errorf("required argument %q not found", key)
 }
 
+// MarshalJSON implements custom JSON marshaling for CallToolResult
+func (r CallToolResult) MarshalJSON() ([]byte, error) {
+	m := make(map[string]any)
+	
+	// Marshal Meta if present
+	if r.Meta != nil {
+		m["_meta"] = r.Meta
+	}
+	
+	// Marshal Content array
+	content := make([]any, len(r.Content))
+	for i, c := range r.Content {
+		content[i] = c
+	}
+	m["content"] = content
+	
+	// Marshal IsError if true
+	if r.IsError {
+		m["isError"] = r.IsError
+	}
+	
+	return json.Marshal(m)
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for CallToolResult
+func (r *CallToolResult) UnmarshalJSON(data []byte) error {
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	
+	// Unmarshal Meta
+	if meta, ok := raw["_meta"]; ok {
+		if metaMap, ok := meta.(map[string]any); ok {
+			r.Meta = metaMap
+		}
+	}
+	
+	// Unmarshal Content array
+	if contentRaw, ok := raw["content"]; ok {
+		if contentArray, ok := contentRaw.([]any); ok {
+			r.Content = make([]Content, len(contentArray))
+			for i, item := range contentArray {
+				itemBytes, err := json.Marshal(item)
+				if err != nil {
+					return err
+				}
+				content, err := UnmarshalContent(itemBytes)
+				if err != nil {
+					return err
+				}
+				r.Content[i] = content
+			}
+		}
+	}
+	
+	// Unmarshal IsError
+	if isError, ok := raw["isError"]; ok {
+		if isErrorBool, ok := isError.(bool); ok {
+			r.IsError = isErrorBool
+		}
+	}
+	
+	return nil
+}
+
 // ToolListChangedNotification is an optional notification from the server to
 // the client, informing it that the list of tools it offers has changed. This may
 // be issued by servers without any previous subscription from the client.
@@ -945,7 +1011,20 @@ func PropertyNames(schema map[string]any) PropertyOption {
 	}
 }
 
-// Items defines the schema for array items
+// Items defines the schema for array items.
+// Accepts any schema definition for maximum flexibility.
+//
+// Example:
+//
+//	Items(map[string]any{
+//	    "type": "object",
+//	    "properties": map[string]any{
+//	        "name": map[string]any{"type": "string"},
+//	        "age": map[string]any{"type": "number"},
+//	    },
+//	})
+//
+// For simple types, use ItemsString(), ItemsNumber(), ItemsBoolean() instead.
 func Items(schema any) PropertyOption {
 	return func(schemaMap map[string]any) {
 		schemaMap["items"] = schema
@@ -970,5 +1049,96 @@ func MaxItems(max int) PropertyOption {
 func UniqueItems(unique bool) PropertyOption {
 	return func(schema map[string]any) {
 		schema["uniqueItems"] = unique
+	}
+}
+
+// WithStringItems configures an array's items to be of type string.
+//
+// Supported options: Description(), DefaultString(), Enum(), MaxLength(), MinLength(), Pattern()
+// Note: Options like Required() are not valid for item schemas and will be ignored.
+//
+// Examples:
+//
+//	mcp.WithArray("tags", mcp.WithStringItems())
+//	mcp.WithArray("colors", mcp.WithStringItems(mcp.Enum("red", "green", "blue")))
+//	mcp.WithArray("names", mcp.WithStringItems(mcp.MinLength(1), mcp.MaxLength(50)))
+//
+// Limitations: Only supports simple string arrays. Use Items() for complex objects.
+func WithStringItems(opts ...PropertyOption) PropertyOption {
+	return func(schema map[string]any) {
+		itemSchema := map[string]any{
+			"type": "string",
+		}
+
+		for _, opt := range opts {
+			opt(itemSchema)
+		}
+
+		schema["items"] = itemSchema
+	}
+}
+
+// WithStringEnumItems configures an array's items to be of type string with a specified enum.
+// Example:
+//
+//	mcp.WithArray("priority", mcp.WithStringEnumItems([]string{"low", "medium", "high"}))
+//
+// Limitations: Only supports string enums. Use WithStringItems(Enum(...)) for more flexibility.
+func WithStringEnumItems(values []string) PropertyOption {
+	return func(schema map[string]any) {
+		schema["items"] = map[string]any{
+			"type": "string",
+			"enum": values,
+		}
+	}
+}
+
+// WithNumberItems configures an array's items to be of type number.
+//
+// Supported options: Description(), DefaultNumber(), Min(), Max(), MultipleOf()
+// Note: Options like Required() are not valid for item schemas and will be ignored.
+//
+// Examples:
+//
+//	mcp.WithArray("scores", mcp.WithNumberItems(mcp.Min(0), mcp.Max(100)))
+//	mcp.WithArray("prices", mcp.WithNumberItems(mcp.Min(0)))
+//
+// Limitations: Only supports simple number arrays. Use Items() for complex objects.
+func WithNumberItems(opts ...PropertyOption) PropertyOption {
+	return func(schema map[string]any) {
+		itemSchema := map[string]any{
+			"type": "number",
+		}
+
+		for _, opt := range opts {
+			opt(itemSchema)
+		}
+
+		schema["items"] = itemSchema
+	}
+}
+
+// WithBooleanItems configures an array's items to be of type boolean.
+//
+// Supported options: Description(), DefaultBool()
+// Note: Options like Required() are not valid for item schemas and will be ignored.
+//
+// Examples:
+//
+//	mcp.WithArray("flags", mcp.WithBooleanItems())
+//	mcp.WithArray("permissions", mcp.WithBooleanItems(mcp.Description("User permissions")))
+//
+// Limitations: Only supports simple boolean arrays. Use Items() for complex objects.
+func WithBooleanItems(opts ...PropertyOption) PropertyOption {
+	return func(schema map[string]any) {
+		itemSchema := map[string]any{
+			"type": "boolean",
+		}
+
+		for _, opt := range opts {
+			opt(itemSchema)
+		}
+
+		schema["items"] = itemSchema
 	}
 }

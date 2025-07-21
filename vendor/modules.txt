@@ -936,7 +936,7 @@ github.com/magefile/mage/sh
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
-# github.com/mark3labs/mcp-go v0.31.0
+# github.com/mark3labs/mcp-go v0.34.0
 ## explicit; go 1.23
 github.com/mark3labs/mcp-go/client
 github.com/mark3labs/mcp-go/client/transport
