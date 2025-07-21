@@ -738,11 +738,22 @@ func (o Optional[T]) set(val any) reflect.Value {
 	})
 }
 
+// IsEmpty returns true if the Optional[T] does not contain a value.
 func (o Optional[T]) IsEmpty() bool {
 	return !o.hasValue
 }
 
+// Get returns the value contained in the Optional[T].
 func (o Optional[T]) Get() T {
+	return o.val
+}
+
+// GetOr returns the value contained in the Optional[T] if it exists,
+// otherwise it returns the default value provided.
+func (o Optional[T]) GetOr(value T) T {
+	if !o.hasValue {
+		return value
+	}
 	return o.val
 }
 
