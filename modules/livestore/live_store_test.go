@@ -10,18 +10,6 @@ import (
 
 type mockOverrides struct{}
 
-// mockPartitionReader implements WatermarkUpdater for testing
-
-type mockPartitionReader struct {
-	updateWatermarkFunc func(offset int64)
-}
-
-func (m *mockPartitionReader) updateWatermark(offset int64) {
-	if m.updateWatermarkFunc != nil {
-		m.updateWatermarkFunc(offset)
-	}
-}
-
 func (m *mockOverrides) MaxLocalTracesPerUser(string) int {
 	return 10000
 }

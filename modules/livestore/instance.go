@@ -125,7 +125,6 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 	}
 
 	// Collect the trace IDs that will be flushed
-	var flushedTraceIDs [][]byte
 	for _, t := range tracesToCut {
 		tr := &tempopb.Trace{
 			ResourceSpans: t.Batches,
@@ -135,9 +134,6 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 		if err != nil {
 			return err
 		}
-
-		// Add to list of traces that will be flushed
-		flushedTraceIDs = append(flushedTraceIDs, t.ID)
 	}
 
 	i.blocksMtx.Lock()

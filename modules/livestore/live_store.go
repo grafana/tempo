@@ -390,7 +390,7 @@ func (s *LiveStore) completeLoop() {
 			op.attempts++
 
 			if op.attempts > maxFlushAttempts {
-				level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "block", op.blockID, "attemps", op.attempts)
+				level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
 				continue
 			}
 
