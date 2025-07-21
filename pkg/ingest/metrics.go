@@ -44,9 +44,13 @@ var (
 // stale data. For efficiency this is not detected automatically from changes inthe assigned
 // partition callback.
 func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
+	if cfg.Kafka.ConsumerGroupLagMetricUpdateInterval == 0*time.Second {
+		return
+	}
+
 	go func() {
 		var (
-			waitTime = time.Second * 15
+			waitTime = cfg.Kafka.ConsumerGroupLagMetricUpdateInterval
 			topic    = cfg.Kafka.Topic
 			group    = cfg.Kafka.ConsumerGroup
 			boff     = backoff.New(ctx, backoff.Config{
