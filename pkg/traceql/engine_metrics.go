@@ -1063,7 +1063,8 @@ type MetricsEvaluator struct {
 	metricsPipeline                 firstStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
-	multiplier                      float64
+
+	sampled, skipped uint64
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -1077,12 +1078,27 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 	return float64(end-st) / float64(dataEnd-dataStart)
 }
 
+func (e *MetricsEvaluator) Sampled(n uint64) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.sampled += n
+}
+
+func (e *MetricsEvaluator) Skipped(n uint64) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.skipped += n
+}
+
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
 func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
+
+	storageReq.Sampled = e.Sampled
+	storageReq.Skipped = e.Skipped
 
 	if fetcherStart > 0 && fetcherEnd > 0 &&
 		// exclude special case for a block with the same start and end
@@ -1190,6 +1206,12 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 	return e.bytes, e.spansTotal, e.spansDeduped
 }
 
+func (e *MetricsEvaluator) SampledMetrics() (uint64, uint64) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	return e.sampled, e.skipped
+}
+
 func (e *MetricsEvaluator) Results() SeriesSet {
 	// NOTE: skip processing of second stage because not all first stage functions can't be pushed down.
 	// for example: if query has avg_over_time(), then we can't push it down to second stage, and second stage
@@ -1197,6 +1219,8 @@ func (e *MetricsEvaluator) Results() SeriesSet {
 	// we could do this but it would require knowing if the first stage functions
 	// can be pushed down to second stage or not so we are skipping it for now, and will handle it later.
 	ss := e.metricsPipeline.result()
+
+	fmt.Println("sampled", e.sampled, "skipped", e.skipped, "actual sample percent:", float64(e.sampled)/(float64(e.sampled)+float64(e.skipped)))
 
 	/*if e.multiplier != 1.0 {
 		for _, s := range ss {

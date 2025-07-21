@@ -95,7 +95,9 @@ type FetchSpansRequest struct {
 	AllConditions bool
 
 	// Sample is the sampling rate to apply to the query.
-	Sample float64
+	Sample  float64
+	Sampled func(uint64)
+	Skipped func(uint64)
 
 	// SecondPassFn and Conditions allow a caller to retrieve one set of data
 	// in the first pass, filter using the SecondPassFn callback and then
