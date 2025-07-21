@@ -206,8 +206,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 
 	ingest.ExportPartitionLagMetrics(
 		ctx,
-		b.kadm,
-		b.partitionOffsetClient,
+		b.kafkaClient,
 		b.logger,
 		b.cfg.IngestStorageConfig,
 		b.getAssignedPartitions,

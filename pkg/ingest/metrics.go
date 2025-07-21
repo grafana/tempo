@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 const (
@@ -43,7 +44,7 @@ var (
 // Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting
 // stale data. For efficiency this is not detected automatically from changes inthe assigned
 // partition callback.
-func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, partitionClient *PartitionOffsetClient, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
+func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
 	go func() {
 		var (
 			waitTime = time.Second * 15
@@ -54,6 +55,8 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, part
 				MaxBackoff: waitTime,
 				MaxRetries: 5,
 			})
+			admClient       = kadm.NewClient(kclient)
+			partitionClient = NewPartitionOffsetClient(kclient, topic)
 		)
 
 		for {
