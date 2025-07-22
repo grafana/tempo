@@ -16,14 +16,14 @@ keywords:
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
 
 TraceQL supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`,
-`histogram_over_time`, and `compare` functions. These methods can be appended to any TraceQL query to calculate and 
+`histogram_over_time`, and `compare` functions. These methods can be appended to any TraceQL query to calculate and
 return the desired metrics like:
 
 ```
 {} | rate()
 ```
 
-Note that `topk` and `bottomk` are also supported to only return a subset of series. These can only be added 
+Note that `topk` and `bottomk` are also supported to only return a subset of series. These can only be added
 after a metrics query like:
 
 ```
@@ -250,7 +250,7 @@ from 1 through `k` of the number of the top or bottom results.
 
 For example:
 ```
-`{ resource.service.name = "foo" } | rate() by (span.http.url)  | topk(10)`
+{ resource.service.name = "foo" } | rate() by (span.http.url)  | topk(10)
 ```
 
 The first part, `{ resource.service.name = "foo" }`, takes all spans in the service `foo`.
