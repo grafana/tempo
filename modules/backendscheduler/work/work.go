@@ -242,13 +242,30 @@ func MigrateToSharded(original Interface, cfg Config) (ShardedWorkInterface, err
 	// Copy all jobs from original to sharded
 	jobs := original.ListJobs()
 	for _, job := range jobs {
-		err := sharded.AddJob(job)
+		err := sharded.AddJobPreservingState(job)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return sharded, nil
+}
+
+// MigrateFromSharded converts a ShardedWork instance back to Work.
+// This is useful for rollback scenarios where we need to revert to the original format
+func MigrateFromSharded(sharded ShardedWorkInterface) (Interface, error) {
+	legacy := New(Config{})
+
+	// Copy all jobs from sharded to legacy format
+	jobs := sharded.ListJobs()
+	for _, job := range jobs {
+		err := legacy.AddJobPreservingState(job)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return legacy, nil
 }
 
 // IsSharded checks if a WorkInterface is actually a sharded implementation

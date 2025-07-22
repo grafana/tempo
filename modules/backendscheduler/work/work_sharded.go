@@ -22,12 +22,12 @@ const (
 // Shard represents a single shard containing a subset of jobs
 type Shard struct {
 	Jobs map[string]*Job `json:"jobs"`
-	mtx  sync.Mutex      // Individual mutex per shard for fine-grained locking
+	mtx  sync.Mutex
 }
 
 // ShardedWork is a sharded version of Work for improved performance
 type ShardedWork struct {
-	shards [ShardCount]*Shard
+	Shards [ShardCount]*Shard `json:"shards"`
 	cfg    Config
 }
 
@@ -39,7 +39,7 @@ func NewSharded(cfg Config) *ShardedWork {
 
 	// Initialize all shards
 	for i := range ShardCount {
-		sw.shards[i] = &Shard{
+		sw.Shards[i] = &Shard{
 			Jobs: make(map[string]*Job),
 		}
 	}
@@ -61,7 +61,7 @@ func (sw *ShardedWork) GetShardID(jobID string) uint8 {
 
 // getShard returns the shard for a given job ID
 func (sw *ShardedWork) getShard(jobID string) *Shard {
-	return sw.shards[sw.getShardID(jobID)]
+	return sw.Shards[sw.getShardID(jobID)]
 }
 
 // AddJob adds a job to the appropriate shard
@@ -145,7 +145,7 @@ func (sw *ShardedWork) ListJobs() []*Job {
 
 	// Collect jobs from all shards
 	for i := range ShardCount {
-		shard := sw.shards[i]
+		shard := sw.Shards[i]
 		shard.mtx.Lock()
 
 		for _, j := range shard.Jobs {
@@ -174,7 +174,7 @@ func (sw *ShardedWork) Prune(ctx context.Context) {
 		wg.Add(1)
 		go func(shardIndex int) {
 			defer wg.Done()
-			shard := sw.shards[shardIndex]
+			shard := sw.Shards[shardIndex]
 
 			shard.mtx.Lock()
 			defer shard.mtx.Unlock()
@@ -200,7 +200,7 @@ func (sw *ShardedWork) Prune(ctx context.Context) {
 func (sw *ShardedWork) Len() int {
 	var count int
 	for i := range ShardCount {
-		shard := sw.shards[i]
+		shard := sw.Shards[i]
 		shard.mtx.Lock()
 
 		for _, j := range shard.Jobs {
@@ -222,7 +222,7 @@ func (sw *ShardedWork) GetJobForWorker(ctx context.Context, workerID string) *Jo
 
 	// Search across all shards for this worker's jobs
 	for i := range ShardCount {
-		shard := sw.shards[i]
+		shard := sw.Shards[i]
 		shard.mtx.Lock()
 
 		for _, j := range shard.Jobs {
@@ -290,7 +290,7 @@ func (sw *ShardedWork) MarshalShard(shardID uint8) ([]byte, error) {
 		return nil, fmt.Errorf("invalid shard ID: %d", shardID)
 	}
 
-	shard := sw.shards[shardID]
+	shard := sw.Shards[shardID]
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
@@ -322,7 +322,23 @@ func (sw *ShardedWork) MarshalAffectedShards(jobIDs []string) (map[uint8][]byte,
 
 // Unmarshal deserializes JSON to all shards
 func (sw *ShardedWork) Unmarshal(data []byte) error {
-	return jsoniter.Unmarshal(data, sw)
+	err := jsoniter.Unmarshal(data, sw)
+	if err != nil {
+		return err
+	}
+
+	// Ensure all shards are properly initialized (in case any were nil after unmarshaling)
+	for i := range ShardCount {
+		if sw.Shards[i] == nil {
+			sw.Shards[i] = &Shard{
+				Jobs: make(map[string]*Job),
+			}
+		} else if sw.Shards[i].Jobs == nil {
+			sw.Shards[i].Jobs = make(map[string]*Job)
+		}
+	}
+
+	return nil
 }
 
 // UnmarshalShard deserializes JSON to a specific shard
@@ -331,7 +347,7 @@ func (sw *ShardedWork) UnmarshalShard(shardID uint8, data []byte) error {
 		return fmt.Errorf("invalid shard ID: %d", shardID)
 	}
 
-	shard := sw.shards[shardID]
+	shard := sw.Shards[shardID]
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
@@ -346,7 +362,7 @@ func (sw *ShardedWork) GetShardStats() map[string]any {
 	nonEmptyShards := 0
 
 	for i := range ShardCount {
-		shard := sw.shards[i]
+		shard := sw.Shards[i]
 		shard.mtx.Lock()
 		size := len(shard.Jobs)
 		shard.mtx.Unlock()
