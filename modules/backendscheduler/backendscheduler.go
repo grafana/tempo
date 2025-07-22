@@ -116,9 +116,6 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to load work cache: %w", err)
 	}
 
-	// Start providers and collect job channels
-	s.mergedJobs = make(chan *work.Job, len(s.providers))
-
 	wg := sync.WaitGroup{}
 
 	for i := range s.providers {

@@ -23,8 +23,8 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("max_jobs_per_tenant must be greater than 0")
 	}
 
-	if cfg.Compaction.Backoff.MaxRetries != 0 {
-		return fmt.Errorf("max_retries must be 0, since it is not respected")
+	if cfg.Compaction.MinCycleInterval <= 0 {
+		return fmt.Errorf("min_cycle_interval must be greater than 0, and should be at least half the blocklist_poll cycle for general use")
 	}
 
 	if cfg.Compaction.MeasureInterval <= 0 {

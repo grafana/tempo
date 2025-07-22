@@ -2,6 +2,7 @@ package backendscheduler
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/modules/backendscheduler/provider"
@@ -40,6 +41,15 @@ func ValidateConfig(cfg *Config) error {
 
 	if err := provider.ValidateConfig(&cfg.ProviderConfig); err != nil {
 		return err
+	}
+
+	// Validate the measurement interval is twice the speed of the prune interval
+	// so that the when newBlockSelector is called it has enough time to delete
+	// the temporary entry and know that it has been persisted to the work cache.
+	// If the prune age is too short, work could get deleted before the
+	// newBlockSelector is able to delete the temporary entry.
+	if cfg.ProviderConfig.Compaction.MeasureInterval > cfg.Work.PruneAge/2 {
+		return fmt.Errorf("provider.compaction.measure_interval must be no more than half of work.prune_age; tenant measurement should happen at least twice as often as the work prune, got %s and %s", cfg.ProviderConfig.Compaction.MeasureInterval, cfg.Work.PruneAge/2)
 	}
 
 	return nil

@@ -245,6 +245,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBlockAndWALVersionMismatch)
 	}
 
+	if c.BackendScheduler.Work.PruneAge <= (c.StorageConfig.Trace.BlocklistPoll * 2) {
+		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
+	}
+
 	return warnings
 }
 
@@ -315,6 +319,11 @@ var (
 	warnMCPServerEnabled = ConfigWarning{
 		Message: "c.Frontend.MCPServer.Enabled is enabled.",
 		Explain: "Querying Tempo with an LLM will result in tracing data being sent to the LLM. Review your LLM provider's documentation and confirm you are comfortable with this.",
+	}
+
+	warnBackendSchedulerPruneAgeLessThanBlocklistPoll = ConfigWarning{
+		Message: "c.BackendScheduler.Work.PruneAge must be greater than 2x the storage.trace.blocklist_poll duration",
+		Explain: "The backend scheduler needs not to prune work faster than the block list poll duration to avoid losing track of blocks which may have been have been compacted, but whose status has not been rediscovered during polling.",
 	}
 )
 
