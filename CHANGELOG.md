@@ -18,6 +18,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] Add endpoint for partition downscaling [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add backend scheduler and worker to the resources dashboard [#5206](https://github.com/grafana/tempo/pull/5241) (@javiermolinar)
+* [ENHANCEMENT] Allow configure group lag exporter update time [#5431](https://github.com/grafana/tempo/pull/5431) (@javiermolinar)
 * [ENHANCEMENT] TraceQL metrics performance increase for simple queries [#5247](https://github.com/grafana/tempo/pull/5247) (@mdisibio)
 * [ENHANCEMENT] TraceQL search and metrics performance increase [#5280](https://github.com/grafana/tempo/pull/5280) (@mdisibio)
 * [ENHANCEMENT] Traceql performance improvement [#5218](https://github.com/grafana/tempo/pull/5218) (@mdisibio)

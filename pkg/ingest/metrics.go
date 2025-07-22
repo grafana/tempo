@@ -47,7 +47,7 @@ var (
 func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
 	go func() {
 		var (
-			waitTime = time.Second * 15
+			waitTime = cfg.Kafka.ConsumerGroupLagMetricUpdateInterval
 			topic    = cfg.Kafka.Topic
 			group    = cfg.Kafka.ConsumerGroup
 			boff     = backoff.New(ctx, backoff.Config{
