@@ -297,6 +297,14 @@ func (s *BackendScheduler) migrateWorkCacheShardedToLegacy(ctx context.Context) 
 
 	level.Info(log.Logger).Log("msg", "successfully migrated from sharded back to legacy format", "jobs_migrated", len(allJobs))
 
+	err = s.flushWorkCacheToBackend(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to flush migrated work cache to backend: %w", err)
+	}
+
+	// Remove the sharded object from the backend
+	_ = s.writer.Delete(ctx, backend.ShardedWorkFileName, backend.KeyPath{}, nil)
+
 	// Replay work on blocklist
 	return s.replayWorkOnBlocklist(ctx)
 }
@@ -376,12 +384,15 @@ func (s *BackendScheduler) migrateWorkCacheLegacyToSharded(ctx context.Context, 
 		return fmt.Errorf("failed to remove legacy work cache after migration: %w", err)
 	}
 
-	// TODO: flush backend state
-	s.flushWorkCacheToBackend(ctx)
-
-	// TODO: defer removal of the backend legacy work file
+	err = s.flushWorkCacheToBackend(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to flush migrated work cache to backend: %w", err)
+	}
 
 	level.Info(log.Logger).Log("msg", "successfully migrated legacy work cache to sharded format")
+
+	// Remove the legacy object from the backend
+	_ = s.writer.Delete(ctx, backend.WorkFileName, backend.KeyPath{}, nil)
 
 	// Replay work on blocklist
 	return s.replayWorkOnBlocklist(ctx)
