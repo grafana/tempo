@@ -176,17 +176,16 @@ func (s *BackendScheduler) loadWorkCacheOptimized(ctx context.Context) error {
 	switch {
 	case useSharding && shardsExist:
 		// Sharding enabled, shard files exist - load shards
-		return s.loadShardedWorkCache(ctx, s.work.(work.ShardedWorkInterface))
+		return s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
 
 	case useSharding && legacyExists && !shardsExist:
 		// Sharding enabled, only legacy file exists - migrate to shards
 		level.Info(log.Logger).Log("msg", "migrating legacy work cache to sharded format")
-		// TODO: think
 		return s.migrateWorkCacheLegacyToSharded(ctx, legacyPath)
 
 	case !useSharding && legacyExists:
 		// Sharding disabled, legacy file exists - load legacy
-		return s.loadWorkCacheFallback(ctx)
+		return s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
 
 	case !useSharding && shardsExist && !legacyExists:
 		// Sharding disabled, only shard files exist - migrate back to legacy
@@ -307,41 +306,6 @@ func (s *BackendScheduler) migrateWorkCacheShardedToLegacy(ctx context.Context) 
 	return s.replayWorkOnBlocklist(ctx)
 }
 
-// loadShardedWorkCache loads work cache from shard files
-func (s *BackendScheduler) loadShardedWorkCache(ctx context.Context, shardedWork work.ShardedWorkInterface) error {
-	ctx, span := tracer.Start(ctx, "loadShardedWorkCache")
-	defer span.End()
-
-	// Load shard files
-	shardsLoaded := 0
-	for i := range work.ShardCount {
-		shardID := uint8(i)
-		shardPath := s.filenameForShard(shardID)
-
-		data, err := os.ReadFile(shardPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				// Shard file doesn't exist, skip (empty shard)
-				continue
-			}
-			return fmt.Errorf("failed to read shard file %q: %w", shardPath, err)
-		}
-
-		err = shardedWork.UnmarshalShard(shardID, data)
-		if err != nil {
-			level.Error(log.Logger).Log("msg", "failed to unmarshal shard", "shard_id", shardID, "error", err)
-			// Continue loading other shards
-			continue
-		}
-		shardsLoaded++
-	}
-
-	level.Info(log.Logger).Log("msg", "loaded sharded work cache", "shards_loaded", shardsLoaded)
-
-	// Replay work on blocklist
-	return s.replayWorkOnBlocklist(ctx)
-}
-
 // migrateWorkCacheLegacyToSharded migrates from old work.json to sharded format
 func (s *BackendScheduler) migrateWorkCacheLegacyToSharded(ctx context.Context, legacyPath string) error {
 	_, span := tracer.Start(ctx, "migrateLegacyWorkCache")
@@ -391,31 +355,5 @@ func (s *BackendScheduler) migrateWorkCacheLegacyToSharded(ctx context.Context, 
 	_ = s.writer.Delete(ctx, backend.WorkFileName, backend.KeyPath{}, nil)
 
 	// Replay work on blocklist
-	return s.replayWorkOnBlocklist(ctx)
-}
-
-// loadWorkCacheFallback loads using the original approach
-func (s *BackendScheduler) loadWorkCacheFallback(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "loadWorkCacheFallback")
-	defer span.End()
-
-	// Try to load the local work cache first, falling back to the backend if it doesn't exist.
-	workPath := filepath.Join(s.cfg.LocalWorkPath, backend.WorkFileName)
-	data, err := os.ReadFile(workPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", workPath, "error", err)
-		}
-		return s.loadWorkCacheFromBackend(ctx)
-	}
-
-	err = s.work.Unmarshal(data)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to unmarshal work cache from local path", "path", workPath, "error", err)
-		return s.loadWorkCacheFromBackend(ctx)
-	}
-
-	// Once the work cache is loaded, replay the work list on top of the
-	// blocklist to ensure we only hand out jobs for blocks which need visiting.
 	return s.replayWorkOnBlocklist(ctx)
 }

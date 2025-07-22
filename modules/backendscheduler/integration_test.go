@@ -134,7 +134,7 @@ func testPersistenceAndRecovery(ctx context.Context, t *testing.T, originalSched
 	require.NotEmpty(t, initialJobs, "Should have jobs to test persistence")
 
 	// Force a flush to disk
-	err := originalScheduler.flushWorkCacheOptimized(ctx, nil) // Flush all
+	err := originalScheduler.work.FlushToLocal(ctx, originalScheduler.cfg.LocalWorkPath, nil) // Flush all
 	require.NoError(t, err)
 
 	// Create a new scheduler instance (simulating restart)
@@ -233,7 +233,7 @@ func TestShardedMigration(t *testing.T) {
 	require.Len(t, originalJobs, jobCount)
 
 	// Flush to create work.json
-	err = originalScheduler.flushWorkCacheOptimized(ctx, nil)
+	err = originalScheduler.work.FlushToLocal(ctx, originalScheduler.cfg.LocalWorkPath, nil)
 	require.NoError(t, err)
 
 	// Stop original scheduler
@@ -428,7 +428,7 @@ func testSchedulerWithConfig(ctx context.Context, t *testing.T, cfg Config, stor
 	require.Equal(t, cfg.Work.Sharded, work.IsSharded(scheduler.work))
 
 	// Flush the work cache locally to create work.json file (simulate normal operation)
-	err = scheduler.flushWorkCacheOptimized(ctx, nil)
+	err = scheduler.work.FlushToLocal(ctx, scheduler.cfg.LocalWorkPath, nil)
 	require.NoError(t, err)
 
 	err = scheduler.flushWorkCacheToBackend(ctx)
@@ -557,7 +557,7 @@ func TestPerformanceComparison(t *testing.T) {
 			for i := range numOperations {
 				// Simulate updating a single job (typical Next/UpdateJob pattern)
 				affectedJob := jobIDs[i%len(jobIDs)]
-				err := scheduler.flushWorkCacheOptimized(ctx, []string{affectedJob})
+				err := scheduler.work.FlushToLocal(ctx, scheduler.cfg.LocalWorkPath, []string{affectedJob})
 				require.NoError(t, err)
 			}
 			elapsed := time.Since(start)

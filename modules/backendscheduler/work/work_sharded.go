@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
-
-	"os"
-	"path/filepath"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	jsoniter "github.com/json-iterator/go"
