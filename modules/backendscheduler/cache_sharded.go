@@ -155,8 +155,8 @@ func (s *BackendScheduler) flushWorkCacheFallback(ctx context.Context) error {
 	return nil
 }
 
-// loadWorkCacheOptimized loads the work cache using the configured implementation
-func (s *BackendScheduler) loadWorkCacheOptimized(ctx context.Context) error {
+// loadWorkCache loads the work cache using the configured implementation
+func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "loadWorkCacheOptimized")
 	defer span.End()
 

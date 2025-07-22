@@ -111,7 +111,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder)
 	}
 
-	err := s.loadWorkCacheOptimized(ctx)
+	err := s.loadWorkCache(ctx)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return fmt.Errorf("failed to load work cache: %w", err)
 	}
@@ -218,7 +218,6 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		}
 
 		// The job exists in memory, but may not have been persisted to disk.
-		// Use optimized flush that only writes affected shards
 		err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{j.ID})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
