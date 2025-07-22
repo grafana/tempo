@@ -158,7 +158,10 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			// Job successfully created, add to recent jobs cache before we send it.
-			p.addToRecentJobs(job)
+			if !p.addToRecentJobs(job) {
+				level.Info(p.logger).Log("msg", "duplicate job detected, skipping", "job_id", job.ID)
+				continue
+			}
 
 			select {
 			case <-ctx.Done():
@@ -386,10 +389,6 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		delete(p.outstandingJobs, job.ID)
 		p.outstandingJobsMtx.Unlock()
 
-		if job.Tenant() != tenantID {
-			continue
-		}
-
 		if job.GetType() == tempopb.JobType_JOB_TYPE_UNSPECIFIED {
 			continue
 		}
@@ -436,29 +435,69 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	), len(blocklist)
 }
 
-// addToRecentJobs adds a job to the recent jobs cache
-func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
+// addToRecentJobs adds a job to the recent jobs cache if no duplicate blocks are detected.
+// Returns true if the job was successfully added, false if duplicates were found.
+func (p *CompactionProvider) addToRecentJobs(job *work.Job) bool {
 	if job.Type != tempopb.JobType_JOB_TYPE_COMPACTION || job.JobDetail.Compaction == nil {
-		return
+		return true // Non-compaction jobs don't use block tracking
 	}
 
 	// Don't cache jobs with empty input
 	if len(job.JobDetail.Compaction.Input) == 0 {
-		return
+		return true
 	}
 
-	// Copy the input block IDs
+	// Parse and validate block IDs
 	blockIDs := make([]backend.UUID, len(job.JobDetail.Compaction.Input))
 	for i, blockID := range job.JobDetail.Compaction.Input {
 		bid, err := backend.ParseUUID(blockID)
 		if err != nil {
 			level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
-			return
+			return false
 		}
 		blockIDs[i] = bid
 	}
 
+	// Check for duplicates in recent jobs cache
 	p.outstandingJobsMtx.Lock()
+	defer p.outstandingJobsMtx.Unlock()
+	for existingJobID, existingBlockIDs := range p.outstandingJobs {
+		for _, existingBlockID := range existingBlockIDs {
+			for _, newBlockID := range blockIDs {
+				if existingBlockID == newBlockID {
+					level.Debug(p.logger).Log("msg", "duplicate block detected, skipping job",
+						"new_job_id", job.ID, "existing_job_id", existingJobID,
+						"duplicate_block", newBlockID.String(), "tenant", job.Tenant())
+					return false // Duplicate block found
+				}
+			}
+		}
+	}
+
+	// Check for duplicates in persisted jobs for this tenant
+	for _, existingJob := range p.sched.ListJobs() {
+		if existingJob.Tenant() != job.Tenant() {
+			continue
+		}
+
+		if existingJob.GetType() != tempopb.JobType_JOB_TYPE_COMPACTION {
+			continue
+		}
+
+		existingBlocks := existingJob.GetCompactionInput()
+		for _, existingBlockID := range existingBlocks {
+			for _, newBlockID := range job.GetCompactionInput() {
+				if existingBlockID == newBlockID {
+					level.Debug(p.logger).Log("msg", "duplicate block detected in persisted jobs, skipping job",
+						"new_job_id", job.ID, "existing_job_id", existingJob.ID,
+						"duplicate_block", newBlockID, "tenant", job.Tenant())
+					return false // Duplicate block found
+				}
+			}
+		}
+	}
+
+	// No duplicates found, add to cache
 	p.outstandingJobs[job.ID] = blockIDs
-	p.outstandingJobsMtx.Unlock()
+	return true
 }
