@@ -89,7 +89,7 @@ func (q *Work) AddJobPreservingState(j *Job) error {
 }
 
 // FlushToLocal writes the work cache to local storage using atomic file operations
-func (q *Work) FlushToLocal(ctx context.Context, localPath string, affectedJobIDs []string) error {
+func (q *Work) FlushToLocal(_ context.Context, localPath string, affectedJobIDs []string) error {
 	// Legacy implementation ignores affectedJobIDs and always marshals everything
 	data, err := q.Marshal()
 	if err != nil {
@@ -106,7 +106,7 @@ func (q *Work) FlushToLocal(ctx context.Context, localPath string, affectedJobID
 }
 
 // LoadFromLocal reads the work cache from local storage using the legacy single-file approach
-func (q *Work) LoadFromLocal(ctx context.Context, localPath string) error {
+func (q *Work) LoadFromLocal(_ context.Context, localPath string) error {
 	workFile := filepath.Join(localPath, backend.WorkFileName)
 
 	data, err := os.ReadFile(workFile)
