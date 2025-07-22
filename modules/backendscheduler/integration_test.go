@@ -167,7 +167,7 @@ func testPersistenceAndRecovery(ctx context.Context, t *testing.T, originalSched
 		// Should have shard files
 		foundShardFiles := 0
 		for i := range work.ShardCount {
-			shardPath := workPath + "/" + fmt.Sprintf("shard_%03d.json", i)
+			shardPath := newScheduler.filenameForShard(uint8(i))
 			if _, err := os.Stat(shardPath); err == nil {
 				foundShardFiles++
 			}
@@ -272,7 +272,7 @@ func TestShardedMigration(t *testing.T) {
 	// Verify shard files were created
 	foundShardFiles := 0
 	for i := range 256 {
-		shardPath := tmpDir + "/work/" + fmt.Sprintf("shard_%03d.json", i)
+		shardPath := shardedScheduler.filenameForShard(uint8(i))
 		if _, err = os.Stat(shardPath); err == nil {
 			foundShardFiles++
 		}
@@ -446,7 +446,7 @@ func testSchedulerWithConfig(ctx context.Context, t *testing.T, cfg Config, stor
 		// Verify that shard files were created
 		foundShardFiles := 0
 		for i := range work.ShardCount {
-			shardPath := cfg.LocalWorkPath + "/" + fmt.Sprintf("shard_%03d.json", i)
+			shardPath := scheduler.filenameForShard(uint8(i))
 			if _, err = os.Stat(shardPath); err == nil {
 				foundShardFiles++
 			}
@@ -466,7 +466,7 @@ func testSchedulerWithConfig(ctx context.Context, t *testing.T, cfg Config, stor
 
 		// Verify that no shard files exist
 		for i := range work.ShardCount {
-			shardPath := cfg.LocalWorkPath + "/" + fmt.Sprintf("shard_%03d.json", i)
+			shardPath := scheduler.filenameForShard(uint8(i))
 			_, err = os.Stat(shardPath)
 			require.True(t, os.IsNotExist(err), "Should not have shard files when using original work implementation")
 		}

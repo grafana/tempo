@@ -37,16 +37,14 @@ func (s *BackendScheduler) flushShardedWorkCache(ctx context.Context, shardedWor
 	_, span := tracer.Start(ctx, "flushShardedWorkCache")
 	defer span.End()
 
-	workPath := s.cfg.LocalWorkPath
-
-	err := os.MkdirAll(workPath, 0o700)
+	err := os.MkdirAll(s.cfg.LocalWorkPath, 0o700)
 	if err != nil {
-		return fmt.Errorf("error creating directory %q: %w", workPath, err)
+		return fmt.Errorf("error creating directory %q: %w", s.cfg.LocalWorkPath, err)
 	}
 
 	if len(affectedJobIDs) == 0 {
 		// No specific jobs affected, do full flush
-		return s.flushAllShards(ctx, shardedWork, workPath)
+		return s.flushAllShards(ctx, shardedWork)
 	}
 
 	// Only flush affected shards
@@ -58,7 +56,7 @@ func (s *BackendScheduler) flushShardedWorkCache(ctx context.Context, shardedWor
 	// Write only the affected shard files
 	totalBytes := 0
 	for shardID, data := range shardData {
-		shardPath := filepath.Join(workPath, fmt.Sprintf("shard_%03d.json", shardID))
+		shardPath := s.filenameForShard(shardID)
 
 		span.AddEvent("writeFile.start")
 		err = os.WriteFile(shardPath, data, 0o600)
@@ -88,7 +86,7 @@ func (s *BackendScheduler) flushShardedWorkCache(ctx context.Context, shardedWor
 }
 
 // flushAllShards flushes all shards (used for startup/shutdown)
-func (s *BackendScheduler) flushAllShards(ctx context.Context, shardedWork work.ShardedWorkInterface, workPath string) error {
+func (s *BackendScheduler) flushAllShards(ctx context.Context, shardedWork work.ShardedWorkInterface) error {
 	_, span := tracer.Start(ctx, "flushAllShards")
 	defer span.End()
 
@@ -102,7 +100,7 @@ func (s *BackendScheduler) flushAllShards(ctx context.Context, shardedWork work.
 			return fmt.Errorf("failed to marshal shard %d: %w", shardID, err)
 		}
 
-		shardPath := filepath.Join(workPath, fmt.Sprintf("shard_%03d.json", shardID))
+		shardPath := s.filenameForShard(shardID)
 		err = os.WriteFile(shardPath, data, 0o600)
 		if err != nil {
 			return fmt.Errorf("error writing shard file %q: %w", shardPath, err)
@@ -314,13 +312,11 @@ func (s *BackendScheduler) loadShardedWorkCache(ctx context.Context, shardedWork
 	ctx, span := tracer.Start(ctx, "loadShardedWorkCache")
 	defer span.End()
 
-	workPath := s.cfg.LocalWorkPath
-
 	// Load shard files
 	shardsLoaded := 0
 	for i := range work.ShardCount {
 		shardID := uint8(i)
-		shardPath := filepath.Join(workPath, fmt.Sprintf("shard_%03d.json", shardID))
+		shardPath := s.filenameForShard(shardID)
 
 		data, err := os.ReadFile(shardPath)
 		if err != nil {
