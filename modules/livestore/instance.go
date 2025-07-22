@@ -72,13 +72,13 @@ func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger lo
 }
 
 func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
+	if len(req.Traces) >= len(req.Ids) {
+		level.Error(i.logger).Log("msg", "mismatched traces and ids length", "IDs", len(req.Ids), "traces", len(req.Traces))
+		return
+	}
+
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
-		if j >= len(req.Ids) {
-			level.Warn(i.logger).Log("msg", "mismatched traces and ids length")
-			break
-		}
-
 		traceID := req.Ids[j]
 
 		// Check tenant limits
