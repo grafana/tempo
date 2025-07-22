@@ -393,7 +393,7 @@ func (sw *ShardedWork) GetShardStats() map[string]any {
 }
 
 // FlushToLocal writes the work cache to local storage using sharding optimizations
-func (sw *ShardedWork) FlushToLocal(ctx context.Context, localPath string, affectedJobIDs []string) error {
+func (sw *ShardedWork) FlushToLocal(_ context.Context, localPath string, affectedJobIDs []string) error {
 	err := os.MkdirAll(localPath, 0o700)
 	if err != nil {
 		return err
@@ -409,7 +409,7 @@ func (sw *ShardedWork) FlushToLocal(ctx context.Context, localPath string, affec
 }
 
 // LoadFromLocal reads the work cache from local storage using sharding approach
-func (sw *ShardedWork) LoadFromLocal(ctx context.Context, localPath string) error {
+func (sw *ShardedWork) LoadFromLocal(_ context.Context, localPath string) error {
 	// Load from shard files - BackendScheduler already determined this is the right approach
 	for i := range ShardCount {
 		filename := fmt.Sprintf("shard_%03d.json", i)
