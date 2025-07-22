@@ -10,150 +10,7 @@ import (
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
-	"go.opentelemetry.io/otel/attribute"
 )
-
-// flushWorkCacheOptimized flushes the work cache using sharding optimizations if available
-func (s *BackendScheduler) flushWorkCacheOptimized(ctx context.Context, affectedJobIDs []string) error {
-	_, span := tracer.Start(ctx, "flushWorkCacheOptimized")
-	defer span.End()
-
-	span.AddEvent("lock.acquire.start")
-	s.mtx.Lock()
-	span.AddEvent("lock.acquired")
-	defer s.mtx.Unlock()
-
-	// Try to use sharded implementation if available
-	if shardedWork, ok := work.AsSharded(s.work); ok {
-		return s.flushShardedWorkCache(ctx, shardedWork, affectedJobIDs)
-	}
-
-	// Fallback to original full marshal
-	return s.flushWorkCacheFallback(ctx)
-}
-
-// flushShardedWorkCache uses sharding optimizations to flush only affected shards
-func (s *BackendScheduler) flushShardedWorkCache(ctx context.Context, shardedWork work.ShardedWorkInterface, affectedJobIDs []string) error {
-	_, span := tracer.Start(ctx, "flushShardedWorkCache")
-	defer span.End()
-
-	err := os.MkdirAll(s.cfg.LocalWorkPath, 0o700)
-	if err != nil {
-		return fmt.Errorf("error creating directory %q: %w", s.cfg.LocalWorkPath, err)
-	}
-
-	if len(affectedJobIDs) == 0 {
-		// No specific jobs affected, do full flush
-		return s.flushAllShards(ctx, shardedWork)
-	}
-
-	// Only flush affected shards
-	shardData, err := shardedWork.MarshalAffectedShards(affectedJobIDs)
-	if err != nil {
-		return fmt.Errorf("failed to marshal affected shards: %w", err)
-	}
-
-	// Write only the affected shard files
-	totalBytes := 0
-	for shardID, data := range shardData {
-		shardPath := s.filenameForShard(shardID)
-
-		span.AddEvent("writeFile.start")
-		err = os.WriteFile(shardPath, data, 0o600)
-		span.AddEvent("writeFile.complete")
-		if err != nil {
-			return fmt.Errorf("error writing shard file %q: %w", shardPath, err)
-		}
-		totalBytes += len(data)
-	}
-
-	span.SetAttributes(
-		attribute.Int("affected_shards", len(shardData)),
-		attribute.Int("total_bytes", totalBytes),
-		attribute.Int("affected_jobs", len(affectedJobIDs)),
-	)
-
-	metricWorkCacheFileSize.Observe(float64(totalBytes))
-
-	level.Debug(log.Logger).Log(
-		"msg", "flushed affected shards",
-		"affected_shards", len(shardData),
-		"affected_jobs", len(affectedJobIDs),
-		"total_bytes", totalBytes,
-	)
-
-	return nil
-}
-
-// flushAllShards flushes all shards (used for startup/shutdown)
-func (s *BackendScheduler) flushAllShards(ctx context.Context, shardedWork work.ShardedWorkInterface) error {
-	_, span := tracer.Start(ctx, "flushAllShards")
-	defer span.End()
-
-	totalBytes := 0
-
-	span.AddEvent("marshal.shards.start")
-	for i := range work.ShardCount {
-		shardID := uint8(i)
-		data, err := shardedWork.MarshalShard(shardID)
-		if err != nil {
-			return fmt.Errorf("failed to marshal shard %d: %w", shardID, err)
-		}
-
-		shardPath := s.filenameForShard(shardID)
-		err = os.WriteFile(shardPath, data, 0o600)
-		if err != nil {
-			return fmt.Errorf("error writing shard file %q: %w", shardPath, err)
-		}
-		totalBytes += len(data)
-	}
-	span.AddEvent("marshal.shards.complete")
-
-	span.SetAttributes(
-		attribute.Int("total_shards", work.ShardCount),
-		attribute.Int("total_bytes", totalBytes),
-	)
-
-	metricWorkCacheFileSize.Observe(float64(totalBytes))
-
-	return nil
-}
-
-// flushWorkCacheFallback uses the original marshal approach for non-sharded work
-func (s *BackendScheduler) flushWorkCacheFallback(ctx context.Context) error {
-	_, span := tracer.Start(ctx, "flushWorkCacheFallback")
-	defer span.End()
-
-	span.AddEvent("marshal.start")
-	b, err := s.work.Marshal()
-	span.AddEvent("marshal.complete")
-	if err != nil {
-		return fmt.Errorf("failed to marshal work cache: %w", err)
-	}
-
-	workPath := filepath.Join(s.cfg.LocalWorkPath, backend.WorkFileName)
-
-	err = os.MkdirAll(s.cfg.LocalWorkPath, 0o700)
-	if err != nil {
-		return fmt.Errorf("error creating directory %q: %w", s.cfg.LocalWorkPath, err)
-	}
-
-	span.AddEvent("writeFile.start")
-	err = os.WriteFile(workPath, b, 0o600)
-	span.AddEvent("writeFile.complete")
-	if err != nil {
-		return fmt.Errorf("error writing %q: %w", workPath, err)
-	}
-
-	span.SetAttributes(
-		attribute.Int("work_cache.file_size_bytes", len(b)),
-		attribute.String("work_cache.file_path", workPath),
-	)
-
-	metricWorkCacheFileSize.Observe(float64(len(b)))
-
-	return nil
-}
 
 // loadWorkCache loads the work cache using the configured implementation
 func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
@@ -333,7 +190,7 @@ func (s *BackendScheduler) migrateWorkCacheLegacyToSharded(ctx context.Context, 
 	s.work = newWork
 
 	// Save in new sharded format
-	err = s.flushWorkCacheOptimized(ctx, nil)
+	err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil)
 	if err != nil {
 		return fmt.Errorf("failed to save migrated sharded work: %w", err)
 	}

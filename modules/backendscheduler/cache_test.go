@@ -40,7 +40,7 @@ func TestCache(t *testing.T) {
 
 	// No file should exist yet
 	err = s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
-	require.NoError(t, err) // Empty state is OK for interface method
+	require.NoError(t, err)
 
 	// Flush the empty work cache
 	err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil)
