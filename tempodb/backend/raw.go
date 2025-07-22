@@ -28,14 +28,15 @@ const (
 	ClusterSeedFileName = "tempo_cluster_seed.json"
 
 	// File name for the work cache
-	WorkFileName = "work.json"
+	WorkFileName        = "work.json"
+	ShardedWorkFileName = "work_sharded.json"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written
 // from the backend
 type KeyPath []string
 
-// FundFunc is executed for each object in the backend.  The provided FindMatch
+// FindFunc is executed for each object in the backend.  The provided FindMatch
 // are used to determine how to handle the object.  Any collection of these
 // objects is the callers responsibility.
 type FindFunc func(FindMatch)

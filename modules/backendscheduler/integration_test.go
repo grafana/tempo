@@ -88,7 +88,7 @@ func testJobOperations(ctx context.Context, t *testing.T, scheduler *BackendSche
 
 	// Test job retrieval
 	allJobs := scheduler.ListJobs()
-	require.Len(t, allJobs, jobCount)
+	require.Len(t, allJobs, jobCount, "Should have added jobs to the scheduler")
 
 	// Mark all jobs completed
 	for _, jobID := range jobIDs {
@@ -186,7 +186,7 @@ func testPersistenceAndRecovery(ctx context.Context, t *testing.T, originalSched
 func TestShardedMigration(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Step 1: Create scheduler with original work implementation
+	// Create scheduler with original work implementation
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.Work.Sharded = false // Start with original
@@ -240,7 +240,7 @@ func TestShardedMigration(t *testing.T) {
 	err = originalScheduler.stopping(nil)
 	require.NoError(t, err)
 
-	// Step 2: Create new scheduler with sharding enabled
+	// Create new scheduler with sharding enabled
 	cfg.Work.Sharded = true // Enable sharding
 
 	shardedScheduler, err := New(cfg, store, limits, rr, ww)
@@ -279,12 +279,216 @@ func TestShardedMigration(t *testing.T) {
 	}
 	require.Greater(t, foundShardFiles, 0, "Should have created shard files")
 
-	// Verify backup file was created
-	backupPath := tmpDir + "/work/work.json.backup"
-	_, err = os.Stat(backupPath)
-	require.NoError(t, err, "Should have created backup of original work.json")
-
 	t.Logf("Successfully migrated to %d shard files", foundShardFiles)
+}
+
+// TestRollback tests that we can move between sharded and non-sharded work
+// implementations while maintaining job state.
+func TestMigrations(t *testing.T) {
+	cases := []struct {
+		name           string
+		withNewTempDir bool // A new temp dir is created for the second shceduler to force loading from the backend
+		shardedFirst   bool // The first scheduler created is sharded
+		shardedSecond  bool // The second scheduler created is sharded
+		// runThird       bool // If true, a third scheduler is created to verify rollback
+		// shardedThird   bool
+	}{
+		{
+			name:           "sharded/original: local rollback",
+			withNewTempDir: false,
+			shardedFirst:   true,
+			shardedSecond:  false,
+		},
+		// { // TODO: remove me.  This test was ensuring that if we started unsharded, we would load from the backend, but I think that if we don't have local state, we should not expect to load it from the backend, since a migration should clean this up.
+		//
+		// 	name:           "started sharded with new local dir, rollback from backend",
+		// 	withNewTempDir: true, // Use a fresh temp dir to force load from backend
+		// 	shardedFirst:   true,
+		// 	shardedSecond:  false,
+		// },
+		// {
+		// 	name:           "started sharded with new local dir, rollback from backend, run third",
+		// 	withNewTempDir: true, // Use a fresh temp dir to force load from backend
+		// 	shardedFirst:   true,
+		// 	shardedSecond:  false,
+		// 	runThird:       true,  // Run a third scheduler to verify rollback
+		// 	shardedThird:   false, // The third scheduler should be sharded
+		// },
+
+		{
+			name:           "start original, rollback from local",
+			withNewTempDir: false,
+			shardedFirst:   false,
+			shardedSecond:  true,
+		},
+		// Removed: start_sharded_with_new_local_dir,_rollback_from_backend
+		// This scenario doesn't make sense in practice - you wouldn't have
+		// legacy format in backend but expect sharded format to load from it
+		{
+			name:           "sharded/sharded: local rollback",
+			withNewTempDir: false,
+			shardedFirst:   true,
+			shardedSecond:  true,
+		},
+		{
+			name:           "sharded/sharded: backend rollback",
+			withNewTempDir: true,
+			shardedFirst:   true,
+			shardedSecond:  true,
+		},
+		{
+			name:           "original/original: local rollback",
+			withNewTempDir: false,
+			shardedFirst:   false,
+			shardedSecond:  false,
+		},
+		{
+			name:           "original/original: backend rollback",
+			withNewTempDir: true,
+			shardedFirst:   false,
+			shardedSecond:  false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			storeDir := t.TempDir()
+
+			t.Logf("Using store directory: %s", storeDir)
+
+			// Common setup for both schedulers
+			var (
+				ctx, cancel   = context.WithCancel(context.Background())
+				store, rr, ww = newStore(ctx, t, storeDir)
+			)
+
+			defer func() {
+				cancel()
+				store.Shutdown()
+			}()
+
+			limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+			require.NoError(t, err)
+
+			// Create the first scheduler
+			firstConfig := Config{}
+			firstConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+			firstConfig.Work.Sharded = tc.shardedFirst
+			firstConfig.LocalWorkPath = t.TempDir()
+
+			firstJobs := testSchedulerWithConfig(ctx, t, firstConfig, store, limits, rr, ww, true)
+			require.NotEmpty(t, firstJobs, "Should have jobs to test rollback")
+			t.Logf("First scheduler created with %d jobs", len(firstJobs))
+
+			secondConfig := Config{}
+			secondConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+			secondConfig.Work.Sharded = tc.shardedSecond
+			secondConfig.LocalWorkPath = firstConfig.LocalWorkPath
+			if tc.withNewTempDir {
+				// Use a fresh local directory to simulate loading from backend
+				secondConfig.LocalWorkPath = t.TempDir()
+			}
+
+			secondJobs := testSchedulerWithConfig(ctx, t, secondConfig, store, limits, rr, ww, false)
+			// time.Sleep(100 * time.Second)
+			require.NotEmpty(t, secondJobs, "Should have jobs to test rollback")
+
+			testJobsEqual(t, firstJobs, secondJobs)
+
+			// if tc.runThird {
+			// 	// Create a third scheduler to verify rollback
+			// 	thirdConfig := Config{}
+			// 	thirdConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+			// 	thirdConfig.Work.Sharded = tc.shardedThird
+			// 	thirdConfig.LocalWorkPath = secondConfig.LocalWorkPath // Use the same path as the second scheduler
+			//
+			// 	thirdJobs := testSchedulerWithConfig(ctx, t, thirdConfig, store, limits, rr, ww, false)
+			// 	require.NotEmpty(t, thirdJobs, "Should have jobs after rollback")
+			//
+			// 	testJobsEqual(t, firstJobs, thirdJobs)
+			// }
+		})
+	}
+}
+
+func testSchedulerWithConfig(ctx context.Context, t *testing.T, cfg Config, store storage.Store, limits overrides.Interface, rr backend.RawReader, ww backend.RawWriter, pushJobs bool) []*work.Job {
+	scheduler, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	// This will reload the existing work
+	err = scheduler.starting(ctx)
+	require.NoError(t, err)
+
+	defer func() {
+		err = scheduler.stopping(nil)
+		require.NoError(t, err)
+	}()
+
+	// Verify sharding implemetation matches the desired configuration
+	require.Equal(t, cfg.Work.Sharded, work.IsSharded(scheduler.work))
+
+	// Flush the work cache locally to create work.json file (simulate normal operation)
+	err = scheduler.flushWorkCacheOptimized(ctx, nil)
+	require.NoError(t, err)
+
+	err = scheduler.flushWorkCacheToBackend(ctx)
+	require.NoError(t, err)
+
+	// We should only push jobs if the flag is set, which should only be true on
+	// the first scheduler.  The rest will validate we can reload this work set.
+	if pushJobs {
+		t.Logf("Pushing jobs to scheduler")
+		testJobOperations(ctx, t, scheduler, cfg.Work.Sharded)
+		t.Logf("Pushed %d jobs to scheduler", len(scheduler.work.ListJobs()))
+	}
+
+	if cfg.Work.Sharded {
+		// Verify that shard files were created
+		foundShardFiles := 0
+		for i := range work.ShardCount {
+			shardPath := cfg.LocalWorkPath + "/" + fmt.Sprintf("shard_%03d.json", i)
+			if _, err = os.Stat(shardPath); err == nil {
+				foundShardFiles++
+			}
+		}
+		require.Greater(t, foundShardFiles, 0, "Should have at least some shard files")
+		t.Logf("Found %d shard files", foundShardFiles)
+
+		// Verify that no legacy work.json file exists
+		legacyWorkFile := cfg.LocalWorkPath + "/work.json"
+		_, err = os.Stat(legacyWorkFile)
+		require.True(t, os.IsNotExist(err), "Should not have legacy work.json file when using sharded work")
+	} else {
+		// Verify that a legacy work.json file was created during rollback
+		legacyWorkFile := cfg.LocalWorkPath + "/work.json"
+		_, err = os.Stat(legacyWorkFile)
+		require.NoError(t, err, "Should have created legacy work.json file during rollback")
+
+		// Verify that no shard files exist
+		for i := range work.ShardCount {
+			shardPath := cfg.LocalWorkPath + "/" + fmt.Sprintf("shard_%03d.json", i)
+			_, err = os.Stat(shardPath)
+			require.True(t, os.IsNotExist(err), "Should not have shard files when using original work implementation")
+		}
+	}
+
+	return scheduler.ListJobs()
+}
+
+func testJobsEqual(t *testing.T, a, b []*work.Job) {
+	require.Len(t, a, len(b), "Job lists should have same length")
+
+	jobMap := make(map[string]*work.Job)
+	for _, job := range a {
+		jobMap[job.ID] = job
+	}
+
+	for _, job := range b {
+		originalJob, exists := jobMap[job.ID]
+		require.True(t, exists, "Job should exist in original jobs")
+		require.Equal(t, originalJob.Tenant(), job.Tenant(), "Job tenant should match")
+		require.Equal(t, originalJob.Type, job.Type, "Job type should match")
+	}
 }
 
 // TestPerformanceComparison compares performance between implementations

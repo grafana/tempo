@@ -339,7 +339,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	}, nil
 }
 
-func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) {
+func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "replayWorkOnBlocklist")
 	defer span.End()
 
@@ -374,9 +374,11 @@ func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) {
 	for tenant, jobs := range perTenantJobs {
 		err = s.loadBlocklistJobsForTenant(ctx, tenant, jobs)
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "failed to load blocklist jobs for tenant", "tenant", tenant, "error", err)
+			return fmt.Errorf("failed to load blocklist jobs for tenant %s: %w", tenant, err)
 		}
 	}
+
+	return nil
 }
 
 func (s *BackendScheduler) loadBlocklistJobsForTenant(ctx context.Context, tenant string, jobs []*work.Job) error {
