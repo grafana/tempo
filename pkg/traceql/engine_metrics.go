@@ -852,7 +852,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
-	metricsPipeline.init(req, mode, 0)
+	metricsPipeline.init(req, mode)
 	mfe := &MetricsFrontendEvaluator{
 		metricsPipeline: metricsPipeline,
 	}
@@ -898,13 +898,18 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplars = v
 	}
 
-	samplePercent, samplePercentOk := expr.Hints.GetFloat(HintSample, allowUnsafeQueryHints)
-	if samplePercentOk {
-		storageReq.Sample = samplePercent
+	traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints)
+	if traceSampleOk {
+		storageReq.TraceSample = traceSample
+	}
+
+	spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints)
+	if spanSampleOk {
+		storageReq.SpanSample = spanSample
 	}
 
 	// This initializes all step buffers, counters, etc
-	metricsPipeline.init(req, AggregateModeRaw, samplePercent)
+	metricsPipeline.init(req, AggregateModeRaw)
 
 	me := &MetricsEvaluator{
 		storageReq:        storageReq,
@@ -1064,7 +1069,8 @@ type MetricsEvaluator struct {
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
 
-	sampled, skipped uint64
+	traceSampled, traceSkipped uint64
+	spanSampled, spanSkipped   uint64
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -1078,16 +1084,28 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 	return float64(end-st) / float64(dataEnd-dataStart)
 }
 
-func (e *MetricsEvaluator) Sampled(n uint64) {
+func (e *MetricsEvaluator) TraceSampled(n uint64) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	e.sampled += n
+	e.traceSampled += n
 }
 
-func (e *MetricsEvaluator) Skipped(n uint64) {
+func (e *MetricsEvaluator) TraceSkipped(n uint64) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	e.skipped += n
+	e.traceSkipped += n
+}
+
+func (e *MetricsEvaluator) SpanSampled(n uint64) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.spanSampled += n
+}
+
+func (e *MetricsEvaluator) SpanSkipped(n uint64) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.spanSkipped += n
 }
 
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
@@ -1097,8 +1115,10 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
-	storageReq.Sampled = e.Sampled
-	storageReq.Skipped = e.Skipped
+	storageReq.TraceSampled = e.TraceSampled
+	storageReq.TraceSkipped = e.TraceSkipped
+	storageReq.SpanSampled = e.SpanSampled
+	storageReq.SpanSkipped = e.SpanSkipped
 
 	if fetcherStart > 0 && fetcherEnd > 0 &&
 		// exclude special case for a block with the same start and end
@@ -1206,21 +1226,36 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 	return e.bytes, e.spansTotal, e.spansDeduped
 }
 
-func (e *MetricsEvaluator) SampledMetrics() (uint64, uint64) {
+func (e *MetricsEvaluator) SampledMetrics() (uint64, uint64, uint64, uint64) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	return e.sampled, e.skipped
+	return e.traceSampled, e.traceSkipped, e.spanSampled, e.spanSkipped
 }
 
 func (e *MetricsEvaluator) Results() SeriesSet {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	spanMultiplier := 1.0
+	if e.spanSampled > 0 && e.spanSkipped > 0 {
+		spanMultiplier = float64(e.spanSampled+e.spanSkipped) / float64(e.spanSampled)
+	}
+
+	traceMultiplier := 1.0
+	if e.traceSampled > 0 && e.traceSkipped > 0 {
+		traceMultiplier = float64(e.traceSampled+e.traceSkipped) / float64(e.traceSampled)
+	}
+
+	multiplier := spanMultiplier * traceMultiplier
+
 	// NOTE: skip processing of second stage because not all first stage functions can't be pushed down.
 	// for example: if query has avg_over_time(), then we can't push it down to second stage, and second stage
 	// can only be processed on the frontend.
 	// we could do this but it would require knowing if the first stage functions
 	// can be pushed down to second stage or not so we are skipping it for now, and will handle it later.
-	ss := e.metricsPipeline.result()
+	ss := e.metricsPipeline.result(multiplier)
 
-	fmt.Println("sampled", e.sampled, "skipped", e.skipped, "actual sample percent:", float64(e.sampled)/(float64(e.sampled)+float64(e.skipped)))
+	fmt.Println("trace sampled", e.traceSampled, "trace skipped", e.traceSkipped, "span sampled", e.spanSampled, "span skipped", e.spanSkipped, "multiplier", multiplier)
 
 	/*if e.multiplier != 1.0 {
 		for _, s := range ss {
@@ -1271,7 +1306,8 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	results := m.metricsPipeline.result()
+	// Job results are not scaled by sampling, but this is here for the interface.
+	results := m.metricsPipeline.result(1.0)
 
 	if m.metricsSecondStage != nil {
 		// metrics second stage is only set when query has second stage function and mode = final

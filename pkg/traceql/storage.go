@@ -94,10 +94,18 @@ type FetchSpansRequest struct {
 	// all criteria.
 	AllConditions bool
 
-	// Sample is the sampling rate to apply to the query.
-	Sample  float64
-	Sampled func(uint64)
-	Skipped func(uint64)
+	// Sampling
+	// There are two methods of sampling: trace-level samples a subset of traces,
+	// either skipping them or returning them in full.  Span-level samples a
+	// subset of spans within each trace, still returning a spanset for each
+	// matching trace. Only one will be applied at a time.
+	TraceSample  float64      // Sampling rate to apply at a trace or spanset-level
+	TraceSampled func(uint64) // Callback for when something is sampled
+	TraceSkipped func(uint64) // Callback for when something is skipped
+
+	SpanSample  float64      // Sampling rate to apply at the span level.
+	SpanSampled func(uint64) // Callback for when something is sampled
+	SpanSkipped func(uint64) // Callback for when something is skipped
 
 	// SecondPassFn and Conditions allow a caller to retrieve one set of data
 	// in the first pass, filter using the SecondPassFn callback and then
