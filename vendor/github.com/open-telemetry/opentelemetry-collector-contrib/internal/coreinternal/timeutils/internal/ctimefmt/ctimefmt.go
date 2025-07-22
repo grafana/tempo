@@ -45,7 +45,7 @@ var ctimeSubstitutes = map[string]string{
 	"%S": "05",
 	"%L": "999",
 	"%f": "999999",
-	"%s": "99999999",
+	"%s": "999999999",
 	"%Z": "MST",
 	"%z": "Z0700",
 	"%w": "-070000",
@@ -89,7 +89,7 @@ var ctimeSubstitutes = map[string]string{
 //	%S - Second as a zero-padded decimal number (00, 01, ..., 59)
 //	%L - Millisecond as a decimal number, zero-padded on the left (000, 001, ..., 999)
 //	%f - Microsecond as a decimal number, zero-padded on the left (000000, ..., 999999)
-//	%s - Nanosecond as a decimal number, zero-padded on the left (00000000, ..., 99999999)
+//	%s - Nanosecond as a decimal number, zero-padded on the left (000000000, ..., 999999999)
 //	%z - UTC offset in the form ±HHMM[SS[.ffffff]] or empty(+0000, -0400)
 //	%Z - Timezone name or abbreviation or empty (UTC, EST, CST)
 //	%D, %x - Short MM/DD/YYYY date, equivalent to %m/%d/%y

@@ -75,8 +75,42 @@ type pc struct {
 	// Not safe for concurrent use, this field is never accessed concurrently.
 	backOff *backoff.ExponentialBackOff
 
+	mu sync.RWMutex // protects the fields below
+	// wg tracks the number of in-flight message processing goroutines for this
+	// partition. The wg must not be used directly; instead, the helper methods
+	// add() and done() should be called to safely mutate it. These methods ensure
+	// that no new goroutines are added once the partition consumer is stopping
+	// (i.e. after the partition is lost / revoked).
 	wg sync.WaitGroup
 }
+
+// add increments the wait group counter if the partition consumer is not
+// stopping. It returns true if the counter was incremented, false otherwise.
+func (p *pc) add(delta int) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	select {
+	case <-p.ctx.Done():
+		return false
+	default:
+	}
+	p.wg.Add(delta)
+	return true
+}
+
+// cancelContext cancels the partition consumer context while holding the write
+// lock.
+func (p *pc) cancelContext(err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.cancel(err)
+}
+
+// done decrements the wait group counter.
+func (p *pc) done() { p.wg.Done() }
+
+// wait waits for all in-flight goroutines to finish.
+func (p *pc) wait() { p.wg.Wait() }
 
 // newFranzKafkaConsumer creates a new franz-go based Kafka consumer
 func newFranzKafkaConsumer(
@@ -224,8 +258,13 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 			)
 			return
 		}
+		// Try to add a new in-flight message processing goroutine to the
+		// partition consumer. Return immediately if the partition has been
+		// lost or reassigned.
+		if !assign.add(1) {
+			return
+		}
 		wg.Add(1)
-		assign.wg.Add(1)
 		assign.logger.Debug("processing fetched records",
 			zap.Int("count", count),
 			zap.Int64("start_offset", p.Records[0].Offset),
@@ -233,7 +272,7 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 		)
 		go func(pc *pc, msgs []*kgo.Record) {
 			defer wg.Done()
-			defer pc.wg.Done()
+			defer pc.done()
 			fatalOffset := int64(-1)
 			var lastProcessed *kgo.Record
 			for _, msg := range msgs {
@@ -387,13 +426,16 @@ func (c *franzConsumer) lost(ctx context.Context, _ *kgo.Client,
 			// balancer on topic lost/deleted.
 			if pc, ok := c.assignments[tp]; ok {
 				delete(c.assignments, tp)
-				pc.cancel(errors.New(
+				// Cancel also locks the partition consumer. This ensures that
+				// the partition consumer stops processing messages when the
+				// partition is lost or reassigned.
+				pc.cancelContext(errors.New(
 					"stopping processing: partition reassigned or lost",
 				))
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					pc.wg.Wait()
+					pc.wait()
 				}()
 				c.telemetryBuilder.KafkaReceiverPartitionClose.Add(context.Background(), 1)
 			}

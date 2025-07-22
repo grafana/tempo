@@ -34,7 +34,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.94
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.129.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.130.0
 	github.com/opentracing-contrib/go-grpc v0.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.22
@@ -88,13 +88,13 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/mark3labs/mcp-go v0.34.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.129.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.129.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.129.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.129.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.129.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.129.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.129.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.130.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.130.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.130.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.130.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.130.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.130.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.130.0
 	github.com/parquet-go/parquet-go v0.25.1
 	github.com/twmb/franz-go v1.18.1
 	github.com/twmb/franz-go/pkg/kadm v1.16.0
@@ -264,17 +264,17 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/oklog/ulid/v2 v2.1.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.129.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.130.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.124.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.129.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.129.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.129.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.129.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.129.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.129.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.129.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.129.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.129.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.130.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.130.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.130.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.130.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.130.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.130.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.130.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.130.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.130.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.124.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
@@ -363,7 +363,7 @@ require (
 	go.opentelemetry.io/collector/pdata/xpdata v0.130.0 // indirect
 	go.opentelemetry.io/collector/pipeline v0.130.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.130.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper v0.129.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper v0.130.0 // indirect
 	go.opentelemetry.io/collector/processor/processortest v0.130.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.130.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.130.0 // indirect
