@@ -8,6 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"os"
+	"path/filepath"
+
 	"github.com/grafana/tempo/pkg/tempopb"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -388,4 +391,87 @@ func (sw *ShardedWork) GetShardStats() map[string]any {
 	}
 
 	return stats
+}
+
+// FlushToLocal writes the work cache to local storage using sharding optimizations
+func (sw *ShardedWork) FlushToLocal(ctx context.Context, localPath string, affectedJobIDs []string) error {
+	err := os.MkdirAll(localPath, 0o700)
+	if err != nil {
+		return err
+	}
+
+	if len(affectedJobIDs) == 0 {
+		// Flush all shards
+		return sw.flushAllShards(localPath)
+	}
+
+	// Flush only affected shards
+	return sw.flushAffectedShards(localPath, affectedJobIDs)
+}
+
+// LoadFromLocal reads the work cache from local storage using sharding approach
+func (sw *ShardedWork) LoadFromLocal(ctx context.Context, localPath string) error {
+	// Load from shard files - BackendScheduler already determined this is the right approach
+	for i := range ShardCount {
+		filename := fmt.Sprintf("shard_%03d.json", i)
+		shardPath := filepath.Join(localPath, filename)
+
+		data, err := os.ReadFile(shardPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue // Empty shard is OK
+			}
+			return err
+		}
+
+		err = sw.UnmarshalShard(uint8(i), data)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// flushAllShards writes all shards to individual files using atomic operations
+func (sw *ShardedWork) flushAllShards(localPath string) error {
+	for i := range ShardCount {
+		shardData, err := sw.MarshalShard(uint8(i))
+		if err != nil {
+			return err
+		}
+
+		filename := fmt.Sprintf("shard_%03d.json", i)
+		shardPath := filepath.Join(localPath, filename)
+
+		err = atomicWriteFile(shardData, shardPath, filename)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// flushAffectedShards writes only the shards that contain the affected jobs using atomic operations
+func (sw *ShardedWork) flushAffectedShards(localPath string, affectedJobIDs []string) error {
+	affectedShards := make(map[uint8]bool)
+	for _, jobID := range affectedJobIDs {
+		shardID := sw.GetShardID(jobID)
+		affectedShards[shardID] = true
+	}
+
+	for shardID := range affectedShards {
+		shardData, err := sw.MarshalShard(shardID)
+		if err != nil {
+			return err
+		}
+
+		filename := fmt.Sprintf("shard_%03d.json", shardID)
+		shardPath := filepath.Join(localPath, filename)
+
+		err = atomicWriteFile(shardData, shardPath, filename)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

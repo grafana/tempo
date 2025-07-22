@@ -30,6 +30,10 @@ type Interface interface {
 
 	// Migration helper - preserves existing job state including status
 	AddJobPreservingState(j *Job) error
+
+	// Local file operations
+	FlushToLocal(ctx context.Context, localPath string, affectedJobIDs []string) error
+	LoadFromLocal(ctx context.Context, localPath string) error
 }
 
 // ShardedWorkInterface extends WorkInterface with sharding-specific methods

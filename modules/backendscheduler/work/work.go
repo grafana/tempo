@@ -2,11 +2,14 @@ package work
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/backend"
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel"
 )
@@ -65,21 +68,57 @@ func (q *Work) AddJob(j *Job) error {
 // AddJobPreservingState adds a job while preserving its existing state
 // This is used for migration to preserve job status, timing, etc.
 func (q *Work) AddJobPreservingState(j *Job) error {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-
 	if j == nil {
 		return ErrJobNil
+	}
+
+	if j.ID == "" {
+		return ErrJobNoID
 	}
 
 	if _, ok := q.Jobs[j.ID]; ok {
 		return ErrJobAlreadyExists
 	}
 
-	// Preserve all existing state - don't modify the job
-	q.Jobs[j.ID] = j
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
+	// Add job preserving all its current state (status, timing, etc.)
+	q.Jobs[j.ID] = j
 	return nil
+}
+
+// FlushToLocal writes the work cache to local storage using atomic file operations
+func (q *Work) FlushToLocal(ctx context.Context, localPath string, affectedJobIDs []string) error {
+	// Legacy implementation ignores affectedJobIDs and always marshals everything
+	data, err := q.Marshal()
+	if err != nil {
+		return err
+	}
+
+	err = os.MkdirAll(localPath, 0o700)
+	if err != nil {
+		return err
+	}
+
+	workFile := filepath.Join(localPath, backend.WorkFileName)
+	return atomicWriteFile(data, workFile, backend.WorkFileName)
+}
+
+// LoadFromLocal reads the work cache from local storage using the legacy single-file approach
+func (q *Work) LoadFromLocal(ctx context.Context, localPath string) error {
+	workFile := filepath.Join(localPath, backend.WorkFileName)
+
+	data, err := os.ReadFile(workFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No existing work file is ok - start with empty state
+			return nil
+		}
+		return err
+	}
+
+	return q.Unmarshal(data)
 }
 
 func (q *Work) StartJob(id string) {

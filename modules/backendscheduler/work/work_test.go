@@ -2,6 +2,10 @@ package work
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -226,4 +230,138 @@ func TestJsonMarshal(t *testing.T) {
 	require.Equal(t, w.Len(), w2.Len())
 	require.Equal(t, w.GetJob("1").ID, w2.GetJob("1").ID)
 	require.Equal(t, w.GetJob("1").GetCompactionInput(), w2.GetJob("1").GetCompactionInput())
+}
+
+// TestConcurrentFlushToLocal verifies that concurrent FlushToLocal calls don't corrupt files
+func TestConcurrentFlushToLocal(t *testing.T) {
+	tmpDir := t.TempDir()
+	ctx := context.Background()
+
+	// Create work instances with different data
+	works := make([]*Work, 5)
+	for i := range works {
+		works[i] = New(Config{})
+		// Add a unique job to each work instance
+		job := &Job{
+			ID:   fmt.Sprintf("job-%d", i),
+			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		}
+		err := works[i].AddJob(job)
+		require.NoError(t, err)
+	}
+
+	// Launch concurrent FlushToLocal operations
+	var wg sync.WaitGroup
+	numGoroutines := 10
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(workIndex int) {
+			defer wg.Done()
+			work := works[workIndex%len(works)]
+
+			// Multiple flushes from each goroutine
+			for j := 0; j < 3; j++ {
+				err := work.FlushToLocal(ctx, tmpDir, nil)
+				require.NoError(t, err)
+				time.Sleep(1 * time.Millisecond) // Small delay to increase chance of race
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify the final file is valid and not corrupted
+	finalWork := New(Config{})
+	err := finalWork.LoadFromLocal(ctx, tmpDir)
+	require.NoError(t, err)
+
+	// The file should contain valid data from one of the work instances
+	require.Equal(t, 1, finalWork.Len(), "Final work should contain exactly one job")
+
+	// Verify the job is from one of our original work instances
+	jobs := finalWork.ListJobs()
+	require.Len(t, jobs, 1)
+
+	jobID := jobs[0].ID
+	found := false
+	for i := range works {
+		if jobID == fmt.Sprintf("job-%d", i) {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "Final job should be from one of the original work instances")
+
+	// Ensure no temporary files are left behind
+	files, err := filepath.Glob(filepath.Join(tmpDir, "*.tmp"))
+	require.NoError(t, err)
+	require.Empty(t, files, "No temporary files should remain")
+}
+
+// TestAtomicWriteFileConcurrency verifies that atomicWriteFile itself handles concurrent access safely
+func TestAtomicWriteFileConcurrency(t *testing.T) {
+	tmpDir := t.TempDir()
+	targetFile := filepath.Join(tmpDir, "test.json")
+
+	// Different data to write from each goroutine
+	testData := [][]byte{
+		[]byte(`{"test": "data1"}`),
+		[]byte(`{"test": "data2"}`),
+		[]byte(`{"test": "data3"}`),
+		[]byte(`{"test": "data4"}`),
+		[]byte(`{"test": "data5"}`),
+	}
+
+	// Launch concurrent atomicWriteFile operations
+	var wg sync.WaitGroup
+	numGoroutines := 20
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(dataIndex int) {
+			defer wg.Done()
+			data := testData[dataIndex%len(testData)]
+
+			// Multiple writes from each goroutine to the same target file
+			for j := 0; j < 3; j++ {
+				err := atomicWriteFile(data, targetFile, "test.json")
+				require.NoError(t, err)
+				time.Sleep(1 * time.Millisecond) // Small delay to increase chance of race
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify the final file exists and contains valid JSON
+	finalData, err := os.ReadFile(targetFile)
+	require.NoError(t, err)
+	require.NotEmpty(t, finalData, "Final file should not be empty")
+
+	// The file should contain valid JSON from one of our test data sets
+	var result map[string]interface{}
+	err = jsoniter.Unmarshal(finalData, &result)
+	require.NoError(t, err, "Final file should contain valid JSON")
+
+	// Verify the content is from one of our original data sets
+	testValue, exists := result["test"]
+	require.True(t, exists, "JSON should have 'test' field")
+
+	found := false
+	for _, data := range testData {
+		var expected map[string]interface{}
+		err = jsoniter.Unmarshal(data, &expected)
+		require.NoError(t, err)
+		if expected["test"] == testValue {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "Final content should match one of the original data sets")
+
+	// Ensure no temporary files are left behind
+	files, err := filepath.Glob(filepath.Join(tmpDir, "*.tmp*"))
+	require.NoError(t, err)
+	require.Empty(t, files, "No temporary files should remain after atomicWriteFile")
 }
