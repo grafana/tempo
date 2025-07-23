@@ -180,7 +180,7 @@ func TestBackendScheduler(t *testing.T) {
 
 	// Delay starting the work to ensure we have a clean state of the data before
 	// the worker starts processing jobs.
-	worker := util.NewTempoTarget("backend-worker", "config.yaml")
+	worker := util.NewTempoTarget("backend-worker", configFile)
 	require.NoError(t, s.StartAndWaitReady(worker))
 
 	// Allow the worker some time to process the blocks.
