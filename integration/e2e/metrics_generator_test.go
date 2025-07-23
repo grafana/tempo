@@ -414,6 +414,8 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 	require.NotNil(t, c)
 
 	// Send a pair of spans with a messaging system relationship (producer -> consumer)
+	// ignore the gosec linter because we are using a random number generator to create trace IDs
+	// and span IDs, which is not a security risk in this context.
 	// #nosec G404
 	r := rand.New(rand.NewSource(time.Now().UnixMilli()))
 	traceIDLow := r.Int63()
