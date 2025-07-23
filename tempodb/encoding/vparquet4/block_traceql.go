@@ -2369,11 +2369,6 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	iters := make([]parquetquery.Iterator, 0, 3)
 	metaIters := make([]parquetquery.Iterator, 0)
 
-	var sampler parquetquery.Predicate
-	if sample > 0 && sample < 1 {
-		sampler = newSamplingPredicate(sample, sampled, skipped)
-	}
-
 	if selectAll {
 		for intrins, entry := range intrinsicColumnLookups {
 			if entry.scope != intrinsicScopeTrace {
@@ -2459,12 +2454,23 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		required = append(required, makeIter(columnPathEndTimeUnixNano, endFilter, columnPathEndTimeUnixNano))
 	}
 
-	if sampler != nil {
+	if sample != 0 {
 		// This is generally the smallest trace-level column.
 		// Doens't return data since this might already be included above.
 		// Make it first.
-		i := makeIter(columnPathRootServiceName, sampler, "")
-		required = append([]parquetquery.Iterator{i}, required...)
+		if sample > 1 {
+			sample -= 1.0
+			sampler := newSamplingPredicate(sample, sampled, skipped)
+			i := makeIter(columnPathRootServiceName, sampler, "")
+			required = append([]parquetquery.Iterator{i}, required...)
+		} else {
+			if sample > 0 && sample < 1 {
+				sampler := newTraceSamplingPredicate(sample, sampled, skipped)
+				i := makeIter("ServiceStats.key_value.value.SpanCount", nil, "spancount")
+				ii := parquetquery.NewJoinIterator(DefinitionLevelTrace, []parquetquery.Iterator{i}, sampler)
+				required = append([]parquetquery.Iterator{ii}, required...)
+			}
+		}
 	}
 
 	// Append meta iterators if there are any (exemplars)
@@ -3649,6 +3655,52 @@ func (p *samplingPredicate) KeepValue(value parquet.Value) bool {
 
 	if p.skipped != nil {
 		p.skipped(1)
+	}
+	return false
+}
+
+type traceSamplingPredicate struct {
+	curr int
+	lim  int
+
+	sampled func(uint64)
+	skipped func(uint64)
+}
+
+var _ parquetquery.GroupPredicate = (*traceSamplingPredicate)(nil)
+
+func newTraceSamplingPredicate(sample float64, sampled func(uint64), skipped func(uint64)) *traceSamplingPredicate {
+	return &traceSamplingPredicate{
+		curr:    -1, // Always sample first
+		lim:     int(1 / sample),
+		sampled: sampled,
+		skipped: skipped,
+	}
+}
+
+func (p *traceSamplingPredicate) String() string {
+	return "traceSamplingPredicate{}"
+}
+
+func (p *traceSamplingPredicate) KeepGroup(res *parquetquery.IteratorResult) bool {
+	total := uint32(0)
+	for _, e := range res.Entries {
+		total += e.Value.Uint32()
+	}
+
+	p.curr = (p.curr + 1) % p.lim
+
+	if p.curr == 0 {
+		// Sample
+		if p.sampled != nil {
+			p.sampled(uint64(total))
+		}
+		return true
+	}
+
+	// Skip
+	if p.skipped != nil {
+		p.skipped(uint64(total))
 	}
 	return false
 }
