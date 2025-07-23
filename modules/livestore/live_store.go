@@ -213,9 +213,22 @@ func (s *LiveStore) stopping(error) error {
 
 func (s *LiveStore) flushRemaining() {
 	s.cutAllInstancesToWal()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(30 * time.Second) // TODO: Configurable?
+	defer timeout.Stop()
+
 	for s.flushqueues.Length() > 0 {
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-ticker.C:
+		case <-timeout.C:
+			level.Error(s.logger).Log("msg", "flush remaining blocks timed out", "remaining", s.flushqueues.Length())
+			return // shutdown timeout reached
+		}
 	}
+
 }
 
 func (s *LiveStore) consume(_ context.Context, rs []record) error {
@@ -330,7 +343,6 @@ func (s *LiveStore) getInstances() []*instance {
 	return instances
 }
 
-// cutAllInstancesToWal periodically schedules series for flushing and garbage collects instances with no series
 func (s *LiveStore) cutAllInstancesToWal() {
 	instances := s.getInstances()
 
@@ -339,15 +351,15 @@ func (s *LiveStore) cutAllInstancesToWal() {
 	}
 }
 
-func (s *LiveStore) cutOneInstanceToWal(inst *instance, immedate bool) {
+func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 	// Regular trace cuts (live traces -> head block)
-	err := inst.cutIdleTraces(immedate)
+	err := inst.cutIdleTraces(immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut idle traces", "tenant", inst.tenantID, "err", err)
 	}
 
 	// Regular block cuts
-	blockID, err := inst.cutBlocks(immedate)
+	blockID, err := inst.cutBlocks(immediate)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "failed to cut blocks", "tenant", inst.tenantID, "err", err)
 	}
@@ -378,44 +390,39 @@ func (s *LiveStore) completeLoop() {
 
 	// TODO: Add concurrency
 	for {
-		select {
-		case <-s.ctx.Done():
+		o := s.flushqueues.Dequeue()
+		if o == nil {
+			return // queue is closed
+		}
+		op := o.(*completeOp)
+		op.attempts++
+
+		if op.attempts > maxFlushAttempts {
+			level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
+			continue
+		}
+
+		inst, err := s.getOrCreateInstance(op.tenantID)
+		if err != nil {
+			// TODO: How to handle?
+			level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
 			return
-		default:
-			o := s.flushqueues.Dequeue()
-			if o == nil {
-				return // queue is closed
-			}
-			op := o.(*completeOp)
-			op.attempts++
+		}
+		err = inst.completeBlock(s.ctx, op.blockID)
+		if err != nil {
+			level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
 
-			if op.attempts > maxFlushAttempts {
-				level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
-				continue
-			}
+			delay := op.backoff()
+			op.at = time.Now().Add(delay)
 
-			inst, err := s.getOrCreateInstance(op.tenantID)
-			if err != nil {
-				// TODO: How to handle?
-				level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
-				return
-			}
-			err = inst.completeBlock(op.blockID)
-			if err != nil {
-				level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+			go func() {
+				time.Sleep(delay)
 
-				delay := op.backoff()
-				op.at = time.Now().Add(delay)
+				if _, err := s.flushqueues.Enqueue(op); err != nil {
+					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
+				}
+			}()
 
-				go func() {
-					time.Sleep(delay)
-
-					if _, err := s.flushqueues.Enqueue(op); err != nil {
-						_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
-					}
-				}()
-
-			}
 		}
 	}
 }

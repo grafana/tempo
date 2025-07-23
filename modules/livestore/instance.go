@@ -82,7 +82,6 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 		traceID := req.Ids[j]
 
 		// Check tenant limits
-		maxTraces := i.overrides.MaxLocalTracesPerUser(i.tenantID)
 		maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
 
 		// Unmarshal the trace
@@ -99,14 +98,8 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 				continue
 			}
 
-			// Apply tenant limits
-			maxTracesLimit := uint64(maxTraces)
-			if maxTraces <= 0 {
-				maxTracesLimit = 10000 // Default limit
-			}
-
 			// Push to live traces with tenant-specific limits
-			if !i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, maxTracesLimit, uint64(maxBytes)) {
+			if !i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, 0, uint64(maxBytes)) {
 				level.Warn(i.logger).Log("msg", "dropped trace due to live traces limit", "tenant", i.tenantID)
 				continue
 			}
@@ -144,7 +137,6 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 			return err
 		}
 
-		// Update watermark after successful flush, passing the specific trace IDs
 		return nil
 	}
 	return nil
@@ -226,9 +218,7 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	id := (uuid.UUID)(i.headBlock.BlockMeta().BlockID)
 	i.walBlocks[id] = i.headBlock
 
-	// Log block creation
-	level.Info(i.logger).Log("msg", "queueing wal block for completion",
-		"block", id.String())
+	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String())
 
 	err = i.resetHeadBlock()
 	if err != nil {
@@ -238,7 +228,7 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	return id, nil
 }
 
-func (i *instance) completeBlock(id uuid.UUID) error {
+func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	i.blocksMtx.Lock()
 	walBlock := i.walBlocks[id]
 	i.blocksMtx.Unlock()
@@ -259,7 +249,7 @@ func (i *instance) completeBlock(id uuid.UUID) error {
 	}
 	defer iter.Close()
 
-	newMeta, err := i.enc.CreateBlock(context.Background(), &common.BlockConfig{}, walBlock.BlockMeta(), iter, reader, writer)
+	newMeta, err := i.enc.CreateBlock(ctx, &common.BlockConfig{}, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		return err
@@ -283,7 +273,7 @@ func (i *instance) completeBlock(id uuid.UUID) error {
 		return nil
 	}
 
-	i.completeBlocks[id] = ingester.NewLocalBlock(context.Background(), newBlock, i.wal.LocalBackend())
+	i.completeBlocks[id] = ingester.NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
 
 	err = walBlock.Clear()
 	if err != nil {
@@ -300,6 +290,7 @@ func (i *instance) deleteOldBlocks() error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
+	// TODO: Configurable
 	cutoff := time.Now().Add(-1 * time.Hour) // Delete blocks older than 1 hour
 
 	for id, walBlock := range i.walBlocks {

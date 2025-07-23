@@ -146,7 +146,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.CacheProvider.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "cache"), f)
 	c.BackendScheduler.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-scheduler"), f)
 	c.BackendWorker.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-worker"), f)
-	c.LiveStore.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "liveStore"), f)
+	c.LiveStore.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "live-store"), f)
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled

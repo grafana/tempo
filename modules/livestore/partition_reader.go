@@ -235,6 +235,9 @@ func (r *PartitionReader) commitLoop(ctx context.Context) {
 			r.commitCurrentWatermark(lastCommittedOffset)
 			return
 		case <-ticker.C:
+			// TODO: With this approach we're risking duplicate data during ungraceful shutdowns (eg. panic)
+			//  in favor of simplicity of the committing implementation.
+
 			// Periodic commit
 			lastCommittedOffset = r.commitCurrentWatermark(lastCommittedOffset)
 		}
