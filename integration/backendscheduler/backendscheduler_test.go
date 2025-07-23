@@ -214,7 +214,7 @@ func TestBackendScheduler(t *testing.T) {
 	require.Less(t, totalBlocksPostCompactions[0], totalBlocksPreCompactions[0], "expected total blocks to be less after compaction")
 
 	// Some variance in the number of expected due to the notes above.  We should
-	// expect that a fully compacted tenant has between 2 and 4 blocks, and
+	// expect that a fully compacted tenant has between 1 and 4 blocks, and
 	// between 0 and 1 outstanding blocks.  The sleep above should be enough to
 	// allow the worker to finish processing all the outstanding blocks.
 	expectedMin := &expectations{
