@@ -34,6 +34,17 @@ func IngesterPartitionID(ingesterID string) (int32, error) {
 	return int32(ingesterSeq), nil
 }
 
+func LiveStoreConsumerGroupID(instanceID string) (string, error) {
+	match := ingesterIDRegexp.FindStringSubmatch(instanceID)
+	if len(match) == 0 {
+		return "", fmt.Errorf("instance ID %s doesn't match regular expression %q", instanceID, ingesterIDRegexp.String())
+	}
+
+	// Extract everything before the numeric suffix
+	prefixEnd := len(instanceID) - len(match[0])
+	return instanceID[:prefixEnd], nil
+}
+
 func HandleKafkaError(err error, forceMetadataRefresh func()) {
 	if err == nil {
 		return

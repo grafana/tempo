@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/livestore"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -82,6 +83,7 @@ const (
 	BlockBuilder                  string = "block-builder"
 	BackendScheduler              string = "backend-scheduler"
 	BackendWorker                 string = "backend-worker"
+	LiveStore                     string = "live-store"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -285,7 +287,7 @@ func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.DedicatedColumns = t.cfg.StorageConfig.Trace.Block.DedicatedColumns
 	t.cfg.Ingester.IngestStorageConfig = t.cfg.Ingest
 
-	// In SingleBinary mode don't try to discover parition from host name. Always use
+	// In SingleBinary mode don't try to discover partition from host name. Always use
 	// partition 0. This is for small installs or local/debugging setups.
 	singlePartition := t.cfg.Target == SingleBinary
 
@@ -626,6 +628,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.LiveStore.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
@@ -748,6 +751,31 @@ func (t *App) initBackendWorker() (services.Service, error) {
 	return worker, nil
 }
 
+func (t *App) initLiveStore() (services.Service, error) {
+	if !t.cfg.Ingest.Enabled {
+		return services.NewIdleService(nil, nil), nil
+	}
+
+	// In SingleBinary mode don't try to discover partition from host name.
+	// Always use partition 0. This is for small installs or local/debugging setups.
+	singlePartition := t.cfg.Target == SingleBinary
+
+	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
+
+	var err error
+	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create liveStore: %w", err)
+	}
+
+	// TODO: Support downscaling
+	// t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
+	// 	Path("/live-store/prepare-partition-downscale").
+	// 	Handler(http.HandlerFunc(t.liveStore.PreparePartitionDownscaleHandler))
+
+	return t.liveStore, nil
+}
+
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
@@ -781,6 +809,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
 	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
 	mm.RegisterModule(BackendWorker, t.initBackendWorker)
+	mm.RegisterModule(LiveStore, t.initLiveStore)
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -813,6 +842,7 @@ func (t *App) setupModuleManager() error {
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
+		LiveStore:                     {Common, MemberlistKV, PartitionRing},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},

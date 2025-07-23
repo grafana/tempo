@@ -220,6 +220,7 @@ distributor:
         producer_max_buffered_bytes: 0
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
+        consumer_group_lag_metric_update_interval: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
     max_attribute_bytes: 2048
@@ -715,6 +716,7 @@ ingest:
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
+        consumer_group_lag_metric_update_interval: 1m0s
 block_builder:
     instance_id: hostname
     assigned_partitions: {}
@@ -1100,4 +1102,92 @@ backend_worker:
         instance_addr: ""
         enable_inet6: false
         wait_active_instance_timeout: 10m0s
+live_store:
+    lifecycler:
+        ring:
+            kvstore:
+                store: consul
+                prefix: collectors/
+                consul:
+                    host: localhost:8500
+                    acl_token: ""
+                    http_client_timeout: 20s
+                    consistent_reads: false
+                    watch_rate_limit: 1
+                    watch_burst_size: 1
+                    cas_retry_delay: 1s
+                etcd:
+                    endpoints: []
+                    dial_timeout: 10s
+                    max_retries: 10
+                    tls_enabled: false
+                    tls_cert_path: ""
+                    tls_key_path: ""
+                    tls_ca_path: ""
+                    tls_server_name: ""
+                    tls_insecure_skip_verify: false
+                    tls_cipher_suites: ""
+                    tls_min_version: ""
+                    username: ""
+                    password: ""
+                multi:
+                    primary: ""
+                    secondary: ""
+                    mirror_enabled: false
+                    mirror_timeout: 2s
+            heartbeat_timeout: 1m0s
+            replication_factor: 3
+            zone_awareness_enabled: false
+            excluded_zones: ""
+        num_tokens: 128
+        heartbeat_period: 5s
+        heartbeat_timeout: 1m0s
+        observe_period: 0s
+        join_after: 0s
+        min_ready_duration: 15s
+        interface_names:
+            - eth0
+        enable_inet6: false
+        final_sleep: 0s
+        tokens_file_path: ""
+        availability_zone: ""
+        unregister_on_shutdown: true
+        readiness_check_ring_health: true
+        address: ""
+        port: 0
+        id: hostname
+    partition_ring:
+        kvstore:
+            store: memberlist
+            prefix: collectors/
+            consul:
+                host: localhost:8500
+                acl_token: ""
+                http_client_timeout: 20s
+                consistent_reads: false
+                watch_rate_limit: 1
+                watch_burst_size: 1
+                cas_retry_delay: 1s
+            etcd:
+                endpoints: []
+                dial_timeout: 10s
+                max_retries: 10
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                username: ""
+                password: ""
+            multi:
+                primary: ""
+                secondary: ""
+                mirror_enabled: false
+                mirror_timeout: 2s
+        min_partition_owners_count: 1
+        min_partition_owners_duration: 10s
+        delete_inactive_partition_after: 13h0m0s
 ```

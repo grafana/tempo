@@ -78,7 +78,8 @@ The following settings can be optionally configured:
     - `username`: The username to use.
     - `password`: The password to use.
     - `mechanism`: The sasl mechanism to use (SCRAM-SHA-256, SCRAM-SHA-512, AWS_MSK_IAM_OAUTHBEARER, or PLAIN)
-    - `aws_msk.region`: AWS Region in case of AWS_MSK_IAM_OAUTHBEARER mechanism
+    - `aws_msk`
+      - `region`: AWS Region in case of AWS_MSK_IAM_OAUTHBEARER mechanism
   - `tls` (Deprecated in v0.124.0: configure tls at the top level): this is an alias for tls at the top level.
   - `kerberos`
     - `service_name`: Kerberos service name

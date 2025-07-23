@@ -1,6 +1,6 @@
 server:
   http_listen_port: 3200
-  log_level: info
+  log_level: debug
 
 distributor:
   kafka_write_path_enabled: true
@@ -26,7 +26,10 @@ memberlist:
   join_members:
     - ingester-0:7946
     - ingester-1:7946
-    - ingester-2:7946
+    - live-store-zone-a-0:7946
+    - live-store-zone-a-1:7946
+    - live-store-zone-b-0:7946
+    - live-store-zone-b-1:7946
 
 compactor:
   compaction:
@@ -85,3 +88,6 @@ block_builder:
   assigned_partitions:
     block-builder-0: [0,2]
     block-builder-1: [1]
+
+usage_report:
+  reporting_enabled: false
