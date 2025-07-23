@@ -852,20 +852,37 @@ func TestNoCompactFlag(t *testing.T) {
 	for _, tc := range []struct {
 		name                    string
 		createWithNoCompactFlag bool
+		skipNoCompactBlocks     bool
 		expectedNoCompactFlag   bool // flag after block completion
 		isBlockExpected         bool // should we expect the block after pull
 	}{
 		{
 			name:                    "default behaviour",
 			createWithNoCompactFlag: false,
+			skipNoCompactBlocks:     false,
 			expectedNoCompactFlag:   false,
 			isBlockExpected:         true,
 		},
 		{
-			name:                    "create with no compact flag",
-			createWithNoCompactFlag: true,
-			expectedNoCompactFlag:   true,  // it should not be removed after block completion
-			isBlockExpected:         false, // verify the block is NOT available for compaction
+			name:                    "blockbuilder behaviour",
+			createWithNoCompactFlag: true,  // blockbuilder creates blocks with the flag
+			skipNoCompactBlocks:     false, // but blockbuilder does not skip such block on pull
+			expectedNoCompactFlag:   true,  // the flag should not be removed after block completion
+			isBlockExpected:         true,  // blockbuilder sees the block although it has the flag
+		},
+		{
+			name:                    "compactor sees its own blocks",
+			createWithNoCompactFlag: false, // compactor does not create blocks with the flag
+			skipNoCompactBlocks:     true,  // but does skip block with the flag on pull
+			expectedNoCompactFlag:   false, // no flag on created block
+			isBlockExpected:         true,  // compactor sees its own blocks
+		},
+		{
+			name:                    "blockbuilder+compactor behaviour",
+			createWithNoCompactFlag: true,  // blockbuilder creates the block with the flag
+			skipNoCompactBlocks:     true,  // compactor skips the block with the flag on pull
+			expectedNoCompactFlag:   true,  // the flag should not be removed after block completion
+			isBlockExpected:         false, // compactor does not see the block
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -884,7 +901,7 @@ func TestNoCompactFlag(t *testing.T) {
 			}, &mockSharder{}, &mockOverrides{})
 			require.NoError(t, err)
 
-			r.EnablePolling(ctx, &mockJobSharder{}, true)
+			r.EnablePolling(ctx, &mockJobSharder{}, tc.skipNoCompactBlocks)
 
 			// Create a test block
 			blockID := backend.NewUUID()
@@ -935,5 +952,4 @@ func TestNoCompactFlag(t *testing.T) {
 			assert.Equal(t, completedBlockID, blocklist[0].BlockID)
 		})
 	}
-
 }
