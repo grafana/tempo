@@ -95,7 +95,7 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	go r.commitLoop(ctx)
 
 	for ctx.Err() == nil {
-		fetches := r.client.PollFetches(ctx)
+		fetches := r.client.PollFetches(consumeCtx)
 		if fetches.Err() != nil {
 			if errors.Is(fetches.Err(), context.Canceled) {
 				return nil

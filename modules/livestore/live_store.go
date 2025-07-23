@@ -228,7 +228,6 @@ func (s *LiveStore) flushRemaining() {
 			return // shutdown timeout reached
 		}
 	}
-
 }
 
 func (s *LiveStore) consume(_ context.Context, rs []record) error {
