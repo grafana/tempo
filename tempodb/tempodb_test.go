@@ -90,7 +90,7 @@ func TestDB(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	blockID := backend.NewUUID()
 
@@ -146,7 +146,7 @@ func TestBlockSharding(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	// create block with known ID
 	blockID := backend.NewUUID()
@@ -212,7 +212,7 @@ func TestBlockCleanup(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -504,7 +504,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
 	wal := w.WAL()
 
@@ -884,7 +884,7 @@ func TestNoCompactFlag(t *testing.T) {
 			}, &mockSharder{}, &mockOverrides{})
 			require.NoError(t, err)
 
-			r.EnablePolling(ctx, &mockJobSharder{})
+			r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 			// Create a test block
 			blockID := backend.NewUUID()

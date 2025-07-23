@@ -1870,7 +1870,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
@@ -1932,7 +1932,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
@@ -2413,7 +2413,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	wal := w.WAL()
 	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
@@ -2467,7 +2467,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
 	blockID := backend.NewUUID()
 
@@ -2629,7 +2629,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := t.Context()
-		r.EnablePolling(ctx, &mockJobSharder{})
+		r.EnablePolling(ctx, &mockJobSharder{}, false)
 		wantID, wantTr, start, end, wantMeta := makeExpectedTrace(traceID)
 
 		// Write to wal

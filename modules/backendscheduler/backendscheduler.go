@@ -108,7 +108,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler starting")
 
 	if s.cfg.Poll {
-		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder)
+		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder, false)
 	}
 
 	err := s.loadWorkCache(ctx)
