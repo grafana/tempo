@@ -19,7 +19,7 @@ func TestShardedRoundTrip(t *testing.T) {
 	jobs := []*Job{
 		createTestJob("test-job-1", tempopb.JobType_JOB_TYPE_COMPACTION),
 		createTestJob("test-job-2", tempopb.JobType_JOB_TYPE_COMPACTION),
-		createTestJob("test-job-3", tempopb.JobType_JOB_TYPE_COMPACTION),
+		createTestJob("test-job-3", tempopb.JobType_JOB_TYPE_RETENTION),
 	}
 
 	for _, job := range jobs {
