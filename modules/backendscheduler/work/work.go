@@ -18,9 +18,9 @@ import (
 var tracer = otel.Tracer("modules/backendscheduler/work")
 
 const (
-	// ShardCount defines the number of shards (256 = 2^8, perfect for uint8)
+	// ShardCount defines the number of shards (256 = 2^8)
 	ShardCount = 256
-	// ShardMask for fast bit masking instead of modulo
+	// ShardMask for fast bit masking
 	ShardMask = ShardCount - 1 // 0xFF
 )
 
@@ -33,7 +33,7 @@ type Shard struct {
 type Work struct {
 	Shards [ShardCount]*Shard `json:"shards"`
 	cfg    Config
-	// mtx    sync.Mutex
+	mtx    sync.Mutex // Protects the entire Work structure during Marshal/Unmarshal
 }
 
 func New(cfg Config) Interface {
@@ -264,10 +264,11 @@ func (w *Work) SetJobCompactionOutput(id string, output []string) {
 	}
 }
 
-// Marshal serializes all shards to JSON
-// NOTE: This is the current full-marshal to maintain the interface compatibility.
-// In practice, we'd implement MarshalShard() for single-shard operations
+// Marshal serializes all shards to JSON with proper locking
 func (w *Work) Marshal() ([]byte, error) {
+	w.mtx.Lock()
+	defer w.mtx.Unlock()
+
 	// For now, marshal the entire structure for compatibility
 	return jsoniter.Marshal(w)
 }
@@ -308,8 +309,11 @@ func (w *Work) MarshalAffectedShards(jobIDs []string) (map[uint8][]byte, error) 
 	return result, nil
 }
 
-// Unmarshal deserializes JSON to all shards
+// Unmarshal deserializes JSON to all shards with proper locking
 func (w *Work) Unmarshal(data []byte) error {
+	w.mtx.Lock()
+	defer w.mtx.Unlock()
+
 	err := jsoniter.Unmarshal(data, w)
 	if err != nil {
 		return err
