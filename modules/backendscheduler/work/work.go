@@ -269,6 +269,17 @@ func (w *Work) Marshal() ([]byte, error) {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
 
+	// Lock all shards in order to prevent race conditions during marshaling
+	for i := range ShardCount {
+		w.Shards[i].mtx.Lock()
+	}
+	defer func() {
+		// Unlock all shards
+		for i := range ShardCount {
+			w.Shards[i].mtx.Unlock()
+		}
+	}()
+
 	// For now, marshal the entire structure for compatibility
 	return jsoniter.Marshal(w)
 }
@@ -313,6 +324,17 @@ func (w *Work) MarshalAffectedShards(jobIDs []string) (map[uint8][]byte, error) 
 func (w *Work) Unmarshal(data []byte) error {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
+
+	// Lock all shards in order to prevent race conditions during unmarshaling
+	for i := range ShardCount {
+		w.Shards[i].mtx.Lock()
+	}
+	defer func() {
+		// Unlock all shards
+		for i := range ShardCount {
+			w.Shards[i].mtx.Unlock()
+		}
+	}()
 
 	err := jsoniter.Unmarshal(data, w)
 	if err != nil {

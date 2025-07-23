@@ -461,7 +461,6 @@ func TestLocalFileOperations(t *testing.T) {
 func TestConcurrency(t *testing.T) {
 	work := New(Config{})
 	ctx := context.Background()
-	var err error
 
 	// Test concurrent operations
 	t.Run("concurrent adds", func(t *testing.T) {
@@ -476,7 +475,7 @@ func TestConcurrency(t *testing.T) {
 
 				for j := range jobsPerGoroutine {
 					job := createTestJob(fmt.Sprintf("concurrent-%d-%d", goroutineID, j), tempopb.JobType_JOB_TYPE_COMPACTION)
-					err = work.AddJob(job)
+					err := work.AddJob(job)
 					require.NoError(t, err)
 				}
 			}(i)
@@ -492,6 +491,8 @@ func TestConcurrency(t *testing.T) {
 	})
 
 	t.Run("concurrent operations", func(t *testing.T) {
+		var err error
+
 		// Add initial jobs
 		for i := range 50 {
 			job := createTestJob(fmt.Sprintf("ops-job-%d", i), tempopb.JobType_JOB_TYPE_COMPACTION)
