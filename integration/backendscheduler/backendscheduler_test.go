@@ -208,10 +208,10 @@ func TestBackendScheduler(t *testing.T) {
 	_, err = scheduler.SumMetrics([]string{"tempo_backend_scheduler_jobs_failed_total"})
 	require.Error(t, err, "metric not found")
 
-	totlalBlocksPostCompactions, err := scheduler.SumMetrics([]string{"tempodb_blocklist_length"})
+	totalBlocksPostCompactions, err := scheduler.SumMetrics([]string{"tempodb_blocklist_length"})
 	require.NoError(t, err)
-	require.Len(t, totlalBlocksPostCompactions, 1, "expected only one blocklist length metric")
-	require.Less(t, totlalBlocksPostCompactions[0], totlalBlocksPreCompactions[0], "expected total blocks to be less after compaction")
+	require.Len(t, totalBlocksPostCompactions, 1, "expected only one blocklist length metric")
+	require.Less(t, totalBlocksPostCompactions[0], totalBlocksPreCompactions[0], "expected total blocks to be less after compaction")
 
 	// Some variance in the number of expected due to the notes above.  We should
 	// expect that a fully compacted tenant has between 2 and 4 blocks, and
