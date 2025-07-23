@@ -72,26 +72,6 @@ func (w *Work) AddJob(j *Job) error {
 	return nil
 }
 
-// AddJobPreservingState adds a job while preserving its existing state
-// This is used for migration to preserve job status, timing, etc.
-func (w *Work) AddJobPreservingState(j *Job) error {
-	if j == nil {
-		return ErrJobNil
-	}
-
-	shard := w.getShard(j.ID)
-	shard.mtx.Lock()
-	defer shard.mtx.Unlock()
-
-	if _, ok := shard.Jobs[j.ID]; ok {
-		return ErrJobAlreadyExists
-	}
-
-	// Preserve all existing state - don't modify the job
-	shard.Jobs[j.ID] = j
-	return nil
-}
-
 // FlushToLocal writes the work cache to local storage using sharding optimizations
 func (w *Work) FlushToLocal(_ context.Context, localPath string, affectedJobIDs []string) error {
 	err := os.MkdirAll(localPath, 0o700)
@@ -221,25 +201,6 @@ func (w *Work) Prune(ctx context.Context) {
 		}(i)
 	}
 	wg.Wait()
-}
-
-// Len returns the total number of pending jobs across all shards
-func (w *Work) Len() int {
-	var count int
-	for i := range ShardCount {
-		shard := w.Shards[i]
-		shard.mtx.Lock()
-
-		for _, j := range shard.Jobs {
-			if !j.IsPending() {
-				continue
-			}
-			count++
-		}
-
-		shard.mtx.Unlock()
-	}
-	return count
 }
 
 // GetJobForWorker finds a job for a specific worker across all shards

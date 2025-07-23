@@ -17,7 +17,6 @@ type Interface interface {
 
 	// Job queries
 	ListJobs() []*Job
-	Len() int
 	GetJobForWorker(ctx context.Context, workerID string) *Job
 
 	// Maintenance
@@ -26,9 +25,6 @@ type Interface interface {
 	// Serialization
 	Marshal() ([]byte, error)
 	Unmarshal(data []byte) error
-
-	// Migration helper - preserves existing job state including status
-	AddJobPreservingState(j *Job) error
 
 	// Local file operations
 	FlushToLocal(ctx context.Context, localPath string, affectedJobIDs []string) error
