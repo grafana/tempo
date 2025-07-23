@@ -140,10 +140,10 @@ func TestBackendScheduler(t *testing.T) {
 	time.Sleep(8 * time.Second) // Wait for polling and measurement to catch up
 
 	// Capture the total blocks which have been written
-	totlalBlocksPreCompactions, err := scheduler.SumMetrics([]string{"tempodb_blocklist_length"})
+	totalBlocksPreCompactions, err := scheduler.SumMetrics([]string{"tempodb_blocklist_length"})
 	require.NoError(t, err)
-	require.Len(t, totlalBlocksPreCompactions, 1, "expected only one blocklist length metric")
-	require.Equal(t, float64(totalBlocksWritten), totlalBlocksPreCompactions[0], "expected total blocks to match the sum of all tenants")
+	require.Len(t, totalBlocksPreCompactions, 1, "expected only one blocklist length metric")
+	require.Equal(t, float64(totalBlocksWritten), totalBlocksPreCompactions[0], "expected total blocks to match the sum of all tenants")
 
 	// NOTE: the compaction provider has a channel capacity of 1, and the
 	// backendscheduler has a channel capacity of 1.  This means that the
