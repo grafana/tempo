@@ -5,7 +5,6 @@ import (
 )
 
 // Interface defines the common interface for work management
-// Both Work and ShardedWork implement this interface
 type Interface interface {
 	// Job management
 	AddJob(j *Job) error
@@ -37,7 +36,6 @@ type Interface interface {
 }
 
 // ShardedWorkInterface extends WorkInterface with sharding-specific methods
-// This allows the backend scheduler to optionally use sharding optimizations
 type ShardedWorkInterface interface {
 	Interface
 
@@ -49,7 +47,6 @@ type ShardedWorkInterface interface {
 	GetShardID(jobID string) uint8
 }
 
-// Ensure both implementations satisfy the interface at compile time
 var (
 	_ Interface            = (*Work)(nil)
 	_ ShardedWorkInterface = (*Work)(nil)
