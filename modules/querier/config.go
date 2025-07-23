@@ -12,9 +12,10 @@ import (
 
 // Config for a querier.
 type Config struct {
-	Search    SearchConfig    `yaml:"search"`
-	TraceByID TraceByIDConfig `yaml:"trace_by_id"`
-	Metrics   MetricsConfig   `yaml:"metrics"`
+	Search        SearchConfig        `yaml:"search"`
+	TraceByID     TraceByIDConfig     `yaml:"trace_by_id"`
+	Metrics       MetricsConfig       `yaml:"metrics"`
+	PartitionRing PartitionRingConfig `yaml:"partition_ring"`
 
 	ExtraQueryDelay                        time.Duration `yaml:"extra_query_delay,omitempty"`
 	MaxConcurrentQueries                   int           `yaml:"max_concurrent_queries"`
@@ -45,6 +46,12 @@ type MetricsConfig struct {
 	TimeOverlapCutoff float64 `yaml:"time_overlap_cutoff,omitempty"`
 }
 
+type PartitionRingConfig struct {
+	MinimizeRequests             bool          `yaml:"minimize_requests"`
+	MinimizeRequestsHedgingDelay time.Duration `yaml:"hedging_delay"`
+	PreferredZone                string        `yaml:"preferred_zone,omitempty"`
+}
+
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.TraceByID.QueryTimeout = 10 * time.Second
@@ -71,6 +78,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		DNSLookupPeriod: 10 * time.Second,
 	}
 	cfg.ShuffleShardingIngestersLookbackPeriod = 1 * time.Hour
+	cfg.PartitionRing.MinimizeRequests = true
+	cfg.PartitionRing.MinimizeRequestsHedgingDelay = 3 * time.Second
+	cfg.PartitionRing.PreferredZone = ""
 
 	f.StringVar(&cfg.Worker.FrontendAddress, prefix+".frontend-address", "", "Address of query frontend service, in host:port format.")
 }

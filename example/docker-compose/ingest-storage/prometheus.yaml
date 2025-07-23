@@ -20,3 +20,7 @@ scrape_configs:
           - 'metrics-generator-1:3200'
           - 'block-builder-0:3200'
           - 'block-builder-1:3200'
+          - 'live-store-zone-a-0:3200'
+          - 'live-store-zone-a-1:3200'
+          - 'live-store-zone-b-0:3200'
+          - 'live-store-zone-b-1:3200'

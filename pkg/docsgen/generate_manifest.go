@@ -44,6 +44,8 @@ func main() {
 	newConfig.BackendWorker.Ring.InstanceID = hostname
 	newConfig.Generator.InstanceID = hostname
 	newConfig.BlockBuilder.InstanceID = hostname
+	newConfig.LiveStore.Ring.InstanceID = hostname
+	newConfig.LiveStore.Ring.InstanceInterfaceNames = []string{"eth0"}
 
 	newConfigBytes, err := yaml.Marshal(newConfig)
 	if err != nil {

@@ -202,6 +202,7 @@ distributor:
         cost_attribution:
             max_cardinality: 10000
             stale_duration: 15m0s
+    ingester_write_path_enabled: true
     kafka_write_path_enabled: false
     kafka_config:
         address: ""
@@ -290,6 +291,39 @@ metrics_generator_client:
         connect_backoff_max_delay: 5s
         cluster_validation:
             label: ""
+live_store_client:
+    pool_config:
+        checkinterval: 15s
+        healthcheckenabled: true
+        healthchecktimeout: 1s
+        maxconcurrenthealthchecks: 0
+    remote_timeout: 5s
+    grpc_client_config:
+        max_recv_msg_size: 104857600
+        max_send_msg_size: 104857600
+        grpc_compression: snappy
+        rate_limit: 0
+        rate_limit_burst: 0
+        backoff_on_ratelimits: false
+        backoff_config:
+            min_period: 100ms
+            max_period: 10s
+            max_retries: 10
+        initial_stream_window_size: 63KiB1023B
+        initial_connection_window_size: 63KiB1023B
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
+        connect_timeout: 5s
+        connect_backoff_base_delay: 1s
+        connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
 querier:
     search:
         query_timeout: 30s
@@ -298,6 +332,9 @@ querier:
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
+    partition_ring:
+        minimize_requests: true
+        hedging_delay: 3s
     max_concurrent_queries: 20
     frontend_worker:
         frontend_address: ""
