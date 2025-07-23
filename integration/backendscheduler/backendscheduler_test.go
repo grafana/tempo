@@ -63,7 +63,7 @@ func TestBackendScheduler(t *testing.T) {
 	e := b.Endpoint(b.HTTPPort())
 	t.Logf("Endpoint: %s", e)
 
-	scheduler := util.NewTempoTarget("backend-scheduler", "config.yaml")
+	scheduler := util.NewTempoTarget("backend-scheduler", configFile)
 	require.NoError(t, s.StartAndWaitReady(scheduler))
 
 	// Setup tempodb with local backend
