@@ -28,8 +28,7 @@ const (
 	ClusterSeedFileName = "tempo_cluster_seed.json"
 
 	// File name for the work cache
-	WorkFileName        = "work.json"
-	ShardedWorkFileName = "work_sharded.json"
+	WorkFileName = "work.json"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written

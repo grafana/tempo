@@ -40,10 +40,6 @@ func TestBackendSchedulerConfigurations(t *testing.T) {
 			name:       "default",
 			configFile: "config.yaml",
 		},
-		{
-			name:       "default-with-sharding",
-			configFile: "config_sharded.yaml",
-		},
 	}
 
 	for _, tc := range cases {

@@ -52,6 +52,5 @@ type ShardedWorkInterface interface {
 // Ensure both implementations satisfy the interface at compile time
 var (
 	_ Interface            = (*Work)(nil)
-	_ Interface            = (*ShardedWork)(nil)
-	_ ShardedWorkInterface = (*ShardedWork)(nil)
+	_ ShardedWorkInterface = (*Work)(nil)
 )

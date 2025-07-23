@@ -2,6 +2,8 @@ package work
 
 import (
 	"context"
+	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"sort"
@@ -9,312 +11,468 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel"
 )
 
 var tracer = otel.Tracer("modules/backendscheduler/work")
 
-type Work struct {
+const (
+	// ShardCount defines the number of shards (256 = 2^8, perfect for uint8)
+	ShardCount = 256
+	// ShardMask for fast bit masking instead of modulo
+	ShardMask = ShardCount - 1 // 0xFF
+)
+
+// Shard represents a single shard containing a subset of jobs
+type Shard struct {
 	Jobs map[string]*Job `json:"jobs"`
-	mtx  sync.Mutex      // Changed from sync.RWMutex to sync.Mutex for better performance
-	cfg  Config
+	mtx  sync.Mutex
 }
 
-// NewWork creates a work instance based on configuration
-// This factory allows seamless migration from original to sharded implementation
-func NewWork(cfg Config) Interface {
-	if cfg.Sharded {
-		return NewSharded(cfg)
+type Work struct {
+	Shards [ShardCount]*Shard `json:"shards"`
+	cfg    Config
+	// mtx    sync.Mutex
+}
+
+func New(cfg Config) Interface {
+	sw := &Work{
+		cfg: cfg,
 	}
-	return New(cfg)
-}
 
-// NewWorkWithSharding explicitly creates a sharded work instance
-// This provides access to sharding-specific optimizations
-func NewWorkWithSharding(cfg Config) ShardedWorkInterface {
-	return NewSharded(cfg)
-}
-
-func New(cfg Config) *Work {
-	return &Work{
-		// track jobs, keyed by job ID
-		Jobs: make(map[string]*Job),
-		cfg:  cfg,
+	// Initialize all shards
+	for i := range ShardCount {
+		sw.Shards[i] = &Shard{
+			Jobs: make(map[string]*Job),
+		}
 	}
+
+	return sw
 }
 
-func (q *Work) AddJob(j *Job) error {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-
+// AddJob adds a job to the appropriate shard
+func (w *Work) AddJob(j *Job) error {
 	if j == nil {
 		return ErrJobNil
 	}
 
-	if _, ok := q.Jobs[j.ID]; ok {
+	shard := w.getShard(j.ID)
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
+
+	if _, ok := shard.Jobs[j.ID]; ok {
 		return ErrJobAlreadyExists
 	}
 
 	j.CreatedTime = time.Now()
 	j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
 
-	q.Jobs[j.ID] = j
-
+	shard.Jobs[j.ID] = j
 	return nil
 }
 
 // AddJobPreservingState adds a job while preserving its existing state
 // This is used for migration to preserve job status, timing, etc.
-func (q *Work) AddJobPreservingState(j *Job) error {
+func (w *Work) AddJobPreservingState(j *Job) error {
 	if j == nil {
 		return ErrJobNil
 	}
 
-	if j.ID == "" {
-		return ErrJobNoID
-	}
+	shard := w.getShard(j.ID)
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
 
-	if _, ok := q.Jobs[j.ID]; ok {
+	if _, ok := shard.Jobs[j.ID]; ok {
 		return ErrJobAlreadyExists
 	}
 
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-
-	// Add job preserving all its current state (status, timing, etc.)
-	q.Jobs[j.ID] = j
+	// Preserve all existing state - don't modify the job
+	shard.Jobs[j.ID] = j
 	return nil
 }
 
-// FlushToLocal writes the work cache to local storage using atomic file operations
-func (q *Work) FlushToLocal(_ context.Context, localPath string, _ []string) error {
-	// Legacy implementation ignores affectedJobIDs and always marshals everything
-	data, err := q.Marshal()
+// FlushToLocal writes the work cache to local storage using sharding optimizations
+func (w *Work) FlushToLocal(_ context.Context, localPath string, affectedJobIDs []string) error {
+	err := os.MkdirAll(localPath, 0o700)
 	if err != nil {
 		return err
 	}
 
-	err = os.MkdirAll(localPath, 0o700)
-	if err != nil {
-		return err
+	if len(affectedJobIDs) == 0 {
+		// Flush all shards
+		return w.flushAllShards(localPath)
 	}
 
-	workFile := filepath.Join(localPath, backend.WorkFileName)
-	return atomicWriteFile(data, workFile, backend.WorkFileName)
+	// Flush only affected shards
+	return w.flushAffectedShards(localPath, affectedJobIDs)
 }
 
-// LoadFromLocal reads the work cache from local storage using the legacy single-file approach
-func (q *Work) LoadFromLocal(_ context.Context, localPath string) error {
-	workFile := filepath.Join(localPath, backend.WorkFileName)
+// LoadFromLocal reads the work cache from local storage using sharding approach
+func (w *Work) LoadFromLocal(_ context.Context, localPath string) error {
+	// Load from shard files - BackendScheduler already determined this is the right approach
+	for i := range ShardCount {
+		filename := fmt.Sprintf("shard_%03d.json", i)
+		shardPath := filepath.Join(localPath, filename)
 
-	data, err := os.ReadFile(workFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// No existing work file is ok - start with empty state
-			return nil
+		data, err := os.ReadFile(shardPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue // Empty shard is OK
+			}
+			return err
 		}
-		return err
+
+		err = w.UnmarshalShard(uint8(i), data)
+		if err != nil {
+			return err
+		}
 	}
 
-	return q.Unmarshal(data)
+	return nil
 }
 
-func (q *Work) StartJob(id string) {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+// StartJob starts a job in the appropriate shard
+func (w *Work) StartJob(id string) {
+	shard := w.getShard(id)
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
 
-	if j, ok := q.Jobs[id]; ok {
+	if j, ok := shard.Jobs[id]; ok {
 		if j.IsPending() {
 			j.Start()
 		}
 	}
 }
 
-func (q *Work) GetJob(id string) *Job {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+// GetJob retrieves a job from the appropriate shard
+func (w *Work) GetJob(id string) *Job {
+	shard := w.getShard(id)
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
 
-	if v, ok := q.Jobs[id]; ok {
+	if v, ok := shard.Jobs[id]; ok {
 		return v
 	}
-
 	return nil
 }
 
-func (q *Work) RemoveJob(id string) {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+// RemoveJob removes a job from the appropriate shard
+func (w *Work) RemoveJob(id string) {
+	shard := w.getShard(id)
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
 
-	delete(q.Jobs, id)
+	delete(shard.Jobs, id)
 }
 
-func (q *Work) ListJobs() []*Job {
-	q.mtx.Lock()
+// ListJobs returns all jobs across all shards, sorted by creation time
+func (w *Work) ListJobs() []*Job {
+	var allJobs []*Job
 
-	jobs := make([]*Job, 0, len(q.Jobs))
-	for _, j := range q.Jobs {
-		jobs = append(jobs, j)
+	// Collect jobs from all shards
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+
+		for _, j := range shard.Jobs {
+			allJobs = append(allJobs, j)
+		}
+
+		shard.mtx.Unlock()
 	}
 
-	// Not defered to unlock while sorting
-	q.mtx.Unlock()
-
-	// sort jobs by creation time
-	sort.Slice(jobs, func(i, j int) bool {
-		return jobs[i].GetCreatedTime().Before(jobs[j].GetCreatedTime())
+	// Sort jobs by creation time
+	sort.Slice(allJobs, func(i, j int) bool {
+		return allJobs[i].GetCreatedTime().Before(allJobs[j].GetCreatedTime())
 	})
 
-	return jobs
+	return allJobs
 }
 
-func (q *Work) Prune(ctx context.Context) {
-	_, span := tracer.Start(ctx, "Prune")
+// Prune removes old completed/failed jobs from all shards
+func (w *Work) Prune(ctx context.Context) {
+	_, span := tracer.Start(ctx, "ShardedPrune")
 	defer span.End()
 
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+	// Prune each shard independently for better concurrency
+	var wg sync.WaitGroup
+	for i := range ShardCount {
+		wg.Add(1)
+		go func(shardIndex int) {
+			defer wg.Done()
+			shard := w.Shards[shardIndex]
 
-	for id, j := range q.Jobs {
-		switch j.GetStatus() {
-		case tempopb.JobStatus_JOB_STATUS_FAILED, tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
-			// Keep the completed jobs around a while so as not to recreate them
-			// before the blocklist has been updated.
-			if time.Since(j.GetEndTime()) > q.cfg.PruneAge {
-				delete(q.Jobs, id)
+			shard.mtx.Lock()
+			defer shard.mtx.Unlock()
+
+			for id, j := range shard.Jobs {
+				switch j.GetStatus() {
+				case tempopb.JobStatus_JOB_STATUS_FAILED, tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
+					if time.Since(j.GetEndTime()) > w.cfg.PruneAge {
+						delete(shard.Jobs, id)
+					}
+				case tempopb.JobStatus_JOB_STATUS_RUNNING:
+					if time.Since(j.GetStartTime()) > w.cfg.DeadJobTimeout {
+						j.Fail()
+					}
+				}
 			}
-		case tempopb.JobStatus_JOB_STATUS_RUNNING:
-			// Fail jobs which have been running for too long
-			if time.Since(j.GetStartTime()) > q.cfg.DeadJobTimeout {
-				j.Fail()
-			}
-		}
+		}(i)
 	}
+	wg.Wait()
 }
 
-// Len returns the jobs which are pending execution.
-func (q *Work) Len() int {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-
+// Len returns the total number of pending jobs across all shards
+func (w *Work) Len() int {
 	var count int
-	for _, j := range q.Jobs {
-		if !j.IsPending() {
-			continue
-		}
-		count++
-	}
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
 
+		for _, j := range shard.Jobs {
+			if !j.IsPending() {
+				continue
+			}
+			count++
+		}
+
+		shard.mtx.Unlock()
+	}
 	return count
 }
 
-func (q *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
-	_, span := tracer.Start(ctx, "GetJobForWorker")
+// GetJobForWorker finds a job for a specific worker across all shards
+func (w *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
+	_, span := tracer.Start(ctx, "ShardedGetJobForWorker")
 	defer span.End()
 
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+	// Search across all shards for this worker's jobs
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
 
-	for _, j := range q.Jobs {
-		if j.GetWorkerID() != workerID {
-			continue
+		for _, j := range shard.Jobs {
+			if j.GetWorkerID() != workerID {
+				continue
+			}
+
+			switch j.GetStatus() {
+			case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, tempopb.JobStatus_JOB_STATUS_RUNNING:
+				shard.mtx.Unlock()
+				return j
+			}
 		}
 
-		switch j.GetStatus() {
-		case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, tempopb.JobStatus_JOB_STATUS_RUNNING:
-			return j
-		}
+		shard.mtx.Unlock()
 	}
 
 	return nil
 }
 
-func (q *Work) CompleteJob(id string) {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+// CompleteJob marks a job as completed in the appropriate shard
+func (w *Work) CompleteJob(id string) {
+	shard := w.getShard(id)
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
 
-	if j, ok := q.Jobs[id]; ok {
+	if j, ok := shard.Jobs[id]; ok {
 		j.Complete()
 	}
 }
 
-func (q *Work) FailJob(id string) {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+// FailJob marks a job as failed in the appropriate shard
+func (w *Work) FailJob(id string) {
+	shard := w.getShard(id)
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
 
-	if j, ok := q.Jobs[id]; ok {
+	if j, ok := shard.Jobs[id]; ok {
 		j.Fail()
 	}
 }
 
-func (q *Work) SetJobCompactionOutput(id string, output []string) {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+// SetJobCompactionOutput sets compaction output for a job in the appropriate shard
+func (w *Work) SetJobCompactionOutput(id string, output []string) {
+	shard := w.getShard(id)
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
 
-	if j, ok := q.Jobs[id]; ok {
+	if j, ok := shard.Jobs[id]; ok {
 		j.SetCompactionOutput(output)
 	}
 }
 
-func (q *Work) Marshal() ([]byte, error) {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-
-	return jsoniter.Marshal(q)
+// Marshal serializes all shards to JSON
+// NOTE: This is the current full-marshal to maintain the interface compatibility.
+// In practice, we'd implement MarshalShard() for single-shard operations
+func (w *Work) Marshal() ([]byte, error) {
+	// For now, marshal the entire structure for compatibility
+	return jsoniter.Marshal(w)
 }
 
-func (q *Work) Unmarshal(data []byte) error {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+// MarshalShard marshals only a specific shard - this is the optimization!
+func (w *Work) MarshalShard(shardID uint8) ([]byte, error) {
+	if int(shardID) >= ShardCount {
+		return nil, fmt.Errorf("invalid shard ID: %d", shardID)
+	}
 
-	return jsoniter.Unmarshal(data, q)
+	shard := w.Shards[shardID]
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
+
+	return jsoniter.Marshal(shard)
 }
 
-// Migration helpers
+// MarshalAffectedShards marshals only the shards that contain the given job IDs
+// This is the key optimization - only marshal what changed!
+func (w *Work) MarshalAffectedShards(jobIDs []string) (map[uint8][]byte, error) {
+	// Determine which shards are affected
+	affectedShards := make(map[uint8]bool)
+	for _, jobID := range jobIDs {
+		shardID := w.getShardID(jobID)
+		affectedShards[shardID] = true
+	}
 
-// MigrateToSharded converts an existing Work instance to ShardedWork
-// This preserves all existing jobs during the transition
-func MigrateToSharded(original Interface, cfg Config) (ShardedWorkInterface, error) {
-	sharded := NewSharded(cfg)
-
-	// Copy all jobs from original to sharded
-	jobs := original.ListJobs()
-	for _, job := range jobs {
-		err := sharded.AddJobPreservingState(job)
+	// Marshal only affected shards
+	result := make(map[uint8][]byte)
+	for shardID := range affectedShards {
+		data, err := w.MarshalShard(shardID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal shard %d: %w", shardID, err)
+		}
+		result[shardID] = data
+	}
+
+	return result, nil
+}
+
+// Unmarshal deserializes JSON to all shards
+func (w *Work) Unmarshal(data []byte) error {
+	err := jsoniter.Unmarshal(data, w)
+	if err != nil {
+		return err
+	}
+
+	// Ensure all shards are properly initialized (in case any were nil after unmarshaling)
+	for i := range ShardCount {
+		if w.Shards[i] == nil {
+			w.Shards[i] = &Shard{
+				Jobs: make(map[string]*Job),
+			}
+		} else if w.Shards[i].Jobs == nil {
+			w.Shards[i].Jobs = make(map[string]*Job)
 		}
 	}
 
-	return sharded, nil
+	return nil
 }
 
-// MigrateFromSharded converts a ShardedWork instance back to Work.
-// This is useful for rollback scenarios where we need to revert to the original format
-func MigrateFromSharded(sharded ShardedWorkInterface) (Interface, error) {
-	legacy := New(Config{})
+// UnmarshalShard deserializes JSON to a specific shard
+func (w *Work) UnmarshalShard(shardID uint8, data []byte) error {
+	if int(shardID) >= ShardCount {
+		return fmt.Errorf("invalid shard ID: %d", shardID)
+	}
 
-	// Copy all jobs from sharded to legacy format
-	jobs := sharded.ListJobs()
-	for _, job := range jobs {
-		err := legacy.AddJobPreservingState(job)
-		if err != nil {
-			return nil, err
+	shard := w.Shards[shardID]
+	shard.mtx.Lock()
+	defer shard.mtx.Unlock()
+
+	return jsoniter.Unmarshal(data, shard)
+}
+
+// GetShardStats returns statistics about job distribution across shards
+func (w *Work) GetShardStats() map[string]any {
+	stats := make(map[string]any)
+	shardSizes := make([]int, ShardCount)
+	totalJobs := 0
+	nonEmptyShards := 0
+
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		size := len(shard.Jobs)
+		shard.mtx.Unlock()
+
+		shardSizes[i] = size
+		totalJobs += size
+		if size > 0 {
+			nonEmptyShards++
 		}
 	}
 
-	return legacy, nil
+	// Calculate distribution statistics
+	if totalJobs > 0 {
+		avgJobsPerShard := float64(totalJobs) / float64(ShardCount)
+		avgJobsPerActiveShard := float64(totalJobs) / float64(nonEmptyShards)
+
+		stats["total_jobs"] = totalJobs
+		stats["total_shards"] = ShardCount
+		stats["non_empty_shards"] = nonEmptyShards
+		stats["avg_jobs_per_shard"] = avgJobsPerShard
+		stats["avg_jobs_per_active_shard"] = avgJobsPerActiveShard
+		stats["shard_sizes"] = shardSizes
+	}
+
+	return stats
 }
 
-// IsSharded checks if a WorkInterface is actually a sharded implementation
-func IsSharded(w Interface) bool {
-	_, ok := w.(ShardedWorkInterface)
-	return ok
+func (w *Work) getShardID(jobID string) uint8 {
+	h := fnv.New32a()
+	h.Write([]byte(jobID))
+	return uint8(h.Sum32() & ShardMask)
 }
 
-// AsSharded safely casts a WorkInterface to ShardedWorkInterface if possible
-func AsSharded(w Interface) (ShardedWorkInterface, bool) {
-	sw, ok := w.(ShardedWorkInterface)
-	return sw, ok
+// GetShardID returns the shard ID for a given job ID
+func (w *Work) GetShardID(jobID string) uint8 {
+	return w.getShardID(jobID)
+}
+
+// getShard returns the shard for a given job ID
+func (w *Work) getShard(jobID string) *Shard {
+	return w.Shards[w.getShardID(jobID)]
+}
+
+// flushAllShards writes all shards to individual files using atomic operations
+func (w *Work) flushAllShards(localPath string) error {
+	for i := range ShardCount {
+		shardData, err := w.MarshalShard(uint8(i))
+		if err != nil {
+			return err
+		}
+
+		filename := fmt.Sprintf("shard_%03d.json", i)
+		shardPath := filepath.Join(localPath, filename)
+
+		err = atomicWriteFile(shardData, shardPath, filename)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// flushAffectedShards writes only the shards that contain the affected jobs using atomic operations
+func (w *Work) flushAffectedShards(localPath string, affectedJobIDs []string) error {
+	affectedShards := make(map[uint8]bool)
+	for _, jobID := range affectedJobIDs {
+		shardID := w.GetShardID(jobID)
+		affectedShards[shardID] = true
+	}
+
+	for shardID := range affectedShards {
+		shardData, err := w.MarshalShard(shardID)
+		if err != nil {
+			return err
+		}
+
+		filename := fmt.Sprintf("shard_%03d.json", shardID)
+		shardPath := filepath.Join(localPath, filename)
+
+		err = atomicWriteFile(shardData, shardPath, filename)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
