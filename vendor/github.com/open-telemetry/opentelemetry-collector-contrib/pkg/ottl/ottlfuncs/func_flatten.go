@@ -16,7 +16,7 @@ import (
 )
 
 type FlattenArguments[K any] struct {
-	Target           ottl.PMapGetter[K]
+	Target           ottl.PMapGetSetter[K]
 	Prefix           ottl.Optional[string]
 	Depth            ottl.Optional[int64]
 	ResolveConflicts ottl.Optional[bool]
@@ -43,7 +43,7 @@ func createFlattenFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) 
 	return flatten(args.Target, args.Prefix, args.Depth, args.ResolveConflicts)
 }
 
-func flatten[K any](target ottl.PMapGetter[K], p ottl.Optional[string], d ottl.Optional[int64], c ottl.Optional[bool]) (ottl.ExprFunc[K], error) {
+func flatten[K any](target ottl.PMapGetSetter[K], p ottl.Optional[string], d ottl.Optional[int64], c ottl.Optional[bool]) (ottl.ExprFunc[K], error) {
 	depth := int64(math.MaxInt64)
 	if !d.IsEmpty() {
 		depth = d.Get()
@@ -70,9 +70,7 @@ func flatten[K any](target ottl.PMapGetter[K], p ottl.Optional[string], d ottl.O
 
 		flattenData := initFlattenData(resolveConflict, depth)
 		flattenData.flattenMap(m, prefix, 0)
-		flattenData.result.MoveTo(m)
-
-		return nil, nil
+		return nil, target.Set(ctx, tCtx, flattenData.result)
 	}, nil
 }
 
