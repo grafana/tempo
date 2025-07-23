@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -31,6 +33,30 @@ func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// loadWorkCache loads the work cache
+func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "loadWorkCache")
+	defer span.End()
+
+	// Check if shard files exist before attempting to load them
+	if s.checkForShardFiles() {
+		// Try to load the local work cache first, falling back to the backend if it doesn't exist.
+		err := s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", s.cfg.LocalWorkPath, "error", err)
+			}
+
+			return s.loadWorkCacheFromBackend(ctx)
+		}
+
+		return s.replayWorkOnBlocklist(ctx)
+	}
+
+	// No shard files found locally, load from backend
+	return s.loadWorkCacheFromBackend(ctx)
 }
 
 func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
@@ -60,26 +86,16 @@ func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
 	return s.replayWorkOnBlocklist(ctx)
 }
 
-// loadWorkCache loads the work cache using the configured implementation
-func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "loadWorkCache")
-	defer span.End()
-
-	// Check if shard files exist before attempting to load them
-	if s.checkForShardFiles() {
-		// Try to load the local work cache first, falling back to the backend if it doesn't exist.
-		err := s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", s.cfg.LocalWorkPath, "error", err)
-			}
-
-			return s.loadWorkCacheFromBackend(ctx)
+// checkForShardFiles checks if any shard files exist
+func (s *BackendScheduler) checkForShardFiles() bool {
+	for i := range work.ShardCount {
+		if _, err := os.Stat(s.filenameForShard(uint8(i))); err == nil {
+			return true // Found at least one shard file
 		}
-
-		return s.replayWorkOnBlocklist(ctx)
 	}
+	return false
+}
 
-	// No shard files found locally, load from backend
-	return s.loadWorkCacheFromBackend(ctx)
+func (s *BackendScheduler) filenameForShard(shardID uint8) string {
+	return filepath.Join(s.cfg.LocalWorkPath, fmt.Sprintf("shard_%03d.json", shardID))
 }
