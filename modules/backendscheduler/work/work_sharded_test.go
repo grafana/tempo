@@ -730,6 +730,79 @@ func TestMarshalUnmarshalEdgeCases(t *testing.T) {
 	})
 }
 
+// TestConcurrentMarshalUnmarshal tests that Marshal/Unmarshal are safe with concurrent shard operations
+func TestConcurrentMarshalUnmarshal(t *testing.T) {
+	work := New(Config{})
+
+	// Add initial jobs
+	for i := range 10 {
+		job := createTestJob(fmt.Sprintf("marshal-concurrent-job-%d", i), tempopb.JobType_JOB_TYPE_COMPACTION)
+		err := work.AddJob(job)
+		require.NoError(t, err)
+	}
+
+	// Run concurrent operations
+	done := make(chan struct{})
+	numWorkers := 5
+
+	// Workers that continuously modify shards
+	for i := range numWorkers {
+		go func(workerID int) {
+			defer func() { done <- struct{}{} }()
+
+			for j := range 20 {
+				jobID := fmt.Sprintf("worker-%d-job-%d", workerID, j)
+				job := createTestJob(jobID, tempopb.JobType_JOB_TYPE_COMPACTION)
+
+				err := work.AddJob(job)
+				require.NoError(t, err)
+
+				work.StartJob(jobID)
+				work.CompleteJob(jobID)
+				work.RemoveJob(jobID)
+			}
+		}(i)
+	}
+
+	// Worker that continuously marshals/unmarshals
+	go func() {
+		defer func() { done <- struct{}{} }()
+
+		for range 10 {
+			// Marshal current state
+			data, err := work.Marshal()
+			require.NoError(t, err)
+			require.NotEmpty(t, data)
+
+			// Create new work instance and unmarshal
+			newWork := New(Config{})
+			err = newWork.Unmarshal(data)
+			require.NoError(t, err)
+
+			// Basic validation
+			require.NotNil(t, newWork)
+		}
+	}()
+
+	// Wait for all workers to complete
+	for range numWorkers + 1 {
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Test timed out - possible deadlock")
+		}
+	}
+
+	// Final validation - work should still be functional
+	finalJob := createTestJob("final-test", tempopb.JobType_JOB_TYPE_COMPACTION)
+	err := work.AddJob(finalJob)
+	require.NoError(t, err)
+
+	retrievedJob := work.GetJob("final-test")
+	require.NotNil(t, retrievedJob)
+	require.Equal(t, "final-test", retrievedJob.ID)
+}
+
 func createTestJob(id string, jobType tempopb.JobType) *Job {
 	return &Job{
 		ID:   id,
