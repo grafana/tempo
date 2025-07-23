@@ -19,16 +19,15 @@ func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	// Always use sharded approach since we only have one implementation now
 	b, err := s.work.Marshal()
 	if err != nil {
 		metricWorkFlushesFailed.Inc()
-		return fmt.Errorf("failed to marshal sharded work cache: %w", err)
+		return fmt.Errorf("failed to marshal work cache: %w", err)
 	}
 
 	err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), int64(len(b)), nil)
 	if err != nil {
-		return fmt.Errorf("failed to flush sharded work cache: %w", err)
+		return fmt.Errorf("failed to flush work cache: %w", err)
 	}
 
 	return nil
@@ -38,7 +37,6 @@ func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "loadWorkCacheFromBackend")
 	defer span.End()
 
-	// Always use sharded work file since we only have one implementation now
 	reader, _, err := s.reader.Read(ctx, backend.WorkFileName, backend.KeyPath{}, nil)
 	if err != nil {
 		return err
@@ -56,7 +54,7 @@ func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
 
 	err = s.work.Unmarshal(data)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal sharded work cache: %w", err)
+		return fmt.Errorf("failed to unmarshal work cache: %w", err)
 	}
 
 	return s.replayWorkOnBlocklist(ctx)
