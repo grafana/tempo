@@ -786,10 +786,10 @@ type ownEverythingSharder struct{}
 func (o *ownEverythingSharder) Owns(string) bool { return true }
 
 func newStore(ctx context.Context, t testing.TB) storage.Store {
-	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t))
+	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t), false)
 }
 
-func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) storage.Store {
+func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipNoCompactBlocks bool) storage.Store {
 	tmpDir := t.TempDir()
 
 	s, err := storage.NewStore(storage.Config{
@@ -814,7 +814,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) stora
 	}, nil, log)
 	require.NoError(t, err)
 
-	s.EnablePolling(ctx, &ownEverythingSharder{}, false)
+	s.EnablePolling(ctx, &ownEverythingSharder{}, skipNoCompactBlocks)
 	return s
 }
 
@@ -959,7 +959,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		ctx        = context.Background()
 		logger     = log.NewNopLogger()
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
-		store      = newStoreWithLogger(ctx, b, logger)
+		store      = newStoreWithLogger(ctx, b, logger, false)
 		cfg        = blockbuilderConfig(b, address, []int32{0})
 		client     = newKafkaClient(b, cfg.IngestStorageConfig.Kafka)
 		o          = &mockOverrides{

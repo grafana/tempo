@@ -397,6 +397,7 @@ func TestPollBlockWithNoCompactFlag(t *testing.T) {
 		name                   string
 		hasNoCompactFlag       bool
 		noCompactFlagError     error
+		skipNoCompactBlocks    bool
 		expectedMeta           *backend.BlockMeta
 		expectedNoCompactCalls int
 		expectedBlockMetaCalls int
@@ -405,6 +406,7 @@ func TestPollBlockWithNoCompactFlag(t *testing.T) {
 		{
 			name:                   "block without nocompact flag is included",
 			hasNoCompactFlag:       false,
+			skipNoCompactBlocks:    true,
 			expectedMeta:           &backend.BlockMeta{BlockID: blockID, TenantID: tenantID},
 			expectedNoCompactCalls: 1,
 			expectedBlockMetaCalls: 1,
@@ -413,14 +415,25 @@ func TestPollBlockWithNoCompactFlag(t *testing.T) {
 		{
 			name:                   "block with nocompact flag is excluded",
 			hasNoCompactFlag:       true,
+			skipNoCompactBlocks:    true,
 			expectedMeta:           nil,
 			expectedNoCompactCalls: 1,
 			expectedBlockMetaCalls: 0, // no calls for excluded block
 			wantErr:                false,
 		},
 		{
+			name:                   "block with nocompact flag is included if skipNoCompactBlocks is false",
+			hasNoCompactFlag:       true,
+			skipNoCompactBlocks:    false,
+			expectedMeta:           &backend.BlockMeta{BlockID: blockID, TenantID: tenantID},
+			expectedNoCompactCalls: 0, // no compact check calls
+			expectedBlockMetaCalls: 1,
+			wantErr:                false,
+		},
+		{
 			name:                   "block with nocompact flag check error is excluded",
 			hasNoCompactFlag:       false,
+			skipNoCompactBlocks:    true,
 			noCompactFlagError:     errors.New("flag check error"),
 			expectedMeta:           nil,
 			expectedNoCompactCalls: 1,
@@ -460,6 +473,7 @@ func TestPollBlockWithNoCompactFlag(t *testing.T) {
 				TenantPollConcurrency: testTenantPollConcurrency,
 				PollFallback:          testPollFallback,
 				TenantIndexBuilders:   testBuilders,
+				SkipNoCompactBlocks:   tc.skipNoCompactBlocks,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
 
 			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tenantID, blockUUID, false)

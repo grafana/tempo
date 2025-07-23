@@ -162,7 +162,7 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 	var (
 		ctx   = t.Context()
 		log   = log.NewNopLogger()
-		store = newStoreWithLogger(ctx, t, log)
+		store = newStoreWithLogger(ctx, t, log, false)
 	)
 
 	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
@@ -199,7 +199,7 @@ func TestTenantStoreNoCompactFlag(t *testing.T) {
 		traceEnd      = startTime.Add(time.Minute)
 
 		log   = log.NewNopLogger()
-		store = newStoreWithLogger(ctx, t, log)
+		store = newStoreWithLogger(ctx, t, log, true)
 	)
 
 	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
