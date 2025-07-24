@@ -37,7 +37,6 @@ type ShardedWorkInterface interface {
 
 	// Sharding-specific optimizations
 	MarshalShard(shardID uint8) ([]byte, error)
-	MarshalAffectedShards(jobIDs []string) (map[uint8][]byte, error)
 	UnmarshalShard(shardID uint8, data []byte) error
 	GetShardStats() map[string]any
 	GetShardID(jobID string) uint8

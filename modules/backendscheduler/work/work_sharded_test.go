@@ -329,28 +329,6 @@ func TestShardingMethods(t *testing.T) {
 		require.Equal(t, "unmarshal-test", retrievedJob.ID)
 	})
 
-	t.Run("marshal affected shards", func(t *testing.T) {
-		// Add jobs that will go to different shards
-		jobs := []string{"job-a", "job-b", "job-c", "job-d"}
-		for _, jobID := range jobs {
-			job := createTestJob(jobID, tempopb.JobType_JOB_TYPE_COMPACTION)
-			err = work.AddJob(job)
-			require.NoError(t, err)
-		}
-
-		// Marshal only affected shards
-		shardData, err := work.MarshalAffectedShards(jobs)
-		require.NoError(t, err)
-		require.NotEmpty(t, shardData)
-
-		// Verify only affected shards are included
-		for _, jobID := range jobs {
-			expectedShardID := work.GetShardID(jobID)
-			_, exists := shardData[expectedShardID]
-			require.True(t, exists, "shard for job %s should be included", jobID)
-		}
-	})
-
 	t.Run("shard stats", func(t *testing.T) {
 		// Clear and add specific jobs for stats testing
 		statsWork := New(Config{}).(*Work)

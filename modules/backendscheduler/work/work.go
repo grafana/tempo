@@ -297,29 +297,6 @@ func (w *Work) MarshalShard(shardID uint8) ([]byte, error) {
 	return jsoniter.Marshal(shard)
 }
 
-// MarshalAffectedShards marshals only the shards that contain the given job IDs
-// This is the key optimization - only marshal what changed!
-func (w *Work) MarshalAffectedShards(jobIDs []string) (map[uint8][]byte, error) {
-	// Determine which shards are affected
-	affectedShards := make(map[uint8]bool)
-	for _, jobID := range jobIDs {
-		shardID := w.getShardID(jobID)
-		affectedShards[shardID] = true
-	}
-
-	// Marshal only affected shards
-	result := make(map[uint8][]byte)
-	for shardID := range affectedShards {
-		data, err := w.MarshalShard(shardID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal shard %d: %w", shardID, err)
-		}
-		result[shardID] = data
-	}
-
-	return result, nil
-}
-
 // Unmarshal deserializes JSON to all shards with proper locking
 func (w *Work) Unmarshal(data []byte) error {
 	w.mtx.Lock()
