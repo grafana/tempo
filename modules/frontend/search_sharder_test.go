@@ -1179,15 +1179,15 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 
 	// Create various block metas for testing different scenarios
 	blockMetas := []*backend.BlockMeta{
-		// Recent blocks (last 5 minutes) - should trigger ingester requests
+		// Recent blocks (last 5 minutes)
 		{StartTime: now.Add(-5 * time.Minute), EndTime: now.Add(-3 * time.Minute), Size_: defaultTargetBytesPerRequest, TotalRecords: 10, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")},
 		{StartTime: now.Add(-3 * time.Minute), EndTime: now.Add(-1 * time.Minute), Size_: defaultTargetBytesPerRequest * 2, TotalRecords: 20, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002")},
 
-		// Medium age blocks (10-20 minutes) - may trigger both ingester and backend
+		// Medium age blocks (10-20 minutes)
 		{StartTime: now.Add(-20 * time.Minute), EndTime: now.Add(-15 * time.Minute), Size_: defaultTargetBytesPerRequest * 3, TotalRecords: 30, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003")},
 		{StartTime: now.Add(-15 * time.Minute), EndTime: now.Add(-10 * time.Minute), Size_: defaultTargetBytesPerRequest, TotalRecords: 15, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004")},
 
-		// Old blocks (30+ minutes) - should only trigger backend requests
+		// Old blocks (30+ minutes)
 		{StartTime: now.Add(-40 * time.Minute), EndTime: now.Add(-35 * time.Minute), Size_: defaultTargetBytesPerRequest * 4, TotalRecords: 40, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000005")},
 		{StartTime: now.Add(-35 * time.Minute), EndTime: now.Add(-30 * time.Minute), Size_: defaultTargetBytesPerRequest * 2, TotalRecords: 25, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000006")},
 	}
@@ -1195,70 +1195,52 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
+	const ingesterShards = 3
+	const mostRecentShards = 10
+
+	const queryIngestersUntil = 10 * time.Minute
+	const queryBackendAfter = 5 * time.Minute
+
 	// Test scenarios with different configurations
 	testCases := []struct {
-		name                string
-		queryIngestersUntil time.Duration
-		queryBackendAfter   time.Duration
-		ingesterShards      int
-		mostRecentShards    int
-		startTime           time.Time
-		endTime             time.Time
+		name      string
+		startTime time.Time
+		endTime   time.Time
 	}{
 		{
-			name:                "ingester_only_recent",
-			queryIngestersUntil: 10 * time.Minute,
-			queryBackendAfter:   15 * time.Minute,
-			ingesterShards:      2,
-			mostRecentShards:    3,
-			startTime:           now.Add(-5 * time.Minute),
-			endTime:             now,
+			name:      "ingester_only_recent",
+			startTime: now.Add(-5 * time.Minute),
+			endTime:   now,
 		},
 		{
-			name:                "backend_only_old",
-			queryIngestersUntil: 5 * time.Minute,
-			queryBackendAfter:   10 * time.Minute,
-			ingesterShards:      1,
-			mostRecentShards:    2,
-			startTime:           now.Add(-40 * time.Minute),
-			endTime:             now.Add(-30 * time.Minute),
+			name:      "backend_only_old",
+			startTime: now.Add(-40 * time.Minute),
+			endTime:   now.Add(-30 * time.Minute),
 		},
 		{
-			name:                "both_ingester_and_backend",
-			queryIngestersUntil: 15 * time.Minute,
-			queryBackendAfter:   10 * time.Minute,
-			ingesterShards:      3,
-			mostRecentShards:    4,
-			startTime:           now.Add(-25 * time.Minute),
-			endTime:             now,
+			name:      "both_ingester_and_backend",
+			startTime: now.Add(-25 * time.Minute),
+			endTime:   now,
 		},
 		{
-			name:                "multiple_shards_complex",
-			queryIngestersUntil: 20 * time.Minute,
-			queryBackendAfter:   25 * time.Minute,
-			ingesterShards:      4,
-			mostRecentShards:    5,
-			startTime:           now.Add(-45 * time.Minute),
-			endTime:             now,
+			name:      "multiple_shards_complex",
+			startTime: now.Add(-45 * time.Minute),
+			endTime:   now,
 		},
 		{
-			name:                "edge_case_boundaries",
-			queryIngestersUntil: 15 * time.Minute,
-			queryBackendAfter:   15 * time.Minute,
-			ingesterShards:      1,
-			mostRecentShards:    1,
-			startTime:           now.Add(-15 * time.Minute),
-			endTime:             now.Add(-14 * time.Minute),
+			name:      "edge_case_boundaries",
+			startTime: now.Add(-15 * time.Minute),
+			endTime:   now.Add(-14 * time.Minute),
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			sharder := newAsyncSearchSharder(&mockReader{metas: blockMetas}, o, SearchSharderConfig{
-				QueryIngestersUntil:   tc.queryIngestersUntil,
-				QueryBackendAfter:     tc.queryBackendAfter,
-				IngesterShards:        tc.ingesterShards,
-				MostRecentShards:      tc.mostRecentShards,
+				QueryIngestersUntil:   queryIngestersUntil,
+				QueryBackendAfter:     queryBackendAfter,
+				IngesterShards:        ingesterShards,
+				MostRecentShards:      mostRecentShards,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				ConcurrentRequests:    5,
 			}, log.NewNopLogger())
@@ -1291,7 +1273,7 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 			resps, err := testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 			require.NoError(t, err)
 
-			// Collect all responses and validate
+			// collect all responses and tally the shards counts. make sure they match the returned shards in the job response
 			var searchJobResponse *combiner.SearchJobResponse
 			actualShards := make([]int, 50)
 
@@ -1332,9 +1314,7 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 				}
 			}
 
-			t.Logf("Test %s: TotalJobs=%d, TotalBlocks=%d, TotalBytes=%d, Shards=%d",
-				tc.name, searchJobResponse.TotalJobs, searchJobResponse.TotalBlocks,
-				searchJobResponse.TotalBytes, len(searchJobResponse.Shards))
+			//fmt.Println("Test case:", tc.name, "passed with shards:", searchJobResponse.Shards)
 		})
 	}
 }
