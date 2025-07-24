@@ -423,6 +423,7 @@ func (w *Work) flushAffectedShards(localPath string, affectedJobIDs []string) er
 
 func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
 	var (
+		funcErr   error
 		err       error
 		shardData []byte
 		filename  string
@@ -432,22 +433,29 @@ func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
 
 	for shardID := range shards {
 		shard = w.Shards[shardID]
-		shard.mtx.Lock()
-		defer shard.mtx.Unlock()
+		funcErr = func(shard *Shard) error {
+			shard.mtx.Lock()
+			defer shard.mtx.Unlock()
 
-		clear(shardData)
+			clear(shardData)
 
-		shardData, err = jsoniter.Marshal(shard)
-		if err != nil {
-			return err
-		}
+			shardData, err = jsoniter.Marshal(shard)
+			if err != nil {
+				return err
+			}
 
-		filename = fmt.Sprintf("shard_%03d.json", shardID)
-		shardPath = filepath.Join(localPath, filename)
+			filename = fmt.Sprintf("shard_%03d.json", shardID)
+			shardPath = filepath.Join(localPath, filename)
 
-		err = atomicWriteFile(shardData, shardPath, filename)
-		if err != nil {
-			return err
+			err = atomicWriteFile(shardData, shardPath, filename)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}(shard)
+		if funcErr != nil {
+			return fmt.Errorf("failed to flush shard %d: %w", shardID, funcErr)
 		}
 	}
 	return nil
