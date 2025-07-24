@@ -287,7 +287,7 @@ func (w *Work) Marshal() ([]byte, error) {
 	return jsoniter.Marshal(w)
 }
 
-// MarshalShard marshals only a specific shard - this is the optimization!
+// MarshalShard marshals only a specific shard
 func (w *Work) MarshalShard(shardID uint8) ([]byte, error) {
 	if int(shardID) >= ShardCount {
 		return nil, fmt.Errorf("invalid shard ID: %d", shardID)
@@ -402,39 +402,48 @@ func (w *Work) getShard(jobID string) *Shard {
 
 // flushAllShards writes all shards to individual files using atomic operations
 func (w *Work) flushAllShards(localPath string) error {
+	shards := make(map[uint8]bool, ShardCount)
 	for i := range ShardCount {
-		shardData, err := w.MarshalShard(uint8(i))
-		if err != nil {
-			return err
-		}
-
-		filename := fmt.Sprintf("shard_%03d.json", i)
-		shardPath := filepath.Join(localPath, filename)
-
-		err = atomicWriteFile(shardData, shardPath, filename)
-		if err != nil {
-			return err
-		}
+		shards[uint8(i)] = true
 	}
-	return nil
+
+	return w.flushShards(localPath, shards)
 }
 
 // flushAffectedShards writes only the shards that contain the affected jobs using atomic operations
 func (w *Work) flushAffectedShards(localPath string, affectedJobIDs []string) error {
-	affectedShards := make(map[uint8]bool)
+	affectedShards := make(map[uint8]bool, len(affectedJobIDs))
 	for _, jobID := range affectedJobIDs {
 		shardID := w.GetShardID(jobID)
 		affectedShards[shardID] = true
 	}
 
-	for shardID := range affectedShards {
-		shardData, err := w.MarshalShard(shardID)
+	return w.flushShards(localPath, affectedShards)
+}
+
+func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
+	var (
+		err       error
+		shardData []byte
+		filename  string
+		shardPath string
+		shard     *Shard
+	)
+
+	for shardID := range shards {
+		shard = w.Shards[shardID]
+		shard.mtx.Lock()
+		defer shard.mtx.Unlock()
+
+		clear(shardData)
+
+		shardData, err = jsoniter.Marshal(shard)
 		if err != nil {
 			return err
 		}
 
-		filename := fmt.Sprintf("shard_%03d.json", shardID)
-		shardPath := filepath.Join(localPath, filename)
+		filename = fmt.Sprintf("shard_%03d.json", shardID)
+		shardPath = filepath.Join(localPath, filename)
 
 		err = atomicWriteFile(shardData, shardPath, filename)
 		if err != nil {
