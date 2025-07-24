@@ -29,6 +29,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		ctx := srv.Context()
 
 		headers := headersFromGrpcContext(ctx)
+		traceql.AlignRequest(req)
 
 		// default step if not set
 		if req.Step == 0 {
@@ -88,11 +89,9 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
 		}
-		if queryRangeReq.Start > queryRangeReq.Step {
-			queryRangeReq.Start -= queryRangeReq.Step
-		}
-
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
+
+		traceql.AlignRequest(queryRangeReq)
 
 		// build and use roundtripper
 		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)

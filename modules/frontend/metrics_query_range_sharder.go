@@ -74,9 +74,6 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
-	if !s.instantMode && req.Start > req.Step {
-		req.Start -= req.Step // force to have additional initial bucket
-	}
 
 	expr, _, _, _, _, err := traceql.Compile(req.Query)
 	if err != nil {

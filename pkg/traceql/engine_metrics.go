@@ -203,6 +203,10 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
 	req.Start = alignStart(req.Start, req.End, req.Step)
 	req.End = alignEnd(req.Start, req.End, req.Step)
+
+	if req.Start > req.Step { // to avoid overflow
+		req.Start -= req.Step // force to have additional initial bucket
+	}
 }
 
 // Start time is rounded down to next step
