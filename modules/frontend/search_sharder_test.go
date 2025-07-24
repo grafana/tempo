@@ -1314,7 +1314,7 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 				}
 			}
 
-			//fmt.Println("Test case:", tc.name, "passed with shards:", searchJobResponse.Shards)
+			// fmt.Println("Test case:", tc.name, "passed with shards:", searchJobResponse.Shards)
 		})
 	}
 }
