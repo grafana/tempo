@@ -313,7 +313,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
-		err = s.loadBlocklistJobsForTenant(ctx, j.Tenant(), []*work.Job{j})
+		err = s.applyJobsToBlocklist(ctx, j.Tenant(), []*work.Job{j})
 		if err != nil {
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
@@ -371,7 +371,7 @@ func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) error {
 	}
 
 	for tenant, jobs := range perTenantJobs {
-		err = s.loadBlocklistJobsForTenant(ctx, tenant, jobs)
+		err = s.applyJobsToBlocklist(ctx, tenant, jobs)
 		if err != nil {
 			return fmt.Errorf("failed to load blocklist jobs for tenant %s: %w", tenant, err)
 		}
@@ -380,7 +380,8 @@ func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) error {
 	return nil
 }
 
-func (s *BackendScheduler) loadBlocklistJobsForTenant(ctx context.Context, tenant string, jobs []*work.Job) error {
+// applyJobsToBlocklist processes the jobs and applies their results to the in-memory blocklist.
+func (s *BackendScheduler) applyJobsToBlocklist(ctx context.Context, tenant string, jobs []*work.Job) error {
 	_, span := tracer.Start(ctx, "loadBlocklistJobsForTenant")
 	defer span.End()
 
