@@ -6,7 +6,7 @@ import (
 )
 
 // atomicWriteFile writes data to a file atomically using a temporary file and rename.
-// This prevents race conditions and ensures readers never see partial data.
+// This prevents possible data corruption in case of a crash or interruption during the write operation.
 func atomicWriteFile(data []byte, targetPath, tempPrefix string) error {
 	dir := filepath.Dir(targetPath)
 
