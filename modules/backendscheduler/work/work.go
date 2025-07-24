@@ -90,6 +90,9 @@ func (w *Work) FlushToLocal(_ context.Context, localPath string, affectedJobIDs 
 
 // LoadFromLocal reads the work cache from local storage using sharding approach
 func (w *Work) LoadFromLocal(_ context.Context, localPath string) error {
+	w.mtx.Lock()
+	defer w.mtx.Unlock()
+
 	// Load from shard files - BackendScheduler already determined this is the right approach
 	for i := range ShardCount {
 		filename := fmt.Sprintf("shard_%03d.json", i)
