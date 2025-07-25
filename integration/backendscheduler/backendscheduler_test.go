@@ -28,11 +28,28 @@ import (
 )
 
 const (
-	tenant     = "test"
-	configFile = "config.yaml"
+	tenant = "test"
 )
 
-func TestBackendScheduler(t *testing.T) {
+func TestBackendSchedulerConfigurations(t *testing.T) {
+	cases := []struct {
+		name       string
+		configFile string
+	}{
+		{
+			name:       "default",
+			configFile: "config.yaml",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			testWithConfig(t, tc.configFile)
+		})
+	}
+}
+
+func testWithConfig(t *testing.T, configFile string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -63,7 +80,7 @@ func TestBackendScheduler(t *testing.T) {
 	e := b.Endpoint(b.HTTPPort())
 	t.Logf("Endpoint: %s", e)
 
-	scheduler := util.NewTempoTarget("backend-scheduler", configFile)
+	scheduler := util.NewTempoTarget("backend-scheduler", "config.yaml")
 	require.NoError(t, s.StartAndWaitReady(scheduler))
 
 	// Setup tempodb with local backend
@@ -180,7 +197,7 @@ func TestBackendScheduler(t *testing.T) {
 
 	// Delay starting the work to ensure we have a clean state of the data before
 	// the worker starts processing jobs.
-	worker := util.NewTempoTarget("backend-worker", configFile)
+	worker := util.NewTempoTarget("backend-worker", "config.yaml")
 	require.NoError(t, s.StartAndWaitReady(worker))
 
 	// Allow the worker some time to process the blocks.

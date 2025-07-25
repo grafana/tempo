@@ -38,7 +38,7 @@ const (
 // from the backend
 type KeyPath []string
 
-// FundFunc is executed for each object in the backend.  The provided FindMatch
+// FindFunc is executed for each object in the backend.  The provided FindMatch
 // are used to determine how to handle the object.  Any collection of these
 // objects is the callers responsibility.
 type FindFunc func(FindMatch)
