@@ -83,11 +83,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: parse search request failed", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
@@ -97,11 +93,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
 
@@ -173,4 +165,12 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
 		"step", req.Step)
+}
+
+func httpInvalidRequest(err error) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Status:     http.StatusText(http.StatusBadRequest),
+		Body:       io.NopCloser(strings.NewReader(err.Error())),
+	}
 }
