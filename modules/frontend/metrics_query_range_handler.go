@@ -187,7 +187,7 @@ func validateQueryRangeReq(cfg Config, req *tempopb.QueryRangeRequest) error {
 	if req.Start > req.End {
 		return errors.New("end must be greater than start")
 	}
-	if (req.End-req.Start)/req.Step > cfg.Metrics.MaxIntervals {
+	if cfg.Metrics.MaxIntervals != 0 && (req.End-req.Start)/req.Step > cfg.Metrics.MaxIntervals {
 		minimumStep := (req.End - req.Start) / cfg.Metrics.MaxIntervals
 		return fmt.Errorf(
 			"step of %s is too small, minimum step for given range is %s",
