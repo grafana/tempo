@@ -36,10 +36,10 @@ type ShardedWorkInterface interface {
 	Interface
 
 	// Sharding-specific optimizations
-	MarshalShard(shardID uint8) ([]byte, error)
-	UnmarshalShard(shardID uint8, data []byte) error
+	MarshalShard(shardID int) ([]byte, error)
+	UnmarshalShard(shardID int, data []byte) error
 	GetShardStats() map[string]any
-	GetShardID(jobID string) uint8
+	GetShardID(jobID string) int
 }
 
 var (

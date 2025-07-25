@@ -105,7 +105,7 @@ func (w *Work) LoadFromLocal(_ context.Context, localPath string) error {
 			return err
 		}
 
-		err = w.UnmarshalShard(uint8(i), data)
+		err = w.UnmarshalShard(i, data)
 		if err != nil {
 			return err
 		}
@@ -305,8 +305,8 @@ func (w *Work) Marshal() ([]byte, error) {
 }
 
 // MarshalShard marshals only a specific shard
-func (w *Work) MarshalShard(shardID uint8) ([]byte, error) {
-	if int(shardID) >= ShardCount {
+func (w *Work) MarshalShard(shardID int) ([]byte, error) {
+	if shardID >= ShardCount {
 		return nil, fmt.Errorf("invalid shard ID: %d", shardID)
 	}
 
@@ -353,8 +353,8 @@ func (w *Work) Unmarshal(data []byte) error {
 }
 
 // UnmarshalShard deserializes JSON to a specific shard
-func (w *Work) UnmarshalShard(shardID uint8, data []byte) error {
-	if int(shardID) >= ShardCount {
+func (w *Work) UnmarshalShard(shardID int, data []byte) error {
+	if shardID >= ShardCount {
 		return fmt.Errorf("invalid shard ID: %d", shardID)
 	}
 
@@ -401,14 +401,14 @@ func (w *Work) GetShardStats() map[string]any {
 	return stats
 }
 
-func (w *Work) getShardID(jobID string) uint8 {
+func (w *Work) getShardID(jobID string) int {
 	h := fnv.New32a()
 	h.Write([]byte(jobID))
-	return uint8(h.Sum32() & ShardMask)
+	return int(h.Sum32() & ShardMask)
 }
 
 // GetShardID returns the shard ID for a given job ID
-func (w *Work) GetShardID(jobID string) uint8 {
+func (w *Work) GetShardID(jobID string) int {
 	return w.getShardID(jobID)
 }
 
@@ -419,9 +419,9 @@ func (w *Work) getShard(jobID string) *Shard {
 
 // flushAllShards writes all shards to individual files using atomic operations
 func (w *Work) flushAllShards(localPath string) error {
-	shards := make(map[uint8]bool, ShardCount)
+	shards := make(map[int]bool, ShardCount)
 	for i := range ShardCount {
-		shards[uint8(i)] = true
+		shards[i] = true
 	}
 
 	return w.flushShards(localPath, shards)
@@ -429,16 +429,16 @@ func (w *Work) flushAllShards(localPath string) error {
 
 // flushAffectedShards writes only the shards that contain the affected jobs using atomic operations
 func (w *Work) flushAffectedShards(localPath string, affectedJobIDs []string) error {
-	affectedShards := make(map[uint8]bool, len(affectedJobIDs))
+	affectedShards := make(map[int]bool, len(affectedJobIDs))
 	for _, jobID := range affectedJobIDs {
 		shardID := w.GetShardID(jobID)
-		affectedShards[shardID] = true
+		affectedShards[int(shardID)] = true
 	}
 
 	return w.flushShards(localPath, affectedShards)
 }
 
-func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
+func (w *Work) flushShards(localPath string, shards map[int]bool) error {
 	var (
 		funcErr   error
 		filename  string
@@ -457,7 +457,7 @@ func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
 				return err
 			}
 
-			filename = FileNameForShard(shardID)
+			filename = FileNameForShard(uint8(shardID))
 			shardPath = filepath.Join(localPath, filename)
 
 			err = atomicWriteFile(shardData, shardPath, filename)
