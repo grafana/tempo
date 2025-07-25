@@ -798,6 +798,12 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
+        # Maximum number of time intervals allowed in a single metrics range query.
+        # For example, a 1-hour query with a 1-second step would create 3600 intervals.
+        # This limit prevents resource exhaustion from queries with excessively small step sizes.
+        # When the limit is exceeded, the query returns an error.
+        [max_intervals: <int> | default = 10000]
+
 ```
 
 ### Limit query size to improve performance and stability
