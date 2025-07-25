@@ -34,6 +34,9 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
+		if err := validateQueryRangeReq(req); err != nil {
+			return err
+		}
 		traceql.AlignRequest(req)
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
@@ -87,6 +90,9 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		}
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
+		if err := validateQueryRangeReq(queryRangeReq); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		traceql.AlignRequest(queryRangeReq)
 
 		// build and use roundtripper
@@ -173,4 +179,8 @@ func httpInvalidRequest(err error) *http.Response {
 		Status:     http.StatusText(http.StatusBadRequest),
 		Body:       io.NopCloser(strings.NewReader(err.Error())),
 	}
+}
+
+func validateQueryRangeReq(req *tempopb.QueryRangeRequest) error {
+	return nil
 }
