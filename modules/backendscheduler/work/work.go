@@ -95,8 +95,7 @@ func (w *Work) LoadFromLocal(_ context.Context, localPath string) error {
 
 	// Load from shard files - BackendScheduler already determined this is the right approach
 	for i := range ShardCount {
-		filename := fmt.Sprintf("shard_%03d.json", i)
-		shardPath := filepath.Join(localPath, filename)
+		shardPath := filepath.Join(localPath, fileNameForShard(uint8(i)))
 
 		data, err := os.ReadFile(shardPath)
 		if err != nil {
@@ -151,7 +150,16 @@ func (w *Work) RemoveJob(id string) {
 
 // ListJobs returns all jobs across all shards, sorted by creation time
 func (w *Work) ListJobs() []*Job {
-	var allJobs []*Job
+	var jobCount int
+
+	for i := range ShardCount {
+		shard := w.Shards[i]
+		shard.mtx.Lock()
+		jobCount += len(shard.Jobs)
+		shard.mtx.Unlock()
+	}
+
+	allJobs := make([]*Job, 0, jobCount)
 
 	// Collect jobs from all shards
 	for i := range ShardCount {
@@ -211,24 +219,33 @@ func (w *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
 	_, span := tracer.Start(ctx, "ShardedGetJobForWorker")
 	defer span.End()
 
+	var jj *Job
+
 	// Search across all shards for this worker's jobs
 	for i := range ShardCount {
 		shard := w.Shards[i]
-		shard.mtx.Lock()
 
-		for _, j := range shard.Jobs {
-			if j.GetWorkerID() != workerID {
-				continue
+		jj = func() *Job {
+			shard.mtx.Lock()
+			defer shard.mtx.Unlock()
+
+			for _, j := range shard.Jobs {
+				if j.GetWorkerID() != workerID {
+					continue
+				}
+
+				switch j.GetStatus() {
+				case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, tempopb.JobStatus_JOB_STATUS_RUNNING:
+					return j
+				}
 			}
 
-			switch j.GetStatus() {
-			case tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, tempopb.JobStatus_JOB_STATUS_RUNNING:
-				shard.mtx.Unlock()
-				return j
-			}
+			return nil
+		}()
+
+		if jj != nil {
+			return jj
 		}
-
-		shard.mtx.Unlock()
 	}
 
 	return nil
@@ -424,8 +441,6 @@ func (w *Work) flushAffectedShards(localPath string, affectedJobIDs []string) er
 func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
 	var (
 		funcErr   error
-		err       error
-		shardData []byte
 		filename  string
 		shardPath string
 		shard     *Shard
@@ -437,14 +452,12 @@ func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
 			shard.mtx.Lock()
 			defer shard.mtx.Unlock()
 
-			clear(shardData)
-
-			shardData, err = jsoniter.Marshal(shard)
+			shardData, err := jsoniter.Marshal(shard)
 			if err != nil {
 				return err
 			}
 
-			filename = fmt.Sprintf("shard_%03d.json", shardID)
+			filename = fileNameForShard(shardID)
 			shardPath = filepath.Join(localPath, filename)
 
 			err = atomicWriteFile(shardData, shardPath, filename)
@@ -459,4 +472,8 @@ func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
 		}
 	}
 	return nil
+}
+
+func fileNameForShard(shardID uint8) string {
+	return fmt.Sprintf("shard_%03d.json", shardID)
 }
