@@ -2,6 +2,8 @@ package frontend
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -34,7 +36,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
-		if err := validateQueryRangeReq(req); err != nil {
+		if err := validateQueryRangeReq(cfg, req); err != nil {
 			return err
 		}
 		traceql.AlignRequest(req)
@@ -90,7 +92,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		}
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
-		if err := validateQueryRangeReq(queryRangeReq); err != nil {
+		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 		traceql.AlignRequest(queryRangeReq)
@@ -181,6 +183,17 @@ func httpInvalidRequest(err error) *http.Response {
 	}
 }
 
-func validateQueryRangeReq(req *tempopb.QueryRangeRequest) error {
+func validateQueryRangeReq(cfg Config, req *tempopb.QueryRangeRequest) error {
+	if req.Start > req.End {
+		return errors.New("end must be greater than start")
+	}
+	if (req.End-req.Start)/req.Step > cfg.Metrics.MaxIntervals {
+		minimumStep := (req.End - req.Start) / cfg.Metrics.MaxIntervals
+		return fmt.Errorf(
+			"step of %s is too small, minimum step for given range is %s",
+			time.Duration(req.Step).String(),
+			time.Duration(minimumStep).String(),
+		)
+	}
 	return nil
 }
