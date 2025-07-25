@@ -432,7 +432,7 @@ func (w *Work) flushAffectedShards(localPath string, affectedJobIDs []string) er
 	affectedShards := make(map[int]bool, len(affectedJobIDs))
 	for _, jobID := range affectedJobIDs {
 		shardID := w.GetShardID(jobID)
-		affectedShards[int(shardID)] = true
+		affectedShards[shardID] = true
 	}
 
 	return w.flushShards(localPath, affectedShards)

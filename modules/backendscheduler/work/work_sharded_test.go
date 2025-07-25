@@ -293,7 +293,7 @@ func TestShardingMethods(t *testing.T) {
 		shardID1 := work.GetShardID(jobID)
 		shardID2 := work.GetShardID(jobID)
 		require.Equal(t, shardID1, shardID2, "shard ID should be consistent")
-		require.Less(t, int(shardID1), ShardCount, "shard ID should be within valid range")
+		require.Less(t, shardID1, ShardCount, "shard ID should be within valid range")
 	})
 
 	t.Run("marshal shard", func(t *testing.T) {
