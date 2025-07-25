@@ -264,12 +264,21 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 		"connection_type": "virtual_node",
 	})
 
+	virtualProducerToConsumer := labels.FromMap(map[string]string{
+		"client":          "external-producer",
+		"server":          "internal-consumer",
+		"connection_type": "virtual_node",
+	})
+
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, userToServerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, userToServerLabels))
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, virtualProducerToConsumer))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, virtualProducerToConsumer))
 }
 
 func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testing.T) {

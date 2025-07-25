@@ -108,16 +108,13 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler starting")
 
 	if s.cfg.Poll {
-		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder)
+		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder, false)
 	}
 
 	err := s.loadWorkCache(ctx)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return fmt.Errorf("failed to load work cache: %w", err)
 	}
-
-	// Start providers and collect job channels
-	s.mergedJobs = make(chan *work.Job, len(s.providers))
 
 	wg := sync.WaitGroup{}
 

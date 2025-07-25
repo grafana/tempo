@@ -1,7 +1,6 @@
 package blockbuilder
 
 import (
-	"context"
 	"flag"
 	"testing"
 	"time"
@@ -161,9 +160,9 @@ func TestTenantStoreEndToEndHistoricalData(t *testing.T) {
 
 func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDuration, slackDuration time.Duration, traceStart, traceEnd time.Time) *backend.BlockMeta {
 	var (
-		ctx   = context.Background()
+		ctx   = t.Context()
 		log   = log.NewNopLogger()
-		store = newStoreWithLogger(ctx, t, log)
+		store = newStoreWithLogger(ctx, t, log, false)
 	)
 
 	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
@@ -179,10 +178,60 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 
 	err = ts.Flush(ctx, store, store, store)
 	require.NoError(t, err)
+	err = ts.AllowCompaction(ctx, store)
+	require.NoError(t, err)
 
 	store.PollNow(ctx)
 	metas := store.BlockMetas(ts.tenantID)
 	require.Equal(t, 1, len(metas))
 
 	return metas[0]
+}
+
+func TestTenantStoreNoCompactFlag(t *testing.T) {
+	var (
+		ctx           = t.Context()
+		count         = 3
+		startTime     = time.Now().Add(-24 * time.Hour)
+		cycleDuration = 5 * time.Minute
+		slackDuration = 5 * time.Minute
+		traceStart    = startTime
+		traceEnd      = startTime.Add(time.Minute)
+
+		log   = log.NewNopLogger()
+		store = newStoreWithLogger(ctx, t, log, true)
+	)
+
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
+	require.NoError(t, err)
+
+	for range count {
+		req := test.MakePushBytesRequest(t, 3, nil, uint64(traceStart.UnixNano()), uint64(traceEnd.UnixNano()))
+		for j := range req.Traces {
+			err = ts.AppendTrace(req.Ids[j], req.Traces[j].Slice, startTime)
+			require.NoError(t, err)
+		}
+	}
+
+	err = ts.Flush(ctx, store, store, store)
+	require.NoError(t, err)
+
+	store.PollNow(ctx)
+	metas := store.BlockMetas(ts.tenantID)
+	require.Equal(t, 0, len(metas))
+
+	// block should be available for polling after compaction is allowed
+	err = ts.AllowCompaction(ctx, store)
+	require.NoError(t, err)
+
+	store.PollNow(ctx)
+	metas = store.BlockMetas(ts.tenantID)
+	require.Equal(t, 1, len(metas))
+
+	actualMeta := metas[0]
+
+	// Verify other properties of the block
+	require.EqualValues(t, count, actualMeta.TotalObjects)
+	require.EqualValues(t, 1, actualMeta.TotalRecords)
+	require.Greater(t, actualMeta.Size_, uint64(0))
 }

@@ -90,7 +90,7 @@ func TestDB(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	blockID := backend.NewUUID()
 
@@ -146,7 +146,7 @@ func TestBlockSharding(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	// create block with known ID
 	blockID := backend.NewUUID()
@@ -212,7 +212,7 @@ func TestBlockCleanup(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -504,7 +504,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
 	wal := w.WAL()
 
@@ -844,6 +844,112 @@ func TestCreateLegacyCache(t *testing.T) {
 			} else {
 				require.Nil(t, cache)
 			}
+		})
+	}
+}
+
+func TestNoCompactFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name                    string
+		createWithNoCompactFlag bool
+		skipNoCompactBlocks     bool
+		expectedNoCompactFlag   bool // flag after block completion
+		isBlockExpected         bool // should we expect the block after pull
+	}{
+		{
+			name:                    "default behaviour",
+			createWithNoCompactFlag: false,
+			skipNoCompactBlocks:     false,
+			expectedNoCompactFlag:   false,
+			isBlockExpected:         true,
+		},
+		{
+			name:                    "blockbuilder behaviour",
+			createWithNoCompactFlag: true,  // blockbuilder creates blocks with the flag
+			skipNoCompactBlocks:     false, // but blockbuilder does not skip such block on pull
+			expectedNoCompactFlag:   true,  // the flag should not be removed after block completion
+			isBlockExpected:         true,  // blockbuilder sees the block although it has the flag
+		},
+		{
+			name:                    "compactor sees its own blocks",
+			createWithNoCompactFlag: false, // compactor does not create blocks with the flag
+			skipNoCompactBlocks:     true,  // but does skip block with the flag on pull
+			expectedNoCompactFlag:   false, // no flag on created block
+			isBlockExpected:         true,  // compactor sees its own blocks
+		},
+		{
+			name:                    "blockbuilder+compactor behaviour",
+			createWithNoCompactFlag: true,  // blockbuilder creates the block with the flag
+			skipNoCompactBlocks:     true,  // compactor skips the block with the flag on pull
+			expectedNoCompactFlag:   true,  // the flag should not be removed after block completion
+			isBlockExpected:         false, // compactor does not see the block
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, w, c, _ := testConfig(t, backend.EncGZIP, 0, func(c *Config) {
+				c.Block.CreateWithNoCompactFlag = tc.createWithNoCompactFlag
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			err := c.EnableCompaction(ctx, &CompactorConfig{
+				ChunkSizeBytes:          10,
+				MaxCompactionRange:      time.Hour,
+				BlockRetention:          0,
+				CompactedBlockRetention: 0,
+			}, &mockSharder{}, &mockOverrides{})
+			require.NoError(t, err)
+
+			r.EnablePolling(ctx, &mockJobSharder{}, tc.skipNoCompactBlocks)
+
+			// Create a test block
+			blockID := backend.NewUUID()
+			wal := w.WAL()
+			meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+			head, err := wal.NewBlock(meta, model.CurrentEncoding)
+			require.NoError(t, err)
+
+			dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+			// Add some test data
+			id := test.ValidTraceID(nil)
+			req := test.MakeTrace(10, id)
+			writeTraceToWal(t, head, dec, id, req, 0, 0)
+
+			// Complete the block - this should write the nocompact flag if set in the config
+			complete, err := w.CompleteBlock(ctx, head)
+			require.NoError(t, err)
+			completedBlockID := complete.BlockMeta().BlockID
+
+			// Verify the nocompact flag
+			rw := r.(*readerWriter)
+			hasFlag, err := rw.r.HasNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedNoCompactFlag, hasFlag, "nocompact flag should remain after successful writeBlockMeta")
+
+			// Poll to update the blocklist
+			rw.pollBlocklist(ctx)
+
+			blocklist := rw.blocklist.Metas(testTenantID)
+			if tc.isBlockExpected {
+				assert.Len(t, blocklist, 1, "block with nocompact flag should be included for compaction")
+				assert.Equal(t, completedBlockID, blocklist[0].BlockID)
+			} else {
+				assert.Len(t, blocklist, 0, "block with nocompact flag should be excluded from compaction")
+			}
+
+			// Remove the nocompact flag
+			err = rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+			require.NoError(t, err)
+
+			// Poll blocklist again
+			rw.pollBlocklist(ctx)
+
+			// Now the block should be available for compaction in any scenarios
+			blocklist = rw.blocklist.Metas(testTenantID)
+			assert.Len(t, blocklist, 1)
+			assert.Equal(t, completedBlockID, blocklist[0].BlockID)
 		})
 	}
 }

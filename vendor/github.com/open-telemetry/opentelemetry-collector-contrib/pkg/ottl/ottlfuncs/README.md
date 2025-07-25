@@ -484,6 +484,7 @@ Available Converters:
 - [IsMatch](#ismatch)
 - [IsList](#islist)
 - [IsString](#isstring)
+- [Keys](#keys)
 - [Len](#len)
 - [Log](#log)
 - [IsValidLuhn](#isvalidluhn)
@@ -499,6 +500,7 @@ Available Converters:
 - [Nanoseconds](#nanoseconds)
 - [Now](#now)
 - [ParseCSV](#parsecsv)
+- [ParseInt](#parseint)
 - [ParseJSON](#parsejson)
 - [ParseKeyValue](#parsekeyvalue)
 - [ParseSimplifiedXML](#parsesimplifiedxml)
@@ -914,7 +916,7 @@ If either `time` or `format` are nil, an error is returned. The parser used is t
 |`%S` | Second as a zero-padded number | 00, 01, ..., 59 |
 |`%L` | Millisecond as a zero-padded number | 000, 001, ..., 999 |
 |`%f` | Microsecond as a zero-padded number | 000000, ..., 999999 |
-|`%s` | Nanosecond as a zero-padded number | 00000000, ..., 99999999 |
+|`%s` | Nanosecond as a zero-padded number | 000000000, ..., 999999999 |
 |`%z` | UTC offset in the form ±HHMM[SS[.ffffff]] or empty | +0000, -0400 |
 |`%Z` | Timezone name or abbreviation or empty | UTC, EST, CST |
 |`%i` | Timezone as +/-HH | -07 |
@@ -1277,6 +1279,21 @@ Examples:
 
 - `IsString(resource.attributes["maybe a string"])`
 
+### Keys
+
+`Keys(target)`
+
+The `Keys` Converter returns a slice containing all the keys from the given map.
+
+`target` is a `pcommon.Map`. If `target` is another type an error is returned.
+
+The returned type is `pcommon.Slice`.
+
+Examples:
+- 
+- `Keys(resource.attributes)`
+- `Keys({"k1":"v1", "k2": "v2"})`
+
 ### Len
 
 `Len(target)`
@@ -1522,6 +1539,36 @@ Examples:
 
 
 - `ParseCSV("\"555-555-5556,Joe Smith\",joe.smith@example.com", "phone,name,email", mode="ignoreQuotes")`
+
+### ParseInt
+
+`ParseInt(target, base)`
+
+The `ParseInt` Converter interprets a string `target` in the given `base` (0, 2 to 36) and returns its integer representation.
+
+`target` is the string to be converted. `target` should be a valid integer represented in string format. For example, "1234" is a valid `target` value, but "notANumber" is not. The `target` may begin with a leading sign: "+" or "-".
+
+`base` is an `int64` representing the base of the number in the `target` string. An error occurs if the `base` argument is a negative integer.
+
+If the `base` argument is 0, the true base is implied by the string's prefix following the sign (if present): 2 for "0b", 8 for "0" or "0o", 16 for "0x", and 10 otherwise. When the `base` value is 0, underscore characters are permitted as defined by the Go syntax for [integer literals](https://go.dev/ref/spec#Integer_literals).
+
+Examples of `ParseInt` behavior when `base` is 0: 
+- `ParseInt("0b1111_0000", 0) -> 240`
+- `ParseInt("0b10110", 0) -> 22`
+- `ParseInt("0xFF", 0) -> 255`
+- `ParseInt("-0xFF", 0) -> -255`
+- `ParseInt("-0o123", 0) -> -83`
+
+The return type is `int64`.
+
+For more information, please refer to the documentation for the Go [strconv.ParseInt](https://pkg.go.dev/strconv#ParseInt) function.
+
+Examples:
+
+- `ParseInt("12345", 10)`
+- `ParseInt("0xAA", 0)`
+- `ParseInt("AA", 16)`
+- `ParseInt("-20", 8)`
 
 ### ParseJSON
 
@@ -2137,7 +2184,7 @@ If either `target` or `format` are nil, an error is returned. The parser used is
 |`%S` | Second as a zero-padded number | 00, 01, ..., 59 |
 |`%L` | Millisecond as a zero-padded number | 000, 001, ..., 999 |
 |`%f` | Microsecond as a zero-padded number | 000000, ..., 999999 |
-|`%s` | Nanosecond as a zero-padded number | 00000000, ..., 99999999 |
+|`%s` | Nanosecond as a zero-padded number | 000000000, ..., 999999999 |
 |`%z` | UTC offset in the form ±HHMM[SS[.ffffff]] or empty | +0000, -0400 |
 |`%Z` | Timezone name or abbreviation or empty | UTC, EST, CST |
 |`%i` | Timezone as +/-HH | -07 |

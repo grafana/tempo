@@ -91,6 +91,7 @@ type PollerConfig struct {
 	TolerateTenantFailures     int
 	EmptyTenantDeletionAge     time.Duration
 	EmptyTenantDeletionEnabled bool
+	SkipNoCompactBlocks        bool
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -476,6 +477,15 @@ func (p *Poller) pollBlock(
 	var blockMeta *backend.BlockMeta
 	var compactedBlockMeta *backend.CompactedBlockMeta
 
+	if !compacted && p.cfg.SkipNoCompactBlocks {
+		noCompact, flagErr := p.reader.HasNoCompactFlag(derivedCtx, blockID, tenantID)
+		if flagErr != nil {
+			return nil, nil, fmt.Errorf("failed to check nocompact flag: %w", flagErr)
+		}
+		if noCompact {
+			return nil, nil, nil
+		}
+	}
 	if !compacted {
 		blockMeta, err = p.reader.BlockMeta(derivedCtx, blockID, tenantID)
 	}
