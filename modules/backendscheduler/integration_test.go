@@ -153,7 +153,7 @@ func testPersistenceAndRecovery(ctx context.Context, t *testing.T, originalSched
 	// Should have shard files
 	foundShardFiles := 0
 	for i := range work.ShardCount {
-		shardPath := newScheduler.filenameForShard(uint8(i))
+		shardPath := newScheduler.filepathForShard(uint8(i))
 		if _, err := os.Stat(shardPath); err == nil {
 			foundShardFiles++
 		}

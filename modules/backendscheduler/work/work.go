@@ -95,7 +95,7 @@ func (w *Work) LoadFromLocal(_ context.Context, localPath string) error {
 
 	// Load from shard files - BackendScheduler already determined this is the right approach
 	for i := range ShardCount {
-		shardPath := filepath.Join(localPath, fileNameForShard(uint8(i)))
+		shardPath := filepath.Join(localPath, FileNameForShard(uint8(i)))
 
 		data, err := os.ReadFile(shardPath)
 		if err != nil {
@@ -457,7 +457,7 @@ func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
 				return err
 			}
 
-			filename = fileNameForShard(shardID)
+			filename = FileNameForShard(shardID)
 			shardPath = filepath.Join(localPath, filename)
 
 			err = atomicWriteFile(shardData, shardPath, filename)
@@ -474,6 +474,6 @@ func (w *Work) flushShards(localPath string, shards map[uint8]bool) error {
 	return nil
 }
 
-func fileNameForShard(shardID uint8) string {
+func FileNameForShard(shardID uint8) string {
 	return fmt.Sprintf("shard_%03d.json", shardID)
 }
