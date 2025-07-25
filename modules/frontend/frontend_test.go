@@ -255,7 +255,7 @@ func TestBlockMetasForSearch(t *testing.T) {
 		return m.ReplicationFactor > 1
 	}
 
-	acceptAllFilter := func(m *backend.BlockMeta) bool {
+	acceptAllFilter := func(_ *backend.BlockMeta) bool {
 		return true
 	}
 
