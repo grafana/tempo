@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -438,7 +439,14 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 	x := table.NewWriter()
 	x.AppendHeader(table.Row{"tenant", "jobID", "type", "input", "output", "status", "worker", "created", "start", "end"})
 
-	for _, j := range s.work.ListJobs() {
+	jobs := s.work.ListJobs()
+
+	// sort jobs by creation time
+	sort.Slice(jobs, func(i, j int) bool {
+		return jobs[i].GetCreatedTime().After(jobs[j].GetCreatedTime())
+	})
+
+	for _, j := range jobs {
 		x.AppendRows([]table.Row{
 			{
 				j.Tenant(),
