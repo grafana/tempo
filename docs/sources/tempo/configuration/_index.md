@@ -459,6 +459,10 @@ metrics_generator:
             # resouce and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
+            # database name attributes is the attribute name list used to identify the databasename from span attributes
+            # the  deafault value is ["db.name", "db.system.name"]
+            [database_name_attributes: <list of string> | default = ["db.name", "db.system.name"]]
+
             # Enables additional labels for services and virtual nodes.
             [enable_virtual_node_label: <bool> | default = false]
 
@@ -1789,6 +1793,7 @@ overrides:
           [histogram_buckets: <list of float>]
           [dimensions: <list of string>]
           [peer_attributes: <list of string>]
+          [database_name_attributes: <list of string>]
           [enable_client_server_prefix: <bool>]
           [enable_messaging_system_latency_histogram: <bool>]
 
