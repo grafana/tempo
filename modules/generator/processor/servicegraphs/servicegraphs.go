@@ -270,14 +270,14 @@ func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue
 }
 
 // upsertDatabaseRequest handles the logic of adding a database edge on the
-// graph.  If we have a db.name or db.system attribute, we assume this is a
+// graph.  If we have any of the configured database name attributes, we assume this is a
 // database request.  The name of the edge is determined by the following
 // order:
 //
 //	if we have a peer.service, use it as the database ServerService
 //	if we have a server.address, use it as the database ServerService
 //	if we have a network.peer.address, use it as the database ServerService.  Include :port if network.peer.port is present
-//	if we have a db.name, use it as the database ServerService, which is the backwards-compatible behavior
+//	if we have any of the configured database name attributes, use it as the database ServerService
 func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_common.KeyValue, span *v1_trace.Span) {
 	var (
 		isDatabase bool
@@ -286,20 +286,35 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 		dbName string
 	)
 
-	// Check for db.name first.  The dbName is set initially to maintain backwards compatbility.
-	if name, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), resourceAttr, span.Attributes); ok {
-		dbName = name
-		isDatabase = true
-	}
+	// Check for any of the configured database name attributes
+	// Attributes are searched in the order they are provided in the config
+	for _, dbAttr := range p.Cfg.DatabaseNameAttributes {
+		if name, ok := processor_util.FindAttributeValue(dbAttr, resourceAttr, span.Attributes); ok {
+			if dbName == "" {
 
-	// Check for db.system only if we don't have db.name above
-	if !isDatabase {
-		if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+				dbName = name
+			}
+
 			isDatabase = true
+			break
 		}
 	}
 
-	// If neither db.system nor db.name are present, we can't determine if this is a database request
+	if !isDatabase {
+		if name, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), resourceAttr, span.Attributes); ok {
+			dbName = name
+			isDatabase = true
+		}
+
+		// Check for db.system only if we don't have db.name above
+		if !isDatabase {
+			if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+				isDatabase = true
+			}
+		}
+	}
+
+	// If no database attributes are present, we can't determine if this is a database request
 	if !isDatabase {
 		return
 	}
