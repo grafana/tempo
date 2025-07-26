@@ -47,6 +47,10 @@ type Config struct {
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 
+	// DatabaseNameAttributes is the attribute name list used to identify the database name from span attributes
+	// The default value is {"db.name", "db.system.name"}
+	DatabaseNameAttributes []string `yaml:"database_name_attributes"`
+
 	// EnableVirtualNodeLabel enables additional labels for uninstrumented services
 	EnableVirtualNodeLabel bool `yaml:"enable_virtual_node_label"`
 }
@@ -64,6 +68,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		peerAttr = append(peerAttr, string(attr))
 	}
 	cfg.PeerAttributes = peerAttr
+
+	// Set default database name attributes to support both old and new semantic conventions
+	cfg.DatabaseNameAttributes = []string{"db.name", "db.system.name"}
 
 	cfg.EnableMessagingSystemLatencyHistogram = false
 }
