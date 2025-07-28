@@ -1074,3 +1074,67 @@ func (p ByteNotEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
 	return !bytes.Equal(vv, p.value)
 }
+
+var _ Predicate = (*ByteIgnoreLeadingZeroesEqualPredicate)(nil)
+
+type ByteIgnoreLeadingZeroesEqualPredicate struct {
+	value []byte
+}
+
+func NewByteIgnoreLeadingZeroesEqualPredicate(val []byte) ByteIgnoreLeadingZeroesEqualPredicate {
+	return ByteIgnoreLeadingZeroesEqualPredicate{value: val}
+}
+
+func (p ByteIgnoreLeadingZeroesEqualPredicate) String() string {
+	return fmt.Sprintf("ByteIgnoreLeadingZeroesEqualPredicate{%s}", p.value)
+}
+
+func (p ByteIgnoreLeadingZeroesEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	return true
+}
+
+func (p ByteIgnoreLeadingZeroesEqualPredicate) KeepPage(page pq.Page) bool {
+
+	return true
+}
+
+func (p ByteIgnoreLeadingZeroesEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)
+}
+
+var _ Predicate = (*ByteIgnoreLeadingZeroesNotEqualPredicate)(nil)
+
+type ByteIgnoreLeadingZeroesNotEqualPredicate struct {
+	value []byte
+}
+
+func NewByteIgnoreLeadingZeroesNotEqualPredicate(val []byte) ByteIgnoreLeadingZeroesNotEqualPredicate {
+	return ByteIgnoreLeadingZeroesNotEqualPredicate{value: val}
+}
+
+func (p ByteIgnoreLeadingZeroesNotEqualPredicate) String() string {
+	return fmt.Sprintf("ByteIgnoreLeadingZeroesNotEqualPredicate{%s}", p.value)
+}
+
+func (p ByteIgnoreLeadingZeroesNotEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	return true
+}
+
+func (p ByteIgnoreLeadingZeroesNotEqualPredicate) KeepPage(page pq.Page) bool {
+
+	return true
+}
+
+func (p ByteIgnoreLeadingZeroesNotEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return !bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)
+}
