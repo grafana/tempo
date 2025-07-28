@@ -462,17 +462,29 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsPe
 
 // MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix enables "client" and "server" prefix
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix
+	EnableClientServerPrefix := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix
+	if EnableClientServerPrefix != nil {
+		return *EnableClientServerPrefix
+	}
+	return false
 }
 
 // MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram enables this metric
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) bool {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool) {
+	enableMessagingSystemLatencyHistogram := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram
+	if enableMessagingSystemLatencyHistogram != nil {
+		return *enableMessagingSystemLatencyHistogram, true
+	}
+	return false, false
 }
 
 // MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel adds the "virtual_node" label
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool) {
+	enableVirtualNodeLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel
+	if enableVirtualNodeLabel != nil {
+		return *enableVirtualNodeLabel, true
+	}
+	return false, false
 }
 
 // MetricsGeneratorProcessorSpanMetricsHistogramBuckets controls the histogram buckets to be used
@@ -504,8 +516,12 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsDime
 }
 
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) {
+	enableTargetInfo := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo
+	if enableTargetInfo != nil {
+		return *enableTargetInfo, true
+	}
+	return false, false
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {

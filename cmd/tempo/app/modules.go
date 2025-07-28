@@ -429,7 +429,7 @@ func (t *App) initQuerier() (services.Service, error) {
 
 	// do not enable polling if this is the single binary. in that case the compactor will take care of polling
 	if t.cfg.Target == Querier {
-		t.store.EnablePolling(context.Background(), nil)
+		t.store.EnablePolling(context.Background(), nil, false)
 	}
 
 	ingesterRings := []ring.ReadRing{t.readRings[ringIngester]}
@@ -541,7 +541,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	if t.cfg.Target == QueryFrontend {
-		t.store.EnablePolling(context.Background(), nil)
+		t.store.EnablePolling(context.Background(), nil, false)
 	}
 
 	// http query echo endpoint
