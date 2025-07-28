@@ -414,6 +414,32 @@ sendLoop:
 			require.Equal(t, testCase.expectedNum, len(instantQueryRes.GetSeries()))
 		})
 	}
+
+	for _, testCase := range []struct {
+		name              string
+		end               time.Time
+		expectedIntervals int
+	}{
+		// |---start|---|---end|
+		{name: "aligned", end: time.Now().Truncate(time.Minute), expectedIntervals: 3},
+		// |---|---start---|---|---end---|
+		{name: "unaligned", end: time.Now(), expectedIntervals: 4},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			req := queryRangeRequest{
+				Query: "{} | count_over_time()",
+				Start: testCase.end.Add(-2 * time.Minute),
+				End:   testCase.end,
+				Step:  "1m",
+			}
+
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
+			require.NotNil(t, queryRangeRes)
+			series := queryRangeRes.GetSeries()
+			require.Equal(t, 1, len(series), "Expected 1 series for count_over_time query")
+			require.Equal(t, testCase.expectedIntervals, len(series[0].Samples))
+		})
+	}
 }
 
 func sumSamples(samples []tempopb.Sample) float64 {
