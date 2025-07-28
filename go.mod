@@ -4,7 +4,7 @@ go 1.24.4
 
 require (
 	cloud.google.com/go/storage v1.55.0
-	github.com/alecthomas/kong v1.12.0
+	github.com/alecthomas/kong v1.12.1
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/aws/aws-sdk-go v1.55.7
 	github.com/cespare/xxhash/v2 v2.3.0
