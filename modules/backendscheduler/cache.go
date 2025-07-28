@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -41,12 +39,12 @@ func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
 	defer span.End()
 
 	// Check if shard files exist before attempting to load them
-	if s.checkForShardFiles() {
+	if s.work.HasLocalData() {
 		// Try to load the local work cache first, falling back to the backend if it doesn't exist.
-		err := s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
+		err := s.work.LoadFromLocal(ctx)
 		if err != nil {
 			if !os.IsNotExist(err) {
-				level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", s.cfg.LocalWorkPath, "error", err)
+				level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", s.cfg.Work.LocalWorkPath, "error", err)
 			}
 
 			return s.loadWorkCacheFromBackend(ctx)
@@ -84,18 +82,4 @@ func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
 	}
 
 	return s.replayWorkOnBlocklist(ctx)
-}
-
-// checkForShardFiles checks if any shard files exist
-func (s *BackendScheduler) checkForShardFiles() bool {
-	for i := range work.ShardCount {
-		if _, err := os.Stat(s.filepathForShard(uint8(i))); err == nil {
-			return true // Found at least one shard file
-		}
-	}
-	return false
-}
-
-func (s *BackendScheduler) filepathForShard(shardID uint8) string {
-	return filepath.Join(s.cfg.LocalWorkPath, work.FileNameForShard(shardID))
 }

@@ -3,17 +3,18 @@ package work
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
 
 func TestShardedRoundTrip(t *testing.T) {
-	shardedWork := New(Config{})
+	shardedWork, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "failed to create sharded work instance")
 
 	// Add multiple jobs to different shards
 	jobs := []*Job{
@@ -22,8 +23,10 @@ func TestShardedRoundTrip(t *testing.T) {
 		createTestJob("test-job-3", tempopb.JobType_JOB_TYPE_RETENTION),
 	}
 
+	ctx := context.Background()
+
 	for _, job := range jobs {
-		err := shardedWork.AddJob(job)
+		err := shardedWork.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err, "failed to add job: %v", err)
 	}
 
@@ -35,7 +38,8 @@ func TestShardedRoundTrip(t *testing.T) {
 	require.NoError(t, err, "failed to marshal sharded work")
 
 	// Unmarshal into a new instance
-	newShardedWork := New(Config{})
+	newShardedWork, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "failed to create sharded work instance")
 	err = newShardedWork.Unmarshal(data)
 	require.NoError(t, err, "failed to unmarshal sharded work")
 
@@ -68,11 +72,14 @@ func TestShardedRoundTrip(t *testing.T) {
 }
 
 func TestAddJob(t *testing.T) {
-	work := New(Config{})
+	work, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "failed to create work instance")
+	ctx := context.Background()
 
 	t.Run("successful add", func(t *testing.T) {
 		job := createTestJob("test-job", tempopb.JobType_JOB_TYPE_COMPACTION)
-		err := work.AddJob(job)
+		workerID := uuid.NewString()
+		err := work.AddJob(ctx, job, workerID)
 		require.NoError(t, err)
 
 		// Verify job was added with correct state
@@ -81,42 +88,53 @@ func TestAddJob(t *testing.T) {
 		require.Equal(t, "test-job", retrievedJob.ID)
 		require.Equal(t, tempopb.JobStatus_JOB_STATUS_UNSPECIFIED, retrievedJob.Status)
 		require.False(t, retrievedJob.CreatedTime.IsZero())
+		require.Equal(t, workerID, retrievedJob.WorkerID)
 	})
 
 	t.Run("nil job", func(t *testing.T) {
-		err := work.AddJob(nil)
+		err := work.AddJob(ctx, nil, "")
 		require.Error(t, err)
 		require.Equal(t, ErrJobNil, err)
+	})
+
+	t.Run("empty worker id", func(t *testing.T) {
+		job := createTestJob("test-job", tempopb.JobType_JOB_TYPE_COMPACTION)
+		err := work.AddJob(ctx, job, "")
+		require.Error(t, err)
 	})
 
 	t.Run("duplicate job", func(t *testing.T) {
 		job1 := createTestJob("duplicate-job", tempopb.JobType_JOB_TYPE_COMPACTION)
 		job2 := createTestJob("duplicate-job", tempopb.JobType_JOB_TYPE_COMPACTION)
 
-		err1 := work.AddJob(job1)
+		err1 := work.AddJob(ctx, job1, uuid.NewString())
 		require.NoError(t, err1)
 
-		err2 := work.AddJob(job2)
+		err2 := work.AddJob(ctx, job2, uuid.NewString())
 		require.Error(t, err2)
 		require.Equal(t, ErrJobAlreadyExists, err2)
 	})
 }
 
 func TestJobOperations(t *testing.T) {
-	work := New(Config{})
+	ctx := context.Background()
+
+	work, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "failed to create work instance")
+
 	job := createTestJob("ops-test", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err := work.AddJob(job)
+	err = work.AddJob(ctx, job, uuid.NewString())
 	require.NoError(t, err)
 
 	t.Run("start job", func(t *testing.T) {
-		work.StartJob("ops-test")
+		work.StartJob(ctx, "ops-test")
 		retrievedJob := work.GetJob("ops-test")
 		require.Equal(t, tempopb.JobStatus_JOB_STATUS_RUNNING, retrievedJob.Status)
 		require.False(t, retrievedJob.StartTime.IsZero())
 	})
 
 	t.Run("complete job", func(t *testing.T) {
-		work.CompleteJob("ops-test")
+		work.CompleteJob(ctx, "ops-test")
 		retrievedJob := work.GetJob("ops-test")
 		require.Equal(t, tempopb.JobStatus_JOB_STATUS_SUCCEEDED, retrievedJob.Status)
 		require.False(t, retrievedJob.EndTime.IsZero())
@@ -124,18 +142,18 @@ func TestJobOperations(t *testing.T) {
 
 	t.Run("set compaction output", func(t *testing.T) {
 		output := []string{"output1", "output2"}
-		work.SetJobCompactionOutput("ops-test", output)
+		work.SetJobCompactionOutput(ctx, "ops-test", output)
 		retrievedJob := work.GetJob("ops-test")
 		require.Equal(t, output, retrievedJob.GetCompactionOutput())
 	})
 
 	t.Run("fail job", func(t *testing.T) {
 		failJob := createTestJob("fail-test", tempopb.JobType_JOB_TYPE_COMPACTION)
-		err = work.AddJob(failJob)
+		err = work.AddJob(ctx, failJob, uuid.NewString())
 		require.NoError(t, err)
-		work.StartJob("fail-test")
+		work.StartJob(ctx, "fail-test")
 
-		work.FailJob("fail-test")
+		work.FailJob(ctx, "fail-test")
 		retrievedJob := work.GetJob("fail-test")
 		require.Equal(t, tempopb.JobStatus_JOB_STATUS_FAILED, retrievedJob.Status)
 		require.False(t, retrievedJob.EndTime.IsZero())
@@ -143,14 +161,14 @@ func TestJobOperations(t *testing.T) {
 
 	t.Run("remove job", func(t *testing.T) {
 		removeJob := createTestJob("remove-test", tempopb.JobType_JOB_TYPE_COMPACTION)
-		err = work.AddJob(removeJob)
+		err = work.AddJob(ctx, removeJob, uuid.NewString())
 		require.NoError(t, err)
 
 		// Verify job exists
 		require.NotNil(t, work.GetJob("remove-test"))
 
 		// Remove job
-		work.RemoveJob("remove-test")
+		work.RemoveJob(ctx, "remove-test")
 
 		// Verify job is gone
 		require.Nil(t, work.GetJob("remove-test"))
@@ -158,7 +176,10 @@ func TestJobOperations(t *testing.T) {
 }
 
 func TestListJobs(t *testing.T) {
-	work := New(Config{})
+	work, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "failed to create work instance")
+
+	ctx := context.Background()
 
 	// Add jobs with different creation times
 	jobs := []*Job{
@@ -167,10 +188,8 @@ func TestListJobs(t *testing.T) {
 		createTestJob("job-3", tempopb.JobType_JOB_TYPE_COMPACTION),
 	}
 
-	var err error
-
 	for i, job := range jobs {
-		err = work.AddJob(job)
+		err = work.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err)
 		// Manually set creation time for testing sorting
 		retrievedJob := work.GetJob(job.ID)
@@ -188,22 +207,21 @@ func TestListJobs(t *testing.T) {
 }
 
 func TestGetJobForWorker(t *testing.T) {
-	var (
-		work = New(Config{})
-		ctx  = context.Background()
-		err  error
-	)
+	work, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "failed to create work instance")
+
+	ctx := context.Background()
 
 	// Add jobs for different workers
 	job1 := createTestJob("worker1-job", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err = work.AddJob(job1)
+	err = work.AddJob(ctx, job1, uuid.NewString())
 	require.NoError(t, err)
-	work.StartJob(job1.ID) // Sets status to RUNNING
+	work.StartJob(ctx, job1.ID) // Sets status to RUNNING
 	retrievedJob1 := work.GetJob(job1.ID)
 	retrievedJob1.SetWorkerID("worker-1")
 
 	job2 := createTestJob("worker2-job", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err = work.AddJob(job2)
+	err = work.AddJob(ctx, job2, uuid.NewString())
 	require.NoError(t, err)
 	retrievedJob2 := work.GetJob(job2.ID)
 	retrievedJob2.SetWorkerID("worker-2")
@@ -228,43 +246,44 @@ func TestPrune(t *testing.T) {
 	cfg := Config{
 		PruneAge:       time.Hour,
 		DeadJobTimeout: 30 * time.Minute,
+		LocalWorkPath:  t.TempDir() + "/work",
 	}
-	work := New(cfg)
+	work, err := New(cfg)
+	require.NoError(t, err, "failed to create work instance")
+
 	ctx := context.Background()
 
 	now := time.Now()
 
-	var err error
-
 	// Add old completed job (should be pruned)
 	oldCompleted := createTestJob("old-completed", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err = work.AddJob(oldCompleted)
+	err = work.AddJob(ctx, oldCompleted, uuid.NewString())
 	require.NoError(t, err)
-	work.CompleteJob(oldCompleted.ID) // Sets status to SUCCEEDED
+	work.CompleteJob(ctx, oldCompleted.ID) // Sets status to SUCCEEDED
 	retrievedOldCompleted := work.GetJob(oldCompleted.ID)
 	retrievedOldCompleted.EndTime = now.Add(-2 * time.Hour)
 
 	// Add recent completed job (should not be pruned)
 	recentCompleted := createTestJob("recent-completed", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err = work.AddJob(recentCompleted)
+	err = work.AddJob(ctx, recentCompleted, uuid.NewString())
 	require.NoError(t, err)
-	work.CompleteJob(recentCompleted.ID) // Sets status to SUCCEEDED
+	work.CompleteJob(ctx, recentCompleted.ID) // Sets status to SUCCEEDED
 	retrievedRecentCompleted := work.GetJob(recentCompleted.ID)
 	retrievedRecentCompleted.EndTime = now.Add(-10 * time.Minute)
 
 	// Add old running job (should be failed)
 	oldRunning := createTestJob("old-running", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err = work.AddJob(oldRunning)
+	err = work.AddJob(ctx, oldRunning, uuid.NewString())
 	require.NoError(t, err)
-	work.StartJob(oldRunning.ID) // Sets status to RUNNING
+	work.StartJob(ctx, oldRunning.ID) // Sets status to RUNNING
 	retrievedOldRunning := work.GetJob(oldRunning.ID)
 	retrievedOldRunning.StartTime = now.Add(-time.Hour)
 
 	// Add recent running job (should remain running)
 	recentRunning := createTestJob("recent-running", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err = work.AddJob(recentRunning)
+	err = work.AddJob(ctx, recentRunning, uuid.NewString())
 	require.NoError(t, err)
-	work.StartJob(recentRunning.ID) // Sets status to RUNNING
+	work.StartJob(ctx, recentRunning.ID) // Sets status to RUNNING
 	retrievedRecentRunning := work.GetJob(recentRunning.ID)
 	retrievedRecentRunning.StartTime = now.Add(-10 * time.Minute)
 
@@ -285,8 +304,16 @@ func TestPrune(t *testing.T) {
 }
 
 func TestShardingMethods(t *testing.T) {
-	work := New(Config{}).(*Work)
-	var err error
+	cfg := Config{
+		LocalWorkPath: t.TempDir() + "/work",
+	}
+
+	w, err := New(cfg)
+	require.NoError(t, err, "failed to create work instance")
+
+	work := w.(*Work)
+
+	ctx := context.Background()
 
 	t.Run("shard ID consistency", func(t *testing.T) {
 		jobID := "test-job-123"
@@ -299,7 +326,7 @@ func TestShardingMethods(t *testing.T) {
 	t.Run("marshal shard", func(t *testing.T) {
 		// Add job to a specific shard
 		job := createTestJob("shard-test", tempopb.JobType_JOB_TYPE_COMPACTION)
-		err = work.AddJob(job)
+		err = work.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err)
 
 		shardID := work.GetShardID("shard-test")
@@ -311,7 +338,7 @@ func TestShardingMethods(t *testing.T) {
 	t.Run("unmarshal shard", func(t *testing.T) {
 		// Create shard data
 		job := createTestJob("unmarshal-test", tempopb.JobType_JOB_TYPE_COMPACTION)
-		err = work.AddJob(job)
+		err = work.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err)
 
 		shardID := work.GetShardID("unmarshal-test")
@@ -319,7 +346,10 @@ func TestShardingMethods(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create new work instance and unmarshal specific shard
-		newWork := New(Config{}).(*Work)
+		w, err := New(cfg)
+		require.NoError(t, err, "failed to create work instance")
+
+		newWork := w.(*Work)
 		err = newWork.UnmarshalShard(shardID, data)
 		require.NoError(t, err)
 
@@ -331,14 +361,17 @@ func TestShardingMethods(t *testing.T) {
 
 	t.Run("shard stats", func(t *testing.T) {
 		// Clear and add specific jobs for stats testing
-		statsWork := New(Config{}).(*Work)
+		w, err := New(cfg)
+		require.NoError(t, err, "failed to create work instance")
 
-		var err error
+		statsWork := w.(*Work)
+
+		require.NoError(t, err, "failed to create work instance")
 
 		// Add jobs to create non-uniform distribution
 		for i := range 10 {
 			job := createTestJob(fmt.Sprintf("stats-job-%d", i), tempopb.JobType_JOB_TYPE_COMPACTION)
-			err = statsWork.AddJob(job)
+			err = statsWork.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err, "failed to add job for stats")
 		}
 
@@ -357,13 +390,12 @@ func TestShardingMethods(t *testing.T) {
 }
 
 func TestLocalFileOperations(t *testing.T) {
-	work := New(Config{})
-	ctx := context.Background()
+	tmpDir := t.TempDir()
 
-	// Create temporary directory
-	tmpDir, err := os.MkdirTemp("", "work-test-")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	work, err := New(Config{LocalWorkPath: tmpDir})
+	require.NoError(t, err, "failed to create work instance")
+
+	ctx := context.Background()
 
 	// Add test jobs
 	jobs := []*Job{
@@ -373,12 +405,12 @@ func TestLocalFileOperations(t *testing.T) {
 	}
 
 	for _, job := range jobs {
-		err := work.AddJob(job)
+		err := work.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err)
 	}
 
 	t.Run("flush all to local", func(t *testing.T) {
-		err := work.FlushToLocal(ctx, tmpDir, nil)
+		err := work.FlushToLocal(ctx, nil)
 		require.NoError(t, err)
 
 		// Verify shard files were created
@@ -388,25 +420,23 @@ func TestLocalFileOperations(t *testing.T) {
 	})
 
 	t.Run("flush affected to local", func(t *testing.T) {
-		affectedDir := filepath.Join(tmpDir, "affected")
-		err := os.MkdirAll(affectedDir, 0o700)
-		require.NoError(t, err)
-
 		// Flush only specific jobs
 		affectedJobs := []string{"local-job-1", "local-job-3"}
-		err = work.FlushToLocal(ctx, affectedDir, affectedJobs)
+		err := work.FlushToLocal(ctx, affectedJobs)
 		require.NoError(t, err)
 
 		// Verify only affected shard files were created
-		files, err := filepath.Glob(filepath.Join(affectedDir, "shard_*.json"))
+		files, err := filepath.Glob(filepath.Join(tmpDir, "shard_*.json"))
 		require.NoError(t, err)
 		require.NotEmpty(t, files)
 	})
 
 	t.Run("load from local", func(t *testing.T) {
 		// Create new work instance and load from saved files
-		newWork := New(Config{})
-		err := newWork.LoadFromLocal(ctx, tmpDir)
+		newWork, err := New(Config{LocalWorkPath: tmpDir})
+		require.NoError(t, err, "failed to create work instance")
+
+		err = newWork.LoadFromLocal(ctx)
 		require.NoError(t, err)
 
 		// Verify all jobs were loaded
@@ -429,15 +459,19 @@ func TestLocalFileOperations(t *testing.T) {
 	})
 
 	t.Run("load from nonexistent path", func(t *testing.T) {
-		nonexistentWork := New(Config{})
-		err := nonexistentWork.LoadFromLocal(ctx, "/nonexistent/path")
+		nonexistentWork, err := New(Config{LocalWorkPath: "/nonexistent/path"})
+		require.NoError(t, err, "failed to create work instance with nonexistent path")
+
+		err = nonexistentWork.LoadFromLocal(ctx)
 		require.NoError(t, err) // Should succeed with empty shards
 		require.Equal(t, 0, len(nonexistentWork.ListJobs()))
 	})
 }
 
 func TestConcurrency(t *testing.T) {
-	work := New(Config{})
+	work, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "failed to create work instance")
+
 	ctx := context.Background()
 
 	// Test concurrent operations
@@ -453,7 +487,7 @@ func TestConcurrency(t *testing.T) {
 
 				for j := range jobsPerGoroutine {
 					job := createTestJob(fmt.Sprintf("concurrent-%d-%d", goroutineID, j), tempopb.JobType_JOB_TYPE_COMPACTION)
-					err := work.AddJob(job)
+					err := work.AddJob(ctx, job, uuid.NewString())
 					require.NoError(t, err)
 				}
 			}(i)
@@ -474,7 +508,7 @@ func TestConcurrency(t *testing.T) {
 		// Add initial jobs
 		for i := range 50 {
 			job := createTestJob(fmt.Sprintf("ops-job-%d", i), tempopb.JobType_JOB_TYPE_COMPACTION)
-			err = work.AddJob(job)
+			err = work.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
 		}
 
@@ -490,12 +524,12 @@ func TestConcurrency(t *testing.T) {
 				jobs := work.ListJobs()
 				if len(jobs) > 0 {
 					job := jobs[workerID%len(jobs)]
-					work.StartJob(job.ID)
+					work.StartJob(ctx, job.ID)
 					work.GetJob(job.ID)
 					if workerID%2 == 0 {
-						work.CompleteJob(job.ID)
+						work.CompleteJob(ctx, job.ID)
 					} else {
-						work.FailJob(job.ID)
+						work.FailJob(ctx, job.ID)
 					}
 				}
 			}(i)
@@ -516,16 +550,15 @@ func TestConcurrency(t *testing.T) {
 			PruneAge:       time.Minute,
 			DeadJobTimeout: time.Minute,
 		}
-		pruneWork := New(cfg)
-
-		var err error
+		pruneWork, err := New(cfg)
+		require.NoError(t, err, "failed to create prune work instance")
 
 		// Add jobs with old timestamps
 		for i := range 20 {
 			job := createTestJob(fmt.Sprintf("prune-job-%d", i), tempopb.JobType_JOB_TYPE_COMPACTION)
-			err = pruneWork.AddJob(job)
+			err = pruneWork.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
-			pruneWork.CompleteJob(job.ID) // Sets status to SUCCEEDED
+			pruneWork.CompleteJob(ctx, job.ID) // Sets status to SUCCEEDED
 			retrievedJob := pruneWork.GetJob(job.ID)
 			retrievedJob.EndTime = time.Now().Add(-2 * time.Hour)
 		}
@@ -552,22 +585,28 @@ func TestConcurrency(t *testing.T) {
 }
 
 func TestEdgeCases(t *testing.T) {
-	work := New(Config{})
+	cfg := Config{LocalWorkPath: t.TempDir() + "/work"}
+
+	work, err := New(cfg)
+	require.NoError(t, err, "failed to create work instance")
+
+	ctx := context.Background()
 
 	t.Run("operations on nonexistent jobs", func(t *testing.T) {
 		// These should not panic
-		work.StartJob("nonexistent")
-		work.CompleteJob("nonexistent")
-		work.FailJob("nonexistent")
-		work.SetJobCompactionOutput("nonexistent", []string{"output"})
-		work.RemoveJob("nonexistent")
+		work.StartJob(ctx, "nonexistent")
+		work.CompleteJob(ctx, "nonexistent")
+		work.FailJob(ctx, "nonexistent")
+		work.SetJobCompactionOutput(ctx, "nonexistent", []string{"output"})
+		work.RemoveJob(ctx, "nonexistent")
 
 		job := work.GetJob("nonexistent")
 		require.Nil(t, job)
 	})
 
 	t.Run("empty work operations", func(t *testing.T) {
-		emptyWork := New(Config{})
+		emptyWork, err := New(cfg)
+		require.NoError(t, err, "failed to create work instance")
 
 		require.Equal(t, 0, len(emptyWork.ListJobs()))
 		require.Empty(t, emptyWork.ListJobs())
@@ -583,23 +622,29 @@ func TestEdgeCases(t *testing.T) {
 		data, err := emptyWork.Marshal()
 		require.NoError(t, err)
 
-		newWork := New(Config{})
+		newWork, err := New(cfg)
+		require.NoError(t, err, "failed to create work instance")
 		err = newWork.Unmarshal(data)
 		require.NoError(t, err)
 		require.Equal(t, 0, len(newWork.ListJobs()))
 	})
 
 	t.Run("unmarshal invalid data", func(t *testing.T) {
-		newWork := New(Config{})
-		err := newWork.Unmarshal([]byte("invalid json"))
+		newWork, err := New(Config{})
+		require.NoError(t, err, "failed to create work instance")
+
+		err = newWork.Unmarshal([]byte("invalid json"))
 		require.Error(t, err)
 	})
 }
 
 // TestFullMarshalUnmarshal tests the full work cache serialization across all shards
 func TestFullMarshalUnmarshal(t *testing.T) {
-	work := New(Config{})
-	var err error
+	cfg := Config{LocalWorkPath: t.TempDir() + "/work"}
+	work, err := New(cfg)
+	require.NoError(t, err, "failed to create work instance")
+
+	ctx := context.Background()
 
 	// Create jobs with variety in states for comprehensive testing
 	totalJobs := 20
@@ -613,25 +658,25 @@ func TestFullMarshalUnmarshal(t *testing.T) {
 		// Add variety in job states
 		switch i % 4 {
 		case 0:
-			err = work.AddJob(job)
+			err = work.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
 			pendingJobCount++ // This job remains pending
 		case 1:
-			err = work.AddJob(job)
+			err = work.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
-			work.StartJob(jobID)
+			work.StartJob(ctx, jobID)
 			// Running jobs are not counted as "pending" by Len()
 		case 2:
-			err = work.AddJob(job)
+			err = work.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
-			work.StartJob(jobID)
-			work.CompleteJob(jobID)
+			work.StartJob(ctx, jobID)
+			work.CompleteJob(ctx, jobID)
 			// Completed jobs are not counted as "pending" by Len()
 		case 3:
-			err = work.AddJob(job)
+			err = work.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
-			work.StartJob(jobID)
-			work.FailJob(jobID)
+			work.StartJob(ctx, jobID)
+			work.FailJob(ctx, jobID)
 			// Failed jobs are not counted as "pending" by Len()
 		}
 
@@ -650,7 +695,8 @@ func TestFullMarshalUnmarshal(t *testing.T) {
 	t.Logf("Marshaled data size: %d bytes", len(data))
 
 	// Create new work instance and unmarshal
-	newWork := New(Config{})
+	newWork, err := New(cfg)
+	require.NoError(t, err, "failed to create work instance")
 	err = newWork.Unmarshal(data)
 	require.NoError(t, err)
 
@@ -686,8 +732,11 @@ func TestFullMarshalUnmarshal(t *testing.T) {
 
 // TestMarshalUnmarshalEdgeCases tests edge cases and error conditions
 func TestMarshalUnmarshalEdgeCases(t *testing.T) {
+	cfg := Config{LocalWorkPath: t.TempDir() + "/work"}
+
 	t.Run("empty work cache", func(t *testing.T) {
-		work := New(Config{})
+		work, err := New(cfg)
+		require.NoError(t, err, "failed to create work instance")
 
 		// Marshal empty cache
 		data, err := work.Marshal()
@@ -695,28 +744,34 @@ func TestMarshalUnmarshalEdgeCases(t *testing.T) {
 		require.NotEmpty(t, data)
 
 		// Unmarshal into new instance
-		newWork := New(Config{})
+		newWork, err := New(cfg)
+		require.NoError(t, err, "failed to create work instance")
+
 		err = newWork.Unmarshal(data)
 		require.NoError(t, err)
 		require.Equal(t, 0, len(newWork.ListJobs()))
 	})
 
 	t.Run("invalid json unmarshal", func(t *testing.T) {
-		work := New(Config{})
+		work, err := New(cfg)
+		require.NoError(t, err, "failed to create work instance")
 
-		err := work.Unmarshal([]byte("invalid json"))
+		err = work.Unmarshal([]byte("invalid json"))
 		require.Error(t, err)
 	})
 }
 
 // TestConcurrentMarshalUnmarshal tests that Marshal/Unmarshal are safe with concurrent shard operations
 func TestConcurrentMarshalUnmarshal(t *testing.T) {
-	work := New(Config{})
+	work, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "failed to create work instance")
+
+	ctx := context.Background()
 
 	// Add initial jobs
 	for i := range 10 {
 		job := createTestJob(fmt.Sprintf("marshal-concurrent-job-%d", i), tempopb.JobType_JOB_TYPE_COMPACTION)
-		err := work.AddJob(job)
+		err := work.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err)
 	}
 
@@ -733,12 +788,12 @@ func TestConcurrentMarshalUnmarshal(t *testing.T) {
 				jobID := fmt.Sprintf("worker-%d-job-%d", workerID, j)
 				job := createTestJob(jobID, tempopb.JobType_JOB_TYPE_COMPACTION)
 
-				err := work.AddJob(job)
+				err := work.AddJob(ctx, job, uuid.NewString())
 				require.NoError(t, err)
 
-				work.StartJob(jobID)
-				work.CompleteJob(jobID)
-				work.RemoveJob(jobID)
+				work.StartJob(ctx, jobID)
+				work.CompleteJob(ctx, jobID)
+				work.RemoveJob(ctx, jobID)
 			}
 		}(i)
 	}
@@ -754,7 +809,9 @@ func TestConcurrentMarshalUnmarshal(t *testing.T) {
 			require.NotEmpty(t, data)
 
 			// Create new work instance and unmarshal
-			newWork := New(Config{})
+			newWork, err := New(Config{})
+			require.NoError(t, err)
+
 			err = newWork.Unmarshal(data)
 			require.NoError(t, err)
 
@@ -774,7 +831,7 @@ func TestConcurrentMarshalUnmarshal(t *testing.T) {
 
 	// Final validation - work should still be functional
 	finalJob := createTestJob("final-test", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err := work.AddJob(finalJob)
+	err = work.AddJob(ctx, finalJob, uuid.NewString())
 	require.NoError(t, err)
 
 	retrievedJob := work.GetJob("final-test")

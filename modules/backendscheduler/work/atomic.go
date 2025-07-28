@@ -7,38 +7,41 @@ import (
 
 // atomicWriteFile writes data to a file atomically using a temporary file and rename.
 // This prevents possible data corruption in case of a crash or interruption during the write operation.
-func atomicWriteFile(data []byte, targetPath, tempPrefix string) error {
-	dir := filepath.Dir(targetPath)
+func atomicWriteFile(data []byte, targetFile string) error {
+	var (
+		dir       = filepath.Dir(targetFile)
+		tmpPrefix = filepath.Base(targetFile)
+	)
 
 	// Create unique temporary file
-	tempFile, err := os.CreateTemp(dir, tempPrefix+".tmp.")
+	tmpFile, err := os.CreateTemp(dir, tmpPrefix+".tmp.")
 	if err != nil {
 		return err
 	}
-	tempPath := tempFile.Name()
+	tmpFilePath := tmpFile.Name()
 
 	// Write data to temporary file
-	_, err = tempFile.Write(data)
+	_, err = tmpFile.Write(data)
 	if err != nil {
-		tempFile.Close()
-		os.Remove(tempPath)
+		tmpFile.Close()
+		os.Remove(tmpFilePath)
 		return err
 	}
 
 	// Sync and close temporary file
-	err = tempFile.Sync()
+	err = tmpFile.Sync()
 	if err != nil {
-		tempFile.Close()
-		os.Remove(tempPath)
+		tmpFile.Close()
+		os.Remove(tmpFilePath)
 		return err
 	}
 
-	err = tempFile.Close()
+	err = tmpFile.Close()
 	if err != nil {
-		os.Remove(tempPath)
+		os.Remove(tmpFilePath)
 		return err
 	}
 
 	// Atomically move temp file to final location
-	return os.Rename(tempPath, targetPath)
+	return os.Rename(tmpFilePath, targetFile)
 }
