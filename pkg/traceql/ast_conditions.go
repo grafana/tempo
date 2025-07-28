@@ -80,10 +80,12 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 				})
 			} else {
 				operand := o.RHS.(Static)
-				if o.LHS.(Attribute).Intrinsic == IntrinsicSpanID {
+				switch o.LHS.(Attribute).Intrinsic {
+				case IntrinsicSpanID, IntrinsicLinkSpanID, IntrinsicParentID:
 					operand = normalizeSpanIDOperand(operand)
-					o.RHS = operand // Update the operation with the normalized operand
 				}
+				o.RHS = operand // Update the operation with the normalized operand
+
 				request.appendCondition(Condition{
 					Attribute: o.LHS.(Attribute),
 					Op:        o.Op,
@@ -131,10 +133,12 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 				})
 			} else {
 				operand := o.LHS.(Static)
-				if o.RHS.(Attribute).Intrinsic == IntrinsicSpanID {
+				switch o.RHS.(Attribute).Intrinsic {
+				case IntrinsicSpanID, IntrinsicLinkSpanID, IntrinsicParentID:
 					operand = normalizeSpanIDOperand(operand)
-					o.LHS = operand // Update the operation with the normalized operand
 				}
+				o.LHS = operand // Update the operation with the normalized operand
+
 				request.appendCondition(Condition{
 					Attribute: o.RHS.(Attribute),
 					Op:        o.Op,
