@@ -44,7 +44,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
 * [BUGFIX] Fix bug where most_recent=true wouldn't return most recent results when query overlapped ingesters and few other blocks.[#5438](https://github.com/grafana/tempo/pull/5438) (@joe-elliott)
 * [BUGFIX] Fix panic when counter series is missing during avg_over_time aggregation [#5300](https://github.com/grafana/tempo/pull/5300) (@ie-pham)
-* [ENHANCEMENT] Fix db.system.name attribute not being set in servicegraphs processor. [#5445](https://github.com/grafana/tempo/pull/5445) (@iamrajiv)
+* [CHANGE] **BREAKING CHANGE** Fix db.system.name attribute not being set in servicegraphs processor. The default order of database name attributes has changed from ["db.name", "db.system.name"] to use semconv constants. This may affect metrics if you rely on the specific precedence order. [#5445](https://github.com/grafana/tempo/pull/5445) (@iamrajiv)
 
 # v2.8.1
 
