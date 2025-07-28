@@ -119,7 +119,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	wal := w.WAL()
 	require.NoError(t, err)
@@ -269,7 +269,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	wal := w.WAL()
 	require.NoError(t, err)
@@ -413,7 +413,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -484,7 +484,7 @@ func TestCompactionMetrics(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -560,7 +560,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	// Cut blocks for multiple tenants
 	cutTestBlocks(t, w, testTenantID, 2, 2)
@@ -632,7 +632,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	cutTestBlockWithTraces(t, w, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
