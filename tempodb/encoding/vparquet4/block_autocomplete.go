@@ -330,14 +330,14 @@ func createDistinctLinkIterator(
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicLinkTraceID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false, true)
 			if err != nil {
 				return nil, err
 			}
 			iters = append(iters, makeIter(columnPathLinkTraceID, pred, "")) // don't select just filter
 			continue
 		case traceql.IntrinsicLinkSpanID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true, true)
 			if err != nil {
 				return nil, err
 			}
