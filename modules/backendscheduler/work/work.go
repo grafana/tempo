@@ -9,7 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/log"
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel"
 )
@@ -35,9 +37,15 @@ type Work struct {
 	mtx    sync.Mutex // Protects the entire Work structure during Marshal/Unmarshal
 }
 
-func New(cfg Config) Interface {
+// TODO: consider returning an error if the mkdir fails
+func New(cfg Config) (Interface, error) {
 	sw := &Work{
 		cfg: cfg,
+	}
+
+	err := os.MkdirAll(cfg.LocalWorkPath, 0o700)
+	if err != nil {
+		return nil, err
 	}
 
 	// Initialize all shards
@@ -47,16 +55,22 @@ func New(cfg Config) Interface {
 		}
 	}
 
-	return sw
+	// TODO: create the LocatWorkDirectory if it doesn't exist
+
+	return sw, nil
 }
 
 // AddJob adds a job to the appropriate shard
-func (w *Work) AddJob(j *Job) error {
+func (w *Work) AddJob(ctx context.Context, j *Job, workerID string) error {
 	if j == nil {
 		return ErrJobNil
 	}
 
-	shard := w.getShard(j.ID)
+	if workerID == "" {
+		return ErrEmptyWorkerID
+	}
+
+	shardID, shard := w.getShard(j.ID)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
@@ -66,35 +80,43 @@ func (w *Work) AddJob(j *Job) error {
 
 	j.CreatedTime = time.Now()
 	j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
+	j.WorkerID = workerID
 
 	shard.Jobs[j.ID] = j
-	return nil
+
+	return w.flushShard(ctx, shard, shardID)
 }
 
 // FlushToLocal writes the work cache to local storage using sharding optimizations
-func (w *Work) FlushToLocal(_ context.Context, localPath string, affectedJobIDs []string) error {
-	err := os.MkdirAll(localPath, 0o700)
+func (w *Work) FlushToLocal(ctx context.Context, affectedJobIDs []string) error {
+	_, span := tracer.Start(ctx, "FlushToLocal")
+	defer span.End()
+
+	err := os.MkdirAll(w.cfg.LocalWorkPath, 0o700)
 	if err != nil {
 		return err
 	}
 
 	if len(affectedJobIDs) == 0 {
 		// Flush all shards
-		return w.flushAllShards(localPath)
+		return w.flushAllShards(ctx)
 	}
 
 	// Flush only affected shards
-	return w.flushAffectedShards(localPath, affectedJobIDs)
+	return w.flushAffectedShards(ctx, affectedJobIDs)
 }
 
 // LoadFromLocal reads the work cache from local storage using sharding approach
-func (w *Work) LoadFromLocal(_ context.Context, localPath string) error {
+func (w *Work) LoadFromLocal(ctx context.Context) error {
+	_, span := tracer.Start(ctx, "LoadFromLocal")
+	defer span.End()
+
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
 
 	// Load from shard files - BackendScheduler already determined this is the right approach
 	for i := range ShardCount {
-		shardPath := filepath.Join(localPath, FileNameForShard(uint8(i)))
+		shardPath := filepath.Join(w.cfg.LocalWorkPath, FileNameForShard(i))
 
 		data, err := os.ReadFile(shardPath)
 		if err != nil {
@@ -114,8 +136,8 @@ func (w *Work) LoadFromLocal(_ context.Context, localPath string) error {
 }
 
 // StartJob starts a job in the appropriate shard
-func (w *Work) StartJob(id string) {
-	shard := w.getShard(id)
+func (w *Work) StartJob(ctx context.Context, id string) error {
+	shardID, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
@@ -124,11 +146,13 @@ func (w *Work) StartJob(id string) {
 			j.Start()
 		}
 	}
+
+	return w.flushShard(ctx, shard, shardID)
 }
 
 // GetJob retrieves a job from the appropriate shard
 func (w *Work) GetJob(id string) *Job {
-	shard := w.getShard(id)
+	_, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
@@ -139,12 +163,14 @@ func (w *Work) GetJob(id string) *Job {
 }
 
 // RemoveJob removes a job from the appropriate shard
-func (w *Work) RemoveJob(id string) {
-	shard := w.getShard(id)
+func (w *Work) RemoveJob(ctx context.Context, id string) {
+	_, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
 	delete(shard.Jobs, id)
+
+	// return w.flushShard(ctx, shard, shardID)
 }
 
 // ListJobs returns all jobs across all shards, sorted by creation time
@@ -179,6 +205,8 @@ func (w *Work) ListJobs() []*Job {
 func (w *Work) Prune(ctx context.Context) {
 	_, span := tracer.Start(ctx, "ShardedPrune")
 	defer span.End()
+
+	// TODO: consider using a more efficient pruning strategy
 
 	// Prune each shard independently for better concurrency
 	var wg sync.WaitGroup
@@ -246,21 +274,24 @@ func (w *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
 }
 
 // CompleteJob marks a job as completed in the appropriate shard
-func (w *Work) CompleteJob(id string) {
-	shard := w.getShard(id)
+func (w *Work) CompleteJob(ctx context.Context, id string) {
+	_, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
 	if j, ok := shard.Jobs[id]; ok {
 		j.Complete()
 	}
+
+	// return w.flushShard(ctx, shard, shardID)
 }
 
 // FailJob marks a job as failed in the appropriate shard
-func (w *Work) FailJob(id string) {
-	shard := w.getShard(id)
+func (w *Work) FailJob(ctx context.Context, id string) {
+	shardID, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
+	defer w.flushShard(ctx, shard, shardID)
 
 	if j, ok := shard.Jobs[id]; ok {
 		j.Fail()
@@ -268,10 +299,11 @@ func (w *Work) FailJob(id string) {
 }
 
 // SetJobCompactionOutput sets compaction output for a job in the appropriate shard
-func (w *Work) SetJobCompactionOutput(id string, output []string) {
-	shard := w.getShard(id)
+func (w *Work) SetJobCompactionOutput(ctx context.Context, id string, output []string) {
+	shardID, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
+	defer w.flushShard(ctx, shard, shardID)
 
 	if j, ok := shard.Jobs[id]; ok {
 		j.SetCompactionOutput(output)
@@ -407,37 +439,39 @@ func (w *Work) GetShardID(jobID string) int {
 }
 
 // getShard returns the shard for a given job ID
-func (w *Work) getShard(jobID string) *Shard {
-	return w.Shards[w.getShardID(jobID)]
+func (w *Work) getShard(jobID string) (int, *Shard) {
+	id := w.getShardID(jobID)
+	return id, w.Shards[id]
 }
 
 // flushAllShards writes all shards to individual files using atomic operations
-func (w *Work) flushAllShards(localPath string) error {
+func (w *Work) flushAllShards(ctx context.Context) error {
 	shards := make(map[int]bool, ShardCount)
 	for i := range ShardCount {
 		shards[i] = true
 	}
 
-	return w.flushShards(localPath, shards)
+	return w.flushShards(ctx, shards)
 }
 
 // flushAffectedShards writes only the shards that contain the affected jobs using atomic operations
-func (w *Work) flushAffectedShards(localPath string, affectedJobIDs []string) error {
+func (w *Work) flushAffectedShards(ctx context.Context, affectedJobIDs []string) error {
 	affectedShards := make(map[int]bool, len(affectedJobIDs))
 	for _, jobID := range affectedJobIDs {
 		shardID := w.GetShardID(jobID)
 		affectedShards[shardID] = true
 	}
 
-	return w.flushShards(localPath, affectedShards)
+	return w.flushShards(ctx, affectedShards)
 }
 
-func (w *Work) flushShards(localPath string, shards map[int]bool) error {
+func (w *Work) flushShards(ctx context.Context, shards map[int]bool) error {
+	_, span := tracer.Start(ctx, "flushShards")
+	defer span.End()
+
 	var (
-		funcErr   error
-		filename  string
-		shardPath string
-		shard     *Shard
+		funcErr error
+		shard   *Shard
 	)
 
 	for shardID := range shards {
@@ -446,20 +480,7 @@ func (w *Work) flushShards(localPath string, shards map[int]bool) error {
 			shard.mtx.Lock()
 			defer shard.mtx.Unlock()
 
-			shardData, err := jsoniter.Marshal(shard)
-			if err != nil {
-				return err
-			}
-
-			filename = FileNameForShard(uint8(shardID))
-			shardPath = filepath.Join(localPath, filename)
-
-			err = atomicWriteFile(shardData, shardPath, filename)
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return w.flushShard(ctx, shard, shardID)
 		}(shard)
 		if funcErr != nil {
 			return fmt.Errorf("failed to flush shard %d: %w", shardID, funcErr)
@@ -468,6 +489,52 @@ func (w *Work) flushShards(localPath string, shards map[int]bool) error {
 	return nil
 }
 
-func FileNameForShard(shardID uint8) string {
+// flushShard must be called under shard lock
+func (w *Work) flushShard(ctx context.Context, shard *Shard, id int) error {
+	shardData, err := jsoniter.Marshal(shard)
+	if err != nil {
+		return err
+	}
+
+	filename := FileNameForShard(id)
+	shardPath := filepath.Join(w.cfg.LocalWorkPath, filename)
+
+	err = atomicWriteFile(shardData, shardPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func FileNameForShard(shardID int) string {
 	return fmt.Sprintf("shard_%03d.json", shardID)
+}
+
+// HasShardFiles checks if any shard files exist
+func (w *Work) HasLocalData() bool {
+	// Check if the directory exists and create it if not.
+	if w.cfg.LocalWorkPath == "" {
+		return false // No local work path configured
+	}
+	// Ensure the local work path exists
+	if _, err := os.Stat(w.cfg.LocalWorkPath); os.IsNotExist(err) {
+		// Create the directory if it doesn't exist
+		err := os.MkdirAll(w.cfg.LocalWorkPath, 0o700)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "failed to create local work path", "path", w.cfg.LocalWorkPath, "error", err)
+			return false
+		}
+	}
+
+	for i := range ShardCount {
+		if _, err := os.Stat(w.FilePathForShard(i)); err == nil {
+			return true // Found at least one shard file
+		}
+	}
+	return false
+}
+
+func (w *Work) FilePathForShard(shardID int) string {
+	return filepath.Join(w.cfg.LocalWorkPath, FileNameForShard(shardID))
 }

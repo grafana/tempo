@@ -31,7 +31,7 @@ func TestShardedIntegration(t *testing.T) {
 			// Create config with or without sharding
 			cfg := Config{}
 			cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-			cfg.LocalWorkPath = tmpDir + "/work"
+			cfg.Work.LocalWorkPath = tmpDir + "/work"
 
 			var (
 				ctx, cancel   = context.WithCancel(context.Background())
@@ -76,7 +76,7 @@ func testJobOperations(ctx context.Context, t *testing.T, scheduler *BackendSche
 			},
 		}
 
-		err := scheduler.work.AddJob(job)
+		err := scheduler.work.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err)
 		jobIDs[i] = job.ID
 	}
@@ -88,7 +88,7 @@ func testJobOperations(ctx context.Context, t *testing.T, scheduler *BackendSche
 	// Mark all jobs completed
 	for _, jobID := range jobIDs {
 		// Start the job
-		scheduler.work.StartJob(jobID)
+		scheduler.work.StartJob(ctx, jobID)
 
 		// Complete the job
 		_, err := scheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
@@ -123,7 +123,7 @@ func testPersistenceAndRecovery(ctx context.Context, t *testing.T, originalSched
 	require.NotEmpty(t, initialJobs, "Should have jobs to test persistence")
 
 	// Force a flush to disk
-	err := originalScheduler.work.FlushToLocal(ctx, originalScheduler.cfg.LocalWorkPath, nil) // Flush all
+	err := originalScheduler.work.FlushToLocal(ctx, nil) // Flush all
 	require.NoError(t, err)
 
 	// Create a new scheduler instance (simulating restart)
@@ -153,7 +153,7 @@ func testPersistenceAndRecovery(ctx context.Context, t *testing.T, originalSched
 	// Should have shard files
 	foundShardFiles := 0
 	for i := range work.ShardCount {
-		shardPath := newScheduler.filepathForShard(uint8(i))
+		shardPath := newScheduler.work.(*work.Work).FilePathForShard(i) // Ensure shard ID is set
 		if _, err := os.Stat(shardPath); err == nil {
 			foundShardFiles++
 		}
