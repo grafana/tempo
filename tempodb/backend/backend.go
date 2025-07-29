@@ -54,6 +54,10 @@ type Writer interface {
 	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
 	// Delete deletes an object.
 	Delete(ctx context.Context, name string, keypath KeyPath) error
+	// WriteNoCompactFlag writes the nocompact flag to prevent a block from being compacted
+	WriteNoCompactFlag(ctx context.Context, blockID uuid.UUID, tenantID string) error
+	// DeleteNoCompactFlag deletes the nocompact flag to allow a block to be compacted
+	DeleteNoCompactFlag(ctx context.Context, blockID uuid.UUID, tenantID string) error
 }
 
 // Reader is a collection of methods to read data from tempodb backends
@@ -74,6 +78,8 @@ type Reader interface {
 	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
 	// Find executes f for each object in the backend that matches the keypath.
 	Find(ctx context.Context, keypath KeyPath, f FindFunc) error
+	// HasNoCompactFlag returns true if the block has the nocompact flag set
+	HasNoCompactFlag(ctx context.Context, blockID uuid.UUID, tenantID string) (bool, error)
 	// Shutdown shuts...down?
 	Shutdown()
 }

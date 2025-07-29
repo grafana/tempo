@@ -12,7 +12,7 @@ import (
 )
 
 type TruncateAllArguments[K any] struct {
-	Target ottl.PMapGetter[K]
+	Target ottl.PMapGetSetter[K]
 	Limit  int64
 }
 
@@ -30,7 +30,7 @@ func createTruncateAllFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argumen
 	return TruncateAll(args.Target, args.Limit)
 }
 
-func TruncateAll[K any](target ottl.PMapGetter[K], limit int64) (ottl.ExprFunc[K], error) {
+func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64) (ottl.ExprFunc[K], error) {
 	if limit < 0 {
 		return nil, fmt.Errorf("invalid limit for truncate_all function, %d cannot be negative", limit)
 	}
@@ -51,6 +51,6 @@ func TruncateAll[K any](target ottl.PMapGetter[K], limit int64) (ottl.ExprFunc[K
 		}
 		// TODO: Write log when truncation is performed
 		// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/9730
-		return nil, nil
+		return nil, target.Set(ctx, tCtx, val)
 	}, nil
 }

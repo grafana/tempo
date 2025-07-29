@@ -75,6 +75,7 @@ type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
 	CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error)
 	CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
+	DeleteNoCompactFlag(ctx context.Context, tenantID string, blockID backend.UUID) error
 	WAL() *wal.WAL
 }
 
@@ -98,7 +99,7 @@ type Reader interface {
 	Tenants() []string
 
 	// EnablePolling in the background of the blocklists, with the given ownership of tenants.
-	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
+	EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool)
 
 	// PollNow does an immediate poll of the blocklist and is for testing purposes. Must have already called EnablePolling.
 	PollNow(ctx context.Context)
@@ -282,6 +283,10 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 	}
 
 	return backendBlock, nil
+}
+
+func (rw *readerWriter) DeleteNoCompactFlag(ctx context.Context, tenantID string, blockID backend.UUID) error {
+	return rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(blockID), tenantID)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {
@@ -591,7 +596,7 @@ func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
-func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
+func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
 	}
@@ -629,6 +634,7 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		TenantPollConcurrency:      rw.cfg.BlocklistPollTenantConcurrency,
 		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
 		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
+		SkipNoCompactBlocks:        skipNoCompactBlocks,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller

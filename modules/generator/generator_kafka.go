@@ -24,7 +24,6 @@ var metricEnqueueTime = promauto.NewCounter(prometheus.CounterOpts{
 
 func (g *Generator) startKafka() {
 	g.kafkaCh = make(chan *kgo.Record, g.cfg.IngestConcurrency)
-
 	// Create context that will be used to stop the goroutines.
 	var ctx context.Context
 	ctx, g.kafkaStop = context.WithCancel(context.Background())
@@ -36,7 +35,8 @@ func (g *Generator) startKafka() {
 
 	g.kafkaWG.Add(1)
 	go g.listenKafka(ctx)
-	ingest.ExportPartitionLagMetrics(ctx, g.kafkaAdm, g.logger, g.cfg.Ingest, g.getAssignedActivePartitions, g.kafkaClient.ForceMetadataRefresh)
+
+	ingest.ExportPartitionLagMetrics(ctx, g.kafkaClient.Client, g.logger, g.cfg.Ingest, g.getAssignedActivePartitions, g.kafkaClient.ForceMetadataRefresh)
 }
 
 func (g *Generator) stopKafka() {

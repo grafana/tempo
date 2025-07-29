@@ -186,7 +186,7 @@ func (o *clientImpl) Set(ctx context.Context, userID string, limits *Limits, ver
 		return "", err
 	}
 
-	return o.rw.WriteVersioned(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, bytes.NewReader(data), version)
+	return o.rw.WriteVersioned(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, bytes.NewReader(data), int64(len(data)), version)
 }
 
 func (o *clientImpl) Delete(ctx context.Context, userID string, version backend.Version) error {

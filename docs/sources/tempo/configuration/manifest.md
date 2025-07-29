@@ -220,6 +220,7 @@ distributor:
         producer_max_buffered_bytes: 0
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
+        consumer_group_lag_metric_update_interval: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
     max_attribute_bytes: 2048
@@ -715,6 +716,7 @@ ingest:
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
+        consumer_group_lag_metric_update_interval: 1m0s
 block_builder:
     instance_id: hostname
     assigned_partitions: {}
@@ -1006,12 +1008,9 @@ backend_scheduler:
                 max_time_per_tenant: 5m0s
                 compaction_cycle: 30s
             max_jobs_per_tenant: 1000
-            backoff:
-                min_period: 100ms
-                max_period: 10s
-                max_retries: 0
             min_input_blocks: 2
             max_input_blocks: 4
+            min_cycle_interval: 30s
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:

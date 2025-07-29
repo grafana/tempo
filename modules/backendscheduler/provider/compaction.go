@@ -4,12 +4,12 @@ import (
 	"container/heap"
 	"context"
 	"flag"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/backendscheduler/work/tenantselector"
 	"github.com/grafana/tempo/modules/overrides"
@@ -31,9 +31,9 @@ type CompactionConfig struct {
 	MeasureInterval  time.Duration           `yaml:"measure_interval"`
 	Compactor        tempodb.CompactorConfig `yaml:"compaction"`
 	MaxJobsPerTenant int                     `yaml:"max_jobs_per_tenant"`
-	Backoff          backoff.Config          `yaml:"backoff"`
 	MinInputBlocks   int                     `yaml:"min_input_blocks"`
 	MaxInputBlocks   int                     `yaml:"max_input_blocks"`
+	MinCycleInterval time.Duration           `yaml:"min_cycle_interval"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -44,10 +44,8 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	f.IntVar(&cfg.MinInputBlocks, prefix+".min-input-blocks", blockselector.DefaultMinInputBlocks, "Minimum number of blocks to compact in a single job.")
 	f.IntVar(&cfg.MaxInputBlocks, prefix+".max-input-blocks", blockselector.DefaultMaxInputBlocks, "Maximum number of blocks to compact in a single job.")
 
-	// Backoff
-	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
-	f.DurationVar(&cfg.Backoff.MaxBackoff, prefix+".backoff-max-period", 10*time.Second, "Maximum delay when backing off.")
-	cfg.Backoff.MaxRetries = 0
+	// Tenant prioritization
+	f.DurationVar(&cfg.MinCycleInterval, prefix+".min-cycle-interval", 30*time.Second, "Minimum time between tenant prioritization cycles to prevent excessive CPU usage when no work is available.")
 
 	cfg.Compactor = tempodb.CompactorConfig{}
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
@@ -65,9 +63,14 @@ type CompactionProvider struct {
 	sched Scheduler
 
 	// Dependencies needed for tenant selection
-	curPriority *tenantselector.PriorityQueue
-	curTenant   *tenantselector.Item
-	curSelector blockselector.CompactionBlockSelector
+	curPriority        *tenantselector.PriorityQueue
+	curTenant          *tenantselector.Item
+	curSelector        blockselector.CompactionBlockSelector
+	lastPrioritizeTime time.Time
+
+	// Recent jobs cache for duplicate block ID prevention.
+	outstandingJobs    map[string][]backend.UUID
+	outstandingJobsMtx sync.Mutex
 }
 
 func NewCompactionProvider(
@@ -78,12 +81,13 @@ func NewCompactionProvider(
 	scheduler Scheduler,
 ) *CompactionProvider {
 	return &CompactionProvider{
-		cfg:         cfg,
-		logger:      logger,
-		store:       store,
-		overrides:   overrides,
-		curPriority: tenantselector.NewPriorityQueue(),
-		sched:       scheduler,
+		cfg:             cfg,
+		logger:          logger,
+		store:           store,
+		overrides:       overrides,
+		curPriority:     tenantselector.NewPriorityQueue(),
+		sched:           scheduler,
+		outstandingJobs: make(map[string][]backend.UUID),
 	}
 }
 
@@ -97,7 +101,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 		var (
 			job               *work.Job
-			b                 = backoff.New(ctx, p.cfg.Backoff)
 			curTenantJobCount int
 			span              trace.Span
 			loopCtx           context.Context
@@ -129,12 +132,12 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			if p.curSelector == nil {
-				b.Wait()
 				if !p.prepareNextTenant(loopCtx) {
-					level.Info(p.logger).Log("msg", "received empty tenant", "waiting", b.NextDelay())
-					metricTenantBackoff.Inc()
-					span.AddEvent("tenant not prepared")
+					level.Info(p.logger).Log("msg", "received empty tenant")
+					metricEmptyTenantCycle.Inc()
+					span.AddEvent("no tenant selected")
 				}
+
 				continue
 			}
 
@@ -147,14 +150,15 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 			job = p.createJob(loopCtx)
 			if job == nil {
-				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant after delay", "waiting", b.NextDelay())
+				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant")
 				// we don't have a job, reset the curTenant and try again
 				metricTenantEmptyJob.Inc()
-				// Avoid CPU spin
-				b.Wait()
 				reset()
 				continue
 			}
+
+			// Job successfully created, add to recent jobs cache before we send it.
+			p.addToRecentJobs(job)
 
 			select {
 			case <-ctx.Done():
@@ -165,7 +169,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			case jobs <- job:
 				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
 				curTenantJobCount++
-				b.Reset()
 				span.AddEvent("job created", trace.WithAttributes(
 					attribute.String("job_id", job.ID),
 					attribute.String("tenant_id", p.curTenant.Value()),
@@ -200,7 +203,22 @@ func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 	defer span.End()
 
 	if p.curPriority.Len() == 0 {
+		// Rate limit calls to prioritizeTenants to prevent excessive CPU usage
+		// when cycling through tenants with no available work.  We only expect new
+		// work for tenants after a the next blocklist poll.
+		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
+			waitTime := p.cfg.MinCycleInterval - elapsed
+			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization", "wait_time", waitTime)
+			select {
+			case <-ctx.Done():
+				return false
+			case <-time.After(waitTime):
+				// Continue to prioritizeTenants
+			}
+		}
+
 		p.prioritizeTenants(ctx)
+		p.lastPrioritizeTime = time.Now()
 		if p.curPriority.Len() == 0 {
 			return false
 		}
@@ -211,6 +229,8 @@ func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 		span.AddEvent("no more tenants to compact")
 		return false
 	}
+
+	level.Info(p.logger).Log("msg", "new tenant selected", "tenant_id", p.curTenant.Value())
 
 	p.curSelector, _ = p.newBlockSelector(p.curTenant.Value())
 	return true
@@ -355,12 +375,17 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 
 	// Query the work for the jobs and build up a list of UUIDs which we can match against and skip on the selector.
 	var (
-		perTenantBlockIDs = make(map[backend.UUID]struct{})
-		bid               backend.UUID
-		err               error
+		inProgressBlockIDs = make(map[backend.UUID]struct{})
+		bid                backend.UUID
+		err                error
 	)
 
 	for _, job := range p.sched.ListJobs() {
+		// Clean up recent jobs cache when we find a job which has been persisted
+		p.outstandingJobsMtx.Lock()
+		delete(p.outstandingJobs, job.ID)
+		p.outstandingJobsMtx.Unlock()
+
 		if job.Tenant() != tenantID {
 			continue
 		}
@@ -377,17 +402,24 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 				level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
 				continue
 			}
-			perTenantBlockIDs[bid] = struct{}{}
+			inProgressBlockIDs[bid] = struct{}{}
 		}
 	}
 
-	for _, block := range fullBlocklist {
-		if _, ok := perTenantBlockIDs[block.BlockID]; ok {
-			// Skip blocks that are already in the input list from another job
-			continue
+	// Also include blocks from recent jobs cache to prevent duplicate job creation
+	p.outstandingJobsMtx.Lock()
+	for _, recentBlockIDs := range p.outstandingJobs {
+		for _, blockID := range recentBlockIDs {
+			inProgressBlockIDs[blockID] = struct{}{}
 		}
+	}
+	p.outstandingJobsMtx.Unlock()
 
-		blocklist = append(blocklist, block)
+	for _, block := range fullBlocklist {
+		if _, ok := inProgressBlockIDs[block.BlockID]; !ok {
+			// Include blocks that are not already in the input list from another job or recent jobs
+			blocklist = append(blocklist, block)
+		}
 	}
 
 	if window == 0 {
@@ -402,4 +434,31 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.MinInputBlocks,
 		p.cfg.MaxInputBlocks,
 	), len(blocklist)
+}
+
+// addToRecentJobs adds a job to the recent jobs cache
+func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
+	if job.Type != tempopb.JobType_JOB_TYPE_COMPACTION || job.JobDetail.Compaction == nil {
+		return
+	}
+
+	// Don't cache jobs with empty input
+	if len(job.JobDetail.Compaction.Input) == 0 {
+		return
+	}
+
+	// Copy the input block IDs
+	blockIDs := make([]backend.UUID, len(job.JobDetail.Compaction.Input))
+	for i, blockID := range job.JobDetail.Compaction.Input {
+		bid, err := backend.ParseUUID(blockID)
+		if err != nil {
+			level.Error(p.logger).Log("msg", "failed to parse block ID", "block_id", blockID, "err", err)
+			return
+		}
+		blockIDs[i] = bid
+	}
+
+	p.outstandingJobsMtx.Lock()
+	p.outstandingJobs[job.ID] = blockIDs
+	p.outstandingJobsMtx.Unlock()
 }

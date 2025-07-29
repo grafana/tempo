@@ -37,6 +37,7 @@ storage:
 backend_scheduler:
   provider:
     compaction:
+      min_cycle_interval: 50ms
       measure_interval: 1s
 backend_worker:
   backend_scheduler_addr: tempo-integration-backend-scheduler:9095
