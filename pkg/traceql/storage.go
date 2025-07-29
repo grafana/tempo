@@ -99,13 +99,8 @@ type FetchSpansRequest struct {
 	// either skipping them or returning them in full.  Span-level samples a
 	// subset of spans within each trace, still returning a spanset for each
 	// matching trace. Only one will be applied at a time.
-	TraceSample  float64      // Sampling rate to apply at a trace or spanset-level
-	TraceSampled func(uint64) // Callback for when something is sampled
-	TraceSkipped func(uint64) // Callback for when something is skipped
-
-	SpanSample  float64      // Sampling rate to apply at the span level.
-	SpanSampled func(uint64) // Callback for when something is sampled
-	SpanSkipped func(uint64) // Callback for when something is skipped
+	TraceSampler Sampler
+	SpanSampler  Sampler
 
 	// SecondPassFn and Conditions allow a caller to retrieve one set of data
 	// in the first pass, filter using the SecondPassFn callback and then

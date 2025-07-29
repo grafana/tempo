@@ -898,14 +898,38 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplars = v
 	}
 
-	traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints)
-	if traceSampleOk {
-		storageReq.TraceSample = traceSample
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints); traceSampleOk {
+		storageReq.TraceSampler = newProbablisticSampler(traceSample)
 	}
 
-	spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints)
-	if spanSampleOk {
-		storageReq.SpanSample = spanSample
+	if traceSampleInt, traceSampleIntOk := expr.Hints.GetInt(HintTraceSample, allowUnsafeQueryHints); traceSampleIntOk {
+		storageReq.TraceSampler = newMinimumSampler(uint64(traceSampleInt))
+	}
+
+	if traceSampleBool, traceSampleBoolOk := expr.Hints.GetBool(HintTraceSample, allowUnsafeQueryHints); traceSampleBoolOk && traceSampleBool {
+		// Automatic sampling
+		// Get other params
+		weighted, _ := expr.Hints.GetBool("weighted", true)
+		p, _ := expr.Hints.GetFloat("p", true)
+		fpc, _ := expr.Hints.GetBool("fpc", true)
+
+		storageReq.TraceSampler = newCochraneSampler(weighted, fpc, p)
+	}
+
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints); spanSampleOk {
+		storageReq.SpanSampler = newProbablisticSampler(spanSample)
+	}
+
+	if spanSampleInt, spanSampleIntOk := expr.Hints.GetInt(HintSpanSample, allowUnsafeQueryHints); spanSampleIntOk {
+		storageReq.SpanSampler = newMinimumSampler(uint64(spanSampleInt))
+	}
+
+	if sample, sampleOk := expr.Hints.GetBool(HintSample, allowUnsafeQueryHints); sampleOk && sample {
+		// Automatic sampling
+		weighted, _ := expr.Hints.GetBool("weighted", true)
+		p, _ := expr.Hints.GetFloat("p", true)
+		fpc, _ := expr.Hints.GetBool("fpc", true)
+		storageReq.SpanSampler = newCochraneSampler(weighted, fpc, p)
 	}
 
 	// This initializes all step buffers, counters, etc
@@ -1068,9 +1092,6 @@ type MetricsEvaluator struct {
 	metricsPipeline                 firstStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
-
-	traceSampled, traceSkipped uint64
-	spanSampled, spanSkipped   uint64
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -1084,41 +1105,12 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 	return float64(end-st) / float64(dataEnd-dataStart)
 }
 
-func (e *MetricsEvaluator) TraceSampled(n uint64) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.traceSampled += n
-}
-
-func (e *MetricsEvaluator) TraceSkipped(n uint64) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.traceSkipped += n
-}
-
-func (e *MetricsEvaluator) SpanSampled(n uint64) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.spanSampled += n
-}
-
-func (e *MetricsEvaluator) SpanSkipped(n uint64) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.spanSkipped += n
-}
-
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
 func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
-
-	storageReq.TraceSampled = e.TraceSampled
-	storageReq.TraceSkipped = e.TraceSkipped
-	storageReq.SpanSampled = e.SpanSampled
-	storageReq.SpanSkipped = e.SpanSkipped
 
 	if fetcherStart > 0 && fetcherEnd > 0 &&
 		// exclude special case for a block with the same start and end
@@ -1166,12 +1158,22 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		e.mtx.Lock()
 
+		if e.storageReq.TraceSampler != nil {
+			e.storageReq.TraceSampler.Measured(uint64(len(ss.Spans)))
+			// e.storageReq.TraceSampler.Measured(1)
+		}
+
+		if e.storageReq.SpanSampler != nil {
+			e.storageReq.SpanSampler.Measured(uint64(len(ss.Spans)))
+		}
+
 		var validSpansCount int
 		var randomSpanIndex int
 
 		needExemplar := e.maxExemplars > 0 && e.sampleExemplar(ss.TraceID)
 
 		for i, s := range ss.Spans {
+
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
 				if st < e.start || st >= e.end {
@@ -1181,6 +1183,10 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 			validSpansCount++
 			e.metricsPipeline.observe(s)
+
+			//if e.storageReq.SpanSampler != nil {
+			//	e.storageReq.SpanSampler.Measured(1)
+			//}
 
 			if !needExemplar {
 				continue
@@ -1226,24 +1232,17 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 	return e.bytes, e.spansTotal, e.spansDeduped
 }
 
-func (e *MetricsEvaluator) SampledMetrics() (uint64, uint64, uint64, uint64) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	return e.traceSampled, e.traceSkipped, e.spanSampled, e.spanSkipped
-}
-
 func (e *MetricsEvaluator) Results() SeriesSet {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
 	spanMultiplier := 1.0
-	if e.spanSampled > 0 && e.spanSkipped > 0 {
-		spanMultiplier = float64(e.spanSampled+e.spanSkipped) / float64(e.spanSampled)
+	if e.storageReq.SpanSampler != nil {
+		spanMultiplier = e.storageReq.SpanSampler.FinalScalingFactor()
 	}
-
 	traceMultiplier := 1.0
-	if e.traceSampled > 0 && e.traceSkipped > 0 {
-		traceMultiplier = float64(e.traceSampled+e.traceSkipped) / float64(e.traceSampled)
+	if e.storageReq.TraceSampler != nil {
+		traceMultiplier = e.storageReq.TraceSampler.FinalScalingFactor()
 	}
 
 	multiplier := spanMultiplier * traceMultiplier
@@ -1254,16 +1253,6 @@ func (e *MetricsEvaluator) Results() SeriesSet {
 	// we could do this but it would require knowing if the first stage functions
 	// can be pushed down to second stage or not so we are skipping it for now, and will handle it later.
 	ss := e.metricsPipeline.result(multiplier)
-
-	fmt.Println("trace sampled", e.traceSampled, "trace skipped", e.traceSkipped, "span sampled", e.spanSampled, "span skipped", e.spanSkipped, "multiplier", multiplier)
-
-	/*if e.multiplier != 1.0 {
-		for _, s := range ss {
-			for i := range s.Values {
-				s.Values[i] *= e.multiplier
-			}
-		}
-	}*/
 
 	return ss
 }
