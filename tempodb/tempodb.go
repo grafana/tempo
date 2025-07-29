@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/grafana/tempo/pkg/collector"
@@ -104,6 +105,9 @@ type Reader interface {
 	// PollNow does an immediate poll of the blocklist and is for testing purposes. Must have already called EnablePolling.
 	PollNow(ctx context.Context)
 
+	// Receive a context which is closed when the blocklist has been updated.
+	PollNotification(ctx context.Context) context.Context
+
 	Shutdown()
 }
 
@@ -155,6 +159,9 @@ type readerWriter struct {
 	compactorTenantOffset uint
 
 	pollerShutdownCh chan struct{}
+
+	pollerNotificationLock  sync.Mutex
+	pollerNotificationFuncs []func()
 }
 
 // New creates a new tempodb
@@ -651,6 +658,17 @@ func (rw *readerWriter) PollNow(ctx context.Context) {
 	rw.pollBlocklist(ctx)
 }
 
+func (rw *readerWriter) PollNotification(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancel(ctx)
+
+	rw.pollerNotificationLock.Lock()
+	defer rw.pollerNotificationLock.Unlock()
+
+	rw.pollerNotificationFuncs = append(rw.pollerNotificationFuncs, cancel)
+
+	return ctx
+}
+
 func (rw *readerWriter) pollingLoop(ctx context.Context) {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
 
@@ -676,6 +694,14 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 	}
 
 	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
+
+	rw.pollerNotificationLock.Lock()
+	defer rw.pollerNotificationLock.Unlock()
+
+	for _, fn := range rw.pollerNotificationFuncs {
+		fn()
+	}
+	clear(rw.pollerNotificationFuncs)
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
