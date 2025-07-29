@@ -1163,10 +1163,6 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 			// e.storageReq.TraceSampler.Measured(1)
 		}
 
-		if e.storageReq.SpanSampler != nil {
-			e.storageReq.SpanSampler.Measured(uint64(len(ss.Spans)))
-		}
-
 		var validSpansCount int
 		var randomSpanIndex int
 
@@ -1179,6 +1175,10 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 				if st < e.start || st >= e.end {
 					continue
 				}
+			}
+
+			if e.storageReq.SpanSampler != nil {
+				e.storageReq.SpanSampler.Measured(1)
 			}
 
 			validSpansCount++

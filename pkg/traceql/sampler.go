@@ -94,6 +94,11 @@ func (s *cochraneSampler) Sample(weight uint64) bool {
 	// Else, if the estimate is coming in too few, then sample.
 	skip := ideal > 0 && (expectedTotalSamples > ideal || float64(s.measured) >= ideal)
 
+	var skipS string
+	if skip {
+		skipS = "skipping"
+	}
+
 	fmt.Println("cochraneSampler.Sample",
 		"weight", weight,
 		"expected", s.expected,
@@ -103,7 +108,7 @@ func (s *cochraneSampler) Sample(weight uint64) bool {
 		"skipped", s.skipped,
 		"expectedTotalSamples", expectedTotalSamples,
 		//"p", p,
-		"skipping", skip)
+		skipS)
 
 	if skip {
 		// We're either already over the ideal or we're about to be.
@@ -126,7 +131,7 @@ func (s *cochraneSampler) idealSampleSize() float64 {
 	if p == 0 {
 		p = float64(s.measured) / float64(s.sampled)
 
-		maxP := 0.7    // Don't allow us to go less than 13K samples for very common conditions
+		maxP := 0.9    // Don't allow us to go less than 13K samples for very common conditions
 		minP := 0.0001 // Allow us to go as low as 7 samples for very rare conditions
 		if p > maxP {
 			p = maxP
@@ -140,6 +145,7 @@ func (s *cochraneSampler) idealSampleSize() float64 {
 	z := 2.576 // 99% confidence interval
 	z2 := z * z
 	e := 0.01 // Margin of error
+	// e := 0.05
 	e2 := e * e
 
 	n0 := z2 * p * (1 - p) / e2
