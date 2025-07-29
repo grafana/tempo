@@ -1507,23 +1507,7 @@ type IntervalCheckerQueryRange struct {
 }
 
 func (i *IntervalCheckerQueryRange) Interval(ts uint64) int {
-	if !isTsValidForInterval(ts, i.start, i.end, i.step) {
-		return -1
-	}
-	if ts <= i.start { // to avoid overflow
-		return 0 // if pass validation and less than start, always first interval
-	}
-
-	offset := ts - i.start
-	// Calculate which interval the timestamp falls into
-	// Since intervals are right-closed: (start; start+step], (start+step; start+2*step], etc.
-	// we need to handle the case where ts is exactly on a step boundary
-	interval := offset / i.step
-	if interval*i.step == offset { // the same as offset % step == 0
-		// ts is exactly on a step boundary, so it belongs to the previous interval
-		interval--
-	}
-	return int(interval)
+	return i.interval(ts, i.start, i.end, i.step)
 }
 
 func (i *IntervalCheckerQueryRange) IntervalMs(tsmill int64) int {
@@ -1532,7 +1516,27 @@ func (i *IntervalCheckerQueryRange) IntervalMs(tsmill int64) int {
 		return -1
 	}
 
-	return int((ts - i.startMs) / i.step)
+	return i.interval(ts, i.startMs, i.endMs, i.step)
+}
+
+func (i *IntervalCheckerQueryRange) interval(ts, start, end, step uint64) int {
+	if !isTsValidForInterval(ts, start, end, step) {
+		return -1
+	}
+	if ts <= start { // to avoid overflow
+		return 0 // if pass validation and less than start, always first interval
+	}
+
+	offset := ts - start
+	// Calculate which interval the timestamp falls into
+	// Since intervals are right-closed: (start; start+step], (start+step; start+2*step], etc.
+	// we need to handle the case where ts is exactly on a step boundary
+	interval := offset / step
+	if interval*step == offset { // the same as offset % step == 0
+		// ts is exactly on a step boundary, so it belongs to the previous interval
+		interval--
+	}
+	return int(interval)
 }
 
 func (i *IntervalCheckerQueryRange) TimestampOf(interval int) uint64 {
