@@ -261,6 +261,24 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 				},
 			},
 		},
+		{
+			Name:           "ByteIgnoreLeadingZeroes",
+			Type:           "[]byte",
+			ParquetFunc:    "ByteArray()",
+			FormatModifier: "%s",
+			Ops: []op{
+				{
+					Op:          "Equal",
+					CompareCond: `bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)`,
+					RangeCond:   "",
+				},
+				{
+					Op:          "NotEqual",
+					CompareCond: `!bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)`,
+					RangeCond:   "",
+				},
+			},
+		},
 	}
 
 	funcMap := template.FuncMap{

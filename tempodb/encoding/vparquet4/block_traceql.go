@@ -1776,7 +1776,7 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, all
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicLinkTraceID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false, true)
 			if err != nil {
 				return nil, err
 			}
@@ -1784,7 +1784,7 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, all
 			continue
 
 		case traceql.IntrinsicLinkSpanID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true, true)
 			if err != nil {
 				return nil, err
 			}
@@ -1878,7 +1878,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true, true)
 			if err != nil {
 				return nil, err
 			}
@@ -1887,7 +1887,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			continue
 
 		case traceql.IntrinsicParentID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true, true)
 			if err != nil {
 				return nil, err
 			}
@@ -2373,7 +2373,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 				if cond.Op == traceql.OpNone && cond.CallBack != nil {
 					metaIters = append(metaIters, makeIter(columnPathTraceID, parquetquery.NewCallbackPredicate(cond.CallBack), columnPathTraceID))
 				} else {
-					pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+					pred, err := createBytesPredicate(cond.Op, cond.Operands, false, false)
 					if err != nil {
 						return nil, err
 					}
@@ -2493,7 +2493,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	}
 }
 
-func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan bool) (parquetquery.Predicate, error) {
+func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan, ignoreLeadingZeroes bool) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -2510,11 +2510,20 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 	} else {
 		id, err = util.HexStringToTraceID(s)
 	}
-
 	if err != nil {
 		return nil, nil
 	}
 
+	if ignoreLeadingZeroes {
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewByteIgnoreLeadingZeroesEqualPredicate(id), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewByteIgnoreLeadingZeroesNotEqualPredicate(id), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		}
+	}
 	switch op {
 	case traceql.OpEqual:
 		return parquetquery.NewByteEqualPredicate(id), nil

@@ -2215,6 +2215,12 @@ func makeExpectedTrace(traceID []byte) (
 									stringKV("span-dedicated.02", "span-2b"),
 									stringKV(attributeWithTerminalChars, "foobaz"),
 								},
+								Links: []*v1.Span_Link{
+									{
+										TraceId: id,
+										SpanId:  []byte{0, 0, 0, 0, 0, 7, 8, 9},
+									},
+								},
 							},
 						},
 					},
@@ -2231,7 +2237,7 @@ func makeExpectedTrace(traceID []byte) (
 						Spans: []*v1.Span{
 							{
 								TraceId:           id,
-								SpanId:            []byte{7, 8, 9},
+								SpanId:            []byte{0, 0, 0, 0, 0, 7, 8, 9},
 								ParentSpanId:      []byte{4, 5, 6},
 								StartTimeUnixNano: uint64(1000 * time.Second),
 								EndTimeUnixNano:   uint64(1001 * time.Second),
@@ -2239,6 +2245,20 @@ func makeExpectedTrace(traceID []byte) (
 								Status:            &v1.Status{Code: v1.Status_STATUS_CODE_OK},
 								Attributes: []*v1_common.KeyValue{
 									boolKV("child2"),
+								},
+								Links: []*v1.Span_Link{
+									{
+										TraceId: id,
+										SpanId:  []byte{1, 2, 3},
+									},
+									{
+										TraceId: []byte{1, 2, 3}, // short trace id
+										SpanId:  []byte{1},
+									},
+									{
+										TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 5, 6},
+										SpanId:  []byte{2},
+									},
 								},
 							},
 						},
@@ -2685,32 +2705,124 @@ func TestSearchByShortTraceID(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("%s: include span id", v.Version()), func(t *testing.T) {
-			spanID := "0000000000010203"
-			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id="%s"}`, spanID)}
-
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
-			require.NoError(t, err, "search request: %+v", req)
-			require.NotEmpty(t, res.Traces)
-
-			actual := actualForExpectedMeta(wantMeta, res)
-			require.NotNil(t, actual, "search request: %v", req)
-
-			var found bool
-			require.NotNil(t, actual.SpanSets)
-			for _, spanSet := range actual.SpanSets {
-				for _, span := range spanSet.Spans {
-					if span.SpanID == spanID {
-						found = true
-						break
+			for _, tc := range []struct {
+				name           string
+				query          string
+				expectedSpanID string
+			}{
+				{
+					name:           "with leading zeros",
+					query:          `{span:id="0000000000010203"}`,
+					expectedSpanID: "0000000000010203",
+				},
+				{
+					name:           "no leading zeros",
+					query:          `{span:id="10203"}`,
+					expectedSpanID: "0000000000010203",
+				},
+				{
+					name:           "with leading zeros, stored with zeroes",
+					query:          `{span:id="0000000000070809"}`,
+					expectedSpanID: "0000000000070809",
+				},
+				{
+					name:           "no leading zeros, stored with zeroes",
+					query:          `{span:id="70809"}`,
+					expectedSpanID: "0000000000070809",
+				},
+				{
+					name:           "search by parent span id",
+					query:          `{span:parentID="0000000000040506"}`,
+					expectedSpanID: "0000000000010203",
+				},
+				{
+					name:           "search by parent span id, no leading zeroes",
+					query:          `{span:parentID="40506"}`,
+					expectedSpanID: "0000000000010203",
+				},
+				{
+					name:           "search by link",
+					query:          `{link:spanID="40506"}`,
+					expectedSpanID: "0000000000010203",
+				},
+				{
+					name:           "search by link, no leading zeroes",
+					query:          `{link:spanID="0000000000040506"}`,
+					expectedSpanID: "0000000000010203",
+				},
+				{
+					name:           "search by link",
+					query:          `{link:spanID="70809"}`,
+					expectedSpanID: "0000000000040506",
+				},
+				{
+					name:           "search by link, no leading zeroes",
+					query:          `{link:spanID="0000000000070809"}`,
+					expectedSpanID: "0000000000040506",
+				},
+				// TODO: fix this cases
+				// {
+				// 	name:           "search by link trace id, no leading zeroes",
+				// 	query:          `{link:traceID="00000000000000000000000000010203"}`,
+				// 	expectedSpanID: "0000000000070809",
+				// },
+				// {
+				// 	name:           "search by link trace id, no leading zeroes",
+				// 	query:          `{link:traceID="00000000000000000000000000040506"}`,
+				// 	expectedSpanID: "0000000000070809",
+				// },
+				// {
+				// 	name:           "search by link trace id",
+				// 	query:          `{link:traceID="10203"}`,
+				// 	expectedSpanID: "0000000000070809",
+				// },
+				// {
+				// 	name:           "search by link trace id",
+				// 	query:          `{link:traceID="40506"}`,
+				// 	expectedSpanID: "0000000000070809",
+				// },
+				{
+					name:           "yoda: with leading zeros",
+					query:          `{"0000000000010203"=span:id}`,
+					expectedSpanID: "0000000000010203",
+				},
+				{
+					name:           "yoda: no leading zeros",
+					query:          `{"10203"=span:id}`,
+					expectedSpanID: "0000000000010203",
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					if strings.Contains(tc.query, "link") && v.Version() != vparquet4.VersionString {
+						t.Skip("feature not supported in " + v.Version())
 					}
-				}
-			}
-			require.True(t, found, "span id %s not found", spanID)
+					req := &tempopb.SearchRequest{Query: tc.query}
 
-			actual.SpanSet = nil
-			actual.SpanSets = nil
-			actual.ServiceStats = nil
-			require.Equal(t, wantMeta, actual, "search request: %v", req)
+					res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+					require.NoError(t, err, "search request: %+v", req)
+					require.NotEmpty(t, res.Traces)
+
+					actual := actualForExpectedMeta(wantMeta, res)
+					require.NotNil(t, actual, "search request: %v", req)
+
+					var found bool
+					require.NotNil(t, actual.SpanSets)
+					for _, spanSet := range actual.SpanSets {
+						for _, span := range spanSet.Spans {
+							if span.SpanID == tc.expectedSpanID {
+								found = true
+								break
+							}
+						}
+					}
+					require.True(t, found, "span id %s not found", tc.expectedSpanID)
+
+					actual.SpanSet = nil
+					actual.SpanSets = nil
+					actual.ServiceStats = nil
+					require.Equal(t, wantMeta, actual, "search request: %v", req)
+				})
+			}
 		})
 
 		t.Run(fmt.Sprintf("%s: exclude trace id", v.Version()), func(t *testing.T) {
@@ -2723,21 +2835,112 @@ func TestSearchByShortTraceID(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("%s: exclude span id", v.Version()), func(t *testing.T) {
-			spanID := "0000000000010203"
-			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id!="%s"}`, spanID)}
+			for _, tc := range []struct {
+				name         string
+				query        string
+				targetSpanID string
+			}{
+				{
+					name:         "with leading zeros",
+					query:        `{span:id!="0000000000010203"}`,
+					targetSpanID: "0000000000010203",
+				},
+				{
+					name:         "no leading zeros",
+					query:        `{span:id!="10203"}`,
+					targetSpanID: "0000000000010203",
+				},
+				{
+					name:         "with leading zeros, stored with zeroes",
+					query:        `{span:id!="0000000000070809"}`,
+					targetSpanID: "0000000000070809",
+				},
+				{
+					name:         "no leading zeros, stored with zeroes",
+					query:        `{span:id!="70809"}`,
+					targetSpanID: "0000000000070809",
+				},
+				{
+					name:         "search by parent span id",
+					query:        `{span:parentID!="0000000000040506"}`,
+					targetSpanID: "0000000000010203",
+				},
+				{
+					name:         "search by parent span id, no leading zeroes",
+					query:        `{span:parentID!="40506"}`,
+					targetSpanID: "0000000000010203",
+				},
+				{
+					name:         "search by link",
+					query:        `{link:spanID!="40506"}`,
+					targetSpanID: "0000000000010203",
+				},
+				{
+					name:         "search by link, no leading zeroes",
+					query:        `{link:spanID!="0000000000040506"}`,
+					targetSpanID: "0000000000010203",
+				},
+				{
+					name:         "search by link",
+					query:        `{link:spanID!="70809"}`,
+					targetSpanID: "0000000000040506",
+				},
+				{
+					name:         "search by link, no leading zeroes",
+					query:        `{link:spanID!="0000000000070809"}`,
+					targetSpanID: "0000000000040506",
+				},
+				// TODO: fix this cases
+				// {
+				// 	name:         "search by link trace id, no leading zeroes",
+				// 	query:        `{link:traceID!="00000000000000000000000000010203"}`,
+				// 	targetSpanID: "0000000000070809",
+				// },
+				// {
+				// 	name:         "search by link trace id, no leading zeroes",
+				// 	query:        `{link:traceID!="00000000000000000000000000040506"}`,
+				// 	targetSpanID: "0000000000070809",
+				// },
+				// {
+				// 	name:         "search by link trace id",
+				// 	query:        `{link:traceID!="10203"}`,
+				// 	targetSpanID: "0000000000070809",
+				// },
+				// {
+				// 	name:         "search by link trace id",
+				// 	query:        `{link:traceID!="40506"}`,
+				// 	targetSpanID: "0000000000070809",
+				// },
+				{
+					name:         "yoda: with leading zeros",
+					query:        `{"0000000000010203"!=span:id}`,
+					targetSpanID: "0000000000010203",
+				},
+				{
+					name:         "yoda: no leading zeros",
+					query:        `{"10203"!=span:id}`,
+					targetSpanID: "0000000000010203",
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					if strings.Contains(tc.query, "link") && v.Version() != vparquet4.VersionString {
+						t.Skip("feature not supported in " + v.Version())
+					}
+					req := &tempopb.SearchRequest{Query: tc.query}
+					res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+					require.NoError(t, err, "search request: %+v", req)
+					require.NotEmpty(t, res.Traces)
 
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
-			require.NoError(t, err, "search request: %+v", req)
-			require.NotEmpty(t, res.Traces)
+					actual := actualForExpectedMeta(wantMeta, res)
+					require.NotNil(t, actual, "search request: %v", req) // should find the target trace
+					require.NotNil(t, actual.SpanSets)                   // but should not find the target span
 
-			actual := actualForExpectedMeta(wantMeta, res)
-			require.NotNil(t, actual, "search request: %v", req) // should find the target trace
-			require.NotNil(t, actual.SpanSets)                   // but should not find the target span
-
-			for _, spanSet := range actual.SpanSets {
-				for _, span := range spanSet.Spans {
-					require.NotEqual(t, spanID, span.SpanID)
-				}
+					for _, spanSet := range actual.SpanSets {
+						for _, span := range spanSet.Spans {
+							require.NotEqual(t, tc.targetSpanID, span.SpanID)
+						}
+					}
+				})
 			}
 		})
 	}
