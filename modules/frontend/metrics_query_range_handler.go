@@ -29,12 +29,12 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		ctx := srv.Context()
 
 		headers := headersFromGrpcContext(ctx)
-		traceql.AlignRequest(req)
 
 		// default step if not set
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
+		traceql.AlignRequest(req)
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},

@@ -34,9 +34,13 @@ type queryRangeRequest struct {
 	End       time.Time `json:"end"`       // default: now + 1m
 	Step      string    `json:"step"`      // default: 5s
 	Exemplars int       `json:"exemplars"` // default: 100
+	noDefault bool      `json:"-"`         // if true, SetDefaults() will not set defaults`
 }
 
 func (r *queryRangeRequest) SetDefaults() {
+	if r.noDefault {
+		return
+	}
 	if r.Start.IsZero() {
 		r.Start = time.Now().Add(-5 * time.Minute)
 	}
@@ -278,12 +282,26 @@ sendLoop:
 	}
 
 	// invalid query
-	t.Run("invalid query", func(t *testing.T) {
-		req := queryRangeRequest{Query: "{. a}"}
-		req.SetDefaults()
-		res := doRequest(t, tempo.Endpoint(tempoPort), "api/metrics/query_range", queryRangeRequest{Query: "{. a}"})
-		require.Equal(t, 400, res.StatusCode)
-	})
+	for name, req := range map[string]queryRangeRequest{
+		"invalid query": {
+			Query: "{. a}",
+		},
+		"step=0 (default step)": {
+			Query: "{} | count_over_time()",
+			Step:  "0",
+		},
+		"step=0s (default step)": {
+			Query: "{} | count_over_time()",
+			Step:  "0s",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := req
+			req.SetDefaults()
+			res := doRequest(t, tempo.Endpoint(tempoPort), "api/metrics/query_range", req)
+			require.Equal(t, 400, res.StatusCode)
+		})
+	}
 
 	// query with empty results
 	for _, query := range []string{
@@ -418,19 +436,22 @@ sendLoop:
 	for _, testCase := range []struct {
 		name              string
 		end               time.Time
+		step              string
 		expectedIntervals int
 	}{
 		// |---start|---|---end|
-		{name: "aligned", end: time.Now().Truncate(time.Minute), expectedIntervals: 3},
+		{name: "aligned", end: time.Now().Truncate(time.Minute), step: "1m", expectedIntervals: 3},
 		// |---|---start---|---|---end---|
-		{name: "unaligned", end: time.Now(), expectedIntervals: 4},
+		{name: "unaligned", end: time.Now(), step: "1m", expectedIntervals: 4},
+		{name: "default step", end: time.Now(), step: "", expectedIntervals: 122},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			req := queryRangeRequest{
-				Query: "{} | count_over_time()",
-				Start: testCase.end.Add(-2 * time.Minute),
-				End:   testCase.end,
-				Step:  "1m",
+				Query:     "{} | count_over_time()",
+				Start:     testCase.end.Add(-2 * time.Minute),
+				End:       testCase.end,
+				Step:      testCase.step,
+				noDefault: true,
 			}
 
 			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
