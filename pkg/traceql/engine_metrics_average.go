@@ -166,7 +166,7 @@ type averageOverTimeSeriesAggregator struct {
 	weightedAverageSeries map[string]*averageSeries
 	len                   int
 	intervalMapper        IntervalMapper
-	exemplarBuckets       *bucketSet
+	exemplarBuckets       bucketSet
 }
 
 type averageValue struct {
@@ -376,7 +376,7 @@ func (b *averageOverTimeSeriesAggregator) Length() int {
 // Accumulated results of average over time
 type avgOverTimeSeries[S StaticVals] struct {
 	average         averageSeries
-	exemplarBuckets *bucketSet
+	exemplarBuckets bucketSet
 	vals            S
 	initialized     bool
 }
