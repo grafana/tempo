@@ -55,8 +55,8 @@ func TestStepRangeToIntervals(t *testing.T) {
 	}
 
 	for _, c := range tc {
-		checker := NewIntervalChecker(c.start, c.end, c.step)
-		require.Equal(t, c.expected, checker.IntervalCount())
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		require.Equal(t, c.expected, mapper.IntervalCount())
 	}
 }
 
@@ -123,8 +123,8 @@ func TestTimestampOf(t *testing.T) {
 	}
 
 	for _, c := range tc {
-		checker := NewIntervalChecker(c.start, c.end, c.step)
-		assert.Equal(t, c.expected, checker.TimestampOf(c.interval), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		assert.Equal(t, c.expected, mapper.TimestampOf(c.interval), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
 	}
 }
 
@@ -208,8 +208,8 @@ func TestIntervalOf(t *testing.T) {
 	}
 
 	for _, c := range tc {
-		checker := NewIntervalChecker(c.start, c.end, c.step)
-		assert.Equal(t, c.expected, checker.Interval(c.ts), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		assert.Equal(t, c.expected, mapper.Interval(c.ts), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
 	}
 }
 

@@ -400,7 +400,7 @@ func (m *TopKBottomK) validate() error {
 }
 
 func (m *TopKBottomK) init(req *tempopb.QueryRangeRequest) {
-	m.length = NewIntervalCheckerFromReq(req).IntervalCount()
+	m.length = NewIntervalMapperFromReq(req).IntervalCount()
 }
 
 func (m *TopKBottomK) process(input SeriesSet) SeriesSet {

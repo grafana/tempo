@@ -230,7 +230,7 @@ type TimeSeries struct {
 type SeriesSet map[string]TimeSeries
 
 func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
-	checker := NewIntervalCheckerFromReq(req)
+	mapper := NewIntervalMapperFromReq(req)
 	resp := make([]*tempopb.TimeSeries, 0, len(set))
 
 	for promLabels, s := range set {
@@ -248,10 +248,10 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 		start = alignStart(start, end, req.Step)
 		end = alignEnd(start, end, req.Step)
 
-		intervals := checker.IntervalCount()
+		intervals := mapper.IntervalCount()
 		samples := make([]tempopb.Sample, 0, intervals)
 		for i, value := range s.Values {
-			ts := checker.TimestampOf(i)
+			ts := mapper.TimestampOf(i)
 
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
@@ -275,7 +275,7 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 		}
 		for _, e := range s.Exemplars {
 			// skip exemplars that has NaN value
-			i := checker.IntervalMs(int64(e.TimestampMs))
+			i := mapper.IntervalMs(int64(e.TimestampMs))
 			if i < 0 || i >= len(s.Values) || math.IsNaN(s.Values[i]) { // strict bounds check
 				continue
 			}
@@ -419,7 +419,7 @@ func (c *OverTimeAggregator) Sample() float64 {
 
 // StepAggregator sorts spans into time slots using a step interval like 30s or 1m
 type StepAggregator struct {
-	intervalChecker IntervalChecker
+	intervalMapper  IntervalMapper
 	vectors         []VectorAggregator
 	exemplars       []Exemplar
 	exemplarBuckets *bucketSet
@@ -428,17 +428,17 @@ type StepAggregator struct {
 var _ RangeAggregator = (*StepAggregator)(nil)
 
 func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator) *StepAggregator {
-	checker := NewIntervalChecker(start, end, step)
-	intervals := checker.IntervalCount()
+	mapper := NewIntervalMapper(start, end, step)
+	intervals := mapper.IntervalCount()
 	vectors := make([]VectorAggregator, intervals)
 	for i := range vectors {
 		vectors[i] = innerAgg()
 	}
 
 	return &StepAggregator{
-		intervalChecker: checker,
-		vectors:         vectors,
-		exemplars:       make([]Exemplar, 0, maxExemplars),
+		intervalMapper: mapper,
+		vectors:        vectors,
+		exemplars:      make([]Exemplar, 0, maxExemplars),
 		exemplarBuckets: newBucketSet(
 			maxExemplars,
 			alignStart(start, end, step),
@@ -448,7 +448,7 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 }
 
 func (s *StepAggregator) Observe(span Span) {
-	interval := s.intervalChecker.Interval(span.StartTimeUnixNanos())
+	interval := s.intervalMapper.Interval(span.StartTimeUnixNanos())
 	if interval == -1 {
 		return
 	}
@@ -1331,7 +1331,7 @@ const (
 type SimpleAggregator struct {
 	ss               SeriesSet
 	exemplarBuckets  *bucketSet
-	intervalChecker  IntervalChecker
+	intervalMapper   IntervalMapper
 	aggregationFunc  func(existingValue float64, newValue float64) float64
 	start, end, step uint64
 	initWithNaN      bool
@@ -1365,7 +1365,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 			alignStart(req.Start, req.End, req.Step),
 			alignEnd(req.Start, req.End, req.Step),
 		),
-		intervalChecker: NewIntervalCheckerFromReq(req),
+		intervalMapper:  NewIntervalMapperFromReq(req),
 		aggregationFunc: f,
 		initWithNaN:     initWithNaN,
 	}
@@ -1388,7 +1388,7 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 
 			existing = TimeSeries{
 				Labels:    labels,
-				Values:    make([]float64, b.intervalChecker.IntervalCount()),
+				Values:    make([]float64, b.intervalMapper.IntervalCount()),
 				Exemplars: make([]Exemplar, 0, len(ts.Exemplars)),
 			}
 			if b.initWithNaN {
@@ -1401,7 +1401,7 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 		}
 
 		for _, sample := range ts.Samples {
-			j := b.intervalChecker.IntervalMs(sample.TimestampMs)
+			j := b.intervalMapper.IntervalMs(sample.TimestampMs)
 			if j >= 0 && j < len(existing.Values) {
 				existing.Values[j] = b.aggregationFunc(existing.Values[j], sample.Value)
 			}
@@ -1467,7 +1467,7 @@ func (h *Histogram) Record(bucket float64, count int) {
 	})
 }
 
-type IntervalChecker interface {
+type IntervalMapper interface {
 	// Interval the given timestamp within the range and step.
 	Interval(ts uint64) int
 	// IntervalMs is the same as Bucket except the input and calculations are in unix milliseconds.
@@ -1477,22 +1477,22 @@ type IntervalChecker interface {
 	IntervalCount() int
 }
 
-func NewIntervalCheckerFromReq(req *tempopb.QueryRangeRequest) IntervalChecker {
-	return NewIntervalChecker(req.Start, req.End, req.Step)
+func NewIntervalMapperFromReq(req *tempopb.QueryRangeRequest) IntervalMapper {
+	return NewIntervalMapper(req.Start, req.End, req.Step)
 }
 
-func NewIntervalChecker(start, end, step uint64) IntervalChecker {
+func NewIntervalMapper(start, end, step uint64) IntervalMapper {
 	startMs := start - start%uint64(time.Millisecond)
 	endMs := end - end%uint64(time.Millisecond)
 	if isInstant(start, end, step) {
-		return &IntervalCheckerInstant{
+		return &IntervalMapperInstant{
 			start:   start,
 			end:     end,
 			startMs: startMs,
 			endMs:   endMs,
 		}
 	}
-	return &IntervalCheckerQueryRange{
+	return &IntervalMapperQueryRange{
 		start:   alignStart(start, end, step),
 		end:     alignEnd(start, end, step),
 		step:    step,
@@ -1501,16 +1501,16 @@ func NewIntervalChecker(start, end, step uint64) IntervalChecker {
 	}
 }
 
-type IntervalCheckerQueryRange struct {
+type IntervalMapperQueryRange struct {
 	start, end, step uint64
 	startMs, endMs   uint64
 }
 
-func (i *IntervalCheckerQueryRange) Interval(ts uint64) int {
+func (i *IntervalMapperQueryRange) Interval(ts uint64) int {
 	return i.interval(ts, i.start, i.end, i.step)
 }
 
-func (i *IntervalCheckerQueryRange) IntervalMs(tsmill int64) int {
+func (i *IntervalMapperQueryRange) IntervalMs(tsmill int64) int {
 	ts := uint64(time.Duration(tsmill) * time.Millisecond)
 	if !isTsValidForInterval(ts, i.startMs, i.endMs, i.step) {
 		return -1
@@ -1519,7 +1519,7 @@ func (i *IntervalCheckerQueryRange) IntervalMs(tsmill int64) int {
 	return i.interval(ts, i.startMs, i.endMs, i.step)
 }
 
-func (i *IntervalCheckerQueryRange) interval(ts, start, end, step uint64) int {
+func (i *IntervalMapperQueryRange) interval(ts, start, end, step uint64) int {
 	if !isTsValidForInterval(ts, start, end, step) {
 		return -1
 	}
@@ -1539,29 +1539,29 @@ func (i *IntervalCheckerQueryRange) interval(ts, start, end, step uint64) int {
 	return int(interval)
 }
 
-func (i *IntervalCheckerQueryRange) TimestampOf(interval int) uint64 {
+func (i *IntervalMapperQueryRange) TimestampOf(interval int) uint64 {
 	// start as initial offset plus interval's offset
 	return i.start + (uint64(interval)+1)*i.step
 }
 
-func (i *IntervalCheckerQueryRange) IntervalCount() int {
+func (i *IntervalMapperQueryRange) IntervalCount() int {
 	intervals := (i.end - i.start) / i.step
 	return int(intervals)
 }
 
-type IntervalCheckerInstant struct {
+type IntervalMapperInstant struct {
 	start, end     uint64
 	startMs, endMs uint64
 }
 
-func (i *IntervalCheckerInstant) Interval(ts uint64) int {
+func (i *IntervalMapperInstant) Interval(ts uint64) int {
 	if !isTsValidForInstant(ts, i.start, i.end) {
 		return -1
 	}
 	return 0 // Instant queries only have one bucket
 }
 
-func (i *IntervalCheckerInstant) IntervalMs(tsmill int64) int {
+func (i *IntervalMapperInstant) IntervalMs(tsmill int64) int {
 	ts := uint64(time.Duration(tsmill) * time.Millisecond)
 	if !isTsValidForInstant(ts, i.startMs, i.endMs) {
 		return -1
@@ -1570,11 +1570,11 @@ func (i *IntervalCheckerInstant) IntervalMs(tsmill int64) int {
 	return 0 // Instant queries only have one bucket
 }
 
-func (i *IntervalCheckerInstant) IntervalCount() int {
+func (i *IntervalMapperInstant) IntervalCount() int {
 	return 1 // Instant queries only have one bucket
 }
 
-func (i *IntervalCheckerInstant) TimestampOf(interval int) uint64 {
+func (i *IntervalMapperInstant) TimestampOf(interval int) uint64 {
 	return i.end
 }
 
@@ -1587,15 +1587,15 @@ type histSeries struct {
 type HistogramAggregator struct {
 	ss              map[string]histSeries
 	qs              []float64
-	intervalChecker IntervalChecker
+	intervalMapper  IntervalMapper
 	exemplarBuckets *bucketSet
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplars uint32) *HistogramAggregator {
 	return &HistogramAggregator{
-		qs:              qs,
-		intervalChecker: NewIntervalCheckerFromReq(req),
-		ss:              make(map[string]histSeries),
+		qs:             qs,
+		intervalMapper: NewIntervalMapperFromReq(req),
+		ss:             make(map[string]histSeries),
 		exemplarBuckets: newBucketSet(
 			exemplars,
 			alignStart(req.Start, req.End, req.Step),
@@ -1634,7 +1634,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 		if !ok {
 			existing = histSeries{
 				labels: withoutBucket,
-				hist:   make([]Histogram, h.intervalChecker.IntervalCount()),
+				hist:   make([]Histogram, h.intervalMapper.IntervalCount()),
 			}
 		}
 
@@ -1644,7 +1644,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if sample.Value == 0 {
 				continue
 			}
-			j := h.intervalChecker.IntervalMs(sample.TimestampMs)
+			j := h.intervalMapper.IntervalMs(sample.TimestampMs)
 			if j >= 0 && j < len(existing.hist) {
 				existing.hist[j].Record(b, int(sample.Value))
 			}
