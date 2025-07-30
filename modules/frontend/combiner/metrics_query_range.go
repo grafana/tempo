@@ -200,7 +200,7 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()
 // have NaNs, and we can't attach them until the very end.
 func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResponse) {
-	intervalChecker := traceql.NewIntervalCheckerFromReq(req)
+	intervalMapper := traceql.NewIntervalMapperFromReq(req)
 	for _, ss := range res.Series {
 		for i, e := range ss.Exemplars {
 
@@ -209,13 +209,13 @@ func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResp
 				continue
 			}
 
-			exemplarInterval := intervalChecker.IntervalMs(e.TimestampMs)
+			exemplarInterval := intervalMapper.IntervalMs(e.TimestampMs)
 
 			// Look for sample in the same slot.
 			// BinarySearch is possible because all samples were sorted previously.
 			j, ok := slices.BinarySearchFunc(ss.Samples, exemplarInterval, func(s tempopb.Sample, _ int) int {
 				// NOTE - Look for sample in same interval, not same value.
-				si := intervalChecker.IntervalMs(s.TimestampMs)
+				si := intervalMapper.IntervalMs(s.TimestampMs)
 
 				// This returns negative, zero, or positive
 				return si - exemplarInterval
