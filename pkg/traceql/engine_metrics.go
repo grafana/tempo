@@ -234,21 +234,16 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 			)
 		}
 
-		start, end := req.Start, req.End
-		start = alignStart(start, end, req.Step)
-		end = alignEnd(start, end, req.Step)
-
 		intervals := mapper.IntervalCount()
 		samples := make([]tempopb.Sample, 0, intervals)
 		for i, value := range s.Values {
-			ts := mapper.TimestampOf(i)
-
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
-			if ts < start || ts > end || math.IsNaN(value) {
+			if math.IsNaN(value) {
 				continue
 			}
 
+			ts := mapper.TimestampOf(i)
 			samples = append(samples, tempopb.Sample{
 				TimestampMs: time.Unix(0, int64(ts)).UnixMilli(),
 				Value:       value,

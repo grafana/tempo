@@ -128,6 +128,20 @@ func TestTimestampOf(t *testing.T) {
 	}
 }
 
+// TestTimestampOfIntervals checks that bucket timestamps are within the range.
+func TestTimestampOfIntervals(t *testing.T) {
+	start := uint64(10)
+	end := uint64(100)
+	step := uint64(10)
+
+	mapper := NewIntervalMapper(start, end, step)
+	intervals := mapper.IntervalCount()
+	for i := range intervals {
+		ts := mapper.TimestampOf(i)
+		assert.True(t, ts > start && ts <= end, "ts: %d, start: %d, end: %d", ts, start, end)
+	}
+}
+
 func TestIntervalOf(t *testing.T) {
 	tc := []struct {
 		ts, start, end, step uint64
