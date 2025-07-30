@@ -421,7 +421,7 @@ type StepAggregator struct {
 	intervalMapper  IntervalMapper
 	vectors         []VectorAggregator
 	exemplars       []Exemplar
-	exemplarBuckets *bucketSet
+	exemplarBuckets bucketSet
 }
 
 var _ RangeAggregator = (*StepAggregator)(nil)
@@ -491,7 +491,7 @@ type InstantAggregator struct {
 	start, end      uint64
 	vector          VectorAggregator
 	exemplars       []Exemplar
-	exemplarBuckets *bucketSet
+	exemplarBuckets bucketSet
 }
 
 var _ RangeAggregator = (*InstantAggregator)(nil)
@@ -1264,7 +1264,7 @@ const (
 
 type SimpleAggregator struct {
 	ss               SeriesSet
-	exemplarBuckets  *bucketSet
+	exemplarBuckets  bucketSet
 	intervalMapper   IntervalMapper
 	aggregationFunc  func(existingValue float64, newValue float64) float64
 	start, end, step uint64
@@ -1523,7 +1523,7 @@ type HistogramAggregator struct {
 	ss              map[string]histSeries
 	qs              []float64
 	intervalMapper  IntervalMapper
-	exemplarBuckets *bucketSet
+	exemplarBuckets bucketSet
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplars uint32) *HistogramAggregator {

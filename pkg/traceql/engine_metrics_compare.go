@@ -330,7 +330,7 @@ type BaselineAggregator struct {
 	baselineTotals  map[string]map[StaticMapKey]staticWithTimeSeries
 	selectionTotals map[string]map[StaticMapKey]staticWithTimeSeries
 	maxed           map[string]struct{}
-	exemplarBuckets *bucketSet
+	exemplarBuckets bucketSet
 }
 
 type staticWithTimeSeries struct {
