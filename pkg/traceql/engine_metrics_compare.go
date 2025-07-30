@@ -368,11 +368,7 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int, exemplars u
 		maxed:           make(map[string]struct{}),
 		intervalMapper:  NewIntervalMapperFromReq(req),
 		topN:            topN,
-		exemplarBuckets: newBucketSet(
-			exemplars,
-			alignStart(req.Start, req.End, req.Step),
-			alignEnd(req.Start, req.End, req.Step),
-		),
+		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step),
 	}
 }
 

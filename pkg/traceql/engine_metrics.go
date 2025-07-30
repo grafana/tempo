@@ -436,14 +436,10 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 	}
 
 	return &StepAggregator{
-		intervalMapper: mapper,
-		vectors:        vectors,
-		exemplars:      make([]Exemplar, 0, maxExemplars),
-		exemplarBuckets: newBucketSet(
-			maxExemplars,
-			alignStart(start, end, step),
-			alignEnd(start, end, step),
-		),
+		intervalMapper:  mapper,
+		vectors:         vectors,
+		exemplars:       make([]Exemplar, 0, maxExemplars),
+		exemplarBuckets: newExemplarBucketSet(maxExemplars, start, end, step),
 	}
 }
 
@@ -1359,12 +1355,8 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 
 	}
 	return &SimpleAggregator{
-		ss: make(SeriesSet),
-		exemplarBuckets: newBucketSet(
-			exemplars,
-			alignStart(req.Start, req.End, req.Step),
-			alignEnd(req.Start, req.End, req.Step),
-		),
+		ss:              make(SeriesSet),
+		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step),
 		intervalMapper:  NewIntervalMapperFromReq(req),
 		aggregationFunc: f,
 		initWithNaN:     initWithNaN,
@@ -1593,14 +1585,10 @@ type HistogramAggregator struct {
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplars uint32) *HistogramAggregator {
 	return &HistogramAggregator{
-		qs:             qs,
-		intervalMapper: NewIntervalMapperFromReq(req),
-		ss:             make(map[string]histSeries),
-		exemplarBuckets: newBucketSet(
-			exemplars,
-			alignStart(req.Start, req.End, req.Step),
-			alignEnd(req.Start, req.End, req.Step),
-		),
+		qs:              qs,
+		intervalMapper:  NewIntervalMapperFromReq(req),
+		ss:              make(map[string]histSeries),
+		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step),
 	}
 }
 
