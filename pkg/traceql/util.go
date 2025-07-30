@@ -50,6 +50,16 @@ type bucketSet interface {
 	addAndTest(ts uint64) bool
 }
 
+type alwaysFullBucketSet struct{}
+
+func (b *alwaysFullBucketSet) testTotal() bool {
+	return true
+}
+
+func (b *alwaysFullBucketSet) addAndTest(ts uint64) bool {
+	return true
+}
+
 type limitedBucketSet struct {
 	sz, maxTotal, maxBucket int
 	buckets                 []int
