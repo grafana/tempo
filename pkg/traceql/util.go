@@ -50,6 +50,20 @@ type bucketSet interface {
 	addAndTest(ts uint64) bool
 }
 
+// newExemplarBucketSet creates a new bucket set for the aligned time range
+// start and end are in nanoseconds.
+// If the range is instant, empty bucket set is returned.
+func newExemplarBucketSet(exemplars uint32, start, end, step uint64) bucketSet {
+	if isInstant(start, end, step) {
+		return &alwaysFullBucketSet{}
+	}
+
+	start = alignStart(start, end, step)
+	end = alignEnd(start, end, step)
+
+	return newBucketSet(exemplars, start, end)
+}
+
 type alwaysFullBucketSet struct{}
 
 func (b *alwaysFullBucketSet) testTotal() bool {
