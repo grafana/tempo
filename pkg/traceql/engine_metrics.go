@@ -50,16 +50,6 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 	return uint64(interval.Nanoseconds())
 }
 
-// isTsValidForInterval returns true if the timestamp is valid for the given range and step.
-func isTsValidForInterval(ts, start, end, step uint64) bool {
-	return ts > start && ts <= end && end != start && step != 0
-}
-
-// isTsValidForInstant returns true if the timestamp is valid for the given range for instant query.
-func isTsValidForInstant(ts, start, end uint64) bool {
-	return ts >= start && ts <= end && end != start
-}
-
 // TrimToBlockOverlap returns the aligned overlap between the given time and block ranges,
 // the block's borders are included.
 // If the request is instantaneous, it returns an updated step to match the new time range.
@@ -1504,7 +1494,7 @@ func (i *IntervalMapperQueryRange) Interval(ts uint64) int {
 
 func (i *IntervalMapperQueryRange) IntervalMs(tsmill int64) int {
 	ts := uint64(time.Duration(tsmill) * time.Millisecond)
-	if !isTsValidForInterval(ts, i.startMs, i.endMs, i.step) {
+	if !i.isTsValid(ts, i.startMs, i.endMs, i.step) {
 		return -1
 	}
 
@@ -1512,7 +1502,7 @@ func (i *IntervalMapperQueryRange) IntervalMs(tsmill int64) int {
 }
 
 func (i *IntervalMapperQueryRange) interval(ts, start, end, step uint64) int {
-	if !isTsValidForInterval(ts, start, end, step) {
+	if !i.isTsValid(ts, start, end, step) {
 		return -1
 	}
 	if ts <= start { // to avoid overflow
@@ -1541,13 +1531,17 @@ func (i *IntervalMapperQueryRange) IntervalCount() int {
 	return int(intervals)
 }
 
+func (i *IntervalMapperQueryRange) isTsValid(ts, start, end, step uint64) bool {
+	return ts > start && ts <= end && end != start && step != 0
+}
+
 type IntervalMapperInstant struct {
 	start, end     uint64
 	startMs, endMs uint64
 }
 
 func (i *IntervalMapperInstant) Interval(ts uint64) int {
-	if !isTsValidForInstant(ts, i.start, i.end) {
+	if !i.isTsValid(ts, i.start, i.end) {
 		return -1
 	}
 	return 0 // Instant queries only have one bucket
@@ -1555,7 +1549,7 @@ func (i *IntervalMapperInstant) Interval(ts uint64) int {
 
 func (i *IntervalMapperInstant) IntervalMs(tsmill int64) int {
 	ts := uint64(time.Duration(tsmill) * time.Millisecond)
-	if !isTsValidForInstant(ts, i.startMs, i.endMs) {
+	if !i.isTsValid(ts, i.startMs, i.endMs) {
 		return -1
 	}
 
@@ -1568,6 +1562,10 @@ func (i *IntervalMapperInstant) IntervalCount() int {
 
 func (i *IntervalMapperInstant) TimestampOf(interval int) uint64 {
 	return i.end
+}
+
+func (i *IntervalMapperInstant) isTsValid(ts, start, end uint64) bool {
+	return ts >= start && ts <= end && end != start
 }
 
 type histSeries struct {
