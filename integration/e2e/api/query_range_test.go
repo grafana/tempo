@@ -303,6 +303,18 @@ sendLoop:
 		})
 	}
 
+	// small step
+	t.Run("small step", func(t *testing.T) {
+		req := queryRangeRequest{Query: "{} | count_over_time()"}
+		req.SetDefaults()
+		req.Step = "35ms"
+		res := doRequest(t, tempo.Endpoint(tempoPort), "api/metrics/query_range", req)
+		require.Equal(t, 400, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "step of 35ms is too small, minimum step for given range is 36ms")
+	})
+
 	// query with empty results
 	for _, query := range []string{
 		// existing attribute, no traces
