@@ -4,9 +4,9 @@ menuTitle: Deploy your Tempo instance
 description: Deploy Grafana Tempo for your tracing needs.
 weight: 300
 aliases:
-  - ../../../deployment/ # /docs/tempo/next/deployment/
-  - ../../../deployment/deployment/ # /docs/tempo/next/deployment/deployment/
-  - ../../../setup/deployment/ # /docs/tempo/next/setup/deployment/
+  - ../../deployment/ # /docs/tempo/next/deployment/
+  - ../../deployment/deployment/ # /docs/tempo/next/deployment/deployment/
+  - ../../setup/deployment/ # /docs/tempo/next/setup/deployment/
 ---
 
 # Deploy Tempo

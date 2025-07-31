@@ -4,8 +4,7 @@ menuTitle: Grafana Agent (deprecated)
 description: Configure the Grafana Agent to work with Tempo
 weight: 950
 aliases:
-  - /docs/tempo/grafana-agent
-  - ../../grafana-agent # /docs/tempo/latest/grafana-agent
+  - ../grafana-agent/ # /docs/tempo/next/grafana-agent/
 ---
 
 # Grafana Agent

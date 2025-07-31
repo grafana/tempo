@@ -4,7 +4,6 @@ menuTitle: Generate metrics from spans
 description: Span metrics allow you to generate metrics from your tracing data automatically.
 weight:
 aliases:
-  - /docs/tempo/grafana-agent/span-metrics
 ---
 
 # Generate metrics from spans

@@ -32,7 +32,7 @@ Every processor derives different metrics. Currently, the following processors a
 Service graphs are the representations of the relationships between services within a distributed system.
 
 This service graphs processor builds a map of services by analyzing traces, with the objective to find _edges_.
-Edges are spans with a parent-child relationship, that represent a jump (for exmaple, a request) between two services.
+Edges are spans with a parent-child relationship, that represent a jump (for example, a request) between two services.
 The amount of request and their duration are recorded as metrics, which are used to represent the graph.
 
 To learn more about this processor, refer to the [service graph](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/) documentation.

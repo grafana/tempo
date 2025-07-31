@@ -7,6 +7,7 @@ aliases:
   - ../../../../configuration/grafana-alloy/tail-sampling/enable-tail-sampling/ # /docs/tempo/next/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/
   - ../../../../configuration/grafana-alloy/tail-sampling/policies-strategies/ # /docs/tempo/next/configuration/grafana-alloy/tail-sampling/policies-strategies/
   - ../../../../metrics-generator/service_graphs/enable-service-graphs/ # /docs/tempo/next/metrics-generator/service_graphs/enable-service-graphs/
+  - ../../../../metrics-generator/service_graphs/enable-service-graphs/ # /docs/tempo/next/metrics-generator/service_graphs/enable-service-graphs/
 ---
 
 # Tail sampling policies and strategies
