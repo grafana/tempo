@@ -26,7 +26,7 @@ func TestShardedRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	for _, job := range jobs {
-		err := shardedWork.AddJob(ctx, job, uuid.NewString())
+		err = shardedWork.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err, "failed to add job: %v", err)
 	}
 
@@ -127,7 +127,8 @@ func TestJobOperations(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("start job", func(t *testing.T) {
-		work.StartJob(ctx, "ops-test")
+		err = work.StartJob(ctx, "ops-test")
+		require.NoError(t, err)
 		retrievedJob := work.GetJob("ops-test")
 		require.Equal(t, tempopb.JobStatus_JOB_STATUS_RUNNING, retrievedJob.Status)
 		require.False(t, retrievedJob.StartTime.IsZero())
@@ -151,7 +152,8 @@ func TestJobOperations(t *testing.T) {
 		failJob := createTestJob("fail-test", tempopb.JobType_JOB_TYPE_COMPACTION)
 		err = work.AddJob(ctx, failJob, uuid.NewString())
 		require.NoError(t, err)
-		work.StartJob(ctx, "fail-test")
+		err = work.StartJob(ctx, "fail-test")
+		require.NoError(t, err)
 
 		work.FailJob(ctx, "fail-test")
 		retrievedJob := work.GetJob("fail-test")
@@ -214,17 +216,18 @@ func TestGetJobForWorker(t *testing.T) {
 
 	// Add jobs for different workers
 	job1 := createTestJob("worker1-job", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err = work.AddJob(ctx, job1, uuid.NewString())
+	err = work.AddJob(ctx, job1, "worker-1")
 	require.NoError(t, err)
-	work.StartJob(ctx, job1.ID) // Sets status to RUNNING
+	err = work.StartJob(ctx, job1.ID) // Sets status to RUNNING
+	require.NoError(t, err)
 	retrievedJob1 := work.GetJob(job1.ID)
-	retrievedJob1.SetWorkerID("worker-1")
+	require.Equal(t, "worker-1", retrievedJob1.GetWorkerID())
 
 	job2 := createTestJob("worker2-job", tempopb.JobType_JOB_TYPE_COMPACTION)
-	err = work.AddJob(ctx, job2, uuid.NewString())
+	err = work.AddJob(ctx, job2, "worker-2")
 	require.NoError(t, err)
 	retrievedJob2 := work.GetJob(job2.ID)
-	retrievedJob2.SetWorkerID("worker-2")
+	require.Equal(t, "worker-2", retrievedJob2.GetWorkerID())
 	// job2 remains in UNSPECIFIED status
 
 	// Test finding job for worker-1
@@ -275,7 +278,8 @@ func TestPrune(t *testing.T) {
 	oldRunning := createTestJob("old-running", tempopb.JobType_JOB_TYPE_COMPACTION)
 	err = work.AddJob(ctx, oldRunning, uuid.NewString())
 	require.NoError(t, err)
-	work.StartJob(ctx, oldRunning.ID) // Sets status to RUNNING
+	err = work.StartJob(ctx, oldRunning.ID) // Sets status to RUNNING
+	require.NoError(t, err)
 	retrievedOldRunning := work.GetJob(oldRunning.ID)
 	retrievedOldRunning.StartTime = now.Add(-time.Hour)
 
@@ -283,7 +287,8 @@ func TestPrune(t *testing.T) {
 	recentRunning := createTestJob("recent-running", tempopb.JobType_JOB_TYPE_COMPACTION)
 	err = work.AddJob(ctx, recentRunning, uuid.NewString())
 	require.NoError(t, err)
-	work.StartJob(ctx, recentRunning.ID) // Sets status to RUNNING
+	err = work.StartJob(ctx, recentRunning.ID) // Sets status to RUNNING
+	require.NoError(t, err)
 	retrievedRecentRunning := work.GetJob(recentRunning.ID)
 	retrievedRecentRunning.StartTime = now.Add(-10 * time.Minute)
 
@@ -459,7 +464,7 @@ func TestLocalFileOperations(t *testing.T) {
 	})
 
 	t.Run("load from nonexistent path", func(t *testing.T) {
-		nonexistentWork, err := New(Config{LocalWorkPath: "/nonexistent/path"})
+		nonexistentWork, err := New(Config{LocalWorkPath: t.TempDir()})
 		require.NoError(t, err, "failed to create work instance with nonexistent path")
 
 		err = nonexistentWork.LoadFromLocal(ctx)
@@ -524,7 +529,8 @@ func TestConcurrency(t *testing.T) {
 				jobs := work.ListJobs()
 				if len(jobs) > 0 {
 					job := jobs[workerID%len(jobs)]
-					work.StartJob(ctx, job.ID)
+					err := work.StartJob(ctx, job.ID)
+					require.NoError(t, err)
 					work.GetJob(job.ID)
 					if workerID%2 == 0 {
 						work.CompleteJob(ctx, job.ID)
@@ -549,6 +555,7 @@ func TestConcurrency(t *testing.T) {
 		cfg := Config{
 			PruneAge:       time.Minute,
 			DeadJobTimeout: time.Minute,
+			LocalWorkPath:  t.TempDir() + "/work",
 		}
 		pruneWork, err := New(cfg)
 		require.NoError(t, err, "failed to create prune work instance")
@@ -630,7 +637,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("unmarshal invalid data", func(t *testing.T) {
-		newWork, err := New(Config{})
+		newWork, err := New(Config{LocalWorkPath: t.TempDir() + "/work"})
 		require.NoError(t, err, "failed to create work instance")
 
 		err = newWork.Unmarshal([]byte("invalid json"))
@@ -799,6 +806,7 @@ func TestConcurrentMarshalUnmarshal(t *testing.T) {
 	}
 
 	// Worker that continuously marshals/unmarshals
+	cfg := Config{LocalWorkPath: t.TempDir() + "/work"}
 	go func() {
 		defer func() { done <- struct{}{} }()
 
@@ -809,7 +817,7 @@ func TestConcurrentMarshalUnmarshal(t *testing.T) {
 			require.NotEmpty(t, data)
 
 			// Create new work instance and unmarshal
-			newWork, err := New(Config{})
+			newWork, err := New(cfg)
 			require.NoError(t, err)
 
 			err = newWork.Unmarshal(data)

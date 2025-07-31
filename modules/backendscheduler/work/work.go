@@ -14,6 +14,8 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var tracer = otel.Tracer("modules/backendscheduler/work")
@@ -37,7 +39,6 @@ type Work struct {
 	mtx    sync.Mutex // Protects the entire Work structure during Marshal/Unmarshal
 }
 
-// TODO: consider returning an error if the mkdir fails
 func New(cfg Config) (Interface, error) {
 	sw := &Work{
 		cfg: cfg,
@@ -45,7 +46,7 @@ func New(cfg Config) (Interface, error) {
 
 	err := os.MkdirAll(cfg.LocalWorkPath, 0o700)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create directory %q: %w", cfg.LocalWorkPath, err)
 	}
 
 	// Initialize all shards
@@ -164,6 +165,9 @@ func (w *Work) GetJob(id string) *Job {
 
 // RemoveJob removes a job from the appropriate shard
 func (w *Work) RemoveJob(ctx context.Context, id string) {
+	_, span := tracer.Start(ctx, "RemoveJob", trace.WithAttributes(attribute.String("job_id", id)))
+	defer span.End()
+
 	_, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
@@ -275,6 +279,9 @@ func (w *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
 
 // CompleteJob marks a job as completed in the appropriate shard
 func (w *Work) CompleteJob(ctx context.Context, id string) {
+	_, span := tracer.Start(ctx, "CompleteJob", trace.WithAttributes(attribute.String("job_id", id)))
+	defer span.End()
+
 	_, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
@@ -491,6 +498,9 @@ func (w *Work) flushShards(ctx context.Context, shards map[int]bool) error {
 
 // flushShard must be called under shard lock
 func (w *Work) flushShard(ctx context.Context, shard *Shard, id int) error {
+	_, span := tracer.Start(ctx, "flushShard", trace.WithAttributes(attribute.Int("shard", id)))
+	defer span.End()
+
 	shardData, err := jsoniter.Marshal(shard)
 	if err != nil {
 		return err
@@ -511,7 +521,7 @@ func FileNameForShard(shardID int) string {
 	return fmt.Sprintf("shard_%03d.json", shardID)
 }
 
-// HasShardFiles checks if any shard files exist
+// HasLocalData checks if any shard files exist.
 func (w *Work) HasLocalData() bool {
 	// Check if the directory exists and create it if not.
 	if w.cfg.LocalWorkPath == "" {
