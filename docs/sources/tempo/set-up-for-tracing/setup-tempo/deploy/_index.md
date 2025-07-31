@@ -27,19 +27,19 @@ While it's possible to deploy monolithic mode in a Kubernetes cluster, it is not
 
 You can deploy Tempo locally using the monolithic mode. You can use using the [Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) or you can use the [Linux example](linux/) (monolithic) to deploy Tempo on a Linux host.
 
-For more information, refer [Deploy Tempo locally](../deploy/locally/).
+For more information, refer [Deploy Tempo locally](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/).
 
 ## Deploy using Kubernetes
 
 Kubernetes deployment examples:
 
-- [Deploy with Helm](helm-chart/) (microservices and monolithic)
-- [Deploy with Tempo Operator](operator/) (microservices)
-- [Deploy on Kubernetes using Tanka](tanka/) (microservices)
+- [Deploy with Helm](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/) (microservices and monolithic)
+- [Deploy with Tempo Operator](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/operator/) (microservices)
+- [Deploy on Kubernetes using Tanka](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/tanka/) (microservices)
 
 {{< admonition type="note" >}}
 The Tanka and Helm examples are equivalent.
 They are both provided for people who prefer different configuration mechanisms.
 {{< /admonition >}}
 
-For more information, refer to [Deploy Tempo on Kubernetes](../deploy/kubernetes/).
+For more information, refer to [Deploy Tempo on Kubernetes](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/).
