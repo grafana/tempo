@@ -17,7 +17,7 @@ Tempo acts in two major capacities:
 - Retrieving trace data from storage, either by specific trace ID or by search parameters via TraceQL.
 
 Refer to the [example setups](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/example-demo-app/)
-or [deployment options](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/deploy/) for help deploying.
+or [deployment options](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/) for help deploying.
 
 ![Tempo architecture diagram](/media/docs/tempo/tempo_arch.png)
 

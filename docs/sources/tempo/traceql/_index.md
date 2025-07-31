@@ -15,6 +15,8 @@ keywords:
 
 # TraceQL
 
+TraceQL is a query language designed for selecting traces in Tempo.
+
 Distributed traces contain a wealth of information, and tools like auto-instrumentation make it easy to start capturing data. Extracting value from traces can be much harder.
 For example, Tempo metrics-generator can aggregate traces into service graphs and span metrics, and exemplars allow you to navigate from a spike in API latency to a trace that contributed to that spike.
 But traces can do so much more.
@@ -25,24 +27,14 @@ What new questions can be answered with this structure? More than just finding i
 
 For example, you can use traces to perform root cause analyses (RCA) on a service outage and use TraceQL to pinpoint the root cause. Refer to [Diagnose errors with traces](/docs/tempo/<TEMPO_VERSION>/solutions-with-traces/traces-diagnose-errors/#diagnose-errors-with-traces) for a use case example.
 
-TraceQL is a query language designed for selecting traces in Tempo.
-Currently, TraceQL query can select traces based on the following:
-
-- Span and resource attributes, timing, and duration
-- Basic aggregates: `count()`, `avg()`, `min()`, `max()`, and `sum()`
-
-The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.
-
 ## Get started with TraceQL
 
-To use TraceQL, you need to:
+Use these references to get started with TraceQL:
 
-- Understand the [structure of a trace](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/structure/) and spans to determine what information you want to query.
-- [Construct a query to locate the information](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/). Use the language reference to learn about the syntax and semantics of TraceQL.
+- Determine the information you want to query by understanding the [relationship of queries to trace structure](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/structure/) and spans.
+- [Construct a query to locate the information](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/). Use the examples and language reference to learn about the syntax and semantics of TraceQL.
 
-TraceQL requires the Parquet columnar format, which is the default block format for Tempo. Refer to the [Apache Parquet backend](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet) documentation.
-
-Refer to the [Tempo release notes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/release-notes/) for the latest updates to TraceQL.
+TraceQL uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.
 
 {{< vimeo 796408188 >}}
 
@@ -61,6 +53,12 @@ For more information, refer to [Write TraceQL queries in Grafana](http://grafana
 ### Metrics from traces with TraceQL
 
 TraceQL metrics generate metrics from traces and let you use TraceQL to query metrics.
-Refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/traceql-queries/) for more information.
+Refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) for more information.
 
 {{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
+
+## Resources
+
+TraceQL requires the Parquet columnar format, which is the default block format for Tempo. Refer to the [Apache Parquet backend](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet) documentation.
+
+Refer to the [Tempo release notes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/release-notes/) for the latest updates to TraceQL.

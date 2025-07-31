@@ -5,7 +5,7 @@ description: Learn about the best practices for traces
 aliases:
   - ../../operations/best-practices/ # /docs/tempo/latest/operations/best-practices/
   - ../../getting-started/best-practices/ # /docs/tempo/latest/getting-started/best-practices/
-weight: 20
+weight: 250
 ---
 
 # Best practices for traces

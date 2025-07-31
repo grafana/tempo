@@ -49,37 +49,36 @@ Refer to [issue 4945](https://github.com/grafana/tempo/discussions/4945) for mor
 
 ### Removed Tempo serverless
 
-Tempo serverless has been removed. The following configuration options are no longer  valid and should be removed from your Tempo configuration. [PR [4599](https://github.com/grafana/tempo/pull/4599/))
+Tempo serverless has been removed. The following configuration options are no longer valid and should be removed from your Tempo configuration. [PR [4599](https://github.com/grafana/tempo/pull/4599/))
 
 ```yaml
 querier:
-    search:
-        prefer_self: <int>
-        external_hedge_requests_at: <duration>
-        external_hedge_requests_up_to:  <duration>
-        external_backend: <string>
-        google_cloud_run: <string>
-        external_endpoints: <array>
+  search:
+    prefer_self: <int>
+    external_hedge_requests_at: <duration>
+    external_hedge_requests_up_to: <duration>
+    external_backend: <string>
+    google_cloud_run: <string>
+    external_endpoints: <array>
 ```
 
 In addition, these Tempo serverless related metrics have been removed: `tempo_querier_external_endpoint_duration_seconds`, `tempo_querier_external_endpoint_hedged_roundtrips_total`, and `tempo_feature_enabled`.
 
 ### Updated, removed, or renamed configuration parameters
 
-| Parameter | Comments |
-|---|---|
-| `max_span_attr_byte` | Renamed to `max_attribute_bytes`. ([PR 4633](https://github.com/grafana/tempo/pull/4633)) |
-| `tempo_discarded_spans_total` | Removed `internal_error` as a reason from `tempo_discarded_spans_total`. ([PR 4554](https://github.com/grafana/tempo/pull/4554)) |
-| `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` | The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. ([PR 4893](https://github.com/grafana/tempo/pull/4893))  |
+| Parameter                                                         | Comments                                                                                                                                                                                                              |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_span_attr_byte`                                              | Renamed to `max_attribute_bytes`. ([PR 4633](https://github.com/grafana/tempo/pull/4633))                                                                                                                             |
+| `tempo_discarded_spans_total`                                     | Removed `internal_error` as a reason from `tempo_discarded_spans_total`. ([PR 4554](https://github.com/grafana/tempo/pull/4554))                                                                                      |
+| `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` | The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. ([PR 4893](https://github.com/grafana/tempo/pull/4893)) |
 
 ### Other upgrade considerations
 
-* Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. ([PR 4893](https://github.com/grafana/tempo/pull/4893))
-* Replace `opentracing-contrib/go-grpc` by `otelgrpc` in Tempo query. ([PR 4958](https://github.com/grafana/tempo/pull/4958))
-* Enforce max attribute size at event, link, and instrumentation scope. The configuration is now per-tenant. Renamed `max_span_attr_byte` to `max_attribute_bytes`. ([PR 4633](https://github.com/grafana/tempo/pull/4633))
-* Converted SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. ([PR 4748](https://github.com/grafana/tempo/pull/4748))
-* Removed the OpenTelemetry Jaeger exporter, which has been [deprecated](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/jaeger). ([PR 4926](https://github.com/grafana/tempo/pull/4926))
-
+- Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. ([PR 4893](https://github.com/grafana/tempo/pull/4893))
+- Replace `opentracing-contrib/go-grpc` by `otelgrpc` in Tempo query. ([PR 4958](https://github.com/grafana/tempo/pull/4958))
+- Enforce max attribute size at event, link, and instrumentation scope. The configuration is now per-tenant. Renamed `max_span_attr_byte` to `max_attribute_bytes`. ([PR 4633](https://github.com/grafana/tempo/pull/4633))
+- Converted SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. ([PR 4748](https://github.com/grafana/tempo/pull/4748))
+- Removed the OpenTelemetry Jaeger exporter, which has been [deprecated](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/jaeger). ([PR 4926](https://github.com/grafana/tempo/pull/4926))
 
 ## Upgrade to Tempo 2.7
 
@@ -108,16 +107,16 @@ To workaround this, you need to specify the address you want to bind to explicit
 
 ```yaml
 # ...
-        http:
-          endpoint: "tempo:4318"
+http:
+  endpoint: 'tempo:4318'
 ```
 
 You can also explicitly bind to `0.0.0.0` still, but this has potential security risks:
 
 ```yaml
 # ...
-        http:
-          endpoint: "0.0.0.0:4318"
+http:
+  endpoint: '0.0.0.0:4318'
 ```
 
 ### Maximum spans per span set
@@ -135,7 +134,7 @@ query_frontend:
 ### Tempo serverless deprecation
 
 Tempo serverless is officially deprecated and will be removed in an upcoming release.
-Prepare to migrate any serverless workflows to alternative deployments. ([#4017](https://github.com/grafana/tempo/pull/4017), [documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/backend_search/#serverless-environment))
+Prepare to migrate any serverless workflows to alternative deployments. ([#4017](https://github.com/grafana/tempo/pull/4017))
 
 There are no changes to this release for serverless. However, you'll need to remove these configurations before the next release.
 
@@ -213,17 +212,17 @@ For instructions how to enable gRPC compression, refer to [gRPC compression conf
 
 ### Other upgrade considerations
 
-* The Tempo CLI now targets the `/api/v2/traces` endpoint by default. Use the `--v1` flag if you still rely on the older `/api/traces` endpoint. ([#4127](https://github.com/grafana/tempo/pull/4127))
-* If you already set the `X-Scope-OrgID` header in per-tenant overrides or global Tempo configuration, it is now honored and not overwritten by Tempo. This may change behavior if you previously depended on automatic injection. ([#4021](https://github.com/grafana/tempo/pull/4021))
-* The AWS Lambda build output changes from main to bootstrap. Follow the [AWS migration steps](https://aws.amazon.com/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/) to ensure your Lambda functions continue to work. ([#3852](https://github.com/grafana/tempo/pull/3852))
+- The Tempo CLI now targets the `/api/v2/traces` endpoint by default. Use the `--v1` flag if you still rely on the older `/api/traces` endpoint. ([#4127](https://github.com/grafana/tempo/pull/4127))
+- If you already set the `X-Scope-OrgID` header in per-tenant overrides or global Tempo configuration, it is now honored and not overwritten by Tempo. This may change behavior if you previously depended on automatic injection. ([#4021](https://github.com/grafana/tempo/pull/4021))
+- The AWS Lambda build output changes from main to bootstrap. Follow the [AWS migration steps](https://aws.amazon.com/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/) to ensure your Lambda functions continue to work. ([#3852](https://github.com/grafana/tempo/pull/3852))
 
 ## Upgrade to Tempo 2.6
 
 Tempo 2.6 has several considerations for any upgrade:
 
-* Operational change for TraceQL metrics
-* vParquet4 is now the default block format
-* Updated, removed, or renamed parameters
+- Operational change for TraceQL metrics
+- vParquet4 is now the default block format
+- Updated, removed, or renamed parameters
 
 For a complete list of changes, refer to the [Tempo 2.6 CHANGELOG](https://github.com/grafana/tempo/releases/tag/v2.6.0).
 
@@ -237,16 +236,16 @@ TraceQL metrics are still considered experimental, but we hope to mark them GA s
 
 The local-blocks processor must be enabled to start using metrics queries like `{ } | rate()`. If not enabled metrics queries fail with the error `localblocks processor not found`. Enabling the local-blocks processor can be done either per tenant or in all tenants.
 
-* Per-tenant in the per-tenant overrides:
+- Per-tenant in the per-tenant overrides:
 
   ```yaml
-    overrides:
-      'tenantID':
-        metrics_generator_processors:
-          - local-blocks
+  overrides:
+    'tenantID':
+      metrics_generator_processors:
+        - local-blocks
   ```
 
-* By default, for all tenants in the main configuration:
+- By default, for all tenants in the main configuration:
 
   ```yaml
   overrides:
@@ -288,10 +287,10 @@ Tempo 2.6 creates vParquet4 blocks by default, which enables the new TraceQL fea
 Although you can use Tempo 2.6 with vParquet2 or vParquet3, you can only use vParquet4 with Tempo 2.5 and later.
 If you are using 2.5 with vParquet4, you'll need to upgrade to Tempo 2.6 to use the new TraceQL features.
 
-You can also use the `tempo-cli analyse blocks` command to query vParquet4 blocks. [PR 3868](https://github.com/grafana/tempo/pull/3868)].
-Refer to the [Tempo CLI ](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#analyse-blocks)documentation for more information.
+You can also use the `tempo-cli analyse blocks` command to query vParquet4 blocks. [PR 3868](https://github.com/grafana/tempo/pull/3868)]
+Refer to the [Tempo CLI](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#analyse-blocks)documentation for more information.
 
-For information on upgrading, refer to [Upgrade to Tempo 2.6](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/upgrade/) and [Choose a different block format](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
+For information on upgrading, refer to [Choose a different block format](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
 
 ### Updated, removed, or renamed configuration parameters
 
@@ -352,10 +351,10 @@ Serving a gRPC API for Jaeger on 0.0.0.0:7777 by default. [PR 3840]
 
 Tempo 2.5 has several considerations for any upgrade:
 
-* Docker image runs as a new UID
-* Support for vParquet format removed
-* Experimental vParquet4 block format
-* Removed configuration parameters
+- Docker image runs as a new UID
+- Support for vParquet format removed
+- Experimental vParquet4 block format
+- Removed configuration parameters
 
 For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.5 CHANGELOG](https://github.com/grafana/tempo/releases/tag/v2.5.0).
 
@@ -377,6 +376,7 @@ All data should be owned by the `tempo` user already.
 The UID won't impact Helm chart users.
 
 <!-- vale Grafana.Spelling = NO -->
+
 ### Support for vParquet format removed
 
 The original vParquet format [has been removed](https://github.com/grafana/tempo/pull/3663) from Tempo 2.5.
@@ -398,6 +398,7 @@ If you choose to use vParquet4 and then opt to revert to vParquet3, any vParquet
 To try vParquet4, refer to [Choose a block format](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
 
 <!-- vale Grafana.Spelling = YES -->
+
 ### Removed configuration parameters
 
 <table>
@@ -419,22 +420,24 @@ To try vParquet4, refer to [Choose a block format](https://grafana.com/docs/temp
 
 ### Additional considerations
 
-* Updating to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary` and `InstrumentationLibrarySpan` from the OTLP receivers. [PR 3649](https://github.com/grafana/tempo/pull/3649)]
-* Removes the addition of a tenant in multi-tenant trace id lookup. [PR 3522](https://github.com/grafana/tempo/pull/3522)]
+- Updating to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary` and `InstrumentationLibrarySpan` from the OTLP receivers. [PR 3649](https://github.com/grafana/tempo/pull/3649)]
+- Removes the addition of a tenant in multi-tenant trace id lookup. [PR 3522](https://github.com/grafana/tempo/pull/3522)]
 
 ## Upgrade to Tempo 2.4
 
 Tempo 2.4 has several considerations for any upgrade:
+
 <!-- vale Grafana.Spelling = NO -->
-* vParquet3 is now the default backend
-* Caches configuration was refactored
-* Updated, removed, and renamed configuration parameters
+
+- vParquet3 is now the default backend
+- Caches configuration was refactored
+- Updated, removed, and renamed configuration parameters
 
 For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.4 CHANGELOG](https://github.com/grafana/tempo/releases).
 
 ### Transition to vParquet3 as default block format
 
-vParquet3 format is now the default block format. It is production ready and we highly recommend switching to it for improved query performance and [dedicated attribute columns](../../operations/dedicated_columns/).
+vParquet3 format is now the default block format. It is production ready and we highly recommend switching to it for improved query performance and [dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
 Upgrading to Tempo 2.4 modifies the Parquet block format. Although you can use Tempo 2.3 with vParquet2 or vParquet3, you can only use Tempo 2.4 with vParquet3.
 
@@ -445,6 +448,7 @@ However, Tempo will exit with error if they are manually configured. [[PR 3377](
 For information on changing the vParquet version, refer to [Choose a different block format](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet#choose-a-different-block-format).
 
 <!-- vale Grafana.Spelling = YES -->
+
 ### Cache configuration refactored
 
 The major cache refactor lets you configure multiple role-based caches. [[PR 3166](https://github.com/grafana/tempo/pull/3166)]
@@ -452,7 +456,7 @@ This change resulted in several fields being deprecated (refer to the old config
 
 These fields have all been migrated to a top level `cache:` field.
 
-For more information about the configuration, refer to the [Cache](../../configuration/#cache) section.
+For more information about the configuration, refer to the [Cache](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#cache) section.
 
 The old configuration block looked like this:
 
@@ -474,15 +478,15 @@ Simple configuration example:
 ```yaml
 cache:
   caches:
-  - memcached:
-      host: <some memcached cluster>
-    roles:
-    - bloom
-    - parquet-footer
-  - memcached:
-      host: <some memcached cluster>
-    roles:
-    - frontend-search
+    - memcached:
+        host: <some memcached cluster>
+      roles:
+        - bloom
+        - parquet-footer
+    - memcached:
+        host: <some memcached cluster>
+      roles:
+        - frontend-search
 ```
 
 ### Updated, removed, or renamed configuration parameters
@@ -514,16 +518,16 @@ The distributor now returns 200 for any batch containing only `trace_too_large` 
 
 Tempo 2.3 has several considerations for any upgrade:
 
-* vParquet3 is available as a stable, production-read block format
-* Configuration option to use Azure SDK v2
-* New `defaults` block in Overrides module configuration
-* Several configuration parameters have been renamed or removed.
+- vParquet3 is available as a stable, production-read block format
+- Configuration option to use Azure SDK v2
+- New `defaults` block in Overrides module configuration
+- Several configuration parameters have been renamed or removed.
 
 For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.3 CHANGELOG](https://github.com/grafana/tempo/releases).
 
 ### Production-ready vParquet3 block format
 
-vParquet3 provides improved query performance and [dedicated attribute columns](../../operations/dedicated_columns/).
+vParquet3 provides improved query performance and [dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
 This block format is required for using dedicated attribute columns.
 
@@ -540,7 +544,7 @@ Recommended update process:
 
 1. Upgrade your Tempo installation to version 2.3, remaining on vParquet2.
 2. Verify the upgrade is stable and performs as expected. If you notice any issues, you can downgrade to version 2.2, and data remains readable.
-3. [Change the block format to vParquet3](../../configuration/parquet/).
+3. [Change the block format to vParquet3](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/).
 
 If you notice any issues on step 3 using the new block format, you can downgrade to vParquet2.
 All your data remains readable in Tempo 2.3.
@@ -551,15 +555,15 @@ However, if you have vParquet3 blocks and have to downgrade to Tempo 2.2, you wi
 If you are using Azure storage, we recommend using the v2 SDK, [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go).
 You can use the `use_v2_sdk` configure option for switching.
 
-For more information, refer to the [Storage block configuration example documentation](../../configuration/#storage-block-configuration-example).
+For more information, refer to the [Storage block configuration example documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage-block-configuration-example).
 
 ### New `defaults` block in Overrides module configuration
 
 The Overrides module has a new `defaults` block for configuring global or per-tenant settings.
 The Overrides format now includes changes to indented syntax.
-For more information, read the [Overrides configuration documentation](../../configuration/#overrides).
+For more information, read the [Overrides configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides).
 
-You can also use the Tempo CLI to migrate configurations. Refer to the [tempo-cli documentation](../../operations/tempo_cli/#migrate-overrides-config-command).
+You can also use the Tempo CLI to migrate configurations. Refer to the [tempo-cli documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-overrides-config-command).
 
 The old configuration block looked like this:
 
@@ -587,7 +591,6 @@ overrides:
     forwarders: ['foo']
     metrics_generator:
       processors: [service-graphs, span-metrics]
-
 ```
 
 ### Removed or renamed configuration parameters
@@ -613,13 +616,12 @@ overrides:
   </tr>
 </table>
 
-
 ## Upgrade to Tempo 2.2
 
 Tempo 2.2 has several considerations for any upgrade:
 
-* vParquet2 is now the default block format
-* Several configuration parameters have been renamed or removed.
+- vParquet2 is now the default block format
+- Several configuration parameters have been renamed or removed.
 
 For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.2 CHANGELOG](https://github.com/grafana/tempo/releases).
 
@@ -627,7 +629,7 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 While not a breaking change, upgrading to Tempo 2.2 by default changes Tempo's block format to vParquet2.
 
-To stay on a previous block format, read the [Parquet configuration documentation](../../configuration/parquet/#choose-a-different-block-format).
+To stay on a previous block format, read the [Parquet configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
 We strongly encourage upgrading to vParquet2 as soon as possible as this is required for using structural operators in your TraceQL queries and provides query performance improvements, in particular on queries using the `duration` intrinsic.
 
 ### Updated JSonnet supports `statefulset` for the metrics-generator
@@ -650,17 +652,16 @@ The following fields were removed or renamed.
 | Parameter | Comments |
 |---|---|
 |<pre>query_frontend:<br>&nbsp;&nbsp;tolerate_failed_blocks: <int></pre> | Remove support for `tolerant_failed_blocks` [[PR 2416](https://github.com/grafana/tempo/pull/2416)] |
-|<pre>storage:<br>&nbsp;&nbsp;trace:<br>&nbsp;&nbsp;s3:<br>&nbsp;&nbsp;insecure_skip_verify: true  // renamed to tls_insecure_skip_verify</pre> | Renamed `insecure_skip_verify` to `tls_insecure_skip_verify` [[PR 2407](https://github.com/grafana/tempo/pull/2407)] |
-
+|<pre>storage:<br>&nbsp;&nbsp;trace:<br>&nbsp;&nbsp;s3:<br>&nbsp;&nbsp;insecure_skip_verify: true // renamed to tls_insecure_skip_verify</pre> | Renamed `insecure_skip_verify` to `tls_insecure_skip_verify` [[PR 2407](https://github.com/grafana/tempo/pull/2407)] |
 
 ## Upgrade to Tempo 2.1
 
 Tempo 2.1 has two major considerations for any upgrade:
 
-* Support for search on v2 block is removed
-* Breaking changes to metric names
+- Support for search on v2 block is removed
+- Breaking changes to metric names
 
-For more information on other enhancements, read the [Tempo 2.1 release notes](../../release-notes/v2-1/).
+For more information on other enhancements, read the [Tempo 2.1 release notes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/release-notes/v2-1/).
 
 ### Remove support for Search on v2 blocks
 
@@ -681,14 +682,18 @@ tempo_ingester_trace_search_bytes_discarded_total
 ```
 
 ### Upgrade path to maintain search from Tempo 1.x to 2.1
+
 <!-- vale Grafana.Spelling = NO -->
+
 Removing support for search on v2 blocks means that if you upgrade directly from 1.9 to 2.1, you will not be able to search your v2 blocks. To avoid this, upgrade to 2.0 first, since 2.0 supports searching both v2 and vParquet blocks. You can let your old v2 blocks gradually age out while Tempo creates new vParquet blocks from incoming traces. Once all of your v2 blocks have been deleted and you only have vParquet format-blocks, you can upgrade to Tempo 2.1. All of your blocks will be searchable.
+
 <!-- vale Grafana.Spelling = YES -->
+
 Parquet files are no longer cached when carrying out searches.
 
 ### Breaking changes to metric names exposed by Tempo
 
-All Prometheus metrics exposed by Tempo on its `/metrics` endpoint that were previously prefixed  with `cortex_` have now been renamed to be prefixed with `tempo_` instead. (PR [2204](https://github.com/grafana/tempo/pull/2204))
+All Prometheus metrics exposed by Tempo on its `/metrics` endpoint that were previously prefixed with `cortex_` have now been renamed to be prefixed with `tempo_` instead. (PR [2204](https://github.com/grafana/tempo/pull/2204))
 
 Tempo now includes SLO metrics to count where queries are returned within a configurable time range. (PR [2008](https://github.com/grafana/tempo/pull/2008))
 
@@ -716,7 +721,7 @@ There is a potential issue loading experimental Parquet storage blocks. You may 
 
 Parquet provides faster search and is required to enable TraceQL. However, the Tempo installation requires additional CPU and memory resources to use Parquet efficiently. Parquet is more costly due to the extra work of building the columnar blocks, and operators should expect at least 1.5x increase in required resources to run a Tempo 2.0 cluster. Most users find these extra resources are negligible compared to the benefits that come from the additional features of TraceQL and from storing traces in an open format.
 
-You can continue using the previous `v2` block format using the instructions provided in the [Parquet configuration documentation](../../configuration/parquet/).
+You can continue using the previous `v2` block format using the instructions provided in the [Parquet configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/).
 Tempo continues to support trace by id lookup on the `v2` format for the foreseeable future.
 
 ### Enable TraceQL in Grafana
@@ -731,33 +736,33 @@ The following tables describe the parameters that have been removed or renamed.
 
 #### Removed and replaced
 
-| Parameter | Comments |
-| --- | --- |
-| <pre>query_frontend:<br>&nbsp;&nbsp;query_shards:</pre> | Replaced by `trace_by_id.query_shards`. |
-| <pre>querier:<br>&nbsp;&nbsp;query_timeout:</pre> | Replaced by two different settings: `search.query_timeout` and `trace_by_id.query_timeout`. |
-| <pre>ingester:<br>&nbsp;&nbsp;use_flatbuffer_search:</pre> | Removed and automatically determined based on block format. |
-| `search_enabled` | Removed. Now defaults to true. |
-| `metrics_generator_enabled` | Removed. Now defaults to true. |
+| Parameter                                                  | Comments                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| <pre>query_frontend:<br>&nbsp;&nbsp;query_shards:</pre>    | Replaced by `trace_by_id.query_shards`.                                                     |
+| <pre>querier:<br>&nbsp;&nbsp;query_timeout:</pre>          | Replaced by two different settings: `search.query_timeout` and `trace_by_id.query_timeout`. |
+| <pre>ingester:<br>&nbsp;&nbsp;use_flatbuffer_search:</pre> | Removed and automatically determined based on block format.                                 |
+| `search_enabled`                                           | Removed. Now defaults to true.                                                              |
+| `metrics_generator_enabled`                                | Removed. Now defaults to true.                                                              |
 
 #### Renamed
 
 The following `compactor` configuration parameters were renamed.
 
-| Parameter | Comments |
-| --- | --- |
-| <pre>compaction:<br>&nbsp;&nbsp;chunk_size_bytes:</pre> | Renamed to `v2_in_buffer_bytes` |
-| <pre>compaction:<br>&nbsp;&nbsp;flush_size_bytes:</pre> | Renamed to `v2_out_buffer_bytes` |
+| Parameter                                                   | Comments                              |
+| ----------------------------------------------------------- | ------------------------------------- |
+| <pre>compaction:<br>&nbsp;&nbsp;chunk_size_bytes:</pre>     | Renamed to `v2_in_buffer_bytes`       |
+| <pre>compaction:<br>&nbsp;&nbsp;flush_size_bytes:</pre>     | Renamed to `v2_out_buffer_bytes`      |
 | <pre>compaction:<br>&nbsp;&nbsp;iterator_buffer_size:</pre> | Renamed to `v2_prefetch_traces_count` |
 
 The following `storage` configuration parameters were renamed.
 
-| Parameter | Comments |
-| --- | --- |
-| <pre>wal:<br>&nbsp;&nbsp;encoding:</pre> | Renamed to `v2_encoding` |
-| <pre>block:<br>&nbsp;&nbsp;index_downsample_bytes:</pre> | Renamed to `v2_index_downsample_bytes` |
-| <pre>block:<br>&nbsp;&nbsp;index_page_size_bytes:</pre> | Renamed to `v2_index_page_size_bytes` |
-| <pre>block:<br>&nbsp;&nbsp;encoding:</pre> | Renamed to `v2_encoding` |
-| <pre>block:<br>&nbsp;&nbsp;row_group_size_bytes:</pre> | Renamed to `parquet_row_group_size_bytes` |
+| Parameter                                                | Comments                                  |
+| -------------------------------------------------------- | ----------------------------------------- |
+| <pre>wal:<br>&nbsp;&nbsp;encoding:</pre>                 | Renamed to `v2_encoding`                  |
+| <pre>block:<br>&nbsp;&nbsp;index_downsample_bytes:</pre> | Renamed to `v2_index_downsample_bytes`    |
+| <pre>block:<br>&nbsp;&nbsp;index_page_size_bytes:</pre>  | Renamed to `v2_index_page_size_bytes`     |
+| <pre>block:<br>&nbsp;&nbsp;encoding:</pre>               | Renamed to `v2_encoding`                  |
+| <pre>block:<br>&nbsp;&nbsp;row_group_size_bytes:</pre>   | Renamed to `parquet_row_group_size_bytes` |
 
 The Azure Storage configuration section now uses snake case with underscores (`_`) instead of dashes (`-`). Example of using snake case on Azure Storage config:
 
@@ -770,6 +775,7 @@ storage:
       storage_account_key:
       container_name:
 ```
+
 <!-- vale Grafana.We = YES -->
 <!-- vale Grafana.Will = YES -->
 <!-- vale Grafana.Timeless = YES -->
