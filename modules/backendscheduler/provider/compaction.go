@@ -216,6 +216,7 @@ func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 			case <-ctx.Done():
 				return false
 			case <-p.store.PollNotification(ctx):
+				// We waited for the poll, but we may have been cancelled in the meantime.
 				if ctx.Err() != nil {
 					return false
 				}

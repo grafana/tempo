@@ -956,7 +956,6 @@ func TestNoCompactFlag(t *testing.T) {
 }
 
 func TestPollNotification(t *testing.T) {
-	// Create several new go routines which call PollNotiication
 	r, w, _, _ := testConfig(t, backend.EncGZIP, 0)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
