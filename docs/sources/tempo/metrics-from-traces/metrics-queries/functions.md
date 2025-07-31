@@ -18,7 +18,7 @@ keywords:
 
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
 
-[TraceQL](../../traceql/) supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`,
+[TraceQL](http://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/) supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`,
 `histogram_over_time`, and `compare` functions. These methods can be appended to any TraceQL query to calculate and
 return the desired metrics like:
 
@@ -277,7 +277,7 @@ Because it's evaluated at each data point, you'll get the top series for each da
 The `compare` function is used to split a set of spans into two groups: a selection and a baseline.
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
 
-This powerful function is best understood by using the [**Comparison** tab in Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/#comparison).
+This powerful function is best understood by using the [**Comparison** tab in Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/analyze-tracing-data/#use-the-comparison-tab).
 You can also under this function by looking at example outputs below.
 
 The function is used like other metrics functions: when it's placed after any trace query, it converts the query into a

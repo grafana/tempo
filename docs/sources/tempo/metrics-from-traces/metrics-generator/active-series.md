@@ -19,13 +19,13 @@ Any spans that are ingested by Tempo can create many metric series. However, thi
 
 The number of active series generated depends on the label pairs generated from span data that are associated with the metrics, similar to other Prometheus-formatted data.
 
-For additional information, refer to the [Active series and DPM documentation](https://grafana.com/docs/grafana-cloud/billing-and-usage/active-series-and-dpm/).
+For additional information, refer to the [Active series and DPM documentation](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/understand-your-invoice/metrics-invoice/).
 
 ## Active series calculation
 
 Active series for a metric increase when a new value for a label key is introduced. For example, the `span_kind` label has a total of five possible values, and the `status_code` label has a total of three possible values.
 
-At first glance, you might make an assumption that this means that at least 15 (5*3) active series will be generated for each span. But this isn't the case.
+At first glance, you might make an assumption that this means that at least 15 (5\*3) active series will be generated for each span. But this isn't the case.
 
 Let's consider a span that's emitted from some piece of code in a service:
 
@@ -52,7 +52,6 @@ If you looked at the Prometheus data, you'd see an instant value for `traces_spa
 | service   | span_name | span_kind          | status_code    | Metric value |
 | --------- | --------- | ------------------ | -------------- | ------------ |
 | Service 1 | span1     | SPAN_KIND_INTERNAL | STATUS_CODE_OK | 120          |
-
 
 However, let's now assume that it does loop and there are occasionally errors.
 
@@ -121,5 +120,5 @@ For example, if you added an `http.method` span attribute into a metric label pa
 - `PUT`
 - `DELETE`
 
-If this label pair is added to every span metric, that's another 5 *potential* active series generated for each metric (in all likelihood this is a very worst case scenario, very few spans will call all five REST methods).
-Instead of 8 active series in the last table above, we'd have 40 (8 * 5).
+If this label pair is added to every span metric, that's another 5 _potential_ active series generated for each metric (in all likelihood this is a very worst case scenario, very few spans will call all five REST methods).
+Instead of 8 active series in the last table above, we'd have 40 (8 \* 5).

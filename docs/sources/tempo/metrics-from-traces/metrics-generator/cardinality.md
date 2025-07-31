@@ -10,7 +10,7 @@ weight: 100
 # Cardinality
 
 Cardinality refers to the total combination of key/value pairs, such as labels and label values for a given metric series or log stream, and how many unique combinations they generate.
-For more information on cardinality, see the [What are cardinality spikes and why do they matter?](/blog/2022/02/15/what-are-cardinality-spikes-and-why-do-they-matter/) blog post.
+For more information on cardinality, refer to the [What are cardinality spikes and why do they matter?](https://grafana.com/blog/2022/02/15/what-are-cardinality-spikes-and-why-do-they-matter/) blog post.
 
 Because writes to a time-series database (TSDB) database are in series, high cardinality doesn't make a big difference to performance at ingest.
 However, cardinality can have a major impact on querying where, the higher the cardinality, the more items are required to be iterated over.
@@ -26,14 +26,14 @@ Tempo’s server-side metrics generation adds functionality to the collection of
 The metrics-generator creates metrics which define the relationship between services via edges and nodes.
 Each of these metrics are queryable using a set of Prometheus labels (key/value pairs).
 
-Each new value for a label increases the number of active series associated with a metric. (To learn more about active series, read the [Trace active series](../active-series/) documentation.)
+Each new value for a label increases the number of active series associated with a metric. (To learn more about active series, refer to the [Trace active series](../active-series/) documentation.)
 
 This is also known as an increase in cardinality, and the number of active series generated for a metric is directly proportional to the number of labels that exist for that metrics alongside the number of values each label has added.
 
 In a non-modified instance of the metrics generator, a small number of labels are added automatically.
 Because labels like `span_kind` and `status_code` only have a few valid values, the largest variable for the number of active series produced for each metric depends on the number of service names and span names associated with trace spans.
 
-The metrics-generator can also be configured to also add extra labels on metrics, using span attribute key/value pairs which are mapped directly to these labels see the [custom span attribute documentation](../../configuration/#metrics-generator).
+The metrics-generator can also be configured to also add extra labels on metrics, using span attribute key/value pairs which are mapped directly to these labels. Refer to the [custom span attribute documentation](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) for more information.
 
 Be careful when configuring custom attributes: the greater the number of values seen in a specific attribute, the greater the number of active series are produced. For more information about active series, refer to the [active series documentation](../active-series/)
 

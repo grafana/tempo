@@ -32,10 +32,10 @@ Every processor derives different metrics. Currently, the following processors a
 Service graphs are the representations of the relationships between services within a distributed system.
 
 This service graphs processor builds a map of services by analyzing traces, with the objective to find _edges_.
-Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
+Edges are spans with a parent-child relationship, that represent a jump (for exmaple, a request) between two services.
 The amount of request and their duration are recorded as metrics, which are used to represent the graph.
 
-To learn more about this processor, refer to the [service graph](../service_graphs/) documentation.
+To learn more about this processor, refer to the [service graph](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/) documentation.
 
 ### Span metrics
 
@@ -45,7 +45,7 @@ The span metrics processor computes the total count and the duration of spans fo
 Dimensions can be the service name, the operation, the span kind, the status code and any tag or attribute present in the span.
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
-To learn more about this processor, refer to the [span metrics](../span_metrics/) documentation.
+To learn more about this processor, refer to the [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/) documentation.
 
 ### Local blocks
 
@@ -57,28 +57,28 @@ enabled for certain metrics APIs to function.
 
 The metrics-generator runs a Prometheus Agent that periodically sends metrics to a `remote_write` endpoint.
 The `remote_write` endpoint is configurable and can be any [Prometheus-compatible endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write).
-To learn more about the endpoint configuration, refer to the [Metrics-generator](../../configuration/#metrics-generator) section of the Tempo Configuration documentation.
+To learn more about the endpoint configuration, refer to the [Metrics-generator](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) section of the Tempo Configuration documentation.
 Writing interval can be controlled via `metrics_generator.registry.collection_interval`.
 
 When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID` header of the original request to the `remote_write` endpoint. This feature can be disabled by setting `remote_write_add_org_id_header` to false.
 
 ## Native histograms
 
-[Native histograms](https://grafana.com/docs/grafana-cloud/whats-new/native-histograms/) are a data type in Prometheus that can produce, store, and query high-resolution histograms of observations.
+[Native histograms](https://grafana.com/docs/mimir/<MIMIR_VERSION>/visualize/native-histograms/) are a data type in Prometheus that can produce, store, and query high-resolution histograms of observations.
 It usually offers higher resolution and more straightforward instrumentation than classic histograms.
 
 The metrics-generator supports the ability to produce native histograms for
 high-resolution data. Users must [update the receiving endpoint](https://grafana.com/docs/mimir/<MIMIR_VERSION>/configure/configure-native-histograms-ingestion/) to ingest native
 histograms, and [update histogram queries](https://grafana.com/docs/mimir/<MIMIR_VERSION>/visualize/native-histograms/) in their dashboards.
 
-To learn more about the configuration, refer to the [Metrics-generator](../../configuration/#metrics-generator) section of the Tempo Configuration documentation.
+To learn more about the configuration, refer to the [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generatorr) section of the Tempo Configuration documentation.
 
 ## Use metrics-generator in Grafana Cloud
 
 If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
 
 Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing.
-For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/).
+For more information on billing, refer to [Understand your invoice](/docs/grafana-cloud/cost-management-and-billing/understand-your-invoice/).
 
 ## Multitenancy
 

@@ -62,5 +62,5 @@ In that case, the estimation formula would be:
 {{< /admonition >}}
 
 {{< admonition type="note" >}}
-To estimate the number of metrics, refer to the [Dry run metrics generator](../../cardinality/) documentation.
+To estimate the number of metrics, refer to the [Dry run metrics generator](../cardinality/) documentation.
 {{< /admonition >}}
