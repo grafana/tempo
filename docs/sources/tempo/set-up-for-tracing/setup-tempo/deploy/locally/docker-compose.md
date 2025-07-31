@@ -1,10 +1,11 @@
 ---
-title: Run Tempo using Docker Compose
-description: Instructions for running Tempo using Docker Compose
+title: Deploy Tempo using Docker Compose
+menuTitle: Deploy using Docker Compose
+description: Instructions for deploying Tempo using Docker Compose
 weight: 400
 ---
 
-# Run Tempo using Docker Compose
+# Deploy Tempo using Docker Compose
 
 The [`example` directory](https://github.com/grafana/tempo/tree/main/example/docker-compose) in the Tempo repository provides a `docker-compose` file that you can use to run Tempo locally with different configurations.
 

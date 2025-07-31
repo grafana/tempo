@@ -28,4 +28,4 @@ By following these recommendations, you can plan a Tempo deployment that matches
 
 ## Next steps
 
-Once you've planned your deployment, you can [Deploy your Tempo instance](../setup-tempo/deploy/) using the deployment mode you selected.
+Once you've planned your deployment, you can [Deploy your Tempo instance](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/) using the deployment mode you selected.

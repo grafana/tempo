@@ -11,7 +11,7 @@ aliases:
 refs:
   solve-problems-mq:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/solve-problems-metrics-queries/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/solutions-with-traces/solve-problems-metrics-queries/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/traceql/metrics-queries/solve-problems-metrics-queries/
   mq-functions:

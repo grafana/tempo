@@ -32,7 +32,7 @@ The distributor uses the receiver layer from the [OpenTelemetry Collector](https
 For best performance, it's recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).
 For this reason, [Grafana Alloy](https://github.com/grafana/alloy/) uses the OTLP exporter/receiver to send spans to Tempo.
 
-Once data is received, the Distributor determines which Ingesters to send the data to (if there is more than one Ingester configured).
+Once data is received, the Distributor determines which Ingesters to send the data to if there is more than one Ingester configured.
 
 ### Ingester
 
