@@ -1,13 +1,13 @@
 ---
-title: Service graph metrics queries
+title: Analyze service graph data
 aliases:
   - ../../metrics-generator/service_graphs/metrics-queries/ # /docs/tempo/next/metrics-generator/service_graphs/metrics-queries/
-menuTitle: Service graph metrics queries
+menuTitle: Analyze service graph data
 description: Use PromQL queries to access metrics from service graphs.
 weight: 500
 ---
 
-# Service graph metrics queries
+# Analyze service graph data
 
 You can use this collection of PromQL queries to explore service graph metrics.
 
