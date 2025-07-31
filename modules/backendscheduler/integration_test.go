@@ -88,10 +88,11 @@ func testJobOperations(ctx context.Context, t *testing.T, scheduler *BackendSche
 	// Mark all jobs completed
 	for _, jobID := range jobIDs {
 		// Start the job
-		scheduler.work.StartJob(ctx, jobID)
+		err := scheduler.work.StartJob(ctx, jobID)
+		require.NoError(t, err)
 
 		// Complete the job
-		_, err := scheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		_, err = scheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  jobID,
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 		})
