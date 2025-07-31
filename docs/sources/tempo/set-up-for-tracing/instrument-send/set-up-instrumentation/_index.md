@@ -10,20 +10,22 @@ weight: 500
 Client instrumentation is the first building block to a functioning distributed tracing visualization pipeline.
 Client instrumentation is the process of adding instrumentation points in the application that create and offload spans.
 
-To generate and gather traces, you need to:
+When you set up instrumentation, you:
 
-1. [Choose an instrumentation method to use with your application](../choose-instrumentation-method/)
-1. [Set up instrumentation](./set-up-instrumentation/) to generate traces
-1. [Set up a collector](../set-up-collector/) to receive traces from your application
+1. Choose an instrumentation method to use with your application
+1. Instrument your application to generate traces
+
+After you set up instrumentation, you can [set up a collector](../set-up-collector/) to receive traces from your application.
+Refer to [About instrumentation](./about-instrumentation/) for more information about instrumentation and how it works.
 
 ## Choose an instrumentation method
 
 When sending traces to Tempo, you can choose between four methods:
 
-* Auto-instrumentation applies instrumentation automatically using agents or middleware, without code changes.
-* Zero-code instrumentation, which uses eBPF technology to instrument applications without code changes. [Grafana Beyla](https://grafana.com/docs/beyla/latest/) is an example of a zero-code instrumentation tool.
-* Manual instrumentation involves adding code to create spans and traces, giving full control over collected data.
-* Hybrid instrumentation, which combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
+- Auto-instrumentation applies instrumentation automatically using agents or middleware, without code changes.
+- Zero-code instrumentation, which uses eBPF technology to instrument applications without code changes. [Grafana Beyla](https://grafana.com/docs/beyla/latest/) is an example of a zero-code instrumentation tool.
+- Manual instrumentation involves adding code to create spans and traces, giving full control over collected data.
+- Hybrid instrumentation, which combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
 
 Refer to [About instrumentation](../about-instrumentation/) for more information.
 
@@ -38,9 +40,10 @@ You should pick one according to your application needs.
 OpenTelemetry has the most active development in the community and may be a better long-term choice.
 
 Popular instrumentation frameworks include:
-* [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
-* [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
-* [Grafana Beyla](https://grafana.com/docs/beyla/)
+
+- [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
+- [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
+- [Grafana Beyla](https://grafana.com/docs/beyla/)
 
 ### Instrument using OpenTelemetry
 
@@ -57,11 +60,11 @@ For more information, refer for the [OpenTelemetry Instrumentation documentation
 These libraries capture telemetry
 information from a client application with minimal manual instrumentation of the codebase.
 
-* [OpenTelemetry Java auto-instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
-* [OpenTelemetry .NET auto-instrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
-  * [How to configure OpenTelemetry .NET automatic instrumentation with Grafana Cloud](/blog/2023/10/31/how-to-configure-opentelemetry-.net-automatic-instrumentation-with-grafana-cloud)
-* [OpenTelemetry Python auto-instrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
-* [OpenTelemetry Go auto-instrumentation](https://github.com/open-telemetry/opentelemetry-go-instrumentation) and [documentation](https://opentelemetry.io/docs/instrumentation/go/getting-started/)
+- [OpenTelemetry Java auto-instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
+- [OpenTelemetry .NET auto-instrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
+  - [How to configure OpenTelemetry .NET automatic instrumentation with Grafana Cloud](/blog/2023/10/31/how-to-configure-opentelemetry-.net-automatic-instrumentation-with-grafana-cloud)
+- [OpenTelemetry Python auto-instrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
+- [OpenTelemetry Go auto-instrumentation](https://github.com/open-telemetry/opentelemetry-go-instrumentation) and [documentation](https://opentelemetry.io/docs/instrumentation/go/getting-started/)
 
 {{< admonition type="note" >}}
 Jaeger client libraries have been deprecated. For more information, refer to the [Deprecating Jaeger clients article](https://www.jaegertracing.io/docs/1.50/client-libraries/#deprecating-jaeger-clients). Jaeger recommends using OpenTelemetry SDKs.
@@ -84,8 +87,9 @@ If you are using Zipkin with Alloy, refer to the Zipkin receiver, [otelcol.recei
 In addition, you can use Zipkin to instrument a library, refer to [Instrumenting a library with Zipkin](https://zipkin.io/pages/instrumenting.html)
 
 Within Grafana, you can also use these Zipkin specific features:
-* [Zipkin data source](https://grafana.com/docs/grafana/latest/datasources/zipkin/)
-* [Monitor Zipkin with Prometheus and Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/metrics/metrics-prometheus/prometheus-config-examples/the-zipkin-community-zipkin/)
+
+- [Zipkin data source](https://grafana.com/docs/grafana/latest/datasources/zipkin/)
+- [Monitor Zipkin with Prometheus and Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/metrics/metrics-prometheus/prometheus-config-examples/the-zipkin-community-zipkin/)
 
 ### Instrument with Grafana Beyla
 
@@ -104,6 +108,7 @@ The Grafana blog periodically features instrumentation posts.
 - [.NET](https://grafana.com/blog/2021/02/11/instrumenting-a-.net-web-api-using-opentelemetry-tempo-and-grafana-cloud/)
 - [Python](https:/grafana.com/blog/2021/05/04/get-started-with-distributed-tracing-and-grafana-tempo-using-foobar-a-demo-written-in-python/)
 -->
+
 ### Community resources
 
 - [NodeJS](https://github.com/mnadeem/nodejs-opentelemetry-tempo)

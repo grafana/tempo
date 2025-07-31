@@ -60,7 +60,7 @@ After the metrics-generator is enabled in your organization, refer to [Metrics-g
 
 These metrics exist in your Hosted Metrics instance and can also be easily used to generate powerful custom dashboards.
 
-<p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
+<p align="center"><img src="/media/docs/tempo/intro/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
 
 The metrics-generator automatically generates exemplars as well which allows easy metrics to trace linking.
 [Exemplars](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/fundamentals/exemplars/) are available in Grafana Cloud.
