@@ -3,6 +3,8 @@ title: Command line flags
 menuTitle: Command line flags
 description: Reference for Tempo command line flags
 weight: 900
+aliases:
+  - ../configuration/command-line-flags/ # /docs/tempo/<TEMPO_VERSION>/configuration/command-line-flags
 ---
 
 # Command line flags

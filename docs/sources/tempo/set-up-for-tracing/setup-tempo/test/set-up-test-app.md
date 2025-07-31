@@ -2,6 +2,8 @@
 title: Test Kubernetes deployment using a test application
 menuTitle: Test Kubernetes deployment
 description: Test your Tempo deployment on Kubernetes.
+aliases:
+  - ../../setup/set-up-test-app/ # /docs/tempo/latest/setup/set-up-test-app/
 weight: 600
 ---
 
@@ -21,8 +23,8 @@ You'll need:
 * Microservice deployments require the Tempo querier URL, for example: `http://tempo-cluster-query-frontend.tempo.svc.cluster.local:3100/`
 * [OpenTelemetry telemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) for generating tracing data
 
-Refer to [Deploy Grafana on Kubernetes](/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes.
-Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for more information.
+Refer to [Deploy Grafana on Kubernetes](https://grafana.com/docs/grafana/<GRAANA_VERSION>/setup-grafana/installation/kubernetes/) if you are using Kubernetes.
+Otherwise, refer to [Install Grafana](/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/) for more information.
 
 ## Configure Grafana Alloy to remote-write to Tempo
 
@@ -33,7 +35,7 @@ You can skip this section if you have already configured Alloy to send traces to
 [//]: # 'Shared content for best practices for traces'
 [//]: # 'This content is located in /tempo/docs/sources/shared/best-practices-traces.md'
 
-{{< docs/shared source="tempo" lookup="alloy-remote-write-tempo.md" version="latest" >}}
+{{< docs/shared source="tempo" lookup="alloy-remote-write-tempo.md" version="next" >}}
 
 ## Create a Grafana Tempo data source
 
@@ -45,7 +47,8 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 
 1. Select **Tempo**.
 
-1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service, and the configured HTTP API prefix. If you have followed the [Deploy Tempo with Helm installation example](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<namespace>.svc.cluster.local:3100`
+1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service and the configured HTTP API prefix.
+   If you followed [Deploy Tempo with Helm installation example](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3100`
 
 1. Click **Save & Test**.
 
@@ -54,7 +57,7 @@ You should see a message that says `Data source is working`.
 ## Visualize your data
 
 After you have created a data source, you can visualize your traces in the **Grafana Explore** page.
-For more information, refer to [Tempo in Grafana](../../getting-started/tempo-in-grafana/).
+For more information, refer to [Tempo in Grafana](../../introduction/tempo-in-grafana/).
 
 ### Use OpenTelemetry `telemetrygen` to generate tracing data
 

@@ -3,6 +3,8 @@ title: Upgrade your Tempo installation
 menuTitle: Upgrade
 description: Upgrade your Grafana Tempo installation to the latest version.
 weight: 510
+aliases:
+  - ../../setup/upgrade/ # /docs/tempo/<TEMPO_VERSION>/setup/upgrade
 ---
 
 # Upgrade your Tempo installation

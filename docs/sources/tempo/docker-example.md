@@ -17,10 +17,12 @@ killercoda:
 
 <!-- INTERACTIVE page intro.md START -->
 
+{{< docs/alias from="/docs/tempo/latest/getting-started/docker-example/" to="/docs/tempo/latest/docker-example/" >}}
+
 # Quick start for Tempo
 
 Using this quick start, you can set up a Tempo instance using Docker Compose so you can play and understand how Tempo works.
-If you want to use Tempo in production, refer to the [Set up Tempo]() documentation.
+If you want to use Tempo in production, refer to the [Set up for tracing](set-up-for-tracing/) documentation.
 
 The Tempo repository provides [multiple examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) to help you quickly get started using Tempo and distributed tracing data.
 
