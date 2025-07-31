@@ -3,7 +3,6 @@ title: Grafana Alloy
 description: Configure the Grafana Alloy to work with Tempo
 weight: 550
 aliases:
-- /docs/tempo/grafana-alloy
 - ../../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
 ---
 

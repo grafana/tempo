@@ -3,11 +3,10 @@ title: Set up Tempo
 menuTitle: Set up Tempo
 description: Learn how to set up a Tempo server or cluster and visualize data.
 aliases:
-- /docs/tempo/setup
+  - ../setup/ # /docs/tempo/next/setup/
 weight: 300
 ---
 
-{{< docs/alias from="/docs/tempo/latest/setup/" to="/docs/tempo/latest/set-up-for-tracing/setup-tempo/" >}}
 
 # Set up Tempo
 

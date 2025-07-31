@@ -3,8 +3,7 @@ title: Set up your collector
 description: Configure your collector to send traces to Tempo.
 weight: 550
 aliases:
-- /docs/tempo/grafana-alloy
-- ../../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
+- ../../grafana-alloy/ # /docs/tempo/next/grafana-alloy/
 ---
 
 # Set up your collector

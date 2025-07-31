@@ -3,7 +3,7 @@ title: Test Kubernetes deployment using a test application
 menuTitle: Test Kubernetes deployment
 description: Test your Tempo deployment on Kubernetes.
 aliases:
-  - ../../setup/set-up-test-app/ # /docs/tempo/latest/setup/set-up-test-app/
+  - ../../../setup/set-up-test-app/ # /docs/tempo/next/setup/set-up-test-app/
 weight: 600
 ---
 

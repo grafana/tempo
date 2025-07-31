@@ -1,6 +1,7 @@
 ---
 aliases:
-  - /docs/tempo/latest/metrics-generator/active-series
+  - ./active-series/ # /docs/tempo/next/metrics-generator/active-series/
+  - ../../metrics-generator/active-series/ # /docs/tempo/next/metrics-generator/active-series/
 title: Active series
 menuTitle: Active series
 description: Learn about active series and how they are calculated.

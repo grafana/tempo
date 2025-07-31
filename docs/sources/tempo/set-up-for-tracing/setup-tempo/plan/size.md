@@ -10,7 +10,6 @@ aliases:
 weight: 250
 ---
 
-{{< docs/alias from="/docs/tempo/latest/setup/size/" to="/docs/tempo/latest/setup/plan/size/" >}}
 
 # Size the cluster
 

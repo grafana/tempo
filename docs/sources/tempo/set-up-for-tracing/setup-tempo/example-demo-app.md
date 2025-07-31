@@ -2,7 +2,7 @@
 title: Example setups
 description: This page provides setup examples of how Tempo can be configured for a sample environment.
 aliases:
-  - /docs/tempo/latest/guides/loki-derived-fields/
+  - ../../guides/loki-derived-fields/ # /docs/tempo/next/guides/loki-derived-fields/
   - ../../getting-started/example-demo-app/ #/docs/tempo/<TEMPO_VERSION>/getting-started/example-demo-app/
 weight: 300
 ---

@@ -4,8 +4,8 @@ menuTitle: Deploy with operator
 description: Learn how to deploy Tempo with Tempo Operator
 weight: 375
 aliases:
-- /docs/tempo/operator/operator
-- /docs/tempo/setup/operator
+- ../../../../operator/operator/ # /docs/tempo/next/operator/operator/
+- ../../../../setup/operator/ # /docs/tempo/next/setup/operator/
 ---
 
 # Deploy Tempo with Tempo Operator

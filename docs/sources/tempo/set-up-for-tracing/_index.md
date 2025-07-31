@@ -4,7 +4,7 @@ menuTitle: Set up for tracing
 description: Instructions for setting up Tempo for traces
 weight: 300
 aliases:
-  - ../../getting-started # /docs/tempo/<TEMPO_VERSION>/getting-started/
+  - ./getting-started/ # /docs/tempo/next/getting-started/
 refs:
   examples:
     - pattern: /docs/tempo/

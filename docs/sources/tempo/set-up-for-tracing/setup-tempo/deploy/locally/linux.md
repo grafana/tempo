@@ -4,10 +4,9 @@ menuTitle: Deploy on Linux
 description: Learn how to deploy a single Tempo instance on a single node on Linux.
 weight: 400
 aliases:
-  - ../../linux/ # /docs/tempo/latest/setup/linux/
+  - ../../../../setup/linux/ # /docs/tempo/next/setup/linux/
 ---
 
-{{< docs/alias from="/docs/tempo/latest/setup/linux/" to="/docs/tempo/latest/setup/deploy/locally/linux" >}}
 
 # Deploy on Linux
 

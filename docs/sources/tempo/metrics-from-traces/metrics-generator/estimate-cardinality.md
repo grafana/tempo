@@ -4,7 +4,7 @@ menuTitle: Estimate cardinality
 description: Estimate cardinality from traces to understand the impact of service graphs.
 weight: 400
 aliases:
-  - ../../metrics-generator/service-graphs/estimate-cardinality/ # /docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graphs/estimate-cardinality/
+  - ../../metrics-generator/service_graphs/estimate-cardinality/ # /docs/tempo/next/metrics-generator/service_graphs/estimate-cardinality/
 ---
 
 ## Estimate cardinality from traces

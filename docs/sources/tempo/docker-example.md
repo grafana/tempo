@@ -20,7 +20,6 @@ killercoda:
 
 <!-- INTERACTIVE page intro.md START -->
 
-{{< docs/alias from="/docs/tempo/latest/getting-started/docker-example/" to="/docs/tempo/latest/docker-example/" >}}
 
 # Quick start for Tempo
 
