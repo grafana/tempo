@@ -190,6 +190,11 @@ func (w *BackendWorker) running(ctx context.Context) error {
 
 	b := backoff.New(ctx, w.cfg.Backoff)
 
+	jobCtx := ctx
+	if w.cfg.FinishOnShutdown {
+		jobCtx = context.Background()
+	}
+
 	if w.subservices != nil {
 		for {
 			select {
@@ -198,7 +203,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			case err := <-w.subservicesWatcher.Chan():
 				return fmt.Errorf("worker subservices failed: %w", err)
 			default:
-				if err := w.processJobs(ctx); err != nil {
+				if err := w.processJobs(jobCtx); err != nil {
 					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
@@ -213,7 +218,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			case <-ctx.Done():
 				return nil
 			default:
-				if err := w.processJobs(ctx); err != nil {
+				if err := w.processJobs(jobCtx); err != nil {
 					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
