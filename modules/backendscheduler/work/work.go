@@ -164,17 +164,17 @@ func (w *Work) GetJob(id string) *Job {
 }
 
 // RemoveJob removes a job from the appropriate shard
-func (w *Work) RemoveJob(ctx context.Context, id string) {
+func (w *Work) RemoveJob(ctx context.Context, id string) error {
 	_, span := tracer.Start(ctx, "RemoveJob", trace.WithAttributes(attribute.String("job_id", id)))
 	defer span.End()
 
-	_, shard := w.getShard(id)
+	shardID, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
 	delete(shard.Jobs, id)
 
-	// return w.flushShard(ctx, shard, shardID)
+	return w.flushShard(ctx, shard, shardID)
 }
 
 // ListJobs returns all jobs across all shards, sorted by creation time
@@ -278,11 +278,11 @@ func (w *Work) GetJobForWorker(ctx context.Context, workerID string) *Job {
 }
 
 // CompleteJob marks a job as completed in the appropriate shard
-func (w *Work) CompleteJob(ctx context.Context, id string) {
+func (w *Work) CompleteJob(ctx context.Context, id string) error {
 	_, span := tracer.Start(ctx, "CompleteJob", trace.WithAttributes(attribute.String("job_id", id)))
 	defer span.End()
 
-	_, shard := w.getShard(id)
+	shardID, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
 
@@ -290,31 +290,33 @@ func (w *Work) CompleteJob(ctx context.Context, id string) {
 		j.Complete()
 	}
 
-	// return w.flushShard(ctx, shard, shardID)
+	return w.flushShard(ctx, shard, shardID)
 }
 
 // FailJob marks a job as failed in the appropriate shard
-func (w *Work) FailJob(ctx context.Context, id string) {
+func (w *Work) FailJob(ctx context.Context, id string) error {
 	shardID, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
-	defer w.flushShard(ctx, shard, shardID)
 
 	if j, ok := shard.Jobs[id]; ok {
 		j.Fail()
 	}
+
+	return w.flushShard(ctx, shard, shardID)
 }
 
 // SetJobCompactionOutput sets compaction output for a job in the appropriate shard
-func (w *Work) SetJobCompactionOutput(ctx context.Context, id string, output []string) {
+func (w *Work) SetJobCompactionOutput(ctx context.Context, id string, output []string) error {
 	shardID, shard := w.getShard(id)
 	shard.mtx.Lock()
 	defer shard.mtx.Unlock()
-	defer w.flushShard(ctx, shard, shardID)
 
 	if j, ok := shard.Jobs[id]; ok {
 		j.SetCompactionOutput(output)
 	}
+
+	return w.flushShard(ctx, shard, shardID)
 }
 
 // Marshal serializes all shards to JSON with proper locking
