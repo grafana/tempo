@@ -24,18 +24,18 @@ Here's how it works:
 
 Using a collector provides a hassle-free option, especially when dealing with multiple applications or microservices, allowing you to centralize the tracing process without changing your application's codebase.
 
-## Use Grafana Alloy
+## Use Alloy
 
-Grafana Labs maintains and supports Grafana Alloy, which packages various upstream OpenTelemetry Collector components. Alloy provides stability, support, and integration with Grafana Labs products.
+Grafana Labs maintains and supports Alloy, which packages various upstream OpenTelemetry Collector components. Alloy provides stability, support, and integration with Grafana Labs products.
 
-Refer to [Grafana Alloy](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/) for information about Alloy and it's tracing capabilities.
+Refer to the [Alloy documentation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/) for information about Alloy and it's tracing capabilities.
 
-Refer to [Collect and forward data with Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
+Refer to [Collect and forward data with Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
 
-### Use the OpenTelemetry Collector
+## Use the OpenTelemetry Collector
 
 The OpenTelemetry project maintainers and the Cloud Native Computing Foundation maintain the upstream OpenTelemetry Collector. This is a community-supported project.
 
 Refer to the [Install the Collector documentation](https://opentelemetry.io/docs/collector/installation/) for instructions on installation.
 
-Refer to the [OpenTelemetry Collector](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/collector/opentelemetry-collector) documentation to use the upstream OpenTelemetry Collector with Grafana Labs products.
+Refer to the [OpenTelemetry Collector documentation](https://github.com/grafana/opentelemetry-docs/blob/main/docs/sources/collector/opentelemetry-collector) to use the upstream OpenTelemetry Collector with Grafana Labs products.

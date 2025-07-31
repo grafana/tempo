@@ -2,7 +2,7 @@
 title: Validate your local Tempo deployment
 menuTitle: Validate your local deployment
 description: Instructions for validating your local Tempo deployment.
-weight: 600
+weight: 500
 ---
 
 # Validate your local Tempo deployment

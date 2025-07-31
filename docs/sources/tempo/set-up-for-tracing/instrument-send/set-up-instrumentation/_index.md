@@ -93,7 +93,7 @@ Within Grafana, you can also use these Zipkin specific features:
 
 ### Instrument with Grafana Beyla
 
-Grafana Beyla is an eBPF-based application zero-instrumentation tool to easily get started with Application Observability. Beyla uses eBPF to automatically inspect application executables and the OS networking layer, and capture trace spans related to web transactions and Rate Errors Duration (RED) metrics for Linux HTTP/S and gRPC services. All data capture occurs without any modifications to application code or configuration.
+Grafana Beyla is an eBPF-based application zero-code instrumentation tool to easily get started with Application Observability. Beyla uses eBPF to automatically inspect application executables and the OS networking layer, and capture trace spans related to web transactions and Rate Errors Duration (RED) metrics for Linux HTTP/S and gRPC services. All data capture occurs without any modifications to application code or configuration.
 
 Refer to [Set up Beyla](https://grafana.com/docs/beyla/<BEYLA_VERSION>/setup/) for information about how to instrument using Beyla.
 
