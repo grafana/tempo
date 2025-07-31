@@ -31,7 +31,7 @@ You can skip this section if you have already configured Alloy to send traces to
 {{< /admonition >}}
 
 [//]: # 'Shared content for best practices for traces'
-[//]: # 'This content is located in /tempo/docs/sources/shared/best-practices-traces.md'
+[//]: # 'This content is located in /tempo/docs/sources/shared/alloy-remote-write-tempo.md'
 
 {{< docs/shared source="tempo" lookup="alloy-remote-write-tempo.md" version="next" >}}
 
