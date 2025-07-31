@@ -155,7 +155,7 @@ Filters can be removed by selecting the filter drop-down and choosing **– remo
 
 Each field or label represents a key-value pair. Number 1 selects a service as the label whose value is `Go-http-client` (2). The second key-value pair has a client as a label whose value is `02e807`.
 
-<p align="center"><img src="..//media/docs/tempo/metrics/apm-filter-example-numbered.png" alt="Filter example with numbers"></p>
+<p align="center"><img src="../media/docs/tempo/metrics/apm-filter-example-numbered.png" alt="Filter example with numbers"></p>
 
 If your metrics queries are too specific, they may not return any results.
 

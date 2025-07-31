@@ -2,8 +2,8 @@
 title: Tempo architecture
 description: Learn about Tempo architectural decisions and operational implications.
 aliases:
- - ../architecture # https://grafana.com/docs/tempo/<TEMPO_VERSION>/architecture/
- - ../operations/architecture/ # /docs/tempo/latest/operations/architecture/
+  - ../architecture # https://grafana.com/docs/tempo/<TEMPO_VERSION>/architecture/
+  - ../operations/architecture/ # /docs/tempo/latest/operations/architecture/
 weight: 400
 ---
 
@@ -13,11 +13,11 @@ The journey of a trace is usually from an instrumented application, to a trace r
 
 Tempo acts in two major capacities:
 
-* An ingester of trace span, sorting the span resources and attributes into columns in an Apache Parquet schema, before sending them to object storage for long-term retention.
-* Retrieving trace data from storage, either by specific trace ID or by search parameters via TraceQL.
+- An ingester of trace span, sorting the span resources and attributes into columns in an Apache Parquet schema, before sending them to object storage for long-term retention.
+- Retrieving trace data from storage, either by specific trace ID or by search parameters via TraceQL.
 
-Refer to the [example setups](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/example-demo-app/)
-or [deployment options](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/) for help deploying.
+Refer to the [example setups](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/example-demo-app/)
+or [deployment options](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/deploy/) for help deploying.
 
 ![Tempo architecture diagram](/media/docs/tempo/tempo_arch.png)
 
@@ -97,20 +97,20 @@ Compaction takes into account the data stored for specific traces to minimize se
 
 Tempo uses object storage for storing all tracing data. It supports three major object storage APIs:
 
-* Amazon Simple Storage Service (S3)
-* Google Cloud Storage (GCS)
-* Microsoft Azure Storage (AS)
+- Amazon Simple Storage Service (S3)
+- Google Cloud Storage (GCS)
+- Microsoft Azure Storage (AS)
 
 ### Metrics generator
 
-This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage. Refer to the [metrics-generator documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/) to learn more.
+This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage. Refer to the [metrics-generator documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) to learn more.
 
 ## Things to keep in mind
 
 There are three fundamentally important things to keep in mind with traces:
 
-* There is no concept of the 'end' of a trace. A trace can start with any span which holds a unique trace ID that hasn't been seen by Tempo previously. However, spans can be continually added at any point in the future.
+- There is no concept of the 'end' of a trace. A trace can start with any span which holds a unique trace ID that hasn't been seen by Tempo previously. However, spans can be continually added at any point in the future.
 
-* When a trace ID is queried in Tempo, it returns all of the currently stored/ingested spans that belong to that trace and present them in a mapped response (that is, a graph of parent/child/sibling relationships between spans) that allow, for example, Grafana to then visually render those traces.
+- When a trace ID is queried in Tempo, it returns all of the currently stored/ingested spans that belong to that trace and present them in a mapped response (that is, a graph of parent/child/sibling relationships between spans) that allow, for example, Grafana to then visually render those traces.
 
-* TraceQL queries return all matching traces from Tempo for the filters presented to it. This does not necessarily mean in chronological order, as some Queriers may return results more promptly than others. When the max trace limit for a TraceQL query has been hit, the Query Frontend will return a response with all the current traces and their spans at that point and ignore/cancel all outstanding Queriers.
+- TraceQL queries return all matching traces from Tempo for the filters presented to it. This does not necessarily mean in chronological order, as some Queriers may return results more promptly than others. When the max trace limit for a TraceQL query has been hit, the Query Frontend will return a response with all the current traces and their spans at that point and ignore/cancel all outstanding Queriers.
