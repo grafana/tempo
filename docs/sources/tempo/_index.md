@@ -17,22 +17,22 @@ cards:
   title_class: pt-0 lh-1
   items:
     - title: Learn about tracing
-      href: /docs/tempo/latest/introduction/
+      href: ./introduction/
       description: What is distributed tracing? Learn about traces and how you can use them, how you can instrument your app for tracing, and how you can visualize tracing data in Grafana.
     - title: Solutions and use cases
-      href: /docs/tempo/latest/solutions-with-traces/
+      href: ./solutions-with-traces/
       description: Learn how tracing data can help you understand application insights and performance as well as help triage issues in your services and applications.
     - title: Set up for tracing
-      href: /docs/tempo/latest/set-up-for-tracing/
+      href: ./set-up-for-tracing/
       description: Plan your deployment to meet your needs, deploy Tempo, test your installation, and instrument your app or services for traces.
     - title: Manage Tempo
-      href: /docs/tempo/latest/operations/
+      href: ./operations/
       description: Learn about Tempo architecture, best practices, Parquet backend, dedicated attribute columns, and more.
     - title: Metrics and tracing
-      href: /docs/tempo/latest/metrics-from-traces/
+      href: ./metrics-from-traces/
       description: Learn about metrics created from traces, including the metrics-generator processor and TraceQL metrics.
     - title: Query with TraceQL
-      href: /docs/tempo/latest/traceql/
+      href: ./traceql/
       description: Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. This query language lets you precisely and easily select spans and jump directly to the spans fulfilling the specified conditions.
 ---
 

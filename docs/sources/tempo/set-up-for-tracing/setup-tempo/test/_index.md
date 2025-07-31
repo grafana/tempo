@@ -3,14 +3,18 @@ title: Validate deployment
 menuTitle: Validate deployment
 description: Instructions for validating your Tempo deployment
 weight: 500
-# draft: true
 ---
 
 <!-- This page is not finished. It's hidden from the published doc site by draft: true. -->
 
 # Validate your Tempo deployment
 
-To test your Tempo deployment, you can follow these steps to ensure that traces are being sent and received correctly.
+To test your Tempo deployment, select one of the procedures below to test your Tempo deployment:
+
+{{< section withDescriptions="true">}}
+
+<!-- Update these steps before publishing. They aren't complete.
+Follow these steps to ensure that traces are being sent and received correctly.
 This guide assumes you have already set up a Tempo instance and have Grafana configured to query it.
 
 For additional information, refer to [Push spans with HTTP](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/push-spans-with-http/).
@@ -68,3 +72,4 @@ To test if traces are being received by Tempo, you can use the following methods
 4. **Use OpenTelemetry Collector**: If you have an OpenTelemetry Collector configured, you can check its logs to see if it is successfully exporting traces to Tempo. Ensure that the collector is configured with the correct endpoint for Tempo.
 5. **Check Grafana Logs**: Look for logs in the Grafana instance that indicate traces are being returned from Tempo. You can find these logs in the Grafana UI under **Configuration** > **Logs**.
 
+-->
