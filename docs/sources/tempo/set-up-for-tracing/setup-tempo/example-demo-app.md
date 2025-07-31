@@ -13,7 +13,7 @@ The following examples show various deployment and configuration options using t
 
 For more information about Tempo setup and configuration, see:
 
-- [Set up Tempo](docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/)
+- [Set up Tempo](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/)
 - [Tempo configuration](/docs/tempo/<TEMPO_VERSION>/configuration/)
 
 If you are interested in instrumentation, refer to [Tempo instrumentation](../../instrument-send/).
@@ -43,11 +43,11 @@ To install Tempo on Kubernetes, use the [Deploy on Kubernetes using Helm](https:
 To view an example of a complete microservice-based deployment, this [Jsonnet based example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment.
 There are monolithic mode and microservices examples.
 
-To learn how to set up a Tempo cluster, refer to [Deploy on Kubernetes with Tanka](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/tanka/).
+To learn how to set up a Tempo cluster, refer to [Deploy on Kubernetes with Tanka](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/tanka/).
 
 ## Introduction to Metrics, Logs, Traces, and Profiles example
 
-The [Introduction to Metrics, Logs, Traces, and Profiles in Grafana](https://github.com/grafana/intro-to-mlt) provides a self-contained environment for learning about Mimir, Loki, Tempo, Pyroscope, and Grafana.
+The [Introduction to Metrics, Logs, Traces, and Profiles in Grafana](https://github.com/grafana/intro-to-mltp) provides a self-contained environment for learning about Mimir, Loki, Tempo, Pyroscope, and Grafana.
 It includes detailed explanations of each component and annotated configurations for each component.
 
-The README.md file explains how to download and [start the environment](https://github.com/grafana/intro-to-mlt#running-the-demonstration-environment), including instructions for using Grafana Cloud and Grafana Alloy collector.
+The README.md file explains how to download and [start the environment](https://github.com/grafana/intro-to-mltp#running-the-demonstration-environment), including instructions for using Grafana Cloud and Grafana Alloy collector.

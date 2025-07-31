@@ -7,7 +7,6 @@ aliases:
   - ../../configuration/grafana-alloy/span-metrics/ # /docs/tempo/next/configuration/grafana-alloy/span-metrics/
 ---
 
-
 # Use Alloy to generate metrics from spans
 
 Span metrics allow you to generate metrics from your tracing data automatically.
@@ -30,13 +29,14 @@ as far as tracing gets propagated through your applications.
 
 To generate span metrics within Grafana Alloy, you can use the `otelcol.connector.spanmetrics` component.
 The following example:
-* Adds the `http.method` (with a default value of `GET`) and `http.target` span attributes as Prometheus labels
-    to the generated span metrics
-* Sets an explicit set of histogram buckets intervals.
-* Specifies a metrics flush period of 15 seconds.
-* Uses the `traces_spanmetrics` namespace to prefix all generated metrics with.
-before writing the metrics to the Grafana OTLP gateway.
-Received trace spans are immediately written to the OTLP gateway.
+
+- Adds the `http.method` (with a default value of `GET`) and `http.target` span attributes as Prometheus labels
+  to the generated span metrics
+- Sets an explicit set of histogram buckets intervals.
+- Specifies a metrics flush period of 15 seconds.
+- Uses the `traces_spanmetrics` namespace to prefix all generated metrics with.
+  before writing the metrics to the Grafana OTLP gateway.
+  Received trace spans are immediately written to the OTLP gateway.
 
 ```alloy
 otelcol.receiver.otlp "default" {

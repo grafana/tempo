@@ -20,14 +20,14 @@ which is the monolithic deployment mode.
 tempo -target=all
 ```
 
-Refer to the [Command line flags](../command-line-flags/) documentation for more information on the `-target` flag.
+Refer to the [Command line flags](../../command-line-flags/) documentation for more information on the `-target` flag.
 
 ## Monolithic mode
 
 Monolithic mode uses a single Tempo binary is executed, which runs all of the separate components within a single running process.
 This means that a single instance both ingests, stores, compacts and queries trace data.
 
-Monolithic mode handles modest volumes of trace data without issues given a modest amount of resource. 
+Monolithic mode handles modest volumes of trace data without issues given a modest amount of resource.
 
 However, when increased, sustained trace volume is sent to it, the monolithic deployment can incur problems in terms of resource usage, as more data is required to be indexed, stored and compacted.
 This can lead in best cases to a 'running hot' and laggy experience and in worst cases cause OOM (Out Of Memory) and stalling issues, leading to crashing and restarting.
@@ -35,7 +35,7 @@ In this case, a single process deployment would lead to missed trace data.
 
 To enable this mode, `-target=all` is used, which is the default.
 
-Refer to [Architecture](../../../introduction/architecture/) for descriptions of the components.
+Refer to [Architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/) for descriptions of the components.
 
 ![Monolithic mode architecture](/media/docs/tempo/architecture/tempo-TempoSingleBinary-arch.png)
 
@@ -43,7 +43,7 @@ Refer to [Architecture](../../../introduction/architecture/) for descriptions of
 
 Find docker-compose deployment examples in the tempo repository: [https://github.com/grafana/tempo/tree/main/example/docker-compose](https://github.com/grafana/tempo/tree/main/example/docker-compose/)
 
-To see an annotated example configuration for Tempo, the [Introduction To MLT](https://github.com/grafana/intro-to-mlt) example repository contains a [configuration](https://github.com/grafana/intro-to-mlt/blob/main/tempo/tempo.yaml) for a monolithic instance.
+To see an annotated example configuration for Tempo, the [Introduction To MLTP](https://github.com/grafana/intro-to-mltp) example repository contains a [configuration](https://github.com/grafana/intro-to-mltp/blob/main/tempo/tempo.yaml) for a monolithic instance.
 
 ### Scaling monolithic mode
 
@@ -73,16 +73,16 @@ Each instance of a component is a single process, therefore dedicating themselve
 
 This allows for:
 
-* A more resilient deployment that includes data replication factors. Components can be run over multiple nodes, such as in a Kubernetes cluster, ensuring that catastrophic failure of one node does not have a failure impact for the system as a whole. For example, by default, three independent ingesters are all sent the same span data by a distributor. If two of those ingesters fail, the data is still processed and stored by an ingester.
-* Horizontal scaling up and down of clusters. For example, an organization may see upticks in traffic in certain periods (say, Black Friday), and need to scale up the amount of trace data being ingested for a week. Microservices mode allows them to temporarily scale up the number of ingesters, queriers, etc. that they may need with no adverse impact on the overall system which may not be as simple with Monolithic or SSB mode.
-* However, much like the difference between Monolithic mode and SSB mode, there is an increased TCO and maintenance cost that goes along with Microservices mode. Whilst it is more flexible, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces (GET) via the tempo-distributed Helm Chart.
+- A more resilient deployment that includes data replication factors. Components can be run over multiple nodes, such as in a Kubernetes cluster, ensuring that catastrophic failure of one node does not have a failure impact for the system as a whole. For example, by default, three independent ingesters are all sent the same span data by a distributor. If two of those ingesters fail, the data is still processed and stored by an ingester.
+- Horizontal scaling up and down of clusters. For example, an organization may see upticks in traffic in certain periods (say, Black Friday), and need to scale up the amount of trace data being ingested for a week. Microservices mode allows them to temporarily scale up the number of ingesters, queriers, etc. that they may need with no adverse impact on the overall system which may not be as simple with Monolithic or SSB mode.
+- However, much like the difference between Monolithic mode and SSB mode, there is an increased TCO and maintenance cost that goes along with Microservices mode. Whilst it is more flexible, it requires more attention to run proficiently. Microservices mode is the default deployment for Tempo and Grafana Enterprise Traces (GET) via the tempo-distributed Helm Chart.
 
 The configuration associated with each component's deployment specifies a
 `target`. For example, to deploy a `querier`, the configuration would contain
 `target: querier`. A command-line deployment may specify the `-target=querier`
 flag.
 
-Each of the components referenced in [Architecture](../../../introduction/architecture/) must be deployed for a working Tempo instance.
+Each of the components referenced in [Architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/) must be deployed for a working Tempo instance.
 
 ![Microservices mode architecture](/media/docs/tempo/architecture/tempo-TempoMicroservices-arch.png)
 

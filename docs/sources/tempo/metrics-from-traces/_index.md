@@ -27,7 +27,7 @@ Metrics summary isn't included in the table because it's deprecated.
 
 ## Metrics-generator
 
-Tempo can generate metrics from ingested traces using the metrics-generator, an optional Tempo component. The metrics-generator runs two different processors: [service graphs](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service_graphs/) and [span metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/span_metrics).
+Tempo can generate metrics from ingested traces using the metrics-generator, an optional Tempo component. The metrics-generator runs two different processors: [service graphs](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/) and [span metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics).
 
 The metrics-generator looks at incoming spans, and calculates rate, error, and duration (RED) metrics from them, which it then writes to a time series database like Prometheus.
 By querying Prometheus, you can see the overall request rate, erroring request rate, and distribution of request latency in your system.
@@ -91,8 +91,8 @@ You can explore the power of visualizing your metrics in the Grafana Traces Dril
 
 Refer to these resources for additional information:
 
-- [Solves problems with TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/solve-problems-metrics-queries/)
-- [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/)
+- [Solves problems with TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/solutions-with-traces/solve-problems-metrics-queries/)
+- [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/configure-traceql-metrics/)
 - [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/)
 - [TraceQL metrics functions](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/functions/)
 
@@ -111,8 +111,6 @@ When you used the “Aggregate by” option, Grafana made a call to Tempo’s me
 
 The metrics summary API returns RED metrics for `kind=server` spans sent to Tempo in the last hour.
 The metrics summary feature creates metrics from trace data without using metrics-generator.
-
-Refer to [Traces to metrics: Ad hoc RED metrics in Grafana Tempo with 'Aggregate by'](https://grafana.com/blog/2023/12/07/traces-to-metrics-ad-hoc-red-metrics-in-grafana-tempo-with-aggregate-by/) for more information about metrics summary API.
 
 The metrics summary API and the Aggregate by table have been deprecated in favor of TraceQL metrics.
 For more information, refer to [Deprecation in favor of TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/metrics-summary/#deprecation-in-favor-of-traceql-metrics).

@@ -10,14 +10,14 @@ aliases:
 
 # Monolithic deployment
 
-The `TempoMonolithic` Custom Resource (CR) creates a Tempo deployment in [Monolithic mode](../../deployment/#monolithic-mode).
+The `TempoMonolithic` Custom Resource (CR) creates a Tempo deployment in [Monolithic mode](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/deployment-modes/#monolithic-mode).
 In this mode, a single container has all components of the Tempo deployment, including the compactor, distributor, ingester, querier, and query-frontend.
 
 This type of deployment is ideal for small deployments, demo, and test setups, and supports storing traces in memory, in a Persistent Volume and in object storage.
 
 {{< admonition type="note" >}}
 The monolithic deployment of Tempo doesn't scale horizontally.
-If you require horizontal scaling, use the `TempoStack` CR for a Tempo deployment in [Microservices mode](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/#microservices-mode).
+If you require horizontal scaling, use the `TempoStack` CR for a Tempo deployment in [Microservices mode](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/deployment-modes/#microservices-mode).
 {{< /admonition >}}
 
 ## Quickstart

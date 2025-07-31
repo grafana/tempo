@@ -8,7 +8,7 @@ aliases:
 refs:
   examples:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/example-demo-app/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/example-demo-app/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/
   setup:
@@ -43,7 +43,7 @@ To set up for tracing, you need to:
    Check out the [examples](ref:examples) for ideas on how to get started.
 1. Deploy Tempo using the [Set up Tempo documentation](ref:setup).
    Tempo offers different deployment modes. Refer to the [Deployment documentation](ref:deploy) section for more information.
-1. Instrument your application or service to emit traces. Use the [Set up instrumentation](./set-up-instrumentation) documentation.
+1. Instrument your application or service to emit traces. Use the [Set up instrumentation](http://localhost:3002/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-instrumentation/) documentation.
 1. Set up a collector, like Grafana Alloy or the OpenTelemetry Collector, to offload traces from your application and forward them to Tempo. Refer to the [Set up a collector](./instrument-send/set-up-collector/) documentation.
 
 ## Requirements for tracing
@@ -76,7 +76,7 @@ Client instrumentation is the process of adding instrumentation points in the ap
 create and offload spans.
 
 {{< admonition type="note" >}}
-To learn more about instrumentation, refer to the [Set up instrumentation](./set-up-instrumentation) documentation to learn how to instrument your favorite language for distributed tracing.
+To learn more about instrumentation, refer to the [Set up instrumentation](http://localhost:3002/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-instrumentation/) documentation to learn how to instrument your favorite language for distributed tracing.
 {{< /admonition >}}
 
 ### Pipeline (Grafana Alloy)

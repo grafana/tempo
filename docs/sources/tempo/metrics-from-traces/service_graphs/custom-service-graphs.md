@@ -69,4 +69,4 @@ These limitations include:
 - Unable to add custom icons for nodes
 
 These limitations can be overcome by wrapping the Prometheus query into a REST API, which provides more flexibility with query results data transformations.
-You can use [Grafana Infinity data source](/grafana/plugins/yesoreyeram-infinity-datasource/) to visualize data from REST API.
+You can use [Grafana Infinity data source](https://grafana.com/grafana/plugins/yesoreyeram-infinity-datasource/) to visualize data from REST API.

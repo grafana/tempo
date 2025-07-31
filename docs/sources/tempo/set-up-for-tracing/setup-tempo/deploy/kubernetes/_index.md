@@ -3,9 +3,19 @@ title: Deploy Tempo on Kubernetes
 description: Instructions for deploying Tempo on Kubernetes
 weight: 400
 ---
+
 # Deploy Tempo on Kubernetes
 
+Kubernetes manages distributed deployments and provides orchestration for containerized applications.
 
+Kubernetes offers several deployment options for Tempo:
+
+- **Helm charts**: Package manager approach for installation and configuration
+- **Tempo Operator**: Kubernetes-native operator for managing Tempo deployments
+- **Tanka/Jsonnet**: Configuration management using Jsonnet templating
+- **Kubernetes manifests**: Direct YAML configuration files
+
+Choose the method that best fits your Kubernetes workflow and operational requirements.
 
 ## Helm
 
@@ -33,9 +43,10 @@ The Jsonnet files that you need to deploy Tempo with Tanka are available here:
 Here are a few [examples](https://github.com/grafana/tempo/tree/main/example/tk) that use official Jsonnet files.
 They display the full range of configurations available to Tempo.
 
+Refer to [Deploy on Kubernetes with Tanka](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/kubernetes/tanka/) for an example installation using Tanka.
+
 ### Kubernetes manifests
 
 You can find a collection of Kubernetes manifests to deploy Tempo in the
 [operations/jsonnet-compiled](https://github.com/grafana/tempo/tree/main/operations/jsonnet-compiled)
 folder. These are generated using the Tanka/Jsonnet.
-

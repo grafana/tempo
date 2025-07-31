@@ -71,7 +71,7 @@ The metrics-generator supports the ability to produce native histograms for
 high-resolution data. Users must [update the receiving endpoint](https://grafana.com/docs/mimir/<MIMIR_VERSION>/configure/configure-native-histograms-ingestion/) to ingest native
 histograms, and [update histogram queries](https://grafana.com/docs/mimir/<MIMIR_VERSION>/visualize/native-histograms/) in their dashboards.
 
-To learn more about the configuration, refer to the [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generatorr) section of the Tempo Configuration documentation.
+To learn more about the configuration, refer to the [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) section of the Tempo Configuration documentation.
 
 ## Use metrics-generator in Grafana Cloud
 

@@ -22,7 +22,7 @@ Tempo is under continuous development. These requirements can change with each r
 The size of the cluster you deploy depends on how many resources it needs for a given ingestion rate and retention: number of spans/time, average byte span size, rate of querying, and retention N days.
 
 Tracing instrumentation also effects your Tempo cluster requirements.
-Refer to [Best practices](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/best-practices/) for suggestions on determining where to add spans, span length, and attributes.
+Refer to [Best practices](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/best-practices/) for suggestions on determining where to add spans, span length, and attributes.
 
 ## Example sample cluster sizing
 
