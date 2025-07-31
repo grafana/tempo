@@ -281,7 +281,6 @@ If you prefer a different balance of CPU/Memory and bandwidth, consider disablin
 
 For a discussion on alternatives, refer to [this discussion thread](https://github.com/grafana/tempo/discussions/4683). ([#4696](https://github.com/grafana/tempo/pull/4696)).
 
-
 Disabling compression may provide some performance boosts.
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
@@ -294,17 +293,17 @@ To disable compression, remove `snappy` from the `grpc_compression` lines.
 
 To re-enable the compression, use `snappy` with the following settings:
 
-  ```yaml
-  ingester_client:
-      grpc_client_config:
-          grpc_compression: "snappy"
-  metrics_generator_client:
-      grpc_client_config:
-          grpc_compression: "snappy"
-  querier:
-      frontend_worker:
-          grpc_client_config:
-              grpc_compression: "snappy"
+```yaml
+ingester_client:
+  grpc_client_config:
+    grpc_compression: 'snappy'
+metrics_generator_client:
+  grpc_client_config:
+    grpc_compression: 'snappy'
+querier:
+  frontend_worker:
+    grpc_client_config:
+      grpc_compression: 'snappy'
 ```
 
 ## Ingester
@@ -368,7 +367,7 @@ ingester:
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
-For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-generator/).
+For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-from-traces/metrics-generator/).
 
 Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator.processors` in the [overrides](#overrides) section.
 
@@ -379,7 +378,7 @@ If you want to enable metrics-generator for your Grafana Cloud account, refer to
 You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
 
-For more information about the `local-blocks` configuration option, refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/#activate-and-configure-the-local-blocks-processor).
+For more information about the `local-blocks` configuration option, refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/configure-traceql-metrics/#activate-and-configure-the-local-blocks-processor).
 
 ```yaml
 # Metrics-generator configuration block
@@ -798,12 +797,6 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
-        # Maximum number of time intervals allowed in a single metrics range query.
-        # For example, a 1-hour query with a 1-second step would create 3600 intervals.
-        # This limit prevents resource exhaustion from queries with excessively small step sizes.
-        # When the limit is exceeded, the query returns an error.
-        [max_intervals: <int> | default = 10000]
-
 ```
 
 ### Limit query size to improve performance and stability
@@ -884,7 +877,7 @@ querier:
         [frontend_address: <string>]
 ```
 
-It also queries compacted blocks that fall within the (2 * BlocklistPoll) range where the value of Blocklist poll duration
+It also queries compacted blocks that fall within the (2 \* BlocklistPoll) range where the value of Blocklist poll duration
 is defined in the storage section below.
 
 ## Compactor
@@ -959,7 +952,7 @@ At Grafana Labs, we've run Tempo with SSDs when using local storage.
 Hard drives haven't been tested.
 
 You can estimate how much storage space you need by considering the ingested bytes and retention.
-For example, ingested bytes per day *times* retention days = stored bytes.
+For example, ingested bytes per day _times_ retention days = stored bytes.
 
 You can not use both local and object storage in the same Tempo deployment.
 
@@ -969,10 +962,10 @@ The storage block configures TempoDB.
 The following example shows common options.
 For further platform-specific information, refer to the following:
 
-* [GCS](hosted-storage/gcs/)
-* [S3](hosted-storage/s3/)
-* [Azure](hosted-storage/azure/)
-* [Parquet](parquet/)
+- [GCS](hosted-storage/gcs/)
+- [S3](hosted-storage/s3/)
+- [Azure](hosted-storage/azure/)
+- [Parquet](parquet/)
 
 ```yaml
 # Storage configuration for traces
@@ -1468,6 +1461,7 @@ parquet_dedicated_columns: <list of columns>
 Span filter config block
 
 #### Filter policy
+
 ```yaml
 # Exclude filters (positive matching)
 [include: <policy match>]
@@ -1477,6 +1471,7 @@ Span filter config block
 ```
 
 #### Policy match
+
 ```yaml
 # How to match the value of attributes
 # Options: "strict", "regex"
@@ -1496,18 +1491,18 @@ attributes: <list of policy atributes>
 
 ```yaml
 exclude:
-  match_type: "regex"
+  match_type: 'regex'
   attributes:
-    - key: "resource.service.name"
-      value: "unknown_service:myservice"
+    - key: 'resource.service.name'
+      value: 'unknown_service:myservice'
 ```
 
 ```yaml
 include:
-  match_type: "strict"
+  match_type: 'strict'
   attributes:
-    - key: "foo.bar"
-      value: "baz"
+    - key: 'foo.bar'
+      value: 'baz'
 ```
 
 ### KVStore config
@@ -1839,7 +1834,7 @@ overrides:
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes. A value of 0 disables the size
-      # check. 
+      # check.
       # This limit is used in 3 places:
       #  - During search, traces will be skipped when they exceed this threshold.
       #  - During ingestion, traces that exceed this threshold will be refused.
@@ -1909,6 +1904,7 @@ overrides:
 #### Tenant-specific overrides
 
 There are two types of tenant-specific overrides:
+
 - runtime overrides
 - user-configurable overrides
 
@@ -1970,8 +1966,7 @@ The global limit is averaged across all distributors by using the distributor ri
 # /conf/tempo.yaml
 overrides:
   defaults:
-    ingestion:
-      [rate_strategy: <global|local> | default = local]
+    ingestion: [rate_strategy: <global|local> | default = local]
 ```
 
 For example, this configuration specifies that each instance of the distributor will apply a limit of `15MB/s`.
@@ -2247,12 +2242,12 @@ cache:
   background:
     writeback_goroutines: 5
   caches:
-  - roles:
-    - parquet-footer
-    memcached:
-      host: memcached-instance
-  - roles:
-    - bloom
-    redis:
-      endpoint: redis-instance
+    - roles:
+        - parquet-footer
+      memcached:
+        host: memcached-instance
+    - roles:
+        - bloom
+      redis:
+        endpoint: redis-instance
 ```
