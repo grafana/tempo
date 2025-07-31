@@ -1,8 +1,7 @@
 ---
 aliases:
-  - /docs/tempo/latest/server_side_metrics/service_graphs/
-  - /docs/tempo/latest/metrics-generator/service_graphs/
-  - ../metrics-generator/service_graphs/ # /docs/tempo/latest/metrics-generator/service_graphs/
+  - ../../server_side_metrics/service_graphs/ # /docs/tempo/next/server_side_metrics/service_graphs/
+  - ../../metrics-generator/service_graphs/ # /docs/tempo/next/metrics-generator/service_graphs/
   - ../../configuration/grafana-alloy/service-graphs/ # /docs/tempo/latest/configuration/grafana-alloy/service-graphs/
 title: Enable service graphs
 menuTitle: Enable service graphs
@@ -16,9 +15,6 @@ refs:
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/cardinality/
 ---
 
-{{< docs/alias from="/docs/tempo/latest/metrics-generator/service_graphs/" to="/docs/tempo/latest/metrics-from-traces/service_graphs/" >}}
-
-{{< docs/alias from="/docs/tempo/latest/configuration/grafana-alloy/service-graphs/" to="/docs/tempo/latest/metrics-from-traces/service_graphs/service-graphs-alloy/" >}}
 
 # Enable service graphs
 

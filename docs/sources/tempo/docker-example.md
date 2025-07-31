@@ -4,7 +4,7 @@ menuTitle: Quick start for Tempo
 description: Use Docker to quickly view traces using K-6 and Tempo
 weight: 200
 aliases:
-  - ./docker-example/ # /docs/tempo/next/getting-started/docker-example/
+  - ./getting-started/docker-example/ # /docs/tempo/next/getting-started/docker-example/
 killercoda:
   title: Quick start for Tempo
   description: Use Docker to quickly view traces using K-6 and Tempo

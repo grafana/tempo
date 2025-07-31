@@ -7,7 +7,7 @@ aliases:
   - ../../metrics-generator/service_graphs/estimate-cardinality/ # /docs/tempo/next/metrics-generator/service_graphs/estimate-cardinality/
 ---
 
-## Estimate cardinality from traces
+# Estimate cardinality from traces
 
 Cardinality can pose a problem when you have lots of services.
 There isn't a direct formula or solution to this issue.

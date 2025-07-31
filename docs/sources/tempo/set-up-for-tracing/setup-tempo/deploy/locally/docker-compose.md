@@ -15,7 +15,7 @@ Data is stored locally on disk.
 The following examples showcase specific features or integrations:
 
 - [Grafana Alloy](https://github.com/grafana/tempo/tree/main/example/docker-compose/alloy/readme.md) provides a simple example using the Grafana Alloy as a tracing pipeline.
-- [OpenTelemetry Collector](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector/readme.md) is a simple example using the OpenTelemetry Collector as a tracing pipeline.
+- [OpenTelemetry Collector](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector/readme.md) is a basic example using the OpenTelemetry Collector as a tracing pipeline.
 - [OpenTelemetry Collector Multitenant](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector-multitenant/readme.md) uses the OpenTelemetry Collector in an advanced multi-tenant configuration.
 
 The [Local storage](https://github.com/grafana/tempo/tree/main/example/docker-compose/local/readme.md) example uses the `local` backend, suitable for local testing and development.

@@ -103,7 +103,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
 ## Deploy MinIO object storage
 
-[MinIO](https://min.io) is an open source Amazon S3-compatible object storage service that is freely available and easy to run on Kubernetes.
+[MinIO](https://min.io) is an open source Amazon S3-compatible object storage service that is freely available and runs on Kubernetes.
 
 1. Create a file named `minio.yaml` and copy the following YAML configuration into it. You may need to remove/modify the `storageClassName` depending on your Kubernetes platform. GKE, for example, may not support `local-path` name but may support another option such as `standard`.
 

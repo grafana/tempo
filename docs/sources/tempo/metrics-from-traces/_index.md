@@ -3,7 +3,7 @@ title: Metrics from traces
 description: Learn about how we can correlate traces and metrics.
 weight: 700
 aliases:
-  - ../getting-started/metrics-from-traces/ # /docs/tempo/latest/getting-started/metrics-from-traces/
+  - ./getting-started/metrics-from-traces/ # /docs/tempo/next/getting-started/metrics-from-traces/
 ---
 
 # Metrics from traces

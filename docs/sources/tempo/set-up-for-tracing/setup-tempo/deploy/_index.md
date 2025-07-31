@@ -2,10 +2,6 @@
 title: Deploy Tempo
 menuTitle: Deploy your Tempo instance
 description: Deploy Grafana Tempo for your tracing needs.
-aliases:
-  - /docs/tempo/deployment
-  - /docs/tempo/deployment/deployment
-  - /docs/tempo/setup/deployment
 weight: 300
 ---
 

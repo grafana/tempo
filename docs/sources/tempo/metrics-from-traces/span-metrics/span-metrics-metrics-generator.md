@@ -14,7 +14,6 @@ refs:
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/cardinality/
 ---
 
-{{< docs/alias from="/docs/tempo/latest/metrics-generator/span_metrics/" to="/docs/tempo/latest/metrics-from-traces/span-metrics/span-metrics-metics-generator/" >}}
 
 
 # Use the metrics-generator to create metrics from spans
