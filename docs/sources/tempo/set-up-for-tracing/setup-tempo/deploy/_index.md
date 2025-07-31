@@ -3,6 +3,10 @@ title: Deploy Tempo
 menuTitle: Deploy your Tempo instance
 description: Deploy Grafana Tempo for your tracing needs.
 weight: 300
+aliases:
+  - ../../../deployment/ # /docs/tempo/next/deployment/
+  - ../../../deployment/deployment/ # /docs/tempo/next/deployment/deployment/
+  - ../../../setup/deployment/ # /docs/tempo/next/setup/deployment/
 ---
 
 # Deploy Tempo
@@ -12,8 +16,6 @@ Tempo can be easily deployed through a number of tools, including Helm, Tanka, K
 The following procedures provide example Tempo deployments that you can use as a starting point.
 
 Tempo can be deployed in a number of ways, depending on your needs and environment. You can deploy Tempo in a monolithic mode or in a microservices mode.
-
-
 
 You can also use Docker to deploy Tempo using [the Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose).
 
@@ -30,6 +32,7 @@ For more information, refer [Deploy Tempo locally](../deploy/locally/).
 ## Deploy using Kubernetes
 
 Kubernetes deployment examples:
+
 - [Deploy with Helm](helm-chart/) (microservices and monolithic)
 - [Deploy with Tempo Operator](operator/) (microservices)
 - [Deploy on Kubernetes using Tanka](tanka/) (microservices)
@@ -40,5 +43,3 @@ They are both provided for people who prefer different configuration mechanisms.
 {{< /admonition >}}
 
 For more information, refer to [Deploy Tempo on Kubernetes](../deploy/kubernetes/).
-
-

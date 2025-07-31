@@ -1,5 +1,6 @@
 ---
-aliases: []
+aliases:
+  - ../../operations/traceql-metrics/ # /docs/tempo/next/operations/traceql-metrics/
 title: Configure TraceQL metrics
 menuTitle: Configure TraceQL metrics
 description: Learn about configuring TraceQL metrics.
@@ -18,15 +19,15 @@ TraceQL language provides metrics queries as an experimental feature.
 Metric queries extend trace queries by applying a function to trace query results.
 This powerful feature creates metrics from traces, much in the same way that LogQL metric queries create metrics from logs.
 
-For more information about available queries, refer to [TraceQL metrics queries](../../traceql/metrics-queries/).
-
 ## Before you begin
 
 To use the metrics generated from traces, you need to:
 
-* Set the `local-blocks` processor to active in your `metrics-generator` configuration
-* Configure a Tempo data source in Grafana or Grafana Cloud
-* Access Grafana Cloud or Grafana version 10.4 or later
+- Set the `local-blocks` processor to active in your `metrics-generator` configuration
+- Configure a Tempo data source in Grafana or Grafana Cloud (documentation)
+- Access Grafana Cloud or Grafana version 10.4 or later (documentation)
+
+Refer to the [Metrics-generator configuration](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) documentation for more information about the `metrics-generator` configuration.
 
 ## Activate and configure the `local-blocks` processor
 
@@ -46,21 +47,21 @@ To configure the processor per tenant, use the `metrics_generator_processor` ove
 
 Example for per-tenant in the per-tenant overrides:
 
-  ```yaml
-    overrides:
-      'tenantID':
-        metrics_generator_processors:
-          - local-blocks
-  ```
+```yaml
+overrides:
+  'tenantID':
+    metrics_generator_processors:
+      - local-blocks
+```
 
 By default, for all tenants in the main configuration:
 
-  ```yaml
-  overrides:
-    defaults:
-      metrics_generator:
-        processors: [local-blocks]
-  ```
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [local-blocks]
+```
 
 Add this configuration to run TraceQL metrics queries against all spans (and not just server spans):
 
@@ -119,10 +120,10 @@ desired due to the nature of scale on the backend.
 
 ```yaml
 query_frontend:
-    metrics:
-        concurrent_jobs: 1000
-        target_bytes_per_job: 2.25e+08 # ~225MB
-        interval: 30m0s
+  metrics:
+    concurrent_jobs: 1000
+    target_bytes_per_job: 2.25e+08 # ~225MB
+    interval: 30m0s
 ```
 
 For an on-prem backend, you can improve query times by lowering the concurrency,
@@ -130,7 +131,7 @@ while increasing the job size.
 
 ```yaml
 query_frontend:
-    metrics:
-        concurrent_jobs: 8
-        target_bytes_per_job: 1.25e+09 # ~1.25GB
+  metrics:
+    concurrent_jobs: 8
+    target_bytes_per_job: 1.25e+09 # ~1.25GB
 ```

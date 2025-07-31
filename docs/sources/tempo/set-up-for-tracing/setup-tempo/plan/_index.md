@@ -8,27 +8,24 @@ weight: 200
 
 # Plan your Tempo deployment
 
-When you plan your Tempo deployment, you need to:
+To plan your Grafana Tempo deployment, you should:
 
-* Identify your Tempo use case.
-* Consider the amount of tracing data you'll deal with.
-* Determine the mode you want to use for your Tempo use case.
+1. Identify your use case
+   Decide what you need from Tempo. For example, consider if you want a basic installation, horizontal scalability, multi-tenancy, or advanced data storage. Your use case determines the deployment architecture and resource requirements.
 
-## Identify your use case
+2. Estimate tracing data volume
+   Assess the amount of tracing data your environment will generate. This helps you size your cluster and storage.
+   Refer to the [Size your cluster](./size/) section for guidance on calculating storage and performance needs.
 
-What capabilities do you need?
-* Basic installation
-* Horizontally scalable?
-* Multi-tenancy?
-* Data storage?
+3. Choose a deployment mode.
+   Tempo supports monolithic and microservices deployment modes.
 
-## Estimate the tracing data volume
+   - Use the monolithic mode for simple, single-tenant environments or smaller workloads.
+   - Use the microservices mode for large-scale, multi-tenant, or highly available deployments.
+     Review the [Deployment modes documentation](./deployment-modes/) to compare options and select the best fit for your use case.
 
-Refer to [Size your cluster](../size/) to estimate the amount of tracing data you need to store and query.
+By following these recommendations, you can plan a Tempo deployment that matches your operational requirements and scales with your tracing data.
 
-## Determine the deployment mode
+## Next steps
 
-Tempo can be deployed in _monolithic_ or _microservices_ modes.
-Evaluate the deployment mode that best fits your use case.
-
-Refer to [Deployment modes](deployment-modes/) for more information about the differences between the two modes.
+Once you've planned your deployment, you can [Deploy your Tempo instance](../setup-tempo/deploy/) using the deployment mode you selected.

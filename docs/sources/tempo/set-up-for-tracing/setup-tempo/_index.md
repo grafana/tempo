@@ -7,7 +7,6 @@ aliases:
 weight: 300
 ---
 
-
 # Set up Tempo
 
 To set up Tempo, you need to:

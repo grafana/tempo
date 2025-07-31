@@ -4,7 +4,7 @@ aliases:
   - ../metrics-generator/service_graphs/ # /docs/tempo/next/metrics-generator/service_graphs/
 title: Service graphs
 description: Service graphs help you understand the structure of a distributed system and the connections and dependencies between its components.
-weight: 300
+weight: 400
 ---
 
 # Service graphs

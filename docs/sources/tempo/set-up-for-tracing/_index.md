@@ -8,52 +8,59 @@ aliases:
 refs:
   examples:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/example-demo-app/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/example-demo-app/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/
   setup:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/
   deploy:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/hardware-requirements/
   configure-alloy:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/set-up-get-tenants/
 ---
 
 # Set up for tracing
 
-
-Grafana Tempo is an open source and high-scale distributed tracing backend. Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
-Grafana Tempo also powers Grafana Cloud Traces and Grafana Enterprise Traces.
+Grafana Tempo is an open source and high-scale distributed tracing backend.
+Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
+Tempo also powers Grafana Cloud Traces and Grafana Enterprise Traces.
 
 Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
 For more information about traces, refer to [Introduction to traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/).
 
-Getting started with Tempo is follows these basic steps.
+To set up for tracing, you need to:
 
-First, check out the [examples](ref:examples) for ideas on how to get started.
+1. Plan your Tempo deployment to meet your needs. Refer to the [Plan your deployment](./setup-tempo/plan/) documentation.
+   Check out the [examples](ref:examples) for ideas on how to get started.
+1. Deploy Tempo using the [Set up Tempo documentation](ref:setup).
+   Tempo offers different deployment modes. Refer to the [Deployment documentation](ref:deploy) section for more information.
+1. Instrument your application or service to emit traces. Use the [Set up instrumentation](./set-up-instrumentation) documentation.
+1. Set up a collector, like Grafana Alloy or the OpenTelemetry Collector, to offload traces from your application and forward them to Tempo. Refer to the [Set up a collector](./instrument-send/set-up-collector/) documentation.
 
-Next, review the [Setup documentation](ref:setup) for step-by-step instructions.
+## Requirements for tracing
 
-Tempo offers different deployment options, depending on your needs. Refer to the [plan your deployment](ref:deploy) section for more information.
+Tracing requires client instrumentation, a pipeline for gathering and sending traces, and a backend.
 
-{{< admonition type="note" >}}
-Grafana Alloy is already set up to use Tempo.
-Refer to [Grafana Alloy configuration for tracing](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/).
-{{< /admonition >}}
+- Client instrumentation enables your application or service to emit traces.
+- The pipeline component offloads traces from your application and forwards them to a backend. You can use Grafana Alloy or the OpenTelemetry Collector.
+- The backend is the storage and retrieval system for traces, which in this case is Tempo.
+
+Refer to the [Tracing pipeline components](#tracing-pipeline-components) section for more information about these components.
 
 <!-- how to get started with distributed tracing -->
+
 {{< youtube id="zDrA7Ly3ovU" >}}
 
-## Tracing pipeline components
+### Tracing pipeline components
 
 To build a tracing pipeline, you need four major components:
 client instrumentation, pipeline, backend, and visualization.
@@ -69,7 +76,7 @@ Client instrumentation is the process of adding instrumentation points in the ap
 create and offload spans.
 
 {{< admonition type="note" >}}
-To learn more about instrumentation, read the [Instrument for tracing](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/instrumentation/) documentation to learn how to instrument your favorite language for distributed tracing.
+To learn more about instrumentation, refer to the [Set up instrumentation](./set-up-instrumentation) documentation to learn how to instrument your favorite language for distributed tracing.
 {{< /admonition >}}
 
 ### Pipeline (Grafana Alloy)
@@ -96,10 +103,10 @@ to see how to use the OpenTelemetry Collector with Tempo.
 
 ### Backend (Tempo)
 
-Grafana Tempo is an easy-to-use and high-scale distributed tracing backend used to store and query traces.
 The tracing backend stores and retrieves traces on demand.
+Grafana Tempo is the distributed tracing backend used to store and query traces.
 
 ## Visualize tracing data with Grafana
 
 Grafana and Grafana Cloud have a built-in Tempo data source that you can use to query Tempo and visualize traces.
-For more information, refer to the [Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/) and the [Tempo in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/tempo-in-grafana) topics.
+For more information, refer to the [Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/) and the [Tempo in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/tempo-in-grafana/) topics.

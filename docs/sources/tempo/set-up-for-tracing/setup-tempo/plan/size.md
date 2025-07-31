@@ -3,13 +3,9 @@ title: Size the cluster
 menuTitle: Size the cluster
 description: Plan the size of your Tempo cluster.
 aliases:
-  - ../../../deployment/ # /docs/tempo/next/deployment/
-  - ../../../deployment/deployment/ # /docs/tempo/next/deployment/deployment/
-  - ../../../setup/deployment/ # /docs/tempo/next/setup/deployment/
   - ../../../setup/size/ # /docs/tempo/next/setup/size/
 weight: 250
 ---
-
 
 # Size the cluster
 

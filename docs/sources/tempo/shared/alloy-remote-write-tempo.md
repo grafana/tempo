@@ -10,10 +10,11 @@ labels:
 
 [//]: # 'This file describes how to configure Alloy to remote-write to Tempo.'
 [//]: # 'This shared file is included in these locations:'
-[//]: # '/tempo/docs/sources/tempo/setup/test/set-up-test-app.md'
-[//]: # '/tempo/docs/sources/tempo/'
-[//]: # '/tempo/docs/sources/tempo/traceql/_index.md'
-[//]: #
+[//]: # '/tempo/docs/sources/tempo/set-up-for-tracing/validate/set-up-test-app.md'
+[//]: # '/tempo/docs/sources/tempo/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy.md'
+[//]: # 'This file is used in the following versions:'
+[//]: # 'next'
+[//]: # 'latest'
 [//]: # 'If you make changes to this file, verify that the meaning and content are not changed in any place where the file is included.'
 [//]: # 'Any links should be fully qualified and not relative.'
 
@@ -26,6 +27,7 @@ To do this, you need to create a configuration that can be used by Alloy to rece
 1. Create a new `values.yaml` file which we'll use as part of the Alloy install.
 
 1. Edit the `values.yaml` file and add the following configuration to it:
+
    ```yaml
    alloy:
      extraPorts:
@@ -73,11 +75,14 @@ To do this, you need to create a configuration that can be used by Alloy to rece
              }
          }
    ```
+
    Ensure that you use the specific namespace you've installed Tempo in for the OTLP exporter. In the line:
+
    ```yaml
    endpoint = "http://tempo-cluster-distributor.tempo.svc.cluster.local:3100"
    ```
-   change `tempo` to reference the namespace where Tempo is installed, for example:  `http://tempo-cluster-distributor.my-tempo-namespaces.svc.cluster.local:3100`.
+
+   change `tempo` to reference the namespace where Tempo is installed, for example: `http://tempo-cluster-distributor.my-tempo-namespaces.svc.cluster.local:3100`.
 
 1. Deploy Alloy using Helm:
    ```bash

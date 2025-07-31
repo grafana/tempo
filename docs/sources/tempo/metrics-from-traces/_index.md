@@ -13,17 +13,17 @@ Instead of running an additional service to generate metrics, you can use Grafan
 
 Grafana Tempo can generate metrics from tracing data using the metrics-generator, TraceQL metrics (experimental), and the metrics summary API (deprecated).
 Refer to the table for a summary of these metrics and their capabilities.
-Metrics summary is not included because it is deprecated.
+Metrics summary isn't included in the table because it's deprecated.
 
-|  | Metrics-generator | TraceQL metrics |
-|---|---|---|
-| Functionality | An optional component within Tempo that processes incoming spans to produce predefined metrics, specifically focusing on RED (Rate, Error, Duration) metrics and service graphs. | An experimental feature in Tempo that allows for on-the-fly computation of metrics directly from trace data using the TraceQL query language, without the need for a separate metrics storage backend. |
-| Capabilities | **Span metrics:** Calculates the total count and duration of spans based on dimensions like service name, operation, span kind, status code, and other span attributes. <br> **Service graphs**: Analyzes traces to map relationships between services, identifying transactions and recording metrics related to request counts and durations. | Ad-hoc aggregation and analysis of trace data by applying functions to trace query results, similar to how LogQL operates with logs. |
-| Output | The generated metrics are written to a Prometheus-compatible database, enabling integration with time-series databases for storage and analysis. | Generates metrics dynamically at query time, facilitating flexible and detailed investigations into specific behaviors or patterns within the trace data. |
-| Use case | Ideal for continuous monitoring and alerting, leveraging predefined metrics that will be stored in a time-series database. Less expressive for trace-specific analysis as it focuses on standard telemetry dimensions and RED metrics. | More expressive and flexible for analyzing trace data directly, enabling complex trace-based queries and fine-grained exploration. Suited for exploratory analysis and debugging, allowing users to derive insights from trace data without prior metric definitions or storage considerations. |
-| Setup | Configure the metrics-generator in the Tempo configuration file, enable processors like span metrics or service graphs, and send metrics to a Prometheus-compatible database. | Configure the local-blocks processor in overrides and in the metrics-generator configurations. |
-| Query range | Supports querying over long time ranges, limited only by retention of the metrics backend. | Limited to a maximum query range of 3 hours by default (as of now), as metrics are computed from stored traces in real time. |
-| Query language | Metrics are consumed using PromQL via Prometheus/Grafana. | Uses TraceQL which has a PromQL-inspired syntax, but not all PromQL features are supported; it’s a similar but distinct subset with different semantics. |
+|                | Metrics-generator                                                                                                                                                                                                                                                                                                                               | TraceQL metrics                                                                                                                                                                                                                                                                                 |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Functionality  | An optional component within Tempo that processes incoming spans to produce predefined metrics, specifically focusing on RED (Rate, Error, Duration) metrics and service graphs.                                                                                                                                                                | An experimental feature in Tempo that allows for on-the-fly computation of metrics directly from trace data using the TraceQL query language, without the need for a separate metrics storage backend.                                                                                          |
+| Capabilities   | **Span metrics:** Calculates the total count and duration of spans based on dimensions like service name, operation, span kind, status code, and other span attributes. <br> **Service graphs**: Analyzes traces to map relationships between services, identifying transactions and recording metrics related to request counts and durations. | Ad-hoc aggregation and analysis of trace data by applying functions to trace query results, similar to how LogQL operates with logs.                                                                                                                                                            |
+| Output         | The generated metrics are written to a Prometheus-compatible database, enabling integration with time-series databases for storage and analysis.                                                                                                                                                                                                | Generates metrics dynamically at query time, facilitating flexible and detailed investigations into specific behaviors or patterns within the trace data.                                                                                                                                       |
+| Use case       | Ideal for continuous monitoring and alerting, leveraging predefined metrics that will be stored in a time-series database. Less expressive for trace-specific analysis as it focuses on standard telemetry dimensions and RED metrics.                                                                                                          | More expressive and flexible for analyzing trace data directly, enabling complex trace-based queries and fine-grained exploration. Suited for exploratory analysis and debugging, allowing users to derive insights from trace data without prior metric definitions or storage considerations. |
+| Setup          | Configure the metrics-generator in the Tempo configuration file, enable processors like span metrics or service graphs, and send metrics to a Prometheus-compatible database.                                                                                                                                                                   | Configure the local-blocks processor in overrides and in the metrics-generator configurations.                                                                                                                                                                                                  |
+| Query range    | Supports querying over long time ranges, limited only by retention of the metrics backend.                                                                                                                                                                                                                                                      | Limited to a maximum query range of 3 hours by default (as of now), as metrics are computed from stored traces in real time.                                                                                                                                                                    |
+| Query language | Metrics are consumed using PromQL via Prometheus/Grafana.                                                                                                                                                                                                                                                                                       | Uses TraceQL which has a PromQL-inspired syntax, but not all PromQL features are supported; it’s a similar but distinct subset with different semantics.                                                                                                                                        |
 
 ## Metrics-generator
 
@@ -33,18 +33,18 @@ The metrics-generator looks at incoming spans, and calculates rate, error, and d
 By querying Prometheus, you can see the overall request rate, erroring request rate, and distribution of request latency in your system.
 By using the labels on those metrics, you can get a more granular view of request rate, error rate, and latency at a per-service, per-namespace, or per-operation level.
 
-| Useful for investigating | Metric | Meaning |
-|---|---|---|
-| Unusual spikes in activity | Rate | Number of requests per second |
-| Overall issues in your tracing ecosystem | Error | Number of those requests that are failing |
-| Response times and latency issues | Duration | Amount of time those requests take, represented as a histogram |
+| Useful for investigating                 | Metric   | Meaning                                                        |
+| ---------------------------------------- | -------- | -------------------------------------------------------------- |
+| Unusual spikes in activity               | Rate     | Number of requests per second                                  |
+| Overall issues in your tracing ecosystem | Error    | Number of those requests that are failing                      |
+| Response times and latency issues        | Duration | Amount of time those requests take, represented as a histogram |
 
 The metrics-generator generates metrics from tracing data using the `services_graphs`, `span_metrics`, and `local_blocks` processors.
 The `service_graphs` and `span_metrics` processors generate metrics that are written to a Prometheus-compatible backend.
 The `local_blocks` processor adds support for TraceQL metrics and provides the capability of answering TraceQL metric queries to the generators without writing any data to the Prometheus backend.
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
 
-For more information, refer to [Metrics generator](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/).
+For more information, refer to [Metrics generator](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 
 ### Use-cases for span metrics
 
@@ -93,8 +93,8 @@ Refer to these resources for additional information:
 
 - [Solves problems with TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/solve-problems-metrics-queries/)
 - [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/)
-- [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/)
-- [TraceQL metrics functions](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/functions/)
+- [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/)
+- [TraceQL metrics functions](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/functions/)
 
 ## Metrics summary API (deprecated)
 

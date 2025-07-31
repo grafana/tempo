@@ -1,7 +1,7 @@
 ---
 title: Span metrics
 description: Learn about span metrics in Grafana Tempo.
-weight: 600
+weight: 500
 ---
 
 # Span metrics
