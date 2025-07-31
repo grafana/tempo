@@ -218,13 +218,14 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:         c,
-		r:         r,
-		w:         w,
-		cfg:       cfg,
-		logger:    logger,
-		pool:      pool.NewPool(cfg.Pool),
-		blocklist: blocklist.New(),
+		c:                       c,
+		r:                       r,
+		w:                       w,
+		cfg:                     cfg,
+		logger:                  logger,
+		pool:                    pool.NewPool(cfg.Pool),
+		blocklist:               blocklist.New(),
+		pollerNotificationFuncs: make([]func(), 0),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -703,7 +704,8 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 	for _, fn := range rw.pollerNotificationFuncs {
 		fn()
 	}
-	clear(rw.pollerNotificationFuncs)
+
+	rw.pollerNotificationFuncs = rw.pollerNotificationFuncs[:0]
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
