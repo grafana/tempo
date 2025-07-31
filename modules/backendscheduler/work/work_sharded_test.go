@@ -135,7 +135,8 @@ func TestJobOperations(t *testing.T) {
 	})
 
 	t.Run("complete job", func(t *testing.T) {
-		work.CompleteJob(ctx, "ops-test")
+		err = work.CompleteJob(ctx, "ops-test")
+		require.NoError(t, err)
 		retrievedJob := work.GetJob("ops-test")
 		require.Equal(t, tempopb.JobStatus_JOB_STATUS_SUCCEEDED, retrievedJob.Status)
 		require.False(t, retrievedJob.EndTime.IsZero())
@@ -143,7 +144,8 @@ func TestJobOperations(t *testing.T) {
 
 	t.Run("set compaction output", func(t *testing.T) {
 		output := []string{"output1", "output2"}
-		work.SetJobCompactionOutput(ctx, "ops-test", output)
+		err = work.SetJobCompactionOutput(ctx, "ops-test", output)
+		require.NoError(t, err)
 		retrievedJob := work.GetJob("ops-test")
 		require.Equal(t, output, retrievedJob.GetCompactionOutput())
 	})
@@ -155,7 +157,8 @@ func TestJobOperations(t *testing.T) {
 		err = work.StartJob(ctx, "fail-test")
 		require.NoError(t, err)
 
-		work.FailJob(ctx, "fail-test")
+		err = work.FailJob(ctx, "fail-test")
+		require.NoError(t, err)
 		retrievedJob := work.GetJob("fail-test")
 		require.Equal(t, tempopb.JobStatus_JOB_STATUS_FAILED, retrievedJob.Status)
 		require.False(t, retrievedJob.EndTime.IsZero())
@@ -170,7 +173,8 @@ func TestJobOperations(t *testing.T) {
 		require.NotNil(t, work.GetJob("remove-test"))
 
 		// Remove job
-		work.RemoveJob(ctx, "remove-test")
+		err = work.RemoveJob(ctx, "remove-test")
+		require.NoError(t, err)
 
 		// Verify job is gone
 		require.Nil(t, work.GetJob("remove-test"))
@@ -262,7 +266,8 @@ func TestPrune(t *testing.T) {
 	oldCompleted := createTestJob("old-completed", tempopb.JobType_JOB_TYPE_COMPACTION)
 	err = work.AddJob(ctx, oldCompleted, uuid.NewString())
 	require.NoError(t, err)
-	work.CompleteJob(ctx, oldCompleted.ID) // Sets status to SUCCEEDED
+	err = work.CompleteJob(ctx, oldCompleted.ID) // Sets status to SUCCEEDED
+	require.NoError(t, err)
 	retrievedOldCompleted := work.GetJob(oldCompleted.ID)
 	retrievedOldCompleted.EndTime = now.Add(-2 * time.Hour)
 
@@ -270,7 +275,8 @@ func TestPrune(t *testing.T) {
 	recentCompleted := createTestJob("recent-completed", tempopb.JobType_JOB_TYPE_COMPACTION)
 	err = work.AddJob(ctx, recentCompleted, uuid.NewString())
 	require.NoError(t, err)
-	work.CompleteJob(ctx, recentCompleted.ID) // Sets status to SUCCEEDED
+	err = work.CompleteJob(ctx, recentCompleted.ID) // Sets status to SUCCEEDED
+	require.NoError(t, err)
 	retrievedRecentCompleted := work.GetJob(recentCompleted.ID)
 	retrievedRecentCompleted.EndTime = now.Add(-10 * time.Minute)
 
@@ -533,9 +539,11 @@ func TestConcurrency(t *testing.T) {
 					require.NoError(t, err)
 					work.GetJob(job.ID)
 					if workerID%2 == 0 {
-						work.CompleteJob(ctx, job.ID)
+						err = work.CompleteJob(ctx, job.ID)
+						require.NoError(t, err)
 					} else {
-						work.FailJob(ctx, job.ID)
+						err = work.FailJob(ctx, job.ID)
+						require.NoError(t, err)
 					}
 				}
 			}(i)
@@ -565,7 +573,8 @@ func TestConcurrency(t *testing.T) {
 			job := createTestJob(fmt.Sprintf("prune-job-%d", i), tempopb.JobType_JOB_TYPE_COMPACTION)
 			err = pruneWork.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
-			pruneWork.CompleteJob(ctx, job.ID) // Sets status to SUCCEEDED
+			err = pruneWork.CompleteJob(ctx, job.ID) // Sets status to SUCCEEDED
+			require.NoError(t, err)
 			retrievedJob := pruneWork.GetJob(job.ID)
 			retrievedJob.EndTime = time.Now().Add(-2 * time.Hour)
 		}
@@ -601,11 +610,16 @@ func TestEdgeCases(t *testing.T) {
 
 	t.Run("operations on nonexistent jobs", func(t *testing.T) {
 		// These should not panic
-		work.StartJob(ctx, "nonexistent")
-		work.CompleteJob(ctx, "nonexistent")
-		work.FailJob(ctx, "nonexistent")
-		work.SetJobCompactionOutput(ctx, "nonexistent", []string{"output"})
-		work.RemoveJob(ctx, "nonexistent")
+		err = work.StartJob(ctx, "nonexistent")
+		require.NoError(t, err)
+		err = work.CompleteJob(ctx, "nonexistent")
+		require.NoError(t, err)
+		err = work.FailJob(ctx, "nonexistent")
+		require.NoError(t, err)
+		err = work.SetJobCompactionOutput(ctx, "nonexistent", []string{"output"})
+		require.NoError(t, err)
+		err = work.RemoveJob(ctx, "nonexistent")
+		require.NoError(t, err)
 
 		job := work.GetJob("nonexistent")
 		require.Nil(t, job)
@@ -671,19 +685,24 @@ func TestFullMarshalUnmarshal(t *testing.T) {
 		case 1:
 			err = work.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
-			work.StartJob(ctx, jobID)
+			err = work.StartJob(ctx, jobID)
+			require.NoError(t, err)
 			// Running jobs are not counted as "pending" by Len()
 		case 2:
 			err = work.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
-			work.StartJob(ctx, jobID)
-			work.CompleteJob(ctx, jobID)
+			err = work.StartJob(ctx, jobID)
+			require.NoError(t, err)
+			err = work.CompleteJob(ctx, jobID)
+			require.NoError(t, err)
 			// Completed jobs are not counted as "pending" by Len()
 		case 3:
 			err = work.AddJob(ctx, job, uuid.NewString())
 			require.NoError(t, err)
-			work.StartJob(ctx, jobID)
-			work.FailJob(ctx, jobID)
+			err = work.StartJob(ctx, jobID)
+			require.NoError(t, err)
+			err = work.FailJob(ctx, jobID)
+			require.NoError(t, err)
 			// Failed jobs are not counted as "pending" by Len()
 		}
 
@@ -798,9 +817,12 @@ func TestConcurrentMarshalUnmarshal(t *testing.T) {
 				err := work.AddJob(ctx, job, uuid.NewString())
 				require.NoError(t, err)
 
-				work.StartJob(ctx, jobID)
-				work.CompleteJob(ctx, jobID)
-				work.RemoveJob(ctx, jobID)
+				err = work.StartJob(ctx, jobID)
+				require.NoError(t, err)
+				err = work.CompleteJob(ctx, jobID)
+				require.NoError(t, err)
+				err = work.RemoveJob(ctx, jobID)
+				require.NoError(t, err)
 			}
 		}(i)
 	}

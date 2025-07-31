@@ -295,37 +295,35 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
-		s.work.CompleteJob(ctx, req.JobId)
+		err := s.work.CompleteJob(ctx, req.JobId)
+		if err != nil {
+			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, fmt.Sprintf("failed to complete job: %v", err))
+		}
+
 		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Dec()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
 		if req.Compaction != nil && req.Compaction.Output != nil {
-			s.work.SetJobCompactionOutput(ctx, req.JobId, req.Compaction.Output)
+			err = s.work.SetJobCompactionOutput(ctx, req.JobId, req.Compaction.Output)
+			if err != nil {
+				return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, fmt.Sprintf("failed to set job compaction output: %v", err))
+			}
 		}
 
-		// err := s.work.FlushToLocal(ctx, []string{req.JobId})
-		// if err != nil {
-		// 	// Fail without returning the job if we can't update the job cache.
-		// 	return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
-		// }
-
-		err := s.applyJobsToBlocklist(ctx, j.Tenant(), []*work.Job{j})
+		err = s.applyJobsToBlocklist(ctx, j.Tenant(), []*work.Job{j})
 		if err != nil {
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
-		s.work.FailJob(ctx, req.JobId)
+		err := s.work.FailJob(ctx, req.JobId)
+		if err != nil {
+			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
+		}
+
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
-
-		// err := s.work.FlushToLocal(ctx, []string{req.JobId})
-		// if err != nil {
-		// 	// Fail without returning the job if we can't update the job cache.
-		// 	return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
-		// }
-
 	default:
 		return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.InvalidArgument, "invalid job status")
 	}

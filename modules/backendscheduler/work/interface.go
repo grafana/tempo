@@ -9,15 +9,15 @@ type Interface interface {
 	// Job management
 	AddJob(ctx context.Context, j *Job, workerID string) error
 	StartJob(ctx context.Context, id string) error
-	GetJob(id string) *Job
-	RemoveJob(ctx context.Context, id string)
-	CompleteJob(ctx context.Context, id string)
-	FailJob(ctx context.Context, id string)
-	SetJobCompactionOutput(ctx context.Context, id string, output []string)
+	RemoveJob(ctx context.Context, id string) error
+	CompleteJob(ctx context.Context, id string) error
+	FailJob(ctx context.Context, id string) error
+	SetJobCompactionOutput(ctx context.Context, id string, output []string) error
 
 	// Job queries
-	ListJobs() []*Job
 	GetJobForWorker(ctx context.Context, workerID string) *Job
+	GetJob(id string) *Job
+	ListJobs() []*Job
 
 	// Maintenance
 	Prune(ctx context.Context)
