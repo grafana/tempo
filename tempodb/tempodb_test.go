@@ -986,6 +986,8 @@ func TestPollNotification(t *testing.T) {
 
 	_, err = w.CompleteBlock(ctx, head)
 	assert.NoError(t, err)
+	start := time.Now()
+	sleepTime := 1 * time.Second
 
 	wg := &sync.WaitGroup{}
 	for range 10 {
@@ -994,10 +996,11 @@ func TestPollNotification(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-r.PollNotification(ctx)
+			require.Greater(t, time.Since(start), sleepTime, "PollNotification should not return before the first PollNow call")
 		}()
 	}
 
-	// TODO: check that we have not returned too soon, that we do indeed wait for the PollNow call.
+	time.Sleep(sleepTime)
 
 	r.PollNow(ctx)
 
