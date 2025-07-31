@@ -1,8 +1,8 @@
 ---
-title: TraceQL metrics queries
-menuTitle: TraceQL metrics queries
-description: Learn about TraceQL metrics queries
-weight: 300
+title: TraceQL metrics
+menuTitle: TraceQL metrics
+description: Learn about TraceQL metrics and queries
+weight: 200
 keywords:
   - metrics query
   - TraceQL metrics
@@ -21,13 +21,13 @@ refs:
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/traceql/metrics-queries/functions/
 ---
 
-# TraceQL metrics queries
+# TraceQL metrics
 
 <!-- Using a custom admonition because no feature flag is required. -->
 
 {{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
-TraceQL metrics is an experimental feature in Grafana Tempo that creates metrics from traces.
+TraceQL metrics is a feature in Grafana Tempo that creates metrics from traces.
 
 Metric queries extend trace queries by applying a function to trace query results.
 This powerful feature allows for ad hoc aggregation of any existing TraceQL query by any dimension available in your

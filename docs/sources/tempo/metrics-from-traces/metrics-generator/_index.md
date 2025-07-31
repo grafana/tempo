@@ -4,7 +4,7 @@ aliases:
   - ../metrics-generator/ # /docs/tempo/next/metrics-generator/
 title: Metrics-generator
 description: Metrics-generator is an optional Tempo component that derives metrics from ingested traces.
-weight: 200
+weight: 300
 ---
 
 # Metrics-generator

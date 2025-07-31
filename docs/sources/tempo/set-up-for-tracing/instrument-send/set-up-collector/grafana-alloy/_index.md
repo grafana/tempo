@@ -3,13 +3,16 @@ title: Grafana Alloy
 description: Configure the Grafana Alloy to work with Tempo
 weight: 550
 aliases:
-- ../../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
+  - ../../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
 ---
 
 # Grafana Alloy
 
 Grafana Alloy offers native pipelines for OTel, Prometheus, Pyroscope, Loki, and many other metrics, logs, traces, and profile tools.
 In addition, you can use Alloy pipelines to do other tasks, such as configure alert rules in Loki and Mimir. Alloy is fully compatible with the OTel Collector, Prometheus Agent, and Promtail.
+
+You can use Alloy to collect and forward traces to Tempo.
+Using Alloy provides a hassle-free option, especially when dealing with multiple applications or microservices, allowing you to centralize the tracing process without changing your application's codebase.
 
 You can use Alloy as an alternative to either of these solutions or combine it into a hybrid system of multiple collectors and agents.
 You can deploy Alloy anywhere within your IT infrastructure and pair it with your Grafana LGTM stack, a telemetry backend from Grafana Cloud, or any other compatible backend from any other vendor.
@@ -41,14 +44,17 @@ backends.
 ## Set up Alloy to receive traces
 
 <!-- vale Grafana.Parentheses = NO -->
+
 Grafana Alloy supports multiple ingestion receivers:
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus, and Kafka.
+
 <!-- vale Grafana.Parentheses = YES -->
 
 Each tracing pipeline can be configured to receive traces in all these formats.
 Traces that arrive to a pipeline go through the receivers/processors/exporters defined in that pipeline.
 
 To use Alloy for tracing, you need to:
+
 1. [Set up Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/set-up/)
 2. [Configure Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/configure/)
 3. Set up any additional features
@@ -75,7 +81,6 @@ There are several processors that can manipulate attributes, some examples inclu
 
 Prometheus Service Discovery mechanisms enable you to attach the same metadata to your traces as your metrics.
 For example, for Kubernetes users this means that you can dynamically attach metadata for namespace, Pod, and name of the container sending spans.
-
 
 ```alloy
 otelcol.receiver.otlp "default" {
