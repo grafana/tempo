@@ -1,13 +1,14 @@
 ---
-title: Test your Tempo locally
-menuTitle: Test your Tempo locally
-description: Instructions for testing your Tempo deployment
+title: Test your local Tempo deployment
+menuTitle: Test your local deployment
+description: Instructions for testing your local Tempo deployment.
 weight: 600
 ---
 
 # Test your local Tempo deployment
 
-
+Once you've set up Grafana Tempo, the next step is to test your deployment to ensure that traces are emitted and collected correctly.
+This procedure uses a Docker Compose example in the Tempo repository.
 
 ## Verify your cluster is working
 
