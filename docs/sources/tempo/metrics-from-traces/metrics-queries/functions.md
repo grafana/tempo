@@ -11,6 +11,7 @@ keywords:
 # TraceQL metrics functions
 
 <!-- Using a custom admonition because no feature flag is required. -->
+
 {{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
@@ -126,6 +127,7 @@ You can configure this parameter using Grafana Explore or using the Tempo API.
 Refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics) for information about using the API.
 
 To check or change the `step` value using Grafana Explore:
+
 1. Select your Tempo data source.
 1. Select either the **Search** or **TraceQL** query type tab.
 1. Expand the **Metrics options** to view the **Step** value.
@@ -142,7 +144,7 @@ there are 10 `"GET /:endpoint"` spans with status code 200 and 15 `"GET /:endpoi
 
 ```
 
-## The `sum_over_time`, `min_over_time`, `max_over_time`, and `avg_over_time`  functions
+## The `sum_over_time`, `min_over_time`, `max_over_time`, and `avg_over_time` functions
 
 The `sum_over_time()` lets you aggregate numerical values by computing the sum value of them.
 The time interval that the sum is computed over is set by the `step` parameter.
@@ -249,6 +251,7 @@ When a query response is larger than the maximum, you can use these functions to
 from 1 through `k` of the number of the top or bottom results.
 
 For example:
+
 ```
 { resource.service.name = "foo" } | rate() by (span.http.url)  | topk(10)
 ```
