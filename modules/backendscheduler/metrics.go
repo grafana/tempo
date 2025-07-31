@@ -62,4 +62,13 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricJobDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempo",
+		Name:                            "backend_scheduler_job_duration_seconds",
+		Help:                            "Duration of of a job in seconds",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{"job_type"})
 )
