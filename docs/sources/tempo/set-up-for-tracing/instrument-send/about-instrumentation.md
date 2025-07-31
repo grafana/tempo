@@ -8,6 +8,8 @@ weight: 200
 
 Instrumentation is the act of modifying the source code of a service to emit span information tied to a common trace ID. Traces themselves are a metaobject, comprised of nothing but spans that hold the same ID.
 
+<p align="center"><img src="/media/docs/tempo/intro/tempo-get-started-overview.svg" alt="Tracing pipeline overview"></p>
+
 ## Instrumentation methods
 
 To add instrumentation, the code for a service uses a Software Development Kit (SDK) which supplies language-specific libraries that allow the:

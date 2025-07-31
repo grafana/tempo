@@ -1,36 +1,36 @@
 ---
 title: Service graph metrics queries
-menuTitle: Metrics queries
-description: Use PromQL queries to access metrics from service graphs
 aliases:
   - ../../metrics-generator/service_graphs/metrics-queries/ # /docs/tempo/next/metrics-generator/service_graphs/metrics-queries/
+menuTitle: Service graph metrics queries
+description: Use PromQL queries to access metrics from service graphs.
 weight: 500
 ---
 
 # Service graph metrics queries
 
-A collection of useful PromQL queries for service graphs.
+You can use this collection of PromQL queries to explore service graph metrics.
 
-In most cases, users want to see a visual representation of their service graph. Grafana uses the service graph metrics created by Tempo and builds that visual for the user. However, in some cases, users may want to interact with the metrics that define that service graph directly. They may want to, for example, programmatically analyze how their services are interconnected and build downstream applications that use this information.
-
-To help with this, you can use this collection of PromQL queries to explore service graph metrics.
+Grafana uses the service graph metrics created by Tempo and builds that visual for the user.
+However, you may want to interact with the metrics that define that service graph directly.
+You may want to, for example, programmatically analyze how your services are interconnected and build downstream applications that use this information.
 
 ## Instant Queries
 
 An instant query gives a single value at the end of the selected time range.
-[Instant queries](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) are quicker to execute and it often easier to understand their results. We will prefer them in some scenarios:
+[Instant queries](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) are quicker to execute and it often easier to understand their results. We prefer them in some scenarios:
 
 ![Instant query in Grafana](/media/docs/tempo/metrics/screenshot-serv-graph-instant-query.png)
 
 ### Connectivity between services
 
-Show me the total calls in the last 7 days for every client/server pair:
+Show the total calls in the last 7 days for every client/server pair:
 
 ```promql
 sum(increase(traces_service_graph_request_server_seconds_count{}[7d])) by (server, client) > 0
 ```
 
-If you'd like to only see when a single service is the server:
+Use this query to only see when a single service is the server:
 
 ```promql
 sum(increase(traces_service_graph_request_server_seconds_count{server="foo"}[7d])) by (client) > 0
@@ -68,7 +68,9 @@ Notice that our interval dropped to 5m. This is so we only calculate the rate ov
 
 ### Latency percentiles over time between services
 
-These queries will give us latency quantiles for the above rate. If we were interested in how the latency changed over time between any two services we could use these. In the following query the `.9` means we're calculating the 90th percentile. Adjust this value if you want to calculate a different percentile for latency (e.g. p50, p95, p99, etc).
+These queries provide latency quantiles for the above rate.
+If you're interested in how the latency changed over time between any two services we could use these. In the following query the `.9` means we're calculating the 90th percentile.
+Adjust this value if you want to calculate a different percentile for latency, for example, `p50`, `p95`, `p99`.
 
 ```promql
 histogram_quantile(.9, sum(rate(traces_service_graph_request_server_seconds_bucket{client="foo"}[5m])) by (server, le))

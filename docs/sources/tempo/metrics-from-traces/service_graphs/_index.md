@@ -22,14 +22,18 @@ and the connections and dependencies between its components:
   Distributed systems change very frequently,
   and service graphs offer a way of seeing how these systems have evolved over time.
 
+Service graphs can be generated from metrics created by the metrics-generator or Grafana Alloy.
+Refer to [Enable service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/enable-service-graphs/) for more information on how to enable service graphs in Tempo.
+
 ![Service graph](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph-prom.png)
 
 ## How they work
 
-The metrics-generator processes traces and generates service graphs in the form of Prometheus metrics.
+The metrics-generator and Grafana Alloy both process traces and generate service graphs in the form of Prometheus metrics.
 
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
 The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/general/trace.md) to detect a myriad of requests.
+
 It supports the following requests:
 
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.

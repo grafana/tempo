@@ -60,7 +60,7 @@ client instrumentation, pipeline, backend, and visualization.
 
 This diagram illustrates a tracing system configuration:
 
-<p align="center"><img src="assets/tempo-get-started-overview.svg" alt="Tracing pipeline overview"></p>
+<p align="center"><img src="/media/docs/tempo/intro/tempo-get-started-overview.svg" alt="Tracing pipeline overview"></p>
 
 ### Client instrumentation
 

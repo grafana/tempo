@@ -12,11 +12,11 @@ Client instrumentation is the process of adding instrumentation points in the ap
 
 To generate and gather traces, you need to:
 
-1. [Set up a collector](../set-up-collector/) to receive traces from your application
 1. [Choose an instrumentation method to use with your application](../choose-instrumentation-method/)
 1. [Set up instrumentation](./set-up-instrumentation/) to generate traces
+1. [Set up a collector](../set-up-collector/) to receive traces from your application
 
-## Choose an instrumentation methods
+## Choose an instrumentation method
 
 When sending traces to Tempo, you can choose between four methods:
 
@@ -25,56 +25,31 @@ When sending traces to Tempo, you can choose between four methods:
 * Manual instrumentation involves adding code to create spans and traces, giving full control over collected data.
 * Hybrid instrumentation, which combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
 
-Refer to [About instrumentation](./about-instrumentation/) for more information about these methods.
-
-### Instrumentation methods
-
-To add instrumentation, the code for a service uses a Software Development Kit (SDK) which supplies language-specific libraries that allow the:
-
-* Creation of a new trace, starting with a new root span.
-* Addition of new spans, that are siblings of children of pre-existing spans.
-* Addition of span attributes to add contextual information to each span, as well as span links and events.
-* Closure of spans when a unit of work is complete.
-
-Adding code to carry out these operations is known as manual instrumentation, as it requires manual intervention by an engineer to write code to deal with traces, as well as to determine where in the code traces/spans should start, the attributes and other data that should be attached to spans, and where traces/spans should end.
-
-Auto-instrumentation is the act of allowing a tracing SDK to determine where traces/spans should start, what information should be added to spans, and where traces/spans should stop.
-
-Essentially, auto-instrumentation is pre-packaged for a large number of popular frameworks and libraries which are used inside a service's code, and it's these libraries/frameworks that are actually emitting spans for a trace.
-
-Zero-code instrumentation uses eBPF technology to instrument applications without code changes.
-
-Hybrid instrumentation combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
-
-Refer to [About instrumentation](./about-instrumentation/) for more information.
+Refer to [About instrumentation](../about-instrumentation/) for more information.
 
 If you are using OTel or Alloy, refer to [Instrument an application with OpenTelemetry](https://grafana.com/docs/opentelemetry/instrument/) for more information.
 These instructions are specific to Grafana Cloud, but can be adapted for self-hosted Tempo.
 
-## Use zero-code instrumentation with Grafana Beyla
-
-Grafana Beyla is an eBPF-based application auto-instrumentation tool to easily get started with Application Observability. Beyla uses eBPF to automatically inspect application executables and the OS networking layer, and capture trace spans related to web transactions and Rate Errors Duration (RED) metrics for Linux HTTP/S and gRPC services. All data capture occurs without any modifications to application code or configuration.
-
-Refer to [Set up Beyla](https://grafana.com/docs/beyla/<BEYLA_VERSION>/setup/) for information about how to instrument using Beyla.
-
-## Select an instrumentation framework
+## Instrument your app
 
 Most of the popular client instrumentation frameworks have SDKs in the most commonly used programming languages.
 You should pick one according to your application needs.
 
 OpenTelemetry has the most active development in the community and may be a better long-term choice.
 
+Popular instrumentation frameworks include:
 * [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
 * [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
+* [Grafana Beyla](https://grafana.com/docs/beyla/)
 
-## OpenTelemetry
+### Instrument using OpenTelemetry
 
 A collection of tools, APIs, and SDKs, OpenTelemetry helps engineers instrument, generate, collect, and export telemetry data such as metrics, logs, and traces, to analyze software performance and behavior.
 For more information refer to [OpenTelemetry overview](https://grafana.com/oss/opentelemetry/).
 
 If you are using OTel with Grafana Cloud, refer to [Instrument an application with OpenTelemetry](https://grafana.com/docs/opentelemetry/instrument/) for more information.
 
-### Use OpenTelemetry auto-instrumentation frameworks
+#### Use OpenTelemetry auto-instrumentation frameworks
 
 OpenTelemetry provides auto-instrumentation agents and libraries of Java, .NET, Python, Go, and JavaScript applications, among others.
 For more information, refer for the [OpenTelemetry Instrumentation documentation](https://opentelemetry.io/docs/instrumentation/).
@@ -92,13 +67,13 @@ information from a client application with minimal manual instrumentation of the
 Jaeger client libraries have been deprecated. For more information, refer to the [Deprecating Jaeger clients article](https://www.jaegertracing.io/docs/1.50/client-libraries/#deprecating-jaeger-clients). Jaeger recommends using OpenTelemetry SDKs.
 {{< /admonition >}}
 
-### Additional OTel resources
+#### Additional OTel resources
 
 - [Grafana Application Observability](https://grafana.com/docs/grafana-cloud/monitor-applications/application-observability/)
 - [OpenTelemetry Go instrumentation examples](https://github.com/open-telemetry/opentelemetry-go-instrumentation/tree/main/examples)
 - [OpenTelemetry Language Specific Instrumentation](https://opentelemetry.io/docs/instrumentation/)
 
-## Use Zipkin to auto-instrumentation
+### Instrument with Zipkin auto-instrumentation
 
 Zipkin is a distributed tracing system that helps gather timing data needed to troubleshoot latency problems in microservice architectures.
 
@@ -111,7 +86,12 @@ In addition, you can use Zipkin to instrument a library, refer to [Instrumenting
 Within Grafana, you can also use these Zipkin specific features:
 * [Zipkin data source](https://grafana.com/docs/grafana/latest/datasources/zipkin/)
 * [Monitor Zipkin with Prometheus and Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/metrics/metrics-prometheus/prometheus-config-examples/the-zipkin-community-zipkin/)
-*
+
+### Instrument with Grafana Beyla
+
+Grafana Beyla is an eBPF-based application zero-instrumentation tool to easily get started with Application Observability. Beyla uses eBPF to automatically inspect application executables and the OS networking layer, and capture trace spans related to web transactions and Rate Errors Duration (RED) metrics for Linux HTTP/S and gRPC services. All data capture occurs without any modifications to application code or configuration.
+
+Refer to [Set up Beyla](https://grafana.com/docs/beyla/<BEYLA_VERSION>/setup/) for information about how to instrument using Beyla.
 
 <!-- update these blog links
 ## Grafana Blog
@@ -124,8 +104,12 @@ The Grafana blog periodically features instrumentation posts.
 - [.NET](https://grafana.com/blog/2021/02/11/instrumenting-a-.net-web-api-using-opentelemetry-tempo-and-grafana-cloud/)
 - [Python](https:/grafana.com/blog/2021/05/04/get-started-with-distributed-tracing-and-grafana-tempo-using-foobar-a-demo-written-in-python/)
 -->
-## Community resources
+### Community resources
 
 - [NodeJS](https://github.com/mnadeem/nodejs-opentelemetry-tempo)
 - [Java Spring Boot](https://github.com/mnadeem/boot-opentelemetry-tempo)
 - [Python](https://github.com/dgzlopes/foobar-demo)
+
+## Next steps
+
+After you set up instrumentation, you can [set up a collector](../set-up-collector/) to receive traces from your application.

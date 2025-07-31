@@ -368,7 +368,7 @@ ingester:
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
-For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-generator/).
+For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-from-traces/metrics-generator/).
 
 Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator.processors` in the [overrides](#overrides) section.
 
@@ -1833,7 +1833,7 @@ overrides:
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes. A value of 0 disables the size
-      # check. 
+      # check.
       # This limit is used in 3 places:
       #  - During search, traces will be skipped when they exceed this threshold.
       #  - During ingestion, traces that exceed this threshold will be refused.

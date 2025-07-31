@@ -1,6 +1,6 @@
 ---
-title: Use Alloy to generate metrics from spans
-menuTitle: Use Alloy to generate metrics from spans
+title: Use Alloy to generate span metrics from spans
+menuTitle: Use Alloy
 description: Span metrics allow you to generate metrics from your tracing data automatically.
 weight:
 aliases:
@@ -10,7 +10,7 @@ aliases:
 
 {{< docs/alias from="/docs/tempo/latest/configuration/grafana-alloy/span-metrics/" to="/docs/tempo/latest/metrics-from-traces/span-metrics-alloy/" >}}
 
-# Generate metrics from spans
+# Use Alloy to generate metrics from spans
 
 Span metrics allow you to generate metrics from your tracing data automatically.
 Span metrics aggregates request, error and duration (RED) metrics from span data.
@@ -27,6 +27,8 @@ You get out-of-the-box metrics from your tracing pipeline.
 Even if you already have metrics, span metrics can provide in-depth monitoring of your system.
 The generated metrics show application-level insight into your monitoring,
 as far as tracing gets propagated through your applications.
+
+## Enable span metrics in your Alloy configuration
 
 To generate span metrics within Grafana Alloy, you can use the `otelcol.connector.spanmetrics` component.
 The following example:
@@ -98,4 +100,4 @@ For more information, refer to the [span metrics](https://grafana.com/docs/tempo
 
 ## Example
 
-<p align="center"><img src="../../../metrics-generator/span-metrics-example.png" alt="Span metrics overview"></p>
+<p align="center"><img src="/media/docs/tempo/metrics/span-metrics-example.png" alt="Span metrics overview"></p>
