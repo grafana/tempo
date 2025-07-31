@@ -25,7 +25,7 @@ Monolithic mode (single binary) is commonly used for a local installation, testi
 This mode can be deployed using a pre-compiled binary, OS-specific packaging, or Docker image.
 While it's possible to deploy monolithic mode in a Kubernetes cluster, it is not recommended for production use.
 
-You can deploy Tempo locally using the monolithic mode. You can use using the [Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) or you can use the [Linux example](linux/) (monolithic) to deploy Tempo on a Linux host.
+You can deploy Tempo locally using the monolithic mode. You can use using the [Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) or you can use the [Linux example](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/linux/) (monolithic) to deploy Tempo on a Linux host.
 
 For more information, refer [Deploy Tempo locally](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/locally/).
 

@@ -11,7 +11,7 @@ weight: 600
 
 Once you've set up a Grafana Tempo cluster, you need to write some traces to it and then query the traces from within Grafana.
 This procedure uses Tempo in microservices mode.
-For example, if you [set up Tempo using the Kubernetes with Tanka procedure](../deploy/kubernetes/tanka/), then you can use this procedure to validate your set up.
+For example, if you [set up Tempo using the Kubernetes with Tanka procedure](../../deploy/kubernetes/tanka/), then you can use this procedure to validate your set up.
 
 ## Before you begin
 
@@ -46,7 +46,7 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 1. Select **Tempo**.
 
 1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service and the configured HTTP API prefix.
-   If you followed [Deploy Tempo with Helm installation example](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3100`
+   If you followed [Deploy Tempo with Helm installation example](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy-kubernetes/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3100`
 
 1. Click **Save & Test**.
 
@@ -55,7 +55,7 @@ You should see a message that says `Data source is working`.
 ## Visualize your data
 
 After you have created a data source, you can visualize your traces in the **Grafana Explore** page.
-For more information, refer to [Tempo in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>introduction/tempo-in-grafana/).
+For more information, refer to [Tempo in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/tempo-in-grafana/).
 
 ### Use OpenTelemetry `telemetrygen` to generate tracing data
 

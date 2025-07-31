@@ -38,7 +38,7 @@ For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/<TEMPO
 
 {{< admonition type="note" >}}
 You can also use Traces Drilldown to explore your tracing data without writing queries.
-For more information, refer to the [Traces Drilldown documentation](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces-drilldown).
+For more information, refer to the [Traces Drilldown documentation](/docs/grafana/<TEMPO_VERSION>/explore/simplified-exploration/traces/).
 {{< /admonition >}}
 
 ## Choose a query editing mode
