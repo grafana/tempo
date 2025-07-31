@@ -105,8 +105,10 @@ type Reader interface {
 	// PollNow does an immediate poll of the blocklist and is for testing purposes. Must have already called EnablePolling.
 	PollNow(ctx context.Context)
 
-	// Receive a context which is closed when the blocklist has been updated.
-	PollNotification(ctx context.Context) context.Context
+	// PollNotification returns a channel that will be closed when the blocklist
+	// is updated.  The received context is used as the parent, to avoid
+	// deadlocks.
+	PollNotification(ctx context.Context) <-chan struct{}
 
 	Shutdown()
 }
@@ -658,7 +660,7 @@ func (rw *readerWriter) PollNow(ctx context.Context) {
 	rw.pollBlocklist(ctx)
 }
 
-func (rw *readerWriter) PollNotification(ctx context.Context) context.Context {
+func (rw *readerWriter) PollNotification(ctx context.Context) <-chan struct{} {
 	ctx, cancel := context.WithCancel(ctx)
 
 	rw.pollerNotificationLock.Lock()
@@ -666,7 +668,7 @@ func (rw *readerWriter) PollNotification(ctx context.Context) context.Context {
 
 	rw.pollerNotificationFuncs = append(rw.pollerNotificationFuncs, cancel)
 
-	return ctx
+	return ctx.Done()
 }
 
 func (rw *readerWriter) pollingLoop(ctx context.Context) {

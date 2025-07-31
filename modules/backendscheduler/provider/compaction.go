@@ -121,7 +121,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 		}
 
 		level.Info(p.logger).Log("msg", "compaction provider waiting for poll notification")
-		<-p.store.PollNotification(ctx).Done()
+		<-p.store.PollNotification(ctx)
 
 		for {
 			if ctx.Err() != nil {
@@ -210,13 +210,16 @@ func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
 		// when cycling through tenants with no available work.  We only expect new
 		// work for tenants after a the next blocklist poll.
 		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
-			pollCtx := p.store.PollNotification(ctx)
 
 			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization")
 			select {
 			case <-ctx.Done():
 				return false
-			case <-pollCtx.Done():
+			case <-p.store.PollNotification(ctx):
+				if ctx.Err() != nil {
+					return false
+				}
+
 				// Continue to prioritizeTenants
 			}
 		}
