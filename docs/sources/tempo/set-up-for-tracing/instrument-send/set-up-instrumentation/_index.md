@@ -16,7 +16,7 @@ When you set up instrumentation, you:
 1. Instrument your application to generate traces
 
 After you set up instrumentation, you can [set up a collector](../set-up-collector/) to receive traces from your application.
-Refer to [About instrumentation](./about-instrumentation/) for more information about instrumentation and how it works.
+Refer to [About instrumentation](../about-instrumentation/) for more information about instrumentation and how it works.
 
 ## Choose an instrumentation method
 

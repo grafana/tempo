@@ -28,7 +28,7 @@ Using a collector provides a hassle-free option, especially when dealing with mu
 
 Grafana Labs maintains and supports Grafana Alloy, which packages various upstream OpenTelemetry Collector components. Alloy provides stability, support, and integration with Grafana Labs products.
 
-Refer to [Grafana Alloy](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/set-up-collector/grafana-alloy/) for information about Alloy and it's tracing capabilities.
+Refer to [Grafana Alloy](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/) for information about Alloy and it's tracing capabilities.
 
 Refer to [Collect and forward data with Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/collect/) for examples of collecting data.
 

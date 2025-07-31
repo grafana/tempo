@@ -332,11 +332,11 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
 ### Optional: Enable metrics-generator
 
-In the preceding configuration, [metrics generation](../../configuration/#metrics-generator) is enabled. However, you still need to specify where to send the generated metrics data.
+In the preceding configuration, [metrics generation](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) is enabled. However, you still need to specify where to send the generated metrics data.
 If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud metrics or a Mimir instance), you'll need to include the configuration block below in the `metrics_generator` section of the `tempo_config` block above (this assumes basic auth is required, if not then remove the `basic_auth` section).
 You can find the details for your Grafana Cloud metrics instance for your Grafana Cloud account by using the [Cloud Portal](/docs/grafana-cloud/account-management/cloud-portal/).
 
-```jsonnet
+````jsonnet
 storage+: {
     remote_write: [
         {
@@ -351,7 +351,9 @@ storage+: {
 },
 ```
 
-> **Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics will produce extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer [Metrics-generator](../../metrics-generator/) in the Tempo documentation.
+{{< admonition type="note" >}}
+Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer the [Metrics-generator documentation](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
+{{< /admonition >}}
 
 ### Optional: Reduce component system requirements
 
@@ -374,7 +376,8 @@ To change the resources requirements, follow these steps:
            },
        },
    },
-   ```
+````
+
 3. Save the changes to the file.
 
 {{< admonition type="note" >}}
