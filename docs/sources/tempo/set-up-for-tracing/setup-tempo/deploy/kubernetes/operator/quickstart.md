@@ -4,7 +4,8 @@ description: Quickstart to deploy Tempo with the Tempo Operator
 menuTitle: Quickstart
 weight: 100
 aliases:
-  - /docs/tempo/operator/quickstart
+  - ../../../../../operator/quickstart/ # /docs/tempo/next/operator/quickstart/
+  - ../../../../../setup/operator/quickstart/ # /docs/tempo/next/setup/operator/quickstart/
 ---
 
 # Quickstart

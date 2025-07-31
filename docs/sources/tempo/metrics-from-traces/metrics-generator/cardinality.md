@@ -1,6 +1,6 @@
 ---
 aliases:
-- /docs/tempo/latest/metrics-generator/cardinality
+  - ../../metrics-generator/cardinality/ # /docs/tempo/next/metrics-generator/cardinality/
 title: Cardinality
 menuTitle: Cardinality
 description: What is cardinality and how it is impacted by metrics generation?

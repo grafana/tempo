@@ -1,7 +1,7 @@
 ---
 aliases:
-- /docs/tempo/latest/server_side_metrics/service_graphs/
-- /docs/tempo/latest/metrics-generator/service_graphs/
+  - ../../metrics-generator/service_graphs/enable-service-graphs/ # /docs/tempo/next/metrics-generator/service_graphs/enable-service-graphs/
+  - ../../server_side_metrics/service_graphs/ # /docs/tempo/next/server_side_metrics/service_graphs/
 title: Enable service graphs
 description: Learn how to enable service graphs
 weight: 200

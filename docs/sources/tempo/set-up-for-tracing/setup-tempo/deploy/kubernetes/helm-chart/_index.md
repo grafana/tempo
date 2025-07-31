@@ -2,6 +2,8 @@
 title: Deploy Tempo with Helm
 menuTitle: Deploy with Helm
 description: Learn how to deploy Tempo with Helm
+aliases:
+  - ../../../../setup/helm-chart/ # /docs/tempo/next/setup/helm-chart/
 weight: 350
 ---
 
@@ -19,5 +21,5 @@ The Tempo repository has an [example Helm chart](https://github.com/grafana/temp
 
 Tempo has two primary charts used for deployment:
 
-* [`tempo-distributed` Helm chart](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) deploys Tempo in microservices mode ([read the documentation](/docs/helm-charts/tempo-distributed/next/get-started-helm-charts))
-* [`tempo` Helm chart](https://github.com/grafana/helm-charts/tree/main/charts/tempo) deploys Tempo in monolithic (single binary) mode
+- [`tempo-distributed` Helm chart](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) deploys Tempo in microservices mode ([read the documentation](/docs/helm-charts/tempo-distributed/next/get-started-helm-charts))
+- [`tempo` Helm chart](https://github.com/grafana/helm-charts/tree/main/charts/tempo) deploys Tempo in monolithic (single binary) mode

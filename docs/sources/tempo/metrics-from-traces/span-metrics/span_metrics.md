@@ -1,6 +1,7 @@
 ---
 aliases:
-  - ../server_side_metrics/span_metrics/ # /docs/tempo/latest/server_side_metrics/span_metrics/
+  - ../../server_side_metrics/span_metrics/ # /docs/tempo/next/server_side_metrics/span_metrics/
+  - ../../metrics-generator/span_metrics/ # /docs/tempo/next/metrics-generator/span_metrics/
 title: Use the span metrics processor
 description: The span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 weight: 200

@@ -1,6 +1,7 @@
 ---
 aliases:
   - ../operations/server_side_metrics # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/server_side_metrics/
+  - ../metrics-generator/ # /docs/tempo/next/metrics-generator/
 title: Metrics-generator
 description: Metrics-generator is an optional Tempo component that derives metrics from ingested traces.
 weight: 500

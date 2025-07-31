@@ -3,9 +3,10 @@ title: Size the cluster
 menuTitle: Size the cluster
 description: Plan the size of your Tempo cluster.
 aliases:
-  - /docs/tempo/deployment
-  - /docs/tempo/deployment/deployment
-  - /docs/tempo/setup/deployment
+  - ../../../deployment/ # /docs/tempo/next/deployment/
+  - ../../../deployment/deployment/ # /docs/tempo/next/deployment/deployment/
+  - ../../../setup/deployment/ # /docs/tempo/next/setup/deployment/
+  - ../../../setup/size/ # /docs/tempo/next/setup/size/
 weight: 250
 ---
 
@@ -32,42 +33,42 @@ Refer to [Best practices](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting
 
 Distributor:
 
-* 1 replica per every 10MB/s of received traffic
-* CPU: 2 cores
-* Mem: 2 GB
+- 1 replica per every 10MB/s of received traffic
+- CPU: 2 cores
+- Mem: 2 GB
 
 Ingester:
 
-* 1 replica per every 3-5MB/s of received traffic.
-* CPU: 2.5 cores
-* Mem: 4-20GB, determined by trace composition
+- 1 replica per every 3-5MB/s of received traffic.
+- CPU: 2.5 cores
+- Mem: 4-20GB, determined by trace composition
 
 Querier:
 
-* 1 replica per every 1-2MB/s of received traffic.
-* CPU: dependent on trace size and queries
-* Mem: 4-20GB, determined by trace composition and queries
-* This number of queriers should give good performance for typical search patterns and time ranges. Can scale up or down to fit the specific workload.
+- 1 replica per every 1-2MB/s of received traffic.
+- CPU: dependent on trace size and queries
+- Mem: 4-20GB, determined by trace composition and queries
+- This number of queriers should give good performance for typical search patterns and time ranges. Can scale up or down to fit the specific workload.
 
 Query-Frontend:
 
-* 2 replicas, for high availability
-* CPU: dependent on trace size and queries
-* Mem: 4-20GB, dependent on trace size and queries
+- 2 replicas, for high availability
+- CPU: dependent on trace size and queries
+- Mem: 4-20GB, dependent on trace size and queries
 
 Compactor:
 
-* 1 replica per every 3-5 MB/s of received traffic.
-* CPU: 1 core (compactors are primarily I/O bound, therefore do not require much CPU)
-* Mem: 4-20GB, determined by trace composition
+- 1 replica per every 3-5 MB/s of received traffic.
+- CPU: 1 core (compactors are primarily I/O bound, therefore do not require much CPU)
+- Mem: 4-20GB, determined by trace composition
 
 ## Performance tuning resources
 
 Refer to these documents for additional information on tuning your Tempo cluster:
 
-* [Monitor Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/monitor/)
-* [Tune search performance](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/backend_search/)
-* [Improve performance with caching](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/caching/)
-* [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/)
+- [Monitor Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/monitor/)
+- [Tune search performance](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/backend_search/)
+- [Improve performance with caching](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/caching/)
+- [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/)
 
 For information on more advanced system options, refer to [Manage advanced systems](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/).

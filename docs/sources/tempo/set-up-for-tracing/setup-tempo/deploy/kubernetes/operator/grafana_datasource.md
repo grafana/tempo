@@ -2,7 +2,8 @@
 title: Grafana data source
 description: Use the Tempo Operator to deploy Tempo and use it as a data source with Grafana
 aliases:
- - /docs/tempo/operator/grafana_datasource
+  - ../../../../../operator/grafana_datasource/ # /docs/tempo/next/operator/grafana_datasource/
+  - ../../../../../setup/operator/grafana_datasource/ # /docs/tempo/next/setup/operator/grafana_datasource/
 weight: 400
 ---
 
@@ -22,17 +23,18 @@ spec:
     grafana:
       createDatasource: true
 ```
+
 {{< admonition type="note" >}}
 The feature gate `featureGates.grafanaOperator` must be enabled in the Tempo Operator configuration.
 {{< /admonition >}}
 
 ## Manual data source configuration
 
-You can choose to either use Tempo Operator's gateway or not: 
+You can choose to either use Tempo Operator's gateway or not:
 
-* If the `TempoStack` is deployed using the gateway, you'll need to provide authentication information to Grafana, along with the URL of the tenant from which you expect to see the traces.
+- If the `TempoStack` is deployed using the gateway, you'll need to provide authentication information to Grafana, along with the URL of the tenant from which you expect to see the traces.
 
-* If the gateway is not used, then you need to make sure Grafana can access the `query-frontend` endpoints.
+- If the gateway is not used, then you need to make sure Grafana can access the `query-frontend` endpoints.
 
 For more information, refer to the [Tempo data source for Grafana](/docs/grafana/latest/datasources/tempo/).
 
@@ -50,10 +52,10 @@ If Grafana is configured with some OAuth provider, such as generic OAuth, the `T
 apiVersion: v1
 kind: Secret
 metadata:
- name: oidc-test
+  name: oidc-test
 stringData:
- clientID: <clientID used for grafana authentication>
- clientSecret: <clientSecret used for grafana authentication>
+  clientID: <clientID used for grafana authentication>
+  clientSecret: <clientSecret used for grafana authentication>
 type: Opaque
 ```
 
@@ -61,20 +63,20 @@ Then deploy `TempoStack` with gateway enabled:
 
 ```yaml
 spec:
- template:
-  gateway:
-   enabled: true
- tenants:
-  mode: static
-  authentication:
-    - tenantName: test-oidc
-      tenantId: test-oidc
-      oidc:
-      issuerURL: http://dex:30556/dex
-      redirectURL: http://tempo-foo-gateway:8080/oidc/test-oidc/callback
-      usernameClaim: email
-      secret:
-       name: oidc-test
+  template:
+    gateway:
+      enabled: true
+  tenants:
+    mode: static
+    authentication:
+      - tenantName: test-oidc
+        tenantId: test-oidc
+        oidc:
+        issuerURL: http://dex:30556/dex
+        redirectURL: http://tempo-foo-gateway:8080/oidc/test-oidc/callback
+        usernameClaim: email
+        secret:
+          name: oidc-test
 ```
 
 Set the data source URL parameter to `http://<HOST>:<PORT>/api/traces/v1/{tenant}/tempo/`, where `{tenant}` is the name of the tenant.
@@ -83,7 +85,7 @@ To use it as a data source, set the Authentication Method to **Forward Oauth Ide
 
 <p align="center"><img src="../grafana_datasource_tempo.png" alt="Tempo data source configured for the gateway forwarding OAuth access token"></p>
 
-If you prefer to set the Bearer token directly and not use the  **Forward Oauth Identify**, you can add it to the "Authorization" Header.
+If you prefer to set the Bearer token directly and not use the **Forward Oauth Identify**, you can add it to the "Authorization" Header.
 
 <p align="center"><img src="../grafana_datasource_tempo_headers.png" alt="Tempo data source configured for the gateway using Bearer token"></p>
 

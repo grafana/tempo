@@ -6,6 +6,8 @@ weight: 600
 keywords:
   - metrics query
   - TraceQL metrics
+aliases:
+  - ../traceql/metrics-queries/ # /docs/tempo/next/traceql/metrics-queries/
 refs:
   solve-problems-mq:
     - pattern: /docs/tempo/
@@ -22,6 +24,7 @@ refs:
 # TraceQL metrics queries
 
 <!-- Using a custom admonition because no feature flag is required. -->
+
 {{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
 TraceQL metrics is an experimental feature in Grafana Tempo that creates metrics from traces.
@@ -34,9 +37,9 @@ Traces are a unique observability signal that contain causal relationships betwe
 
 TraceQL metrics can help answer questions like this:
 
-* How many database calls across all systems are downstream of your application?
-* What services beneath a given endpoint are failing?
-* What services beneath an endpoint are slow?
+- How many database calls across all systems are downstream of your application?
+- What services beneath a given endpoint are failing?
+- What services beneath an endpoint are slow?
 
 TraceQL metrics can help you answer these questions by parsing your traces in aggregate.
 

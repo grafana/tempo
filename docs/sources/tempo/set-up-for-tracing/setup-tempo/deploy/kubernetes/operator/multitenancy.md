@@ -4,7 +4,8 @@ description: Enable multi-tenancy
 menuTitle: Enable multi-tenancy
 weight: 250
 aliases:
-- ../../operator/multitenancy # https://grafana.com/docs/tempo/operator/multitenancy/
+  - ../../../../../operator/multitenancy/ # /docs/tempo/next/operator/multitenancy/
+  - ../../../../../setup/operator/multitenancy/ # /docs/tempo/next/setup/operator/multitenancy/
 ---
 
 # Enable multi-tenancy
@@ -77,25 +78,25 @@ spec:
             name: oidc-test
     authorization:
       roleBindings:
-      - name: "test"
-        roles:
-        - read-write
-        subjects:
-        - kind: user
-          name: "admin@example.com"
+        - name: 'test'
+          roles:
+            - read-write
+          subjects:
+            - kind: user
+              name: 'admin@example.com'
       roles:
-      - name: read-write
-        permissions:
-        - read
-        - write
-        resources:
-        - traces
-        tenants:
-        - test-oidc
+        - name: read-write
+          permissions:
+            - read
+            - write
+          resources:
+            - traces
+          tenants:
+            - test-oidc
 ```
 
-* The secret `oidc-test` defines fields `clientID`, `clientSecret` and `issuerCAPath`.
-* The RBAC gives tenant `test-oidc` read and write access for traces.
+- The secret `oidc-test` defines fields `clientID`, `clientSecret` and `issuerCAPath`.
+- The RBAC gives tenant `test-oidc` read and write access for traces.
 
 ## OpenShift
 
@@ -108,7 +109,7 @@ The Jaeger UI can be accessed at `http://<exposed gateway service>:8080/api/trac
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1
-kind:  TempoStack
+kind: TempoStack
 metadata:
   name: simplest
 spec:
@@ -121,9 +122,9 @@ spec:
     mode: openshift
     authentication:
       - tenantName: dev
-        tenantId: "1610b0c3-c509-4592-a256-a1871353dbfa"
+        tenantId: '1610b0c3-c509-4592-a256-a1871353dbfa'
       - tenantName: prod
-        tenantId: "1610b0c3-c509-4592-a256-a1871353dbfb"
+        tenantId: '1610b0c3-c509-4592-a256-a1871353dbfb'
   template:
     gateway:
       enabled: true
@@ -211,20 +212,20 @@ OpenTelemetry collector CR configuration with authentication for dev tenant.
 
 ```yaml
 spec:
-    serviceAccount: otel-collector
-    config: |
-        extensions:
-          bearertokenauth:
-            filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
-        exporters:
-          # Export the dev tenant traces to a Tempo instance
-          otlp/dev:
-            endpoint: tempo-simplest-gateway.tempo.svc.cluster.local:8090
-            tls:
-              insecure: false
-              ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
-            auth:
-              authenticator: bearertokenauth
-            headers:
-              X-Scope-OrgID: "dev"
+  serviceAccount: otel-collector
+  config: |
+    extensions:
+      bearertokenauth:
+        filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    exporters:
+      # Export the dev tenant traces to a Tempo instance
+      otlp/dev:
+        endpoint: tempo-simplest-gateway.tempo.svc.cluster.local:8090
+        tls:
+          insecure: false
+          ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+        auth:
+          authenticator: bearertokenauth
+        headers:
+          X-Scope-OrgID: "dev"
 ```

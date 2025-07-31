@@ -4,13 +4,13 @@ description: Set up monitoring for Tempo instances and the operator
 menuTitle: Monitor
 weight: 300
 aliases:
-- /docs/tempo/operator/monitor
+  - ../../../../../operator/monitor/ # /docs/tempo/next/operator/monitor/
+  - ../../../../../setup/operator/monitor/ # /docs/tempo/next/setup/operator/monitor/
 ---
 
 # Monitor Tempo instances and the operator
 
 You can configure the Tempo Operator to monitor TempoStack instances (including all Tempo components like the distributor). In addition, the operator can expose metrics about the operator itself (for example, the number of successful and failed upgrades, etc.).
-
 
 ## Monitor TempoStack instances
 
@@ -39,6 +39,7 @@ All Tempo components as well as the [Tempo Gateway](https://github.com/observato
 #### Deploy OpenTelemetry collector sidecar
 
 To deploy the OpenTelemetry collector, follow these steps:
+
 1. Install [OpenTelemetry Operator](https://opentelemetry.io/docs/k8s-operator/#getting-started) into the cluster.
 2. Create an `OpenTelemetryCollector` CR that receives trace data in Jaeger Thrift format and exports data via OTLP to the desired trace backend.
 3. **Optional:** Deploy tracing backend to store trace data.
@@ -71,7 +72,7 @@ spec:
 
 #### Send trace data to OpenTelemetry sidecar
 
-Finally, create a `TempoStack` instance that sets `jaeger_agent_endpoint` to report trace data to the `localhost`. 
+Finally, create a `TempoStack` instance that sets `jaeger_agent_endpoint` to report trace data to the `localhost`.
 The Tempo operator sets the OpenTelemetry inject annotation `sidecar.opentelemetry.io/inject": "true` to all `TempoStack` pods.
 The OpenTelemetry Operator will recognize the annotation, and it will inject a sidecar into all `TempoStack` pods.
 
@@ -92,10 +93,9 @@ spec:
   storageSize: 200M
   observability:
     tracing:
-      sampling_fraction: "1.0"
+      sampling_fraction: '1.0'
       jaeger_agent_endpoint: localhost:6831
 ```
-
 
 ## Monitor the operator
 

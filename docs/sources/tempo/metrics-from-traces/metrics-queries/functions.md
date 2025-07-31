@@ -2,6 +2,8 @@
 title: TraceQL metrics functions
 menuTitle: TraceQL metrics functions
 description: Learn about functions used in TraceQL metrics queries
+aliases:
+  - ../../traceql/metrics-queries/functions/ # /docs/tempo/next/traceql/metrics-queries/functions/
 weight: 600
 keywords:
   - metrics query

@@ -4,7 +4,8 @@ description: Set up a Tempo deployment in monolithic mode
 menuTitle: Monolithic deployment
 weight: 500
 aliases:
-- /docs/tempo/operator/monolithic
+  - ../../../../../operator/monolithic/ # /docs/tempo/next/operator/monolithic/
+  - ../../../../../setup/operator/monolithic/ # /docs/tempo/next/setup/operator/monolithic/
 ---
 
 # Monolithic deployment

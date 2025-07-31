@@ -1,6 +1,7 @@
 ---
 aliases:
-  - ../server_side_metrics/service_graphs/ # /docs/tempo/<TEMPO_VERSION>/server_side_metrics/service_graphs/
+  - ../server_side_metrics/service_graphs/ # /docs/tempo/next/server_side_metrics/service_graphs/
+  - ../metrics-generator/service_graphs/ # /docs/tempo/next/metrics-generator/service_graphs/
 title: Service graphs
 description: Service graphs help you understand the structure of a distributed system and the connections and dependencies between its components.
 weight: 300
@@ -30,6 +31,7 @@ The metrics-generator processes traces and generates service graphs in the form 
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
 The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/general/trace.md) to detect a myriad of requests.
 It supports the following requests:
+
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind`, `producer`, and `consumer` respectively.
 - A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.name` or `db.system`. See below for how the name of the node is determined for a database request.
@@ -52,10 +54,10 @@ For example, you might not collect spans for an external service for payment pro
 Virtual nodes can be detected in two different ways:
 
 - The root span has `span.kind` set to `server` or `consumer`. This indicates that the request or message was initiated by an external system that's not instrumented, like a frontend application or an engineer via `curl`.
-   - When no service name can be inferred from the span peer attributes, the name of the service defaults to `user`.
+  - When no service name can be inferred from the span peer attributes, the name of the service defaults to `user`.
 - A `client` span doesn't have its matching `server` span, but has a peer attribute present. In this case, assume that a call was made to an external service, for which Tempo won't receive spans.
-   - The default peer attributes are `peer.service`, `db.name` and `db.system`.
-   - The order of the attributes is important, as the first one is used as the virtual node name.
+  - The default peer attributes are `peer.service`, `db.name` and `db.system`.
+  - The order of the attributes is important, as the first one is used as the virtual node name.
 
 A database node is identified by the span having at least `db.name` or `db.system` attribute.
 
@@ -67,8 +69,8 @@ The following metrics are exported:
 
 <!-- vale Grafana.Spelling = NO -->
 
-| Metric                                                | Type      | Labels                          | Description                                                                                                |
-| ----------------------------------------------------- | --------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Metric                                                  | Type      | Labels                          | Description                                                                                                |
+| ------------------------------------------------------- | --------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `traces_service_graph_request_total`                    | Counter   | client, server, connection_type | Total count of requests between two nodes                                                                  |
 | `traces_service_graph_request_failed_total`             | Counter   | client, server, connection_type | Total count of failed requests between two nodes                                                           |
 | `traces_service_graph_request_server_seconds`           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server                                               |
@@ -93,6 +95,6 @@ If spans of a trace are spread out over multiple instances, spans aren't paired 
 
 Activating this feature adds the following label and corresponding values:
 
-| Label                   | Possible Values             | Description                                                              |
-|-------------------------|-----------------------------|--------------------------------------------------------------------------|
-| `virtual_node`            | `unset`, `client`, `server` | Explicitly indicates the uninstrumented side                     |
+| Label          | Possible Values             | Description                                  |
+| -------------- | --------------------------- | -------------------------------------------- |
+| `virtual_node` | `unset`, `client`, `server` | Explicitly indicates the uninstrumented side |
