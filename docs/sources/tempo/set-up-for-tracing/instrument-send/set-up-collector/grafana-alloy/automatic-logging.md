@@ -5,6 +5,7 @@ menuTitle: Automatic logging
 weight: 200
 aliases:
 - /docs/tempo/grafana-alloy/automatic-logging
+- ../../../../configuration/grafana-alloy/automatic-logging/ # /docs/tempo/latest/configuration/grafana-alloy/automatic-logging/
 ---
 
 # Automatic logging: Trace discovery through logs
@@ -37,7 +38,7 @@ documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql).
 For high throughput systems, logging for every span may generate too much volume.
 In such cases, logging per root span or process is recommended.
 
-<p align="center"><img src="../tempo-auto-log.svg" alt="Automatic logging overview"></p>
+<p align="center"><img src="/media/docs/tempo/intro/tempo-auto-log.svg" alt="Automatic logging overview"></p>
 
 Automatic logging searches for a given set of span or resource attributes in the spans and logs them as key-value pairs.
 This allows searching by those key-value pairs in Loki.

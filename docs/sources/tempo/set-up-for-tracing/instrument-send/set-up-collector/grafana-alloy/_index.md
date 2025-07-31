@@ -4,11 +4,8 @@ description: Configure the Grafana Alloy to work with Tempo
 weight: 550
 aliases:
 - /docs/tempo/grafana-alloy
-- ../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
+- ../../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
 ---
-
-{{< docs/alias from="/docs/tempo/latest/configuration/grafana-alloy/" to="/docs/tempo/latest/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/" >}}
-
 
 # Grafana Alloy
 
@@ -18,6 +15,8 @@ In addition, you can use Alloy pipelines to do other tasks, such as configure al
 You can use Alloy as an alternative to either of these solutions or combine it into a hybrid system of multiple collectors and agents.
 You can deploy Alloy anywhere within your IT infrastructure and pair it with your Grafana LGTM stack, a telemetry backend from Grafana Cloud, or any other compatible backend from any other vendor.
 Alloy is flexible, and you can easily configure it to fit your needs for on-premise, cloud-only, or a mix of both.
+
+<p align="center"><img src="/media/docs/tempo/intro/tempo-auto-log.svg" alt="Automatic logging overview"></p>
 
 It's commonly used as a tracing pipeline, offloading traces from the
 application and forwarding them to a storage backend.

@@ -7,8 +7,6 @@ aliases:
 weight: 600
 ---
 
-{{< docs/alias from="/docs/tempo/latest/setup/set-up-test-app/" to="/docs/tempo/latest/set-up-for-tracing/setup-tempo/set-up-test-app/" >}}
-
 # Test Kubernetes deployment using a test application
 
 Once you've set up a Grafana Tempo cluster, you need to write some traces to it and then query the traces from within Grafana.

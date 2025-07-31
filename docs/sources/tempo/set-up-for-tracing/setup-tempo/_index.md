@@ -7,6 +7,8 @@ aliases:
 weight: 300
 ---
 
+{{< docs/alias from="/docs/tempo/latest/setup/" to="/docs/tempo/latest/set-up-for-tracing/setup-tempo/" >}}
+
 # Set up Tempo
 
 To set up Tempo, you need to:

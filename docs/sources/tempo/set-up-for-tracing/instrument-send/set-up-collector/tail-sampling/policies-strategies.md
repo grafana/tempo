@@ -1,7 +1,7 @@
 ---
-title: Tail sampling policies and strategies
-menuTitle: Tail sampling policies and strategies
-description: Learn about tail sampling policies and strategies in Grafana Tempo and Grafana Alloy.
+title: Add tail sampling policies and strategies
+menuTitle: Add tail sampling policies and strategies
+description: Add tail sampling policies and strategies in Grafana Tempo and Grafana Alloy.
 weight: 700
 aliases:
   - ./tail-based-sampling/ # /docs/tempo/latest/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/

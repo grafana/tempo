@@ -2,7 +2,7 @@
 title: Enable tracing features
 description: Instructions for enabling tracing features in Tempo
 weight: 700
-# draft: true
+draft: true
 ---
 
 <!-- Line 5 draft:true in the frontmatter hides this page. Remove draft:true when the content is updated. -->

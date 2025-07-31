@@ -25,7 +25,8 @@ When sending traces to Tempo, you can choose between four methods:
 * Manual instrumentation involves adding code to create spans and traces, giving full control over collected data.
 * Hybrid instrumentation, which combines auto and manual instrumentation, using automatic for most code and manual for custom tracing logic.
 
-Refer to the section below to learn mre about the
+Refer to [About instrumentation](./about-instrumentation/) for more information about these methods.
+
 ### Instrumentation methods
 
 To add instrumentation, the code for a service uses a Software Development Kit (SDK) which supplies language-specific libraries that allow the:
@@ -47,7 +48,8 @@ Hybrid instrumentation combines auto and manual instrumentation, using automatic
 
 Refer to [About instrumentation](./about-instrumentation/) for more information.
 
-If you are using OTel or Alloy, refer to [Instrument an application with OpenTelemetry](https://grafana.com/docs/opentelemetry/instrument/) for more information. These instructions are specific to Grafana Cloud, but can be adapted for self-hosted Tempo.
+If you are using OTel or Alloy, refer to [Instrument an application with OpenTelemetry](https://grafana.com/docs/opentelemetry/instrument/) for more information.
+These instructions are specific to Grafana Cloud, but can be adapted for self-hosted Tempo.
 
 ## Use zero-code instrumentation with Grafana Beyla
 
@@ -71,7 +73,6 @@ A collection of tools, APIs, and SDKs, OpenTelemetry helps engineers instrument,
 For more information refer to [OpenTelemetry overview](https://grafana.com/oss/opentelemetry/).
 
 If you are using OTel with Grafana Cloud, refer to [Instrument an application with OpenTelemetry](https://grafana.com/docs/opentelemetry/instrument/) for more information.
-
 
 ### Use OpenTelemetry auto-instrumentation frameworks
 

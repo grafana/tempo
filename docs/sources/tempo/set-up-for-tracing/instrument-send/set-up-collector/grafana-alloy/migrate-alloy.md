@@ -2,9 +2,9 @@
 title: Migrate to Alloy
 description: Provides links to documentation to migrate to Grafana Alloy.
 weight: 100
+aliases:
+  - ../../../../configuration/grafana-alloy/migrate-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/migrate-alloy/
 ---
-
-{{< docs/alias from="/docs/tempo/latest/configuration/grafana-alloy/migrate-alloy/" to="/docs/tempo/latest/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/migrate-alloy/" >}}
 
 # Migrate to Alloy
 
