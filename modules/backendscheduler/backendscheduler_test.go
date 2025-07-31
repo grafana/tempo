@@ -36,7 +36,7 @@ func TestBackendScheduler(t *testing.T) {
 	cfg.BackendFlushInterval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
-	cfg.LocalWorkPath = tmpDir
+	cfg.Work.LocalWorkPath = tmpDir
 
 	var (
 		ctx, cancel   = context.WithCancel(context.Background())
@@ -190,7 +190,7 @@ func TestBackendScheduler(t *testing.T) {
 		})
 
 		t.Run("jobs are reloaded from backend if local cache errors", func(t *testing.T) {
-			cfg.LocalWorkPath = tmpDir + "/non-existent-path"
+			cfg.Work.LocalWorkPath = tmpDir + "/non-existent-path"
 
 			s3, err := New(cfg, store, limits, rr, ww)
 			require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestProviderBasedScheduling(t *testing.T) {
 	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
 
 	tmpDir := t.TempDir()
-	cfg.LocalWorkPath = t.TempDir()
+	cfg.Work.LocalWorkPath = t.TempDir()
 
 	var (
 		ctx, cancel   = context.WithCancel(context.Background())
