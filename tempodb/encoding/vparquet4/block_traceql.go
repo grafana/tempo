@@ -1883,11 +1883,6 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 		}
 	}
 
-	var samplerPredicate parquetquery.Predicate
-	if sampler != nil {
-		samplerPredicate = newSamplingPredicate(sampler)
-	}
-
 	for _, cond := range conditions {
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
@@ -1915,8 +1910,10 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 				return nil, err
 			}
 
-			if samplerPredicate != nil {
-				pred = parquetquery.NewAndPredicate(pred, samplerPredicate)
+			if sampler != nil {
+				pred = newSamplingPredicate(sampler, pred)
+				// Removed so that it's not used down below.
+				sampler = nil
 			}
 
 			addPredicate(columnPathSpanStartTime, pred)
@@ -2145,7 +2142,11 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
 	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, samplerPredicate, "")}
+		var pred parquetquery.Predicate
+		if sampler != nil {
+			pred = newSamplingPredicate(sampler, nil)
+		}
+		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, pred, "")}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -2471,7 +2472,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 				required = append([]parquetquery.Iterator{ii}, required...)
 			}
 		}*/
-		pred := newSamplingPredicate(sampler)
+		pred := newSamplingPredicate(sampler, nil)
 		i := makeIter(columnPathRootServiceName, pred, "")
 		required = append([]parquetquery.Iterator{i}, required...) // Put this first
 
@@ -3620,13 +3621,15 @@ func otlpKindToTraceqlKind(v uint64) traceql.Kind {
 
 type samplingPredicate struct {
 	sampler traceql.Sampler
+	inner   parquetquery.Predicate
 }
 
 var _ parquetquery.Predicate = (*samplingPredicate)(nil)
 
-func newSamplingPredicate(sampler traceql.Sampler) *samplingPredicate {
+func newSamplingPredicate(sampler traceql.Sampler, inner parquetquery.Predicate) *samplingPredicate {
 	return &samplingPredicate{
 		sampler: sampler,
+		inner:   inner,
 	}
 }
 
@@ -3635,16 +3638,30 @@ func (p *samplingPredicate) String() string {
 }
 
 func (p *samplingPredicate) KeepColumnChunk(chunk *parquetquery.ColumnChunkHelper) bool {
-	p.sampler.Expect(uint64(chunk.NumValues()))
+	if p.inner != nil {
+		return p.inner.KeepColumnChunk(chunk)
+	}
 	return true
 }
 
 func (p *samplingPredicate) KeepPage(page parquet.Page) bool {
-	// p.sampler.Expect(uint64(page.NumRows()))
+	if p.inner != nil && !p.inner.KeepPage(page) {
+		return false
+	}
+
+	// We call Expect() on page because it is closer to the actual data
+	// to be processed.  We could call it earlier in KeepColumnChunk()
+	// but it reduces effectiveness of the sampler because we may
+	// skip around or exit early due to any other conditions.
+	p.sampler.Expect(uint64(page.NumValues()))
 	return true
 }
 
 func (p *samplingPredicate) KeepValue(value parquet.Value) bool {
+	if p.inner != nil && !p.inner.KeepValue(value) {
+		return false
+	}
+
 	return p.sampler.Sample(1)
 }
 
@@ -3670,12 +3687,20 @@ func (p *traceSamplingPredicate) KeepColumnChunk(chunk *parquetquery.ColumnChunk
 
 func (p *traceSamplingPredicate) KeepPage(page parquet.Page) bool {
 	p.sampler.Expect(uint64(page.NumRows()))
+
+	/*buf := make([]parquet.Value, page.NumValues())
+	page.Values().ReadValues(buf)
+	for i := 0; i < len(buf); i++ {
+		p.sampler.Expect(uint64(buf[i].Uint32()))
+	}*/
+
 	return true
 }
 
 func (p *traceSamplingPredicate) KeepValue(value parquet.Value) bool {
 	// return true
-	return p.sampler.Sample(1)
+	// return p.sampler.Sample(1)
+	return true
 }
 
 func (p *traceSamplingPredicate) String() string {
@@ -3687,6 +3712,8 @@ func (p *traceSamplingPredicate) KeepGroup(res *parquetquery.IteratorResult) boo
 	for _, e := range res.Entries {
 		total += e.Value.Uint32()
 	}
+
+	// p.sampler.Expect(uint64(total))
 
 	return p.sampler.Sample(uint64(total))
 }

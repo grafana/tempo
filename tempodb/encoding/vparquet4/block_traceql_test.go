@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"text/tabwriter"
 	"time"
 
 	"github.com/google/uuid"
@@ -1223,24 +1224,44 @@ func BenchmarkIterators(b *testing.B) {
 }
 
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
+	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
+	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
+	os.Setenv("BENCH_TENANT", "1")
+
 	testCases := []string{
-		"{} | rate()",
-		"{} | rate() with(sample=0.1)",
-		"{} | rate() by (span.http.status_code)",
-		"{} | rate() by (resource.service.name)",
-		"{} | rate() by (span.http.url)", // High cardinality attribute
-		"{resource.service.name=`loki-ingester`} | rate()",
-		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
-		"{status=error} | rate()",
-		"{} | quantile_over_time(duration, .99, .9, .5)",
-		"{} | quantile_over_time(duration, .99, .9, .5) with(sample=0.1)",
-		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
-		"{} | histogram_over_time(duration)",
-		"{} | avg_over_time(duration) by (span.http.status_code)",
-		"{} | max_over_time(duration) by (span.http.status_code)",
-		"{} | min_over_time(duration) by (span.http.status_code)",
-		"{ name != nil } | compare({status=error})",
-		"{} > {} | rate() by (name)", // structural
+		//"{} | rate() with(exemplars=0)",
+		//"{} | rate() with(exemplars=0,sample=true)",
+		"{} | rate() with(span_sample=true)",
+		//"{nestedSetParent=-1} >> {} | rate() with(trace_sample=true,debug=true)",
+		//`{resource.service.name="loki-querier" && name="chunksmemcache.store"} | rate() with(span_sample=true,debug=true)`,
+		//"{resource.service.name=`tempo-gateway`} | rate() with(span_sample=true,debug=true)",
+		//"{resource.service.name=`tempo-gateway`} | rate() with(trace_sample=true)",
+		//"{resource.service.name=`tempo-gateway`} | rate() with(trace_sample=true,e=.05)",
+		//"{} | rate() with(exemplars=0,trace_sample=0.1)",
+		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true)",
+		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05)",
+		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true)",
+		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true,p=0.1)",
+		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true,p=0.1,z=1.96)",
+		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true,p=0.1,z=1.96,e=.05)",
+		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true,p=0.1,z=1.96,e=.05,z=1.96)",
+		//"{} | rate() with(sample=0.1)",
+		//"{} | rate() by (span.http.status_code)",
+		//"{} | rate() by (resource.service.name)",
+		//"{} | rate() by (span.http.url)", // High cardinality attribute
+		//"{resource.service.name=`loki-ingester`} | rate()",
+		//"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
+		//"{status=error} | rate() with(span_sample=true,debug=true)",
+		//"{} | quantile_over_time(duration, .99, .9, .5)",
+		//"{} | quantile_over_time(duration, .99, .9, .5) with(sample=0.1)",
+		//"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
+		//"{} | histogram_over_time(duration)",
+		//"{} | avg_over_time(duration) by (span.http.status_code)",
+		//"{} | max_over_time(duration) by (span.http.status_code)",
+		//"{} | min_over_time(duration) by (span.http.status_code)",
+		//"{ name != nil } | compare({status=error})",
+		//"{} > {} | rate() by (name)", // structural
+
 	}
 
 	e := traceql.NewEngine()
@@ -1260,6 +1281,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		b.Run(tc, func(b *testing.B) {
 			for _, minutes := range []int{5} {
 				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
+					minutes := 5
 					st := block.meta.StartTime
 					end := st.Add(time.Duration(minutes) * time.Minute)
 
@@ -1279,6 +1301,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
 					require.NoError(b, err)
 
+					_ = eval.Results()
+
 					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
 						err := eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano()), int(req.MaxSeries))
@@ -1293,6 +1317,121 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestSamplingError(t *testing.T) {
+	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
+	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
+	os.Setenv("BENCH_TENANT", "1")
+
+	testQueries := []string{
+		"{} | rate()",                            // Simple rate, most amount of data
+		"{} | rate() by (resource.service.name)", // Same but with subseries
+		"{status=error} | rate()",                // Somewhat rare
+		"{resource.service.name=`loki-querier` && name=`chunksmemcache.store`} | rate()", // Very rare
+		"{nestedSetParent=-1} >> {}| rate()",                                             // Structural (common)
+		"{nestedSetParent=-1} >> {status=error} | rate()",                                // Structural (rare)
+		"{} | quantile_over_time(duration, .99)",                                         // Quantile (common)
+		"{resource.service.name=`tempo-gateway`} | quantile_over_time(duration, .99)",    // Quantile (rare)
+	}
+
+	options := []string{
+		"",                  // Control, no sampling
+		"span_sample=0.01",  // Aggressive naive sampling. Automatic should be better than this.
+		"span_sample=0.1",   // Decent naive sampling.  Automatic should be equivalent or better than this.
+		"span_sample=true",  // Automatic span sampling
+		"trace_sample=0.5",  // Very light sampling, that saves barely anything.  Automatic should be better than this.
+		"trace_sample=0.1",  // Decent trace sampling.  Automatic should be equivalent or better than this.
+		"trace_sample=true", // Automatic trace sampling
+	}
+
+	e := traceql.NewEngine()
+	ctx := context.TODO()
+	opts := common.DefaultSearchOptions()
+	opts.TotalPages = 1
+
+	block := blockForBenchmarks(t)
+	_, _, err := block.openForSearch(ctx, opts)
+	require.NoError(t, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	executeQuery := func(q string) (results traceql.SeriesSet, spanCount int) {
+		st := uint64(block.meta.StartTime.UnixNano())
+		end := uint64(block.meta.EndTime.UnixNano())
+
+		req := &tempopb.QueryRangeRequest{
+			Query:     q,
+			Start:     st,
+			End:       end,
+			Step:      uint64(time.Second * 15),
+			MaxSeries: 1000,
+		}
+
+		eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+		require.NoError(t, err)
+
+		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))
+		require.NoError(t, err)
+
+		_, spansTotal, _ := eval.Metrics()
+
+		return eval.Results(), int(spansTotal)
+	}
+
+	for _, query := range testQueries {
+		t.Run(query, func(t *testing.T) {
+			// Get baseline results.
+			baselineResults, baselineSpanCount := executeQuery(query)
+
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "Query\tOption\tError\tWorst Error\tSpans\tEfficiency")
+
+			for _, option := range options {
+				q := query
+				if option != "" {
+					q += " with(" + option + ")"
+				}
+				results, spanCount := executeQuery(q)
+
+				err, worstErr := errorRate(baselineResults, results)
+
+				if err > 0 {
+					// This is done to make things comparable.
+					// An increase of 1 means 10x more error from baseline.
+					err = math.Log(err)
+				}
+
+				fmt.Fprintln(w,
+					query,
+					"\t"+option,
+					"\t"+fmt.Sprintf("%.2f", math.Log(err)),
+					"\t"+fmt.Sprintf("%.2f%%", worstErr*100),
+					"\t"+fmt.Sprintf("%d", spanCount),
+					"\t"+fmt.Sprintf("%.2f%%", 100.0*(1-float64(spanCount)/float64(baselineSpanCount))),
+				)
+			}
+
+			w.Flush()
+		})
+	}
+}
+
+func errorRate(baselineResults, testResults traceql.SeriesSet) (err float64, worstErr float64) {
+	for k, baseline := range baselineResults {
+		if test, ok := testResults[k]; ok {
+			for i := 0; i < len(baseline.Values) && i < len(test.Values); i++ {
+				err += (baseline.Values[i] - test.Values[i]) * (baseline.Values[i] - test.Values[i])
+				ePct := math.Abs(baseline.Values[i]-test.Values[i]) / baseline.Values[i]
+				if ePct > worstErr {
+					worstErr = ePct
+				}
+			}
+		}
+	}
+	return
 }
 
 func ptr[T any](v T) *T {
@@ -2151,7 +2290,7 @@ func randomTree(N int) []traceql.Span {
 	return nodes
 }
 
-func blockForBenchmarks(b *testing.B) *backendBlock {
+func blockForBenchmarks(b testing.TB) *backendBlock {
 	id, ok := os.LookupEnv("BENCH_BLOCKID")
 	if !ok {
 		b.Fatal("BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_BLOCKID to the guid of the block to run benchmarks against. e.g. `export BENCH_BLOCKID=030c8c4f-9d47-4916-aadc-26b90b1d2bc4`")
