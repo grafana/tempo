@@ -98,7 +98,9 @@ type FetchSpansRequest struct {
 	// There are two methods of sampling: trace-level samples a subset of traces,
 	// either skipping them or returning them in full.  Span-level samples a
 	// subset of spans within each trace, still returning a spanset for each
-	// matching trace. Only one will be applied at a time.
+	// matching trace. Only one will be applied at a time.  These fields are
+	// optional and there is no negative effect on the results if they are not
+	// honored at the storage layer.
 	TraceSampler Sampler
 	SpanSampler  Sampler
 

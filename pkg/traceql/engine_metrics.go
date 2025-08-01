@@ -926,71 +926,27 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		storageReq.TraceSampler = newProbablisticSampler(traceSample)
 	}
 
-	if traceSampleInt, traceSampleIntOk := expr.Hints.GetInt(HintTraceSample, allowUnsafeQueryHints); traceSampleIntOk {
-		storageReq.TraceSampler = newMinimumSampler(uint64(traceSampleInt))
-	}
-
-	if traceSampleBool, traceSampleBoolOk := expr.Hints.GetBool(HintTraceSample, allowUnsafeQueryHints); traceSampleBoolOk && traceSampleBool {
-		// Automatic sampling
-		// Get other params
-		s := newCochraneSampler()
-		if weighted, ok := expr.Hints.GetBool("weighted", true); ok {
-			s.weighted = weighted
-		}
-		if p, ok := expr.Hints.GetFloat("p", true); ok {
-			s.p = p
-		}
-		if fpc, ok := expr.Hints.GetBool("fpc", true); ok {
-			s.fpc = fpc
-		}
-		if z, ok := expr.Hints.GetFloat("z", true); ok {
-			s.z = z
-		}
-		if e, ok := expr.Hints.GetFloat("e", true); ok {
-			s.e = e
-		}
-		if debug, ok := expr.Hints.GetBool("debug", true); ok {
-			s.debug = debug
-		}
-		storageReq.TraceSampler = s
-	}
-
 	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints); spanSampleOk {
 		storageReq.SpanSampler = newProbablisticSampler(spanSample)
 	}
 
-	if spanSampleInt, spanSampleIntOk := expr.Hints.GetInt(HintSpanSample, allowUnsafeQueryHints); spanSampleIntOk {
-		s := newMinimumSampler(uint64(spanSampleInt))
-		if debug, ok := expr.Hints.GetBool("debug", true); ok {
-			s.debug = debug
-		}
-		storageReq.SpanSampler = s
-	}
-
-	if spanSample, spanSampleOk := expr.Hints.GetBool(HintSpanSample, allowUnsafeQueryHints); spanSampleOk && spanSample {
-		s := newCochraneSampler()
-		if weighted, ok := expr.Hints.GetBool("weighted", true); ok {
-			s.weighted = weighted
-		}
-		if p, ok := expr.Hints.GetFloat("p", true); ok {
-			s.p = p
-		}
-		if fpc, ok := expr.Hints.GetBool("fpc", true); ok {
-			s.fpc = fpc
-		}
-		if z, ok := expr.Hints.GetFloat("z", true); ok {
-			s.z = z
-		}
-		if e, ok := expr.Hints.GetFloat("e", true); ok {
-			s.e = e
-		}
+	if sample, sampleOk := expr.Hints.GetBool(HintSample, allowUnsafeQueryHints); sampleOk && sample {
+		// Automatic sampling
+		// Get other params
+		s := newAdaptiveSampler()
 		if debug, ok := expr.Hints.GetBool("debug", true); ok {
 			s.debug = debug
 		}
 		if info, ok := expr.Hints.GetBool("info", true); ok {
 			s.info = info
 		}
-		storageReq.SpanSampler = s
+
+		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
+		if expr.NeedsFullTrace() {
+			storageReq.TraceSampler = s
+		} else {
+			storageReq.SpanSampler = s
+		}
 	}
 
 	// This initializes all step buffers, counters, etc
@@ -1220,7 +1176,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		e.mtx.Lock()
 
 		if e.storageReq.TraceSampler != nil {
-			e.storageReq.TraceSampler.Measured(uint64(len(ss.Spans)))
+			e.storageReq.TraceSampler.Measured()
 		}
 
 		var validSpansCount int
@@ -1238,7 +1194,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 			}
 
 			if e.storageReq.SpanSampler != nil {
-				e.storageReq.SpanSampler.Measured(1)
+				e.storageReq.SpanSampler.Measured()
 			}
 
 			validSpansCount++

@@ -1070,3 +1070,32 @@ func testName(val any) string {
 		return fmt.Sprintf("%v", v)
 	}
 }
+
+func TestNeedsFullTrace(t *testing.T) {
+	dontNeedFullTraceTests := []string{
+		"{}",
+		"{} | rate()",
+	}
+
+	needsFullTraceTests := []string{
+		"{} >> {}",
+		"{} && {}",
+		"{} | count() > 100",
+	}
+
+	for _, test := range dontNeedFullTraceTests {
+		t.Run(test, func(t *testing.T) {
+			expr, err := Parse(test)
+			require.NoError(t, err)
+			require.Equal(t, false, expr.NeedsFullTrace())
+		})
+	}
+
+	for _, test := range needsFullTraceTests {
+		t.Run(test, func(t *testing.T) {
+			expr, err := Parse(test)
+			require.NoError(t, err)
+			require.Equal(t, true, expr.NeedsFullTrace())
+		})
+	}
+}

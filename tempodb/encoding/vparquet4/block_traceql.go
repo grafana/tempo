@@ -2456,30 +2456,16 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	}
 
 	if sampler != nil {
-		// This is generally the smallest trace-level column.
-		// Doens't return data since this might already be included above.
-		// Make it first.
-		/*if sample > 1 {
-			sample -= 1.0
-			sampler := newSamplingPredicate(sample, sampled, skipped)
-			i := makeIter(columnPathRootServiceName, sampler, "")
-			required = append([]parquetquery.Iterator{i}, required...)
-		} else {
-			if sample > 0 && sample < 1 {
-				sampler := newTraceSamplingPredicate(sample, sampled, skipped)
-				i := makeIter("ServiceStats.key_value.value.SpanCount", nil, "spancount")
-				ii := parquetquery.NewJoinIterator(DefinitionLevelTrace, []parquetquery.Iterator{i}, sampler)
-				required = append([]parquetquery.Iterator{ii}, required...)
-			}
-		}*/
+		// We need to sample at the trace level. Therefore we choose and column
+		// and add it to the require conditions, and make it first to drive
+		// sampling at this level. This is generally the smallest trace-level column
+		// and is typically 0.1 % of the file. Doesn't need to return data.
+		// TODO: We might be able to do this without loading a real column, by using
+		// the fact that every trace is a top-level row and there are no gaps. We could
+		// inspect the number of rows in the given row groups and generate virtual row numbers.
 		pred := newSamplingPredicate(sampler, nil)
 		i := makeIter(columnPathRootServiceName, pred, "")
-		required = append([]parquetquery.Iterator{i}, required...) // Put this first
-
-		/*sampler := newTraceSamplingPredicate(sampler)
-		i := makeIter("ServiceStats.key_value.value.SpanCount", sampler, "spancount")
-		ii := parquetquery.NewJoinIterator(DefinitionLevelTrace, []parquetquery.Iterator{i}, sampler)
-		required = append([]parquetquery.Iterator{ii}, required...)*/
+		required = append([]parquetquery.Iterator{i}, required...)
 	}
 
 	// Append meta iterators if there are any (exemplars)
@@ -3662,58 +3648,5 @@ func (p *samplingPredicate) KeepValue(value parquet.Value) bool {
 		return false
 	}
 
-	return p.sampler.Sample(1)
-}
-
-type traceSamplingPredicate struct {
-	sampler traceql.Sampler
-}
-
-var (
-	_ parquetquery.GroupPredicate = (*traceSamplingPredicate)(nil)
-	_ parquetquery.Predicate      = (*traceSamplingPredicate)(nil)
-)
-
-func newTraceSamplingPredicate(sampler traceql.Sampler) *traceSamplingPredicate {
-	return &traceSamplingPredicate{
-		sampler: sampler,
-	}
-}
-
-func (p *traceSamplingPredicate) KeepColumnChunk(chunk *parquetquery.ColumnChunkHelper) bool {
-	// p.sampler.Expect(uint64(chunk.NumValues()))
-	return true
-}
-
-func (p *traceSamplingPredicate) KeepPage(page parquet.Page) bool {
-	p.sampler.Expect(uint64(page.NumRows()))
-
-	/*buf := make([]parquet.Value, page.NumValues())
-	page.Values().ReadValues(buf)
-	for i := 0; i < len(buf); i++ {
-		p.sampler.Expect(uint64(buf[i].Uint32()))
-	}*/
-
-	return true
-}
-
-func (p *traceSamplingPredicate) KeepValue(value parquet.Value) bool {
-	// return true
-	// return p.sampler.Sample(1)
-	return true
-}
-
-func (p *traceSamplingPredicate) String() string {
-	return "traceSamplingPredicate{}"
-}
-
-func (p *traceSamplingPredicate) KeepGroup(res *parquetquery.IteratorResult) bool {
-	total := uint32(0)
-	for _, e := range res.Entries {
-		total += e.Value.Uint32()
-	}
-
-	// p.sampler.Expect(uint64(total))
-
-	return p.sampler.Sample(uint64(total))
+	return p.sampler.Sample()
 }

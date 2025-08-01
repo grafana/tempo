@@ -1229,9 +1229,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	os.Setenv("BENCH_TENANT", "1")
 
 	testCases := []string{
-		//"{} | rate() with(exemplars=0)",
+		"{} | rate() with(exemplars=0)",
 		//"{} | rate() with(exemplars=0,sample=true)",
-		"{} | rate() with(span_sample=true)",
+		//"{} | rate() with(span_sample=true)",
+		//"{nestedSetParent<0 && true && resource.service.name != nil} | rate() by(resource.service.name)",
 		//"{nestedSetParent=-1} >> {} | rate() with(trace_sample=true,debug=true)",
 		//`{resource.service.name="loki-querier" && name="chunksmemcache.store"} | rate() with(span_sample=true,debug=true)`,
 		//"{resource.service.name=`tempo-gateway`} | rate() with(span_sample=true,debug=true)",
@@ -1333,16 +1334,23 @@ func TestSamplingError(t *testing.T) {
 		"{nestedSetParent=-1} >> {status=error} | rate()",                                // Structural (rare)
 		"{} | quantile_over_time(duration, .99)",                                         // Quantile (common)
 		"{resource.service.name=`tempo-gateway`} | quantile_over_time(duration, .99)",    // Quantile (rare)
+
+		// Drilldown queries
+		/*"{nestedSetParent<0 && true && status=error} | rate()",
+		"{nestedSetParent<0 && true && resource.service.name != nil} | rate() by(resource.service.name)",
+		"{nestedSetParent<0 && true} | histogram_over_time(duration)",
+		`{nestedSetParent<0 && resource.service.name="gme-alertmanager" && resource.service.namespace != nil} | rate() by(resource.service.namespace)`,
+		"{true && true && resource.service.name != nil} | rate() by(resource.service.name)",*/
 	}
 
 	options := []string{
-		"",                  // Control, no sampling
-		"span_sample=0.01",  // Aggressive naive sampling. Automatic should be better than this.
-		"span_sample=0.1",   // Decent naive sampling.  Automatic should be equivalent or better than this.
-		"span_sample=true",  // Automatic span sampling
-		"trace_sample=0.5",  // Very light sampling, that saves barely anything.  Automatic should be better than this.
-		"trace_sample=0.1",  // Decent trace sampling.  Automatic should be equivalent or better than this.
-		"trace_sample=true", // Automatic trace sampling
+		"",                 // Control, no sampling
+		"sample=true",      // Automatic sampling
+		"span_sample=0.01", // Aggressive naive sampling. Automatic should be better than this.
+		"span_sample=0.05", // Somewhat aggressive sampling.
+		"span_sample=0.1",  // Decent naive sampling.  Automatic should be equivalent or better than this.
+		"trace_sample=0.5", // Very light sampling, that saves barely anything.  Automatic should be better than this.
+		"trace_sample=0.1", // Decent trace sampling.  Automatic should be equivalent or better than this.
 	}
 
 	e := traceql.NewEngine()
@@ -1407,7 +1415,7 @@ func TestSamplingError(t *testing.T) {
 				fmt.Fprintln(w,
 					query,
 					"\t"+option,
-					"\t"+fmt.Sprintf("%.2f", math.Log(err)),
+					"\t"+fmt.Sprintf("%.2f", err),
 					"\t"+fmt.Sprintf("%.2f%%", worstErr*100),
 					"\t"+fmt.Sprintf("%d", spanCount),
 					"\t"+fmt.Sprintf("%.2f%%", 100.0*(1-float64(spanCount)/float64(baselineSpanCount))),
