@@ -2351,3 +2351,51 @@ func TestCheckForRateLimits(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
+	validTraceID := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	invalidSpanIDs := [][]byte{
+		{}, // empty
+		{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // all zero
+		{0x01}, // too short
+		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07},             // 7 bytes
+		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}, // 9 bytes
+	}
+	for _, spanID := range invalidSpanIDs {
+		batches := []*v1.ResourceSpans{
+			{
+				ScopeSpans: []*v1.ScopeSpans{
+					{
+						Spans: []*v1.Span{
+							{
+								TraceId: validTraceID,
+								SpanId:  spanID,
+							},
+						},
+					},
+				},
+			},
+		}
+		_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "span ids must be 64 bit")
+	}
+	// Valid span id should not error
+	validSpanID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	batches := []*v1.ResourceSpans{
+		{
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Spans: []*v1.Span{
+						{
+							TraceId: validTraceID,
+							SpanId:  validSpanID,
+						},
+					},
+				},
+			},
+		},
+	}
+	_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+	require.NoError(t, err)
+}
