@@ -1171,6 +1171,15 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 
 func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
 	if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
+		// Release peeks if present
+		if j.peeksRequired[iterNum] != nil {
+			for _, e := range j.peeksRequired[iterNum].OtherEntries {
+				if releaser, ok := e.Value.(interface{ Release() }); ok {
+					releaser.Release()
+				}
+			}
+		}
+
 		j.peeksRequired[iterNum], err = j.required[iterNum].SeekTo(t, d)
 		if err != nil {
 			return
@@ -1182,6 +1191,16 @@ func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
 func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (done bool, err error) {
 	for iterNum, iter := range j.required {
 		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
+
+			// Release peeks if present
+			if j.peeksRequired[iterNum] != nil {
+				for _, e := range j.peeksRequired[iterNum].OtherEntries {
+					if releaser, ok := e.Value.(interface{ Release() }); ok {
+						releaser.Release()
+					}
+				}
+			}
+
 			j.peeksRequired[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return

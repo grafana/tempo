@@ -94,6 +94,16 @@ type FetchSpansRequest struct {
 	// all criteria.
 	AllConditions bool
 
+	// Sampling
+	// There are two methods of sampling: trace-level samples a subset of traces,
+	// either skipping them or returning them in full.  Span-level samples a
+	// subset of spans within each trace, still returning a spanset for each
+	// matching trace. Only one will be applied at a time.  These fields are
+	// optional and there is no negative effect on the results if they are not
+	// honored at the storage layer.
+	TraceSampler Sampler
+	SpanSampler  Sampler
+
 	// SecondPassFn and Conditions allow a caller to retrieve one set of data
 	// in the first pass, filter using the SecondPassFn callback and then
 	// request a different set of data in the second pass. This is particularly

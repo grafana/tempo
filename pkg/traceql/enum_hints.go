@@ -8,6 +8,8 @@ import (
 // and not part of the language or engine, we organize them here in one place.
 const (
 	HintSample            = "sample"
+	HintTraceSample       = "trace_sample"
+	HintSpanSample        = "span_sample"
 	HintJobSize           = "job_size"
 	HintTimeOverlapCutoff = "time_overlap_cutoff"
 	HintConcurrentBlocks  = "concurrent_blocks"
@@ -17,7 +19,7 @@ const (
 
 func isUnsafe(h string) bool {
 	switch h {
-	case HintSample, HintExemplars, HintMostRecent:
+	case HintSample, HintTraceSample, HintSpanSample, HintExemplars, HintMostRecent:
 		return false
 	default:
 		return true

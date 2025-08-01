@@ -35,6 +35,34 @@ type RootExpr struct {
 	Hints              *Hints
 }
 
+func NeedsFullTrace(e ...Element) bool {
+	for _, e := range e {
+		switch x := e.(type) {
+		case SpansetOperation:
+			// Example: {} >> {}
+			return true
+		case Aggregate:
+			// Example: {} | count() > 123
+			return true
+		case ScalarFilter:
+			if NeedsFullTrace(x.lhs, x.rhs) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (r *RootExpr) NeedsFullTrace() bool {
+	for _, e := range r.Pipeline.Elements {
+		if NeedsFullTrace(e) {
+			return true
+		}
+	}
+	return false
+}
+
 func newRootExpr(e pipelineElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
