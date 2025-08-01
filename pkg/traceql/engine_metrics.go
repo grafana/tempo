@@ -470,10 +470,8 @@ func (s *StepAggregator) Length() int {
 // InstantAggregator is similar to StepAggregator but always has only one interval.
 // It's used for instant queries where we only need a single data point.
 type InstantAggregator struct {
-	start, end      uint64
-	vector          VectorAggregator
-	exemplars       []Exemplar
-	exemplarBuckets bucketSet
+	start, end uint64
+	vector     VectorAggregator
 }
 
 var _ RangeAggregator = (*InstantAggregator)(nil)
@@ -494,7 +492,7 @@ func (i *InstantAggregator) Observe(span Span) {
 	i.vector.Observe(span)
 }
 
-func (i *InstantAggregator) ObserveExemplar(value float64, ts uint64, lbls Labels) {
+func (i *InstantAggregator) ObserveExemplar(float64, uint64, Labels) {
 	// instant query does not have exemplars, so we skip
 }
 
@@ -1555,7 +1553,7 @@ func (i *IntervalMapperInstant) IntervalCount() int {
 	return 1 // Instant queries only have one bucket
 }
 
-func (i *IntervalMapperInstant) TimestampOf(interval int) uint64 {
+func (i *IntervalMapperInstant) TimestampOf(int) uint64 {
 	return i.end
 }
 
