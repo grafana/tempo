@@ -70,7 +70,7 @@ func (b *alwaysFullBucketSet) testTotal() bool {
 	return true
 }
 
-func (b *alwaysFullBucketSet) addAndTest(ts uint64) bool {
+func (b *alwaysFullBucketSet) addAndTest(uint64) bool {
 	return true
 }
 
