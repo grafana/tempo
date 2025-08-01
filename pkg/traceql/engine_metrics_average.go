@@ -33,17 +33,13 @@ func newAverageOverTimeMetricsAggregator(attr Attribute, by []Attribute) *averag
 }
 
 func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+	intervalMapper := NewIntervalMapperFromReq(q)
+
 	a.seriesAgg = &averageOverTimeSeriesAggregator{
 		weightedAverageSeries: make(map[string]*averageSeries),
-		len:                   IntervalCount(q.Start, q.End, q.Step),
-		start:                 q.Start,
-		end:                   q.End,
-		step:                  q.Step,
-		exemplarBuckets: newBucketSet(
-			maxExemplars,
-			alignStart(q.Start, q.End, q.Step),
-			alignEnd(q.Start, q.End, q.Step),
-		),
+		len:                   intervalMapper.IntervalCount(),
+		intervalMapper:        intervalMapper,
+		exemplarBuckets:       newExemplarBucketSet(maxExemplars, q.Start, q.End, q.Step),
 	}
 
 	if mode == AggregateModeRaw {
@@ -143,8 +139,8 @@ func (a *averageOverTimeAggregator) String() string {
 type averageOverTimeSeriesAggregator struct {
 	weightedAverageSeries map[string]*averageSeries
 	len                   int
-	start, end, step      uint64
-	exemplarBuckets       *bucketSet
+	intervalMapper        IntervalMapper
+	exemplarBuckets       bucketSet
 }
 
 type averageValue struct {
@@ -283,7 +279,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			continue
 		}
 		for i, sample := range ts.Samples {
-			pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
+			pos := b.intervalMapper.IntervalMs(sample.TimestampMs)
 			if pos < 0 || pos >= len(b.weightedAverageSeries[ts.PromLabels].values) {
 				continue
 			}
@@ -354,7 +350,7 @@ func (b *averageOverTimeSeriesAggregator) Length() int {
 // Accumulated results of average over time
 type avgOverTimeSeries[S StaticVals] struct {
 	average         averageSeries
-	exemplarBuckets *bucketSet
+	exemplarBuckets bucketSet
 	vals            S
 	initialized     bool
 }
@@ -363,12 +359,11 @@ type avgOverTimeSeries[S StaticVals] struct {
 // First aggregation layer
 type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 	// Config
-	by              []Attribute   // Original attributes: .foo
-	byLookups       [][]Attribute // Lookups: span.foo resource.foo
-	getSpanAttValue func(s Span) float64
-	start           uint64
-	end             uint64
-	step            uint64
+	by               []Attribute   // Original attributes: .foo
+	byLookups        [][]Attribute // Lookups: span.foo resource.foo
+	getSpanAttValue  func(s Span) float64
+	intervalMapper   IntervalMapper
+	start, end, step uint64
 
 	// Data
 	series     map[F]avgOverTimeSeries[S]
@@ -433,6 +428,7 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 		getSpanAttValue: fn,
 		by:              by,
 		byLookups:       lookups,
+		intervalMapper:  NewIntervalMapper(start, end, step),
 		start:           start,
 		end:             end,
 		step:            step,
@@ -440,7 +436,7 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
-	interval := IntervalOf(span.StartTimeUnixNanos(), g.start, g.end, g.step)
+	interval := g.intervalMapper.Interval(span.StartTimeUnixNanos())
 	if interval == -1 {
 		return
 	}
@@ -538,16 +534,12 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 
 	s, ok := g.series[g.buf.fast]
 	if !ok {
-		intervals := IntervalCount(g.start, g.end, g.step)
+		intervals := g.intervalMapper.IntervalCount()
 		s = avgOverTimeSeries[S]{
-			vals:    g.buf.vals,
-			average: newAverageSeries(intervals, maxExemplars, nil),
-			exemplarBuckets: newBucketSet(
-				maxExemplars,
-				alignStart(g.start, g.end, g.step),
-				alignEnd(g.start, g.end, g.step),
-			),
-			initialized: true,
+			vals:            g.buf.vals,
+			average:         newAverageSeries(intervals, maxExemplars, nil),
+			exemplarBuckets: newExemplarBucketSet(maxExemplars, g.start, g.end, g.step),
+			initialized:     true,
 		}
 		g.series[g.buf.fast] = s
 	}
