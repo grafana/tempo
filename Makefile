@@ -277,17 +277,7 @@ gen-proto:  ## Generate proto files
 	@echo --
 	@echo -- Editing proto
 	@echo --
-
-	@# Update package and types from opentelemetry.proto.* -> tempopb.*
-	@# giving final types like "tempopb.common.v1.InstrumentationLibrary" which
-	@# will not conflict with other usages of opentelemetry proto in downstream apps.
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+ opentelemetry.proto+ tempopb+g'
-
-	@# Update go_package
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/proto/otlp+github.com/grafana/tempo/pkg/tempopb+g'
-
-	@# Update import paths
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+import "opentelemetry/proto/+import "+g'
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) -f proto_patch.sed
 
 	@echo --
 	@echo -- Gen proto --
