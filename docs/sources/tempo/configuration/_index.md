@@ -2182,6 +2182,9 @@ cache:
             # CLI flag: -<prefix>.memcached.tls-min-version
             [tls_min_version: <string> | default = ""]
 
+            # sets the TTL of keys in memcached
+            [ttl: <string> | default = ""]
+
         # Redis configuration block
         # EXPERIMENTAL
         redis:
