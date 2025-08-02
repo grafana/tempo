@@ -534,6 +534,73 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
 }
 
+func TestServiceGraphs_databaseNameAttributes(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		databaseNameAttributes []string
+		expectedDbSystemName   string
+		shouldHaveDbEdge       bool
+	}{
+		{
+			name:                   "default configuration with db.name",
+			databaseNameAttributes: []string{"db.name", "db.system.name"},
+			expectedDbSystemName:   "postgres",
+			shouldHaveDbEdge:       true,
+		},
+		{
+			name:                   "custom configuration with different order",
+			databaseNameAttributes: []string{"db.system.name", "db.name"},
+			expectedDbSystemName:   "postgres",
+			shouldHaveDbEdge:       true,
+		},
+		{
+			name:                   "db.system.name has priority when configured first",
+			databaseNameAttributes: []string{"db.system.name", "db.name"},
+			expectedDbSystemName:   "postgres",
+			shouldHaveDbEdge:       true,
+		},
+		{
+			name:                   "empty database name attributes config falls back to legacy",
+			databaseNameAttributes: []string{},
+			expectedDbSystemName:   "postgres",
+			shouldHaveDbEdge:       true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.DatabaseNameAttributes = tc.databaseNameAttributes
+
+			p := New(cfg, "test", testRegistry, log.NewNopLogger())
+			defer p.Shutdown(context.Background())
+
+			request, err := loadTestData("testdata/trace-with-queue-database.json")
+			require.NoError(t, err)
+
+			p.PushSpans(context.Background(), request)
+
+			if tc.shouldHaveDbEdge {
+				databaseLabels := labels.FromMap(map[string]string{
+					"client":          "mythical-server",
+					"server":          tc.expectedDbSystemName,
+					"connection_type": "database",
+				})
+				assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, databaseLabels))
+			} else {
+				assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_total`, labels.FromMap(map[string]string{
+					"client":          "mythical-server",
+					"server":          "postgres",
+					"connection_type": "database",
+				})))
+			}
+		})
+	}
+}
+
 func BenchmarkServiceGraphs(b *testing.B) {
 	testRegistry := registry.NewTestRegistry()
 
