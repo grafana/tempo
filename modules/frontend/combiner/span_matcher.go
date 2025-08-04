@@ -39,7 +39,7 @@ func (fp *FilterPolicy) MatchIntrinsic(span *tracev1.Span) bool {
 	// these are AND operators between matchers so exit early if any matcher does not match
 	for _, matcher := range fp.Matchers {
 		if matcher.intrinsicFilter == nil {
-			return true
+			continue
 		}
 		if matcher.shouldMatch != matcher.intrinsicFilter.Matches(span) {
 			return false
@@ -52,7 +52,7 @@ func (fp *FilterPolicy) MatchSpan(span *tracev1.Span) bool {
 	// these are AND operators between matchers so exit early if any matcher does not match
 	for _, matcher := range fp.Matchers {
 		if matcher.spanFilter == nil {
-			return true
+			continue
 		}
 		if matcher.shouldMatch != matcher.spanFilter.Matches(span.Attributes) {
 			return false
@@ -65,7 +65,7 @@ func (fp *FilterPolicy) MatchResource(rsAttrs []*commonv1.KeyValue) bool {
 	// these are AND operators between matchers so exit early if any matcher does not match
 	for _, matcher := range fp.Matchers {
 		if matcher.resourceFilter == nil {
-			return true
+			continue
 		}
 		if matcher.shouldMatch != matcher.resourceFilter.Matches(rsAttrs) {
 			return false
@@ -143,19 +143,16 @@ func NewSpanMatcher(matcherValue string) (*SpanMatcher, error) {
 					if err != nil {
 						return nil, fmt.Errorf("error creating resource attribute filter: %w", err)
 					}
-					fmt.Printf("resourceFilter: %v\n", resourceFilter)
 					policyMatcher.resourceFilter = policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{resourceFilter})
 				} else {
 					return nil, fmt.Errorf("invalid or unsupported attribute scope: %v", attr.Scope)
 				}
 			}
 			policyMatchers = append(policyMatchers, policyMatcher)
-			fmt.Println("policyMatcher:", policyMatcher)
 		}
 		policies = append(policies, &FilterPolicy{
 			Matchers: policyMatchers,
 		})
-		fmt.Println("FilterPolicy:", policies)
 	}
 	return &SpanMatcher{
 		Policies: policies,
@@ -177,13 +174,12 @@ func (sm *SpanMatcher) MatchResource(rsAttrs []*commonv1.KeyValue, rs *v1.Resour
 func (sm *SpanMatcher) Match(matchedResourceIndex []bool, span *tracev1.Span) bool {
 	// these are OR operations between policies so exit early if any policy matches
 	for i, policy := range sm.Policies {
-		if matchedResourceIndex[i] && (policy.MatchSpan(span) || policy.MatchIntrinsic(span)) {
+		if matchedResourceIndex[i] && policy.MatchSpan(span) && policy.MatchIntrinsic(span) {
 			return true
 		}
 	}
 	return false
 }
-
 
 func (sm *SpanMatcher) ProcessTrace(trace *tempopb.Trace) {
 	for _, b := range trace.ResourceSpans {
@@ -246,7 +242,6 @@ func ProcessUnmatchedScope(scope *commonv1.InstrumentationScope) {
 	if scope.Version != "" {
 		scope.Version = "redacted"
 	}
-	scope.Version = ""
 	scope.Attributes = []*commonv1.KeyValue{}
 	scope.DroppedAttributesCount = 0
 }
