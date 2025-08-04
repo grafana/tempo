@@ -11,10 +11,13 @@
 * [CHANGE] **BREAKING CHANGE** Add require minimum time between tenant sorting in backend-scheduler. [#5410](https://github.com/grafana/tempo/pull/5410) (@zalegrala)
 The configuration for `backend_scheduler.provider.compaction.backoff` has been removed.
 Additionally the `compaction_tenant_backoff_total` metric has been renamed to `compaction_empty_tenant_cycle_total` for clarity.
+* [CHANGE] Shard backend-scheduler work files locally and modify backend work structure to accommodate sharding approach [#5412](https://github.com/grafana/tempo/pull/5412) (@zalegrala)
+* [CHANGE] **BREAKING CHANGE** TraceQL Metrics buckets are calculated based on data in past [#5366](https://github.com/grafana/tempo/pull/5366) (@ruslan-mikhailov)
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
 * [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
 * [FEATURE] Add counter `query_frontend_bytes_inspected_total`, which shows the total number of bytes read from disk and object storage [#5310](https://github.com/grafana/tempo/pull/5310) (@carles-grafana)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
+* [BUGFIX] fix tempo configuration options that are always overrided with config overrides section [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
 * [ENHANCEMENT] Add endpoint for partition downscaling [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add backend scheduler and worker to the resources dashboard [#5206](https://github.com/grafana/tempo/pull/5241) (@javiermolinar)
@@ -27,17 +30,23 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] Align traceql attribute struct for better performance [#5240](https://github.com/grafana/tempo/pull/5240) (@mdisibio)
 * [ENHANCEMENT] Enable HTTP writes in the multi-tenant example [#5297](https://github.com/grafana/tempo/pull/5297)
 * [ENHANCEMENT] Drop invalid prometheus label names in spanmetrics processor [#5122](https://github.com/grafana/tempo/pull/5122) (@KyriosGN0)
+* [ENHANCEMENT] Improve logging and tracing in the write path to include tenant info [#5436](https://github.com/grafana/tempo/pull/5436) (@javiermolinar)
 * [ENHANCEMENT] Added usage tracker example [#5356](https://github.com/grafana/tempo/pull/5356) (@javiermolinar)
 * [ENHANCEMENT] Add Stop method [#5293](https://github.com/grafana/tempo/pull/5293) (@stephanos)
 * [ENHANCEMENT] Use peer attributes to determine the name of a client service virtual node in the service gra0ph [#5381](https://github.com/grafana/tempo/pull/5381) (@martenm)
 * [ENHANCEMENT] Put actual size for writing to backend [#5413](https://github.com/grafana/tempo/pull/5413) (@ruslan-mikhailov)
+* [ENHANCEMENT] Do not compact unfinished blocks [#5390](https://github.com/grafana/tempo/pull/5390) (@ruslan-mikhailov)
 * [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
 * [BUGFIX] Correct instant query calculation [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
 * [BUGFIX] Fix tracing context propagation in distributor HTTP write requests [#5312](https://github.com/grafana/tempo/pull/5312) (@mapno)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [BUGFIX] Fix search by trace:id with short trace ID [#5331](https://github.com/grafana/tempo/pull/5331) (@ruslan-mikhailov)
+* [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
+* [BUGFIX] Fix bug where most_recent=true wouldn't return most recent results when query overlapped ingesters and few other blocks.[#5438](https://github.com/grafana/tempo/pull/5438) (@joe-elliott)
+* [BUGFIX] Fix panic when counter series is missing during avg_over_time aggregation [#5300](https://github.com/grafana/tempo/pull/5300) (@ie-pham)
+* [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
 
 # v2.8.1
 

@@ -102,7 +102,7 @@ func (m *MetricsCompare) isSelection(span Span, spanStartTime uint64) Static {
 	isSelection := StaticFalse
 	if m.start > 0 && m.end > 0 {
 		// Timestamp filtering
-		if spanStartTime >= uint64(m.start) && spanStartTime < uint64(m.end) {
+		if spanStartTime > uint64(m.start) && spanStartTime <= uint64(m.end) {
 			isSelection, _ = m.f.Expression.execute(span)
 		}
 	} else {
