@@ -357,6 +357,76 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	return res, nil
 }
 
+// TraceLookup implements tempopb.Querier.
+func (i *Ingester) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequest) (res *tempopb.TraceLookupResponse, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(log.Logger).Log("msg", "recover in TraceLookup", "stack", r, string(debug.Stack()))
+			err = errors.New("recovered in TraceLookup")
+		}
+	}()
+
+	// tracing instrumentation
+	ctx, span := tracer.Start(ctx, "Ingester.TraceLookup")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int("traceCount", len(req.TraceIDs)))
+
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		// Return empty results for all traces if instance doesn't exist
+		results := make(map[string]bool)
+		for _, traceID := range req.TraceIDs {
+			results[fmt.Sprintf("%x", traceID)] = false
+		}
+		return &tempopb.TraceLookupResponse{
+			Results: results,
+			Metrics: &tempopb.SearchMetrics{},
+		}, nil
+	}
+
+	results := make(map[string]bool)
+	var inspectedBytes uint64
+
+	// Check each trace ID
+	for _, traceID := range req.TraceIDs {
+		traceIDStr := fmt.Sprintf("%x", traceID)
+		
+		if !validation.ValidTraceID(traceID) {
+			results[traceIDStr] = false
+			continue
+		}
+
+		// Check if trace exists by calling FindTraceByID
+		resp, err := inst.FindTraceByID(ctx, traceID, true)
+		if err != nil {
+			results[traceIDStr] = false
+			continue
+		}
+
+		found := resp != nil && resp.Trace != nil
+		results[traceIDStr] = found
+
+		if found && resp.Metrics != nil {
+			inspectedBytes += resp.Metrics.InspectedBytes
+		}
+	}
+
+	span.AddEvent("trace lookup completed", oteltrace.WithAttributes(
+		attribute.Int("foundCount", len(results)),
+		attribute.Int64("inspectedBytes", int64(inspectedBytes)),
+	))
+
+	return &tempopb.TraceLookupResponse{
+		Results: results,
+		Metrics: &tempopb.SearchMetrics{InspectedBytes: inspectedBytes},
+	}, nil
+}
+
 func (i *Ingester) CheckReady(ctx context.Context) error {
 	if err := i.lifecycler.CheckReady(ctx); err != nil {
 		return fmt.Errorf("ingester check ready failed: %w", err)

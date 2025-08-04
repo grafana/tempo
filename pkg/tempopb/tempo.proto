@@ -22,6 +22,7 @@ service MetricsGenerator {
 
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {}
+  rpc TraceLookup(TraceLookupRequest) returns (TraceLookupResponse) {}
   rpc SearchRecent(SearchRequest) returns (SearchResponse) {}
   rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {}
   rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {}
@@ -70,6 +71,15 @@ message TraceByIDResponse {
 
 message TraceByIDMetrics {
   uint64 inspectedBytes = 1;
+}
+
+message TraceLookupRequest {
+  repeated bytes traceIDs = 1;
+}
+
+message TraceLookupResponse {
+  map<string, bool> results = 1;
+  SearchMetrics metrics = 2;
 }
 
 // SearchRequest takes no block parameters and implies a "recent traces" search

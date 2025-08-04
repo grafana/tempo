@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -70,6 +71,7 @@ const (
 	PathPrefixGenerator = "/generator"
 
 	PathTraces              = "/api/traces/{traceID}"
+	PathTraceLookup         = "/api/trace-lookup"
 	PathSearch              = "/api/search"
 	PathSearchTags          = "/api/search/tags"
 	PathSearchTagValues     = "/api/search/tag/{" + MuxVarTagName + "}/values"
@@ -809,4 +811,20 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	}
 
 	return buffer, nil
+}
+
+// ParseTraceLookupRequest takes an http.Request and decodes the body to create a tempopb.TraceLookupRequest
+func ParseTraceLookupRequest(r *http.Request) (*tempopb.TraceLookupRequest, error) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read request body: %w", err)
+	}
+	defer r.Body.Close()
+
+	var req tempopb.TraceLookupRequest
+	if err := req.Unmarshal(body); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal TraceLookupRequest: %w", err)
+	}
+
+	return &req, nil
 }
