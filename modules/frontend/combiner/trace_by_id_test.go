@@ -16,40 +16,40 @@ import (
 
 func TestTraceByIDShouldQuit(t *testing.T) {
 	// new combiner should not quit
-	c := NewTraceByID(0, api.HeaderAcceptJSON)
+	c := NewTraceByID(0, api.HeaderAcceptJSON, nil)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewTraceByID(0, api.HeaderAcceptJSON)
+	c = NewTraceByID(0, api.HeaderAcceptJSON, nil)
 	err := c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 500))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewTraceByID(0, api.HeaderAcceptJSON)
+	c = NewTraceByID(0, api.HeaderAcceptJSON, nil)
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.SearchResponse{}, 429))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 404 response should not quit
-	c = NewTraceByID(0, api.HeaderAcceptJSON)
+	c = NewTraceByID(0, api.HeaderAcceptJSON, nil)
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.SearchResponse{}, 404))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewTraceByID(0, api.HeaderAcceptJSON)
+	c = NewTraceByID(0, api.HeaderAcceptJSON, nil)
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// trace too large, should quit and should not return an error
-	c = NewTraceByID(1, api.HeaderAcceptJSON)
+	c = NewTraceByID(1, api.HeaderAcceptJSON, nil)
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(1, nil),
 		Metrics: &tempopb.TraceByIDMetrics{},
@@ -63,7 +63,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	expected := test.MakeTrace(2, nil)
 
 	// json
-	c := NewTraceByID(0, api.HeaderAcceptJSON)
+	c := NewTraceByID(0, api.HeaderAcceptJSON, nil)
 	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
@@ -77,7 +77,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	require.Equal(t, expected, actual)
 
 	// proto
-	c = NewTraceByID(0, api.HeaderAcceptProtobuf)
+	c = NewTraceByID(0, api.HeaderAcceptProtobuf, nil)
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
