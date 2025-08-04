@@ -70,7 +70,7 @@ func (f SpansetFilter) String() string {
 }
 
 func (f ScalarFilter) String() string {
-	return binaryOp(f.op, f.lhs, f.rhs)
+	return binaryOp(f.Op, f.LHS, f.RHS)
 }
 
 func (o *BinaryOperation) String() string {

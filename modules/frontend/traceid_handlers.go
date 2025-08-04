@@ -17,7 +17,7 @@ import (
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
-func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string) *combiner.TraceByIDCombiner, logger log.Logger) http.RoundTripper {
+func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string, *combiner.SpanMatcher) *combiner.TraceByIDCombiner, logger log.Logger) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -60,7 +60,20 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat)
+		spanMatcherHeader := req.Header.Get(combiner.SpanMatcherHeader)
+		var spanMatcher *combiner.SpanMatcher
+		if spanMatcherHeader != "" {
+			spanMatcher, err = combiner.NewSpanMatcher(spanMatcherHeader)
+			if err != nil {
+				level.Error(logger).Log("msg", "error creating span matcher", "err", err)
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       io.NopCloser(strings.NewReader(err.Error())),
+					Header:     http.Header{},
+				}, nil
+			}
+		}
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, spanMatcher)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -87,7 +100,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 }
 
 // newTraceIDV2Handler creates a http.handler for trace by id requests
-func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger) http.RoundTripper {
+func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string, *combiner.SpanMatcher) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -129,8 +142,21 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"msg", "trace id request",
 			"tenant", tenant,
 			"path", req.URL.Path)
+		spanMatcherHeader := req.Header.Get(combiner.SpanMatcherHeader)
+		var spanMatcher *combiner.SpanMatcher
+		if spanMatcherHeader != "" {
+			spanMatcher, err = combiner.NewSpanMatcher(spanMatcherHeader)
+			if err != nil {
+				level.Error(logger).Log("msg", "error creating span matcher", "err", err)
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       io.NopCloser(strings.NewReader(err.Error())),
+					Header:     http.Header{},
+				}, nil
+			}
+		}
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat)
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, spanMatcher)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
