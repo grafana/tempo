@@ -29,18 +29,17 @@ var (
 )
 
 type MetricsCompare struct {
-	f                   *SpansetFilter
-	qstart, qend, qstep uint64
-	len                 int
-	start, end          int
-	topN                int
-	baselines           map[Attribute]map[StaticMapKey]staticWithCounts
-	selections          map[Attribute]map[StaticMapKey]staticWithCounts
-	baselineTotals      map[Attribute][]float64
-	selectionTotals     map[Attribute][]float64
-	baselineExemplars   []Exemplar
-	selectionExemplars  []Exemplar
-	seriesAgg           SeriesAggregator
+	f                  *SpansetFilter
+	intervalMapper     IntervalMapper
+	start, end         int
+	topN               int
+	baselines          map[Attribute]map[StaticMapKey]staticWithCounts
+	selections         map[Attribute]map[StaticMapKey]staticWithCounts
+	baselineTotals     map[Attribute][]float64
+	selectionTotals    map[Attribute][]float64
+	baselineExemplars  []Exemplar
+	selectionExemplars []Exemplar
+	seriesAgg          SeriesAggregator
 }
 
 type staticWithCounts struct {
@@ -69,10 +68,7 @@ func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
 	switch mode {
 	case AggregateModeRaw:
-		m.qstart = q.Start
-		m.qend = q.End
-		m.qstep = q.Step
-		m.len = IntervalCount(q.Start, q.End, q.Step)
+		m.intervalMapper = NewIntervalMapperFromReq(q)
 		m.baselines = make(map[Attribute]map[StaticMapKey]staticWithCounts)
 		m.selections = make(map[Attribute]map[StaticMapKey]staticWithCounts)
 		m.baselineTotals = make(map[Attribute][]float64)
@@ -126,7 +122,7 @@ func (m *MetricsCompare) observe(span Span) {
 		destTotals = m.selectionTotals
 	}
 
-	i := IntervalOf(st, m.qstart, m.qend, m.qstep)
+	i := m.intervalMapper.Interval(st)
 	// Increment values for all attributes of this span
 	span.AllAttributesFunc(func(a Attribute, v Static) {
 		// We don't group by attributes of these types because the
@@ -150,14 +146,14 @@ func (m *MetricsCompare) observe(span Span) {
 
 		values, ok := dest[a]
 		if !ok {
-			values = make(map[StaticMapKey]staticWithCounts, m.len)
+			values = make(map[StaticMapKey]staticWithCounts, m.intervalMapper.IntervalCount())
 			dest[a] = values
 		}
 
 		vk := v.MapKey()
 		sc, ok := values[vk]
 		if !ok {
-			sc = staticWithCounts{val: v, counts: make([]float64, m.len)}
+			sc = staticWithCounts{val: v, counts: make([]float64, m.intervalMapper.IntervalCount())}
 			values[vk] = sc
 		}
 		sc.counts[i]++
@@ -166,7 +162,7 @@ func (m *MetricsCompare) observe(span Span) {
 		// instead of incrementing in the hotpath twice
 		totals, ok := destTotals[a]
 		if !ok {
-			totals = make([]float64, m.len)
+			totals = make([]float64, m.intervalMapper.IntervalCount())
 			destTotals[a] = totals
 		}
 		totals[i]++
@@ -327,15 +323,14 @@ var _ firstStageElement = (*MetricsCompare)(nil)
 // an attribute reached max cardinality at the job-level, it will be marked
 // as such at the query-level.
 type BaselineAggregator struct {
-	topN             int
-	len              int
-	start, end, step uint64
-	baseline         map[string]map[StaticMapKey]staticWithTimeSeries
-	selection        map[string]map[StaticMapKey]staticWithTimeSeries
-	baselineTotals   map[string]map[StaticMapKey]staticWithTimeSeries
-	selectionTotals  map[string]map[StaticMapKey]staticWithTimeSeries
-	maxed            map[string]struct{}
-	exemplarBuckets  *bucketSet
+	topN            int
+	intervalMapper  IntervalMapper
+	baseline        map[string]map[StaticMapKey]staticWithTimeSeries
+	selection       map[string]map[StaticMapKey]staticWithTimeSeries
+	baselineTotals  map[string]map[StaticMapKey]staticWithTimeSeries
+	selectionTotals map[string]map[StaticMapKey]staticWithTimeSeries
+	maxed           map[string]struct{}
+	exemplarBuckets bucketSet
 }
 
 type staticWithTimeSeries struct {
@@ -344,23 +339,15 @@ type staticWithTimeSeries struct {
 }
 
 func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int, exemplars uint32) *BaselineAggregator {
-	l := IntervalCount(req.Start, req.End, req.Step)
 	return &BaselineAggregator{
 		baseline:        make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		selection:       make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		baselineTotals:  make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		selectionTotals: make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		maxed:           make(map[string]struct{}),
-		len:             l,
-		start:           req.Start,
-		end:             req.End,
-		step:            req.Step,
+		intervalMapper:  NewIntervalMapperFromReq(req),
 		topN:            topN,
-		exemplarBuckets: newBucketSet(
-			exemplars,
-			alignStart(req.Start, req.End, req.Step),
-			alignEnd(req.Start, req.End, req.Step),
-		),
+		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step),
 	}
 }
 
@@ -421,7 +408,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 		vk := v.MapKey()
 		ts, ok := attr[vk]
 		if !ok {
-			ts = staticWithTimeSeries{val: v, series: TimeSeries{Values: make([]float64, b.len)}}
+			ts = staticWithTimeSeries{val: v, series: TimeSeries{Values: make([]float64, b.intervalMapper.IntervalCount())}}
 			attr[vk] = ts
 		}
 
@@ -432,7 +419,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 		}
 
 		for _, sample := range s.Samples {
-			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
+			j := b.intervalMapper.IntervalMs(sample.TimestampMs)
 			if j >= 0 && j < len(ts.series.Values) {
 				ts.series.Values[j] += sample.Value
 			}
