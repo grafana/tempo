@@ -922,10 +922,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplars = v
 	}
 
+	// Debug sampling hints, remove once we settle on approach.
 	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints); traceSampleOk {
 		storageReq.TraceSampler = newProbablisticSampler(traceSample)
 	}
-
 	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints); spanSampleOk {
 		storageReq.SpanSampler = newProbablisticSampler(spanSample)
 	}
@@ -940,6 +940,18 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		if info, ok := expr.Hints.GetBool("info", true); ok {
 			s.info = info
 		}
+
+		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
+		if expr.NeedsFullTrace() {
+			storageReq.TraceSampler = s
+		} else {
+			storageReq.SpanSampler = s
+		}
+	}
+
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+		// Fixed sampling rate.
+		s := newProbablisticSampler(sampleFraction)
 
 		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
 		if expr.NeedsFullTrace() {
