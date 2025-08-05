@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"text/tabwriter"
@@ -1224,45 +1223,24 @@ func BenchmarkIterators(b *testing.B) {
 }
 
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
-	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
-	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
-	os.Setenv("BENCH_TENANT", "1")
-
 	testCases := []string{
-		"{} | rate() with(exemplars=0)",
-		//"{} | rate() with(exemplars=0,sample=true)",
-		//"{} | rate() with(span_sample=true)",
-		//"{nestedSetParent<0 && true && resource.service.name != nil} | rate() by(resource.service.name)",
-		//"{nestedSetParent=-1} >> {} | rate() with(trace_sample=true,debug=true)",
-		//`{resource.service.name="loki-querier" && name="chunksmemcache.store"} | rate() with(span_sample=true,debug=true)`,
-		//"{resource.service.name=`tempo-gateway`} | rate() with(span_sample=true,debug=true)",
-		//"{resource.service.name=`tempo-gateway`} | rate() with(trace_sample=true)",
-		//"{resource.service.name=`tempo-gateway`} | rate() with(trace_sample=true,e=.05)",
-		//"{} | rate() with(exemplars=0,trace_sample=0.1)",
-		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true)",
-		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05)",
-		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true)",
-		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true,p=0.1)",
-		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true,p=0.1,z=1.96)",
-		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true,p=0.1,z=1.96,e=.05)",
-		//"{} | rate() with(exemplars=0,trace_sample=0.1,debug=true,e=.05,fpc=true,p=0.1,z=1.96,e=.05,z=1.96)",
-		//"{} | rate() with(sample=0.1)",
-		//"{} | rate() by (span.http.status_code)",
-		//"{} | rate() by (resource.service.name)",
-		//"{} | rate() by (span.http.url)", // High cardinality attribute
-		//"{resource.service.name=`loki-ingester`} | rate()",
-		//"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
-		//"{status=error} | rate() with(span_sample=true,debug=true)",
-		//"{} | quantile_over_time(duration, .99, .9, .5)",
-		//"{} | quantile_over_time(duration, .99, .9, .5) with(sample=0.1)",
-		//"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
-		//"{} | histogram_over_time(duration)",
-		//"{} | avg_over_time(duration) by (span.http.status_code)",
-		//"{} | max_over_time(duration) by (span.http.status_code)",
-		//"{} | min_over_time(duration) by (span.http.status_code)",
-		//"{ name != nil } | compare({status=error})",
-		//"{} > {} | rate() by (name)", // structural
-
+		"{} | rate()",
+		"{} | rate() with(sample=true)",
+		"{} | rate() by (span.http.status_code)",
+		"{} | rate() by (resource.service.name)",
+		"{} | rate() by (span.http.url)", // High cardinality attribute
+		"{resource.service.name=`loki-ingester`} | rate()",
+		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
+		"{status=error} | rate()",
+		"{} | quantile_over_time(duration, .99, .9, .5)",
+		"{} | quantile_over_time(duration, .99, .9, .5)",
+		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
+		"{} | histogram_over_time(duration)",
+		"{} | avg_over_time(duration) by (span.http.status_code)",
+		"{} | max_over_time(duration) by (span.http.status_code)",
+		"{} | min_over_time(duration) by (span.http.status_code)",
+		"{ name != nil } | compare({status=error})",
+		"{} > {} | rate() by (name)", // structural
 	}
 
 	e := traceql.NewEngine()
@@ -1280,50 +1258,39 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{5} {
-				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
-					minutes := 5
-					st := block.meta.StartTime
-					end := st.Add(time.Duration(minutes) * time.Minute)
+			st := uint64(block.meta.StartTime.UnixNano())
+			end := uint64(block.meta.EndTime.UnixNano())
 
-					if end.After(block.meta.EndTime) {
-						b.SkipNow()
-						return
-					}
-
-					req := &tempopb.QueryRangeRequest{
-						Query:     tc,
-						Step:      uint64(time.Minute),
-						Start:     uint64(st.UnixNano()),
-						End:       uint64(end.UnixNano()),
-						MaxSeries: 1000,
-					}
-
-					eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
-					require.NoError(b, err)
-
-					_ = eval.Results()
-
-					b.ResetTimer()
-					for i := 0; i < b.N; i++ {
-						err := eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano()), int(req.MaxSeries))
-						require.NoError(b, err)
-					}
-
-					bytes, spansTotal, _ := eval.Metrics()
-					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
-					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
-				})
+			req := &tempopb.QueryRangeRequest{
+				Query:     tc,
+				Step:      uint64(time.Minute),
+				Start:     st,
+				End:       end,
+				MaxSeries: 1000,
 			}
+
+			eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+			require.NoError(b, err)
+
+			_ = eval.Results()
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err := eval.Do(ctx, f, st, end, int(req.MaxSeries))
+				require.NoError(b, err)
+			}
+
+			bytes, spansTotal, _ := eval.Metrics()
+			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
+			b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 		})
 	}
 }
 
 func TestSamplingError(t *testing.T) {
-	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
-	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
-	os.Setenv("BENCH_TENANT", "1")
+	// Comment this out to run tests when developing.
+	t.Skip("Skipping sampling error test")
 
 	testQueries := []string{
 		"{} | rate()",                            // Simple rate, most amount of data
@@ -1344,13 +1311,11 @@ func TestSamplingError(t *testing.T) {
 	}
 
 	options := []string{
-		"",                 // Control, no sampling
-		"sample=true",      // Automatic sampling
-		"span_sample=0.01", // Aggressive naive sampling. Automatic should be better than this.
-		"span_sample=0.05", // Somewhat aggressive sampling.
-		"span_sample=0.1",  // Decent naive sampling.  Automatic should be equivalent or better than this.
-		"trace_sample=0.5", // Very light sampling, that saves barely anything.  Automatic should be better than this.
-		"trace_sample=0.1", // Decent trace sampling.  Automatic should be equivalent or better than this.
+		"",            // Control, no sampling
+		"sample=true", // Automatic sampling
+		"sample=0.01", // Aggressive sampling. Automatic should be better accuracy.
+		"sample=0.1",  // Decent sampling. Automatic should be roughly equal.
+		"sample=0.5",  // Lowest amount of sampling possible as whole fraction. Automatic should be better performance.
 	}
 
 	e := traceql.NewEngine()
@@ -1366,7 +1331,7 @@ func TestSamplingError(t *testing.T) {
 		return block.Fetch(ctx, req, opts)
 	})
 
-	executeQuery := func(q string) (results traceql.SeriesSet, spanCount int) {
+	executeQuery := func(t *testing.T, q string) (results traceql.SeriesSet, spanCount int) {
 		st := uint64(block.meta.StartTime.UnixNano())
 		end := uint64(block.meta.EndTime.UnixNano())
 
@@ -1392,7 +1357,7 @@ func TestSamplingError(t *testing.T) {
 	for _, query := range testQueries {
 		t.Run(query, func(t *testing.T) {
 			// Get baseline results.
-			baselineResults, baselineSpanCount := executeQuery(query)
+			baselineResults, baselineSpanCount := executeQuery(t, query)
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "Query\tOption\tError\tWorst Error\tSpans\tEfficiency")
@@ -1402,7 +1367,7 @@ func TestSamplingError(t *testing.T) {
 				if option != "" {
 					q += " with(" + option + ")"
 				}
-				results, spanCount := executeQuery(q)
+				results, spanCount := executeQuery(t, q)
 
 				err, worstErr := errorRate(baselineResults, results)
 

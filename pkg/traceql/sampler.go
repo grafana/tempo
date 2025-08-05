@@ -64,7 +64,7 @@ func (s *probabilisticSampler) Sample() bool {
 func (s *probabilisticSampler) Measured() {
 }
 
-func (s *probabilisticSampler) Expect(count uint64) {
+func (s *probabilisticSampler) Expect(_ uint64) {
 }
 
 func (s *probabilisticSampler) FinalScalingFactor() float64 {
