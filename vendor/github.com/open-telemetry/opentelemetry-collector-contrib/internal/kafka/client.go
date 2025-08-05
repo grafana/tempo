@@ -120,6 +120,7 @@ func setSaramaProducerConfig(
 // newSaramaClientConfig returns a Sarama client config, based on the given config.
 func newSaramaClientConfig(ctx context.Context, config configkafka.ClientConfig) (*sarama.Config, error) {
 	saramaConfig := sarama.NewConfig()
+	saramaConfig.ClientID = config.ClientID
 	saramaConfig.Metadata.Full = config.Metadata.Full
 	saramaConfig.Metadata.RefreshFrequency = config.Metadata.RefreshInterval
 	saramaConfig.Metadata.Retry.Max = config.Metadata.Retry.Max

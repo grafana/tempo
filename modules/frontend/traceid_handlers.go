@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
@@ -22,18 +21,13 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, err := user.ExtractOrgID(req.Context())
-		if err != nil {
-			level.Error(logger).Log("msg", "trace id: failed to extract tenant id", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
+			return errResp, nil
 		}
 
 		// validate traceID
-		_, err = api.ParseTraceID(req)
+		_, err := api.ParseTraceID(req)
 		if err != nil {
 			return &http.Response{
 				StatusCode: http.StatusBadRequest,
@@ -97,18 +91,13 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, err := user.ExtractOrgID(req.Context())
-		if err != nil {
-			level.Error(logger).Log("msg", "trace id: failed to extract tenant id", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
+			return errResp, nil
 		}
 
 		// validate traceID
-		_, err = api.ParseTraceID(req)
+		_, err := api.ParseTraceID(req)
 		if err != nil {
 			return &http.Response{
 				StatusCode: http.StatusBadRequest,

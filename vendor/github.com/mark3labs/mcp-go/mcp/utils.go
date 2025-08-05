@@ -222,6 +222,17 @@ func NewAudioContent(data, mimeType string) AudioContent {
 	}
 }
 
+// Helper function to create a new ResourceLink
+func NewResourceLink(uri, name, description, mimeType string) ResourceLink {
+	return ResourceLink{
+		Type:        "resource_link",
+		URI:         uri,
+		Name:        name,
+		Description: description,
+		MIMEType:    mimeType,
+	}
+}
+
 // Helper function to create a new EmbeddedResource
 func NewEmbeddedResource(resource ResourceContents) EmbeddedResource {
 	return EmbeddedResource{
@@ -321,6 +332,21 @@ func NewToolResultErrorFromErr(text string, err error) *CallToolResult {
 			TextContent{
 				Type: "text",
 				Text: text,
+			},
+		},
+		IsError: true,
+	}
+}
+
+// NewToolResultErrorf creates a new CallToolResult with an error message.
+// The error message is formatted using the fmt package.
+// Any errors that originate from the tool SHOULD be reported inside the result object.
+func NewToolResultErrorf(format string, a ...any) *CallToolResult {
+	return &CallToolResult{
+		Content: []Content{
+			TextContent{
+				Type: "text",
+				Text: fmt.Sprintf(format, a...),
 			},
 		},
 		IsError: true,
@@ -460,6 +486,16 @@ func ParseContent(contentMap map[string]any) (Content, error) {
 			return nil, fmt.Errorf("audio data or mimeType is missing")
 		}
 		return NewAudioContent(data, mimeType), nil
+
+	case "resource_link":
+		uri := ExtractString(contentMap, "uri")
+		name := ExtractString(contentMap, "name")
+		description := ExtractString(contentMap, "description")
+		mimeType := ExtractString(contentMap, "mimeType")
+		if uri == "" || name == "" {
+			return nil, fmt.Errorf("resource_link uri or name is missing")
+		}
+		return NewResourceLink(uri, name, description, mimeType), nil
 
 	case "resource":
 		resourceMap := ExtractMap(contentMap, "resource")

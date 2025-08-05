@@ -434,7 +434,7 @@ func TestHandleGetAttributeValues(t *testing.T) {
 	}
 }
 
-func TestHandleTraceQLQuery(t *testing.T) {
+func TestHandleTraceQLDocs(t *testing.T) {
 	server := &MCPServer{
 		logger: log.NewNopLogger(),
 	}
@@ -442,22 +442,7 @@ func TestHandleTraceQLQuery(t *testing.T) {
 	ctx := context.Background()
 	request := callToolRequest(map[string]any{})
 
-	result, err := server.handleTraceQLQuery(ctx, request)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.NotEmpty(t, result.Content)
-}
-
-func TestHandleTraceQLMetrics(t *testing.T) {
-	server := &MCPServer{
-		logger: log.NewNopLogger(),
-	}
-
-	ctx := context.Background()
-	request := callToolRequest(map[string]any{})
-
-	result, err := server.handleTraceQLMetrics(ctx, request)
+	result, err := server.handleTraceQLDocs(ctx, request)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

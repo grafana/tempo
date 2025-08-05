@@ -1,5 +1,4 @@
-//go:build (!appengine && linux) || freebsd || darwin || dragonfly || netbsd || openbsd
-// +build !appengine,linux freebsd darwin dragonfly netbsd openbsd
+//go:build !tinygo && ((!appengine && linux) || freebsd || darwin || dragonfly || netbsd || openbsd)
 
 package kong
 

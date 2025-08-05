@@ -385,9 +385,12 @@ func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end time.Time, f
 		}
 	}
 
-	// search backwards in time
+	// search backwards in time with deterministic ordering
 	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].EndTime.After(blocks[j].EndTime)
+		if !blocks[i].EndTime.Equal(blocks[j].EndTime) {
+			return blocks[i].EndTime.After(blocks[j].EndTime)
+		}
+		return blocks[i].BlockID.String() < blocks[j].BlockID.String()
 	})
 
 	return blocks
