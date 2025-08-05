@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now push traces to Tempo OTLP GRCP endpoint.[#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
@@ -47,7 +48,6 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix bug where most_recent=true wouldn't return most recent results when query overlapped ingesters and few other blocks.[#5438](https://github.com/grafana/tempo/pull/5438) (@joe-elliott)
 * [BUGFIX] Fix panic when counter series is missing during avg_over_time aggregation [#5300](https://github.com/grafana/tempo/pull/5300) (@ie-pham)
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
-* [BUGFIX] Return Bad Request from all frontend endpoints if the tenant can't be extracted [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 
 # v2.8.1
 
