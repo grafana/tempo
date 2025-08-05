@@ -29,7 +29,7 @@ type instance struct {
 	enc encoding.VersionedEncoding
 
 	// Block management
-	blocksMtx      sync.Mutex
+	blocksMtx      sync.RWMutex
 	headBlock      common.WALBlock
 	walBlocks      map[uuid.UUID]common.WALBlock
 	completeBlocks map[uuid.UUID]*ingester.LocalBlock
@@ -45,9 +45,11 @@ type instance struct {
 
 	// Overrides
 	overrides Overrides
+
+	limiter ingester.Limiter
 }
 
-func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger log.Logger, limiter ingester.Limiter) (*instance, error) {
 	enc := encoding.DefaultEncoding()
 
 	i := &instance{
@@ -61,6 +63,7 @@ func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger lo
 		traceSizes:     tracesizes.New(),
 		overrides:      overrides,
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
+		limiter: limiter,
 	}
 
 	err := i.resetHeadBlock()
