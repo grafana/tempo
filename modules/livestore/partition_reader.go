@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,7 +20,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"github.com/twmb/franz-go/plugin/kprom"
 )
 
 type record struct {
@@ -39,8 +37,7 @@ type PartitionReader struct {
 	consumerGroup string
 	topic         string
 
-	client *kgo.Client
-	adm    *kadm.Client
+	client KafkaClient
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -53,18 +50,17 @@ type PartitionReader struct {
 	wg             sync.WaitGroup
 }
 
-func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client KafkaClient, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
 	return newPartitionReader(client, partitionID, cfg, consume, logger, metrics)
 }
 
-func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client KafkaClient, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
 	r := &PartitionReader{
 		partitionID:    partitionID,
 		consumerGroup:  cfg.ConsumerGroup,
 		topic:          cfg.Topic,
 		client:         client,
-		adm:            kadm.NewClient(client),
 		consume:        consume,
 		metrics:        metrics,
 		logger:         log.With(logger, "partition", partitionID),
@@ -204,7 +200,7 @@ func (r *PartitionReader) fetchLastCommittedOffsetWithRetries(ctx context.Contex
 }
 
 func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Offset, error) {
-	offsets, err := r.adm.FetchOffsets(ctx, r.consumerGroup)
+	offsets, err := r.client.FetchOffsets(ctx, r.consumerGroup)
 	if errors.Is(err, kerr.UnknownTopicOrPartition) {
 		// In case we are booting up for the first time ever against this topic.
 		return kgo.NewOffset().AtStart(), nil
@@ -272,7 +268,7 @@ func (r *PartitionReader) commitOffset(ctx context.Context, offset int64) error 
 		At:        offset + 1,
 	})
 
-	_, err := r.adm.CommitOffsets(ctx, r.consumerGroup, offsets)
+	_, err := r.client.CommitOffsets(ctx, r.consumerGroup, offsets)
 	if err != nil {
 		return fmt.Errorf("failed to commit kafka offset %d: %w", offset, err)
 	}
@@ -284,7 +280,6 @@ func (r *PartitionReader) commitOffset(ctx context.Context, offset int64) error 
 type partitionReaderMetrics struct {
 	receiveDelay    prometheus.Histogram
 	recordsPerFetch prometheus.Histogram
-	kprom           *kprom.Metrics
 }
 
 func newPartitionReaderMetrics(partitionID int32, reg prometheus.Registerer) partitionReaderMetrics {
@@ -302,9 +297,5 @@ func newPartitionReaderMetrics(partitionID int32, reg prometheus.Registerer) par
 			Buckets:                     prometheus.ExponentialBuckets(1, 2, 15),
 			NativeHistogramBucketFactor: 1.1,
 		}),
-		kprom: kprom.NewMetrics("tempo_ingest_storage_reader",
-			kprom.Registerer(prometheus.WrapRegistererWith(prometheus.Labels{"partition": strconv.Itoa(int(partitionID))}, reg)),
-			// Do not export the client ID, because we use it to specify options to the backend.
-			kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes)),
 	}
 }

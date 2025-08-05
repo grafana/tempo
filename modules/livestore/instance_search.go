@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -233,7 +234,8 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		return nil, fmt.Errorf("unknown scope: %s", scope)
 	}
 
-	maxBytestPerTags := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
+	// TODO MRD Add limits
+	maxBytestPerTags := math.MaxInt64
 	distinctValues := collector.NewScopedDistinctString(maxBytestPerTags, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	mc := collector.NewMetricsCollector()
 
@@ -323,12 +325,14 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 		return nil, err
 	}
 
-	maxBytesPerTagValues := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
+	// TODO MRD Add limits
+	maxBytesPerTagValues := math.MaxInt64
 	distinctValues := collector.NewDistinctString(maxBytesPerTagValues, limit, staleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
 	var inspectedBlocks, maxBlocks int
-	if limit := i.limiter.Limits().MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+	// TODO MRD Add limits
+	if limit := math.MaxInt64; limit > 0 {
 		maxBlocks = limit
 	}
 
@@ -393,7 +397,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2")
 	defer span.End()
 
-	limit := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
+	// TODO MRD Add limits
+	limit := math.MaxInt64
 	valueCollector := collector.NewDistinctValue(limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector() // to collect bytesRead metric
 
@@ -405,7 +410,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	var anyErr atomic.Error
 	var inspectedBlocks atomic.Int32
 	var maxBlocks int32
-	if limit := i.limiter.Limits().MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+	// TODO MRD Add limits
+	if limit := math.MaxInt64; limit > 0 {
 		maxBlocks = int32(limit)
 	}
 

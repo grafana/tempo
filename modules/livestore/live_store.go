@@ -21,7 +21,6 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 const (
@@ -33,6 +32,7 @@ type Overrides interface {
 	MaxBytesPerTrace(userID string) int
 	DedicatedColumns(userID string) backend.DedicatedColumns
 }
+
 
 var metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "live_store",
@@ -52,8 +52,9 @@ type LiveStore struct {
 	ingestPartitionID         int32
 	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
 
-	client  *kgo.Client
-	decoder *ingest.Decoder
+	client        KafkaClient
+	clientFactory KafkaClientFactory
+	decoder       *ingest.Decoder
 
 	reader *PartitionReader
 
@@ -71,19 +72,20 @@ type LiveStore struct {
 	wg     sync.WaitGroup
 }
 
-func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
+func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool, clientFactory KafkaClientFactory) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
-		cfg:         cfg,
-		logger:      logger,
-		reg:         reg,
-		decoder:     ingest.NewDecoder(),
-		ctx:         ctx,
-		cancel:      cancel,
-		instances:   make(map[string]*instance),
-		overrides:   overrides,
-		flushqueues: flushqueues.NewPriorityQueue(metricCompleteQueueLength),
+		cfg:           cfg,
+		logger:        logger,
+		reg:           reg,
+		decoder:       ingest.NewDecoder(),
+		ctx:           ctx,
+		cancel:        cancel,
+		instances:     make(map[string]*instance),
+		overrides:     overrides,
+		flushqueues:   flushqueues.NewPriorityQueue(metricCompleteQueueLength),
+		clientFactory: clientFactory,
 	}
 
 	var err error
@@ -141,7 +143,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
 	}
 
-	s.client, err = ingest.NewReaderClient(
+	s.client, err = s.clientFactory(
 		s.cfg.IngestConfig.Kafka,
 		ingest.NewReaderClientMetrics(liveStoreServiceName, s.reg),
 		s.logger,
