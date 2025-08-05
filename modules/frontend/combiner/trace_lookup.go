@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -28,9 +29,13 @@ func NewTraceLookup() Combiner {
 			}
 
 			// Combine metrics
+			var metrics *tempopb.SearchMetrics
 			if partial.Metrics != nil {
-				metricsCombiner.Combine(partial.Metrics, resp)
+				metrics = partial.Metrics
+			} else {
+				metrics = &tempopb.SearchMetrics{}
 			}
+			metricsCombiner.Combine(metrics, resp)
 
 			return nil
 		},
@@ -48,5 +53,6 @@ func NewTraceLookup() Combiner {
 		},
 	}
 
+	initHTTPCombiner(c, api.HeaderAcceptJSON)
 	return c
 }
