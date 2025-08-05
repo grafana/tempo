@@ -1,8 +1,10 @@
 package traceql
 
 import (
-	"fmt"
 	"math"
+
+	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 type Sampler interface {
@@ -152,12 +154,13 @@ func (s *adaptiveSampler) Sample() bool {
 	}
 
 	if s.debug {
-		var sampleS string
+		var sampleStr string
 		if sample {
-			sampleS = "sampling"
+			sampleStr = "sampled"
 		}
 
-		fmt.Println("adaptiveSampler.Sample",
+		level.Debug(log.Logger).Log(
+			"msg", "adaptiveSampler.Sample",
 			"expected", s.expected,
 			"measured", s.measured,
 			"sampled", s.sampled,
@@ -165,7 +168,8 @@ func (s *adaptiveSampler) Sample() bool {
 			"lost", s.lost,
 			"lim", s.lim,
 			"p", float64(s.measured)/float64(s.sampled+s.lost),
-			sampleS)
+			"decision", sampleStr,
+		)
 	}
 
 	if sample {
@@ -189,7 +193,8 @@ func (s *adaptiveSampler) FinalScalingFactor() float64 {
 	}
 
 	if s.info {
-		fmt.Println("adaptiveSampler.FinalScalingFactor",
+		level.Info(log.Logger).Log(
+			"msg", "adaptiveSampler.FinalScalingFactor",
 			"expected", s.expected,
 			"measured", s.measured,
 			"skipped", s.skipped,

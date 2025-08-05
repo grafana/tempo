@@ -13,6 +13,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	kitlog "github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -1241,7 +1243,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | min_over_time(duration) by (span.http.status_code)",
 		"{ name != nil } | compare({status=error})",
 		"{} > {} | rate() by (name)", // structural
+
+		// This is useful for sampler debugging
+		// {} | rate() with(sample=true,debug=true,info=true)
 	}
+
+	// For sampler debugging
+	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
 
 	e := traceql.NewEngine()
 	ctx := context.TODO()
@@ -1272,13 +1280,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
 			require.NoError(b, err)
 
-			_ = eval.Results()
-
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				err := eval.Do(ctx, f, st, end, int(req.MaxSeries))
 				require.NoError(b, err)
 			}
+
+			_ = eval.Results()
 
 			bytes, spansTotal, _ := eval.Metrics()
 			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
