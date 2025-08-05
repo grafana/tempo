@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now push traces to Tempo OTLP GRCP endpoint.[#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
