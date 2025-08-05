@@ -139,7 +139,7 @@ It follows the JSON merge patch protocol ([RFC 7386](https://datatracker.ietf.or
 Example:
 
 ```shell
-curl -X PUT -v -H "X-Scope-OrgID: 3" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"
+curl -X PATCH -v -H "X-Scope-OrgID: 3" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"
 ```
 
 #### DELETE /api/overrides
