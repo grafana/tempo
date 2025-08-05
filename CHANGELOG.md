@@ -1,5 +1,11 @@
 ## main / unreleased
 
+# v2.8.2
+
+[CHANGE] Update Go to version 1.24.4 #5323 (@stoewer)
+
+# v2.8.1
+
 * [BUGFIX] Fix ingester issue where a hash collision could lead to spans stored incorrectly [#5276](https://github.com/grafana/tempo/pull/5276) (@carles-grafana)
 
 # v2.8.0
