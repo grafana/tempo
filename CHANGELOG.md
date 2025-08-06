@@ -34,7 +34,7 @@
   The Tempo serverless-related metrics, `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total`, and `tempo_feature_enabled`, are also removed. [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
-  Renamed max_span_attr_byte to max_attribute_bytes [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
+  Renamed `max_span_attr_byte` to `max_attribute_bytes`. [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
 * [CHANGE] **BREAKING CHANGE** Removed otel jaeger exporter. [#4926](https://github.com/grafana/tempo/pull/4926) (@javiermolinar)
 * [CHANGE] Update query range error message [#4929](https://github.com/grafana/tempo/pull/4929) (@joey-grafana)
 * [CHANGE] Improve rate limit error message when traces size exceeds rate limit [#4986](https://github.com/grafana/tempo/pull/4986/) (@electron0zero)
