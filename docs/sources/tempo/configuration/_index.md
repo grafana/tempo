@@ -459,9 +459,9 @@ metrics_generator:
             # resouce and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
-            # database name attributes is the attribute name list used to identify the database name from span attributes
-            # attributes are searched in the order they are provided - the first matching attribute will be used
-            # the default value is ["db.name", "db.system.name"]
+            # database_name_attributes is the attribute name list used to identify the database name from span.
+            # attributes. Attributes are searched in the order they are provided. The first matching attribute is used.
+            # The default value is ["db.name", "db.system.name"]
             [database_name_attributes: <list of string> | default = ["db.name", "db.system.name"]]
 
             # Enables additional labels for services and virtual nodes.
