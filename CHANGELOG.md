@@ -1,15 +1,26 @@
 ## main / unreleased
 
+# v2.8.2
+
+* [CHANGE] Update Go to version 1.24.4. #5323 (@stoewer)
+* [BUGFIX] Add nil check to `partitionAssignmentVar`. [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
+* [BUGFIX] Correct instant query calculation. [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
+* [BUGFIX] Fix tracing context propagation in distributor HTTP write requests. [#5312](https://github.com/grafana/tempo/pull/5312) (@mapno)
+* [BUGFIX] Fix search by `trace:id` with short trace ID. [#5331](https://github.com/grafana/tempo/pull/5331) (@ruslan-mikhailov)
+* [BUGFIX] Fix bug where `most_recent=true` wouldn't return most recent results when query overlapped ingesters and few other blocks. [#5438](https://github.com/grafana/tempo/pull/5438) (@joe-elliott)
+* [BUGFIX] Fix panic when counter series is missing during `avg_over_time` aggregation. [#5300](https://github.com/grafana/tempo/pull/5300) (@ie-pham)
+
+# v2.8.1
+
 * [BUGFIX] Fix ingester issue where a hash collision could lead to spans stored incorrectly [#5276](https://github.com/grafana/tempo/pull/5276) (@carles-grafana)
 
 # v2.8.0
 
 * [CHANGE] **BREAKING CHANGE** Change default http-listen-port from 80 to 3200 [#4960](https://github.com/grafana/tempo/pull/4960) (@martialblog)
-* [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1 [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
-  The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`
+* [CHANGE] **BREAKING CHANGE** Upgrade OTEL Collector to v0.122.1. The `name` dimension from `tempo_receiver_accepted_span` and `tempo_receiver_refused_spans` changes from `tempo/jaeger_receiver` to `jaeger/jaeger_receiver`. [#4893](https://github.com/grafana/tempo/pull/4893) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
-* [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
-  Following config options are no longer valid, please remove them if you are using these in your tempo config:
+* [CHANGE] **BREAKING CHANGE** Remove tempo serverless.
+  The following configuration options are no longer valid. If they are in your tempo config, remove them.
   ```
   querier:
       search:
@@ -20,10 +31,10 @@
           google_cloud_run: <string>
           external_endpoints: <array>
   ```
-  Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total` and `tempo_feature_enabled` are being removed.
+  The Tempo serverless-related metrics, `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total`, and `tempo_feature_enabled`, are also removed. [#4599](https://github.com/grafana/tempo/pull/4599/) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
-  Renamed max_span_attr_byte to max_attribute_bytes [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
+  Renamed `max_span_attr_byte` to `max_attribute_bytes`. [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
 * [CHANGE] **BREAKING CHANGE** Removed otel jaeger exporter. [#4926](https://github.com/grafana/tempo/pull/4926) (@javiermolinar)
 * [CHANGE] Update query range error message [#4929](https://github.com/grafana/tempo/pull/4929) (@joey-grafana)
 * [CHANGE] Improve rate limit error message when traces size exceeds rate limit [#4986](https://github.com/grafana/tempo/pull/4986/) (@electron0zero)
@@ -42,11 +53,10 @@
 * [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
 * [FEATURE] Add support for topk and bottomk functions for TraceQL metrics [#4646](https://github.com/grafana/tempo/pull/4646/) (@electron0zero)
 * [FEATURE] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
-* [ENHANCEMENT] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
-configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
+* [ENHANCEMENT] Add throughput SLO and metrics for the TraceByID endpoint. Configurable using the `throughput_bytes_slo` field. It populates the `op="traces"` label in slo and throughput metrics. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 * [ENHANCEMENT] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) [#4899](https://github.com/grafana/tempo/pull/4899) [#5035](https://github.com/grafana/tempo/pull/5035) (@yvrhdn, @mapno)
 * [ENHANCEMENT] tempo-vulture now generates spans with a parent, instead of only root spans [#5154](https://github.com/grafana/tempo/pull/5154) (@carles-grafana)
-* [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham) 
+* [ENHANCEMENT] Add default mutex and blocking values. [#4979](https://github.com/grafana/tempo/pull/4979) (@mattdurham)
 * [ENHANCEMENT] Improve Tempo build options [#4755](https://github.com/grafana/tempo/pull/4755) (@stoewer)
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
 * [ENHANCEMENT] Reorder span iterators [#4754](https://github.com/grafana/tempo/pull/4754) (@stoewer)
@@ -63,7 +73,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Rhythm: add block builder to resources dashboard [#4556](https://github.com/grafana/tempo/pull/4669) (@javiermolinar)
 * [ENHANCEMENT] Upgrade prometheus to version 3.1.0 [#4805](https://github.com/grafana/tempo/pull/4805) (@javiermolinar)
 * [ENHANCEMENT] Update dskit to latest version [#4681](https://github.com/grafana/tempo/pull/4681) (@javiermolinar) [#4865](https://github.com/grafana/tempo/pull/4865) (@javiermolinar)
-* [ENHANCEMENT] Increase query-frontend default batch size [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar) 
+* [ENHANCEMENT] Increase query-frontend default batch size. [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar)
 * [ENHANCEMENT] Improve TraceQL perf by reverting EqualRowNumber to an inlineable function.[#4705](https://github.com/grafana/tempo/pull/4705) (@joe-elliott)
 * [ENHANCEMENT] Rhythm: Implement MaxBytesPerCycle [#4835](https://github.com/grafana/tempo/pull/4835) (@javiermolinar)
 * [ENHANCEMENT] Rhythm: fair partition consumption in blockbuilders [#4655](https://github.com/grafana/tempo/pull/4655) (@javiermolinar)
@@ -84,8 +94,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Add jitter in backendworker to avoid thundering herd from workers [#5150](https://github.com/grafana/tempo/pull/5150) (@electron0zero)
 * [ENHANCEMENT] TraceQL Metrics: distribute exemplars over time [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
 * [ENHANCEMENT] TraceQL Metrics: hard limit number of exemplars [#5158](https://github.com/grafana/tempo/pull/5158) (@ruslan-mikhailov)
-* [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
-  Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
+* [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. Correctly copy exemplars for metrics like `| rate()` when gRPC streaming. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
 * [BUGFIX] Make comparison to nil symmetric [#4869](https://github.com/grafana/tempo/pull/4869) (@stoewer)
 * [BUGFIX] Fix behavior for queries like {.foo && true} and {.foo || false} [#4855](https://github.com/grafana/tempo/pull/4855) (@stoewer)
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)

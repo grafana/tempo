@@ -41,8 +41,8 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 		step:                  q.Step,
 		exemplarBuckets: newBucketSet(
 			maxExemplars,
-			alignStart(q.Start, q.Step),
-			alignEnd(q.End, q.Step),
+			alignStart(q.Start, q.End, q.Step),
+			alignEnd(q.Start, q.End, q.Step),
 		),
 	}
 
@@ -277,6 +277,11 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			// This is a counter series, we can skip it
 			continue
 		}
+		countIndex, ok := countPosMapper[ts.PromLabels]
+		if !ok {
+			// The count series might have been truncated, skip this value
+			continue
+		}
 		for i, sample := range ts.Samples {
 			pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
 			if pos < 0 || pos >= len(b.weightedAverageSeries[ts.PromLabels].values) {
@@ -284,7 +289,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			}
 
 			incomingMean := sample.Value
-			incomingWeight := in[countPosMapper[ts.PromLabels]].Samples[i].Value
+			incomingWeight := in[countIndex].Samples[i].Value
 			existing.addWeigthedMean(pos, incomingMean, incomingWeight)
 			b.aggregateExemplars(ts, b.weightedAverageSeries[ts.PromLabels])
 		}
@@ -539,8 +544,8 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 			average: newAverageSeries(intervals, maxExemplars, nil),
 			exemplarBuckets: newBucketSet(
 				maxExemplars,
-				alignStart(g.start, g.step),
-				alignEnd(g.end, g.step),
+				alignStart(g.start, g.end, g.step),
+				alignEnd(g.start, g.end, g.step),
 			),
 			initialized: true,
 		}
