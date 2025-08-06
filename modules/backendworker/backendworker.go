@@ -192,7 +192,9 @@ func (w *BackendWorker) running(ctx context.Context) error {
 
 	jobCtx := ctx
 	if w.cfg.FinishOnShutdown {
-		jobCtx = context.Background()
+		var jobsCancel context.CancelFunc
+		jobCtx, jobsCancel = createShutdownContext(ctx, w.cfg.JobFinishTimeout)
+		defer jobsCancel()
 	}
 
 	if w.subservices != nil {
@@ -570,4 +572,28 @@ func (s ownsEverythingSharder) RecordDiscardedSpans(count int, tenantID string, 
 
 func (s ownsEverythingSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
 	return s.w.Combine(dataEncoding, tenantID, objs...)
+}
+
+// createShutdownContext creates a context that starts a timeout only after parentCtx is cancelled
+func createShutdownContext(parentCtx context.Context, shutdownTimeout time.Duration) (context.Context, context.CancelFunc) {
+	jobsCtx, jobsCancel := context.WithCancel(context.Background())
+
+	go func() {
+		<-parentCtx.Done() // Wait for parent cancellation
+
+		// Now start the shutdown timeout
+		timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer timeoutCancel()
+
+		select {
+		case <-timeoutCtx.Done():
+			// Timeout expired, force cancel jobs
+			jobsCancel()
+		case <-jobsCtx.Done():
+			// Jobs completed gracefully before timeout
+			return
+		}
+	}()
+
+	return jobsCtx, jobsCancel
 }

@@ -1104,4 +1104,5 @@ backend_worker:
         enable_inet6: false
         wait_active_instance_timeout: 10m0s
     finish_on_shutdown: false
+    job_finish_timeout: 30s
 ```
