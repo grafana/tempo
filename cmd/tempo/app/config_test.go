@@ -54,6 +54,9 @@ func TestConfig_CheckConfig(t *testing.T) {
 					},
 				},
 				Frontend: frontend.Config{
+					MCPServer: frontend.MCPServerConfig{
+						Enabled: true,
+					},
 					TraceByID: frontend.TraceByIDConfig{
 						QueryShards:      100,
 						ConcurrentShards: 200,
@@ -68,9 +71,11 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnBlocklistPollConcurrency,
 				warnLogReceivedTraces,
 				warnLogDiscardedTraces,
+				warnMCPServerEnabled,
 				warnNativeAWSAuthEnabled,
 				warnConfiguredLegacyCache,
 				warnTraceByIDConcurrentShards,
+				warnBackendSchedulerPruneAgeLessThanBlocklistPoll,
 			},
 		},
 		{

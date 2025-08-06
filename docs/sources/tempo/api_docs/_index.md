@@ -25,36 +25,38 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 ## Endpoints
 
 <!-- vale Grafana.Spelling = NO -->
-| API | Service | Type | Endpoint |
-| --- | ------- | ---- | -------- |
-| [Readiness probe](#readiness-probe) | _All services_ |  HTTP | `GET /ready` |
-| [Metrics](#metrics) | _All services_ |  HTTP | `GET /metrics` |
-| [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
-| [Ingest traces](#ingest) | Distributor |  - | See section for details |
-| [Querying traces by id](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
-| [Querying traces by id V2](#query-v2) | Query-frontend |  HTTP | `GET /api/v2/traces/<traceID>` |
-| [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
-| [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
-| [Search tag names V2](#search-tags-v2) | Query-frontend | HTTP | `GET /api/v2/search/tags` |
-| [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
-| [Search tag values V2](#search-tag-values-v2) | Query-frontend | HTTP | `GET /api/v2/search/tag/<tag>/values` |
-| [TraceQL Metrics](#traceql-metrics) | Query-frontend | HTTP | `GET /api/metrics/query_range` |
-| [TraceQL Metrics (instant)](#instant) | Query-frontend | HTTP | `GET /api/metrics/query` |
-| [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
-| [Overrides API](#overrides-api) | Query-frontend | HTTP | `GET,POST,PATCH,DELETE /api/overrides` |
-| Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
-| [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
-| [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
-| [Prepare partition downscale](#prepare-partition-downscale) | Ingester | HTTP | `GET,POST,DELETE /ingester/prepare-partition-downscale` |
-| [Usage Metrics](#usage-metrics) | Distributor |  HTTP | `GET /usage_metrics` |
-| [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
-| [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
-| [Metrics-generator ring status](#metrics-generator-ring-status) (*) | Distributor |  HTTP | `GET /metrics-generator/ring` |
-| [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
-| [Status](#status) | Status |  HTTP | `GET /status` |
-| [List build information](#list-build-information) | Status |  HTTP | `GET /api/status/buildinfo` |
 
-_(*) This endpoint isn't always available, check the specific section for more details._
+| API                                                                                   | Service                                   | Type | Endpoint                                                |
+| ------------------------------------------------------------------------------------- | ----------------------------------------- | ---- | ------------------------------------------------------- |
+| [Readiness probe](#readiness-probe)                                                   | _All services_                            | HTTP | `GET /ready`                                            |
+| [Metrics](#metrics)                                                                   | _All services_                            | HTTP | `GET /metrics`                                          |
+| [Pprof](#pprof)                                                                       | _All services_                            | HTTP | `GET /debug/pprof`                                      |
+| [Ingest traces](#ingest)                                                              | Distributor                               | -    | See section for details                                 |
+| [Querying traces by id](#query)                                                       | Query-frontend                            | HTTP | `GET /api/traces/<traceID>`                             |
+| [Querying traces by id V2](#query-v2)                                                 | Query-frontend                            | HTTP | `GET /api/v2/traces/<traceID>`                          |
+| [Searching traces](#search)                                                           | Query-frontend                            | HTTP | `GET /api/search?<params>`                              |
+| [Search tag names](#search-tags)                                                      | Query-frontend                            | HTTP | `GET /api/search/tags`                                  |
+| [Search tag names V2](#search-tags-v2)                                                | Query-frontend                            | HTTP | `GET /api/v2/search/tags`                               |
+| [Search tag values](#search-tag-values)                                               | Query-frontend                            | HTTP | `GET /api/search/tag/<tag>/values`                      |
+| [Search tag values V2](#search-tag-values-v2)                                         | Query-frontend                            | HTTP | `GET /api/v2/search/tag/<tag>/values`                   |
+| [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                          |
+| [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                |
+| [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                         |
+| [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                  |
+| Memberlist                                                                            | Distributor, Ingester, Querier, Compactor | HTTP | `GET /memberlist`                                       |
+| [Flush](#flush)                                                                       | Ingester                                  | HTTP | `GET,POST /flush`                                       |
+| [Shutdown](#shutdown)                                                                 | Ingester                                  | HTTP | `GET,POST /shutdown`                                    |
+| [Prepare partition downscale](#prepare-partition-downscale)                           | Ingester                                  | HTTP | `GET,POST,DELETE /ingester/prepare-partition-downscale` |
+| [Usage Metrics](#usage-metrics)                                                       | Distributor                               | HTTP | `GET /usage_metrics`                                    |
+| [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                 |
+| [Ingesters ring status](#ingesters-ring-status)                                       | Distributor, Querier                      | HTTP | `GET /ingester/ring`                                    |
+| [Metrics-generator ring status](#metrics-generator-ring-status) (\*)                  | Distributor                               | HTTP | `GET /metrics-generator/ring`                           |
+| [Compactor ring status](#compactor-ring-status)                                       | Compactor                                 | HTTP | `GET /compactor/ring`                                   |
+| [Status](#status)                                                                     | Status                                    | HTTP | `GET /status`                                           |
+| [List build information](#list-build-information)                                     | Status                                    | HTTP | `GET /api/status/buildinfo`                             |
+| [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (\*) | MCP                                       |      | `/api/mcp`                                              |
+
+_(\*) This endpoint isn't always available, check the specific section for more details._
 
 <!-- vale Grafana.Spelling = YES -->
 
@@ -73,9 +75,10 @@ GET /metrics
 ```
 
 Returns the metrics for the running Tempo service in the Prometheus exposition format.
-<!-- vale Grafana.Spelling = NO -->
-### Pprof
 
+<!-- vale Grafana.Spelling = NO -->
+
+### Pprof
 
 ```
 GET /debug/pprof/heap
@@ -99,24 +102,24 @@ The Tempo distributor uses the OpenTelemetry Collector receivers as a foundation
 These APIs are meant to be consumed by the corresponding client SDK or pipeline component, such as Grafana
 Agent, OpenTelemetry Collector, or Jaeger Agent.
 
-|  Protocol | Type | Docs |
-|  -------- | ---- | ---- |
-|  OpenTelemetry | gRPC | [Link](https://opentelemetry.io/docs/specs/otlp/) |
-|  OpenTelemetry | HTTP | [Link](https://opentelemetry.io/docs/specs/otlp/) |
-|  Jaeger | Thrift Compact | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Jaeger | Thrift Binary | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Jaeger | Thrift HTTP |  [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Jaeger | gRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
+| Protocol      | Type           | Docs                                                                       |
+| ------------- | -------------- | -------------------------------------------------------------------------- |
+| OpenTelemetry | gRPC           | [Link](https://opentelemetry.io/docs/specs/otlp/)                          |
+| OpenTelemetry | HTTP           | [Link](https://opentelemetry.io/docs/specs/otlp/)                          |
+| Jaeger        | Thrift Compact | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
+| Jaeger        | Thrift Binary  | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
+| Jaeger        | Thrift HTTP    | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
+| Jaeger        | gRPC           | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
+| Zipkin        | HTTP           | [Link](https://zipkin.io/zipkin-api/)                                      |
 
 For information on how to use the OTLP endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
 
 If you are using Grafana Enterprise Traces (GET), then it only supports OpenTelemetry (OTLP):
 
-|  Protocol | Type | Docs |
-|  -------- | ---- | ---- |
-|  OpenTelemetry | gRPC | [Link](https://opentelemetry.io/docs/specs/otlp/) |
-|  OpenTelemetry | HTTP | [Link](https://opentelemetry.io/docs/specs/otlp/) |
+| Protocol      | Type | Docs                                              |
+| ------------- | ---- | ------------------------------------------------- |
+| OpenTelemetry | gRPC | [Link](https://opentelemetry.io/docs/specs/otlp/) |
+| OpenTelemetry | HTTP | [Link](https://opentelemetry.io/docs/specs/otlp/) |
 
 ### Query
 
@@ -165,7 +168,6 @@ frontend.
 
 By default, this endpoint returns a mostly compatible [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
 but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
-
 
 ### Query V2
 
@@ -249,9 +251,9 @@ The URL query parameters support the following values:
 - `start = (unix epoch seconds)`
   Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
- Optional. Along with `start`, define a time range from which traces should be returned. Providing both `start` and `end` changes the way that Tempo searches.
- If the parameters aren't provided, then Tempo searches the recent trace data stored in the ingesters. If the parameters are provided, it searches the backend as well.
- - `spss = (integer)`
+  Optional. Along with `start`, define a time range from which traces should be returned. Providing both `start` and `end` changes the way that Tempo searches.
+  If the parameters aren't provided, then Tempo searches the recent trace data stored in the ingesters. If the parameters are provided, it searches the backend as well.
+- `spss = (integer)`
   Optional. Limit the number of spans per span-set. Default value is 3.
 
 #### Example of TraceQL search
@@ -541,6 +543,7 @@ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 ```
 
 Parameters:
+
 - `start = (unix epoch seconds)`
   Optional. Along with `end`, defines a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
@@ -549,7 +552,6 @@ Parameters:
   Optional. Limits the maximum number of tags values.
 - `maxStaleValues = (integer)`
   Optional. Limits the search for tags values. If the number of stale (already known) values reaches or exceeds this limit, the search stops. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
-
 
 ### Search tag values V2
 
@@ -597,6 +599,7 @@ curl -G -s http://localhost:3200/api/v2/search/tag/.service.name/values | jq
 ```
 
 Parameters:
+
 - `start = (unix epoch seconds)`
   Optional. Along with `end`, defines a time range from which tags values should be returned.
 - `end = (unix epoch seconds)`
@@ -620,8 +623,9 @@ If an input is invalid, Tempo doesn't provide an error. Instead,
 you'll see the whole list when a failure of parsing input. This behavior helps with backwards compatibility.
 
 Only queries with a single selector `{}` and AND `&&` operators are supported.
-  - Example supported: `{ resource.cluster = "us-east-1" && resource.service = "frontend" }`
-  - Example unsupported: `{ resource.cluster = "us-east-1" || resource.service = "frontend" } && { resource.cluster = "us-east-2" }`
+
+- Example supported: `{ resource.cluster = "us-east-1" && resource.service = "frontend" }`
+- Example unsupported: `{ resource.cluster = "us-east-1" || resource.service = "frontend" } && { resource.cluster = "us-east-2" }`
 
 Unscoped attributes aren't supported for filtered tag values.
 
@@ -637,7 +641,7 @@ If a particular service name (for example, `shopping-cart`) is only present on s
 
 The TraceQL Metrics API returns Prometheus-like time-series for a given metrics query.
 Metrics queries are those using metrics functions like `rate()` and `quantile_over_time()`.
-Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for more information list.
+Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) for more information list.
 
 Parameters:
 
@@ -770,6 +774,7 @@ GET /usage_metrics
 Special metrics scrape endpoint that provides per-tenant metrics on ingested data. Per-tenant grouping rules are configured in [the per-tenant overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides)
 
 Example:
+
 ```
 curl http://localhost:3200/usage_metrics
 # HELP tempo_usage_tracker_bytes_received_total bytes total received with these attributes
@@ -833,6 +838,7 @@ For more information, refer to [consistent hash ring](http://grafana.com/docs/te
 ```
 GET /status
 ```
+
 Print all available information by default.
 
 ```
@@ -899,6 +905,7 @@ Displays anonymous usage stats data that's reported back to Grafana Labs.
 ```
 GET /api/status/buildinfo
 ```
+
 Exposes the build information in a JSON object. The fields are `version`, `revision`, `branch`, `buildDate`, `buildUser`, and `goVersion`.
 
 ## Tempo gRPC API
@@ -933,4 +940,5 @@ service StreamingQuerier {
 gRPC compression is disabled by default.
 Refer to [gRPC compression configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#grpc-compression) for more information.
 {{< /admonition >}}
+
 <!-- vale Grafana.GooglePassive = YES -->

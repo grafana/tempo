@@ -427,7 +427,7 @@ func (t *App) initQuerier() (services.Service, error) {
 
 	// do not enable polling if this is the single binary. in that case the compactor will take care of polling
 	if t.cfg.Target == Querier {
-		t.store.EnablePolling(context.Background(), nil)
+		t.store.EnablePolling(context.Background(), nil, false)
 	}
 
 	ingesterRings := []ring.ReadRing{t.readRings[ringIngester]}
@@ -493,7 +493,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.frontend = v1
 
 	// create query frontend
-	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, t.HTTPAuthMiddleware, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -534,9 +534,12 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryInstant), base.Wrap(queryFrontend.MetricsQueryInstantHandler))
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.MetricsQueryRangeHandler))
 
+	// http mcp endpoint
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMCP), base.Wrap(queryFrontend.MCPHandler))
+
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	if t.cfg.Target == QueryFrontend {
-		t.store.EnablePolling(context.Background(), nil)
+		t.store.EnablePolling(context.Background(), nil, false)
 	}
 
 	// http query echo endpoint

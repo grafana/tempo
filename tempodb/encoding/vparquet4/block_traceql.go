@@ -1,7 +1,6 @@
 package vparquet4
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -1785,7 +1784,7 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, all
 			continue
 
 		case traceql.IntrinsicLinkSpanID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
 			if err != nil {
 				return nil, err
 			}
@@ -2531,16 +2530,16 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 	}
 
 	var id []byte
-	id, err := util.HexStringToTraceID(s)
+	var err error
 	if isSpan {
 		id, err = util.HexStringToSpanID(s)
+	} else {
+		id, err = util.HexStringToTraceID(s)
 	}
 
 	if err != nil {
 		return nil, nil
 	}
-
-	id = bytes.TrimLeft(id, "\x00")
 
 	switch op {
 	case traceql.OpEqual:

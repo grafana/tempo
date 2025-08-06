@@ -274,7 +274,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					Processor: ProcessorOverrides{
 						SpanMetrics: SpanMetricsOverrides{
-							EnableTargetInfo: true,
+							EnableTargetInfo: boolPtr(true),
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
 									Name:        "test-name",
@@ -313,7 +313,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: true,
+									EnableTargetInfo: boolPtr(true),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "test-name",
@@ -345,7 +345,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				MetricsGenerator: MetricsGeneratorOverrides{
 					Processor: ProcessorOverrides{
 						SpanMetrics: SpanMetricsOverrides{
-							EnableTargetInfo: false,
+							EnableTargetInfo: boolPtr(false),
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
 									Name:        "test-name",
@@ -363,7 +363,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: true,
+									EnableTargetInfo: boolPtr(true),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "another-name",
@@ -380,7 +380,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						MetricsGenerator: MetricsGeneratorOverrides{
 							Processor: ProcessorOverrides{
 								SpanMetrics: SpanMetricsOverrides{
-									EnableTargetInfo: false,
+									EnableTargetInfo: boolPtr(false),
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
 											Name:        "id-name",
@@ -433,7 +433,8 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			defer cleanup()
 
 			for user, expectedVal := range tt.expectedEnableTargetInfo {
-				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(user))
+				enableTargetInfoValue, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(user)
+				assert.Equal(t, expectedVal, enableTargetInfoValue)
 			}
 
 			for user, expectedVal := range tt.expectedDimensionMappings {
@@ -547,6 +548,15 @@ func TestRemoteWriteHeaders(t *testing.T) {
 	buff := bytes.NewBuffer(nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	require.NoError(t, overrides.WriteStatusRuntimeConfig(buff, req))
+
+	// Verify the YAML output can be unmarshalled back
+	var runtimeConfig struct {
+		Defaults           Overrides          `yaml:"defaults"`
+		PerTenantOverrides perTenantOverrides `yaml:",inline"`
+	}
+	require.NoError(t, yaml.UnmarshalStrict(buff.Bytes(), &runtimeConfig))
+
+	assert.Equal(t, "<secret>", string(runtimeConfig.Defaults.MetricsGenerator.RemoteWriteHeaders["Authorization"]))
 
 	fmt.Println(buff.String())
 }

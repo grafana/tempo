@@ -14,8 +14,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
+
 	"github.com/prometheus/client_golang/prometheus"
-	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -46,11 +47,11 @@ const (
 )
 
 var (
-	metricPushDuration = promauto.NewHistogram(prom_client.HistogramOpts{
+	metricPushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "distributor_push_duration_seconds",
 		Help:                            "Records the amount of time to push a batch to the ingester.",
-		Buckets:                         prom_client.DefBuckets,
+		Buckets:                         prometheus.DefBuckets,
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
@@ -254,15 +255,15 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		case "otlp":
 			otlpRecvCfg := cfg.(*otlpreceiver.Config)
 
-			if otlpRecvCfg.HTTP != nil {
-				otlpRecvCfg.HTTP.ServerConfig.IncludeMetadata = true
+			if otlpRecvCfg.HTTP.HasValue() {
+				otlpRecvCfg.HTTP.Get().ServerConfig.IncludeMetadata = true
 				cfg = otlpRecvCfg
 			}
 
 		case "zipkin":
 			zipkinRecvCfg := cfg.(*zipkinreceiver.Config)
 
-			zipkinRecvCfg.ServerConfig.IncludeMetadata = true
+			zipkinRecvCfg.IncludeMetadata = true
 			cfg = zipkinRecvCfg
 
 		case "jaeger":
@@ -349,6 +350,7 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	metricPushDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		err = wrapErrorIfRetryable(err, r.retryDelay)
 	}
 

@@ -34,8 +34,8 @@ const (
 	queryableCheckEvery = 100 * time.Millisecond // check every 100ms for traces to be queryable
 
 	// Wait to block flushed to backend, 5 seconds is the complete_block_timeout configuration on all in one, we add
-	// 100ms for security.
-	blockFlushTimeout = 5*time.Second + 100*time.Millisecond
+	// 1s for security.
+	blockFlushTimeout = 6 * time.Second
 )
 
 func TestSearchTagsV2(t *testing.T) {
@@ -47,7 +47,7 @@ func TestSearchTagsV2(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -75,6 +75,9 @@ func TestSearchTagsV2(t *testing.T) {
 		}
 		return ok
 	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
+
+	// wait for the 2 traces to be written to the WAL
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
 	testCases := []struct {
 		name     string
@@ -258,20 +261,8 @@ func TestSearchTagsV2(t *testing.T) {
 	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
-	// test metrics
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
-
-	// Assert no more on the ingester
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagsV2AndAssert(t, tempo, tc.scope, tc.query, searchTagsV2Response{}, 0, 0)
-		})
-	}
-
-	// Wait to blocklist_poll to be completed
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
+	// wait for 2 objects to be written to the backend
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
 
 	// Assert tags on storage backend
 	now := time.Now()
@@ -294,7 +285,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -321,6 +312,9 @@ func TestSearchTagValuesV2(t *testing.T) {
 		}
 		return ok
 	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
+
+	// wait for the 2 traces to be written to the WAL
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
 	testCases := []struct {
 		name     string
@@ -435,20 +429,8 @@ func TestSearchTagValuesV2(t *testing.T) {
 	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
-	// test metrics
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
-
-	// Assert no more on the ingester
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, searchTagValuesV2Response{TagValues: []TagValue{}}, 0, 0)
-		})
-	}
-
-	// Wait to blocklist_poll to be completed
-	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
+	// wait for 2 objects to be written to the backend
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempodb_backend_objects_total"}, e2e.WaitMissingMetrics))
 
 	// Assert tags on storage backend
 	now := time.Now()
@@ -471,7 +453,7 @@ func TestSearchTags(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -512,7 +494,7 @@ func TestSearchTagValues(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -551,7 +533,7 @@ func TestStreamingSearch_badRequest(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 

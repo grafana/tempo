@@ -24,7 +24,7 @@
   },
 
   tempo_block_builder_container::
-    container.new(target_name, $._images.tempo) +
+    container.new(target_name, $._images.tempo_block_builder) +
     container.withPorts($.tempo_block_builder_ports) +
     container.withArgs($.util.mapToFlags($.tempo_block_builder_args)) +
     container.withVolumeMounts([

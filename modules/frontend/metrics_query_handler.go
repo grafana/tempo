@@ -84,7 +84,10 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, _ := user.ExtractOrgID(req.Context())
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
+			return errResp, nil
+		}
 		start := time.Now()
 
 		// Parse request

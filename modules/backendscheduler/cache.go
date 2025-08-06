@@ -9,36 +9,10 @@ import (
 	"path/filepath"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
-
-func (s *BackendScheduler) flushWorkCache(ctx context.Context) error {
-	_, span := tracer.Start(ctx, "flushWorkCache")
-	defer span.End()
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	b, err := s.work.Marshal()
-	if err != nil {
-		return fmt.Errorf("failed to marshal work cache: %w", err)
-	}
-
-	workPath := filepath.Join(s.cfg.LocalWorkPath, backend.WorkFileName)
-
-	err = os.MkdirAll(s.cfg.LocalWorkPath, 0o700)
-	if err != nil {
-		return fmt.Errorf("error creating directory %q: %w", s.cfg.LocalWorkPath, err)
-	}
-
-	err = os.WriteFile(workPath, b, 0o600)
-	if err != nil {
-		return fmt.Errorf("error writing %q: %w", workPath, err)
-	}
-
-	return nil
-}
 
 func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
 	_, span := tracer.Start(ctx, "flushWorkCacheToBackend")
@@ -53,7 +27,7 @@ func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
 		return fmt.Errorf("failed to marshal work cache: %w", err)
 	}
 
-	err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), -1, nil)
+	err = s.writer.Write(ctx, backend.WorkFileName, []string{}, bytes.NewReader(b), int64(len(b)), nil)
 	if err != nil {
 		return fmt.Errorf("failed to flush work cache: %w", err)
 	}
@@ -61,32 +35,28 @@ func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {
 	return nil
 }
 
-// loadWorkCache loads the work cache from the local filesystem
+// loadWorkCache loads the work cache
 func (s *BackendScheduler) loadWorkCache(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "loadWorkCache")
 	defer span.End()
 
-	// Try to load the local work cache first, falling back to the backend if it doesn't exist.
-	workPath := filepath.Join(s.cfg.LocalWorkPath, backend.WorkFileName)
-	data, err := os.ReadFile(workPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", workPath, "error", err)
+	// Check if shard files exist before attempting to load them
+	if s.checkForShardFiles() {
+		// Try to load the local work cache first, falling back to the backend if it doesn't exist.
+		err := s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				level.Error(log.Logger).Log("msg", "failed to read work cache from local path", "path", s.cfg.LocalWorkPath, "error", err)
+			}
+
+			return s.loadWorkCacheFromBackend(ctx)
 		}
-		return s.loadWorkCacheFromBackend(ctx)
+
+		return s.replayWorkOnBlocklist(ctx)
 	}
 
-	err = s.work.Unmarshal(data)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to unmarshal work cache from local path", "path", workPath, "error", err)
-		return s.loadWorkCacheFromBackend(ctx)
-	}
-
-	// Once the work cache is loaded, replay the work list on top of the
-	// blocklist to ensure we only hand out jobs for blocks which need visiting.
-	s.replayWorkOnBlocklist(ctx)
-
-	return nil
+	// No shard files found locally, load from backend
+	return s.loadWorkCacheFromBackend(ctx)
 }
 
 func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
@@ -113,9 +83,19 @@ func (s *BackendScheduler) loadWorkCacheFromBackend(ctx context.Context) error {
 		return fmt.Errorf("failed to unmarshal work cache: %w", err)
 	}
 
-	// Once the work cache is loaded, replay the work list on top of the
-	// blocklist to ensure we only hand out jobs for blocks which need visiting.
-	s.replayWorkOnBlocklist(ctx)
+	return s.replayWorkOnBlocklist(ctx)
+}
 
-	return nil
+// checkForShardFiles checks if any shard files exist
+func (s *BackendScheduler) checkForShardFiles() bool {
+	for i := range work.ShardCount {
+		if _, err := os.Stat(s.filepathForShard(uint8(i))); err == nil {
+			return true // Found at least one shard file
+		}
+	}
+	return false
+}
+
+func (s *BackendScheduler) filepathForShard(shardID uint8) string {
+	return filepath.Join(s.cfg.LocalWorkPath, work.FileNameForShard(shardID))
 }

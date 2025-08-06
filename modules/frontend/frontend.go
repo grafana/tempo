@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"go.opentelemetry.io/otel"
 
+	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -49,6 +50,7 @@ type QueryFrontend struct {
 	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler, MetricsSummaryHandler                 http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
+	MCPHandler                                                                                 http.Handler
 	cacheProvider                                                                              cache.Provider
 	streamingSearch                                                                            streamingSearchHandler
 	streamingTags                                                                              streamingTagsHandler
@@ -63,7 +65,7 @@ type QueryFrontend struct {
 var tracer = otel.Tracer("modules/frontend")
 
 // New returns a new QueryFrontend
-func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, authMiddleware middleware.Interface, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
@@ -202,7 +204,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger) // Reuses the same pipeline
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
-	return &QueryFrontend{
+	f := &QueryFrontend{
 		// http/discrete
 		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
 		TraceByIDHandlerV2:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger),
@@ -226,7 +228,19 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
-	}, nil
+	}
+
+	if cfg.MCPServer.Enabled {
+		// Initialize MCP server
+		mcpServer := NewMCPServer(f, apiPrefix, logger, authMiddleware)
+		f.MCPHandler = mcpServer
+	} else {
+		f.MCPHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.NotFound(w, r)
+		})
+	}
+
+	return f, nil
 }
 
 // Search implements StreamingQuerierServer interface for streaming search
@@ -371,9 +385,12 @@ func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end time.Time, f
 		}
 	}
 
-	// search backwards in time
+	// search backwards in time with deterministic ordering
 	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].EndTime.After(blocks[j].EndTime)
+		if !blocks[i].EndTime.Equal(blocks[j].EndTime) {
+			return blocks[i].EndTime.After(blocks[j].EndTime)
+		}
+		return blocks[i].BlockID.String() < blocks[j].BlockID.String()
 	})
 
 	return blocks

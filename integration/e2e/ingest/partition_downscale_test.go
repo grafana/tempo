@@ -58,7 +58,7 @@ func TestPartitionDownscale(t *testing.T) {
 	require.NoError(t, distributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(partitionStateMatchers("Active")...)))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util.NewJaegerGRPCClient(distributor.Endpoint(14250))
+	c, err := util.NewJaegerToOTLPExporter(distributor.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -87,7 +87,7 @@ func TestPartitionDownscale(t *testing.T) {
 	httpResp, err = apiClient.Do(req)
 	require.NoError(t, err)
 	require.Equal(t, 200, httpResp.StatusCode)
-	var result map[string]interface{}
+	var result map[string]any
 	require.NoError(t, json.NewDecoder(httpResp.Body).Decode(&result))
 	require.Greater(t, result["timestamp"].(float64), float64(0)) // ts > 0 ==> INACTIVE (when it was marked for downscale)
 

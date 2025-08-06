@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
@@ -88,7 +89,9 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
-	assert.Equal(t, false, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+	enableTargetInfoValue, enableTargetInfoIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1)
+	assert.Equal(t, false, enableTargetInfoValue)
+	assert.Equal(t, false, enableTargetInfoIsSet)
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenant1))
@@ -147,11 +150,15 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Equal(t, 60*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
-	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(tenant1))
+	enableVirtualNodeLabelValue, enableVirtualNodeLabelIsSet := mgr.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(tenant1)
+	assert.Equal(t, true, enableVirtualNodeLabelValue)
+	assert.Equal(t, true, enableVirtualNodeLabelIsSet)
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Equal(t, []float64{1, 2, 3, 4, 5}, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
-	assert.Equal(t, true, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+	enableTargetInfoValue, enableTargetInfoIsSet = mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1)
+	assert.Equal(t, true, enableTargetInfoValue)
+	assert.Equal(t, true, enableTargetInfoIsSet)
 	assert.Equal(t, []float64{10, 20, 30, 40, 50}, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenant1))
 	assert.Equal(t, []string{"some-label"}, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenant1))
 
@@ -269,6 +276,13 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 			data := w.Body.String()
 			require.Contains(t, data, "user_configurable_overrides")
 			require.Contains(t, data, "my-other-forwarder")
+
+			// Verify the YAML output can be unmarshalled back
+			var config map[string]interface{}
+			require.NoError(t, yaml.UnmarshalStrict(w.Body.Bytes(), &config))
+
+			require.Contains(t, config, "defaults")
+			require.Contains(t, config, "overrides")
 
 			res := w.Result()
 			require.Equal(t, "text/plain; charset=utf-8", res.Header.Get(tempo_api.HeaderContentType))
@@ -433,7 +447,10 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID))
+	baseEnableTargetInfoValue, baseEnableTargetInfoIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID)
+	overrideEnableTargetInfoValue, overrideEnableTargetInfoIsSet := baseMgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID)
+	assert.Equal(t, overrideEnableTargetInfoValue, baseEnableTargetInfoValue)
+	assert.Equal(t, overrideEnableTargetInfoIsSet, baseEnableTargetInfoIsSet)
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorHostInfoHostIdentifiers(tenantID), baseMgr.MetricsGeneratorProcessorHostInfoHostIdentifiers(tenantID))
@@ -477,7 +494,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							HistogramBuckets:         []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
 							Dimensions:               []string{"k8s.cluster-name", "k8s.namespace.name", "http.method", "http.route", "http.status_code", "service.version"},
 							PeerAttributes:           []string{"foo", "bar"},
-							EnableClientServerPrefix: true,
+							EnableClientServerPrefix: boolPtr(true),
 						},
 						SpanMetrics: SpanMetricsOverrides{
 							HistogramBuckets:             []float64{0.002, 0.004, 0.008, 0.016, 0.032, 0.064},
@@ -485,7 +502,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							IntrinsicDimensions:          map[string]bool{"foo": true, "bar": true},
 							FilterPolicies:               []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: filterconfig.Regex, Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "unknown_service:myservice"}}}}},
 							DimensionMappings:            []sharedconfig.DimensionMappings{{Name: "foo", SourceLabel: []string{"bar"}, Join: "baz"}},
-							EnableTargetInfo:             true,
+							EnableTargetInfo:             boolPtr(true),
 							TargetInfoExcludedDimensions: []string{"bar", "namespace", "env"},
 						},
 						LocalBlocks: LocalBlocksOverrides{

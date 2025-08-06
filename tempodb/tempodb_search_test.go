@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	crand "crypto/rand"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -192,6 +193,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 	}
 
 	searchesThatMatch := []*tempopb.SearchRequest{
+		{Query: "{}"},
 		// conditions
 		{Query: fmt.Sprintf("{%s && %s && %s && %s && %s}", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
 		{Query: fmt.Sprintf("{%s || %s || %s || %s || %s}", rando(falseConditions), rando(falseConditions), rando(falseConditions), rando(trueConditionsBySpan[0]), rando(falseConditions))},
@@ -252,6 +254,8 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		{Query: "{} | select(.missing) | { !(.missing != nil)}"},
 		{Query: "{} | select(span.missing) | { !(span.missing != nil)}"},
 		{Query: "{} | select(resource.missing) | { !(resource.missing != nil)}"},
+		// search by traceID
+		{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)},
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		// conditions
@@ -286,6 +290,8 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 1"},
 		{Query: "{} | by(resource.service.name) | count() = 3"},
+		// search by traceID
+		{Query: fmt.Sprintf(`{trace:id!="%s"}`, wantMeta.TraceID)},
 	}
 
 	for _, req := range searchesThatMatch {
@@ -1810,6 +1816,40 @@ func actualForExpectedMeta(wantMeta *tempopb.TraceSearchMetadata, res *tempopb.S
 	return nil
 }
 
+func testingConfig(dir string, version string, dc backend.DedicatedColumns) *Config {
+	return &Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(dir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              version,
+			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    10000,
+			DedicatedColumns:     dc,
+		},
+		WAL: &wal.Config{
+			Filepath:       path.Join(dir, "wal"),
+			IngestionSlack: time.Since(time.Time{}),
+		},
+		Search: &SearchConfig{
+			ChunkSizeBytes:  1_000_000,
+			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
+		BlocklistPoll: 0,
+	}
+}
+
+var testingCompactorConfig = &CompactorConfig{
+	ChunkSizeBytes:          10,
+	MaxCompactionRange:      time.Hour,
+	BlockRetention:          0,
+	CompactedBlockRetention: 0,
+}
+
 func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...runnerFn) {
 	// v2 doesn't support any search. just bail here before doing the work below to save resources
 	if blockVersion == v2.VersionString {
@@ -1824,45 +1864,17 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
 	}
-	r, w, c, err := New(&Config{
-		Backend: backend.Local,
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              blockVersion,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-			DedicatedColumns:     dc,
-		},
-		WAL: &wal.Config{
-			Filepath:       path.Join(tempDir, "wal"),
-			IngestionSlack: time.Since(time.Time{}),
-		},
-		Search: &SearchConfig{
-			ChunkSizeBytes:  1_000_000,
-			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
-		},
-		BlocklistPoll: 0,
-	}, nil, log.NewNopLogger())
+	r, w, c, err := New(testingConfig(tempDir, blockVersion, dc), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
+	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 	rw := r.(*readerWriter)
 
-	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
 	searchesThatMatch, searchesThatDontMatch := searchTestSuite()
 
 	// Write to wal
@@ -1914,44 +1926,17 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
-		Backend: backend.Local,
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              blockVersion,
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-		},
-		WAL: &wal.Config{
-			Filepath:       path.Join(tempDir, "wal"),
-			IngestionSlack: time.Since(time.Time{}),
-		},
-		Search: &SearchConfig{
-			ChunkSizeBytes:  1_000_000,
-			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
-		},
-		BlocklistPoll: 0,
-	}, nil, log.NewNopLogger())
+	r, w, c, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
+	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 	rw := r.(*readerWriter)
 
-	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
 	wantIDText := util.TraceIDToHexString(wantID)
 
 	searchesThatMatch := []*tempopb.SearchRequest{
@@ -2117,13 +2102,17 @@ func addTraceQL(req *tempopb.SearchRequest) {
 //   - expected - The exact search result that should be returned for every matching request
 //   - searchesThatMatch - List of search requests that are expected to match the trace
 //   - searchesThatDontMatch - List of requests that don't match the trace
-func makeExpectedTrace() (
+func makeExpectedTrace(traceID []byte) (
 	id []byte,
 	tr *tempopb.Trace,
 	start, end uint32,
 	expected *tempopb.TraceSearchMetadata,
 ) {
-	id = test.ValidTraceID(nil)
+	if traceID == nil {
+		id = test.ValidTraceID(nil)
+	} else {
+		id = traceID
+	}
 
 	start = 1000
 	end = 1001
@@ -2419,40 +2408,13 @@ func TestWALBlockGetMetrics(t *testing.T) {
 		tempDir = t.TempDir()
 	)
 
-	r, w, c, err := New(&Config{
-		Backend: backend.Local,
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			IndexPageSizeBytes:   1000,
-			RowGroupSizeBytes:    10000,
-		},
-		WAL: &wal.Config{
-			Filepath:       path.Join(tempDir, "wal"),
-			IngestionSlack: time.Since(time.Time{}),
-		},
-		Search: &SearchConfig{
-			ChunkSizeBytes:  1_000_000,
-			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
-		},
-		BlocklistPoll: 0,
-	}, nil, log.NewNopLogger())
+	r, w, c, err := New(testingConfig(tempDir, encoding.DefaultEncoding().Version(), nil), nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
+	err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	wal := w.WAL()
 	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
@@ -2503,15 +2465,10 @@ func TestWALBlockGetMetrics(t *testing.T) {
 func TestSearchForTagsAndTagValues(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
 
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
+	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
 
 	blockID := backend.NewUUID()
 
@@ -2650,4 +2607,139 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	require.Equal(t, []tempopb.TagValue{{Type: "int", Value: "3"}}, actual)
 	// test that callback is recording bytes read
 	require.Greater(t, mc.TotalValue(), uint64(100))
+}
+
+func TestSearchByShortTraceID(t *testing.T) {
+	for _, v := range encoding.AllEncodings() {
+		if v.Version() == v2.VersionString { // no support of the feature in v2
+			continue
+		}
+
+		blockVersion := v.Version()
+
+		tempDir := t.TempDir()
+		traceID := make([]byte, 8) // short trace ID
+		_, err := crand.Read(traceID)
+		require.NoError(t, err)
+		traceID = append(make([]byte, 8), traceID...) // adding leading zeros to make it 16 bytes
+
+		r, w, c, err := New(testingConfig(tempDir, blockVersion, nil), nil, log.NewNopLogger())
+		require.NoError(t, err)
+
+		err = c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
+		require.NoError(t, err)
+
+		ctx := t.Context()
+		r.EnablePolling(ctx, &mockJobSharder{}, false)
+		wantID, wantTr, start, end, wantMeta := makeExpectedTrace(traceID)
+
+		// Write to wal
+		wal := w.WAL()
+
+		meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+		head, err := wal.NewBlock(meta, model.CurrentEncoding)
+		require.NoError(t, err)
+		dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+		totalTraces := 50
+		wantTrIdx := rand.Intn(totalTraces) // nolint:gosec // G404: Use of weak random number generator
+		for i := 0; i < totalTraces; i++ {
+			var tr *tempopb.Trace
+			var id []byte
+			if i == wantTrIdx {
+				tr = wantTr
+				id = wantID
+			} else {
+				id = test.ValidTraceID(nil)
+				tr = test.MakeTrace(10, id)
+			}
+			b1, err := dec.PrepareForWrite(tr, start, end)
+			require.NoError(t, err)
+
+			b2, err := dec.ToObject([][]byte{b1})
+			require.NoError(t, err)
+			err = head.Append(id, b2, start, end, true)
+			require.NoError(t, err)
+		}
+
+		// Complete block
+		block, err := w.CompleteBlock(context.Background(), head)
+		require.NoError(t, err)
+
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, common.DefaultSearchOptions())
+		})
+
+		t.Run(fmt.Sprintf("%s: include trace id", v.Version()), func(t *testing.T) {
+			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)}
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.NotEmpty(t, res.Traces)
+
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.NotNil(t, actual, "search request: %v", req)
+
+			actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+			actual.SpanSets = nil
+			actual.ServiceStats = nil
+			require.Equal(t, wantMeta, actual, "search request: %v", req)
+		})
+
+		t.Run(fmt.Sprintf("%s: include span id", v.Version()), func(t *testing.T) {
+			spanID := "0000000000010203"
+			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id="%s"}`, spanID)}
+
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.NotEmpty(t, res.Traces)
+
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.NotNil(t, actual, "search request: %v", req)
+
+			var found bool
+			require.NotNil(t, actual.SpanSets)
+			for _, spanSet := range actual.SpanSets {
+				for _, span := range spanSet.Spans {
+					if span.SpanID == spanID {
+						found = true
+						break
+					}
+				}
+			}
+			require.True(t, found, "span id %s not found", spanID)
+
+			actual.SpanSet = nil
+			actual.SpanSets = nil
+			actual.ServiceStats = nil
+			require.Equal(t, wantMeta, actual, "search request: %v", req)
+		})
+
+		t.Run(fmt.Sprintf("%s: exclude trace id", v.Version()), func(t *testing.T) {
+			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id!="%s"}`, wantMeta.TraceID)}
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.NotEmpty(t, res.Traces)
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.Nil(t, actual, "search request: %v", req)
+		})
+
+		t.Run(fmt.Sprintf("%s: exclude span id", v.Version()), func(t *testing.T) {
+			spanID := "0000000000010203"
+			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id!="%s"}`, spanID)}
+
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.NotEmpty(t, res.Traces)
+
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.NotNil(t, actual, "search request: %v", req) // should find the target trace
+			require.NotNil(t, actual.SpanSets)                   // but should not find the target span
+
+			for _, spanSet := range actual.SpanSets {
+				for _, span := range spanSet.Spans {
+					require.NotEqual(t, spanID, span.SpanID)
+				}
+			}
+		})
+	}
 }

@@ -476,6 +476,12 @@ func (p *Parser[K]) buildSliceArg(argVal value, argType reflect.Type) (any, erro
 			return nil, err
 		}
 		return arg, nil
+	case strings.HasPrefix(name, "PSliceGetter"):
+		arg, err := buildSlice[PSliceGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
 	case strings.HasPrefix(name, "StringGetter"):
 		arg, err := buildSlice[StringGetter[K]](argVal, argType, p.buildArg, name)
 		if err != nil {
@@ -610,6 +616,12 @@ func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 			return nil, err
 		}
 		return StandardPMapGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "PSliceGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardPSliceGetter[K]{Getter: arg.Get}, nil
 	case strings.HasPrefix(name, "DurationGetter"):
 		arg, err := p.newGetter(argVal)
 		if err != nil {
@@ -726,11 +738,22 @@ func (o Optional[T]) set(val any) reflect.Value {
 	})
 }
 
+// IsEmpty returns true if the Optional[T] does not contain a value.
 func (o Optional[T]) IsEmpty() bool {
 	return !o.hasValue
 }
 
+// Get returns the value contained in the Optional[T].
 func (o Optional[T]) Get() T {
+	return o.val
+}
+
+// GetOr returns the value contained in the Optional[T] if it exists,
+// otherwise it returns the default value provided.
+func (o Optional[T]) GetOr(value T) T {
+	if !o.hasValue {
+		return value
+	}
 	return o.val
 }
 

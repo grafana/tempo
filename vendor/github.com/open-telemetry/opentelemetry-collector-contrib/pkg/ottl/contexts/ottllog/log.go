@@ -59,6 +59,7 @@ func (l logRecord) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddString("span_id", hex.EncodeToString(spanID[:]))
 	encoder.AddUint64("time_unix_nano", uint64(lr.Timestamp()))
 	encoder.AddString("trace_id", hex.EncodeToString(traceID[:]))
+	encoder.AddString("event_name", lr.EventName())
 	return err
 }
 

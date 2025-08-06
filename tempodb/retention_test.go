@@ -53,7 +53,7 @@ func TestRetention(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	blockID := backend.NewUUID()
 
@@ -111,7 +111,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -191,7 +191,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 	}, &mockSharder{}, overrides)
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
 
@@ -258,7 +258,7 @@ func TestBlockRetentionOverrideDisabled(t *testing.T) {
 	}, &mockSharder{}, overrides)
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
 
@@ -324,7 +324,7 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	blocks := cutTestBlocks(t, w, testTenantID, 10, 10)
 

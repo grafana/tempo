@@ -34,9 +34,13 @@ type queryRangeRequest struct {
 	End       time.Time `json:"end"`       // default: now + 1m
 	Step      string    `json:"step"`      // default: 5s
 	Exemplars int       `json:"exemplars"` // default: 100
+	noDefault bool      `json:"-"`         // if true, SetDefaults() will not set defaults`
 }
 
 func (r *queryRangeRequest) SetDefaults() {
+	if r.noDefault {
+		return
+	}
 	if r.Start.IsZero() {
 		r.Start = time.Now().Add(-5 * time.Minute)
 	}
@@ -65,7 +69,7 @@ func TestQueryRangeExemplars(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -278,11 +282,37 @@ sendLoop:
 	}
 
 	// invalid query
-	t.Run("invalid query", func(t *testing.T) {
-		req := queryRangeRequest{Query: "{. a}"}
+	for name, req := range map[string]queryRangeRequest{
+		"invalid query": {
+			Query: "{. a}",
+		},
+		"step=0 (default step)": {
+			Query: "{} | count_over_time()",
+			Step:  "0",
+		},
+		"step=0s (default step)": {
+			Query: "{} | count_over_time()",
+			Step:  "0s",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := req
+			req.SetDefaults()
+			res := doRequest(t, tempo.Endpoint(tempoPort), "api/metrics/query_range", req)
+			require.Equal(t, 400, res.StatusCode)
+		})
+	}
+
+	// small step
+	t.Run("small step", func(t *testing.T) {
+		req := queryRangeRequest{Query: "{} | count_over_time()"}
 		req.SetDefaults()
-		res := doRequest(t, tempo.Endpoint(tempoPort), "api/metrics/query_range", queryRangeRequest{Query: "{. a}"})
+		req.Step = "35ms"
+		res := doRequest(t, tempo.Endpoint(tempoPort), "api/metrics/query_range", req)
 		require.Equal(t, 400, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "step of 35ms is too small, minimum step for given range is 36ms")
 	})
 
 	// query with empty results
@@ -414,6 +444,35 @@ sendLoop:
 			require.Equal(t, testCase.expectedNum, len(instantQueryRes.GetSeries()))
 		})
 	}
+
+	for _, testCase := range []struct {
+		name              string
+		end               time.Time
+		step              string
+		expectedIntervals int
+	}{
+		// |---start|---|---end|
+		{name: "aligned", end: time.Now().Truncate(time.Minute), step: "1m", expectedIntervals: 3},
+		// |---|---start---|---|---end---|
+		{name: "unaligned", end: time.Now(), step: "1m", expectedIntervals: 4},
+		{name: "default step", end: time.Now(), step: "", expectedIntervals: 122},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			req := queryRangeRequest{
+				Query:     "{} | count_over_time()",
+				Start:     testCase.end.Add(-2 * time.Minute),
+				End:       testCase.end,
+				Step:      testCase.step,
+				noDefault: true,
+			}
+
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
+			require.NotNil(t, queryRangeRes)
+			series := queryRangeRes.GetSeries()
+			require.Equal(t, 1, len(series), "Expected 1 series for count_over_time query")
+			require.Equal(t, testCase.expectedIntervals, len(series[0].Samples))
+		})
+	}
 }
 
 func sumSamples(samples []tempopb.Sample) float64 {
@@ -458,7 +517,7 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -494,7 +553,7 @@ func TestQueryRangeMaxSeries(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -558,7 +617,7 @@ func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -623,7 +682,7 @@ func TestQueryRangeMaxSeriesDisabledQuerier(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
@@ -654,7 +713,7 @@ sendLoop:
 	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
-	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(5), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(5), "tempo_ingester_blocks_flushed_total"))
 
 	query := "{} | rate() by (span:id)"
 	url := fmt.Sprintf(

@@ -8,8 +8,7 @@ import (
 
 	"github.com/grafana/dskit/user"
 	jaeger "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-	zipkincore "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	zipkincore "github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -40,7 +39,7 @@ type TraceInfo struct {
 
 // JaegerClient is an interface used to mock the underlying client in tests.
 type JaegerClient interface {
-	EmitBatch(ctx context.Context, b *thrift.Batch) error
+	EmitBatch(ctx context.Context, b *jaeger.Batch) error
 	EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error
 }
 
@@ -148,17 +147,17 @@ func (t *TraceInfo) generateRandomInt(min, max int64) int64 {
 	return number
 }
 
-func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *thrift.Batch {
-	var spans []*thrift.Span
+func (t *TraceInfo) makeThriftBatch(traceIDHigh, traceIDLow int64) *jaeger.Batch {
+	var spans []*jaeger.Span
 	count := t.generateRandomInt(1, 5)
 	lastSpanID, nextSpanID := int64(0), int64(0)
 	// Each span has the previous span as parent, creating a tree with a single branch per batch.
 	for i := int64(0); i < count; i++ {
 		nextSpanID = t.r.Int63()
 
-		spans = append(spans, &thrift.Span{
-			TraceIdLow:    TraceIDLow,
-			TraceIdHigh:   TraceIDHigh,
+		spans = append(spans, &jaeger.Span{
+			TraceIdLow:    traceIDLow,
+			TraceIdHigh:   traceIDHigh,
 			SpanId:        nextSpanID,
 			ParentSpanId:  lastSpanID,
 			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
@@ -173,12 +172,12 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *thrift.Batch
 		lastSpanID = nextSpanID
 	}
 
-	process := &thrift.Process{
+	process := &jaeger.Process{
 		ServiceName: "tempo-vulture",
 		Tags:        t.generateRandomTagsWithPrefix("vulture-process"),
 	}
 
-	return &thrift.Batch{Process: process, Spans: spans}
+	return &jaeger.Batch{Process: process, Spans: spans}
 }
 
 func (t *TraceInfo) makeJaegerBatch(TraceIDHigh, TraceIDLow int64) *jaeger.Batch {
@@ -224,7 +223,7 @@ func (t *TraceInfo) generateRandomString() string {
 	return string(s)
 }
 
-func (t *TraceInfo) generateRandomTags() []*thrift.Tag {
+func (t *TraceInfo) generateRandomTags() []*jaeger.Tag {
 	return t.generateRandomTagsWithPrefix("vulture")
 }
 
@@ -232,12 +231,12 @@ func (t *TraceInfo) generateRandomJaegerTags() []*jaeger.Tag {
 	return t.generateRandomJaegerTagsWithPrefix("vulture")
 }
 
-func (t *TraceInfo) generateRandomTagsWithPrefix(prefix string) []*thrift.Tag {
-	var tags []*thrift.Tag
+func (t *TraceInfo) generateRandomTagsWithPrefix(prefix string) []*jaeger.Tag {
+	var tags []*jaeger.Tag
 	count := t.generateRandomInt(1, 5)
 	for i := int64(0); i < count; i++ {
 		value := t.generateRandomString()
-		tags = append(tags, &thrift.Tag{
+		tags = append(tags, &jaeger.Tag{
 			Key:  fmt.Sprintf("%s-%d", prefix, i),
 			VStr: &value,
 		})
@@ -258,11 +257,11 @@ func (t *TraceInfo) generateRandomJaegerTagsWithPrefix(prefix string) []*jaeger.
 	return tags
 }
 
-func (t *TraceInfo) generateRandomLogs() []*thrift.Log {
-	var logs []*thrift.Log
+func (t *TraceInfo) generateRandomLogs() []*jaeger.Log {
+	var logs []*jaeger.Log
 	count := t.generateRandomInt(1, 5)
 	for i := int64(0); i < count; i++ {
-		logs = append(logs, &thrift.Log{
+		logs = append(logs, &jaeger.Log{
 			Timestamp: t.timestamp.UnixMicro(),
 			Fields:    t.generateRandomTags(),
 		})

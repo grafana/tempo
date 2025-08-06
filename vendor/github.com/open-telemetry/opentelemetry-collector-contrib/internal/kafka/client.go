@@ -22,11 +22,12 @@ var saramaCompressionCodecs = map[string]sarama.CompressionCodec{
 	"zstd":   sarama.CompressionZSTD,
 }
 
-func convertToSaramaCompressionLevel(p configcompression.Level) int {
-	if p == configcompression.DefaultCompressionLevel {
+func convertToSaramaCompressionLevel(level configcompression.Level) int {
+	switch level {
+	case 0, configcompression.DefaultCompressionLevel:
 		return sarama.CompressionLevelDefault
 	}
-	return int(p)
+	return int(level)
 }
 
 var saramaInitialOffsets = map[string]int64{
@@ -97,20 +98,29 @@ func NewSaramaSyncProducer(
 	if err != nil {
 		return nil, err
 	}
-	saramaConfig.Producer.Return.Successes = true // required for SyncProducer
-	saramaConfig.Producer.Return.Errors = true    // required for SyncProducer
-	saramaConfig.Producer.MaxMessageBytes = producerConfig.MaxMessageBytes
-	saramaConfig.Producer.Flush.MaxMessages = producerConfig.FlushMaxMessages
-	saramaConfig.Producer.RequiredAcks = sarama.RequiredAcks(producerConfig.RequiredAcks)
-	saramaConfig.Producer.Timeout = producerTimeout
-	saramaConfig.Producer.Compression = saramaCompressionCodecs[producerConfig.Compression]
-	saramaConfig.Producer.CompressionLevel = convertToSaramaCompressionLevel(producerConfig.CompressionParams.Level)
+	setSaramaProducerConfig(saramaConfig, producerConfig, producerTimeout)
 	return sarama.NewSyncProducer(clientConfig.Brokers, saramaConfig)
+}
+
+func setSaramaProducerConfig(
+	out *sarama.Config,
+	producerConfig configkafka.ProducerConfig,
+	producerTimeout time.Duration,
+) {
+	out.Producer.Return.Successes = true // required for SyncProducer
+	out.Producer.Return.Errors = true    // required for SyncProducer
+	out.Producer.MaxMessageBytes = producerConfig.MaxMessageBytes
+	out.Producer.Flush.MaxMessages = producerConfig.FlushMaxMessages
+	out.Producer.RequiredAcks = sarama.RequiredAcks(producerConfig.RequiredAcks)
+	out.Producer.Timeout = producerTimeout
+	out.Producer.Compression = saramaCompressionCodecs[producerConfig.Compression]
+	out.Producer.CompressionLevel = convertToSaramaCompressionLevel(producerConfig.CompressionParams.Level)
 }
 
 // newSaramaClientConfig returns a Sarama client config, based on the given config.
 func newSaramaClientConfig(ctx context.Context, config configkafka.ClientConfig) (*sarama.Config, error) {
 	saramaConfig := sarama.NewConfig()
+	saramaConfig.ClientID = config.ClientID
 	saramaConfig.Metadata.Full = config.Metadata.Full
 	saramaConfig.Metadata.RefreshFrequency = config.Metadata.RefreshInterval
 	saramaConfig.Metadata.Retry.Max = config.Metadata.Retry.Max
@@ -138,7 +148,7 @@ func newSaramaClientConfig(ctx context.Context, config configkafka.ClientConfig)
 		}
 	} else if config.Authentication.SASL != nil && config.Authentication.SASL.Mechanism == "AWS_MSK_IAM_OAUTHBEARER" {
 		saramaConfig.Net.TLS.Config = &tls.Config{}
-		saramaConfig.Net.SASL.Enable = true
+		saramaConfig.Net.TLS.Enable = true
 	}
 	configureSaramaAuthentication(ctx, config.Authentication, saramaConfig)
 	return saramaConfig, nil
