@@ -1696,8 +1696,9 @@ func (h *HistogramAggregator) Results() SeriesSet {
 	})
 
 	quantileValues := make([]float64, len(h.qs))
+	quantileBucketIndices := make([]int, len(h.qs))
 	for i, q := range h.qs {
-		quantileValues[i] = Log2Quantile(q, buckets)
+		quantileValues[i], quantileBucketIndices[i] = Log2QuantileWithBucket(q, buckets)
 	}
 
 	// Build results using the calculated quantile values
@@ -1733,9 +1734,9 @@ func (h *HistogramAggregator) Results() SeriesSet {
 				ts.Values[i] = Log2Quantile(q, in.hist[i].Buckets)
 			}
 
-			// Select exemplars using value thresholds
-			// Use aggregated quantile values, not per-interval values, for consistent assignment
-			ts.Exemplars = h.selectExemplarsWithValueThresholds(in.exemplars, quantileValues, qIdx)
+			// Select exemplars using bucket-based filtering
+			// Use aggregated quantile values and bucket ranges for consistent assignment across intervals
+			ts.Exemplars = h.selectExemplarsWithBucketFiltering(in.exemplars, quantileValues, quantileBucketIndices, buckets, qIdx)
 
 			results[s] = ts
 		}
@@ -1744,17 +1745,18 @@ func (h *HistogramAggregator) Results() SeriesSet {
 	return results
 }
 
-// selectExemplarsWithValueThresholds assigns exemplars based on their values compared to quantile thresholds.
-// Each exemplar is compared against the aggregated quantile threshold values.
-func (h *HistogramAggregator) selectExemplarsWithValueThresholds(allExemplars []Exemplar, quantileValues []float64, quantileIdx int) []Exemplar {
+// selectExemplarsWithBucketFiltering assigns exemplars based on closest quantile matching
+// and filters out exemplars that don't fall within the bucket range of their target quantile.
+func (h *HistogramAggregator) selectExemplarsWithBucketFiltering(allExemplars []Exemplar, quantileValues []float64, quantileBucketIndices []int, buckets []HistogramBucket, quantileIdx int) []Exemplar {
 	if len(allExemplars) == 0 || len(quantileValues) == 0 {
 		return nil
 	}
 
 	var result []Exemplar
 	for _, exemplar := range allExemplars {
-		// Assign exemplar to the appropriate quantile based on value-based thresholds
-		targetQuantileIdx := h.determineTargetQuantile(exemplar.Value, quantileValues)
+		// Assign exemplar to the appropriate quantile based on closest quantile matching
+		targetQuantileIdx := h.determineTargetQuantileWithBucketCheck(exemplar.Value, quantileValues, quantileBucketIndices, buckets)
+		// Skip exemplars that don't fit in any bucket (targetQuantileIdx == -1)
 		if targetQuantileIdx == quantileIdx {
 			result = append(result, exemplar)
 		}
@@ -1763,21 +1765,62 @@ func (h *HistogramAggregator) selectExemplarsWithValueThresholds(allExemplars []
 	return result
 }
 
-// determineTargetQuantile determines which quantile an exemplar should be assigned to
-// by comparing its value against the calculated quantile thresholds.
-func (h *HistogramAggregator) determineTargetQuantile(exemplarValue float64, quantileValues []float64) int {
-	// Assign to the smallest quantile that can contain this exemplar
-	// e.g., if exemplar is 1.5s and p50=0.5s, p90=2.0s, p99=5.0s
-	// then 1.5s goes to p90 (since 1.5s > p50 but <= p90)
+// determineTargetQuantileWithBucketCheck determines which quantile an exemplar should be assigned to
+// by finding the closest quantile value with relaxed bucket validation.
+// This provides optimal visual alignment while still filtering out egregiously wrong assignments.
+// Returns -1 if the exemplar is too far from all quantiles to be useful.
+func (h *HistogramAggregator) determineTargetQuantileWithBucketCheck(exemplarValue float64, quantileValues []float64, quantileBucketIndices []int, buckets []HistogramBucket) int {
+	if len(quantileValues) == 0 || len(buckets) == 0 {
+		return 0
+	}
 
-	for i := 0; i < len(quantileValues); i++ {
-		if exemplarValue <= quantileValues[i] {
-			return i
+	// Find the closest reasonable quantile - prioritize visual alignment over simple thresholds
+	bestIdx := -1
+	bestDiff := math.Inf(1)
+	diff := 0.0
+
+	for i := range quantileValues {
+		if h.isExemplarReasonableForQuantile(exemplarValue, quantileValues[i], quantileBucketIndices[i], buckets) {
+			// Always prioritize the closest quantile for better visual alignment
+			diff = math.Abs(exemplarValue - quantileValues[i])
+			if diff < bestDiff {
+				bestDiff = diff
+				bestIdx = i
+			}
 		}
 	}
 
-	// If exemplar is above all quantile thresholds, assign to the highest quantile
-	return len(quantileValues) - 1
+	return bestIdx // Returns the closest reasonable quantile, or -1 if none are reasonable
+}
+
+// isExemplarReasonableForQuantile checks if an exemplar is reasonable for a given quantile
+// using relaxed validation that allows exemplars in nearby buckets or within a reasonable range.
+func (h *HistogramAggregator) isExemplarReasonableForQuantile(exemplarValue, quantileValue float64, bucketIdx int, buckets []HistogramBucket) bool {
+	if bucketIdx < 0 || bucketIdx >= len(buckets) {
+		return false
+	}
+
+	// Calculate the expanded valid range: previous bucket min to next bucket max
+	// This covers the target bucket + adjacent buckets in one check
+	rangeMin := 0.0
+	if bucketIdx > 1 {
+		rangeMin = buckets[bucketIdx-2].Max
+	}
+
+	rangeMax := buckets[bucketIdx].Max
+	if bucketIdx < len(buckets)-1 {
+		rangeMax = buckets[bucketIdx+1].Max
+	}
+
+	// Check if exemplar falls within the expanded range (rangeMin, rangeMax]
+	// Special case: include 0 for the first bucket
+	if (rangeMin == 0.0 && exemplarValue >= rangeMin) || exemplarValue > rangeMin {
+		if exemplarValue <= rangeMax {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (h *HistogramAggregator) Length() int {
