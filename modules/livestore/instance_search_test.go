@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
@@ -21,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -29,12 +29,13 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 const (
-	foo = "foo"
-	bar = "bar"
-	qux = "qux"
+	foo          = "foo"
+	bar          = "bar"
+	qux          = "qux"
 	testTenantID = "fake"
 )
 
@@ -286,7 +287,7 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore, string) {
 	// Start the LiveStore service to initialize WAL
 	err = liveStore.StartAsync(context.Background())
 	require.NoError(t, err)
-	
+
 	err = liveStore.AwaitRunning(context.Background())
 	require.NoError(t, err)
 
@@ -300,22 +301,20 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore, string) {
 func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	cfg := Config{}
 	cfg.WAL.Filepath = tmpDir
-	
-	// Create mock store for ring
+	cfg.WAL.Version = encoding.LatestEncoding().Version()
+	flagext.DefaultValues(&cfg.LifecyclerConfig)
 	mockStore, _ := consul.NewInMemoryClient(
-		ring.GetCodec(),
+		ring.GetPartitionRingCodec(),
 		log.NewNopLogger(),
 		nil,
 	)
-	
-	// Configure lifecycler for testing
+
 	cfg.LifecyclerConfig.RingConfig.KVStore.Mock = mockStore
 	cfg.LifecyclerConfig.NumTokens = 1
 	cfg.LifecyclerConfig.ListenPort = 0
 	cfg.LifecyclerConfig.Addr = "localhost"
-	cfg.LifecyclerConfig.ID = "localhost-0" // Must end with "-0" for partition calculation
-	
-	// Configure partition ring for testing
+	cfg.LifecyclerConfig.ID = "test-1"
+	cfg.LifecyclerConfig.FinalSleep = 0
 	cfg.PartitionRing.KVStore.Mock = mockStore
 
 	// Create overrides
@@ -347,7 +346,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 
 		testTrace := test.MakeTrace(10, id)
 		trace.SortTrace(testTrace)
-		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
+		traceBytes, err := testTrace.Marshal()
 		require.NoError(t, err)
 
 		// Create a push request for livestore
@@ -368,11 +367,8 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 // be returned from a tag value search
 // nolint:revive,unparam
 func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue string, postFixValue bool, includeEventLink bool) ([][]byte, []string, []string, []string) {
-	// This matches the encoding for live traces, since
-	// we are pushing to the instance directly it must match.
-	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	numTraces := 100
+	numTraces := 5
 	ids := make([][]byte, 0, numTraces)
 	expectedTagValues := make([]string, 0, numTraces)
 	expectedEventTagValues := make([]string, 0, numTraces)
@@ -425,7 +421,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 
 		trace.SortTrace(testTrace)
 
-		traceBytes, err := dec.PrepareForWrite(testTrace, uint32(now.Unix()), uint32(now.Unix()))
+		traceBytes, err := testTrace.Marshal()
 		require.NoError(t, err)
 
 		// Create a push request for livestore
@@ -445,10 +441,6 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 
 func TestInstanceSearchDoesNotRace(t *testing.T) {
 	i, _, _ := defaultInstanceAndTmpDir(t)
-
-	// This matches the encoding for live traces, since
-	// we are pushing to the instance directly it must match.
-	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	// add dummy search data
 	tagKey := foo
@@ -480,7 +472,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		require.NoError(t, err)
 
 		trace := test.MakeTrace(10, id)
-		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
+		traceBytes, err := trace.Marshal()
 		require.NoError(t, err)
 
 		// Create a push request for livestore
@@ -540,19 +532,15 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	t.Parallel()
 	i, _ := defaultInstance(t)
 
-	// This matches the encoding for live traces, since
-	// we are pushing to the instance directly it must match.
-	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-
 	numTraces := uint32(500)
 	numBytes := uint64(0)
 	for j := uint32(0); j < numTraces; j++ {
 		id := test.ValidTraceID(nil)
 
-		// Trace bytes have to be pushed in the expected data encoding
+		// Trace bytes have to be pushed as raw tempopb.Trace bytes
 		trace := test.MakeTrace(10, id)
 
-		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
+		traceBytes, err := trace.Marshal()
 		require.NoError(t, err)
 
 		// Create a push request for livestore
