@@ -1900,6 +1900,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			continue
 
 		case traceql.IntrinsicSpanStartTime:
+			// TODO - We also need to scale the operands if using lower precision.
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -1908,16 +1909,16 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			// Choose the least precise column possible.
 			// The step interval must be an even multiple of the pre-rounded precision.
 			switch {
-			case cond.LowPrecision >= 3600*time.Second && cond.LowPrecision%(3600*time.Second) == 0:
+			case cond.Precision >= 3600*time.Second && cond.Precision%(3600*time.Second) == 0:
 				addPredicate(columnPathSpanStartRounded3600, pred)
 				columnSelectAs[columnPathSpanStartRounded3600] = columnPathSpanStartRounded3600
-			case cond.LowPrecision >= 300*time.Second && cond.LowPrecision%(300*time.Second) == 0:
+			case cond.Precision >= 300*time.Second && cond.Precision%(300*time.Second) == 0:
 				addPredicate(columnPathSpanStartRounded300, pred)
 				columnSelectAs[columnPathSpanStartRounded300] = columnPathSpanStartRounded300
-			case cond.LowPrecision >= 60*time.Second && cond.LowPrecision%(60*time.Second) == 0:
+			case cond.Precision >= 60*time.Second && cond.Precision%(60*time.Second) == 0:
 				addPredicate(columnPathSpanStartRounded60, pred)
 				columnSelectAs[columnPathSpanStartRounded60] = columnPathSpanStartRounded60
-			case cond.LowPrecision >= 15*time.Second && cond.LowPrecision%(15*time.Second) == 0:
+			case cond.Precision >= 15*time.Second && cond.Precision%(15*time.Second) == 0:
 				addPredicate(columnPathSpanStartRounded15, pred)
 				columnSelectAs[columnPathSpanStartRounded15] = columnPathSpanStartRounded15
 			default:

@@ -942,12 +942,12 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		// Technically we only need the start time of matching spans, so we add it to the second pass.
 		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
-		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, LowPrecision: precision})
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, Precision: precision})
 	} else {
 		// Update the existing condition to use low precision
 		for i, c := range storageReq.Conditions {
 			if c.Attribute == IntrinsicSpanStartTimeAttribute {
-				storageReq.Conditions[i].LowPrecision = precision
+				storageReq.Conditions[i].Precision = precision
 				break
 			}
 		}
