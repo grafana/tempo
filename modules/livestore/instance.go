@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"context"
+	"flag"
 	"sync"
 	"time"
 
@@ -228,6 +229,13 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	return id, nil
 }
 
+var blockConfig = common.BlockConfig{}
+
+func init() {
+	// TODO MRD this is a hack until we roll the config into the livestore
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+}
+
 func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	i.blocksMtx.Lock()
 	walBlock := i.walBlocks[id]
@@ -249,7 +257,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 	defer iter.Close()
 
-	newMeta, err := i.enc.CreateBlock(ctx, &common.BlockConfig{}, walBlock.BlockMeta(), iter, reader, writer)
+	newMeta, err := i.enc.CreateBlock(ctx, &blockConfig, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		return err
