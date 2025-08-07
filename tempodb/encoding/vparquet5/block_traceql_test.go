@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1245,14 +1244,9 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} > {} | rate() by (name)", // structural*/
 	}
 
-	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
-	os.Setenv("BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello")
-	os.Setenv("BENCH_TENANT", "1")
-
 	e := traceql.NewEngine()
 	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
-	// opts.TotalPages = 1
 
 	block := blockForBenchmarks(b)
 
@@ -1262,39 +1256,30 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{5} {
-				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
-					st := block.meta.StartTime
-					end := st.Add(time.Duration(minutes) * time.Minute)
+			st := uint64(block.meta.StartTime.UnixNano())
+			end := uint64(block.meta.EndTime.UnixNano())
 
-					if end.After(block.meta.EndTime) {
-						b.SkipNow()
-						return
-					}
-
-					req := &tempopb.QueryRangeRequest{
-						Query:     tc,
-						Step:      uint64(time.Second * 16),
-						Start:     uint64(st.UnixNano()),
-						End:       uint64(end.UnixNano()),
-						MaxSeries: 1000,
-					}
-
-					eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
-					require.NoError(b, err)
-
-					b.ResetTimer()
-					for i := 0; i < b.N; i++ {
-						err := eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano()), int(req.MaxSeries))
-						require.NoError(b, err)
-					}
-
-					bytes, spansTotal, _ := eval.Metrics()
-					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
-					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
-				})
+			req := &tempopb.QueryRangeRequest{
+				Query:     tc,
+				Step:      uint64(time.Second * 15),
+				Start:     st,
+				End:       end,
+				MaxSeries: 1000,
 			}
+
+			eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+			require.NoError(b, err)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err := eval.Do(ctx, f, st, end, int(req.MaxSeries))
+				require.NoError(b, err)
+			}
+
+			bytes, spansTotal, _ := eval.Metrics()
+			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
+			b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 		})
 	}
 }
@@ -2156,17 +2141,17 @@ func randomTree(N int) []traceql.Span {
 }
 
 func blockForBenchmarks(b *testing.B) *backendBlock {
-	id, ok := os.LookupEnv("BENCH_BLOCKID")
+	id, ok := os.LookupEnv("VP5_BENCH_BLOCKID")
 	if !ok {
-		b.Fatal("BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_BLOCKID to the guid of the block to run benchmarks against. e.g. `export BENCH_BLOCKID=030c8c4f-9d47-4916-aadc-26b90b1d2bc4`")
+		b.Fatal("VP5_BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. Set VP5_BENCH_BLOCKID to the guid of the block to run benchmarks against. e.g. `export VP5_BENCH_BLOCKID=030c8c4f-9d47-4916-aadc-26b90b1d2bc4`")
 	}
 
-	path, ok := os.LookupEnv("BENCH_PATH")
+	path, ok := os.LookupEnv("VP5_BENCH_PATH")
 	if !ok {
-		b.Fatal("BENCH_PATH is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_PATH to the root of the backend such that the block to benchmark is at <BENCH_PATH>/<BENCH_TENANTID>/<BENCH_BLOCKID>.")
+		b.Fatal("VP5_BENCH_PATH is not set. These benchmarks are designed to run against a block on local disk. Set VP5_BENCH_PATH to the root of the backend such that the block to benchmark is at <VP5_BENCH_PATH>/<VP5_BENCH_TENANTID>/<VP5_BENCH_BLOCKID>.")
 	}
 
-	tenantID, ok := os.LookupEnv("BENCH_TENANTID")
+	tenantID, ok := os.LookupEnv("VP5_BENCH_TENANTID")
 
 	if !ok {
 		tenantID = "1"
