@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
+	"github.com/grafana/dskit/instrument"
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
@@ -19,6 +20,11 @@ import (
 
 	util_log "github.com/grafana/tempo/pkg/util/log"
 )
+
+func init() {
+	// overwriting default buckets []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 25, 50, 100} to have more granularity around 1s
+	instrument.DefBuckets = []float64{.01, .025, .05, .1, .25, .5, 1, 1.5, 2.5, 5, 10, 25, 50, 100}
+}
 
 type TempoServer interface {
 	HTTPRouter() *mux.Router
