@@ -188,6 +188,11 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 			return err
 		}
 
+		if _, err := traceql.ParseIdentifier(req.TagName); err != nil {
+			level.Error(logger).Log("msg", "failed to parse tagName", "err", err)
+			return status.Errorf(codes.InvalidArgument, "please provide a valid tagName: tag name is not valid intrinsic or scoped attribute: %s", req.TagName)
+		}
+
 		var finalResponse *tempopb.SearchTagValuesV2Response
 		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold)
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesV2Response) error {
@@ -359,6 +364,15 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 
 		_, query, rangeDur, maxTagsValues, staleValueThreshold := parseParams(req)
 		tagName := extractTagName(req.URL.Path, tagNameRegexV2)
+
+		if _, err := traceql.ParseIdentifier(tagName); err != nil {
+			level.Error(logger).Log("msg", "failed to parse tagName", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
+				Body:       io.NopCloser(strings.NewReader("please provide a valid tagName: " + err.Error())),
+			}, nil
+		}
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold)
