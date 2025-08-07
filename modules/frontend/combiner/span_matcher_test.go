@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,15 +17,15 @@ import (
 
 func TestMakeSpanMatcherPolicies(t *testing.T) {
 	tc := []struct {
-		policy   string
+		policy   []string
 		expected *SpanMatcher
 	}{
 		{
-			policy: "[{`resource.service`=`foo`}]",
+			policy: []string{"{`resource.service`=`foo`}"},
 			expected: &SpanMatcher{
-				Policies: []*FilterPolicy{
+				policies: []*FilterPolicy{
 					{
-						Matchers: []*PolicyMatcher{
+						matchers: []*PolicyMatcher{
 							{
 								shouldMatch: true,
 								resourceFilter: policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{
@@ -39,11 +40,11 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 			},
 		},
 		{
-			policy: "[{`span.team`=`foo`}]",
+			policy: []string{"{`span.team`=`foo`}"},
 			expected: &SpanMatcher{
-				Policies: []*FilterPolicy{
+				policies: []*FilterPolicy{
 					{
-						Matchers: []*PolicyMatcher{
+						matchers: []*PolicyMatcher{
 							{
 								shouldMatch: true,
 								spanFilter: policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{
@@ -58,11 +59,11 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 			},
 		},
 		{
-			policy: "[{`resource.service`=~`foo`}]",
+			policy: []string{"{`resource.service`=~`foo`}"},
 			expected: &SpanMatcher{
-				Policies: []*FilterPolicy{
+				policies: []*FilterPolicy{
 					{
-						Matchers: []*PolicyMatcher{
+						matchers: []*PolicyMatcher{
 							{
 								shouldMatch: true,
 								resourceFilter: policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{
@@ -77,11 +78,11 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 			},
 		},
 		{
-			policy: "[{`resource.service`!=`foo`}]",
+			policy: []string{"{`resource.service`!=`foo`}"},
 			expected: &SpanMatcher{
-				Policies: []*FilterPolicy{
+				policies: []*FilterPolicy{
 					{
-						Matchers: []*PolicyMatcher{
+						matchers: []*PolicyMatcher{
 							{
 								shouldMatch: false,
 								resourceFilter: policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{
@@ -96,11 +97,11 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 			},
 		},
 		{
-			policy: "[{`resource.service`!~`foo`}]",
+			policy: []string{"{`resource.service`!~`foo`}"},
 			expected: &SpanMatcher{
-				Policies: []*FilterPolicy{
+				policies: []*FilterPolicy{
 					{
-						Matchers: []*PolicyMatcher{
+						matchers: []*PolicyMatcher{
 							{
 								shouldMatch: false,
 								resourceFilter: policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{
@@ -115,11 +116,11 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 			},
 		},
 		{
-			policy: "[{`resource.service`=`foo`,`span.team`=`bar`}]",
+			policy: []string{"{`resource.service`=`foo`,`span.team`=`bar`}"}, // Updated to use slice
 			expected: &SpanMatcher{
-				Policies: []*FilterPolicy{
+				policies: []*FilterPolicy{
 					{
-						Matchers: []*PolicyMatcher{
+						matchers: []*PolicyMatcher{
 							{
 								shouldMatch: true,
 								resourceFilter: policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{
@@ -142,11 +143,11 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 			},
 		},
 		{
-			policy: "[{`resource.service`=`foo`},{`span.team`=`bar`}]",
+			policy: []string{"{`resource.service`=`foo`}", "{`span.team`=`bar`}"}, // Updated to use slice
 			expected: &SpanMatcher{
-				Policies: []*FilterPolicy{
+				policies: []*FilterPolicy{
 					{
-						Matchers: []*PolicyMatcher{
+						matchers: []*PolicyMatcher{
 							{
 								shouldMatch: true,
 								resourceFilter: policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{
@@ -158,7 +159,7 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 						},
 					},
 					{
-						Matchers: []*PolicyMatcher{
+						matchers: []*PolicyMatcher{
 							{
 								shouldMatch: true,
 								spanFilter: policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{
@@ -175,7 +176,8 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 	}
 
 	for _, test := range tc {
-		t.Run(test.policy, func(t *testing.T) {
+		name := fmt.Sprintf("%s", test.policy)
+		t.Run(name, func(t *testing.T) {
 			sm, err := NewSpanMatcher(test.policy)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expected, sm)
@@ -185,15 +187,15 @@ func TestMakeSpanMatcherPolicies(t *testing.T) {
 
 func TestProcessTrace(t *testing.T) {
 	tests := []struct {
-		policy   string
+		policy   []string
 		expected *tempopb.Trace
 	}{
 		{
-			policy:   "[{`resource.match.all`=`foo`}]",
+			policy:   []string{"{`resource.match.all`=`foo`}"},
 			expected: makeTestTrace(),
 		},
 		{
-			policy: "[{`resource.service.name`=`foo`}]",
+			policy: []string{"{`resource.service.name`=`foo`}"},
 			expected: &tempopb.Trace{
 				ResourceSpans: []*v1.ResourceSpans{
 					makeTestResource(
@@ -218,7 +220,7 @@ func TestProcessTrace(t *testing.T) {
 			},
 		},
 		{
-			policy: "[{`resource.service.name`=`foo`, `span.name`=`span1`}]",
+			policy: []string{"{`resource.service.name`=`foo`, `span.name`=`span1`}"},
 			expected: &tempopb.Trace{
 				ResourceSpans: []*v1.ResourceSpans{
 					makeTestResource(
@@ -244,12 +246,12 @@ func TestProcessTrace(t *testing.T) {
 		},
 		{
 			// multiple policies are OR operations
-			policy:   "[{`resource.match.nothing` = `foo`},{`resource.match.all`=`foo`}]",
+			policy:   []string{"[{`resource.match.nothing`=`foo`},{`resource.match.all`=`foo`}]"},
 			expected: makeTestTrace(),
 		},
 		{
 			// redact span level only
-			policy: "[{`span.name`=`span1`}]",
+			policy:   []string{"{`span.name`=`span1`}"},
 			expected: &tempopb.Trace{
 				ResourceSpans: []*v1.ResourceSpans{
 					makeTestResource(
@@ -282,12 +284,13 @@ func TestProcessTrace(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.policy, func(t *testing.T) {
+		name := fmt.Sprintf("%s", test.policy)
+		t.Run(name, func(t *testing.T) {
 			trace := makeTestTrace()
 			sm, err := NewSpanMatcher(test.policy)
 			require.NoError(t, err)
 
-			sm.ProcessTrace(trace)
+			sm.ProcessTraceToRedactAttributes(trace)
 			assert.Equal(t, test.expected, trace)
 		})
 	}

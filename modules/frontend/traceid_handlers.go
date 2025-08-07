@@ -60,9 +60,9 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		spanMatcherHeader := req.Header.Get(combiner.SpanMatcherHeader)
+		spanMatcherHeader := req.Header.Values(combiner.SpanMatcherHeader)
 		var spanMatcher *combiner.SpanMatcher
-		if spanMatcherHeader != "" {
+		if len(spanMatcherHeader) > 0 {
 			spanMatcher, err = combiner.NewSpanMatcher(spanMatcherHeader)
 			if err != nil {
 				level.Error(logger).Log("msg", "error creating span matcher", "err", err)
@@ -142,9 +142,9 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"msg", "trace id request",
 			"tenant", tenant,
 			"path", req.URL.Path)
-		spanMatcherHeader := req.Header.Get(combiner.SpanMatcherHeader)
+		spanMatcherHeader := req.Header.Values(combiner.SpanMatcherHeader)
 		var spanMatcher *combiner.SpanMatcher
-		if spanMatcherHeader != "" {
+		if len(spanMatcherHeader) > 0 {
 			spanMatcher, err = combiner.NewSpanMatcher(spanMatcherHeader)
 			if err != nil {
 				level.Error(logger).Log("msg", "error creating span matcher", "err", err)

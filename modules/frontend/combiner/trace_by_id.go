@@ -129,7 +129,7 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	deduper := newDeduper()
 	traceResult = deduper.dedupe(traceResult)
 	if c.spanMatcher != nil {
-		c.spanMatcher.ProcessTrace(traceResult)
+		c.spanMatcher.ProcessTraceToRedactAttributes(traceResult)
 	}
 
 	// marshal in the requested format

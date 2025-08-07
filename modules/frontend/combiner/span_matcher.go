@@ -21,11 +21,11 @@ import (
 const SpanMatcherHeader = "X-Span-Matcher"
 
 type SpanMatcher struct {
-	Policies []*FilterPolicy
+	policies []*FilterPolicy
 }
 
 type FilterPolicy struct {
-	Matchers []*PolicyMatcher
+	matchers []*PolicyMatcher
 }
 
 type PolicyMatcher struct {
@@ -37,7 +37,7 @@ type PolicyMatcher struct {
 
 func (fp *FilterPolicy) MatchIntrinsic(span *tracev1.Span) bool {
 	// these are AND operators between matchers so exit early if any matcher does not match
-	for _, matcher := range fp.Matchers {
+	for _, matcher := range fp.matchers {
 		if matcher.intrinsicFilter == nil {
 			continue
 		}
@@ -50,7 +50,7 @@ func (fp *FilterPolicy) MatchIntrinsic(span *tracev1.Span) bool {
 
 func (fp *FilterPolicy) MatchSpan(span *tracev1.Span) bool {
 	// these are AND operators between matchers so exit early if any matcher does not match
-	for _, matcher := range fp.Matchers {
+	for _, matcher := range fp.matchers {
 		if matcher.spanFilter == nil {
 			continue
 		}
@@ -63,7 +63,7 @@ func (fp *FilterPolicy) MatchSpan(span *tracev1.Span) bool {
 
 func (fp *FilterPolicy) MatchResource(rsAttrs []*commonv1.KeyValue) bool {
 	// these are AND operators between matchers so exit early if any matcher does not match
-	for _, matcher := range fp.Matchers {
+	for _, matcher := range fp.matchers {
 		if matcher.resourceFilter == nil {
 			continue
 		}
@@ -74,23 +74,13 @@ func (fp *FilterPolicy) MatchResource(rsAttrs []*commonv1.KeyValue) bool {
 	return true
 }
 
-func NewSpanMatcher(matcherValue string) (*SpanMatcher, error) {
-	if matcherValue == "" {
-		return nil, errors.New("span matcher header value is empty")
-	}
-	matcherValue = strings.TrimSpace(matcherValue)
-	matcherValue = strings.ReplaceAll(matcherValue, "[", "")
-	matcherValue = strings.ReplaceAll(matcherValue, "]", "")
-
-	if matcherValue == "" {
-		return nil, errors.New("span matcher header value is empty after trimming brackets")
+func NewSpanMatcher(policiesStr []string) (*SpanMatcher, error) {
+	if len(policiesStr) == 0 {
+		return nil, errors.New("span matcher policies are empty")
 	}
 
-	stringPolicies := strings.Split(matcherValue, "},")
-
-	policies := make([]*FilterPolicy, 0, len(stringPolicies))
-
-	for _, policyStr := range stringPolicies {
+	policies := make([]*FilterPolicy, 0, len(policiesStr))
+	for _, policyStr := range policiesStr {
 		if !strings.HasSuffix(policyStr, "}") {
 			policyStr += "}"
 		}
@@ -98,72 +88,25 @@ func NewSpanMatcher(matcherValue string) (*SpanMatcher, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error parsing policy selector '%s': %v", policyStr, err)
 		}
-		policyMatchers := make([]*PolicyMatcher, 0, len(matchers))
-		for _, matcher := range matchers {
-			shouldMatch := true
-			matchType := config.Strict
-			attr, err := traceql.ParseIdentifier(matcher.Name)
-			if err != nil {
-				return nil, fmt.Errorf("invalid policy match attribute: %v", err)
-			}
-			switch matcher.Type {
-			case labels.MatchEqual:
-				matchType = config.Strict
-				shouldMatch = true
-			case labels.MatchNotEqual:
-				matchType = config.Strict
-				shouldMatch = false
-			case labels.MatchRegexp:
-				matchType = config.Regex
-				shouldMatch = true
-			case labels.MatchNotRegexp:
-				matchType = config.Regex
-				shouldMatch = false
-			default:
-				return nil, fmt.Errorf("unsupported match type: %v", matcher.Type)
-			}
-			policyMatcher := &PolicyMatcher{
-				shouldMatch: shouldMatch,
-			}
-			if attr.Intrinsic > 0 {
-				intrinsictMatcher, err := makeIntrinsicMatcher(matcher.Value, matchType)
-				if err != nil {
-					return nil, fmt.Errorf("error creating intrinsic matcher: %w", err)
-				}
-				policyMatcher.intrinsicFilter = policymatch.NewIntrinsicPolicyMatch([]policymatch.IntrinsicFilter{intrinsictMatcher})
-			} else {
-				if attr.Scope == traceql.AttributeScopeSpan {
-					spanFilter, err := policymatch.NewAttributeFilter(matchType, attr.Name, matcher.Value)
-					if err != nil {
-						return nil, fmt.Errorf("error creating span attribute filter: %w", err)
-					}
-					policyMatcher.spanFilter = policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{spanFilter})
-				} else if attr.Scope == traceql.AttributeScopeResource {
-					resourceFilter, err := policymatch.NewAttributeFilter(matchType, attr.Name, matcher.Value)
-					if err != nil {
-						return nil, fmt.Errorf("error creating resource attribute filter: %w", err)
-					}
-					policyMatcher.resourceFilter = policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{resourceFilter})
-				} else {
-					return nil, fmt.Errorf("invalid or unsupported attribute scope: %v", attr.Scope)
-				}
-			}
-			policyMatchers = append(policyMatchers, policyMatcher)
+		policyMatchers, err := makePolicyMatchers(matchers)
+
+		if err != nil {
+			return nil, fmt.Errorf("error creating policy matchers: %v", err)
 		}
 		policies = append(policies, &FilterPolicy{
-			Matchers: policyMatchers,
+			matchers: policyMatchers,
 		})
 	}
 	return &SpanMatcher{
-		Policies: policies,
+		policies: policies,
 	}, nil
 }
 
 // so we don't have to pass the resource attributes every time we check a span
-func (sm *SpanMatcher) MatchResource(rsAttrs []*commonv1.KeyValue, rs *v1.Resource) []bool {
+func (sm *SpanMatcher) MatchResource(rsAttrs []*commonv1.KeyValue) []bool {
 	// these are OR operations between policies so exit early if any policy matches
-	matchedIndexes := make([]bool, len(sm.Policies))
-	for i, policy := range sm.Policies {
+	matchedIndexes := make([]bool, len(sm.policies))
+	for i, policy := range sm.policies {
 		if policy.MatchResource(rsAttrs) {
 			matchedIndexes[i] = true
 		}
@@ -173,7 +116,7 @@ func (sm *SpanMatcher) MatchResource(rsAttrs []*commonv1.KeyValue, rs *v1.Resour
 
 func (sm *SpanMatcher) Match(matchedResourceIndex []bool, span *tracev1.Span) bool {
 	// these are OR operations between policies so exit early if any policy matches
-	for i, policy := range sm.Policies {
+	for i, policy := range sm.policies {
 		if matchedResourceIndex[i] && policy.MatchSpan(span) && policy.MatchIntrinsic(span) {
 			return true
 		}
@@ -181,9 +124,9 @@ func (sm *SpanMatcher) Match(matchedResourceIndex []bool, span *tracev1.Span) bo
 	return false
 }
 
-func (sm *SpanMatcher) ProcessTrace(trace *tempopb.Trace) {
+func (sm *SpanMatcher) ProcessTraceToRedactAttributes(trace *tempopb.Trace) {
 	for _, b := range trace.ResourceSpans {
-		matchedResourceIndexes := sm.MatchResource(b.Resource.Attributes, b.Resource)
+		matchedResourceIndexes := sm.MatchResource(b.Resource.Attributes)
 		matchedRsSpans := 0
 		for _, ils := range b.ScopeSpans {
 			matchedScopeSpans := 0
@@ -193,17 +136,17 @@ func (sm *SpanMatcher) ProcessTrace(trace *tempopb.Trace) {
 					matchedRsSpans++
 					matchedScopeSpans++
 				} else {
-					ProcessUnmatchedSpans(span)
+					RedactSpanAttributes(span)
 				}
 			}
 			if matchedScopeSpans == 0 {
 				// if no spans matched, remove the scope attributes
-				ProcessUnmatchedScope(ils.Scope)
+				RedactInstrumentationScopeAttributes(ils.Scope)
 			}
 		}
 		if matchedRsSpans == 0 {
 			// only completely remove resource attributes if no spans matched under this resource
-			ProcessUnmatchedResource(b.Resource)
+			RedactResourceAttributes(b.Resource)
 		}
 	}
 }
@@ -215,7 +158,7 @@ func makeIntrinsicMatcher(value string, matchType config.MatchType) (policymatch
 	return policymatch.NewRegexpIntrinsicFilter(traceql.IntrinsicName, value)
 }
 
-func ProcessUnmatchedSpans(span *tracev1.Span) {
+func RedactSpanAttributes(span *tracev1.Span) {
 	span.Attributes = []*commonv1.KeyValue{}
 	span.DroppedAttributesCount = 0
 	span.Name = "redacted"
@@ -223,9 +166,11 @@ func ProcessUnmatchedSpans(span *tracev1.Span) {
 	span.DroppedEventsCount = 0
 	span.Links = []*tracev1.Span_Link{}
 	span.DroppedLinksCount = 0
+	span.TraceState = ""
+	span.Flags = 0
 }
 
-func ProcessUnmatchedResource(rs *v1.Resource) {
+func RedactResourceAttributes(rs *v1.Resource) {
 	rs.Attributes = []*commonv1.KeyValue{
 		{
 			Key:   "service.name",
@@ -235,7 +180,7 @@ func ProcessUnmatchedResource(rs *v1.Resource) {
 	rs.DroppedAttributesCount = 0
 }
 
-func ProcessUnmatchedScope(scope *commonv1.InstrumentationScope) {
+func RedactInstrumentationScopeAttributes(scope *commonv1.InstrumentationScope) {
 	if scope.Name != "" {
 		scope.Name = "redacted"
 	}
@@ -244,4 +189,60 @@ func ProcessUnmatchedScope(scope *commonv1.InstrumentationScope) {
 	}
 	scope.Attributes = []*commonv1.KeyValue{}
 	scope.DroppedAttributesCount = 0
+}
+
+func makePolicyMatchers(matchers []*labels.Matcher) ([]*PolicyMatcher, error) {
+	policyMatchers := make([]*PolicyMatcher, 0, len(matchers))
+	for _, matcher := range matchers {
+		shouldMatch := true
+		matchType := config.Strict
+		attr, err := traceql.ParseIdentifier(matcher.Name)
+		if err != nil {
+			return nil, fmt.Errorf("invalid policy match attribute: %v", err)
+		}
+		switch matcher.Type {
+		case labels.MatchEqual:
+			matchType = config.Strict
+			shouldMatch = true
+		case labels.MatchNotEqual:
+			matchType = config.Strict
+			shouldMatch = false
+		case labels.MatchRegexp:
+			matchType = config.Regex
+			shouldMatch = true
+		case labels.MatchNotRegexp:
+			matchType = config.Regex
+			shouldMatch = false
+		default:
+			return nil, fmt.Errorf("unsupported match type: %v for matcher %v", matcher.Type, matcher)
+		}
+		policyMatcher := &PolicyMatcher{
+			shouldMatch: shouldMatch,
+		}
+		if attr.Intrinsic > 0 {
+			intrinsicMatcher, err := makeIntrinsicMatcher(matcher.Value, matchType)
+			if err != nil {
+				return nil, fmt.Errorf("error creating intrinsic matcher: %w", err)
+			}
+			policyMatcher.intrinsicFilter = policymatch.NewIntrinsicPolicyMatch([]policymatch.IntrinsicFilter{intrinsicMatcher})
+		} else {
+			if attr.Scope == traceql.AttributeScopeSpan {
+				spanFilter, err := policymatch.NewAttributeFilter(matchType, attr.Name, matcher.Value)
+				if err != nil {
+					return nil, fmt.Errorf("error creating span attribute filter: %w", err)
+				}
+				policyMatcher.spanFilter = policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{spanFilter})
+			} else if attr.Scope == traceql.AttributeScopeResource {
+				resourceFilter, err := policymatch.NewAttributeFilter(matchType, attr.Name, matcher.Value)
+				if err != nil {
+					return nil, fmt.Errorf("error creating resource attribute filter: %w", err)
+				}
+				policyMatcher.resourceFilter = policymatch.NewAttributePolicyMatch([]policymatch.AttributeFilter{resourceFilter})
+			} else {
+				return nil, fmt.Errorf("invalid or unsupported attribute scope: %v", attr.Scope)
+			}
+		}
+		policyMatchers = append(policyMatchers, policyMatcher)
+	}
+	return policyMatchers, nil
 }

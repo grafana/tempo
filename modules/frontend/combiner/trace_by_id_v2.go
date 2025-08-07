@@ -36,7 +36,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string, spanMatcher *SpanMatc
 			deduper := newDeduper()
 			traceResult = deduper.dedupe(traceResult)
 			if spanMatcher != nil {
-				spanMatcher.ProcessTrace(traceResult)
+				spanMatcher.ProcessTraceToRedactAttributes(traceResult)
 			}
 			resp.Trace = traceResult
 			resp.Metrics = metricsCombiner.Metrics
