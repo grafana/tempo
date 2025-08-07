@@ -6,7 +6,6 @@ import (
 	"hash/fnv"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 	"time"
 
@@ -172,11 +171,6 @@ func (w *Work) ListJobs() []*Job {
 
 		shard.mtx.Unlock()
 	}
-
-	// Sort jobs by creation time
-	sort.Slice(allJobs, func(i, j int) bool {
-		return allJobs[i].GetCreatedTime().Before(allJobs[j].GetCreatedTime())
-	})
 
 	return allJobs
 }

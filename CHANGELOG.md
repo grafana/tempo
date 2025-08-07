@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [CHANGE] Add test for cost_attribution in user-configurable overrides API [#5481](https://github.com/grafana/tempo/pull/5481/) (@electron0zero)
+* [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now push traces to Tempo OTLP GRCP endpoint.[#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
@@ -12,6 +14,7 @@
 The configuration for `backend_scheduler.provider.compaction.backoff` has been removed.
 Additionally the `compaction_tenant_backoff_total` metric has been renamed to `compaction_empty_tenant_cycle_total` for clarity.
 * [CHANGE] Shard backend-scheduler work files locally and modify backend work structure to accommodate sharding approach [#5412](https://github.com/grafana/tempo/pull/5412) (@zalegrala)
+* [CHANGE] **BREAKING CHANGE** TraceQL Metrics buckets are calculated based on data in past [#5366](https://github.com/grafana/tempo/pull/5366) (@ruslan-mikhailov)
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
 * [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
 * [FEATURE] Add counter `query_frontend_bytes_inspected_total`, which shows the total number of bytes read from disk and object storage [#5310](https://github.com/grafana/tempo/pull/5310) (@carles-grafana)
@@ -24,6 +27,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] TraceQL metrics performance increase for simple queries [#5247](https://github.com/grafana/tempo/pull/5247) (@mdisibio)
 * [ENHANCEMENT] TraceQL search and metrics performance increase [#5280](https://github.com/grafana/tempo/pull/5280) (@mdisibio)
 * [ENHANCEMENT] Traceql performance improvement [#5218](https://github.com/grafana/tempo/pull/5218) (@mdisibio)
+* [ENHANCEMENT] TraceQL compare() performance improvement [#5419](https://github.com/grafana/tempo/pull/5419) (@mdisibio)
 * [ENHANCEMENT] Implement a listOffset by partition client [#5415](https://github.com/grafana/tempo/pull/5415) (@javiermolinar)
 * [ENHANCEMENT] Align traceql attribute struct for better performance [#5240](https://github.com/grafana/tempo/pull/5240) (@mdisibio)
 * [ENHANCEMENT] Enable HTTP writes in the multi-tenant example [#5297](https://github.com/grafana/tempo/pull/5297)
@@ -45,6 +49,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix bug where most_recent=true wouldn't return most recent results when query overlapped ingesters and few other blocks.[#5438](https://github.com/grafana/tempo/pull/5438) (@joe-elliott)
 * [BUGFIX] Fix panic when counter series is missing during avg_over_time aggregation [#5300](https://github.com/grafana/tempo/pull/5300) (@ie-pham)
 * [CHANGE] **BREAKING CHANGE** Fix db.system.name attribute not being set in servicegraphs processor. The default order of database name attributes has changed from ["db.name", "db.system.name"] to use semconv constants. This may affect metrics if you rely on the specific precedence order. [#5445](https://github.com/grafana/tempo/pull/5445) (@iamrajiv)
+* [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
 
 # v2.8.1
 

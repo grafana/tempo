@@ -528,3 +528,75 @@ type mockValidator struct {
 func (m *mockValidator) Validate(_ *client.Limits) error {
 	return m.err
 }
+
+func Test_UserConfigOverridesAPI_CostAttribution(t *testing.T) {
+	tenant := "test-tenant"
+	cfg := client.Config{
+		Backend: backend.Local,
+		Local:   &local.Config{Path: t.TempDir()},
+	}
+
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &cfg, o, &mockValidator{})
+	require.NoError(t, err)
+
+	// POST - create cost attribution config
+	payload := `{"cost_attribution":{"dimensions":{"k8s.namespace.name":"namespace","k8s.cluster":"cluster"}}}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(payload)))
+	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
+	req.Header.Set(headerIfMatch, string(backend.VersionNew))
+	overridesAPI.PostHandler(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	// GET - verify POST created the config correctly
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/", nil)
+	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
+	overridesAPI.GetHandler(w, req)
+	assert.Equal(t, 200, w.Code)
+	var limits client.Limits
+	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster"}, *limits.CostAttribution.Dimensions)
+
+	// PATCH - update the config
+	patch := `{"cost_attribution":{"dimensions":{"deployment.environment":"environment"}}}`
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("PATCH", "/", bytes.NewReader([]byte(patch)))
+	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
+	overridesAPI.PatchHandler(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	// Verify PATCH response body
+	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "deployment.environment": "environment"}, *limits.CostAttribution.Dimensions)
+
+	// GET - verify PATCH merged the config correctly
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/", nil)
+	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
+	overridesAPI.GetHandler(w, req)
+	assert.Equal(t, 200, w.Code)
+	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "deployment.environment": "environment"}, *limits.CostAttribution.Dimensions)
+	etag := w.Header().Get(headerEtag)
+
+	// DELETE - remove the config
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("DELETE", "/", nil)
+	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
+	req.Header.Set(headerIfMatch, etag)
+	overridesAPI.DeleteHandler(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	// GET - verify DELETE removed the config (404)
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/", nil)
+	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
+	overridesAPI.GetHandler(w, req)
+	assert.Equal(t, 404, w.Code)
+}
