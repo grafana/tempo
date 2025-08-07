@@ -11,6 +11,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -172,9 +173,6 @@ type Span struct {
 	Kind                   int         `parquet:",delta"`
 	TraceState             string      `parquet:",snappy"`
 	StartTimeUnixNano      uint64      `parquet:",delta"`
-	StartTimeRounded       uint32      `parquet:",delta"`
-	StartTimeRounded60     uint32      `parquet:",delta"`
-	StartTimeRounded300    uint32      `parquet:",delta"`
 	DurationNano           uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
@@ -192,6 +190,12 @@ type Span struct {
 
 	// Dynamically assignable dedicated attribute columns
 	DedicatedAttributes DedicatedAttributes `parquet:""`
+
+	// Precomputed/Optimized values for metrics
+	StartTimeRounded15   uint64 `parquet:",delta"`
+	StartTimeRounded60   uint64 `parquet:",delta"`
+	StartTimeRounded300  uint64 `parquet:",delta"`
+	StartTimeRounded3600 uint64 `parquet:",delta"`
 }
 
 func (s *Span) IsRoot() bool {
@@ -475,9 +479,10 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 					ss.StatusMessage = ""
 				}
 				ss.StartTimeUnixNano = s.StartTimeUnixNano
-				ss.StartTimeRounded = uint32(s.StartTimeUnixNano / uint64(time.Second) / 15)     // Round to 15s intervals
-				ss.StartTimeRounded60 = uint32(s.StartTimeUnixNano / uint64(time.Minute))        // Round to 60s intervals
-				ss.StartTimeRounded300 = uint32(s.StartTimeUnixNano / uint64(time.Second) / 300) // Round to 300s intervals
+				ss.StartTimeRounded15 = uint64(traceql.IntervalOf(s.StartTimeUnixNano, roundingStart, roundingEnd, uint64(15*time.Second)))
+				ss.StartTimeRounded60 = uint64(traceql.IntervalOf(s.StartTimeUnixNano, roundingStart, roundingEnd, uint64(60*time.Second)))
+				ss.StartTimeRounded300 = uint64(traceql.IntervalOf(s.StartTimeUnixNano, roundingStart, roundingEnd, uint64(300*time.Second)))
+				ss.StartTimeRounded3600 = uint64(traceql.IntervalOf(s.StartTimeUnixNano, roundingStart, roundingEnd, uint64(3600*time.Second)))
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)

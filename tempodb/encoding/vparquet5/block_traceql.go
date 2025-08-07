@@ -22,6 +22,14 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+const (
+	// These are used to round span start times into  smaller integers that are high compressable.
+	// Start value of 0 means the unix epoch. End time doesn't matter it just needs to be sufficiently high
+	// to allow the math to work without overflow.
+	roundingStart = uint64(0)
+	roundingEnd   = uint64(0xF000000000000000)
+)
+
 var (
 	pqSpanPool            = parquetquery.NewResultPool(1)
 	pqSpansetPool         = parquetquery.NewResultPool(1)
@@ -915,42 +923,43 @@ const (
 	columnPathInstrumentationAttrDouble = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueDouble.list.element"
 	columnPathInstrumentationAttrBool   = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueBool.list.element"
 
-	columnPathSpanID              = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
-	columnPathSpanName            = "rs.list.element.ss.list.element.Spans.list.element.Name"
-	columnPathSpanStartTime       = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
-	columnPathSpanStartRounded    = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded"
-	columnPathSpanStartRounded60  = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded60"
-	columnPathSpanStartRounded300 = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded300"
-	columnPathSpanDuration        = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
-	columnPathSpanKind            = "rs.list.element.ss.list.element.Spans.list.element.Kind"
-	columnPathSpanStatusCode      = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
-	columnPathSpanStatusMessage   = "rs.list.element.ss.list.element.Spans.list.element.StatusMessage"
-	columnPathSpanAttrKey         = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
-	columnPathSpanAttrString      = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
-	columnPathSpanAttrInt         = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathSpanAttrDouble      = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathSpanAttrBool        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathSpanHTTPStatusCode  = "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode"
-	columnPathSpanHTTPMethod      = "rs.list.element.ss.list.element.Spans.list.element.HttpMethod"
-	columnPathSpanHTTPURL         = "rs.list.element.ss.list.element.Spans.list.element.HttpUrl"
-	columnPathSpanNestedSetLeft   = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
-	columnPathSpanNestedSetRight  = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
-	columnPathSpanParentID        = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
-	columnPathSpanParentSpanID    = "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID"
-	columnPathEventName           = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
-	columnPathEventTimeSinceStart = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.TimeSinceStartNano"
-	columnPathLinkTraceID         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
-	columnPathLinkSpanID          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
-	columnPathEventAttrKey        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
-	columnPathEventAttrString     = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
-	columnPathEventAttrInt        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathEventAttrDouble     = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathEventAttrBool       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathLinkAttrKey         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Key"
-	columnPathLinkAttrString      = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Value.list.element"
-	columnPathLinkAttrInt         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathLinkAttrDouble      = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathLinkAttrBool        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueBool.list.element"
+	columnPathSpanID               = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
+	columnPathSpanName             = "rs.list.element.ss.list.element.Spans.list.element.Name"
+	columnPathSpanStartTime        = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
+	columnPathSpanStartRounded15   = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded15"
+	columnPathSpanStartRounded60   = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded60"
+	columnPathSpanStartRounded300  = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded300"
+	columnPathSpanStartRounded3600 = "rs.list.element.ss.list.element.Spans.list.element.StartTimeRounded3600"
+	columnPathSpanDuration         = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
+	columnPathSpanKind             = "rs.list.element.ss.list.element.Spans.list.element.Kind"
+	columnPathSpanStatusCode       = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
+	columnPathSpanStatusMessage    = "rs.list.element.ss.list.element.Spans.list.element.StatusMessage"
+	columnPathSpanAttrKey          = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
+	columnPathSpanAttrString       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
+	columnPathSpanAttrInt          = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
+	columnPathSpanAttrDouble       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
+	columnPathSpanAttrBool         = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
+	columnPathSpanHTTPStatusCode   = "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode"
+	columnPathSpanHTTPMethod       = "rs.list.element.ss.list.element.Spans.list.element.HttpMethod"
+	columnPathSpanHTTPURL          = "rs.list.element.ss.list.element.Spans.list.element.HttpUrl"
+	columnPathSpanNestedSetLeft    = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
+	columnPathSpanNestedSetRight   = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
+	columnPathSpanParentID         = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
+	columnPathSpanParentSpanID     = "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID"
+	columnPathEventName            = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
+	columnPathEventTimeSinceStart  = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.TimeSinceStartNano"
+	columnPathLinkTraceID          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
+	columnPathLinkSpanID           = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
+	columnPathEventAttrKey         = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
+	columnPathEventAttrString      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
+	columnPathEventAttrInt         = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
+	columnPathEventAttrDouble      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
+	columnPathEventAttrBool        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
+	columnPathLinkAttrKey          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Key"
+	columnPathLinkAttrString       = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Value.list.element"
+	columnPathLinkAttrInt          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueInt.list.element"
+	columnPathLinkAttrDouble       = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueDouble.list.element"
+	columnPathLinkAttrBool         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueBool.list.element"
 
 	otherEntrySpansetKey         = "spanset"
 	otherEntrySpanKey            = "span"
@@ -1887,7 +1896,12 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 				return nil, err
 			}
 
+			// Choose the least precise column possible.
+			// The step interval must be an even multiple of the pre-rounded precision.
 			switch {
+			case cond.LowPrecision >= 3600*time.Second && cond.LowPrecision%(3600*time.Second) == 0:
+				addPredicate(columnPathSpanStartRounded3600, pred)
+				columnSelectAs[columnPathSpanStartRounded3600] = columnPathSpanStartRounded3600
 			case cond.LowPrecision >= 300*time.Second && cond.LowPrecision%(300*time.Second) == 0:
 				addPredicate(columnPathSpanStartRounded300, pred)
 				columnSelectAs[columnPathSpanStartRounded300] = columnPathSpanStartRounded300
@@ -1895,8 +1909,8 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 				addPredicate(columnPathSpanStartRounded60, pred)
 				columnSelectAs[columnPathSpanStartRounded60] = columnPathSpanStartRounded60
 			case cond.LowPrecision >= 15*time.Second && cond.LowPrecision%(15*time.Second) == 0:
-				addPredicate(columnPathSpanStartRounded, pred)
-				columnSelectAs[columnPathSpanStartRounded] = columnPathSpanStartRounded
+				addPredicate(columnPathSpanStartRounded15, pred)
+				columnSelectAs[columnPathSpanStartRounded15] = columnPathSpanStartRounded15
 			default:
 				addPredicate(columnPathSpanStartTime, pred)
 				columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
@@ -2874,15 +2888,14 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			sp.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
-		case columnPathSpanStartRounded:
-			st := kv.Value.Uint32()
-			sp.startTimeUnixNanos = uint64(st) * uint64(time.Second) * 15
+		case columnPathSpanStartRounded15:
+			sp.startTimeUnixNanos = traceql.TimestampOf(kv.Value.Uint64(), roundingStart, roundingEnd, uint64(15*time.Second))
 		case columnPathSpanStartRounded60:
-			st := kv.Value.Uint32()
-			sp.startTimeUnixNanos = uint64(st) * uint64(time.Minute)
+			sp.startTimeUnixNanos = traceql.TimestampOf(kv.Value.Uint64(), roundingStart, roundingEnd, uint64(60*time.Second))
 		case columnPathSpanStartRounded300:
-			st := kv.Value.Uint32()
-			sp.startTimeUnixNanos = uint64(st) * uint64(time.Second) * 300
+			sp.startTimeUnixNanos = traceql.TimestampOf(kv.Value.Uint64(), roundingStart, roundingEnd, uint64(300*time.Second))
+		case columnPathSpanStartRounded3600:
+			sp.startTimeUnixNanos = traceql.TimestampOf(kv.Value.Uint64(), roundingStart, roundingEnd, uint64(3600*time.Second))
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos

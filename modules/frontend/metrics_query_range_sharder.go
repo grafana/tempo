@@ -252,6 +252,12 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 		return
 	}
 
+	// TODO - I'm not sure this is right. We need to figure out how to properly split
+	// queries with step intervals larger than query_backend_after. i.e.
+	// we are doing a 7d+ query with a 1h step, how do we split out the requests
+	// covering the last 15 minutes (example).
+	traceql.AlignRequest(&backendReq)
+
 	// Blocks within overall time range. This is just for instrumentation, more precise time
 	// range is checked for each window.
 	start := time.Unix(0, int64(backendReq.Start))
@@ -345,6 +351,8 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 					MaxSeries: searchReq.MaxSeries,
 				}
 
+				traceql.AlignRequest(queryRangeReq)
+
 				return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
 			})
 			if err != nil {
@@ -377,7 +385,11 @@ func max(a, b uint32) uint32 {
 }
 
 func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) pipeline.Request {
+	// Trim the time range to only the recent which is covered by the generators.
+	// Important - don't align the request after trimminng. We always need to ensure
+	// the start/end time range sent to the generators is accurate.
 	traceql.TrimToAfter(&searchReq, cutoff)
+
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {
 		return nil
