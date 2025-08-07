@@ -1438,13 +1438,7 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 		existing, ok := b.ss[ts.PromLabels]
 		if !ok {
 			// Convert proto labels to traceql labels
-			labels := make(Labels, 0, len(ts.Labels))
-			for _, l := range ts.Labels {
-				labels = append(labels, Label{
-					Name:  l.Key,
-					Value: StaticFromAnyValue(l.Value),
-				})
-			}
+			labels, _ := convertProtoLabelsToTraceQL(ts.Labels, false)
 
 			existing = TimeSeries{
 				Labels:    labels,
@@ -1481,13 +1475,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
 			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 		}
-		labels := make(Labels, 0, len(exemplar.Labels))
-		for _, l := range exemplar.Labels {
-			labels = append(labels, Label{
-				Name:  l.Key,
-				Value: StaticFromAnyValue(l.Value),
-			})
-		}
+		labels, _ := convertProtoLabelsToTraceQL(exemplar.Labels, false)
 		existing.Exemplars = append(existing.Exemplars, Exemplar{
 			Labels:      labels,
 			Value:       exemplar.Value,
@@ -1577,20 +1565,9 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exempl
 
 func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 	for _, ts := range in {
-		// Convert proto labels to traceql labels
-		// while at the same time stripping the bucket label
-		h.labelBuffer = h.labelBuffer[:0] // Reset buffer
+		// Convert proto labels to traceql labels while stripping the bucket label
 		var bucket Static
-		for _, l := range ts.Labels {
-			if l.Key == internalLabelBucket {
-				bucket = StaticFromAnyValue(l.Value)
-				continue
-			}
-			h.labelBuffer = append(h.labelBuffer, Label{
-				Name:  l.Key,
-				Value: StaticFromAnyValue(l.Value),
-			})
-		}
+		h.labelBuffer, bucket = convertProtoLabelsToTraceQL(ts.Labels, true)
 
 		if bucket.Type == TypeNil {
 			// Bad __bucket label?
@@ -1643,18 +1620,8 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 			}
 
-			// Create exemplar labels using reusable buffer
-			h.labelBuffer = h.labelBuffer[:0] // Reset buffer
-			for _, l := range exemplar.Labels {
-				h.labelBuffer = append(h.labelBuffer, Label{
-					Name:  l.Key,
-					Value: StaticFromAnyValue(l.Value),
-				})
-			}
-
-			// Create a copy of the labels since the buffer will be reused
-			labels := make(Labels, len(h.labelBuffer))
-			copy(labels, h.labelBuffer)
+			// Convert exemplar labels directly (no need for buffer reuse here)
+			labels, _ := convertProtoLabelsToTraceQL(exemplar.Labels, false)
 
 			existing.exemplars = append(existing.exemplars, Exemplar{
 				Labels:      labels,
@@ -1928,6 +1895,29 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 		return 0, TypeNil
 	}
 	return f, v.Type
+}
+
+// convertProtoLabelsToTraceQL converts protobuf labels to traceql Labels format.
+// If skipBucket is true, it will skip any label with key matching internalLabelBucket.
+// Returns the converted labels and the bucket value (if found and not skipped).
+func convertProtoLabelsToTraceQL(protoLabels []commonv1proto.KeyValue, skipBucket bool) (Labels, Static) {
+	// TODO: consider memory pooling for Labels and Static to reduce allocations
+	labels := make(Labels, 0, len(protoLabels))
+	var bucket Static
+
+	for i := range protoLabels {
+		l := &protoLabels[i]
+		if skipBucket && l.Key == internalLabelBucket {
+			bucket = StaticFromAnyValue(l.Value)
+			continue
+		}
+		labels = append(labels, Label{
+			Name:  l.Key,
+			Value: StaticFromAnyValue(l.Value),
+		})
+	}
+
+	return labels, bucket
 }
 
 // processTopK implements TopKBottomK topk method
