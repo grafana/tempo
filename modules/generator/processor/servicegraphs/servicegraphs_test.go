@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.30.0"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -26,8 +26,7 @@ import (
 // there is ever a change to the ones we rely on.  This is not a complete test,
 // but just a quick way to know about changes upstream.
 func TestSemconvKeys(t *testing.T) {
-	require.Equal(t, string(semconv.DBNameKey), "db.name")
-	require.Equal(t, string(semconv.DBSystemKey), "db.system")
+	require.Equal(t, string(semconv.DBSystemNameKey), "db.system.name")
 	require.Equal(t, string(semconv.PeerServiceKey), "peer.service")
 	require.Equal(t, string(semconv.NetworkPeerAddressKey), "network.peer.address")
 	require.Equal(t, string(semconv.NetworkPeerPortKey), "network.peer.port")

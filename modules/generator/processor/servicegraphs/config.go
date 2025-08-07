@@ -6,7 +6,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.30.0"
 )
 
 const (
@@ -70,9 +70,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	}
 	cfg.PeerAttributes = peerAttr
 
-	// Set default database name attributes to support both old and new semantic conventions
-	// Note: "db.system.name" is not yet available as a constant in semconv v1.25.0
-	cfg.DatabaseNameAttributes = []string{string(semconv.DBNameKey), "db.system.name"}
+	cfg.DatabaseNameAttributes = []string{"db.name", string(semconv.DBSystemNameKey)}
 
 	cfg.EnableMessagingSystemLatencyHistogram = false
 }

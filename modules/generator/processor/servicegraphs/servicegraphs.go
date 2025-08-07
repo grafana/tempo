@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.30.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -55,7 +55,7 @@ const (
 const virtualNodeLabel = "virtual_node"
 
 var defaultPeerAttributes = []attribute.Key{
-	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey,
+	semconv.PeerServiceKey, attribute.Key("db.name"), semconv.DBSystemNameKey,
 }
 
 type tooManySpansError struct {
@@ -301,10 +301,12 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	}
 
 	if !isDatabase {
-		if name, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), resourceAttr, span.Attributes); ok {
+		if name, ok := processor_util.FindAttributeValue("db.name", resourceAttr, span.Attributes); ok {
 			dbName = name
 			isDatabase = true
-		} else if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+		} else if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemNameKey), resourceAttr, span.Attributes); ok {
+			isDatabase = true
+		} else if _, ok := processor_util.FindAttributeValue("db.system", resourceAttr, span.Attributes); ok {
 			isDatabase = true
 		}
 	}
