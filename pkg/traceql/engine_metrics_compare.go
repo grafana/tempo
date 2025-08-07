@@ -287,7 +287,7 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 	}
 
 	// Multiply to account for sampling as needed.
-	if multiplier > 0 && multiplier != 1.0 {
+	if multiplier > 1.0 {
 		for _, s := range ss {
 			for i := range s.Values {
 				s.Values[i] *= multiplier

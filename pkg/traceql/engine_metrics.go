@@ -934,10 +934,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		// Automatic sampling
 		// Get other params
 		s := newAdaptiveSampler()
-		if debug, ok := expr.Hints.GetBool("debug", true); ok {
+		if debug, ok := expr.Hints.GetBool(HintDebug, allowUnsafeQueryHints); ok {
 			s.debug = debug
 		}
-		if info, ok := expr.Hints.GetBool("info", true); ok {
+		if info, ok := expr.Hints.GetBool(HintInfo, allowUnsafeQueryHints); ok {
 			s.info = info
 		}
 

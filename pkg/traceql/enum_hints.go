@@ -15,6 +15,8 @@ const (
 	HintConcurrentBlocks  = "concurrent_blocks"
 	HintExemplars         = "exemplars"
 	HintMostRecent        = "most_recent" // traceql search hint to return most recent results ordered by time
+	HintDebug             = "debug"
+	HintInfo              = "info"
 )
 
 func isUnsafe(h string) bool {

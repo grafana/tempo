@@ -70,7 +70,7 @@ func (a *averageOverTimeAggregator) observeSeries(ss []*tempopb.TimeSeries) {
 func (a *averageOverTimeAggregator) result(multiplier float64) SeriesSet {
 	if a.agg != nil {
 		ss := a.agg.Series()
-		if multiplier > 0 && multiplier != 1.0 {
+		if multiplier > 1.0 {
 			countLabel := NewStaticString(internalMetaTypeCount)
 			for _, s := range ss {
 				// Skip non-count series.
