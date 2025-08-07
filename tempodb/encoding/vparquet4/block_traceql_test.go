@@ -156,7 +156,7 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	q := `{ rootServiceName = "doesntexist" || (span.http.url="hello" || span.http.status_code = 500)}`
+	q := `{ resource.region != nil && resource.service.name = "bar" }`
 	// q := `{ resource.str-array =~ "value.*" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 

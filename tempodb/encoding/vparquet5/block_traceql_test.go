@@ -697,6 +697,10 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								SpanID:                 []byte("spanid"),
 								Name:                   "hello",
 								StartTimeUnixNano:      uint64(100 * time.Second),
+								StartTimeRounded15:     roundSpanStartTime(uint64(100*time.Second), 15),
+								StartTimeRounded60:     roundSpanStartTime(uint64(100*time.Second), 60),
+								StartTimeRounded300:    roundSpanStartTime(uint64(100*time.Second), 300),
+								StartTimeRounded3600:   roundSpanStartTime(uint64(100*time.Second), 3600),
 								DurationNano:           uint64(100 * time.Second),
 								HttpMethod:             ptr("get"),
 								HttpUrl:                ptr("url/hello/world"),
@@ -1270,7 +1274,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 					req := &tempopb.QueryRangeRequest{
 						Query:     tc,
-						Step:      uint64(time.Second * 15),
+						Step:      uint64(time.Second * 16),
 						Start:     uint64(st.UnixNano()),
 						End:       uint64(end.UnixNano()),
 						MaxSeries: 1000,

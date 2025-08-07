@@ -74,6 +74,23 @@ const (
 	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
 )
 
+const (
+	// These are used to round span start times into  smaller integers that are high compressable.
+	// Start value of 0 means the unix epoch. End time doesn't matter it just needs to be sufficiently high
+	// to allow the math to work without overflow.
+	roundingStart = uint64(0)
+	roundingEnd   = uint64(0xF000000000000000)
+)
+
+func roundSpanStartTime(nanos uint64, precisionSeconds int) uint64 {
+	// For test data.
+	if nanos == 0 {
+		return 0
+	}
+
+	return uint64(traceql.IntervalOf(nanos, roundingStart, roundingEnd, uint64(time.Duration(precisionSeconds)*time.Second)))
+}
+
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
 
@@ -479,10 +496,10 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 					ss.StatusMessage = ""
 				}
 				ss.StartTimeUnixNano = s.StartTimeUnixNano
-				ss.StartTimeRounded15 = uint64(traceql.IntervalOf(s.StartTimeUnixNano, roundingStart, roundingEnd, uint64(15*time.Second)))
-				ss.StartTimeRounded60 = uint64(traceql.IntervalOf(s.StartTimeUnixNano, roundingStart, roundingEnd, uint64(60*time.Second)))
-				ss.StartTimeRounded300 = uint64(traceql.IntervalOf(s.StartTimeUnixNano, roundingStart, roundingEnd, uint64(300*time.Second)))
-				ss.StartTimeRounded3600 = uint64(traceql.IntervalOf(s.StartTimeUnixNano, roundingStart, roundingEnd, uint64(3600*time.Second)))
+				ss.StartTimeRounded15 = roundSpanStartTime(s.StartTimeUnixNano, 15)
+				ss.StartTimeRounded60 = roundSpanStartTime(s.StartTimeUnixNano, 60)
+				ss.StartTimeRounded300 = roundSpanStartTime(s.StartTimeUnixNano, 300)
+				ss.StartTimeRounded3600 = roundSpanStartTime(s.StartTimeUnixNano, 3600)
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)

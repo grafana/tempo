@@ -2128,37 +2128,11 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
 		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, nil, "")}
-
-		// Remove any iterator on this column that is in optional.
-		// Since this has no filtering, it will work for both.
-		//for _, iter := range iters {
-		//	if iter.
-		//}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol, parquetquery.WithPool(pqSpanPool))
-
-	/*intrinsicWasRequired := false
-	for _, cond := range conditions {
-		if cond.Attribute.Intrinsic != traceql.IntrinsicNone {
-			intrinsicWasRequired = true
-			break
-		}
-	}
-
-	if !intrinsicWasRequired{
-		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, nil, "")}
-	}
-
-	if len(required) > 0 {
-		return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol, parquetquery.WithPool(pqSpanPool))
-	}
-
-	// In this case we only have optional conditions
-	// So we can do this differently
-	return parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, spanCol), nil*/
 }
 
 func createInstrumentationIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, allConditions, selectAll bool) (parquetquery.Iterator, error) {
@@ -3208,7 +3182,6 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	for _, e := range res.OtherEntries {
 		if span, ok := e.Value.(*span); ok {
 			finalSpanset.Spans = append(finalSpanset.Spans, span)
-			span.setTraceAttrs(c.traceAttrs)
 		}
 	}
 
