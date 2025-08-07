@@ -14,6 +14,8 @@ import (
 )
 
 // InMemoryMessage represents a message in the in-memory queue
+// Technically there is a fake cluster that listens on a port that is used for other tests.
+// But that has more weight and ties us to actually using Kafka instead of using something similiar at a go api level.
 type InMemoryMessage struct {
 	Key       []byte
 	Value     []byte
