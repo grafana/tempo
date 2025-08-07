@@ -58,17 +58,17 @@ func TestTraceLookupCombinesResults(t *testing.T) {
 			name: "single response",
 			responses: []*tempopb.TraceLookupResponse{
 				{
-					Results: map[string]bool{
-						"trace1": true,
-						"trace2": false,
+					TraceIDs: []string{
+						"trace1",
+						"trace2",
 					},
 					Metrics: &tempopb.SearchMetrics{InspectedBytes: 100},
 				},
 			},
 			expected: &tempopb.TraceLookupResponse{
-				Results: map[string]bool{
-					"trace1": true,
-					"trace2": false,
+				TraceIDs: []string{
+					"trace1",
+					"trace2",
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedBytes: 100,
@@ -80,28 +80,28 @@ func TestTraceLookupCombinesResults(t *testing.T) {
 			name: "multiple responses - union of results",
 			responses: []*tempopb.TraceLookupResponse{
 				{
-					Results: map[string]bool{
-						"trace1": true,
-						"trace2": false,
-						"trace3": false,
+					TraceIDs: []string{
+						"trace1",
+						"trace2",
+						"trace3",
 					},
 					Metrics: &tempopb.SearchMetrics{InspectedBytes: 100},
 				},
 				{
-					Results: map[string]bool{
-						"trace1": false, // should remain true from first response
-						"trace2": true,  // should become true
-						"trace4": true,
+					TraceIDs: []string{
+						"trace1",
+						"trace2",
+						"trace4",
 					},
 					Metrics: &tempopb.SearchMetrics{InspectedBytes: 200},
 				},
 			},
 			expected: &tempopb.TraceLookupResponse{
-				Results: map[string]bool{
-					"trace1": true,  // true wins over false
-					"trace2": true,  // true wins over false
-					"trace3": false,
-					"trace4": true,
+				TraceIDs: []string{
+					"trace1",
+					"trace2",
+					"trace3",
+					"trace4",
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedBytes: 300,
@@ -113,12 +113,12 @@ func TestTraceLookupCombinesResults(t *testing.T) {
 			name: "empty responses",
 			responses: []*tempopb.TraceLookupResponse{
 				{
-					Results: map[string]bool{},
+					TraceIDs: []string{},
 					Metrics: &tempopb.SearchMetrics{InspectedBytes: 0},
 				},
 			},
 			expected: &tempopb.TraceLookupResponse{
-				Results: map[string]bool{},
+				TraceIDs: []string{},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedBytes: 0,
 					CompletedJobs:  1,
@@ -129,15 +129,15 @@ func TestTraceLookupCombinesResults(t *testing.T) {
 			name: "nil metrics handled gracefully",
 			responses: []*tempopb.TraceLookupResponse{
 				{
-					Results: map[string]bool{
-						"trace1": true,
+					TraceIDs: []string{
+						"trace1",
 					},
 					Metrics: nil,
 				},
 			},
 			expected: &tempopb.TraceLookupResponse{
-				Results: map[string]bool{
-					"trace1": true,
+				TraceIDs: []string{
+					"trace1",
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedBytes: 0,
@@ -168,7 +168,7 @@ func TestTraceLookupCombinesResults(t *testing.T) {
 			err = jsonpb.UnmarshalString(string(bodyBytes), actual)
 			require.NoError(t, err)
 
-			require.Equal(t, tt.expected.Results, actual.Results)
+			require.Equal(t, tt.expected.TraceIDs, actual.TraceIDs)
 			require.Equal(t, tt.expected.Metrics.InspectedBytes, actual.Metrics.InspectedBytes)
 			require.Equal(t, tt.expected.Metrics.CompletedJobs, actual.Metrics.CompletedJobs)
 		})
@@ -176,14 +176,14 @@ func TestTraceLookupCombinesResults(t *testing.T) {
 }
 
 func TestTraceLookupHonorsContentType(t *testing.T) {
-	expectedResults := map[string]bool{
-		"trace1": true,
-		"trace2": false,
+	expectedResults := []string{
+		"trace1",
+		"trace2",
 	}
 	expectedMetrics := &tempopb.SearchMetrics{InspectedBytes: 100}
 
 	testResp := &tempopb.TraceLookupResponse{
-		Results: expectedResults,
+		TraceIDs: expectedResults,
 		Metrics: expectedMetrics,
 	}
 
@@ -200,7 +200,7 @@ func TestTraceLookupHonorsContentType(t *testing.T) {
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	err = jsonpb.UnmarshalString(string(bodyBytes), actual)
 	require.NoError(t, err)
-	require.Equal(t, expectedResults, actual.Results)
+	require.Equal(t, expectedResults, actual.TraceIDs)
 }
 
 func TestTraceLookupStatusCode(t *testing.T) {
@@ -209,7 +209,7 @@ func TestTraceLookupStatusCode(t *testing.T) {
 
 	// Add a successful response
 	err := c.AddResponse(toHTTPResponse(t, &tempopb.TraceLookupResponse{
-		Results: map[string]bool{"trace1": true},
+		TraceIDs: []string{"trace1"},
 		Metrics: &tempopb.SearchMetrics{InspectedBytes: 100},
 	}, 200))
 	require.NoError(t, err)
@@ -227,14 +227,14 @@ func TestTraceLookupMetricsCombining(t *testing.T) {
 
 	// Add first response
 	err := c.AddResponse(toHTTPResponse(t, &tempopb.TraceLookupResponse{
-		Results: map[string]bool{"trace1": true},
+		TraceIDs: []string{"trace1"},
 		Metrics: &tempopb.SearchMetrics{InspectedBytes: 100},
 	}, 200))
 	require.NoError(t, err)
 
 	// Add second response
 	err = c.AddResponse(toHTTPResponse(t, &tempopb.TraceLookupResponse{
-		Results: map[string]bool{"trace2": false},
+		TraceIDs: []string{"trace2"},
 		Metrics: &tempopb.SearchMetrics{InspectedBytes: 200},
 	}, 200))
 	require.NoError(t, err)

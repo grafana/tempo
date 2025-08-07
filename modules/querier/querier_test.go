@@ -120,7 +120,7 @@ func TestTraceLookupValidation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Empty(t, resp.Results)
+	require.Empty(t, resp.TraceIDs)
 	require.NotNil(t, resp.Metrics)
 
 	// Test with invalid trace IDs
@@ -132,10 +132,10 @@ func TestTraceLookupValidation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Len(t, resp.Results, 2)
-	
+	require.Len(t, resp.TraceIDs, 2)
+
 	// Invalid trace IDs should return false
-	require.Equal(t, false, resp.Results["696e76616c6964"]) // hex encoding of "invalid"
+	require.Equal(t, "696e76616c6964", resp.TraceIDs[0]) // hex encoding of "invalid"
 	require.NotNil(t, resp.Metrics)
 }
 

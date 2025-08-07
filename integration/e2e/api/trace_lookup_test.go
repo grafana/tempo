@@ -89,20 +89,16 @@ func testTraceLookupEndpoint(t *testing.T, tempo *e2e.HTTPService, endpoint stri
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&lookupResp))
 
 	// Verify all trace IDs are present in the response
-	require.Len(t, lookupResp.Results, len(allTraceIDs), "Response should contain all requested trace IDs")
+	require.Len(t, lookupResp.TraceIDs, len(allTraceIDs), "Response should contain all requested trace IDs")
 
 	// Verify existing traces are marked as found
 	for _, traceID := range existingTraceIDs {
-		found, exists := lookupResp.Results[traceID]
-		require.True(t, exists, "Response should contain trace ID %s", traceID)
-		require.True(t, found, "Trace ID %s should be marked as found", traceID)
+		require.Contains(t, lookupResp.TraceIDs, traceID, "Response should contain trace ID %s", traceID)
 	}
 
 	// Verify non-existent traces are marked as not found
 	for _, traceID := range nonExistentTraceIDs {
-		found, exists := lookupResp.Results[traceID]
-		require.True(t, exists, "Response should contain trace ID %s", traceID)
-		require.False(t, found, "Trace ID %s should be marked as not found", traceID)
+		require.NotContains(t, lookupResp.TraceIDs, traceID, "Response should not contain trace ID %s", traceID)
 	}
 
 	// Verify metrics are present
@@ -194,7 +190,7 @@ func TestTraceLookupAPIPerformance(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&lookupResp))
 
 	// Verify all trace IDs are in the response
-	require.Len(t, lookupResp.Results, 100)
+	require.Len(t, lookupResp.TraceIDs, 100)
 
 	// Performance check - should complete within reasonable time
 	require.Less(t, duration, 10*time.Second, "TraceLookup should complete within 10 seconds for 100 trace IDs")

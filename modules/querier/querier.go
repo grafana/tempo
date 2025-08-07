@@ -327,17 +327,17 @@ func (q *Querier) TraceLookup(ctx context.Context, req *tempopb.TraceLookupReque
 
 	span.SetAttributes(attribute.Int("traceCount", len(req.TraceIDs)))
 
-	results := make(map[string]bool)
+	results := make(map[string]struct{}, len(req.TraceIDs))
 	var inspectedBytes uint64
 
 	// Initialize all trace IDs as not found
 	for _, traceID := range req.TraceIDs {
-		results[fmt.Sprintf("%x", traceID)] = false
+		results[util.TraceIDToHexString(traceID)] = struct{}{}
 	}
 
 	// Check each trace ID
 	for _, traceID := range req.TraceIDs {
-		traceIDStr := fmt.Sprintf("%x", traceID)
+		traceIDStr := util.TraceIDToHexString(traceID)
 		
 		if !validation.ValidTraceID(traceID) {
 			continue // Skip invalid trace IDs, they remain false
@@ -395,11 +395,17 @@ func (q *Querier) TraceLookup(ctx context.Context, req *tempopb.TraceLookupReque
 			}
 		}
 
-		results[traceIDStr] = found
+		if !found {
+			delete(results, traceIDStr)
+		}
 	}
 
+	resultList := make([]string, 0, len(results))
+	for traceID := range results {
+		resultList = append(resultList, traceID)
+	}
 	resp := &tempopb.TraceLookupResponse{
-		Results: results,
+		TraceIDs: resultList,
 		Metrics: &tempopb.SearchMetrics{InspectedBytes: inspectedBytes},
 	}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -28,6 +27,7 @@ import (
 	model_v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -663,8 +663,8 @@ func TestIngesterTraceLookup(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Len(t, resp.Results, 1)
-	require.False(t, resp.Results[fmt.Sprintf("%x", test.ValidTraceID(nil))])
+	require.Len(t, resp.TraceIDs, 1)
+	require.Equal(t, util.TraceIDToHexString(test.ValidTraceID(nil)), resp.TraceIDs[0])
 
 	// Push a trace
 	traceID := test.ValidTraceID(nil)
@@ -677,8 +677,8 @@ func TestIngesterTraceLookup(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Len(t, resp.Results, 1)
-	require.True(t, resp.Results[fmt.Sprintf("%x", traceID)])
+	require.Len(t, resp.TraceIDs, 1)
+	require.Equal(t, util.TraceIDToHexString(traceID), resp.TraceIDs[0])
 	require.NotNil(t, resp.Metrics)
 	require.Greater(t, resp.Metrics.InspectedBytes, uint64(0))
 
@@ -689,8 +689,8 @@ func TestIngesterTraceLookup(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Len(t, resp.Results, 1)
-	require.False(t, resp.Results[fmt.Sprintf("%x", nonExistentID)])
+	require.Len(t, resp.TraceIDs, 1)
+	require.Equal(t, util.TraceIDToHexString(nonExistentID), resp.TraceIDs[0])
 
 	// Test TraceLookup with multiple traces (mix of existing and non-existing)
 	anotherTraceID := test.ValidTraceID(nil)
@@ -699,10 +699,10 @@ func TestIngesterTraceLookup(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Len(t, resp.Results, 3)
-	require.True(t, resp.Results[fmt.Sprintf("%x", traceID)])
-	require.False(t, resp.Results[fmt.Sprintf("%x", nonExistentID)])
-	require.False(t, resp.Results[fmt.Sprintf("%x", anotherTraceID)])
+	require.Len(t, resp.TraceIDs, 3)
+	require.Equal(t, util.TraceIDToHexString(traceID), resp.TraceIDs[0])
+	require.Equal(t, util.TraceIDToHexString(nonExistentID), resp.TraceIDs[1])
+	require.Equal(t, util.TraceIDToHexString(anotherTraceID), resp.TraceIDs[2])
 }
 
 func TestIngesterTraceLookupInvalidTraceIDs(t *testing.T) {
@@ -719,10 +719,10 @@ func TestIngesterTraceLookupInvalidTraceIDs(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Len(t, resp.Results, 2)
+	require.Len(t, resp.TraceIDs, 2)
 	// Invalid trace IDs should return false
-	require.False(t, resp.Results["696e76616c6964"]) // hex encoding of "invalid"
-	require.False(t, resp.Results["746f6f2d73686f7274"]) // hex encoding of "too-short"
+	require.Equal(t, "696e76616c6964", resp.TraceIDs[0]) // hex encoding of "invalid"
+	require.Equal(t, "746f6f2d73686f7274", resp.TraceIDs[1]) // hex encoding of "too-short"
 }
 
 func TestIngesterTraceLookupNoTenant(t *testing.T) {
@@ -748,7 +748,7 @@ func TestIngesterTraceLookupEmptyRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Empty(t, resp.Results)
+	require.Empty(t, resp.TraceIDs)
 	require.NotNil(t, resp.Metrics)
 	require.Equal(t, uint64(0), resp.Metrics.InspectedBytes)
 }

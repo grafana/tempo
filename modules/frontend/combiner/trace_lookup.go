@@ -1,6 +1,8 @@
 package combiner
 
 import (
+	"slices"
+
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -14,17 +16,17 @@ func NewTraceLookup() Combiner {
 	c := &genericCombiner[*tempopb.TraceLookupResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.TraceLookupResponse { return &tempopb.TraceLookupResponse{} },
-		current:        &tempopb.TraceLookupResponse{Results: make(map[string]bool), Metrics: &tempopb.SearchMetrics{}},
+		current:        &tempopb.TraceLookupResponse{TraceIDs: make([]string, 0), Metrics: &tempopb.SearchMetrics{}},
 
 		combine: func(partial *tempopb.TraceLookupResponse, final *tempopb.TraceLookupResponse, resp PipelineResponse) error {
-			if final.Results == nil {
-				final.Results = make(map[string]bool)
+			if final.TraceIDs == nil {
+				final.TraceIDs = make([]string, 0)
 			}
 
 			// Merge the results - if any partial response indicates a trace exists, mark it as found
-			for traceID, exists := range partial.Results {
-				if exists || final.Results[traceID] == false {
-					final.Results[traceID] = exists
+			for _, traceID := range partial.TraceIDs {
+				if !slices.Contains(final.TraceIDs, traceID) {
+					final.TraceIDs = append(final.TraceIDs, traceID)
 				}
 			}
 

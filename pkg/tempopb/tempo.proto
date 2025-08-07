@@ -78,7 +78,7 @@ message TraceLookupRequest {
 }
 
 message TraceLookupResponse {
-  map<string, bool> results = 1;
+  repeated string traceIDs = 1;
   SearchMetrics metrics = 2;
 }
 

@@ -379,12 +379,12 @@ func (i *Ingester) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequ
 	inst, ok := i.getInstanceByID(instanceID)
 	if !ok || inst == nil {
 		// Return empty results for all traces if instance doesn't exist
-		results := make(map[string]bool)
+		results := make([]string, 0, len(req.TraceIDs))
 		for _, traceID := range req.TraceIDs {
-			results[fmt.Sprintf("%x", traceID)] = false
+			results = append(results, util.TraceIDToHexString(traceID))
 		}
 		return &tempopb.TraceLookupResponse{
-			Results: results,
+			TraceIDs: results,
 			Metrics: &tempopb.SearchMetrics{},
 		}, nil
 	}
@@ -394,7 +394,7 @@ func (i *Ingester) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequ
 
 	// Check each trace ID
 	for _, traceID := range req.TraceIDs {
-		traceIDStr := fmt.Sprintf("%x", traceID)
+		traceIDStr := util.TraceIDToHexString(traceID)
 		
 		if !validation.ValidTraceID(traceID) {
 			results[traceIDStr] = false
@@ -421,8 +421,12 @@ func (i *Ingester) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequ
 		attribute.Int64("inspectedBytes", int64(inspectedBytes)),
 	))
 
+	resultList := make([]string, 0, len(results))
+	for traceID := range results {
+		resultList = append(resultList, traceID)
+	}
 	return &tempopb.TraceLookupResponse{
-		Results: results,
+		TraceIDs: resultList,
 		Metrics: &tempopb.SearchMetrics{InspectedBytes: inspectedBytes},
 	}, nil
 }
