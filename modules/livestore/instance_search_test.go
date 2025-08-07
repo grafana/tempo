@@ -367,7 +367,6 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 // be returned from a tag value search
 // nolint:revive,unparam
 func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue string, postFixValue bool, includeEventLink bool) ([][]byte, []string, []string, []string) {
-
 	numTraces := 5
 	ids := make([][]byte, 0, numTraces)
 	expectedTagValues := make([]string, 0, numTraces)

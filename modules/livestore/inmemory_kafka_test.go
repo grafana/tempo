@@ -21,7 +21,7 @@ func TestInMemoryKafkaClient_Integration(t *testing.T) {
 
 	// Test basic functionality
 	ctx := context.Background()
-	
+
 	// Test ping
 	err := client.Ping(ctx)
 	require.NoError(t, err)
@@ -29,7 +29,7 @@ func TestInMemoryKafkaClient_Integration(t *testing.T) {
 	// Add some test messages
 	topic := "test-topic"
 	partition := int32(0)
-	
+
 	client.AddMessage(topic, partition, []byte("tenant1"), []byte("trace-data-1"))
 	client.AddMessage(topic, partition, []byte("tenant2"), []byte("trace-data-2"))
 	client.AddMessage(topic, partition, []byte("tenant1"), []byte("trace-data-3"))
@@ -44,7 +44,7 @@ func TestInMemoryKafkaClient_Integration(t *testing.T) {
 
 	// Test offset commit/fetch
 	group := "test-consumer-group"
-	
+
 	// Initially no offsets should be committed
 	offsets, err := client.FetchOffsets(ctx, group)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestPartitionReader_WithInMemoryClient(t *testing.T) {
 	// Create partition reader with in-memory client
 	logger := log.NewNopLogger()
 	reg := prometheus.NewRegistry()
-	
+
 	reader, err := NewPartitionReaderForPusher(client, partition, cfg, consumeFn, logger, reg)
 	require.NoError(t, err)
 	require.NotNil(t, reader)
@@ -184,7 +184,7 @@ func TestInMemoryKafkaClient_MessageOrdering(t *testing.T) {
 
 	partitionData.mu.RLock()
 	assert.Len(t, partitionData.messages, 3)
-	
+
 	for i, expectedMsg := range messages {
 		actualMsg := partitionData.messages[i]
 		assert.Equal(t, []byte(expectedMsg.key), actualMsg.Key)
@@ -192,7 +192,7 @@ func TestInMemoryKafkaClient_MessageOrdering(t *testing.T) {
 		assert.Equal(t, int64(i), actualMsg.Offset)
 		assert.WithinDuration(t, time.Now(), actualMsg.Timestamp, time.Second)
 	}
-	
+
 	assert.Equal(t, int64(3), partitionData.nextOffset)
 	partitionData.mu.RUnlock()
 }

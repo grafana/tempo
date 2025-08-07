@@ -33,7 +33,6 @@ type Overrides interface {
 	DedicatedColumns(userID string) backend.DedicatedColumns
 }
 
-
 var metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "live_store",
 	Name:      "complete_queue_length",
