@@ -82,13 +82,13 @@ const (
 	roundingEnd   = uint64(0xF000000000000000)
 )
 
-func roundSpanStartTime(nanos uint64, precisionSeconds int) uint64 {
+func roundSpanStartTime(nanos uint64, precisionSeconds int) uint32 {
 	// For test data.
 	if nanos == 0 {
 		return 0
 	}
 
-	return uint64(traceql.IntervalOf(nanos, roundingStart, roundingEnd, uint64(time.Duration(precisionSeconds)*time.Second)))
+	return uint32(traceql.IntervalOf(nanos, roundingStart, roundingEnd, uint64(time.Duration(precisionSeconds)*time.Second)))
 }
 
 var (
@@ -209,10 +209,14 @@ type Span struct {
 	DedicatedAttributes DedicatedAttributes `parquet:""`
 
 	// Precomputed/Optimized values for metrics
-	StartTimeRounded15   uint64 `parquet:",delta"`
-	StartTimeRounded60   uint64 `parquet:",delta"`
-	StartTimeRounded300  uint64 `parquet:",delta"`
-	StartTimeRounded3600 uint64 `parquet:",delta"`
+	// These are stored as intervals from the unix epoch.
+	// Interval 1 at 15s means "00:00:30".  These values can be represented in
+	// fewer bits and compress better than rounding the full 64-bit nanos timestamp
+	// to the same granularity. They can also be stored safely in uint32.
+	StartTimeRounded15   uint32 `parquet:",delta"`
+	StartTimeRounded60   uint32 `parquet:",delta"`
+	StartTimeRounded300  uint32 `parquet:",delta"`
+	StartTimeRounded3600 uint32 `parquet:",delta"`
 }
 
 func (s *Span) IsRoot() bool {

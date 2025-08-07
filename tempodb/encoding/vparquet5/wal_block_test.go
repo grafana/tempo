@@ -37,7 +37,7 @@ func TestFullFilename(t *testing.T) {
 				meta: backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), VersionString, backend.EncNone, ""),
 				path: "/blerg",
 			},
-			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+vparquet5",
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+" + VersionString,
 		},
 		{
 			name: "no path",
@@ -45,7 +45,7 @@ func TestFullFilename(t *testing.T) {
 				meta: backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), VersionString, backend.EncNone, ""),
 				path: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000+foo+vparquet5",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+" + VersionString,
 		},
 	}
 
@@ -143,14 +143,14 @@ func TestParseFilename(t *testing.T) {
 	}{
 		{
 			name:            "happy path",
-			filename:        "123e4567-e89b-12d3-a456-426614174000+tenant+vparquet5",
+			filename:        "123e4567-e89b-12d3-a456-426614174000+tenant+" + VersionString,
 			expectUUID:      uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
 			expectTenant:    "tenant",
-			expectedVersion: "vparquet5",
+			expectedVersion: VersionString,
 		},
 		{
 			name:        "path fails",
-			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000+tenant+vparquet5",
+			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000+tenant+" + VersionString,
 			expectError: true,
 		},
 		{
@@ -165,12 +165,12 @@ func TestParseFilename(t *testing.T) {
 		},
 		{
 			name:        "bad uuid",
-			filename:    "123e4+tenant+vParquet",
+			filename:    "123e4+tenant+" + VersionString,
 			expectError: true,
 		},
 		{
 			name:        "no tenant",
-			filename:    "123e4567-e89b-12d3-a456-426614174000++vparquet5",
+			filename:    "123e4567-e89b-12d3-a456-426614174000++" + VersionString,
 			expectError: true,
 		},
 		{
