@@ -1530,22 +1530,9 @@ type HistogramAggregator struct {
 	exemplarLimit    uint32
 	// Reusable buffer for all label processing
 	labelBuffer Labels
-
-	// Pre-computed values for IntervalOfMs optimization
-	isInstantQuery bool
-	alignedStart   uint64
-	alignedEnd     uint64
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplarLimit uint32) *HistogramAggregator {
-	// Use existing alignment functions for consistency, then align to milliseconds
-	stepAlignedStart := alignStart(req.Start, req.End, req.Step)
-	stepAlignedEnd := alignEnd(req.Start, req.End, req.Step)
-
-	// Further align to millisecond boundaries for IntervalOfMs conversion
-	alignedStart := stepAlignedStart - stepAlignedStart%uint64(time.Millisecond)
-	alignedEnd := stepAlignedEnd - stepAlignedEnd%uint64(time.Millisecond)
-
 	return &HistogramAggregator{
 		ss:            make(map[string]histSeries),
 		qs:            qs,
@@ -1555,11 +1542,6 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exempl
 		step:          req.Step,
 		exemplarLimit: exemplarLimit,
 		labelBuffer:   make(Labels, 0, 8), // Pre-allocate with reasonable capacity
-
-		// Optimization fields
-		isInstantQuery: isInstant(req.Start, req.End, req.Step),
-		alignedStart:   alignedStart,
-		alignedEnd:     alignedEnd,
 	}
 }
 
@@ -1605,7 +1587,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if sample.Value == 0 {
 				continue
 			}
-			j := h.fastIntervalOfMs(sample.TimestampMs)
+			j := IntervalOfMs(sample.TimestampMs, h.start, h.end, h.step)
 			if j >= 0 && j < len(existing.hist) {
 				existing.hist[j].Record(b, int(sample.Value))
 			}
@@ -2046,39 +2028,4 @@ func initSeriesInResult(result SeriesSet, key string, input SeriesSet, valueLeng
 	for j := range result[key].Values {
 		result[key].Values[j] = math.NaN()
 	}
-}
-
-// fastIntervalOfMs is an optimized version of IntervalOfMs that uses pre-computed values
-// to avoid expensive calculations in the hot path
-func (h *HistogramAggregator) fastIntervalOfMs(tsmills int64) int {
-	// Convert milliseconds to nanoseconds (this is still needed but optimized)
-	ts := uint64(tsmills) * uint64(time.Millisecond)
-
-	if h.isInstantQuery {
-		if ts >= h.alignedStart && ts <= h.alignedEnd {
-			return 0
-		}
-		return -1
-	}
-
-	// Skip alignment since we've pre-computed aligned values
-	// Validate bounds
-	if ts < h.alignedStart || ts > h.alignedEnd+h.step {
-		return -1
-	}
-
-	if ts <= h.alignedStart { // to avoid overflow
-		return 0 // if pass validation and less than start, always first interval
-	}
-
-	offset := ts - h.alignedStart
-	// Calculate which interval the timestamp falls into
-	// Since intervals are right-closed: (start; start+step], (start+step; start+2*step], etc.
-	// we need to handle the case where ts is exactly on a step boundary
-	interval := offset / h.step
-	if interval*h.step == offset { // the same as offset % h.step == 0
-		// ts is exactly on a step boundary, so it belongs to the previous interval
-		interval--
-	}
-	return int(interval)
 }
