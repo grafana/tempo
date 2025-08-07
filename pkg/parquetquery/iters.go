@@ -986,6 +986,9 @@ func (j *JoinIterator) seek(iterNum int, t RowNumber, d int) error {
 	t = TruncateRowNumber(d, t)
 	if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
 
+		// Release peek if present
+		// These results have been collected but never returned upstream,
+		// so we know it is safe to release them.
 		if j.peeks[iterNum] != nil {
 			j.peeks[iterNum].Release()
 		}
@@ -1003,6 +1006,9 @@ func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
 		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
+			// Release peek if present
+			// These results have been collected but never returned upstream,
+			// so we know it is safe to release them.
 			if j.peeks[iterNum] != nil {
 				j.peeks[iterNum].Release()
 			}
@@ -1194,7 +1200,9 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 
 func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
 	if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
-		// Release peeks if present
+		// Release peek if present
+		// These results have been collected but never returned upstream,
+		// so we know it is safe to release them.
 		if j.peeksRequired[iterNum] != nil {
 			j.peeksRequired[iterNum].Release()
 		}
@@ -1211,7 +1219,9 @@ func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (done bool, err e
 	for iterNum, iter := range j.required {
 		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
 
-			// Release peeks if present
+			// Release peek if present
+			// These results have been collected but never returned upstream,
+			// so we know it is safe to release them.
 			if j.peeksRequired[iterNum] != nil {
 				j.peeksRequired[iterNum].Release()
 			}
@@ -1397,7 +1407,9 @@ func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range u.iters {
 		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.RowNumber, t) == -1 {
-
+			// Release peek if present
+			// These results have been collected but never returned upstream,
+			// so we know it is safe to release them.
 			if p != nil {
 				p.Release()
 			}
