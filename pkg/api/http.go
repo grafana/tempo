@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -19,6 +18,7 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/prometheus/common/model"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -815,7 +815,7 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 
 // ParseTraceLookupRequest takes an http.Request and decodes the body to create a tempopb.TraceLookupRequest
 func ParseTraceLookupRequest(r *http.Request) (*tempopb.TraceLookupRequest, error) {
-	body, err := io.ReadAll(r.Body)
+	body, err := tempo_io.ReadAllWithEstimate(r.Body, r.ContentLength)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
