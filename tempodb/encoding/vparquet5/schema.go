@@ -640,21 +640,23 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 		var protoVal v1.AnyValue
 
 		if !attr.IsArray {
-			if len(attr.Value) > 0 {
+			switch {
+			case len(attr.Value) > 0:
 				protoVal.Value = &v1.AnyValue_StringValue{StringValue: attr.Value[0]}
-			} else if len(attr.ValueInt) > 0 {
+			case len(attr.ValueInt) > 0:
 				protoVal.Value = &v1.AnyValue_IntValue{IntValue: attr.ValueInt[0]}
-			} else if len(attr.ValueDouble) > 0 {
+			case len(attr.ValueDouble) > 0:
 				protoVal.Value = &v1.AnyValue_DoubleValue{DoubleValue: attr.ValueDouble[0]}
-			} else if len(attr.ValueBool) > 0 {
+			case len(attr.ValueBool) > 0:
 				protoVal.Value = &v1.AnyValue_BoolValue{BoolValue: attr.ValueBool[0]}
-			} else if attr.ValueUnsupported != nil {
+			case attr.ValueUnsupported != nil:
 				_ = jsonpb.Unmarshal(bytes.NewBufferString(*attr.ValueUnsupported), &protoVal)
-			} else {
+			default:
 				continue
 			}
 		} else {
-			if len(attr.Value) > 0 {
+			switch {
+			case len(attr.Value) > 0:
 				values := make([]*v1.AnyValue, len(attr.Value))
 
 				anyValues := make([]v1.AnyValue, len(values))
@@ -667,7 +669,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				}
 
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueInt) > 0 {
+			case len(attr.ValueInt) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueInt))
 
 				anyValues := make([]v1.AnyValue, len(values))
@@ -680,7 +682,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				}
 
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueDouble) > 0 {
+			case len(attr.ValueDouble) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueDouble))
 
 				anyValues := make([]v1.AnyValue, len(values))
@@ -693,7 +695,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				}
 
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueBool) > 0 {
+			case len(attr.ValueBool) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueBool))
 
 				anyValues := make([]v1.AnyValue, len(values))
@@ -706,7 +708,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				}
 
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else {
+			default:
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{}}}
 			}
 		}

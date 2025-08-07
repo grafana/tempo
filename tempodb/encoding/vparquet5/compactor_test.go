@@ -96,8 +96,8 @@ func BenchmarkCompactorDupes(b *testing.B) {
 			OutputBlocks:     1,
 			FlushSizeBytes:   30_000_000,
 			MaxBytesPerTrace: 50_000_000,
-			ObjectsCombined:  func(compactionLevel, objects int) {},
-			SpansDiscarded:   func(traceID, rootSpanName, rootServiceName string, spans int) {},
+			ObjectsCombined:  func(_, _ int) {},
+			SpansDiscarded:   func(_, _, _ string, _ int) {},
 		})
 
 		_, err = c.Compact(ctx, l, r, w, inputs)
@@ -193,7 +193,7 @@ func TestCompact(t *testing.T) {
 		BlockConfig:     blockConfig,
 		OutputBlocks:    1,
 		FlushSizeBytes:  30_000_000,
-		ObjectsCombined: func(compactionLevel, objects int) {},
+		ObjectsCombined: func(_, _ int) {},
 	})
 
 	dedicatedColumns := backend.DedicatedColumns{

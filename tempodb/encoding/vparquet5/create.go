@@ -264,7 +264,7 @@ func (b *streamingBlock) Complete() (int, error) {
 		return 0, fmt.Errorf("error reading parquet file footer: %w", err)
 	}
 	if string(buf[4:8]) != "PAR1" {
-		return 0, errors.New("Failed to confirm magic footer while writing a new parquet block")
+		return 0, errors.New("failed to confirm magic footer while writing a new parquet block")
 	}
 	b.meta.FooterSize = binary.LittleEndian.Uint32(buf[0:4])
 

@@ -882,7 +882,7 @@ func estimateRowSize(t *testing.T, name string) {
 		totalTraceSize += int64(estimateMarshalledSizeFromTrace(tr))
 	}
 
-	fmt.Println(pf.Size(), ",", len(pf.RowGroups()), ",", totalProtoSize, ",", totalTraceSize)
+	t.Log(pf.Size(), ",", len(pf.RowGroups()), ",", totalProtoSize, ",", totalTraceSize)
 }
 
 func TestExtendReuseSlice(t *testing.T) {

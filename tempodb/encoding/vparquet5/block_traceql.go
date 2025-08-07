@@ -3531,17 +3531,6 @@ func newLinkAttr(name string) traceql.Attribute {
 	return traceql.NewScopedAttribute(traceql.AttributeScopeLink, false, name)
 }
 
-func unionIfNeeded(definitionLevel int, iters []parquetquery.Iterator, pred parquetquery.GroupPredicate) parquetquery.Iterator {
-	switch len(iters) {
-	case 0:
-		return nil
-	case 1:
-		return iters[0]
-	default:
-		return parquetquery.NewUnionIterator(definitionLevel, iters, pred)
-	}
-}
-
 func orIfNeeded(preds []parquetquery.Predicate) parquetquery.Predicate {
 	switch len(preds) {
 	case 0:
