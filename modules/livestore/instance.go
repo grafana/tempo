@@ -72,7 +72,7 @@ func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger lo
 }
 
 func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
-	if len(req.Traces) >= len(req.Ids) {
+	if len(req.Traces) != len(req.Ids) {
 		level.Error(i.logger).Log("msg", "mismatched traces and ids length", "IDs", len(req.Ids), "traces", len(req.Traces))
 		return
 	}
