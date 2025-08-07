@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/kv"
+	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -64,7 +65,7 @@ func TestLiveStore_IntegrationTraceIngestion(t *testing.T) {
 		},
 		PartitionRing: ingester.PartitionRingConfig{
 			KVStore: kv.Config{
-				Mock: &mockKV{},
+				Mock: createConsulInMemoryClient(),
 			},
 		},
 		IngestConfig: ingest.Config{
@@ -196,7 +197,7 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 		},
 		PartitionRing: ingester.PartitionRingConfig{
 			KVStore: kv.Config{
-				Mock: &mockKV{},
+				Mock: createConsulInMemoryClient(),
 			},
 		},
 		IngestConfig: ingest.Config{
@@ -328,32 +329,14 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// mockKV implements the kv.Client interface for testing
-type mockKV struct{}
-
-func (m *mockKV) List(ctx context.Context, prefix string) ([]string, error) {
-	return []string{}, nil
-}
-
-func (m *mockKV) Get(ctx context.Context, key string) (interface{}, error) {
-	return nil, nil
-}
-
-func (m *mockKV) Delete(ctx context.Context, key string) error {
-	return nil
-}
-
-func (m *mockKV) WatchKey(ctx context.Context, key string, f func(interface{}) bool) {
-}
-
-func (m *mockKV) WatchPrefix(ctx context.Context, prefix string, f func(string, interface{}) bool) {
-}
-
-func (m *mockKV) CAS(ctx context.Context, key string, f func(in interface{}) (out interface{}, retry bool, err error)) error {
-	return nil
-}
-
-func (m *mockKV) Stop() {
+// createConsulInMemoryClient creates a consul in-memory client for testing
+func createConsulInMemoryClient() kv.Client {
+	client, _ := consul.NewInMemoryClient(
+		ring.GetPartitionRingCodec(),
+		log.NewNopLogger(),
+		nil,
+	)
+	return client
 }
 
 func TestLiveStore_PollingFromInMemoryKafka(t *testing.T) {
