@@ -46,7 +46,7 @@ func createPushRequest(trace *tempopb.Trace) (*tempopb.PushBytesRequest, error) 
 }
 
 // encodeTraceRecord encodes a trace as it would appear in Kafka
-func encodeTraceRecord(tenantID string, pushReq *tempopb.PushBytesRequest) ([]byte, error) {
+func encodeTraceRecord(_ string, pushReq *tempopb.PushBytesRequest) ([]byte, error) {
 	return pushReq.Marshal()
 }
 
@@ -90,7 +90,7 @@ func TestLiveStore_IntegrationTraceIngestion(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
 	// Create client factory that returns our in-memory client
-	clientFactory := func(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (KafkaClient, error) {
+	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
 		return kafkaClient, nil
 	}
 
@@ -216,7 +216,7 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	logger := log.NewNopLogger()
 	reg := prometheus.NewRegistry()
 
-	clientFactory := func(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (KafkaClient, error) {
+	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
 		return kafkaClient, nil
 	}
 

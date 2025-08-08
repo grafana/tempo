@@ -58,7 +58,7 @@ func NewInMemoryKafkaClient() *InMemoryKafkaClient {
 }
 
 // Ping always returns nil for in-memory client
-func (c *InMemoryKafkaClient) Ping(ctx context.Context) error {
+func (c *InMemoryKafkaClient) Ping(_ context.Context) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -101,7 +101,7 @@ func (c *InMemoryKafkaClient) RemoveConsumePartitions(partitions map[string][]in
 }
 
 // PollFetches returns available messages from consumed partitions with proper batching
-func (c *InMemoryKafkaClient) PollFetches(ctx context.Context) kgo.Fetches {
+func (c *InMemoryKafkaClient) PollFetches(_ context.Context) kgo.Fetches {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -121,7 +121,7 @@ func (c *InMemoryKafkaClient) Close() {
 }
 
 // FetchOffsets retrieves committed offsets for a consumer group
-func (c *InMemoryKafkaClient) FetchOffsets(ctx context.Context, group string) (kadm.OffsetResponses, error) {
+func (c *InMemoryKafkaClient) FetchOffsets(_ context.Context, group string) (kadm.OffsetResponses, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -152,7 +152,7 @@ func (c *InMemoryKafkaClient) FetchOffsets(ctx context.Context, group string) (k
 }
 
 // CommitOffsets commits offsets for a consumer group
-func (c *InMemoryKafkaClient) CommitOffsets(ctx context.Context, group string, offsets kadm.Offsets) (kadm.OffsetResponses, error) {
+func (c *InMemoryKafkaClient) CommitOffsets(_ context.Context, group string, offsets kadm.Offsets) (kadm.OffsetResponses, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -324,6 +324,6 @@ func (c *InMemoryKafkaClient) buildFetches(topicsMap map[string][]kgo.FetchParti
 }
 
 // InMemoryKafkaClientFactory creates an in-memory Kafka client factory for testing
-func InMemoryKafkaClientFactory(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (KafkaClient, error) {
+func InMemoryKafkaClientFactory(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
 	return NewInMemoryKafkaClient(), nil
 }

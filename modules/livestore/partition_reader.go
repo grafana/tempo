@@ -284,7 +284,7 @@ type partitionReaderMetrics struct {
 	recordsPerFetch prometheus.Histogram
 }
 
-func newPartitionReaderMetrics(partitionID int32, reg prometheus.Registerer) partitionReaderMetrics {
+func newPartitionReaderMetrics(_ int32, reg prometheus.Registerer) partitionReaderMetrics {
 	factory := promauto.With(reg)
 
 	return partitionReaderMetrics{

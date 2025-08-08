@@ -97,7 +97,7 @@ func TestPartitionReader_WithInMemoryClient(t *testing.T) {
 
 	// Create a consume function that tracks consumed records
 	var consumedRecords []record
-	consumeFn := func(ctx context.Context, records []record) error {
+	consumeFn := func(_ context.Context, records []record) error {
 		consumedRecords = append(consumedRecords, records...)
 		return nil
 	}
@@ -391,7 +391,7 @@ func TestInMemoryKafkaClient_MultipleTopicsPartitions(t *testing.T) {
 
 	// Count the actual number of offset responses
 	count := 0
-	fetchedOffsets.Each(func(or kadm.OffsetResponse) {
+	fetchedOffsets.Each(func(_ kadm.OffsetResponse) {
 		count++
 	})
 	assert.Equal(t, 3, count) // Should have 3 topic/partition combinations
@@ -480,18 +480,18 @@ func TestInMemoryKafkaClient_ConcurrentAccess(t *testing.T) {
 	}
 
 	// Wait for all goroutines to complete
-	receivedIds := make(map[int]bool)
+	receivedIDs := make(map[int]bool)
 	for i := 0; i < 10; i++ {
 		select {
 		case id := <-done:
-			receivedIds[id] = true
+			receivedIDs[id] = true
 		case <-time.After(5 * time.Second):
 			t.Fatal("Test timed out")
 		}
 	}
 
 	// Verify all goroutines completed
-	assert.Len(t, receivedIds, 10)
+	assert.Len(t, receivedIDs, 10)
 
 	// Verify we can poll and get all messages
 	ctx := context.Background()
