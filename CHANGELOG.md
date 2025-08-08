@@ -14,6 +14,7 @@ The configuration for `backend_scheduler.provider.compaction.backoff` has been r
 Additionally the `compaction_tenant_backoff_total` metric has been renamed to `compaction_empty_tenant_cycle_total` for clarity.
 * [CHANGE] Shard backend-scheduler work files locally and modify backend work structure to accommodate sharding approach [#5412](https://github.com/grafana/tempo/pull/5412) (@zalegrala)
 * [CHANGE] Remove .005s and add a 1.5s bucket to all request duration histograms [#5492](https://github.com/grafana/tempo/pull/5492) (@joe-elliott)
+* [CHANGE] Improve tempo writes dashboard [#5500](https://github.com/grafana/tempo/pull/5500) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** TraceQL Metrics buckets are calculated based on data in past [#5366](https://github.com/grafana/tempo/pull/5366) (@ruslan-mikhailov)
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
 * [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
