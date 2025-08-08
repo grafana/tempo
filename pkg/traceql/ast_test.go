@@ -1072,18 +1072,19 @@ func testName(val any) string {
 }
 
 func TestNeedsFullTrace(t *testing.T) {
-	dontNeedFullTraceTests := []string{
+	dontNeedFullTrace := []string{
 		"{}",
 		"{} | rate()",
 	}
 
-	needsFullTraceTests := []string{
+	needFullTrace := []string{
 		"{} >> {}",
 		"{} && {}",
 		"{} | count() > 100",
+		"({} | count()) = ({} | count())",
 	}
 
-	for _, test := range dontNeedFullTraceTests {
+	for _, test := range dontNeedFullTrace {
 		t.Run(test, func(t *testing.T) {
 			expr, err := Parse(test)
 			require.NoError(t, err)
@@ -1091,7 +1092,7 @@ func TestNeedsFullTrace(t *testing.T) {
 		})
 	}
 
-	for _, test := range needsFullTraceTests {
+	for _, test := range needFullTrace {
 		t.Run(test, func(t *testing.T) {
 			expr, err := Parse(test)
 			require.NoError(t, err)

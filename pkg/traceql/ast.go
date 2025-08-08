@@ -38,6 +38,13 @@ type RootExpr struct {
 func NeedsFullTrace(e ...Element) bool {
 	for _, e := range e {
 		switch x := e.(type) {
+		case Pipeline:
+			// Sub-pipelines: Example: ({} | count()) = ({} | count())
+			for _, e := range x.Elements {
+				if NeedsFullTrace(e) {
+					return true
+				}
+			}
 		case SpansetOperation:
 			// Example: {} >> {}
 			return true
