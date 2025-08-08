@@ -67,9 +67,31 @@ func (a *averageOverTimeAggregator) observeSeries(ss []*tempopb.TimeSeries) {
 	a.seriesAgg.Combine(ss)
 }
 
-func (a *averageOverTimeAggregator) result() SeriesSet {
+func (a *averageOverTimeAggregator) result(multiplier float64) SeriesSet {
 	if a.agg != nil {
-		return a.agg.Series()
+		ss := a.agg.Series()
+		if multiplier > 1.0 {
+			countLabel := NewStaticString(internalMetaTypeCount)
+			for _, s := range ss {
+				// Skip non-count series.
+				found := false
+				for _, l := range s.Labels {
+					if l.Name == internalLabelMetaType && l.Value.Equals(&countLabel) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					continue
+				}
+
+				// Found a count series, scale the values by the multiplier.
+				for i := range s.Values {
+					s.Values[i] *= multiplier
+				}
+			}
+		}
+		return ss
 	}
 
 	// In the frontend-version the results come from
@@ -511,6 +533,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 		s.average.labels = labels
 		// Average series
 		averageSeries := s.average.getAvgSeries()
+
 		// Count series
 		countSeries := s.average.getCountSeries()
 

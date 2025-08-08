@@ -214,9 +214,9 @@ func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
 	m.seriesAgg.Combine(ss)
 }
 
-func (m *MetricsCompare) result() SeriesSet {
-	// In the other modes return these results
+func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 	if m.seriesAgg != nil {
+		// In job-level mode the series come from the series aggregator.
 		return m.seriesAgg.Results()
 	}
 
@@ -296,6 +296,15 @@ func (m *MetricsCompare) result() SeriesSet {
 	}
 	for _, e := range m.selectionExemplars {
 		addExemplar(internalLabelTypeSelectionTotal, e)
+	}
+
+	// Multiply to account for sampling as needed.
+	if multiplier > 1.0 {
+		for _, s := range ss {
+			for i := range s.Values {
+				s.Values[i] *= multiplier
+			}
+		}
 	}
 
 	return ss

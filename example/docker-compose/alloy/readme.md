@@ -1,4 +1,4 @@
-## Grafana Agent
+## Grafana Alloy
 This example highlights setting up the Grafana Alloy in a simple tracing pipeline.
 
 1. Start up the stack.
