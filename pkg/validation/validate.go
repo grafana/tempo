@@ -8,7 +8,7 @@ func ValidTraceID(id []byte) bool {
 }
 
 func ValidSpanID(id []byte) bool {
-	return len(id) == 8 && bytes.Equal(id, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	return len(id) == 8 && !bytes.Equal(id, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 }
 
 // SmallestPositiveNonZeroIntPerTenant is returning the minimal positive and
