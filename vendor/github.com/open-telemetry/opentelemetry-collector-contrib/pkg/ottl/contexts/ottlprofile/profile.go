@@ -33,15 +33,6 @@ var (
 	_ zapcore.ObjectMarshaler = TransformContext{}
 )
 
-// MarshalLogObject serializes the profile into a zapcore.ObjectEncoder for logging.
-func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
-	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
-	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.instrumentationScope)))
-	err = errors.Join(err, encoder.AddObject("profile", logprofile.Profile{Profile: tCtx.profile, Dictionary: tCtx.dictionary}))
-	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
-	return err
-}
-
 // TransformContext represents a profile and its associated hierarchy.
 type TransformContext struct {
 	profile              pprofile.Profile
@@ -51,6 +42,15 @@ type TransformContext struct {
 	cache                pcommon.Map
 	scopeProfiles        pprofile.ScopeProfiles
 	resourceProfiles     pprofile.ResourceProfiles
+}
+
+// MarshalLogObject serializes the profile into a zapcore.ObjectEncoder for logging.
+func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
+	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.instrumentationScope)))
+	err = errors.Join(err, encoder.AddObject("profile", logprofile.Profile{Profile: tCtx.profile, Dictionary: tCtx.dictionary}))
+	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
+	return err
 }
 
 // TransformContextOption represents an option for configuring a TransformContext.
@@ -71,16 +71,6 @@ func NewTransformContext(profile pprofile.Profile, dictionary pprofile.ProfilesD
 		opt(&tc)
 	}
 	return tc
-}
-
-// WithCache sets the cache for the TransformContext.
-// Experimental: *NOTE* this option is subject to change or removal in the future.
-func WithCache(cache *pcommon.Map) TransformContextOption {
-	return func(p *TransformContext) {
-		if cache != nil {
-			p.cache = *cache
-		}
-	}
 }
 
 // GetProfile returns the profile from the TransformContext.
@@ -134,6 +124,7 @@ func EnablePathContextNames() ottl.Option[TransformContext] {
 		ottl.WithPathContextNames[TransformContext]([]string{
 			ctxprofile.Name,
 			ctxscope.LegacyName,
+			ctxscope.Name,
 			ctxresource.Name,
 		})(p)
 	}

@@ -41,7 +41,7 @@ func ParseLocalizedStrptime(layout string, value any, location *time.Location, l
 	return ParseLocalizedGotime(goLayout, value, location, language)
 }
 
-func GetLocation(location *string, layout *string) (*time.Location, error) {
+func GetLocation(location, layout *string) (*time.Location, error) {
 	if location != nil && *location != "" {
 		// If location is specified, it must be in the local timezone database
 		loc, err := time.LoadLocation(*location)

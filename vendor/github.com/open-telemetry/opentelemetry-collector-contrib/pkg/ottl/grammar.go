@@ -577,11 +577,11 @@ func (g *grammarCustomErrorsVisitor) join() error {
 	return &grammarCustomError{errs: g.errs}
 }
 
-func (g *grammarCustomErrorsVisitor) visitPath(_ *path) {}
+func (*grammarCustomErrorsVisitor) visitPath(*path) {}
 
-func (g *grammarCustomErrorsVisitor) visitValue(_ *value) {}
+func (*grammarCustomErrorsVisitor) visitValue(*value) {}
 
-func (g *grammarCustomErrorsVisitor) visitConverter(_ *converter) {}
+func (*grammarCustomErrorsVisitor) visitConverter(*converter) {}
 
 func (g *grammarCustomErrorsVisitor) visitEditor(v *editor) {
 	if v.Keys != nil {

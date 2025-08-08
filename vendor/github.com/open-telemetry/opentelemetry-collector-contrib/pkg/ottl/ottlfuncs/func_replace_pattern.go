@@ -64,7 +64,7 @@ func applyReplaceFormat[K any](ctx context.Context, tCtx K, replacementFormat ot
 	return replacementVal, nil
 }
 
-func applyOptReplaceFunction[K any](ctx context.Context, tCtx K, compiledPattern *regexp.Regexp, fn ottl.Optional[ottl.FunctionGetter[K]], originalValStr string, replacementVal string, replacementFormat ottl.Optional[ottl.StringGetter[K]]) (string, error) {
+func applyOptReplaceFunction[K any](ctx context.Context, tCtx K, compiledPattern *regexp.Regexp, fn ottl.Optional[ottl.FunctionGetter[K]], originalValStr, replacementVal string, replacementFormat ottl.Optional[ottl.StringGetter[K]]) (string, error) {
 	var updatedString string
 	updatedString = originalValStr
 	submatches := compiledPattern.FindAllStringSubmatchIndex(updatedString, -1)

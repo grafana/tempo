@@ -162,7 +162,7 @@ func performOpDuration(x time.Duration, y any, op mathOp) (any, error) {
 	return nil, errors.New("only addition and subtraction supported for time.Time and time.Duration")
 }
 
-func performOp[N int64 | float64](x N, y N, op mathOp) (N, error) {
+func performOp[N int64 | float64](x, y N, op mathOp) (N, error) {
 	switch op {
 	case add:
 		return x + y, nil

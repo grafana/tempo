@@ -22,7 +22,7 @@ var UseOTTLBridge = featuregate.GlobalRegistry().MustRegister(
 // NewSkipExpr creates a BoolExpr that on evaluation returns true if a metric should NOT be processed or kept.
 // The logic determining if a metric should be processed is based on include and exclude settings.
 // Include properties are checked before exclude settings are checked.
-func NewSkipExpr(include *filterconfig.MetricMatchProperties, exclude *filterconfig.MetricMatchProperties) (expr.BoolExpr[ottlmetric.TransformContext], error) {
+func NewSkipExpr(include, exclude *filterconfig.MetricMatchProperties) (expr.BoolExpr[ottlmetric.TransformContext], error) {
 	if UseOTTLBridge.IsEnabled() {
 		return filterottl.NewMetricSkipExprBridge(include, exclude)
 	}
