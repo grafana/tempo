@@ -183,11 +183,10 @@ type Producer struct {
 	maxBufferedBytes int64
 
 	// Custom metrics.
-	bufferedProduceBytes          prometheus.Summary
-	bufferedProduceBytesLimit     prometheus.Gauge
-	produceRecordsTotal           prometheus.Counter
-	produceRecordsFailuresTotal   *prometheus.CounterVec
-	produceRecordsEnqueueDuration prometheus.Histogram
+	bufferedProduceBytes        prometheus.Summary
+	bufferedProduceBytesLimit   prometheus.Gauge
+	produceRecordsTotal         prometheus.Counter
+	produceRecordsFailuresTotal *prometheus.CounterVec
 }
 
 // NewProducer returns a new KafkaProducer.
