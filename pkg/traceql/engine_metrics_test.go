@@ -2437,3 +2437,26 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 
 	return result
 }
+
+// requireEqualSeriesSets is like require.Equal for SeriesSets and supports NaN.
+func requireEqualSeriesSets(t *testing.T, expected, actual SeriesSet) {
+	require.Equal(t, len(expected), len(actual))
+
+	for k, eTS := range expected {
+		aTS, ok := actual[k]
+		require.True(t, ok, "expected series %s to be in result", k)
+		require.Equal(t, eTS.Labels, aTS.Labels, "expected labels %v, got %v", eTS.Labels, aTS.Labels)
+
+		eSamples := eTS.Values
+		aSamples := aTS.Values
+
+		require.Equal(t, len(eSamples), len(aSamples), "expected %d samples for %s, got %d", len(eSamples), k, len(aSamples))
+		for i := range eSamples {
+			if math.IsNaN(eSamples[i]) {
+				require.True(t, math.IsNaN(aSamples[i]))
+			} else {
+				require.InDelta(t, eSamples[i], aSamples[i], 0.001, "expected %v, got %v, for %s[%d]", eSamples[i], aSamples[i], k, i)
+			}
+		}
+	}
+}

@@ -922,6 +922,45 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplars = v
 	}
 
+	// Debug sampling hints, remove once we settle on approach.
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints); traceSampleOk {
+		storageReq.TraceSampler = newProbablisticSampler(traceSample)
+	}
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints); spanSampleOk {
+		storageReq.SpanSampler = newProbablisticSampler(spanSample)
+	}
+
+	if sample, sampleOk := expr.Hints.GetBool(HintSample, allowUnsafeQueryHints); sampleOk && sample {
+		// Automatic sampling
+		// Get other params
+		s := newAdaptiveSampler()
+		if debug, ok := expr.Hints.GetBool(HintDebug, allowUnsafeQueryHints); ok {
+			s.debug = debug
+		}
+		if info, ok := expr.Hints.GetBool(HintInfo, allowUnsafeQueryHints); ok {
+			s.info = info
+		}
+
+		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
+		if expr.NeedsFullTrace() {
+			storageReq.TraceSampler = s
+		} else {
+			storageReq.SpanSampler = s
+		}
+	}
+
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+		// Fixed sampling rate.
+		s := newProbablisticSampler(sampleFraction)
+
+		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
+		if expr.NeedsFullTrace() {
+			storageReq.TraceSampler = s
+		} else {
+			storageReq.SpanSampler = s
+		}
+	}
+
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req, AggregateModeRaw)
 
@@ -1148,17 +1187,26 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		e.mtx.Lock()
 
+		if e.storageReq.TraceSampler != nil {
+			e.storageReq.TraceSampler.Measured()
+		}
+
 		var validSpansCount int
 		var randomSpanIndex int
 
 		needExemplar := e.maxExemplars > 0 && e.sampleExemplar(ss.TraceID)
 
 		for i, s := range ss.Spans {
+
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
 				if st <= e.start || st > e.end {
 					continue
 				}
+			}
+
+			if e.storageReq.SpanSampler != nil {
+				e.storageReq.SpanSampler.Measured()
 			}
 
 			validSpansCount++
@@ -1209,12 +1257,28 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvaluator) Results() SeriesSet {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	spanMultiplier := 1.0
+	if e.storageReq.SpanSampler != nil {
+		spanMultiplier = e.storageReq.SpanSampler.FinalScalingFactor()
+	}
+	traceMultiplier := 1.0
+	if e.storageReq.TraceSampler != nil {
+		traceMultiplier = e.storageReq.TraceSampler.FinalScalingFactor()
+	}
+
+	multiplier := spanMultiplier * traceMultiplier
+
 	// NOTE: skip processing of second stage because not all first stage functions can't be pushed down.
 	// for example: if query has avg_over_time(), then we can't push it down to second stage, and second stage
 	// can only be processed on the frontend.
 	// we could do this but it would require knowing if the first stage functions
 	// can be pushed down to second stage or not so we are skipping it for now, and will handle it later.
-	return e.metricsPipeline.result()
+	ss := e.metricsPipeline.result(multiplier)
+
+	return ss
 }
 
 func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
@@ -1255,7 +1319,8 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	results := m.metricsPipeline.result()
+	// Job results are not scaled by sampling, but this is here for the interface.
+	results := m.metricsPipeline.result(1.0)
 
 	if m.metricsSecondStage != nil {
 		// metrics second stage is only set when query has second stage function and mode = final
