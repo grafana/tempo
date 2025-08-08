@@ -6,7 +6,6 @@
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
 * [CHANGE] Assert max live traces limits in local-blocks processor [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [CHANGE] Adjust the definition of `tempo_metrics_generator_processor_service_graphs_expired_edges` to exclude edges that are counted in the service graph. [#5319](https://github.com/grafana/tempo/pull/5319) (@joe-elliott)
-* [CHANGE] Update Go to version 1.24.4 [#5323](https://github.com/grafana/tempo/pull/5323) (@stoewer)
 * [CHANGE] Command tempo-cli analyse block(s) excludes attributes with array values [#5380](https://github.com/grafana/tempo/pull/5380) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Drop unused `backend_scheduler.tenant_measurement_interval`, use `backend_scheduler.compaction.measure_interval` instead. [#5328](https://github.com/grafana/tempo/pull/5328) (@zalegrala)
 * [CHANGE] Allow configuration of min/max input blocks for compaction provider. [#5373](https://github.com/grafana/tempo/pull/5373) (@zalegrala)
@@ -39,17 +38,21 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] Use peer attributes to determine the name of a client service virtual node in the service gra0ph [#5381](https://github.com/grafana/tempo/pull/5381) (@martenm)
 * [ENHANCEMENT] Put actual size for writing to backend [#5413](https://github.com/grafana/tempo/pull/5413) (@ruslan-mikhailov)
 * [ENHANCEMENT] Do not compact unfinished blocks [#5390](https://github.com/grafana/tempo/pull/5390) (@ruslan-mikhailov)
-* [BUGFIX] Add nil check to partitionAssignmentVar [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
-* [BUGFIX] Correct instant query calculation [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
-* [BUGFIX] Fix tracing context propagation in distributor HTTP write requests [#5312](https://github.com/grafana/tempo/pull/5312) (@mapno)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
-* [BUGFIX] Fix search by trace:id with short trace ID [#5331](https://github.com/grafana/tempo/pull/5331) (@ruslan-mikhailov)
 * [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
-* [BUGFIX] Fix bug where most_recent=true wouldn't return most recent results when query overlapped ingesters and few other blocks.[#5438](https://github.com/grafana/tempo/pull/5438) (@joe-elliott)
-* [BUGFIX] Fix panic when counter series is missing during avg_over_time aggregation [#5300](https://github.com/grafana/tempo/pull/5300) (@ie-pham)
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
+
+# v2.8.2
+
+* [CHANGE] Update Go to version 1.24.4. #5323 (@stoewer)
+* [BUGFIX] Add nil check to `partitionAssignmentVar`. [#5198](https://github.com/grafana/tempo/pull/5198) (@mapno)
+* [BUGFIX] Correct instant query calculation. [#5252](https://github.com/grafana/tempo/pull/5252) (@ruslan-mikhailov)
+* [BUGFIX] Fix tracing context propagation in distributor HTTP write requests. [#5312](https://github.com/grafana/tempo/pull/5312) (@mapno)
+* [BUGFIX] Fix search by `trace:id` with short trace ID. [#5331](https://github.com/grafana/tempo/pull/5331) (@ruslan-mikhailov)
+* [BUGFIX] Fix bug where `most_recent=true` wouldn't return most recent results when query overlapped ingesters and few other blocks. [#5438](https://github.com/grafana/tempo/pull/5438) (@joe-elliott)
+* [BUGFIX] Fix panic when counter series is missing during `avg_over_time` aggregation. [#5300](https://github.com/grafana/tempo/pull/5300) (@ie-pham)
 
 # v2.8.1
 
