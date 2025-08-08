@@ -7,7 +7,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/pkg/errors"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kprom"
@@ -32,7 +31,7 @@ func NewFranzKafkaClient(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger 
 
 	client, err := ingest.NewReaderClient(cfg, metrics, logger, opts...)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating franz kafka client")
+		return nil, err
 	}
 
 	adminCl := kadm.NewClient(client)
@@ -50,31 +49,18 @@ func NewFranzKafkaClient(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger 
 func (c *FranzKafkaClient) Ping(ctx context.Context) error {
 	// Use metadata request to check connectivity
 	_, err := c.adminCl.Metadata(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to fetch kafka metadata")
-	}
-	return nil
+	return err
 }
 
 // AddConsumePartitions adds partitions to consume from
 // For the Franz client, topics are configured at client creation time
 func (c *FranzKafkaClient) AddConsumePartitions(partitions map[string]map[int32]kgo.Offset) {
-	// Franz/kgo client handles partition assignment automatically through consumer groups
-	// We just log which topics are being requested for consumption
-	for topic, partitionOffsets := range partitions {
-		level.Debug(c.logger).Log("msg", "requested to consume topic partitions",
-			"topic", topic, "partition_count", len(partitionOffsets))
-	}
+	c.client.AddConsumePartitions(partitions)
 }
 
 // RemoveConsumePartitions removes partitions from consumption
 func (c *FranzKafkaClient) RemoveConsumePartitions(partitions map[string][]int32) {
-	// Franz/kgo client handles partition rebalancing automatically
-	// We just log which partitions are being removed
-	for topic, partitionList := range partitions {
-		level.Debug(c.logger).Log("msg", "requested to remove topic partitions",
-			"topic", topic, "partition_count", len(partitionList))
-	}
+	c.client.RemoveConsumePartitions(partitions)
 }
 
 // PollFetches polls for new messages
