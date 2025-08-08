@@ -1,5 +1,5 @@
 ## main / unreleased
-
+* [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464) 
 * [CHANGE] Add test for cost_attribution in user-configurable overrides API [#5481](https://github.com/grafana/tempo/pull/5481/) (@electron0zero)
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now push traces to Tempo OTLP GRCP endpoint.[#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
