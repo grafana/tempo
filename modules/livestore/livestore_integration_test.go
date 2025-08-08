@@ -324,8 +324,8 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	assert.True(t, hasHeadBlock, "Expected head block to be present after cutting traces")
 
 	// Clean up
-	liveStore.Service.StopAsync()
-	err = liveStore.Service.AwaitTerminated(ctx)
+	liveStore.StopAsync()
+	err = liveStore.AwaitTerminated(ctx)
 	require.NoError(t, err)
 }
 
