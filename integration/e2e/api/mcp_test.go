@@ -51,6 +51,18 @@ func TestMCP(t *testing.T) {
 
 	tools := listTools(t, mcpClient)
 
+	// confirm all tools are listed as read only and no open world
+	for _, tool := range tools {
+		require.NotNil(t, tool.Annotations.DestructiveHint, "tool %s doesn't specify destructive", tool.Name)
+		require.False(t, *tool.Annotations.DestructiveHint, "tool %s is marked destructive", tool.Name)
+
+		require.NotNil(t, tool.Annotations.OpenWorldHint, "tool %s is doesn't specify open world", tool.Name)
+		require.False(t, *tool.Annotations.OpenWorldHint, "tool %s is is marked open world", tool.Name)
+
+		require.NotNil(t, tool.Annotations.ReadOnlyHint, "tool %s is doesn't specify read only", tool.Name)
+		require.True(t, *tool.Annotations.ReadOnlyHint, "tool %s is is marked write", tool.Name)
+	}
+
 	// Verify all expected tools are available
 	expectedTools := []string{
 		"traceql-search",
