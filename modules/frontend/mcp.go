@@ -304,7 +304,7 @@ func newReadOnlyTool(name string, opts ...mcp.ToolOption) mcp.Tool {
 		mcp.WithOpenWorldHintAnnotation(false),
 	}
 
-	allOpts := append(opts, standardReadOnlyOpts...)
+	opts = append(opts, standardReadOnlyOpts...)
 
-	return mcp.NewTool(name, allOpts...)
+	return mcp.NewTool(name, opts...)
 }
