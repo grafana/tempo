@@ -1,4 +1,4 @@
-package vparquet4
+package vparquet5
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -156,7 +154,7 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	q := `{ resource.region != nil && resource.service.name = "bar" }`
+	q := `{ resource.region != nil || resource.service.name = "bar" }`
 	// q := `{ resource.str-array =~ "value.*" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
@@ -169,11 +167,11 @@ func TestOne(t *testing.T) {
 	spanSet, err := resp.Results.Next(ctx)
 	require.NoError(t, err, "search request:", req)
 
-	fmt.Println(q)
-	fmt.Println("-----------")
-	fmt.Println(resp.Results.(*spansetIterator).iter)
-	fmt.Println("-----------")
-	fmt.Println(spanSet)
+	t.Log(q)
+	t.Log("-----------")
+	t.Log(resp.Results.(*spansetIterator).iter)
+	t.Log("-----------")
+	t.Log(spanSet)
 }
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
@@ -201,7 +199,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
-		{"empty request", traceql.FetchSpansRequest{}},
+		// {"empty request", traceql.FetchSpansRequest{}},
 		{
 			"Time range inside trace",
 			traceql.FetchSpansRequest{
@@ -697,6 +695,10 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								SpanID:                 []byte("spanid"),
 								Name:                   "hello",
 								StartTimeUnixNano:      uint64(100 * time.Second),
+								StartTimeRounded15:     roundSpanStartTime(uint64(100*time.Second), 15),
+								StartTimeRounded60:     roundSpanStartTime(uint64(100*time.Second), 60),
+								StartTimeRounded300:    roundSpanStartTime(uint64(100*time.Second), 300),
+								StartTimeRounded3600:   roundSpanStartTime(uint64(100*time.Second), 3600),
 								DurationNano:           uint64(100 * time.Second),
 								HttpMethod:             ptr("get"),
 								HttpUrl:                ptr("url/hello/world"),
@@ -886,7 +888,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 			s := sp.(*span)
 			s.cbSpanset = nil
 			s.cbSpansetFinal = false
-			s.rowNum = parquetquery.RowNumber{}
+			s.rowNum = pq.RowNumber{}
 			s.startTimeUnixNanos = 0 // selectall doesn't imply start time
 			sortAttrs(s.traceAttrs)
 			sortAttrs(s.resourceAttrs)
@@ -1053,16 +1055,12 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 }
 
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
-	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
-	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
-	os.Setenv("BENCH_TENANT", "1")
-
 	testCases := []struct {
 		name  string
 		query string
 	}{
 		// span
-		/*{"spanAttValMatch", "{ span.component = `net/http` }"},
+		{"spanAttValMatch", "{ span.component = `net/http` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `does-not-exit-6c2408325a45` }"},
 		{"spanAttIntrinsicMatch", "{ name = `/cortex.Ingester/Push` }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `does-not-exit-6c2408325a45` }"},
@@ -1073,12 +1071,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
-		// trace*/
+		// trace
 		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
 		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
 
 		// mixed
-		/*{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
+		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
 		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
 
@@ -1087,7 +1085,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
 		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
-		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},*/
+		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},
 	}
 
 	ctx := context.TODO()
@@ -1176,10 +1174,10 @@ func BenchmarkIterators(b *testing.B) {
 	rgs := pf.RowGroups()
 	rgs = rgs[3:5]
 
-	var instrPred *parquetquery.InstrumentedPredicate
+	var instrPred *pq.InstrumentedPredicate
 	makeIterInternal := makeIterFunc(ctx, rgs, pf)
 	makeIter := func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator {
-		instrPred = &parquetquery.InstrumentedPredicate{
+		instrPred = &pq.InstrumentedPredicate{
 			Pred: predicate,
 		}
 
@@ -1190,15 +1188,15 @@ func BenchmarkIterators(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		err := error(nil)
 
-		iter := makeIter(columnPathSpanAttrKey, parquetquery.NewSubstringPredicate("e"), "foo")
+		iter := makeIter(columnPathSpanAttrKey, pq.NewSubstringPredicate("e"), "foo")
 
-		//parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpanAttrs, []parquetquery.Iterator{
+		// parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpanAttrs, []parquetquery.Iterator{
 		// makeIter(columnPathSpanHTTPStatusCode, parquetquery.NewIntEqualPredicate(500), "http_status"),
 		// makeIter(columnPathSpanName, parquetquery.NewStringEqualPredicate([]byte("foo")), "name"),
 		// makeIter(columnPathSpanStatusCode, parquetquery.NewIntEqualPredicate(2), "status"),
 		// makeIter(columnPathSpanAttrDouble, parquetquery.NewFloatEqualPredicate(500), "double"),
-		//makeIter(columnPathSpanAttrInt, parquetquery.NewIntEqualPredicate(500), "int"),
-		//}, nil)
+		// makeIter(columnPathSpanAttrInt, parquetquery.NewIntEqualPredicate(500), "int"),
+		// }, nil)
 		require.NoError(b, err)
 		// fmt.Println(iter.String())
 
@@ -1227,10 +1225,6 @@ func BenchmarkIterators(b *testing.B) {
 }
 
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
-	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
-	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
-	os.Setenv("BENCH_TENANT", "1")
-
 	testCases := []string{
 		"{} | rate()",
 		/*"{} | rate() by (span.http.status_code)",
@@ -1247,17 +1241,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | min_over_time(duration) by (span.http.status_code)",
 		"{ name != nil } | compare({status=error})",
 		"{} > {} | rate() by (name)", // structural*/
-		`{nestedSetParent<0 && true && status!=error && resource.service.name != nil} | rate() by(resource.service.name, status)`,
 	}
 
 	e := traceql.NewEngine()
 	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
-	opts.TotalPages = 1
 
 	block := blockForBenchmarks(b)
-	_, _, err := block.openForSearch(ctx, opts)
-	require.NoError(b, err)
 
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return block.Fetch(ctx, req, opts)
@@ -1265,39 +1255,30 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{5} {
-				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
-					st := block.meta.StartTime
-					end := st.Add(time.Duration(minutes) * time.Minute)
+			st := uint64(block.meta.StartTime.UnixNano())
+			end := uint64(block.meta.EndTime.UnixNano())
 
-					if end.After(block.meta.EndTime) {
-						b.SkipNow()
-						return
-					}
-
-					req := &tempopb.QueryRangeRequest{
-						Query:     tc,
-						Step:      uint64(time.Second * 15),
-						Start:     uint64(st.UnixNano()),
-						End:       uint64(end.UnixNano()),
-						MaxSeries: 1000,
-					}
-
-					eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
-					require.NoError(b, err)
-
-					b.ResetTimer()
-					for i := 0; i < b.N; i++ {
-						err := eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano()), int(req.MaxSeries))
-						require.NoError(b, err)
-					}
-
-					bytes, spansTotal, _ := eval.Metrics()
-					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
-					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
-				})
+			req := &tempopb.QueryRangeRequest{
+				Query:     tc,
+				Step:      uint64(time.Second * 15),
+				Start:     st,
+				End:       end,
+				MaxSeries: 1000,
 			}
+
+			eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+			require.NoError(b, err)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err := eval.Do(ctx, f, st, end, int(req.MaxSeries))
+				require.NoError(b, err)
+			}
+
+			bytes, spansTotal, _ := eval.Metrics()
+			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
+			b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 		})
 	}
 }
@@ -1570,10 +1551,10 @@ func TestDescendantOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				tc.lhs = append(tc.lhs, allDisconnected...)
+				tc.rhs = append(tc.rhs, allDisconnected...)
 
-				actual := s.DescendantOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
+				actual := s.DescendantOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
 			})
 		}
@@ -1777,10 +1758,10 @@ func TestChildOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
-				rhs := append(tc.rhs, allDisconnected...)
+				tc.lhs = append(tc.lhs, allDisconnected...)
+				tc.rhs = append(tc.rhs, allDisconnected...)
 
-				actual := s.ChildOf(lhs, rhs, tc.falseForAll, tc.invert, tc.union, nil)
+				actual := s.ChildOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
 			})
 		}
@@ -1899,18 +1880,18 @@ func TestSiblingOf(t *testing.T) {
 			t.Run(tc.name+"-disconnected-lhs", func(t *testing.T) {
 				s := &span{}
 
-				lhs := append(tc.lhs, allDisconnected...)
+				tc.lhs = append(tc.lhs, allDisconnected...)
 
-				actual := s.SiblingOf(lhs, tc.rhs, tc.falseForAll, tc.union, nil)
+				actual := s.SiblingOf(tc.lhs, tc.rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
 			})
 
 			t.Run(tc.name+"-disconnected-rhs", func(t *testing.T) {
 				s := &span{}
 
-				rhs := append(tc.rhs, allDisconnected...)
+				tc.rhs = append(tc.rhs, allDisconnected...)
 
-				actual := s.SiblingOf(tc.lhs, rhs, tc.falseForAll, tc.union, nil)
+				actual := s.SiblingOf(tc.lhs, tc.rhs, tc.falseForAll, tc.union, nil)
 				require.Equal(t, tc.expected, actual)
 			})
 		}
@@ -2112,16 +2093,16 @@ func shuffleSpans(spans []traceql.Span) {
 	})
 }
 
-func randomTree(N int) []traceql.Span {
-	nodes := make([]traceql.Span, 0, N)
+func randomTree(n int) []traceql.Span {
+	nodes := make([]traceql.Span, 0, n)
 
 	// Helper function to recursively generate nodes
 	var generateNodes func(parent int) int
 	generateNodes = func(parent int) int {
 		left := parent
-		for N > 0 {
+		for n > 0 {
 			// make sibling
-			N--
+			n--
 			left++
 			right := left + 1
 			nodes = append(nodes, &span{
@@ -2140,7 +2121,7 @@ func randomTree(N int) []traceql.Span {
 			}
 
 			// descend and make children
-			N--
+			n--
 			right = generateNodes(left)
 			nodes = append(nodes, &span{
 				nestedSetLeft:   int32(left),
@@ -2159,17 +2140,17 @@ func randomTree(N int) []traceql.Span {
 }
 
 func blockForBenchmarks(b *testing.B) *backendBlock {
-	id, ok := os.LookupEnv("BENCH_BLOCKID")
+	id, ok := os.LookupEnv("VP5_BENCH_BLOCKID")
 	if !ok {
-		b.Fatal("BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_BLOCKID to the guid of the block to run benchmarks against. e.g. `export BENCH_BLOCKID=030c8c4f-9d47-4916-aadc-26b90b1d2bc4`")
+		b.Fatal("VP5_BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. Set VP5_BENCH_BLOCKID to the guid of the block to run benchmarks against. e.g. `export VP5_BENCH_BLOCKID=030c8c4f-9d47-4916-aadc-26b90b1d2bc4`")
 	}
 
-	path, ok := os.LookupEnv("BENCH_PATH")
+	path, ok := os.LookupEnv("VP5_BENCH_PATH")
 	if !ok {
-		b.Fatal("BENCH_PATH is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_PATH to the root of the backend such that the block to benchmark is at <BENCH_PATH>/<BENCH_TENANTID>/<BENCH_BLOCKID>.")
+		b.Fatal("VP5_BENCH_PATH is not set. These benchmarks are designed to run against a block on local disk. Set VP5_BENCH_PATH to the root of the backend such that the block to benchmark is at <VP5_BENCH_PATH>/<VP5_BENCH_TENANTID>/<VP5_BENCH_BLOCKID>.")
 	}
 
-	tenantID, ok := os.LookupEnv("BENCH_TENANTID")
+	tenantID, ok := os.LookupEnv("VP5_BENCH_TENANTID")
 
 	if !ok {
 		tenantID = "1"

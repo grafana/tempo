@@ -198,7 +198,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		err := p.QueryRange(ctx, qr, me, je)
+		err := p.QueryRange(ctx, *qr, me, je)
 		require.NoError(t, err)
 	})
 

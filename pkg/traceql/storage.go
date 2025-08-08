@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"context"
+	"time"
 )
 
 type Operands []Static
@@ -13,6 +14,9 @@ type Condition struct {
 	// Callback is used in the parquetquery.CallbackPredicate to determine if the iterator should be stopped.
 	// It's used to limit the overhead of fetching exemplars by stopping the iterator early.
 	CallBack func() bool
+
+	// Hints
+	Precision time.Duration
 }
 
 func SearchMetaConditions() []Condition {

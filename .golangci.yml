@@ -54,6 +54,7 @@ linters:
         text: package github.com/golang/protobuf/jsonpb is deprecated
       - linters:
           - goconst
+          - gosec
         path: (.+)_test\.go
     paths:
       - third_party$
