@@ -70,7 +70,7 @@ func TestInMemoryKafkaClient_Integration(t *testing.T) {
 	found := false
 	fetchedOffsets.Each(func(or kadm.OffsetResponse) {
 		if or.Topic == topic && or.Partition == partition {
-			assert.Equal(t, int64(2), or.Offset.At)
+			assert.Equal(t, int64(2), or.At)
 			assert.NoError(t, or.Err)
 			found = true
 		}
@@ -316,7 +316,7 @@ func TestInMemoryKafkaClient_OffsetCommitFetch(t *testing.T) {
 	found := false
 	fetchResponse.Each(func(or kadm.OffsetResponse) {
 		if or.Topic == topic && or.Partition == partition {
-			assert.Equal(t, commitOffset, or.Offset.At)
+			assert.Equal(t, commitOffset, or.At)
 			found = true
 		}
 	})
@@ -402,9 +402,6 @@ func TestInMemoryKafkaClient_Factory(t *testing.T) {
 	client, err := InMemoryKafkaClientFactory(ingest.KafkaConfig{}, nil, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, client)
-
-	// Verify it implements the interface
-	var _ KafkaClient = client
 
 	// Test basic functionality
 	err = client.Ping(context.Background())

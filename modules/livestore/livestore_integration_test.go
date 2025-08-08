@@ -177,8 +177,8 @@ func TestLiveStore_IntegrationTraceIngestion(t *testing.T) {
 	assert.True(t, found, "Expected instance to be created for tenant")
 
 	// Stop the service
-	liveStore.Service.StopAsync()
-	err = liveStore.Service.AwaitTerminated(ctx)
+	liveStore.StopAsync()
+	err = liveStore.AwaitTerminated(ctx)
 	require.NoError(t, err)
 }
 
@@ -268,10 +268,10 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 
 	// Start the service
 	ctx := context.Background()
-	err = liveStore.Service.StartAsync(ctx)
+	err = liveStore.StartAsync(ctx)
 	require.NoError(t, err)
 
-	err = liveStore.Service.AwaitRunning(ctx)
+	err = liveStore.AwaitRunning(ctx)
 	require.NoError(t, err)
 
 	// Wait for processing with multiple attempts
