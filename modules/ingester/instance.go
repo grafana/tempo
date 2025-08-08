@@ -354,7 +354,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 		return completingBlock.Clear()
 	}
 
-	return errors.New("Error finding wal completingBlock to clear")
+	return errors.New("error finding wal completingBlock to clear")
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend.
@@ -494,6 +494,113 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 		Metrics: &metrics,
 	}
 	return response, nil
+}
+
+// TraceExists checks if a trace exists without retrieving the actual trace data.
+// This is much more efficient than FindTraceByID for existence checking.
+func (i *instance) TraceExists(ctx context.Context, id []byte) (*tempopb.TraceExistsResponse, error) {
+	ctx, span := tracer.Start(ctx, "instance.TraceExists")
+	defer span.End()
+
+	metrics := tempopb.TraceByIDMetrics{}
+	
+	// Check live traces - just verify existence in the map, don't decode
+	i.tracesMtx.Lock()
+	if liveTrace, ok := i.traces[util.HashForTraceID(id)]; ok {
+		// Trace exists in live traces - count bytes but don't decode
+		for _, b := range liveTrace.batches {
+			metrics.InspectedBytes += uint64(len(b))
+		}
+		i.tracesMtx.Unlock()
+		return &tempopb.TraceExistsResponse{
+			Exists:  true,
+			Metrics: &metrics,
+		}, nil
+	}
+	i.tracesMtx.Unlock()
+
+	// Check headBlock - use the block's existence check methods
+	i.headBlockMtx.RLock()
+	exists, err := i.checkTraceExistsInBlock(ctx, i.headBlock, id, &metrics)
+	i.headBlockMtx.RUnlock()
+	if err != nil {
+		return nil, fmt.Errorf("headBlock.TraceExists failed: %w", err)
+	}
+	if exists {
+		return &tempopb.TraceExistsResponse{
+			Exists:  true,
+			Metrics: &metrics,
+		}, nil
+	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	// Check completingBlocks
+	for _, c := range i.completingBlocks {
+		exists, err := i.checkTraceExistsInBlock(ctx, c, id, &metrics)
+		if err != nil {
+			return nil, fmt.Errorf("completingBlock.TraceExists failed: %w", err)
+		}
+		if exists {
+			return &tempopb.TraceExistsResponse{
+				Exists:  true,
+				Metrics: &metrics,
+			}, nil
+		}
+	}
+
+	// Check completeBlocks
+	for _, c := range i.completeBlocks {
+		exists, err := i.checkTraceExistsInLocalBlock(ctx, c, id, &metrics)
+		if err != nil {
+			return nil, fmt.Errorf("completeBlock.TraceExists failed: %w", err)
+		}
+		if exists {
+			return &tempopb.TraceExistsResponse{
+				Exists:  true,
+				Metrics: &metrics,
+			}, nil
+		}
+	}
+
+	// Trace not found anywhere
+	return &tempopb.TraceExistsResponse{
+		Exists:  false,
+		Metrics: &metrics,
+	}, nil
+}
+
+// checkTraceExistsInBlock checks if a trace exists in a WAL block using efficient methods
+func (i *instance) checkTraceExistsInBlock(ctx context.Context, block common.WALBlock, id []byte, metrics *tempopb.TraceByIDMetrics) (bool, error) {
+	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
+	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+	
+	// Use the TraceExists method - if it's not supported, return the error
+	exists, inspectedBytes, err := block.TraceExists(ctx, id, searchOpts)
+	if err != nil {
+		return false, err
+	}
+	
+	// Update metrics with the bytes that were actually inspected
+	metrics.InspectedBytes += inspectedBytes
+	return exists, nil
+}
+
+// checkTraceExistsInLocalBlock checks if a trace exists in a local block using efficient methods
+func (i *instance) checkTraceExistsInLocalBlock(ctx context.Context, block *LocalBlock, id []byte, metrics *tempopb.TraceByIDMetrics) (bool, error) {
+	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
+	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+	
+	// Use the TraceExists method - if it's not supported, return the error
+	exists, inspectedBytes, err := block.TraceExists(ctx, id, searchOpts)
+	if err != nil {
+		return false, err
+	}
+	
+	// Update metrics with the bytes that were actually inspected
+	metrics.InspectedBytes += inspectedBytes
+	return exists, nil
 }
 
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.

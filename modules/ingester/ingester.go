@@ -401,17 +401,17 @@ func (i *Ingester) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequ
 			continue
 		}
 
-		// Check if trace exists by calling FindTraceByID
-		resp, err := inst.FindTraceByID(ctx, traceID, true)
+		// Check if trace exists using the more efficient TraceExists method
+		resp, err := inst.TraceExists(ctx, traceID)
 		if err != nil {
 			results[traceIDStr] = false
 			continue
 		}
 
-		found := resp != nil && resp.Trace != nil
+		found := resp.Exists
 		results[traceIDStr] = found
 
-		if found && resp.Metrics != nil {
+		if resp.Metrics != nil {
 			inspectedBytes += resp.Metrics.InspectedBytes
 		}
 	}
@@ -429,6 +429,54 @@ func (i *Ingester) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequ
 		TraceIDs: resultList,
 		Metrics: &tempopb.SearchMetrics{InspectedBytes: inspectedBytes},
 	}, nil
+}
+
+// TraceExists implements tempopb.Querier.
+func (i *Ingester) TraceExists(ctx context.Context, req *tempopb.TraceExistsRequest) (res *tempopb.TraceExistsResponse, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(log.Logger).Log("msg", "recover in TraceExists", "stack", r, string(debug.Stack()))
+			err = errors.New("recovered in TraceExists")
+		}
+	}()
+
+	// tracing instrumentation
+	ctx, span := tracer.Start(ctx, "Ingester.TraceExists")
+	defer span.End()
+
+	if !validation.ValidTraceID(req.TraceID) {
+		return &tempopb.TraceExistsResponse{
+			Exists:  false,
+			Metrics: &tempopb.TraceByIDMetrics{},
+		}, nil
+	}
+
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		// Return not found if instance doesn't exist
+		return &tempopb.TraceExistsResponse{
+			Exists:  false,
+			Metrics: &tempopb.TraceByIDMetrics{},
+		}, nil
+	}
+
+	// Use the optimized TraceExists method
+	resp, err := inst.TraceExists(ctx, req.TraceID)
+	if err != nil {
+		return nil, err
+	}
+
+	span.AddEvent("trace existence check completed", oteltrace.WithAttributes(
+		attribute.Bool("exists", resp.Exists),
+		attribute.Int64("inspectedBytes", int64(resp.Metrics.InspectedBytes)),
+	))
+
+	return resp, nil
 }
 
 func (i *Ingester) CheckReady(ctx context.Context) error {

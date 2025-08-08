@@ -154,6 +154,12 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 	}, err
 }
 
+// TraceExists is not implemented for v2 backend blocks.
+// Only vparquet4 blocks support optimized trace existence checking.
+func (b *BackendBlock) TraceExists(ctx context.Context, id common.ID, _ common.SearchOptions) (bool, uint64, error) {
+	return false, 0, common.ErrUnsupported
+}
+
 func (b *BackendBlock) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
 	return nil, common.ErrUnsupported
 }

@@ -137,6 +137,12 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 }
 
+// TraceExists is not implemented for vparquet2 blocks.
+// Only vparquet4 blocks support optimized trace existence checking.
+func (b *backendBlock) TraceExists(ctx context.Context, traceID common.ID, opts common.SearchOptions) (bool, uint64, error) {
+	return false, 0, common.ErrUnsupported
+}
+
 func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.TraceByIDResponse, error) {
 	// traceID column index
 	colIndex, _, maxDef := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
