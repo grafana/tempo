@@ -56,11 +56,11 @@ func TestMCP(t *testing.T) {
 		require.NotNil(t, tool.Annotations.DestructiveHint, "tool %s doesn't specify destructive", tool.Name)
 		require.False(t, *tool.Annotations.DestructiveHint, "tool %s is marked destructive", tool.Name)
 
-		require.NotNil(t, tool.Annotations.OpenWorldHint, "tool %s is doesn't specify open world", tool.Name)
-		require.False(t, *tool.Annotations.OpenWorldHint, "tool %s is is marked open world", tool.Name)
+		require.NotNil(t, tool.Annotations.OpenWorldHint, "tool %s doesn't specify open world", tool.Name)
+		require.False(t, *tool.Annotations.OpenWorldHint, "tool %s is marked open world", tool.Name)
 
-		require.NotNil(t, tool.Annotations.ReadOnlyHint, "tool %s is doesn't specify read only", tool.Name)
-		require.True(t, *tool.Annotations.ReadOnlyHint, "tool %s is is marked write", tool.Name)
+		require.NotNil(t, tool.Annotations.ReadOnlyHint, "tool %s doesn't specify read only", tool.Name)
+		require.True(t, *tool.Annotations.ReadOnlyHint, "tool %s is marked write", tool.Name)
 	}
 
 	// Verify all expected tools are available
