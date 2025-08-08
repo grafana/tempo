@@ -11,7 +11,6 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
@@ -71,8 +70,13 @@ func TestTraceLookupAPI(t *testing.T) {
 
 func testTraceLookupEndpoint(t *testing.T, tempo *e2e.HTTPService, endpoint string, allTraceIDs, existingTraceIDs, nonExistentTraceIDs []string) {
 	// Test the trace lookup endpoint
-	reqBody := frontend.TraceLookupRequest{
-		IDs: allTraceIDs,
+	traceIDs := make([][]byte, len(allTraceIDs))
+	for i, traceID := range allTraceIDs {
+		traceIDs[i] = []byte(traceID)
+	}
+
+	reqBody := &tempopb.TraceLookupRequest{
+		TraceIDs: traceIDs,
 	}
 
 	jsonBytes, err := json.Marshal(reqBody)
@@ -125,7 +129,7 @@ func TestTraceLookupAPIErrors(t *testing.T) {
 	})
 
 	t.Run("EmptyTraceIDs", func(t *testing.T) {
-		reqBody := frontend.TraceLookupRequest{IDs: []string{}}
+		reqBody := &tempopb.TraceLookupRequest{TraceIDs: [][]byte{}}
 		jsonBytes, err := json.Marshal(reqBody)
 		require.NoError(t, err)
 
@@ -136,7 +140,7 @@ func TestTraceLookupAPIErrors(t *testing.T) {
 	})
 
 	t.Run("InvalidTraceID", func(t *testing.T) {
-		reqBody := frontend.TraceLookupRequest{IDs: []string{"invalid-trace-id"}}
+		reqBody := &tempopb.TraceLookupRequest{TraceIDs: [][]byte{[]byte("invalid-trace-id")}}
 		jsonBytes, err := json.Marshal(reqBody)
 		require.NoError(t, err)
 
@@ -169,8 +173,13 @@ func TestTraceLookupAPIPerformance(t *testing.T) {
 		largeTraceIDList[i] = fmt.Sprintf("%032d", i) // 32-character hex string
 	}
 
-	reqBody := frontend.TraceLookupRequest{
-		IDs: largeTraceIDList,
+	traceIDs := make([][]byte, len(largeTraceIDList))
+	for i, traceID := range largeTraceIDList {
+		traceIDs[i] = []byte(traceID)
+	}
+
+	reqBody := &tempopb.TraceLookupRequest{
+		TraceIDs: traceIDs,
 	}
 
 	jsonBytes, err := json.Marshal(reqBody)
@@ -207,8 +216,8 @@ func TestTraceLookupAPIContentTypes(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	reqBody := frontend.TraceLookupRequest{
-		IDs: []string{"1234567890abcdef1234567890abcdef"},
+	reqBody := &tempopb.TraceLookupRequest{
+		TraceIDs: [][]byte{[]byte("1234567890abcdef1234567890abcdef")},
 	}
 	jsonBytes, err := json.Marshal(reqBody)
 	require.NoError(t, err)

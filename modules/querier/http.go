@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -136,21 +135,15 @@ func (q *Querier) TraceLookupHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 
 	// Parse request body
-	body, err := io.ReadAll(r.Body)
+	body, err := api.ParseTraceLookupRequest(r)
 	if err != nil {
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
 
-	var req tempopb.TraceLookupRequest
-	if err := req.Unmarshal(body); err != nil {
-		http.Error(w, "failed to unmarshal request", http.StatusBadRequest)
-		return
-	}
+	span.SetAttributes(attribute.Int("traceCount", len(body.TraceIDs)))
 
-	span.SetAttributes(attribute.Int("traceCount", len(req.TraceIDs)))
-
-	resp, err := q.TraceLookup(ctx, &req)
+	resp, err := q.TraceLookup(ctx, body)
 	if err != nil {
 		handleError(w, err)
 		return
