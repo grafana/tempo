@@ -26,8 +26,8 @@ dashboard_utils {
               sum by (grpc_status) (
                 rate(
                   label_replace(
-                    {__name__=~"envoy_cluster_grpc_[0-9]+", %s",
-                    "grpc_status", "$1", "__name__", "envoy_cluster_grpc_([0-9]+)"}
+                    {__name__=~"envoy_cluster_grpc_[0-9]+", %s"},
+                    "grpc_status", "$1", "__name__", "envoy_cluster_grpc_([0-9]+)"
                   )
                 [ $__rate_interval : 30s ])
               )
