@@ -27,11 +27,11 @@ func Test_limitsFromOverrides(t *testing.T) {
 						HistogramBuckets:         []float64{0.1, 0.2, 0.5},
 						Dimensions:               []string{"my-dim1", "my-dim2"},
 						PeerAttributes:           []string{"db.name"},
-						EnableClientServerPrefix: true,
+						EnableClientServerPrefix: boolPtr(true),
 					},
 					SpanMetrics: overrides.SpanMetricsOverrides{
 						Dimensions:       []string{"your-dim1", "your-dim2"},
-						EnableTargetInfo: true,
+						EnableTargetInfo: boolPtr(true),
 						FilterPolicies: []filterconfig.FilterPolicy{
 							{
 								Exclude: &filterconfig.PolicyMatch{

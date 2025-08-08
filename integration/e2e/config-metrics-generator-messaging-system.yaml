@@ -1,0 +1,55 @@
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: "distributor:14250"
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+  log_received_spans:
+    enabled: true
+
+ingester:
+  lifecycler:
+    ring:
+      replication_factor: 1
+    min_ready_duration: 1s
+
+metrics_generator:
+  processor:
+    service_graphs:
+      histogram_buckets: [1, 2]  # seconds
+      enable_messaging_system_latency_histogram: true
+    span_metrics:
+      histogram_buckets: [1, 2]
+  registry:
+    collection_interval: 1s
+  storage:
+    path: /var/tempo
+    remote_write:
+      - url: http://tempo_e2e-prometheus:9090/api/v1/write
+        send_exemplars: true
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+
+memberlist:
+  bind_port: 7946
+  join_members:
+    - tempo_e2e-distributor:7946
+    - tempo_e2e-ingester-1:7946
+    - tempo_e2e-metrics-generator:7946
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
+      max_active_series: 1000

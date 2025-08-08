@@ -496,14 +496,11 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	if d.kafkaProducer != nil {
 		err := d.sendToKafka(ctx, userID, ringTokens, rebatchedTraces)
 		if err != nil {
-			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err)
+			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err, "tenant", userID)
 			return nil, err
 		}
-	} else {
-		// See if we need to send to the generators
-		if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
-			d.generatorForwarder.SendTraces(ctx, userID, ringTokens, rebatchedTraces)
-		}
+	} else if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 { // See if we need to send to the generators
+		d.generatorForwarder.SendTraces(ctx, userID, ringTokens, rebatchedTraces)
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
@@ -683,7 +680,7 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		sizeBytes := 0
 		for _, result := range produceResults {
 			if result.Err != nil {
-				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
+				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err, "tenant", userID)
 				metricKafkaAppends.WithLabelValues(partitionLabel, "fail").Inc()
 			} else {
 				count++
