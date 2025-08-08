@@ -69,7 +69,7 @@ func TestInMemoryKafkaClient_Integration(t *testing.T) {
 	// Check the committed offset
 	found := false
 	fetchedOffsets.Each(func(or kadm.OffsetResponse) {
-		if or.Offset.Topic == topic && or.Offset.Partition == partition {
+		if or.Topic == topic && or.Partition == partition {
 			assert.Equal(t, int64(2), or.Offset.At)
 			assert.NoError(t, or.Err)
 			found = true
@@ -134,9 +134,6 @@ func TestInMemoryKafkaClientFactory_Integration(t *testing.T) {
 	client, err := InMemoryKafkaClientFactory(cfg, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, client)
-
-	// Verify it implements the KafkaClient interface
-	var _ KafkaClient = client
 
 	// Test that it works like a regular client
 	ctx := context.Background()

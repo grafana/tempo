@@ -126,11 +126,11 @@ func TestLiveStore_IntegrationTraceIngestion(t *testing.T) {
 
 	// Start the LiveStore service
 	ctx := context.Background()
-	err = liveStore.Service.StartAsync(ctx)
+	err = liveStore.StartAsync(ctx)
 	require.NoError(t, err)
 
 	// Wait for service to be running
-	err = liveStore.Service.AwaitRunning(ctx)
+	err = liveStore.AwaitRunning(ctx)
 	require.NoError(t, err)
 
 	// Give some time for message processing and multiple attempts
