@@ -150,6 +150,16 @@ func parseTagValuesRequest(r *http.Request) (tagSearchReq, error) {
 	}, nil
 }
 
+func parseTagValuesRequestV2(r *http.Request) (tagSearchReq, error) {
+	searchReq, err := api.ParseSearchTagValuesRequestV2(r)
+	if err != nil {
+		return nil, err
+	}
+	return &tagValueSearchRequest{
+		request: *searchReq,
+	}, nil
+}
+
 type parseRequestFunction func(r *http.Request) (tagSearchReq, error)
 
 type tagSearchReq interface {
