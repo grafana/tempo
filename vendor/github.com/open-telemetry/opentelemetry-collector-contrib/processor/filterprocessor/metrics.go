@@ -186,7 +186,7 @@ func (fmp *filterMetricProcessor) processMetrics(ctx context.Context, md pmetric
 	return md, nil
 }
 
-func newSkipResExpr(include *filterconfig.MetricMatchProperties, exclude *filterconfig.MetricMatchProperties) (expr.BoolExpr[ottlresource.TransformContext], error) {
+func newSkipResExpr(include, exclude *filterconfig.MetricMatchProperties) (expr.BoolExpr[ottlresource.TransformContext], error) {
 	if filtermetric.UseOTTLBridge.IsEnabled() {
 		mp := filterconfig.MatchConfig{}
 

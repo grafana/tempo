@@ -196,7 +196,7 @@ type (
 )
 
 // createConditionsParserWithConverter is a method to create the necessary parser wrapper and shadowing the K type.
-func createConditionsParserWithConverter[K any, R any](converter ParsedConditionsConverter[K, R], parser *Parser[K]) parserCollectionContextParserFunc[R, ConditionsGetter] {
+func createConditionsParserWithConverter[K, R any](converter ParsedConditionsConverter[K, R], parser *Parser[K]) parserCollectionContextParserFunc[R, ConditionsGetter] {
 	return func(pc *ParserCollection[R], context string, conditions ConditionsGetter, prependPathsContext bool) (R, error) {
 		var err error
 		var parsingConditions []string
@@ -233,7 +233,7 @@ func createConditionsParserWithConverter[K any, R any](converter ParsedCondition
 }
 
 // createValueExpressionsParserWithConverter is a method to create the necessary parser wrapper and shadowing the K type.
-func createValueExpressionsParserWithConverter[K any, R any](converter ParsedValueExpressionsConverter[K, R], parser *Parser[K]) parserCollectionContextParserFunc[R, ValueExpressionsGetter] {
+func createValueExpressionsParserWithConverter[K, R any](converter ParsedValueExpressionsConverter[K, R], parser *Parser[K]) parserCollectionContextParserFunc[R, ValueExpressionsGetter] {
 	return func(pc *ParserCollection[R], context string, expressions ValueExpressionsGetter, prependPathsContext bool) (R, error) {
 		var err error
 		var parsingValueExpressions []string
@@ -270,7 +270,7 @@ func createValueExpressionsParserWithConverter[K any, R any](converter ParsedVal
 }
 
 // createStatementsParserWithConverter is a method to create the necessary parser wrapper and shadowing the K type.
-func createStatementsParserWithConverter[K any, R any](converter ParsedStatementsConverter[K, R], parser *Parser[K]) parserCollectionContextParserFunc[R, StatementsGetter] {
+func createStatementsParserWithConverter[K, R any](converter ParsedStatementsConverter[K, R], parser *Parser[K]) parserCollectionContextParserFunc[R, StatementsGetter] {
 	return func(pc *ParserCollection[R], context string, statements StatementsGetter, prependPathsContext bool) (R, error) {
 		var err error
 		var parsingStatements []string
@@ -311,7 +311,7 @@ func createStatementsParserWithConverter[K any, R any](converter ParsedStatement
 // The context's OTTL parser will parse the conditions, and the converter function will transform the parsed conditions into the desired representation.
 //
 // Experimental: *NOTE* this API is subject to change or removal in the future.
-func WithConditionConverter[K any, R any](converter ParsedConditionsConverter[K, R]) ParserCollectionContextOption[K, R] {
+func WithConditionConverter[K, R any](converter ParsedConditionsConverter[K, R]) ParserCollectionContextOption[K, R] {
 	return func(pcp *ParserCollectionContextParser[R], parser *Parser[K]) {
 		pcp.parseConditions = createConditionsParserWithConverter(converter, parser)
 	}
@@ -322,7 +322,7 @@ func WithConditionConverter[K any, R any](converter ParsedConditionsConverter[K,
 // The context's OTTL parser will parse the value expressions, and the converter function will transform the parsed value expressions into the desired representation.
 //
 // Experimental: *NOTE* this API is subject to change or removal in the future.
-func WithValueExpressionConverter[K any, R any](converter ParsedValueExpressionsConverter[K, R]) ParserCollectionContextOption[K, R] {
+func WithValueExpressionConverter[K, R any](converter ParsedValueExpressionsConverter[K, R]) ParserCollectionContextOption[K, R] {
 	return func(pcp *ParserCollectionContextParser[R], parser *Parser[K]) {
 		pcp.parseValueExpressions = createValueExpressionsParserWithConverter(converter, parser)
 	}
@@ -333,7 +333,7 @@ func WithValueExpressionConverter[K any, R any](converter ParsedValueExpressions
 // The context's OTTL parser will parse the statements, and the converter function will transform the parsed statements into the desired representation.
 //
 // Experimental: *NOTE* this API is subject to change or removal in the future.
-func WithStatementConverter[K any, R any](converter ParsedStatementsConverter[K, R]) ParserCollectionContextOption[K, R] {
+func WithStatementConverter[K, R any](converter ParsedStatementsConverter[K, R]) ParserCollectionContextOption[K, R] {
 	return func(pcp *ParserCollectionContextParser[R], parser *Parser[K]) {
 		pcp.parseStatements = createStatementsParserWithConverter(converter, parser)
 	}
@@ -344,7 +344,7 @@ func WithStatementConverter[K any, R any](converter ParsedStatementsConverter[K,
 // the ottl.WithPathContextNames option.
 //
 // Experimental: *NOTE* this API is subject to change or removal in the future.
-func WithParserCollectionContext[K any, R any](
+func WithParserCollectionContext[K, R any](
 	context string,
 	parser *Parser[K],
 	opts ...ParserCollectionContextOption[K, R],

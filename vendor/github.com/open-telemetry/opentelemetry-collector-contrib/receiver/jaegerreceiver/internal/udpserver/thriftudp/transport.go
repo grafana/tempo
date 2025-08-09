@@ -38,7 +38,7 @@ var _ thrift.TTransport = (*TUDPTransport)(nil)
 // Example:
 //
 //	trans, err := thriftudp.NewTUDPClientTransport("192.168.1.1:9090", "")
-func NewTUDPClientTransport(destHostPort string, locHostPort string) (*TUDPTransport, error) {
+func NewTUDPClientTransport(destHostPort, locHostPort string) (*TUDPTransport, error) {
 	destAddr, err := net.ResolveUDPAddr("udp", destHostPort)
 	if err != nil {
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())

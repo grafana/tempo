@@ -17,25 +17,25 @@ import (
 type ValueComparator interface {
 	// Equal compares two values for equality, returning true if they are equals
 	// according to the OTTL comparison rules.
-	Equal(a any, b any) bool
+	Equal(a, b any) bool
 	// NotEqual compares two values for equality, returning true if they are different
 	// according to the OTTL comparison rules.
-	NotEqual(a any, b any) bool
+	NotEqual(a, b any) bool
 	// Less compares two values, returning true if the first value is less than the second
 	// value, using the OTTL comparison rules.
-	Less(a any, b any) bool
+	Less(a, b any) bool
 	// LessEqual compares two values, returning true if the first value is less or equal
 	// to the second value, using the OTTL comparison rules.
-	LessEqual(a any, b any) bool
+	LessEqual(a, b any) bool
 	// Greater compares two values, returning true if the first value is greater than the
 	// second value, using the OTTL comparison rules.
-	Greater(a any, b any) bool
+	Greater(a, b any) bool
 	// GreaterEqual compares two values, returning true if the first value is greater or
 	// equal to the second value, using the OTTL comparison rules.
-	GreaterEqual(a any, b any) bool
+	GreaterEqual(a, b any) bool
 	// compare is a private method that compares two values using the grammar compareOp,
 	// it also restricts custom implementations outside of this package.
-	compare(a any, b any, op compareOp) bool
+	compare(a, b any, op compareOp) bool
 }
 
 // ottlValueComparator is the default implementation of the ValueComparator
@@ -47,13 +47,13 @@ type ottlValueComparator struct{}
 
 // invalidComparison returns false for everything except ne (where it returns true to indicate that the
 // objects were definitely not equivalent).
-func (p *ottlValueComparator) invalidComparison(op compareOp) bool {
+func (*ottlValueComparator) invalidComparison(op compareOp) bool {
 	return op == ne
 }
 
 // comparePrimitives implements a generic comparison helper for all Ordered types (derived from Float, Int, or string).
 // According to benchmarks, it's faster than explicit comparison functions for these types.
-func comparePrimitives[T constraints.Ordered](a T, b T, op compareOp) bool {
+func comparePrimitives[T constraints.Ordered](a, b T, op compareOp) bool {
 	switch op {
 	case eq:
 		return a == b
@@ -72,7 +72,7 @@ func comparePrimitives[T constraints.Ordered](a T, b T, op compareOp) bool {
 	}
 }
 
-func (p *ottlValueComparator) compareBools(a bool, b bool, op compareOp) bool {
+func (*ottlValueComparator) compareBools(a, b bool, op compareOp) bool {
 	switch op {
 	case eq:
 		return a == b
@@ -91,7 +91,7 @@ func (p *ottlValueComparator) compareBools(a bool, b bool, op compareOp) bool {
 	}
 }
 
-func (p *ottlValueComparator) compareBytes(a []byte, b []byte, op compareOp) bool {
+func (*ottlValueComparator) compareBytes(a, b []byte, op compareOp) bool {
 	switch op {
 	case eq:
 		return bytes.Equal(a, b)
@@ -287,7 +287,7 @@ func (p *ottlValueComparator) comparePSlice(a pcommon.Slice, b any, op compareOp
 
 // a and b are the return values from a Getter; we try to compare them
 // according to the given operator.
-func (p *ottlValueComparator) compare(a any, b any, op compareOp) bool {
+func (p *ottlValueComparator) compare(a, b any, op compareOp) bool {
 	// nils are equal to each other and never equal to anything else,
 	// so if they're both nil, report equality.
 	if a == nil && b == nil {
@@ -338,27 +338,27 @@ func (p *ottlValueComparator) compare(a any, b any, op compareOp) bool {
 	}
 }
 
-func (p *ottlValueComparator) Equal(a any, b any) bool {
+func (p *ottlValueComparator) Equal(a, b any) bool {
 	return p.compare(a, b, eq)
 }
 
-func (p *ottlValueComparator) NotEqual(a any, b any) bool {
+func (p *ottlValueComparator) NotEqual(a, b any) bool {
 	return p.compare(a, b, ne)
 }
 
-func (p *ottlValueComparator) Less(a any, b any) bool {
+func (p *ottlValueComparator) Less(a, b any) bool {
 	return p.compare(a, b, lt)
 }
 
-func (p *ottlValueComparator) LessEqual(a any, b any) bool {
+func (p *ottlValueComparator) LessEqual(a, b any) bool {
 	return p.compare(a, b, lte)
 }
 
-func (p *ottlValueComparator) Greater(a any, b any) bool {
+func (p *ottlValueComparator) Greater(a, b any) bool {
 	return p.compare(a, b, gt)
 }
 
-func (p *ottlValueComparator) GreaterEqual(a any, b any) bool {
+func (p *ottlValueComparator) GreaterEqual(a, b any) bool {
 	return p.compare(a, b, gte)
 }
 

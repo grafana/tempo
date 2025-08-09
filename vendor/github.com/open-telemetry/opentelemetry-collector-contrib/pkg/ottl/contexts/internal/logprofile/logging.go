@@ -13,6 +13,71 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+func getMapping(dict pprofile.ProfilesDictionary, idx int32) (mapping, error) {
+	mTable := dict.MappingTable()
+	if idx >= int32(mTable.Len()) {
+		return mapping{}, fmt.Errorf("mapping index out of bounds: %d", idx)
+	}
+	return newMapping(dict, mTable.At(int(idx)))
+}
+
+func getLocations(dict pprofile.ProfilesDictionary, locIdxs []int32,
+	start, length int32,
+) (locations, error) {
+	if start >= int32(len(locIdxs)) {
+		return locations{}, fmt.Errorf("location start index out of bounds: %d", start)
+	}
+	if start+length > int32(len(locIdxs)) {
+		return locations{}, fmt.Errorf("location end index out of bounds: %d", start+length)
+	}
+
+	locTable := dict.LocationTable()
+	var joinedErr error
+	ls := make(locations, 0, length)
+	for i := range length {
+		locIdx := locIdxs[start+i]
+		l, err := newLocation(dict, locTable.At(int(locIdx)))
+		joinedErr = errors.Join(joinedErr, err)
+		ls = append(ls, l)
+	}
+
+	return ls, joinedErr
+}
+
+func getFunction(dict pprofile.ProfilesDictionary, idx int32) (function, error) {
+	fnTable := dict.FunctionTable()
+	if idx >= int32(fnTable.Len()) {
+		return function{}, fmt.Errorf("function index out of bounds: %d", idx)
+	}
+	return newFunction(dict, fnTable.At(int(idx)))
+}
+
+func getLink(dict pprofile.ProfilesDictionary, idx int32) (link, error) {
+	lTable := dict.LinkTable()
+	if idx >= int32(lTable.Len()) {
+		return link{}, fmt.Errorf("link index out of bounds: %d", idx)
+	}
+	return link{lTable.At(int(idx))}, nil
+}
+
+func getString(dict pprofile.ProfilesDictionary, idx int32) (string, error) {
+	strTable := dict.StringTable()
+	if idx >= int32(strTable.Len()) {
+		return "", fmt.Errorf("string index out of bounds: %d", idx)
+	}
+	return strTable.At(int(idx)), nil
+}
+
+func getAttribute(dict pprofile.ProfilesDictionary, idx int32) (attribute, error) {
+	attrTable := dict.AttributeTable()
+	if idx >= int32(attrTable.Len()) {
+		return attribute{}, fmt.Errorf("attribute index out of bounds: %d", idx)
+	}
+	attr := attrTable.At(int(idx))
+	// Is there a better way to marshal the value?
+	return attribute{attr.Key(), attr.Value().AsString()}, nil
+}
+
 type Profile struct {
 	pprofile.Profile
 	Dictionary pprofile.ProfilesDictionary
@@ -42,7 +107,7 @@ func (p Profile) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("comments", cs))
 
-	dst, err := p.getString(p.DefaultSampleTypeIndex())
+	dst, err := getString(p.Dictionary, p.DefaultSampleTypeIndex())
 	joinedErr = errors.Join(joinedErr, err)
 	encoder.AddString("default_sample_type", dst)
 
@@ -52,73 +117,11 @@ func (p Profile) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddString("original_payload_format", p.OriginalPayloadFormat())
 	encoder.AddByteString("original_payload", p.OriginalPayload().AsRaw())
 
-	ats, err := newAttributes(p, p.AttributeIndices())
+	ats, err := newAttributes(p.Dictionary, p.AttributeIndices())
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("attributes", ats))
 
 	return joinedErr
-}
-
-func (p Profile) getString(idx int32) (string, error) {
-	strTable := p.Dictionary.StringTable()
-	if idx >= int32(strTable.Len()) {
-		return "", fmt.Errorf("string index out of bounds: %d", idx)
-	}
-	return strTable.At(int(idx)), nil
-}
-
-func (p Profile) getFunction(idx int32) (function, error) {
-	fnTable := p.Dictionary.FunctionTable()
-	if idx >= int32(fnTable.Len()) {
-		return function{}, fmt.Errorf("function index out of bounds: %d", idx)
-	}
-	return newFunction(p, fnTable.At(int(idx)))
-}
-
-func (p Profile) getMapping(idx int32) (mapping, error) {
-	mTable := p.Dictionary.MappingTable()
-	if idx >= int32(mTable.Len()) {
-		return mapping{}, fmt.Errorf("mapping index out of bounds: %d", idx)
-	}
-	return newMapping(p, mTable.At(int(idx)))
-}
-
-func (p Profile) getLink(idx int32) (link, error) {
-	lTable := p.Dictionary.LinkTable()
-	if idx >= int32(lTable.Len()) {
-		return link{}, fmt.Errorf("link index out of bounds: %d", idx)
-	}
-	return link{lTable.At(int(idx))}, nil
-}
-
-func (p Profile) getLocations(start, length int32) (locations, error) {
-	locTable := p.Dictionary.LocationTable()
-	if start >= int32(locTable.Len()) {
-		return locations{}, fmt.Errorf("location start index out of bounds: %d", start)
-	}
-	if start+length > int32(locTable.Len()) {
-		return locations{}, fmt.Errorf("location end index out of bounds: %d", start+length)
-	}
-
-	var joinedErr error
-	ls := make(locations, 0, length)
-	for i := range length {
-		l, err := newLocation(p, locTable.At(int(start+i)))
-		joinedErr = errors.Join(joinedErr, err)
-		ls = append(ls, l)
-	}
-
-	return ls, joinedErr
-}
-
-func (p Profile) getAttribute(idx int32) (attribute, error) {
-	attrTable := p.Dictionary.AttributeTable()
-	if idx >= int32(attrTable.Len()) {
-		return attribute{}, fmt.Errorf("attribute index out of bounds: %d", idx)
-	}
-	attr := attrTable.At(int(idx))
-	// Is there a better way to marshal the value?
-	return attribute{attr.Key(), attr.Value().AsString()}, nil
 }
 
 type samples []sample
@@ -156,12 +159,13 @@ func newSample(p Profile, ps pprofile.Sample) (sample, error) {
 
 	s.timestamps = newTimestamps(ps.TimestampsUnixNano())
 	s.values = newValues(ps.Value())
-	s.attributes, err = newAttributes(p, ps.AttributeIndices())
+	s.attributes, err = newAttributes(p.Dictionary, ps.AttributeIndices())
 	joinedErr = errors.Join(joinedErr, err)
-	s.locations, err = p.getLocations(ps.LocationsStartIndex(), ps.LocationsLength())
+	s.locations, err = getLocations(p.Dictionary, p.LocationIndices().AsRaw(),
+		ps.LocationsStartIndex(), ps.LocationsLength())
 	joinedErr = errors.Join(joinedErr, err)
 	if ps.HasLinkIndex() { // optional
-		l, err := p.getLink(ps.LinkIndex())
+		l, err := getLink(p.Dictionary, ps.LinkIndex())
 		joinedErr = errors.Join(joinedErr, err)
 		s.link = &l
 	}
@@ -210,9 +214,9 @@ func newValueType(p Profile, vt pprofile.ValueType) (valueType, error) {
 	var err, joinedErr error
 
 	result.aggregationTemporality = int32(vt.AggregationTemporality())
-	result.typ, err = p.getString(vt.TypeStrindex())
+	result.typ, err = getString(p.Dictionary, vt.TypeStrindex())
 	joinedErr = errors.Join(joinedErr, err)
-	result.unit, err = p.getString(vt.UnitStrindex())
+	result.unit, err = getString(p.Dictionary, vt.UnitStrindex())
 	joinedErr = errors.Join(joinedErr, err)
 
 	return result, joinedErr
@@ -243,19 +247,19 @@ type location struct {
 	attributes attributes
 }
 
-func newLocation(p Profile, pl pprofile.Location) (location, error) {
+func newLocation(dict pprofile.ProfilesDictionary, pl pprofile.Location) (location, error) {
 	var l location
 	var err, joinedErr error
 
 	if pl.MappingIndex() != 0 { // optional
-		if l.mapping, err = p.getMapping(pl.MappingIndex()); err != nil {
+		if l.mapping, err = getMapping(dict, pl.MappingIndex()); err != nil {
 			joinedErr = errors.Join(joinedErr, err)
 		}
 	}
-	if l.attributes, err = newAttributes(p, pl.AttributeIndices()); err != nil {
+	if l.attributes, err = newAttributes(dict, pl.AttributeIndices()); err != nil {
 		joinedErr = errors.Join(joinedErr, err)
 	}
-	if l.lines, err = newLines(p, pl.Line()); err != nil {
+	if l.lines, err = newLines(dict, pl.Line()); err != nil {
 		joinedErr = errors.Join(joinedErr, err)
 	}
 	l.address = pl.Address()
@@ -283,11 +287,11 @@ type mapping struct {
 	hasInlineFrames bool
 }
 
-func newMapping(p Profile, pm pprofile.Mapping) (mapping, error) {
+func newMapping(dict pprofile.ProfilesDictionary, pm pprofile.Mapping) (mapping, error) {
 	var m mapping
 	var err error
 
-	m.filename, err = p.getString(pm.FilenameStrindex())
+	m.filename, err = getString(dict, pm.FilenameStrindex())
 	m.memoryStart = pm.MemoryStart()
 	m.memoryLimit = pm.MemoryLimit()
 	m.fileOffset = pm.FileOffset()
@@ -335,11 +339,11 @@ func (s attributes) MarshalLogArray(encoder zapcore.ArrayEncoder) error {
 	return joinedErr
 }
 
-func newAttributes(p Profile, pattrs pcommon.Int32Slice) (attributes, error) {
+func newAttributes(dict pprofile.ProfilesDictionary, pattrs pcommon.Int32Slice) (attributes, error) {
 	var joinedErr error
 	as := make(attributes, 0, pattrs.Len())
 	for i := range pattrs.Len() {
-		a, err := p.getAttribute(pattrs.At(i))
+		a, err := getAttribute(dict, pattrs.At(i))
 		if err != nil {
 			joinedErr = errors.Join(joinedErr, err)
 		}
@@ -371,11 +375,11 @@ func (s lines) MarshalLogArray(encoder zapcore.ArrayEncoder) error {
 	return joinedErr
 }
 
-func newLines(p Profile, plines pprofile.LineSlice) (lines, error) {
+func newLines(dict pprofile.ProfilesDictionary, plines pprofile.LineSlice) (lines, error) {
 	var joinedErr error
 	ls := make(lines, 0, plines.Len())
 	for i := range plines.Len() {
-		l, err := newLine(p, plines.At(i))
+		l, err := newLine(dict, plines.At(i))
 		if err != nil {
 			joinedErr = errors.Join(joinedErr, err)
 		}
@@ -390,11 +394,11 @@ type line struct {
 	column   int64
 }
 
-func newLine(p Profile, pl pprofile.Line) (line, error) {
+func newLine(dict pprofile.ProfilesDictionary, pl pprofile.Line) (line, error) {
 	var l line
 	var err, joinedErr error
 
-	if l.function, err = p.getFunction(pl.FunctionIndex()); err != nil {
+	if l.function, err = getFunction(dict, pl.FunctionIndex()); err != nil {
 		joinedErr = errors.Join(joinedErr, err)
 	}
 	l.line = pl.Line()
@@ -416,17 +420,17 @@ type function struct {
 	startLine  int64
 }
 
-func newFunction(p Profile, pf pprofile.Function) (function, error) {
+func newFunction(dict pprofile.ProfilesDictionary, pf pprofile.Function) (function, error) {
 	var f function
 	var err, joinedErr error
 
-	if f.name, err = p.getString(pf.NameStrindex()); err != nil {
+	if f.name, err = getString(dict, pf.NameStrindex()); err != nil {
 		joinedErr = errors.Join(joinedErr, err)
 	}
-	if f.systemName, err = p.getString(pf.SystemNameStrindex()); err != nil {
+	if f.systemName, err = getString(dict, pf.SystemNameStrindex()); err != nil {
 		joinedErr = errors.Join(joinedErr, err)
 	}
-	if f.filename, err = p.getString(pf.FilenameStrindex()); err != nil {
+	if f.filename, err = getString(dict, pf.FilenameStrindex()); err != nil {
 		joinedErr = errors.Join(joinedErr, err)
 	}
 	f.startLine = pf.StartLine()
@@ -503,7 +507,7 @@ func (p Profile) getComments() (comments, error) {
 	l := p.CommentStrindices().Len()
 	cs := make(comments, 0, l)
 	for i := range l {
-		c, err := p.getString(p.CommentStrindices().At(i))
+		c, err := getString(p.Dictionary, p.CommentStrindices().At(i))
 		if err != nil {
 			joinedErr = errors.Join(joinedErr, err)
 		}
