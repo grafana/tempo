@@ -296,6 +296,8 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.NotFound, work.ErrJobNotFound.Error())
 	}
 
+	metricJobDuration.WithLabelValues(j.GetType().String()).Observe(time.Since(j.GetCreatedTime()).Seconds())
+
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
