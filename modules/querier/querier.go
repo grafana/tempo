@@ -315,6 +315,97 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	return resp, nil
 }
 
+// TraceLookup implements tempopb.Querier.
+func (q *Querier) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequest) (*tempopb.TraceLookupResponse, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting org id in Querier.TraceLookup: %w", err)
+	}
+
+	ctx, span := tracer.Start(ctx, "Querier.TraceLookup")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int("traceCount", len(req.TraceIDs)))
+
+	results := make(map[string]bool)
+	var inspectedBytes uint64
+
+	// Initialize all trace IDs as not found
+	for _, traceID := range req.TraceIDs {
+		results[fmt.Sprintf("%x", traceID)] = false
+	}
+
+	// Check each trace ID
+	for _, traceID := range req.TraceIDs {
+		traceIDStr := fmt.Sprintf("%x", traceID)
+		
+		if !validation.ValidTraceID(traceID) {
+			continue // Skip invalid trace IDs, they remain false
+		}
+
+		found := false
+
+		// Query ingesters
+		var getRSFn replicationSetFn
+		if q.cfg.QueryRelevantIngesters {
+			traceKey := util.TokenFor(userID, traceID)
+			getRSFn = func(r ring.ReadRing) (ring.ReplicationSet, error) {
+				return r.Get(traceKey, ring.Read, nil, nil, nil)
+			}
+		}
+
+		forEach := func(funcCtx context.Context, client tempopb.QuerierClient) (any, error) {
+			resp, err := client.FindTraceByID(funcCtx, &tempopb.TraceByIDRequest{
+				TraceID:    traceID,
+				QueryMode:  QueryModeIngesters,
+			})
+			return resp, err
+		}
+
+		partialTraces, err := q.forIngesterRings(ctx, userID, getRSFn, forEach)
+		if err == nil {
+			for _, partialTrace := range partialTraces {
+				resp := partialTrace.(*tempopb.TraceByIDResponse)
+				if resp.Trace != nil {
+					found = true
+					if resp.Metrics != nil {
+						inspectedBytes += resp.Metrics.InspectedBytes
+					}
+					break
+				}
+			}
+		}
+
+		// If not found in ingesters, check the store
+		if !found {
+			maxBytes := q.limits.MaxBytesPerTrace(userID)
+			opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+
+			partialTraces, _, err := q.store.Find(ctx, userID, traceID, "", "", 0, 0, opts)
+			if err == nil && len(partialTraces) > 0 {
+				for _, partialTrace := range partialTraces {
+					if partialTrace != nil && partialTrace.Trace != nil {
+						found = true
+						if partialTrace.Metrics != nil {
+							inspectedBytes += partialTrace.Metrics.InspectedBytes
+						}
+						break
+					}
+				}
+			}
+		}
+
+		results[traceIDStr] = found
+	}
+
+	resp := &tempopb.TraceLookupResponse{
+		Results: results,
+		Metrics: &tempopb.SearchMetrics{InspectedBytes: inspectedBytes},
+	}
+
+	return resp, nil
+}
+
 // forIngesterRings runs f, in parallel, for given ingesters
 func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplicationSet replicationSetFn, f forEachFn) ([]any, error) {
 	if ctx.Err() != nil {

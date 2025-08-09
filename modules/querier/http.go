@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -123,6 +124,38 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
+	writeFormattedContentForRequest(w, r, resp, span)
+}
+
+func (q *Querier) TraceLookupHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
+	defer cancel()
+
+	ctx, span := tracer.Start(ctx, "Querier.TraceLookupHandler")
+	defer span.End()
+
+	// Parse request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	var req tempopb.TraceLookupRequest
+	if err := req.Unmarshal(body); err != nil {
+		http.Error(w, "failed to unmarshal request", http.StatusBadRequest)
+		return
+	}
+
+	span.SetAttributes(attribute.Int("traceCount", len(req.TraceIDs)))
+
+	resp, err := q.TraceLookup(ctx, &req)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
 	writeFormattedContentForRequest(w, r, resp, span)
 }
 
