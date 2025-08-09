@@ -22,6 +22,8 @@ type Config struct {
 	OverrideRingKey      string                  `yaml:"override_ring_key"`
 	Poll                 bool                    `yaml:"-"`
 	Ring                 RingConfig              `yaml:"ring,omitempty"`
+	FinishOnShutdown     bool                    `yaml:"finish_on_shutdown"`
+	JobFinishTimeout     time.Duration           `yaml:"job_finish_timeout"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -29,6 +31,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
 	f.DurationVar(&cfg.Backoff.MaxBackoff, prefix+".backoff-max-period", time.Minute, "Maximum delay when backing off.")
 	f.IntVar(&cfg.Backoff.MaxRetries, prefix+".backoff-retries", 0, "Number of times to backoff and retry before failing.")
+
+	f.BoolVar(&cfg.FinishOnShutdown, prefix+".finish-on-shutdown", false, "Finish the current job before shutting down the worker. If false, the worker will give up the current job and shut down.")
+	f.DurationVar(&cfg.JobFinishTimeout, prefix+".job-finish-timeout", 30*time.Second, "Timeout for finishing the current job before shutting down the worker.  Only used if finish_on_shutdown is true.")
 
 	// Compactor
 	cfg.Compactor = tempodb.CompactorConfig{}
