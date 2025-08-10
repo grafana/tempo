@@ -119,7 +119,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		End:   uint64(time.Now().UnixNano()),
 		Step:  uint64(30 * time.Second),
 	}
-	me, err := e.CompileMetricsQueryRange(qr, 0, 0, false)
+	me, err := e.CompileMetricsQueryRange(qr, 0, false)
 	require.NoError(t, err)
 
 	je, err := e.CompileMetricsQueryRangeNonRaw(qr, traceql.AggregateModeSum)
