@@ -22,7 +22,6 @@ const (
 	internalLabelMetaType = "__meta_type"
 	internalMetaTypeCount = "__count"
 	internalLabelBucket   = "__bucket"
-	maxExemplars          = 100
 	maxExemplarsPerBucket = 2
 	// NormalNaN is a quiet NaN. This is also math.NaN().
 	normalNaN uint64 = 0x7ff8000000000001
@@ -506,7 +505,7 @@ type StepAggregator struct {
 
 var _ RangeAggregator = (*StepAggregator)(nil)
 
-func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator) *StepAggregator {
+func NewStepAggregator(start, end, step uint64, exemplars uint32, innerAgg func() VectorAggregator) *StepAggregator {
 	intervals := IntervalCount(start, end, step)
 	vectors := make([]VectorAggregator, intervals)
 	for i := range vectors {
@@ -519,9 +518,9 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 		step:      step,
 		intervals: intervals,
 		vectors:   vectors,
-		exemplars: make([]Exemplar, 0, maxExemplars),
+		exemplars: make([]Exemplar, 0, exemplars),
 		exemplarBuckets: newBucketSet(
-			maxExemplars,
+			exemplars,
 			alignStart(start, end, step),
 			alignEnd(start, end, step),
 		),
@@ -907,7 +906,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // Dedupe spans parameter is an indicator of whether to expected duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -930,6 +929,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
+	exemplars := int(req.GetExemplars())
 	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
 		exemplars = v
 	}
@@ -1418,7 +1418,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp, e
 	return &SimpleAggregator{
 		ss: make(SeriesSet),
 		exemplarBuckets: newBucketSet(
-			exemplars,
+			req.Exemplars,
 			alignStart(req.Start, req.End, req.Step),
 			alignEnd(req.Start, req.End, req.Step),
 		),
