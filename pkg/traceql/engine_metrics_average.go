@@ -43,7 +43,7 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 	}
 
 	if mode == AggregateModeRaw {
-		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step)
+		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step, q.GetExemplars())
 	}
 
 	a.mode = mode
@@ -414,7 +414,7 @@ type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 
 var _ SpanAggregator = (*avgOverTimeSpanAggregator[FastStatic1, StaticVals1])(nil)
 
-func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64) SpanAggregator {
+func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64, exemplars uint32) SpanAggregator {
 	lookups := make([][]Attribute, len(by))
 	for i, attr := range by {
 		if attr.Intrinsic == IntrinsicNone && attr.Scope == AttributeScopeNone {
@@ -433,19 +433,19 @@ func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, st
 
 	switch aggNum {
 	case 2:
-		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step, exemplars)
 	case 3:
-		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step, exemplars)
 	case 4:
-		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step, exemplars)
 	case 5:
-		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step, exemplars)
 	default:
-		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step)
+		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step, exemplars)
 	}
 }
 
-func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64) SpanAggregator {
+func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64, exemplars uint32) SpanAggregator {
 	var fn func(s Span) float64
 
 	switch attr {
@@ -472,6 +472,7 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 		start:           start,
 		end:             end,
 		step:            step,
+		maxExemplars:    exemplars,
 	}
 }
 

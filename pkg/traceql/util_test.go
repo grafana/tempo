@@ -68,8 +68,8 @@ func TestBucketSet_Bucket(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			bs := newBucketSet(maxExemplars, tc.start*uint64(time.Second.Nanoseconds()), tc.end*uint64(time.Second.Nanoseconds())) //nolint: gosec // G115
-			actual := bs.bucket(tc.ts * uint64(time.Second.Milliseconds()))                                                        //nolint: gosec // G115
+			bs := newBucketSet(100, tc.start*uint64(time.Second.Nanoseconds()), tc.end*uint64(time.Second.Nanoseconds())) //nolint: gosec // G115
+			actual := bs.bucket(tc.ts * uint64(time.Second.Milliseconds()))                                               //nolint: gosec // G115
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
@@ -88,7 +88,7 @@ func TestBucketSet_Instant(t *testing.T) {
 }
 
 func TestBucketSet(t *testing.T) {
-	s := newBucketSet(maxExemplars, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds())) //nolint: gosec // G115
+	s := newBucketSet(100, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds())) //nolint: gosec // G115
 
 	// Add two to each bucket
 	for ts := uint64(100); ts <= 199; ts += 2 { // 100 in total

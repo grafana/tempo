@@ -27,6 +27,7 @@ const (
 	configQueryRangeMaxSeries                = "config-query-range-max-series.yaml"
 	configQueryRangeMaxSeriesDisabled        = "config-query-range-max-series-disabled.yaml"
 	configQueryRangeMaxSeriesDisabledQuerier = "config-query-range-max-series-disabled-querier.yaml"
+	configQueryRangeMaxExemplars             = "config-query-range-max-exemplars.yaml"
 )
 
 type queryRangeRequest struct {
@@ -134,9 +135,14 @@ sendLoop:
 			expectedExemplars: 25,
 		},
 		{
+			name:              "100 exemplars",
+			exemplars:         100,
+			expectedExemplars: 100,
+		},
+		{
 			name:              "capped exemplars",
 			exemplars:         1000,
-			expectedExemplars: 100, // capped to 100
+			expectedExemplars: 250, // capped to 250
 		},
 	} {
 		for _, query := range []string{
