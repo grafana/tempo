@@ -1733,7 +1733,7 @@ func TestSamplingError(t *testing.T) {
 			MaxSeries: 1000,
 		}
 
-		eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+		eval, err := e.CompileMetricsQueryRange(req, 0, false)
 		require.NoError(t, err)
 
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))
