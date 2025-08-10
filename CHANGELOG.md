@@ -74,6 +74,7 @@
 * [BUGFIX] Fix for structural operator with empty left-hand spanset [#5578](https://github.com/grafana/tempo/pull/5578) (@ruslan-mikhailov)
 * [BUGFIX] Deadlock on invalid query to api/v2/search/tags (SearchTagsV2) [#5607](https://github.com/grafana/tempo/pull/5607) (@ruslan-mikhailov)
 * [BUGFIX] Fixed incorrect root span detection when spans have a child_of link but no parent. [#3634](https://github.com/mexirica/tempo/pull/5557) (@mexirica)
+* [BUGFIN] Remove hardcode of 100 examplers in traceql [#5503](https://github.com/grafana/tempo/pull/5503) (@KyriosGN0)
 
 # v2.8.2
 
