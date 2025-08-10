@@ -27,7 +27,6 @@ const (
 	configQueryRangeMaxSeries                = "config-query-range-max-series.yaml"
 	configQueryRangeMaxSeriesDisabled        = "config-query-range-max-series-disabled.yaml"
 	configQueryRangeMaxSeriesDisabledQuerier = "config-query-range-max-series-disabled-querier.yaml"
-	configQueryRangeMaxExemplars             = "config-query-range-max-exemplars.yaml"
 )
 
 type queryRangeRequest struct {
