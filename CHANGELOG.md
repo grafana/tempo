@@ -53,6 +53,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
 * [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
 * [BUGFIX] Fix cache collision for incomplete query in SearchTagValuesV2 [#5549](https://github.com/grafana/tempo/pull/5549) (@ruslan-mikhailov)
+* [BUGFIN] Remove hardcode of 100 examplers in traceql [#5503](https://github.com/grafana/tempo/pull/5503) (@KyriosGN0)
 
 # v2.8.2
 
