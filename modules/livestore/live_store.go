@@ -52,9 +52,8 @@ type LiveStore struct {
 	ingestPartitionID         int32
 	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
 
-	client        kafka.KafkaClient
-	clientFactory kafka.KafkaClientFunc
-	decoder       *ingest.Decoder
+	client  kafka.KafkaClient
+	decoder *ingest.Decoder
 
 	reader *PartitionReader
 
@@ -76,16 +75,15 @@ func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Regi
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
-		cfg:           cfg,
-		logger:        logger,
-		reg:           reg,
-		decoder:       ingest.NewDecoder(),
-		ctx:           ctx,
-		cancel:        cancel,
-		instances:     make(map[string]*instance),
-		overrides:     overrides,
-		flushqueues:   flushqueues.NewPriorityQueue(metricCompleteQueueLength),
-		clientFactory: clientFactory,
+		cfg:         cfg,
+		logger:      logger,
+		reg:         reg,
+		decoder:     ingest.NewDecoder(),
+		ctx:         ctx,
+		cancel:      cancel,
+		instances:   make(map[string]*instance),
+		overrides:   overrides,
+		flushqueues: flushqueues.NewPriorityQueue(metricCompleteQueueLength),
 	}
 
 	var err error
@@ -126,6 +124,15 @@ func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Regi
 	s.subservicesWatcher = services.NewFailureWatcher()
 	s.subservicesWatcher.WatchService(s.ingestPartitionLifecycler)
 
+	s.client, err = clientFactory(
+		s.cfg.IngestConfig.Kafka,
+		ingest.NewReaderClientMetrics(liveStoreServiceName, s.reg),
+		s.logger,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create kafka reader client: %w", err)
+	}
+
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
 
 	return s, nil
@@ -141,15 +148,6 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
-	}
-
-	s.client, err = s.clientFactory(
-		s.cfg.IngestConfig.Kafka,
-		ingest.NewReaderClientMetrics(liveStoreServiceName, s.reg),
-		s.logger,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create kafka reader client: %w", err)
 	}
 
 	boff := backoff.New(ctx, backoff.Config{

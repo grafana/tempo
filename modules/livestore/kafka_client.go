@@ -19,13 +19,8 @@ type KafkaClient struct {
 
 // NewKafkaClient creates a new Franz/kgo-based Kafka client
 func NewKafkaClient(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (kafka.KafkaClient, error) {
-	// Create client with topic consumption configured
-	opts := []kgo.Opt{
-		kgo.ConsumerGroup(cfg.ConsumerGroup),
-		kgo.ConsumeTopics(cfg.Topic),
-	}
 
-	client, err := ingest.NewReaderClient(cfg, metrics, logger, opts...)
+	client, err := ingest.NewReaderClient(cfg, metrics, logger)
 	if err != nil {
 		return nil, err
 	}
