@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -107,46 +106,40 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 
 	// Check that head block has data
 	instance.blocksMtx.Lock()
-	hasHeadBlock := instance.headBlock != nil
-	var headBlock common.WALBlock
-	if hasHeadBlock {
-		headBlock = instance.headBlock
-	}
+	headBlock := instance.headBlock
 	instance.blocksMtx.Unlock()
 
-	assert.True(t, hasHeadBlock, "Expected head block to be present after cutting traces")
+	assert.True(t, headBlock != nil, "Expected head block to be present after cutting traces")
 
 	// Verify block contains the expected trace data using iterator
-	if hasHeadBlock {
-		blockTraceIDs := make(map[string]bool)
-		iter, err := headBlock.Iterator()
-		require.NoError(t, err, "Should be able to create block iterator")
+	blockTraceIDs := make(map[string]bool)
+	iter, err := headBlock.Iterator()
+	require.NoError(t, err, "Should be able to create block iterator")
 
-		for {
-			traceID, trace, err := iter.Next(ctx)
-			if err != nil {
-				break
-			}
-			if traceID == nil {
-				break
-			}
-
-			blockTraceIDs[string(traceID)] = true
-			assert.NotNil(t, trace, "Trace from block should not be nil")
-
-			// Verify trace structure
-			assert.Greater(t, len(trace.ResourceSpans), 0, "Trace should have resource spans")
-			t.Logf("Found trace in block: %s", string(traceID))
+	for {
+		traceID, trace, err := iter.Next(ctx)
+		if err != nil {
+			break
+		}
+		if traceID == nil {
+			break
 		}
 
-		// Verify all expected traces are in the block
-		for _, expectedID := range expectedTraceIDs {
-			assert.True(t, blockTraceIDs[expectedID], "Expected trace ID %s not found in block", expectedID)
-		}
+		blockTraceIDs[string(traceID)] = true
+		assert.NotNil(t, trace, "Trace from block should not be nil")
 
-		assert.Equal(t, len(expectedTraceIDs), len(blockTraceIDs), "Block should contain all expected traces")
-		t.Logf("Verified %d traces correctly written to WAL block", len(blockTraceIDs))
+		// Verify trace structure
+		assert.Greater(t, len(trace.ResourceSpans), 0, "Trace should have resource spans")
+		t.Logf("Found trace in block: %s", string(traceID))
 	}
+
+	// Verify all expected traces are in the block
+	for _, expectedID := range expectedTraceIDs {
+		assert.True(t, blockTraceIDs[expectedID], "Expected trace ID %s not found in block", expectedID)
+	}
+
+	assert.Equal(t, len(expectedTraceIDs), len(blockTraceIDs), "Block should contain all expected traces")
+	t.Logf("Verified %d traces correctly written to WAL block", len(blockTraceIDs))
 
 	// Clean up
 	liveStore.StopAsync()
