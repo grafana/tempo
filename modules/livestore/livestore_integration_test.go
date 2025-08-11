@@ -23,127 +23,6 @@ import (
 	"github.com/twmb/franz-go/plugin/kprom"
 )
 
-// createTestTrace creates a test trace with multiple spans
-func createTestTrace() *tempopb.Trace {
-	traceID := test.ValidTraceID(nil)
-	return test.MakeTrace(10, traceID)
-}
-
-// createPushRequest creates a PushBytesRequest from a trace
-func createPushRequest(trace *tempopb.Trace) (*tempopb.PushBytesRequest, error) {
-	traceBytes, err := trace.Marshal()
-	if err != nil {
-		return nil, err
-	}
-
-	return &tempopb.PushBytesRequest{
-		Traces: []tempopb.PreallocBytes{
-			{
-				Slice: traceBytes,
-			},
-		},
-		Ids: [][]byte{[]byte("test-trace-id-123")},
-	}, nil
-}
-
-// encodeTraceRecord encodes a trace as it would appear in Kafka
-func encodeTraceRecord(_ string, pushReq *tempopb.PushBytesRequest) ([]byte, error) {
-	return pushReq.Marshal()
-}
-
-// setupLiveStoreForTest creates and configures a LiveStore with in-memory Kafka for testing
-func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, KafkaClient) {
-	// Create temporary directory for WAL
-	tmpDir := t.TempDir()
-
-	// Create in-memory kafka client
-	kafkaClient := NewInMemoryKafkaClient()
-
-	// Create livestore config
-	cfg := Config{
-		LifecyclerConfig: ring.LifecyclerConfig{
-			ID: ingesterID,
-		},
-		PartitionRing: ingester.PartitionRingConfig{
-			KVStore: kv.Config{
-				Mock: createConsulInMemoryClient(),
-			},
-		},
-		IngestConfig: ingest.Config{
-			Kafka: ingest.KafkaConfig{
-				Topic:         topic,
-				ConsumerGroup: consumerGroup,
-			},
-		},
-		WAL: wal.Config{
-			Filepath: tmpDir,
-			Version:  "vParquet4", // Use default encoding version
-		},
-	}
-
-	overrides := &mockOverrides{}
-	logger := log.NewNopLogger()
-	reg := prometheus.NewRegistry()
-
-	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
-		return kafkaClient, nil
-	}
-
-	liveStore, err := New(cfg, overrides, logger, reg, true, clientFactory)
-	require.NoError(t, err)
-
-	// Add consuming partitions
-	partitions := map[string]map[int32]kgo.Offset{
-		topic: {
-			0: kgo.NewOffset().AtStart(),
-		},
-	}
-	kafkaClient.AddConsumePartitions(partitions)
-
-	return liveStore, kafkaClient
-}
-
-// writeTestTraces creates and writes test trace data to Kafka
-func writeTestTraces(t *testing.T, kafkaClient *InMemoryKafkaClient, topic, tenantID string, traceCount int) []string {
-	expectedTraceIDs := make([]string, traceCount)
-
-	// Add multiple trace messages
-	for i := range traceCount {
-		trace := createTestTrace()
-		// Make each trace unique
-		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId = []byte(fmt.Sprintf("trace-%d", i))
-
-		// Create unique trace ID for the PushBytesRequest
-		traceBytes, err := trace.Marshal()
-		require.NoError(t, err)
-
-		traceID := fmt.Sprintf("test-trace-id-%d", i)
-		expectedTraceIDs[i] = traceID
-
-		pushReq := &tempopb.PushBytesRequest{
-			Traces: []tempopb.PreallocBytes{
-				{
-					Slice: traceBytes,
-				},
-			},
-			Ids: [][]byte{[]byte(traceID)},
-		}
-
-		recordBytes, err := encodeTraceRecord(tenantID, pushReq)
-		require.NoError(t, err)
-
-		kafkaClient.AddMessage(
-			topic,
-			0,
-			[]byte(tenantID),
-			recordBytes,
-		)
-		t.Logf("Added message %d to Kafka", i)
-	}
-
-	return expectedTraceIDs
-}
-
 func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	// Setup
 	topic := "test-topic"
@@ -283,4 +162,108 @@ func createConsulInMemoryClient() kv.Client {
 		nil,
 	)
 	return client
+}
+
+// createTestTrace creates a test trace with multiple spans
+func createTestTrace() *tempopb.Trace {
+	traceID := test.ValidTraceID(nil)
+	return test.MakeTrace(10, traceID)
+}
+
+// encodeTraceRecord encodes a trace as it would appear in Kafka
+func encodeTraceRecord(_ string, pushReq *tempopb.PushBytesRequest) ([]byte, error) {
+	return pushReq.Marshal()
+}
+
+// setupLiveStoreForTest creates and configures a LiveStore with in-memory Kafka for testing
+func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, KafkaClient) {
+	// Create temporary directory for WAL
+	tmpDir := t.TempDir()
+
+	// Create in-memory kafka client
+	kafkaClient := NewInMemoryKafkaClient()
+
+	// Create livestore config
+	cfg := Config{
+		LifecyclerConfig: ring.LifecyclerConfig{
+			ID: ingesterID,
+		},
+		PartitionRing: ingester.PartitionRingConfig{
+			KVStore: kv.Config{
+				Mock: createConsulInMemoryClient(),
+			},
+		},
+		IngestConfig: ingest.Config{
+			Kafka: ingest.KafkaConfig{
+				Topic:         topic,
+				ConsumerGroup: consumerGroup,
+			},
+		},
+		WAL: wal.Config{
+			Filepath: tmpDir,
+			Version:  "vParquet4", // Use default encoding version
+		},
+	}
+
+	overrides := &mockOverrides{}
+	logger := log.NewNopLogger()
+	reg := prometheus.NewRegistry()
+
+	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
+		return kafkaClient, nil
+	}
+
+	liveStore, err := New(cfg, overrides, logger, reg, true, clientFactory)
+	require.NoError(t, err)
+
+	// Add consuming partitions
+	partitions := map[string]map[int32]kgo.Offset{
+		topic: {
+			0: kgo.NewOffset().AtStart(),
+		},
+	}
+	kafkaClient.AddConsumePartitions(partitions)
+
+	return liveStore, kafkaClient
+}
+
+// writeTestTraces creates and writes test trace data to Kafka
+func writeTestTraces(t *testing.T, kafkaClient *InMemoryKafkaClient, topic, tenantID string, traceCount int) []string {
+	expectedTraceIDs := make([]string, traceCount)
+
+	// Add multiple trace messages
+	for i := range traceCount {
+		trace := createTestTrace()
+		// Make each trace unique
+		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId = []byte(fmt.Sprintf("trace-%d", i))
+
+		// Create unique trace ID for the PushBytesRequest
+		traceBytes, err := trace.Marshal()
+		require.NoError(t, err)
+
+		traceID := fmt.Sprintf("test-trace-id-%d", i)
+		expectedTraceIDs[i] = traceID
+
+		pushReq := &tempopb.PushBytesRequest{
+			Traces: []tempopb.PreallocBytes{
+				{
+					Slice: traceBytes,
+				},
+			},
+			Ids: [][]byte{[]byte(traceID)},
+		}
+
+		recordBytes, err := encodeTraceRecord(tenantID, pushReq)
+		require.NoError(t, err)
+
+		kafkaClient.AddMessage(
+			topic,
+			0,
+			[]byte(tenantID),
+			recordBytes,
+		)
+		t.Logf("Added message %d to Kafka", i)
+	}
+
+	return expectedTraceIDs
 }
