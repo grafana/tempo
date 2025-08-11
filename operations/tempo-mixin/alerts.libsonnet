@@ -387,7 +387,7 @@
             ||| % [$._config.namespace, $._config.group_by_cluster, $._config.namespace, $._config.group_by_cluster, $._config.alerts.vulture_error_rate_threshold],
             'for': '5m',
             labels: {
-              severity: 'warning',
+              severity: 'critical',
             },
             annotations: {
               message: 'Tempo vulture error rate is {{ printf "%0.2f" $value }} for error type {{ $labels.error }} in {{ $labels.cluster }}/{{ $labels.namespace }}',
