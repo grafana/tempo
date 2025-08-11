@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/kafka"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kprom"
@@ -18,7 +18,7 @@ type KafkaClient struct {
 }
 
 // NewKafkaClient creates a new Franz/kgo-based Kafka client
-func NewKafkaClient(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (util.KafkaClient, error) {
+func NewKafkaClient(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (kafka.KafkaClient, error) {
 	// Create client with topic consumption configured
 	opts := []kgo.Opt{
 		kgo.ConsumerGroup(cfg.ConsumerGroup),
@@ -68,6 +68,6 @@ func (c *KafkaClient) CommitOffsets(ctx context.Context, group string, offsets k
 	return c.adminCl.CommitOffsets(ctx, group, offsets)
 }
 
-func FranzKafkaClientFunc(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (util.KafkaClient, error) {
+func FranzKafkaClientFunc(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (kafka.KafkaClient, error) {
 	return NewKafkaClient(cfg, metrics, logger)
 }

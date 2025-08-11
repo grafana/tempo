@@ -17,7 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/kafka"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
@@ -52,8 +52,8 @@ type LiveStore struct {
 	ingestPartitionID         int32
 	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
 
-	client        util.KafkaClient
-	clientFactory util.KafkaClientFunc
+	client        kafka.KafkaClient
+	clientFactory kafka.KafkaClientFunc
 	decoder       *ingest.Decoder
 
 	reader *PartitionReader
@@ -72,7 +72,7 @@ type LiveStore struct {
 	wg     sync.WaitGroup
 }
 
-func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool, clientFactory util.KafkaClientFunc) (*LiveStore, error) {
+func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool, clientFactory kafka.KafkaClientFunc) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{

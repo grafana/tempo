@@ -1,4 +1,4 @@
-package test
+package kafka
 
 import (
 	"context"

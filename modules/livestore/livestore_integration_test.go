@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/kafka"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
@@ -33,7 +33,7 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	defer kafkaClient.Close()
 
 	// Write test data
-	expectedTraceIDs := writeTestTraces(t, kafkaClient.(*test.InMemoryKafkaClient), topic, tenantID, traceCount)
+	expectedTraceIDs := writeTestTraces(t, kafkaClient.(*kafka.InMemoryKafkaClient), topic, tenantID, traceCount)
 
 	// Start the service
 	ctx := context.Background()
@@ -164,12 +164,12 @@ func encodeTraceRecord(_ string, pushReq *tempopb.PushBytesRequest) ([]byte, err
 }
 
 // setupLiveStoreForTest creates and configures a LiveStore with in-memory Kafka for testing
-func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, util.KafkaClient) {
+func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, kafka.KafkaClient) {
 	// Create temporary directory for WAL
 	tmpDir := t.TempDir()
 
 	// Create in-memory kafka client
-	kafkaClient := test.NewInMemoryKafkaClient()
+	kafkaClient := kafka.NewInMemoryKafkaClient()
 
 	// Create livestore config
 	cfg := Config{
@@ -197,7 +197,7 @@ func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string
 	logger := log.NewNopLogger()
 	reg := prometheus.NewRegistry()
 
-	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (util.KafkaClient, error) {
+	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (kafka.KafkaClient, error) {
 		return kafkaClient, nil
 	}
 
@@ -216,7 +216,7 @@ func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string
 }
 
 // writeTestTraces creates and writes test trace data to Kafka
-func writeTestTraces(t *testing.T, kafkaClient *test.InMemoryKafkaClient, topic, tenantID string, traceCount int) []string {
+func writeTestTraces(t *testing.T, kafkaClient *kafka.InMemoryKafkaClient, topic, tenantID string, traceCount int) []string {
 	expectedTraceIDs := make([]string, traceCount)
 
 	// Add multiple trace messages
