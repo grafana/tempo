@@ -104,7 +104,7 @@ func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string
 }
 
 // writeTestTraces creates and writes test trace data to Kafka
-func writeTestTraces(t *testing.T, kafkaClient KafkaClient, topic, tenantID string, traceCount int) []string {
+func writeTestTraces(t *testing.T, kafkaClient *InMemoryKafkaClient, topic, tenantID string, traceCount int) []string {
 	expectedTraceIDs := make([]string, traceCount)
 
 	// Add multiple trace messages
@@ -149,12 +149,12 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	topic := "test-topic"
 	tenantID := "batch-tenant"
 	traceCount := 5
-	
+
 	liveStore, kafkaClient := setupLiveStoreForTest(t, "test-ingester-2", topic, "test-consumer-group")
 	defer kafkaClient.Close()
 
 	// Write test data
-	expectedTraceIDs := writeTestTraces(t, kafkaClient, topic, tenantID, traceCount)
+	expectedTraceIDs := writeTestTraces(t, kafkaClient.(*InMemoryKafkaClient), topic, tenantID, traceCount)
 
 	// Start the service
 	ctx := context.Background()
