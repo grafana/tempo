@@ -41,14 +41,14 @@ This procedure is primarily aimed at local or development setups.
 ### Hardware requirements
 
 - Tempo: A single Kubernetes node with a minimum of 6 cores and 16 GB RAM
-- GET: A single  Kubernetes node with a minimum of 9 cores and 32 GB RAM
+- GET: A single Kubernetes node with a minimum of 9 cores and 32 GB RAM
 
 ### Software requirements
 
 - Kubernetes 1.29 or later (refer to [Kubernetes installation documentation](https://kubernetes.io/docs/setup/))
 - The `kubectl` command for your version of Kubernetes
 - Helm 3 or later (refer to [Helm installation documentation](https://helm.sh/docs/intro/install/))
-- GET only: [An enterprise license](https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/#obtain-a-get-license)
+- GET only: [An enterprise license](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license)
 
 ### Additional requirements
 
@@ -86,7 +86,7 @@ Using a custom namespace solves problems later on because you don't have to over
    kubectl create namespace tempo-test
    ```
 
-  For more details, see the Kubernetes documentation about [Creating a namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
+For more details, see the Kubernetes documentation about [Creating a namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
 
 1. Set up a Helm repository using the following commands:
 
@@ -131,10 +131,10 @@ storage:
   trace:
     backend: s3
     s3:
-      access_key: 'grafana-tempo'
-      secret_key: 'supersecret'
-      bucket: 'tempo-traces'
-      endpoint: 'tempo-minio:9000'
+      access_key: "grafana-tempo"
+      secret_key: "supersecret"
+      bucket: "tempo-traces"
+      endpoint: "tempo-minio:9000"
       insecure: true
 # MinIO storage configuration
 # Note: MinIO should not be used for production environments. This is for demonstration purposes only.
@@ -173,7 +173,7 @@ These values include an additional `admin` bucket and specifies a license.
 The `enterpriseGateway` is automatically enabled as part of enabling the chart for installation of GET.
 
 GET requires multitenancy. It must also be enabled explicitly in the values file.
-For more information, refer to [Set up GET tenants](https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/set-up-get-tenants/).
+For more information, refer to [Set up GET tenants](https://grafana.com/docs/enterprise-traces/latest/setup/set-up-get-tenants/).
 
 {{< collapse title="GET example values file" >}}
 
@@ -181,7 +181,7 @@ For more information, refer to [Set up GET tenants](https://grafana.com/docs/ent
 ---
 # Specify the global domain for the cluster (in this case just local cluster mDNS)
 global:
-  clusterDomain: 'cluster.local'
+  clusterDomain: "cluster.local"
 
 # Enable the Helm chart for GET installation
 # Configure the Helm chart for a Grafana Enterprise Traces installation.
@@ -209,27 +209,27 @@ minio:
       policy: none
       purge: false
   # Changed the mc (the MinIO CLI client) config path to '/tmp' from '/etc' as '/etc' is only writable by root and OpenShift will not permit this.
-  configPathmc: '/tmp/minio/mc/'
+  configPathmc: "/tmp/minio/mc/"
 storage:
   # Specifies traces storage location.
   # Uses the MinIO bucket configured for trace storage.
   trace:
     backend: s3
     s3:
-      access_key: 'grafana-tempo'
-      secret_key: 'supersecret'
-      bucket: 'enterprise-traces'
-      endpoint: 'tempo-minio:9000'
+      access_key: "grafana-tempo"
+      secret_key: "supersecret"
+      bucket: "enterprise-traces"
+      endpoint: "tempo-minio:9000"
       insecure: true
   # Specifies administration data storage location.
   # Uses the MinIO bucket configured for admin storage.
   admin:
     backend: s3
     s3:
-      access_key_id: 'grafana-tempo'
-      secret_access_key: 'supersecret'
-      bucket_name: 'enterprise-traces-admin'
-      endpoint: 'tempo-minio:9000'
+      access_key_id: "grafana-tempo"
+      secret_access_key: "supersecret"
+      bucket_name: "enterprise-traces-admin"
+      endpoint: "tempo-minio:9000"
       insecure: true
 
 # Specifies which trace protocols to accept by the gateway.
@@ -277,7 +277,7 @@ If you are using GET, you need to configure a license by either
 Only use one of these options.
 
 {{< admonition type="note" >}}
-The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/#obtain-a-get-license) explain how to obtain a license.
+The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
 {{< /admonition >}}
 
 Using the first option, you can specify the license text in the `custom.yaml` values file created in the `license:` section.
@@ -335,26 +335,26 @@ If you don't need to change the values, you can skip this section.
      trace:
        backend: s3
        s3:
-         access_key: 'grafana-tempo'
-         secret_key: 'supersecret'
-         bucket: 'tempo-traces'
-         endpoint: 'tempo-minio:9000'
+         access_key: "grafana-tempo"
+         secret_key: "supersecret"
+         bucket: "tempo-traces"
+         endpoint: "tempo-minio:9000"
          insecure: true
    ```
 
    Enterprise users also need to specify an additional bucket for `admin` resources.
 
-    ```yaml
-    storage:
-      admin:
-        backend: s3
-        s3:
-          access_key_id: 'grafana-tempo'
-          secret_access_key: 'supersecret'
-          bucket_name: 'enterprise-traces-admin'
-          endpoint: 'tempo-minio:9000'
-          insecure: true
-    ```
+   ```yaml
+   storage:
+     admin:
+       backend: s3
+       s3:
+         access_key_id: "grafana-tempo"
+         secret_access_key: "supersecret"
+         bucket_name: "enterprise-traces-admin"
+         endpoint: "tempo-minio:9000"
+         insecure: true
+   ```
 
 1. Optional: If you need to change the defaults for MinIO, locate the MinIO section and change the relevant fields. The following example shows the username and password. Ensure that you update any `trace` or `admin` storage sections appropriately.
 
@@ -468,8 +468,8 @@ For instructions, refer to [Configure TLS with Helm](https://grafana.com/docs/te
 
 The `tempo-distributed` Helm chart provides a module for users to set global or per-tenant override settings:
 
-* Global overrides come under the `overrides` property, which pertain to the standard overrides
-* Per-tenant overrides come under the `per_tenant_overrides` property, and allow specific tenants to alter configuration associated with them as per tenant-specific runtime overrides. The Helm chart generates a `/runtime/overrides.yaml` configuration file for all per-tenant configuration.
+- Global overrides come under the `overrides` property, which pertain to the standard overrides
+- Per-tenant overrides come under the `per_tenant_overrides` property, and allow specific tenants to alter configuration associated with them as per tenant-specific runtime overrides. The Helm chart generates a `/runtime/overrides.yaml` configuration file for all per-tenant configuration.
 
 These overrides correlate to the standard (global) and tenant-specific (`per_tenant_overide_config`)overrides in Tempo and GET configuration.
 For more information about overrides, refer to the [Overrides configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) documentation.
@@ -480,32 +480,32 @@ The following example configuration sets some global configuration options, as w
 
 ```yaml
 overrides:
-    defaults:
-        ingestion:
-          rate_limit_bytes: 5 * 1000 * 1000
-          burst_size_bytes: 5 * 1000 * 1000
-          max_traces_per_user: 1000
-        global:
-          max_bytes_per_trace: 10 * 1000 * 1000
+  defaults:
+    ingestion:
+      rate_limit_bytes: 5 * 1000 * 1000
+      burst_size_bytes: 5 * 1000 * 1000
+      max_traces_per_user: 1000
+    global:
+      max_bytes_per_trace: 10 * 1000 * 1000
 
-        metrics_generator:
-          processors: ['service-graphs', 'span-metrics']
+    metrics_generator:
+      processors: ["service-graphs", "span-metrics"]
 
 per_tenant_overrides:
-    '1234':
-        ingestion:
-          rate_limit_bytes: 2 * 1000 * 1000
-          burst_size_bytes: 2 * 1000 * 1000
-          max_traces_per_user: 400
-        global:
-          max_bytes_per_trace: 5 * 1000 * 1000
+  "1234":
+    ingestion:
+      rate_limit_bytes: 2 * 1000 * 1000
+      burst_size_bytes: 2 * 1000 * 1000
+      max_traces_per_user: 400
+    global:
+      max_bytes_per_trace: 5 * 1000 * 1000
 ```
 
 This configuration:
 
-* Enables the Span Metrics and Service Graph metrics-generator processors for all tenants
-* An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces in an ingester for all tenants
-* Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces in an ingester
+- Enables the Span Metrics and Service Graph metrics-generator processors for all tenants
+- An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces in an ingester for all tenants
+- Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces in an ingester
 
 {{< admonition type="note" >}}
 Runtime configurations should include all options for a specific tenant.
@@ -556,6 +556,7 @@ Installed components:
 * compactor
 * memcached
 ```
+
 {{< /collapse >}}
 
 {{< admonition type="note" >}}
