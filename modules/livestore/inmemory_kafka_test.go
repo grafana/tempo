@@ -136,7 +136,7 @@ func TestInMemoryKafkaClientFactory_Integration(t *testing.T) {
 	require.NotNil(t, client)
 
 	// Verify it implements the KafkaClient interface
-	var _ KafkaClient = client
+	var _ Client = client
 
 	// Test that it works like a regular client
 	ctx := context.Background()

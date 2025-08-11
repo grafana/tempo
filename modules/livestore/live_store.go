@@ -51,8 +51,8 @@ type LiveStore struct {
 	ingestPartitionID         int32
 	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
 
-	client        KafkaClient
-	clientFactory KafkaClientFactory
+	client        Client
+	clientFactory ClientFactory
 	decoder       *ingest.Decoder
 
 	reader *PartitionReader
@@ -71,7 +71,7 @@ type LiveStore struct {
 	wg     sync.WaitGroup
 }
 
-func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool, clientFactory KafkaClientFactory) (*LiveStore, error) {
+func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool, clientFactory ClientFactory) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{

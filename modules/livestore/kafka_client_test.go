@@ -206,7 +206,7 @@ func TestInMemoryKafkaClient_Factory(t *testing.T) {
 	assert.NotNil(t, client)
 
 	// Verify it implements the interface
-	var _ KafkaClient = client
+	var _ Client = client
 
 	// Test basic functionality
 	err = client.Ping(context.Background())

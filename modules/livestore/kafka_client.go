@@ -10,8 +10,8 @@ import (
 	"github.com/twmb/franz-go/plugin/kprom"
 )
 
-// KafkaClient is an interface for Kafka client operations used by the live store
-type KafkaClient interface {
+// Client is an interface for Kafka client operations used by the live store
+type Client interface {
 	Ping(ctx context.Context) error
 	AddConsumePartitions(partitions map[string]map[int32]kgo.Offset)
 	RemoveConsumePartitions(partitions map[string][]int32)
@@ -22,8 +22,8 @@ type KafkaClient interface {
 	CommitOffsets(ctx context.Context, group string, offsets kadm.Offsets) (kadm.OffsetResponses, error)
 }
 
-// KafkaClientFactory is a function that creates a KafkaClient
-type KafkaClientFactory func(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (KafkaClient, error)
+// ClientFactory is a function that creates a KafkaClient
+type ClientFactory func(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (Client, error)
 
 // defaultKafkaClient wraps a kgo.Client to implement the KafkaClient interface
 type defaultKafkaClient struct {
@@ -72,7 +72,7 @@ func (c *defaultKafkaClient) Client() *kgo.Client {
 }
 
 // DefaultKafkaClientFactory creates a default Kafka client using ingest.NewReaderClient
-func DefaultKafkaClientFactory(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (KafkaClient, error) {
+func DefaultKafkaClientFactory(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (Client, error) {
 	client, err := ingest.NewReaderClient(cfg, metrics, logger)
 	if err != nil {
 		return nil, err

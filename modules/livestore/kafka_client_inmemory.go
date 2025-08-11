@@ -228,6 +228,6 @@ func (c *InMemoryKafkaClient) AddMessage(topic string, partition int32, key, val
 }
 
 // InMemoryKafkaClientFactory creates an in-memory Kafka client factory for testing
-func InMemoryKafkaClientFactory(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (KafkaClient, error) {
+func InMemoryKafkaClientFactory(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (Client, error) {
 	return NewInMemoryKafkaClient(), nil
 }
