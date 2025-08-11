@@ -19,7 +19,6 @@ type KafkaClient struct {
 
 // NewKafkaClient creates a new Franz/kgo-based Kafka client
 func NewKafkaClient(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (kafka.KafkaClient, error) {
-
 	client, err := ingest.NewReaderClient(cfg, metrics, logger)
 	if err != nil {
 		return nil, err
