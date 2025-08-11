@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -50,18 +51,18 @@ func encodeTraceRecord(_ string, pushReq *tempopb.PushBytesRequest) ([]byte, err
 	return pushReq.Marshal()
 }
 
-func TestLiveStore_IntegrationTraceIngestion(t *testing.T) {
+// setupLiveStoreForTest creates and configures a LiveStore with in-memory Kafka for testing
+func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, KafkaClient) {
 	// Create temporary directory for WAL
 	tmpDir := t.TempDir()
 
 	// Create in-memory kafka client
 	kafkaClient := NewInMemoryKafkaClient()
-	defer kafkaClient.Close()
 
 	// Create livestore config
 	cfg := Config{
 		LifecyclerConfig: ring.LifecyclerConfig{
-			ID: "test-ingester-1",
+			ID: ingesterID,
 		},
 		PartitionRing: ingester.PartitionRingConfig{
 			KVStore: kv.Config{
@@ -70,140 +71,8 @@ func TestLiveStore_IntegrationTraceIngestion(t *testing.T) {
 		},
 		IngestConfig: ingest.Config{
 			Kafka: ingest.KafkaConfig{
-				Topic:         "test-topic",
-				ConsumerGroup: "test-consumer-group",
-			},
-		},
-		WAL: wal.Config{
-			Filepath: tmpDir,
-			Version:  "vParquet4", // Use default encoding version
-		},
-	}
-
-	// Use existing mock overrides from live_store_test.go
-	overrides := &mockOverrides{}
-
-	// Create logger
-	logger := log.NewNopLogger()
-
-	// Create registry
-	reg := prometheus.NewRegistry()
-
-	// Create client factory that returns our in-memory client
-	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
-		return kafkaClient, nil
-	}
-
-	// Create LiveStore
-	liveStore, err := New(cfg, overrides, logger, reg, true, clientFactory)
-	require.NoError(t, err)
-
-	// Test trace data
-	tenantID := "test-tenant"
-	trace := createTestTrace()
-	pushReq, err := createPushRequest(trace)
-	require.NoError(t, err)
-
-	// Encode the trace as it would appear in Kafka
-	recordBytes, err := encodeTraceRecord(tenantID, pushReq)
-	require.NoError(t, err)
-
-	// Add consuming partitions to the Kafka client so PollFetches returns messages
-	partitions := map[string]map[int32]kgo.Offset{
-		cfg.IngestConfig.Kafka.Topic: {
-			0: kgo.NewOffset().AtStart(),
-		},
-	}
-	kafkaClient.AddConsumePartitions(partitions)
-
-	// Add the trace message to the in-memory Kafka
-	kafkaClient.AddMessage(
-		cfg.IngestConfig.Kafka.Topic,
-		0, // partition
-		[]byte(tenantID),
-		recordBytes,
-	)
-
-	// Start the LiveStore service
-	ctx := context.Background()
-	err = liveStore.StartAsync(ctx)
-	require.NoError(t, err)
-
-	// Wait for service to be running
-	err = liveStore.AwaitRunning(ctx)
-	require.NoError(t, err)
-
-	// Give some time for message processing and multiple attempts
-	found := false
-	for i := 0; i < 50; i++ { // Try for up to 5 seconds
-		time.Sleep(100 * time.Millisecond)
-
-		liveStore.instancesMtx.RLock()
-		instance, exists := liveStore.instances[tenantID]
-		liveStore.instancesMtx.RUnlock()
-
-		if exists && instance != nil {
-			found = true
-			// Verify that live traces were created
-			instance.liveTracesMtx.Lock()
-			traceCount := instance.liveTraces.Len()
-			instance.liveTracesMtx.Unlock()
-
-			if traceCount > 0 {
-				assert.Greater(t, int(traceCount), 0, "Expected live traces to be present")
-				break
-			}
-		}
-	}
-
-	if !found {
-		// Debug: Check if messages are being consumed at all
-		fetches := kafkaClient.PollFetches(context.Background())
-		recordCount := 0
-		fetches.EachRecord(func(record *kgo.Record) {
-			recordCount++
-			t.Logf("Found record: topic=%s, partition=%d, key=%s, offset=%d",
-				record.Topic, record.Partition, string(record.Key), record.Offset)
-		})
-		t.Logf("Total records available in Kafka: %d", recordCount)
-
-		// Check how many instances exist
-		liveStore.instancesMtx.RLock()
-		instanceCount := len(liveStore.instances)
-		liveStore.instancesMtx.RUnlock()
-		t.Logf("Total instances in LiveStore: %d", instanceCount)
-	}
-
-	assert.True(t, found, "Expected instance to be created for tenant")
-
-	// Stop the service
-	liveStore.StopAsync()
-	err = liveStore.AwaitTerminated(ctx)
-	require.NoError(t, err)
-}
-
-func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
-	// Create temporary directory for WAL
-	tmpDir := t.TempDir()
-
-	// Create in-memory kafka client
-	kafkaClient := NewInMemoryKafkaClient()
-	defer kafkaClient.Close()
-
-	// Create livestore config
-	cfg := Config{
-		LifecyclerConfig: ring.LifecyclerConfig{
-			ID: "test-ingester-2",
-		},
-		PartitionRing: ingester.PartitionRingConfig{
-			KVStore: kv.Config{
-				Mock: createConsulInMemoryClient(),
-			},
-		},
-		IngestConfig: ingest.Config{
-			Kafka: ingest.KafkaConfig{
-				Topic:         "test-topic",
-				ConsumerGroup: "test-consumer-group",
+				Topic:         topic,
+				ConsumerGroup: consumerGroup,
 			},
 		},
 		WAL: wal.Config{
@@ -222,21 +91,24 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 
 	liveStore, err := New(cfg, overrides, logger, reg, true, clientFactory)
 	require.NoError(t, err)
-
-	// Add multiple traces for the same tenant
-	tenantID := "batch-tenant"
-	traceCount := 5
 
 	// Add consuming partitions
 	partitions := map[string]map[int32]kgo.Offset{
-		cfg.IngestConfig.Kafka.Topic: {
+		topic: {
 			0: kgo.NewOffset().AtStart(),
 		},
 	}
 	kafkaClient.AddConsumePartitions(partitions)
 
+	return liveStore, kafkaClient
+}
+
+// writeTestTraces creates and writes test trace data to Kafka
+func writeTestTraces(t *testing.T, kafkaClient KafkaClient, topic, tenantID string, traceCount int) []string {
+	expectedTraceIDs := make([]string, traceCount)
+
 	// Add multiple trace messages
-	for i := 0; i < traceCount; i++ {
+	for i := range traceCount {
 		trace := createTestTrace()
 		// Make each trace unique
 		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId = []byte(fmt.Sprintf("trace-%d", i))
@@ -245,20 +117,23 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 		traceBytes, err := trace.Marshal()
 		require.NoError(t, err)
 
+		traceID := fmt.Sprintf("test-trace-id-%d", i)
+		expectedTraceIDs[i] = traceID
+
 		pushReq := &tempopb.PushBytesRequest{
 			Traces: []tempopb.PreallocBytes{
 				{
 					Slice: traceBytes,
 				},
 			},
-			Ids: [][]byte{[]byte(fmt.Sprintf("test-trace-id-%d", i))},
+			Ids: [][]byte{[]byte(traceID)},
 		}
 
 		recordBytes, err := encodeTraceRecord(tenantID, pushReq)
 		require.NoError(t, err)
 
 		kafkaClient.AddMessage(
-			cfg.IngestConfig.Kafka.Topic,
+			topic,
 			0,
 			[]byte(tenantID),
 			recordBytes,
@@ -266,23 +141,33 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 		t.Logf("Added message %d to Kafka", i)
 	}
 
+	return expectedTraceIDs
+}
+
+func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
+	// Setup
+	topic := "test-topic"
+	tenantID := "batch-tenant"
+	traceCount := 5
+	
+	liveStore, kafkaClient := setupLiveStoreForTest(t, "test-ingester-2", topic, "test-consumer-group")
+	defer kafkaClient.Close()
+
+	// Write test data
+	expectedTraceIDs := writeTestTraces(t, kafkaClient, topic, tenantID, traceCount)
+
 	// Start the service
 	ctx := context.Background()
-	err = liveStore.StartAsync(ctx)
+	err := liveStore.StartAsync(ctx)
 	require.NoError(t, err)
 
 	err = liveStore.AwaitRunning(ctx)
 	require.NoError(t, err)
 
-	// Wait for processing with multiple attempts
-	var instance *instance
-	var exists bool
-
-	for i := 0; i < 50; i++ { // Try for up to 5 seconds
-		time.Sleep(100 * time.Millisecond)
-
+	// Wait for processing to complete
+	assert.Eventually(t, func() bool {
 		liveStore.instancesMtx.RLock()
-		instance, exists = liveStore.instances[tenantID]
+		instance, exists := liveStore.instances[tenantID]
 		liveStore.instancesMtx.RUnlock()
 
 		if exists && instance != nil {
@@ -291,26 +176,51 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 			liveTraceCount := instance.liveTraces.Len()
 			instance.liveTracesMtx.Unlock()
 
-			t.Logf("Attempt %d: Found instance with %d live traces", i+1, liveTraceCount)
-
-			if int(liveTraceCount) >= traceCount {
-				break
-			}
-		} else {
-			t.Logf("Attempt %d: No instance found yet", i+1)
+			t.Logf("Found instance with %d live traces (expected: %d)", liveTraceCount, traceCount)
+			return int(liveTraceCount) >= traceCount
 		}
-	}
+		t.Logf("No instance found yet")
+		return false
+	}, 5*time.Second, 100*time.Millisecond, "Expected all traces to be processed into live traces")
+
+	// Get final instance for further testing
+	liveStore.instancesMtx.RLock()
+	instance, exists := liveStore.instances[tenantID]
+	liveStore.instancesMtx.RUnlock()
 
 	require.True(t, exists, "Instance should exist")
 	require.NotNil(t, instance, "Instance should not be nil")
 
-	// Final check of live traces
+	// Verify live traces content before cutting to blocks
 	instance.liveTracesMtx.Lock()
-	liveTraceCount := instance.liveTraces.Len()
+	traceMap := make(map[string]bool)
+	expectedTraceIDsMap := make(map[string]bool)
+
+	// Convert expected trace IDs slice to map for verification
+	for _, traceID := range expectedTraceIDs {
+		expectedTraceIDsMap[traceID] = true
+	}
+
+	// Verify live traces contain the expected trace IDs
+	for _, liveTrace := range instance.liveTraces.Traces {
+		traceIDStr := string(liveTrace.ID)
+		traceMap[traceIDStr] = true
+		assert.True(t, expectedTraceIDsMap[traceIDStr], "Unexpected trace ID found: %s", traceIDStr)
+
+		// Verify each live trace has batches
+		assert.Greater(t, len(liveTrace.Batches), 0, "Live trace should have batches")
+
+		// Verify batch content
+		for _, batch := range liveTrace.Batches {
+			assert.NotNil(t, batch, "Batch should not be nil")
+			assert.Greater(t, len(batch.ScopeSpans), 0, "Batch should have scope spans")
+		}
+	}
 	instance.liveTracesMtx.Unlock()
 
-	t.Logf("Final live trace count: %d, expected: %d", liveTraceCount, traceCount)
-	assert.Equal(t, traceCount, int(liveTraceCount), "Expected all traces to be in live traces")
+	// Verify we found all expected traces
+	assert.Equal(t, len(expectedTraceIDsMap), len(traceMap), "Should have found all expected trace IDs")
+	t.Logf("Verified %d live traces with correct content", len(traceMap))
 
 	// Force cut traces to blocks (simulate idle timeout)
 	err = instance.cutIdleTraces(true) // immediate = true
@@ -319,9 +229,45 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	// Check that head block has data
 	instance.blocksMtx.Lock()
 	hasHeadBlock := instance.headBlock != nil
+	var headBlock common.WALBlock
+	if hasHeadBlock {
+		headBlock = instance.headBlock
+	}
 	instance.blocksMtx.Unlock()
 
 	assert.True(t, hasHeadBlock, "Expected head block to be present after cutting traces")
+
+	// Verify block contains the expected trace data using iterator
+	if hasHeadBlock {
+		blockTraceIDs := make(map[string]bool)
+		iter, err := headBlock.Iterator()
+		require.NoError(t, err, "Should be able to create block iterator")
+
+		for {
+			traceID, trace, err := iter.Next(ctx)
+			if err != nil {
+				break
+			}
+			if traceID == nil {
+				break
+			}
+
+			blockTraceIDs[string(traceID)] = true
+			assert.NotNil(t, trace, "Trace from block should not be nil")
+
+			// Verify trace structure
+			assert.Greater(t, len(trace.ResourceSpans), 0, "Trace should have resource spans")
+			t.Logf("Found trace in block: %s", string(traceID))
+		}
+
+		// Verify all expected traces are in the block
+		for _, expectedID := range expectedTraceIDs {
+			assert.True(t, blockTraceIDs[expectedID], "Expected trace ID %s not found in block", expectedID)
+		}
+
+		assert.Equal(t, len(expectedTraceIDs), len(blockTraceIDs), "Block should contain all expected traces")
+		t.Logf("Verified %d traces correctly written to WAL block", len(blockTraceIDs))
+	}
 
 	// Clean up
 	liveStore.StopAsync()
@@ -337,50 +283,4 @@ func createConsulInMemoryClient() kv.Client {
 		nil,
 	)
 	return client
-}
-
-func TestLiveStore_PollingFromInMemoryKafka(t *testing.T) {
-	kafkaClient := NewInMemoryKafkaClient()
-	defer kafkaClient.Close()
-
-	topic := "polling-test-topic"
-	partition := int32(0)
-	tenantID := "polling-tenant"
-
-	// Add consuming partitions
-	partitions := map[string]map[int32]kgo.Offset{
-		topic: {
-			partition: kgo.NewOffset().AtStart(),
-		},
-	}
-	kafkaClient.AddConsumePartitions(partitions)
-
-	// Create test trace and push request
-	trace := createTestTrace()
-	pushReq, err := createPushRequest(trace)
-	require.NoError(t, err)
-
-	recordBytes, err := encodeTraceRecord(tenantID, pushReq)
-	require.NoError(t, err)
-
-	// Add message to in-memory Kafka
-	kafkaClient.AddMessage(topic, partition, []byte(tenantID), recordBytes)
-
-	// Test polling
-	ctx := context.Background()
-	fetches := kafkaClient.PollFetches(ctx)
-	assert.NotNil(t, fetches)
-
-	// Verify we can retrieve the message
-	recordCount := 0
-	fetches.EachRecord(func(record *kgo.Record) {
-		recordCount++
-		assert.Equal(t, topic, record.Topic)
-		assert.Equal(t, partition, record.Partition)
-		assert.Equal(t, []byte(tenantID), record.Key)
-		assert.Equal(t, recordBytes, record.Value)
-		assert.Equal(t, int64(0), record.Offset)
-	})
-
-	assert.Equal(t, 1, recordCount, "Expected exactly one record")
 }
