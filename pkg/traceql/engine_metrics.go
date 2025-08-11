@@ -136,7 +136,9 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
 	wasInstant := end-start == step
 
-	start2 := uint64(blockStart.UnixNano())
+	// We subtract 1 nanosecond from the block's start time
+	// to make sure we include the left border of the block.
+	start2 := uint64(blockStart.UnixNano()) - 1
 	// Block's endTime is rounded down to the nearest second and considered inclusive.
 	// In order to include the right border with nanoseconds, we add 1 second
 	blockEnd = blockEnd.Add(time.Second)
