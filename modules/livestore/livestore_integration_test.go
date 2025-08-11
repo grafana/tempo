@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,7 +33,7 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	defer kafkaClient.Close()
 
 	// Write test data
-	expectedTraceIDs := writeTestTraces(t, kafkaClient.(*InMemoryKafkaClient), topic, tenantID, traceCount)
+	expectedTraceIDs := writeTestTraces(t, kafkaClient.(*test.InMemoryKafkaClient), topic, tenantID, traceCount)
 
 	// Start the service
 	ctx := context.Background()
@@ -53,11 +54,8 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 			instance.liveTracesMtx.Lock()
 			liveTraceCount := instance.liveTraces.Len()
 			instance.liveTracesMtx.Unlock()
-
-			t.Logf("Found instance with %d live traces (expected: %d)", liveTraceCount, traceCount)
 			return int(liveTraceCount) >= traceCount
 		}
-		t.Logf("No instance found yet")
 		return false
 	}, 5*time.Second, 100*time.Millisecond, "Expected all traces to be processed into live traces")
 
@@ -98,7 +96,6 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 
 	// Verify we found all expected traces
 	assert.Equal(t, len(expectedTraceIDsMap), len(traceMap), "Should have found all expected trace IDs")
-	t.Logf("Verified %d live traces with correct content", len(traceMap))
 
 	// Force cut traces to blocks (simulate idle timeout)
 	err = instance.cutIdleTraces(true) // immediate = true
@@ -130,7 +127,6 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 
 		// Verify trace structure
 		assert.Greater(t, len(trace.ResourceSpans), 0, "Trace should have resource spans")
-		t.Logf("Found trace in block: %s", string(traceID))
 	}
 
 	// Verify all expected traces are in the block
@@ -139,7 +135,6 @@ func TestLiveStore_TraceProcessingToBlocks(t *testing.T) {
 	}
 
 	assert.Equal(t, len(expectedTraceIDs), len(blockTraceIDs), "Block should contain all expected traces")
-	t.Logf("Verified %d traces correctly written to WAL block", len(blockTraceIDs))
 
 	// Clean up
 	liveStore.StopAsync()
@@ -169,12 +164,12 @@ func encodeTraceRecord(_ string, pushReq *tempopb.PushBytesRequest) ([]byte, err
 }
 
 // setupLiveStoreForTest creates and configures a LiveStore with in-memory Kafka for testing
-func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, KafkaClient) {
+func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, util.KafkaClient) {
 	// Create temporary directory for WAL
 	tmpDir := t.TempDir()
 
 	// Create in-memory kafka client
-	kafkaClient := NewInMemoryKafkaClient()
+	kafkaClient := test.NewInMemoryKafkaClient()
 
 	// Create livestore config
 	cfg := Config{
@@ -202,7 +197,7 @@ func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string
 	logger := log.NewNopLogger()
 	reg := prometheus.NewRegistry()
 
-	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
+	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (util.KafkaClient, error) {
 		return kafkaClient, nil
 	}
 
@@ -221,7 +216,7 @@ func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string
 }
 
 // writeTestTraces creates and writes test trace data to Kafka
-func writeTestTraces(t *testing.T, kafkaClient *InMemoryKafkaClient, topic, tenantID string, traceCount int) []string {
+func writeTestTraces(t *testing.T, kafkaClient *test.InMemoryKafkaClient, topic, tenantID string, traceCount int) []string {
 	expectedTraceIDs := make([]string, traceCount)
 
 	// Add multiple trace messages
@@ -255,7 +250,6 @@ func writeTestTraces(t *testing.T, kafkaClient *InMemoryKafkaClient, topic, tena
 			[]byte(tenantID),
 			recordBytes,
 		)
-		t.Logf("Added message %d to Kafka", i)
 	}
 
 	return expectedTraceIDs

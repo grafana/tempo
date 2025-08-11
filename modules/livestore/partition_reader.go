@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -37,7 +38,7 @@ type PartitionReader struct {
 	consumerGroup string
 	topic         string
 
-	client KafkaClient
+	client util.KafkaClient
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -50,12 +51,12 @@ type PartitionReader struct {
 	wg             sync.WaitGroup
 }
 
-func NewPartitionReaderForPusher(client KafkaClient, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client util.KafkaClient, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
 	return newPartitionReader(client, partitionID, cfg, consume, logger, metrics)
 }
 
-func newPartitionReader(client KafkaClient, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client util.KafkaClient, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
 	r := &PartitionReader{
 		partitionID:    partitionID,
 		consumerGroup:  cfg.ConsumerGroup,

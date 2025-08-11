@@ -1,4 +1,4 @@
-package livestore
+package test
 
 import (
 	"context"

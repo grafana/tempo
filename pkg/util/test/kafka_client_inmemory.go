@@ -1,4 +1,4 @@
-package livestore
+package test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kprom"
@@ -324,6 +325,6 @@ func (c *InMemoryKafkaClient) buildFetches(topicsMap map[string][]kgo.FetchParti
 }
 
 // InMemoryKafkaClientFactory creates an in-memory Kafka client factory for testing
-func InMemoryKafkaClientFactory(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
+func InMemoryKafkaClientFactory(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (util.KafkaClient, error) {
 	return NewInMemoryKafkaClient(), nil
 }
