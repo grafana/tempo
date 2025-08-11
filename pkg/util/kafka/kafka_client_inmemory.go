@@ -34,7 +34,7 @@ type InMemoryTopic struct {
 	partitions map[int32]*InMemoryPartition
 }
 
-// InMemoryKafkaClient implements KafkaClient interface using in-memory queues for testing
+// InMemoryKafkaClient implements Client interface using in-memory queues for testing
 type InMemoryKafkaClient struct {
 	topics map[string]*InMemoryTopic
 
@@ -324,6 +324,6 @@ func (c *InMemoryKafkaClient) buildFetches(topicsMap map[string][]kgo.FetchParti
 }
 
 // InMemoryKafkaClientFactory creates an in-memory Kafka client factory for testing
-func InMemoryKafkaClientFactory(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (KafkaClient, error) {
+func InMemoryKafkaClientFactory(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (Client, error) {
 	return NewInMemoryKafkaClient(), nil
 }

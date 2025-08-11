@@ -10,8 +10,8 @@ import (
 	"github.com/twmb/franz-go/plugin/kprom"
 )
 
-// KafkaClient is an interface for Kafka client operations used by the live store
-type KafkaClient interface {
+// Client is an interface for Kafka client operations used by the live store
+type Client interface {
 	Ping(ctx context.Context) error
 	AddConsumePartitions(partitions map[string]map[int32]kgo.Offset)
 	RemoveConsumePartitions(partitions map[string][]int32)
@@ -21,5 +21,5 @@ type KafkaClient interface {
 	CommitOffsets(ctx context.Context, group string, offsets kadm.Offsets) (kadm.OffsetResponses, error)
 }
 
-// KafkaClientFunc is a function that creates a KafkaClient
-type KafkaClientFunc func(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (KafkaClient, error)
+// KafkaClientFunc is a function that creates a Client
+type KafkaClientFunc func(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (Client, error)

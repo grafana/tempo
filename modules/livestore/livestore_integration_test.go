@@ -164,7 +164,7 @@ func encodeTraceRecord(_ string, pushReq *tempopb.PushBytesRequest) ([]byte, err
 }
 
 // setupLiveStoreForTest creates and configures a LiveStore with in-memory Kafka for testing
-func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, kafka.KafkaClient) {
+func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string) (*LiveStore, kafka.Client) {
 	// Create temporary directory for WAL
 	tmpDir := t.TempDir()
 
@@ -197,7 +197,7 @@ func setupLiveStoreForTest(t *testing.T, ingesterID, topic, consumerGroup string
 	logger := log.NewNopLogger()
 	reg := prometheus.NewRegistry()
 
-	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (kafka.KafkaClient, error) {
+	clientFactory := func(_ ingest.KafkaConfig, _ *kprom.Metrics, _ log.Logger) (kafka.Client, error) {
 		return kafkaClient, nil
 	}
 

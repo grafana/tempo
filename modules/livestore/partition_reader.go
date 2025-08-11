@@ -38,7 +38,7 @@ type PartitionReader struct {
 	consumerGroup string
 	topic         string
 
-	client kafka.KafkaClient
+	client kafka.Client
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -51,12 +51,12 @@ type PartitionReader struct {
 	wg             sync.WaitGroup
 }
 
-func NewPartitionReaderForPusher(client kafka.KafkaClient, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client kafka.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
 	return newPartitionReader(client, partitionID, cfg, consume, logger, metrics)
 }
 
-func newPartitionReader(client kafka.KafkaClient, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client kafka.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
 	r := &PartitionReader{
 		partitionID:    partitionID,
 		consumerGroup:  cfg.ConsumerGroup,

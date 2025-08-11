@@ -18,7 +18,7 @@ type KafkaClient struct {
 }
 
 // NewKafkaClient creates a new Franz/kgo-based Kafka client
-func NewKafkaClient(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (kafka.KafkaClient, error) {
+func NewKafkaClient(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (kafka.Client, error) {
 	client, err := ingest.NewReaderClient(cfg, metrics, logger)
 	if err != nil {
 		return nil, err
@@ -62,6 +62,6 @@ func (c *KafkaClient) CommitOffsets(ctx context.Context, group string, offsets k
 	return c.adminCl.CommitOffsets(ctx, group, offsets)
 }
 
-func FranzKafkaClientFunc(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (kafka.KafkaClient, error) {
+func FranzKafkaClientFunc(cfg ingest.KafkaConfig, metrics *kprom.Metrics, logger log.Logger) (kafka.Client, error) {
 	return NewKafkaClient(cfg, metrics, logger)
 }

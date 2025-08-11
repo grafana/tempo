@@ -52,7 +52,7 @@ type LiveStore struct {
 	ingestPartitionID         int32
 	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
 
-	client  kafka.KafkaClient
+	client  kafka.Client
 	decoder *ingest.Decoder
 
 	reader *PartitionReader
