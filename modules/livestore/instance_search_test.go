@@ -44,7 +44,7 @@ const (
 )
 
 func TestInstanceSearch(t *testing.T) {
-	i, _, _ := defaultInstanceAndTmpDir(t)
+	i, _ := defaultInstanceAndTmpDir(t)
 
 	tagKey := foo
 	tagValue := bar
@@ -91,7 +91,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 	for _, query := range queries {
 		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
-			i, _, _ := defaultInstanceAndTmpDir(t)
+			i, _ := defaultInstanceAndTmpDir(t)
 
 			_, ids := pushTracesToInstance(t, i, 10)
 
@@ -134,7 +134,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 }
 
 func TestInstanceSearchWithStartAndEnd(t *testing.T) {
-	i, _, _ := defaultInstanceAndTmpDir(t)
+	i, _ := defaultInstanceAndTmpDir(t)
 
 	tagKey := foo
 	tagValue := bar
@@ -148,7 +148,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		return sr
 	}
 
-	searchAndAssert := func(req *tempopb.SearchRequest, inspectedTraces uint32) {
+	searchAndAssert := func(req *tempopb.SearchRequest, _ uint32) {
 		sr := search(req, 0, 0)
 		assert.Len(t, sr.Traces, len(ids))
 		checkEqual(t, ids, sr)
@@ -272,11 +272,11 @@ func TestInstanceSearchNoData(t *testing.T) {
 
 // Helper functions adapted from ingester module
 func defaultInstance(t testing.TB) (*instance, *LiveStore) {
-	instance, liveStore, _ := defaultInstanceAndTmpDir(t)
+	instance, liveStore := defaultInstanceAndTmpDir(t)
 	return instance, liveStore
 }
 
-func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore, string) {
+func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore) {
 	tmpDir := t.TempDir()
 
 	liveStore, err := defaultLiveStore(t, tmpDir)
@@ -293,7 +293,7 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore, string) {
 	instance, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err, "unexpected error creating new instance")
 
-	return instance, liveStore, tmpDir
+	return instance, liveStore
 }
 
 func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
@@ -386,7 +386,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 
 		tv := tagValue
 		if postFixValue {
-			tv = tv + strconv.Itoa(j)
+			tv += strconv.Itoa(j)
 		}
 		kv := &v1.KeyValue{Key: tagKey, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: tv}}}
 		eTv := "event-" + tv
@@ -444,7 +444,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 }
 
 func TestInstanceSearchDoesNotRace(t *testing.T) {
-	i, _, _ := defaultInstanceAndTmpDir(t)
+	i, _ := defaultInstanceAndTmpDir(t)
 
 	// add dummy search data
 	tagKey := foo
