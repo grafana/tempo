@@ -1,22 +1,25 @@
 /*
-* ingester is used as the template for livestore/instance_search.go any changes here should be reflected there and vice versa.
+* livestore is based on ingester/instance_search.go any changes here should be reflected there and vice versa.
  */
-package ingester
+package livestore
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/segmentio/fasthash/fnv1a"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/collector"
@@ -26,6 +29,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+var tracer = otel.Tracer("modules/livestore")
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "instance.Search")
@@ -124,18 +129,12 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	}
 
 	// Search headblock (synchronously)
-	// Lock headblock separately from other blocks and release it as quickly as possible.
-	// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
-	// To avoid deadlocks this function and all others must acquire them in
-	// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
-	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
-	// that eventually a deadlock will occur.
-	i.headBlockMtx.RLock()
+	i.blocksMtx.RLock()
 	span.AddEvent("acquired headblock mtx")
 	if includeBlock(i.headBlock.BlockMeta(), req) {
 		search(i.headBlock.BlockMeta(), i.headBlock, "headBlock")
 	}
-	i.headBlockMtx.RUnlock()
+	i.blocksMtx.RUnlock()
 	if err := anyErr.Load(); err != nil {
 		return nil, err
 	}
@@ -150,7 +149,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	wg := sync.WaitGroup{}
 
-	for _, b := range i.completingBlocks {
+	for _, b := range i.walBlocks {
 		if !includeBlock(b.BlockMeta(), req) {
 			continue
 		}
@@ -167,7 +166,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			continue
 		}
 		wg.Add(1)
-		go func(b *LocalBlock) {
+		go func(b *ingester.LocalBlock) {
 			defer wg.Done()
 			search(b.BlockMeta(), b, "completeBlock")
 		}(b)
@@ -229,7 +228,8 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		return nil, fmt.Errorf("unknown scope: %s", scope)
 	}
 
-	maxBytestPerTags := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
+	// TODO MRD Add limits
+	maxBytestPerTags := math.MaxInt64
 	distinctValues := collector.NewScopedDistinctString(maxBytestPerTags, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	mc := collector.NewMetricsCollector()
 
@@ -269,10 +269,10 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		}, fetcher)
 	}
 
-	i.headBlockMtx.RLock()
+	i.blocksMtx.RLock()
 	span.AddEvent("acquired headblock mtx")
 	err = searchBlock(ctx, i.headBlock, "headBlock")
-	i.headBlockMtx.RUnlock()
+	i.blocksMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
 	}
@@ -281,7 +281,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	defer i.blocksMtx.RUnlock()
 	span.AddEvent("acquired blocks mtx")
 
-	for _, b := range i.completingBlocks {
+	for _, b := range i.walBlocks {
 		if err = searchBlock(ctx, b, "completingBlock"); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
 		}
@@ -319,12 +319,14 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 		return nil, err
 	}
 
-	maxBytesPerTagValues := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
+	// TODO MRD Add limits
+	maxBytesPerTagValues := math.MaxInt64
 	distinctValues := collector.NewDistinctString(maxBytesPerTagValues, limit, staleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
 	var inspectedBlocks, maxBlocks int
-	if limit := i.limiter.Limits().MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+	// TODO MRD Add limits
+	if limit := math.MaxInt64; limit > 0 {
 		maxBlocks = limit
 	}
 
@@ -349,9 +351,9 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 		return nil
 	}
 
-	i.headBlockMtx.RLock()
+	i.blocksMtx.RLock()
 	err = search(i.headBlock, distinctValues)
-	i.headBlockMtx.RUnlock()
+	i.blocksMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
 	}
@@ -359,7 +361,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
-	for _, b := range i.completingBlocks {
+	for _, b := range i.walBlocks {
 		if err = search(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
 		}
@@ -389,7 +391,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2")
 	defer span.End()
 
-	limit := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
+	// TODO MRD Add limits
+	limit := math.MaxInt64
 	valueCollector := collector.NewDistinctValue(limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector() // to collect bytesRead metric
 
@@ -401,7 +404,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	var anyErr atomic.Error
 	var inspectedBlocks atomic.Int32
 	var maxBlocks int32
-	if limit := i.limiter.Limits().MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+	// TODO MRD Add limits
+	if limit := math.MaxInt64; limit > 0 {
 		maxBlocks = int32(limit)
 	}
 
@@ -460,7 +464,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return performSearch(ctx, s, valueCollector)
 	}
 
-	searchBlockWithCache := func(ctx context.Context, b *LocalBlock, spanName string) error {
+	searchBlockWithCache := func(ctx context.Context, b *ingester.LocalBlock, spanName string) error {
 		ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2."+spanName)
 		defer span.End()
 
@@ -533,12 +537,12 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
 	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
-	i.headBlockMtx.RLock()
+	i.blocksMtx.RLock()
 	span.AddEvent("acquired headblock mtx")
 	if i.headBlock != nil {
 		wg.Add(1)
 		go func() {
-			defer i.headBlockMtx.RUnlock()
+			defer i.blocksMtx.RUnlock()
 			defer wg.Done()
 			if err := searchBlock(ctx, i.headBlock, "headBlock"); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
@@ -553,7 +557,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// completed blocks
 	for _, b := range i.completeBlocks {
 		wg.Add(1)
-		go func(b *LocalBlock) {
+		go func(b *ingester.LocalBlock) {
 			defer wg.Done()
 			if err := searchBlockWithCache(ctx, b, "completeBlocks"); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
@@ -562,7 +566,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	}
 
 	// completing blocks
-	for _, b := range i.completingBlocks {
+	for _, b := range i.walBlocks {
 		wg.Add(1)
 		go func(b common.WALBlock) {
 			defer wg.Done()
