@@ -1,3 +1,6 @@
+/*
+* ingester is used as the template for livestore/instance_search.go any changes here should be reflected there and vice versa.
+ */
 package ingester
 
 import (
