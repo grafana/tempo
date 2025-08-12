@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"sort"
 	"sync"
-	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
@@ -781,9 +779,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
-			r := v.RepetitionLevel()
-			d := v.DefinitionLevel()
-			c.curr.Next(r, d, c.maxDefinitionLevel)
+			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
 			c.currBufN++
 			c.currPageN++
 
@@ -1007,7 +1003,7 @@ func (j *JoinIterator) seek(iterNum int, t RowNumber, d int) error {
 
 func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 	var err error
-	// t = TruncateRowNumber(d, t)
+	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
 		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
 			// Release peek if present
@@ -1081,7 +1077,6 @@ type LeftJoinIterator struct {
 	pred                         GroupPredicate
 	pool                         *ResultPool
 	at                           *IteratorResult
-	b                            branchOptimizer
 }
 
 var _ Iterator = (*LeftJoinIterator)(nil)
@@ -1109,10 +1104,6 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 	}
 
 	j.at = j.pool.Get()
-
-	if len(required) > 1 {
-		j.b = newBranchPredictor(len(required), 5)
-	}
 
 	return j, nil
 }
@@ -1164,27 +1155,11 @@ outer:
 				return nil, nil
 			}
 
-			if !j.b.Recording {
-				// After recording is finished and iterators are in the optimal order
-				// Then we can exit early if we already didn't find a match.
-				if CompareRowNumbers(j.definitionLevel, j.peeksRequired[iterNum].RowNumber, j.peeksRequired[0].RowNumber) == 1 {
-					// This iterator has a higher row number and doesn't match.
-					// Seek the primary iterator to it and start over.
-					err := j.seek(0, j.peeksRequired[iterNum].RowNumber, j.definitionLevel)
-					if err != nil {
-						return nil, err
-					}
-					continue outer
-				}
-			}
-		}
-
-		if j.b.Recording {
-			foundMatch, err := j.sample()
-			if err != nil {
-				return nil, err
-			}
-			if !foundMatch {
+			if CompareRowNumbers(j.definitionLevel, j.peeksRequired[iterNum].RowNumber, j.peeksRequired[0].RowNumber) == 1 {
+				// This iterator has a higher row number than all previous iterators.  That means it might have
+				// a higher filtering power, swap it to the top and restart the loop.
+				j.required[0], j.required[iterNum] = j.required[iterNum], j.required[0]
+				j.peeksRequired[0], j.peeksRequired[iterNum] = j.peeksRequired[iterNum], j.peeksRequired[0]
 				continue outer
 			}
 		}
@@ -1202,55 +1177,6 @@ outer:
 			return result, nil
 		}
 	}
-}
-
-func (j *LeftJoinIterator) sample() (foundMatch bool, err error) {
-	// Get the highest row number. This is the match furthest
-	// into the file, and indicates the iterator with the most
-	// filtering power.
-	highestRowNumber := EmptyRowNumber()
-	for i := range j.peeksRequired {
-		if CompareRowNumbers(j.definitionLevel, highestRowNumber, j.peeksRequired[i].RowNumber) == -1 {
-			highestRowNumber = j.peeksRequired[i].RowNumber
-		}
-	}
-
-	// Penalize all branches that were less the highest row number
-	// since they had less filtering power. Scale the penalty by the
-	// number of rows that they lag the highest. This gives the estimate
-	// of work they would have required to arrive at the same place.
-	// We also need to check if all rows did find a match, which we can do
-	// at the same time.
-	foundMatch = true
-	for i := range j.peeksRequired {
-		if !EqualRowNumber(j.definitionLevel, j.peeksRequired[i].RowNumber, highestRowNumber) {
-			j.b.PenalizeWithScale(i, float64(highestRowNumber[0]-j.peeksRequired[i].RowNumber[0])+1)
-			foundMatch = false
-		}
-	}
-
-	if done := j.b.Sampled(); done {
-		// We have enough samples to make a decision
-		// Reorder all iterators and their current values to the optimal order
-		order := j.b.OptimalBranchOrder()
-		newRequired := make([]Iterator, len(j.required))
-		newPeeks := make([]*IteratorResult, len(j.required))
-		for i := range order {
-			newRequired[i] = j.required[order[i]]
-			newPeeks[i] = j.peeksRequired[order[i]]
-		}
-		j.required = newRequired
-		j.peeksRequired = newPeeks
-
-		// Seek the primary iterator to the highest row number
-		// and restart the loop.
-		err := j.seek(0, highestRowNumber, j.definitionLevel)
-		if err != nil {
-			return false, err
-		}
-	}
-
-	return foundMatch, nil
 }
 
 func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
@@ -1328,20 +1254,9 @@ func (j *LeftJoinIterator) seekAllOptional(t RowNumber, d int) (err error) {
 func (j *LeftJoinIterator) peek(iterNum int) (*IteratorResult, error) {
 	var err error
 	if j.peeksRequired[iterNum] == nil {
-
-		// Record timing if needed
-		recording := j.b.Recording
-		if recording {
-			j.b.Start()
-		}
-
 		j.peeksRequired[iterNum], err = j.required[iterNum].Next()
 		if err != nil {
 			return nil, err
-		}
-
-		if recording {
-			j.b.Finish(iterNum)
 		}
 	}
 	return j.peeksRequired[iterNum], nil
@@ -1630,6 +1545,10 @@ func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
 	return true
 }
 
+func panicWhenInvalidDefinitionLevel(definitionLevel int) {
+	panic(fmt.Sprintf("definition level out of bound: should be [0:7] but got %d", definitionLevel))
+}
+
 /*func printGroup(g *iteratorResult) {
 	fmt.Println("---group---")
 	for _, e := range g.entries {
@@ -1637,86 +1556,3 @@ func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
 		fmt.Println(" : ", e.v.String())
 	}
 }*/
-
-const (
-	leftBranch  = 0
-	rightBranch = 1
-)
-
-type branchOptimizer struct {
-	start            time.Time
-	last             []time.Duration
-	totals           []time.Duration
-	Recording        bool
-	samplesRemaining int
-}
-
-func newBranchPredictor(numBranches int, numSamples int) branchOptimizer {
-	return branchOptimizer{
-		totals:           make([]time.Duration, numBranches),
-		last:             make([]time.Duration, numBranches),
-		samplesRemaining: numSamples,
-		Recording:        true,
-	}
-}
-
-// Start recording. Should be called immediately prior to a branch execution.
-func (b *branchOptimizer) Start() {
-	b.start = time.Now()
-}
-
-// Finish the recording and temporarily save the cost for the given branch number.
-func (b *branchOptimizer) Finish(branch int) {
-	b.last[branch] = time.Since(b.start)
-}
-
-// Penalize the given branch using it's previously recorded cost.  This is called after
-// executing all branches and then knowing in retrospect which ones were not needed.
-func (b *branchOptimizer) Penalize(branch int) {
-	b.totals[branch] += b.last[branch]
-}
-
-func (b *branchOptimizer) PenalizeWithScale(branch int, scale float64) {
-	b.totals[branch] += time.Duration(float64(b.last[branch]) * scale)
-}
-
-// Sampled indicates that a full execution was done and see if we have enough samples.
-func (b *branchOptimizer) Sampled() (done bool) {
-	b.samplesRemaining--
-	b.Recording = b.samplesRemaining > 0
-	return !b.Recording
-}
-
-// OptimalBranch returns the branch with the least penalized cost over time, i.e. the optimal one to start with.
-func (b *branchOptimizer) OptimalBranch() int {
-	mini := 0
-	min := b.totals[0]
-	for i := 1; i < len(b.totals); i++ {
-		if b.totals[i] < min {
-			mini = i
-			min = b.totals[i]
-		}
-	}
-	return mini
-}
-
-func (b *branchOptimizer) OptimalBranchOrder() []int {
-	entries := make([]struct {
-		branch int
-		cost   time.Duration
-	}, len(b.totals))
-	for i := range b.totals {
-		entries[i] = struct {
-			branch int
-			cost   time.Duration
-		}{branch: i, cost: b.totals[i]}
-	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].cost < entries[j].cost
-	})
-	order := make([]int, len(entries))
-	for i := range entries {
-		order[i] = entries[i].branch
-	}
-	return order
-}
