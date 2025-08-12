@@ -1495,10 +1495,6 @@ func (i *IntervalMapperQueryRange) Interval(ts uint64) int {
 
 func (i *IntervalMapperQueryRange) IntervalMs(tsmill int64) int {
 	ts := uint64(time.Duration(tsmill) * time.Millisecond)
-	if !i.isTsValid(ts, i.startMs, i.endMs, i.step) {
-		return -1
-	}
-
 	return i.interval(ts, i.startMs, i.endMs, i.step)
 }
 
