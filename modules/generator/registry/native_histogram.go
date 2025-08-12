@@ -3,6 +3,7 @@ package registry
 import (
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -62,6 +63,10 @@ type nativeHistogramSeries struct {
 	// This avoids Prometheus throwing away the first value in the series,
 	// due to the transition from null -> x.
 	firstSeries *atomic.Bool
+
+	// exemplar tracking for native histograms
+	exemplars      []*atomic.String
+	exemplarValues []*atomic.Float64
 
 	// classic
 	countLabels labels.Labels
@@ -141,11 +146,17 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 15 * time.Minute,
-			// TODO enable examplars on native histograms
-			NativeHistogramMaxExemplars: -1,
 		}),
-		lastUpdated: 0,
-		firstSeries: atomic.NewBool(true),
+		lastUpdated:    0,
+		firstSeries:    atomic.NewBool(true),
+		exemplars:      make([]*atomic.String, 0, len(h.buckets)),
+		exemplarValues: make([]*atomic.Float64, 0, len(h.buckets)),
+	}
+
+	// Initialize exemplar tracking arrays for each bucket
+	for i := 0; i < len(h.buckets); i++ {
+		newSeries.exemplars = append(newSeries.exemplars, atomic.NewString(""))
+		newSeries.exemplarValues = append(newSeries.exemplarValues, atomic.NewFloat64(0))
 	}
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
@@ -185,6 +196,17 @@ func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, 
 			map[string]string{h.traceIDLabelName: traceID},
 		)
 	}
+
+	// Track exemplar in the appropriate bucket for native histogram
+	// This mirrors the logic from the classic histogram implementation
+	if len(s.exemplars) > 0 && len(h.buckets) > 0 {
+		bucket := sort.SearchFloat64s(h.buckets, value)
+		if bucket < len(s.exemplars) {
+			s.exemplars[bucket].Store(traceID)
+			s.exemplarValues[bucket].Store(value)
+		}
+	}
+
 	s.lastUpdated = time.Now().UnixMilli()
 }
 
@@ -234,21 +256,12 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		// TODO: impact on active series from appending a histogram?
 		activeSeries += 0
 
-		if len(s.histogram.Exemplars) > 0 {
-			for _, encodedExemplar := range s.histogram.Exemplars {
+		// NOTE: We rely on our custom exemplar tracking instead of prometheus native histogram exemplars
+		// to maintain consistency with classic histogram behavior
 
-				// TODO are we appending the same exemplar twice?
-				e := exemplar.Exemplar{
-					Labels: convertLabelPairToLabels(encodedExemplar.Label),
-					Value:  encodedExemplar.GetValue(),
-					Ts:     convertTimestampToMs(encodedExemplar.GetTimestamp()),
-					HasTs:  true,
-				}
-				_, err = appender.AppendExemplar(0, s.labels, e)
-				if err != nil {
-					return activeSeries, err
-				}
-			}
+		// Clear all exemplars after emission to prevent them from being emitted again
+		for i := range s.exemplars {
+			s.exemplars[i].Store("")
 		}
 	}
 
@@ -360,6 +373,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		}
 		activeSeries++
 
+		// Check for exemplars from prometheus histogram first
 		if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
 			_, err = appender.AppendExemplar(ref, s.lb.Labels(), exemplar.Exemplar{
 				Labels: convertLabelPairToLabels(bucket.Exemplar.GetLabel()),
@@ -370,6 +384,35 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 				return activeSeries, err
 			}
 			bucket.Exemplar.Reset()
+		} else {
+			// Check for exemplars from our custom tracking (for native histograms)
+			// Find the bucket index that corresponds to this bucket's upper bound
+			bucketIndex := -1
+			for i, bucketBound := range h.buckets {
+				if bucket.GetUpperBound() == bucketBound {
+					bucketIndex = i
+					break
+				}
+			}
+
+			if bucketIndex >= 0 && bucketIndex < len(s.exemplars) {
+				ex := s.exemplars[bucketIndex].Load()
+				if ex != "" {
+					_, err = appender.AppendExemplar(ref, s.lb.Labels(), exemplar.Exemplar{
+						Labels: []labels.Label{{
+							Name:  h.traceIDLabelName,
+							Value: ex,
+						}},
+						Value: s.exemplarValues[bucketIndex].Load(),
+						Ts:    timeMs,
+					})
+					if err != nil {
+						return activeSeries, err
+					}
+					// Clear the exemplar so we don't emit it again
+					s.exemplars[bucketIndex].Store("")
+				}
+			}
 		}
 	}
 
@@ -383,11 +426,40 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 				return activeSeries, err
 			}
 		}
-		_, err = appender.Append(0, s.lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
+		ref, err := appender.Append(0, s.lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
 		if err != nil {
 			return activeSeries, err
 		}
 		activeSeries++
+
+		// Check for exemplars in the +Inf bucket from our custom tracking
+		// Find the bucket index that corresponds to +Inf
+		infBucketIndex := -1
+		for i, bucketBound := range h.buckets {
+			if math.IsInf(bucketBound, 1) {
+				infBucketIndex = i
+				break
+			}
+		}
+
+		if infBucketIndex >= 0 && infBucketIndex < len(s.exemplars) {
+			ex := s.exemplars[infBucketIndex].Load()
+			if ex != "" {
+				_, err = appender.AppendExemplar(ref, s.lb.Labels(), exemplar.Exemplar{
+					Labels: []labels.Label{{
+						Name:  h.traceIDLabelName,
+						Value: ex,
+					}},
+					Value: s.exemplarValues[infBucketIndex].Load(),
+					Ts:    timeMs,
+				})
+				if err != nil {
+					return activeSeries, err
+				}
+				// Clear the exemplar so we don't emit it again
+				s.exemplars[infBucketIndex].Store("")
+			}
+		}
 	}
 
 	// drop "le" label again
