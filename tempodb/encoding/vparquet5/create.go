@@ -281,25 +281,27 @@ func (b *streamingBlock) Complete() (int, error) {
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom, b.index)
 }
 
-// estimateMarshalledSizeFromTrace attempts to estimate the size of trace in bytes. This is used to make choose
-// when to cut a row group during block creation.
-// TODO: This function regularly estimates lower values then estimateProtoSize() and the size
-// of the actual proto. It's also quite inefficient. Perhaps just using static values per span or attribute
-// would be a better choice?
+// estimateMarshalledSizeFromTrace estimates the size of this trace when written to parquet. This is used to
+// determine when to cut a row group during block creation.   This function is about 85% accurate.
 func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
 	size += 7 // 7 trace lvl fields
+	size += len(tr.TraceID)
 
 	for _, rs := range tr.ResourceSpans {
 		size += estimateAttrSize(rs.Resource.Attrs)
-		size += 10 // 10 resource span lvl fields
+		size += 21 // 21 resource lvl fields including dedicated attributes
 
 		for _, ils := range rs.ScopeSpans {
 			size += 2 // 2 scope span lvl fields
+			size += 4 // 4 scope fields
+			size += estimateAttrSize(ils.Scope.Attrs)
 
 			for _, s := range ils.Spans {
-				size += 14 // 14 span lvl fields
+				size += 35 // 35 span lvl fields including dedicated attributes
+				size += len(s.SpanID) + len(s.ParentSpanID)
 				size += estimateAttrSize(s.Attrs)
 				size += estimateEventsSize(s.Events)
+				size += estimateLinksSize(s.Links)
 			}
 		}
 	}
@@ -307,13 +309,32 @@ func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
 }
 
 func estimateAttrSize(attrs []Attribute) (size int) {
-	return len(attrs) * 7 // 7 attribute lvl fields
+	size += len(attrs) * 7 // 7 attribute lvl fields
+
+	// 1 byte for every entry in arrays after the first one.
+	for _, a := range attrs {
+		size += max(0, len(a.Value)-1)
+		size += max(0, len(a.ValueInt)-1)
+		size += max(0, len(a.ValueDouble)-1)
+		size += max(0, len(a.ValueBool)-1)
+	}
+
+	return
 }
 
 func estimateEventsSize(events []Event) (size int) {
 	for _, e := range events {
-		size += 4                // 4 event lvl fields
-		size += 4 * len(e.Attrs) // 2 event attribute fields
+		size += 4 // 4 event lvl fields
+		size += estimateAttrSize(e.Attrs)
+	}
+	return
+}
+
+func estimateLinksSize(links []Link) (size int) {
+	for _, l := range links {
+		size += 5 // 5 link lvl fields
+		size += len(l.TraceID) + len(l.SpanID)
+		size += estimateAttrSize(l.Attrs)
 	}
 	return
 }

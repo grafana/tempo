@@ -2111,10 +2111,6 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			addPredicate(v.ColumnPath, nil)
 			columnSelectAs[v.ColumnPath] = k
 		}
-
-		for k := range columnSelectAs {
-			fmt.Println("Span select all:", k)
-		}
 	}
 
 	for columnPath, predicates := range columnPredicates {
@@ -2336,10 +2332,6 @@ func createResourceIterator(makeIter makeIterFn, instrumentationIterator parquet
 			addPredicate(v.ColumnPath, nil)
 			columnSelectAs[v.ColumnPath] = k
 		}
-
-		for k := range columnSelectAs {
-			fmt.Println("Resource select all:", k)
-		}
 	}
 
 	for columnPath, predicates := range columnPredicates {
@@ -2412,7 +2404,6 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 				traceql.IntrinsicServiceStats:
 				continue
 			}
-			fmt.Println("Trace select all:", entry.columnPath)
 			iters = append(iters, makeIter(entry.columnPath, nil, entry.columnPath))
 		}
 	} else {
@@ -2779,6 +2770,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		// Alternatively, JoinIterators don't pay attention to -1 (undefined) when checking
 		// the definition level matches.  Fixing that would also work but would need wider testing first.
 		skipNils := &parquetquery.SkipNilsPredicate{}
+
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{
 				makeIter(keyPath, skipNils, "key"),
