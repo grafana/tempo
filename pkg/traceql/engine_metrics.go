@@ -1467,18 +1467,23 @@ func NewIntervalMapper(start, end, step uint64) IntervalMapper {
 			endMs:   endMs,
 		}
 	}
-	return &IntervalMapperQueryRange{
+	mapper := &IntervalMapperQueryRange{
 		start:   alignStart(start, end, step),
 		end:     alignEnd(start, end, step),
 		step:    step,
 		startMs: alignStart(startMs, endMs, step),
 		endMs:   alignEnd(startMs, endMs, step),
 	}
+	// pre-calculate intervals
+	intervals := (mapper.end - mapper.start) / mapper.step
+	mapper.intervalCount = int(intervals)
+	return mapper
 }
 
 type IntervalMapperQueryRange struct {
 	start, end, step uint64
 	startMs, endMs   uint64
+	intervalCount    int
 }
 
 func (i *IntervalMapperQueryRange) Interval(ts uint64) int {
@@ -1520,8 +1525,7 @@ func (i *IntervalMapperQueryRange) TimestampOf(interval int) uint64 {
 }
 
 func (i *IntervalMapperQueryRange) IntervalCount() int {
-	intervals := (i.end - i.start) / i.step
-	return int(intervals)
+	return i.intervalCount
 }
 
 func (i *IntervalMapperQueryRange) isTsValid(ts, start, end, step uint64) bool {
