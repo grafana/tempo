@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/ingest/testkafka"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -302,6 +303,15 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	cfg := Config{}
 	cfg.WAL.Filepath = tmpDir
 	cfg.WAL.Version = encoding.LatestEncoding().Version()
+
+	// Set up test Kafka configuration
+	const testTopic = "traces"
+	_, kafkaAddr := testkafka.CreateCluster(t, 1, testTopic)
+
+	cfg.IngestConfig.Kafka.Address = kafkaAddr
+	cfg.IngestConfig.Kafka.Topic = testTopic
+	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
+
 	flagext.DefaultValues(&cfg.LifecyclerConfig)
 	mockStore, _ := consul.NewInMemoryClient(
 		ring.GetPartitionRingCodec(),
@@ -328,10 +338,8 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 
 	logger := log.NewNopLogger()
 
-	// Use in-memory Kafka client for testing
-	clientFactory := InMemoryKafkaClientFactory
-
-	liveStore, err := New(cfg, limits, logger, reg, true, clientFactory) // singlePartition = true for testing
+	// Use fake Kafka cluster for testing
+	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
 	return liveStore, err
 }
 

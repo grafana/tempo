@@ -37,7 +37,8 @@ type PartitionReader struct {
 	consumerGroup string
 	topic         string
 
-	client Client
+	client *kgo.Client
+	adm    *kadm.Client
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -50,17 +51,18 @@ type PartitionReader struct {
 	wg             sync.WaitGroup
 }
 
-func NewPartitionReaderForPusher(client Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
 	return newPartitionReader(client, partitionID, cfg, consume, logger, metrics)
 }
 
-func newPartitionReader(client Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
 	r := &PartitionReader{
 		partitionID:    partitionID,
 		consumerGroup:  cfg.ConsumerGroup,
 		topic:          cfg.Topic,
 		client:         client,
+		adm:            kadm.NewClient(client),
 		consume:        consume,
 		metrics:        metrics,
 		logger:         log.With(logger, "partition", partitionID),
@@ -200,7 +202,7 @@ func (r *PartitionReader) fetchLastCommittedOffsetWithRetries(ctx context.Contex
 }
 
 func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Offset, error) {
-	offsets, err := r.client.FetchOffsets(ctx, r.consumerGroup)
+	offsets, err := r.adm.FetchOffsets(ctx, r.consumerGroup)
 	if errors.Is(err, kerr.UnknownTopicOrPartition) {
 		// In case we are booting up for the first time ever against this topic.
 		return kgo.NewOffset().AtStart(), nil
@@ -268,7 +270,7 @@ func (r *PartitionReader) commitOffset(ctx context.Context, offset int64) error 
 		At:        offset + 1,
 	})
 
-	_, err := r.client.CommitOffsets(ctx, r.consumerGroup, offsets)
+	_, err := r.adm.CommitOffsets(ctx, r.consumerGroup, offsets)
 	if err != nil {
 		return fmt.Errorf("failed to commit kafka offset %d: %w", offset, err)
 	}
