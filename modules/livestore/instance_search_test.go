@@ -1,3 +1,6 @@
+/*
+livestore instance_search_test is mostly based on the tests in ingest.
+*/
 package livestore
 
 import (
@@ -41,7 +44,7 @@ const (
 )
 
 func TestInstanceSearch(t *testing.T) {
-	i, _, tempDir := defaultInstanceAndTmpDir(t)
+	i, _, _ := defaultInstanceAndTmpDir(t)
 
 	tagKey := foo
 	tagValue := bar
@@ -76,9 +79,6 @@ func TestInstanceSearch(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
-
-	// Clean up temp dir
-	_ = tempDir
 }
 
 // TestInstanceSearchTraceQL is duplicate of TestInstanceSearch for now
@@ -91,14 +91,14 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 	for _, query := range queries {
 		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
-			i, _, tmpDir := defaultInstanceAndTmpDir(t)
-			// pushTracesToInstance creates traces with:
-			// `service.name = "test-service"` and duration >= 1s
+			i, _, _ := defaultInstanceAndTmpDir(t)
+
 			_, ids := pushTracesToInstance(t, i, 10)
 
 			req := &tempopb.SearchRequest{Query: query, Limit: 20, SpansPerSpanSet: 10}
 
-			// Test live traces
+			// Test live traces, these are cut roughly every 5 seconds so these should
+			// not exist yet.
 			sr, err := i.Search(context.Background(), req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, 0)
@@ -129,9 +129,6 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
-
-			// Clean up temp dir
-			_ = tmpDir
 		})
 	}
 }
