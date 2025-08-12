@@ -40,7 +40,6 @@ Tempo requires the following configuration to authenticate to and access Azure b
 
 ## Sample configuration for Tempo monolithic mode
 
-
 This sample configuration shows how to set up Azure blob storage using Helm charts and an access key from Kubernetes secrets.
 
 ```yaml
@@ -151,6 +150,15 @@ queryFrontend:
 ## Additional configuration options
 
 The following sections provide additional configuration options for Azure blob storage.
+
+### Use localblocks and metrics-generator
+
+[//]: # "Shared content for localblocks and metrics-generator in Azure blob storage"
+[//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
+
+{{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}
+
+For more information, refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/next/metrics-from-traces/metrics-queries/configure-traceql-metrics).
 
 ### Use Azurite for local development
 
