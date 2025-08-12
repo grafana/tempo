@@ -1229,7 +1229,7 @@ func BenchmarkIterators(b *testing.B) {
 
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
-		/*"{} | rate()",
+		"{} | rate()",
 		"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
@@ -1242,9 +1242,9 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",
 		"{} | max_over_time(duration) by (span.http.status_code)",
-		"{} | min_over_time(duration) by (span.http.status_code)",*/
+		"{} | min_over_time(duration) by (span.http.status_code)",
 		"{ name != nil } | compare({status=error})",
-		//"{} > {} | rate() by (name)", // structural
+		"{} > {} | rate() by (name)", // structural
 
 		// This is useful for sampler debugging
 		// {} | rate() with(sample=true,debug=true,info=true)
