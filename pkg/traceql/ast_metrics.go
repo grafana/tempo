@@ -153,7 +153,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	}
 
 	var innerAggFunc func() RangeAggregator
-	if IsInstant(*q) {
+	if IsInstant(q) {
 		innerAggFunc = func() RangeAggregator {
 			return NewInstantAggregator(q.Start, q.End, innerAgg)
 		}
