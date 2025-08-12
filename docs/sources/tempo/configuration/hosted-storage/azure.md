@@ -40,7 +40,6 @@ Tempo requires the following configuration to authenticate to and access Azure b
 
 ## Sample configuration for Tempo monolithic mode
 
-### Access key
 
 This sample configuration shows how to set up Azure blob storage using Helm charts and an access key from Kubernetes secrets.
 
