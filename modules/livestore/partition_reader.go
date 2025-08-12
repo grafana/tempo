@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/plugin/kprom"
 )
 
 type record struct {
@@ -282,6 +284,7 @@ func (r *PartitionReader) commitOffset(ctx context.Context, offset int64) error 
 type partitionReaderMetrics struct {
 	receiveDelay    prometheus.Histogram
 	recordsPerFetch prometheus.Histogram
+	kprom           *kprom.Metrics
 }
 
 func newPartitionReaderMetrics(partitionID int32, reg prometheus.Registerer) partitionReaderMetrics {
@@ -299,5 +302,9 @@ func newPartitionReaderMetrics(partitionID int32, reg prometheus.Registerer) par
 			Buckets:                     prometheus.ExponentialBuckets(1, 2, 15),
 			NativeHistogramBucketFactor: 1.1,
 		}),
+		kprom: kprom.NewMetrics("tempo_ingest_storage_reader",
+			kprom.Registerer(prometheus.WrapRegistererWith(prometheus.Labels{"partition": strconv.Itoa(int(partitionID))}, reg)),
+			// Do not export the client ID, because we use it to specify options to the backend.
+			kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes)),
 	}
 }
