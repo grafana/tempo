@@ -129,12 +129,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	}
 
 	// Search headblock (synchronously)
-	// Lock headblock separately from other blocks and release it as quickly as possible.
-	// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
-	// To avoid deadlocks this function and all others must acquire them in
-	// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
-	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
-	// that eventually a deadlock will occur.
 	i.blocksMtx.RLock()
 	span.AddEvent("acquired headblock mtx")
 	if includeBlock(i.headBlock.BlockMeta(), req) {
