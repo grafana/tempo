@@ -1645,9 +1645,8 @@ func (h *HistogramAggregator) Results() SeriesSet {
 	})
 
 	quantileValues := make([]float64, len(h.qs))
-	quantileBucketIndices := make([]int, len(h.qs))
 	for i, q := range h.qs {
-		quantileValues[i], quantileBucketIndices[i] = Log2QuantileWithBucket(q, buckets)
+		quantileValues[i] = Log2Quantile(q, buckets)
 	}
 
 	// Build results using the calculated quantile values
@@ -1685,7 +1684,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 
 			// Select exemplars for this quantile using simplified assignment logic
 			for _, exemplar := range in.exemplars {
-				if h.assignExemplarToQuantile(exemplar.Value, quantileValues, quantileBucketIndices, buckets) == qIdx {
+				if h.assignExemplarToQuantile(exemplar.Value, quantileValues, buckets) == qIdx {
 					ts.Exemplars = append(ts.Exemplars, exemplar)
 				}
 			}
@@ -1700,7 +1699,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 // assignExemplarToQuantile determines which quantile (if any) an exemplar should be assigned to.
 // Returns the quantile index, or -1 if the exemplar doesn't fit any quantile reasonably well.
 // This uses a simple closest-match strategy with reasonable bucket validation.
-func (h *HistogramAggregator) assignExemplarToQuantile(exemplarValue float64, quantileValues []float64, quantileBucketIndices []int, buckets []HistogramBucket) int {
+func (h *HistogramAggregator) assignExemplarToQuantile(exemplarValue float64, quantileValues []float64, buckets []HistogramBucket) int {
 	if len(quantileValues) == 0 || len(buckets) == 0 {
 		return -1
 	}
@@ -1709,11 +1708,6 @@ func (h *HistogramAggregator) assignExemplarToQuantile(exemplarValue float64, qu
 	bestDiff := math.Inf(1)
 
 	for i, quantileValue := range quantileValues {
-		// Check if this exemplar is reasonable for this quantile
-		if !h.isExemplarInValidRange(exemplarValue, quantileBucketIndices[i], buckets) {
-			continue
-		}
-
 		// Find the closest quantile value for better visual alignment
 		diff := math.Abs(exemplarValue - quantileValue)
 		if diff < bestDiff {
@@ -1723,31 +1717,6 @@ func (h *HistogramAggregator) assignExemplarToQuantile(exemplarValue float64, qu
 	}
 
 	return bestIdx
-}
-
-// isExemplarInValidRange checks if an exemplar value falls within a reasonable range
-// for the given bucket. Uses an expanded range that includes adjacent buckets to be more permissive.
-func (h *HistogramAggregator) isExemplarInValidRange(exemplarValue float64, bucketIdx int, buckets []HistogramBucket) bool {
-	if bucketIdx < 0 || bucketIdx >= len(buckets) {
-		return false
-	}
-
-	// Define the valid range: from previous bucket's max to next bucket's max
-	// This allows exemplars to be assigned to adjacent quantiles for better coverage
-	rangeMin := 0.0
-	if bucketIdx > 0 {
-		rangeMin = buckets[bucketIdx-1].Max
-	}
-
-	rangeMax := buckets[bucketIdx].Max
-	if bucketIdx < len(buckets)-1 {
-		rangeMax = buckets[bucketIdx+1].Max
-	}
-
-	// Check if exemplar falls within the range (rangeMin, rangeMax]
-	// Include 0 for the first bucket to handle the common case of very small values
-	return (rangeMin == 0.0 && exemplarValue >= rangeMin && exemplarValue <= rangeMax) ||
-		(exemplarValue > rangeMin && exemplarValue <= rangeMax)
 }
 
 func (h *HistogramAggregator) Length() int {
