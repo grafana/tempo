@@ -763,7 +763,7 @@ func (t *App) initLiveStore() (services.Service, error) {
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
 
 	var err error
-	t.liveStore, err = livestore.NewWithService(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
+	t.liveStore, err = livestore.New(t.cfg.LiveStore, t.Overrides, log.Logger, prometheus.DefaultRegisterer, singlePartition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create liveStore: %w", err)
 	}

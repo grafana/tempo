@@ -76,8 +76,10 @@ type LiveStore struct {
 	wg     sync.WaitGroup
 }
 
-func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
+func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	mergedOverrides := NewMergedOverrides(overridesService)
 
 	s := &LiveStore{
 		cfg:         cfg,
@@ -87,7 +89,7 @@ func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Regi
 		ctx:         ctx,
 		cancel:      cancel,
 		instances:   make(map[string]*instance),
-		overrides:   overrides,
+		overrides:   mergedOverrides,
 		flushqueues: flushqueues.NewPriorityQueue(metricCompleteQueueLength),
 	}
 
@@ -132,13 +134,6 @@ func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Regi
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
 
 	return s, nil
-}
-
-// NewWithService creates a new LiveStore that uses the main overrides service
-// by wrapping it with MergedOverrides
-func NewWithService(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
-	mergedOverrides := NewMergedOverrides(overridesService)
-	return New(cfg, mergedOverrides, logger, reg, singlePartition)
 }
 
 func (s *LiveStore) starting(ctx context.Context) error {

@@ -23,11 +23,8 @@ import (
 //	// Create merged overrides for livestore
 //	merged := NewMergedOverrides(limits)
 //
-//	// Use with livestore
-//	liveStore, err := New(cfg, merged, logger, reg, singlePartition)
-//
-//	// Or use the convenience constructor
-//	liveStore, err := NewWithService(cfg, limits, logger, reg, singlePartition)
+//	// Use with livestore - New automatically wraps with MergedOverrides
+//	liveStore, err := New(cfg, limits, logger, reg, singlePartition)
 type MergedOverrides struct {
 	service overrides.Interface
 }
