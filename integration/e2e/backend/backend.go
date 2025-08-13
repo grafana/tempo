@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	azuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.34.0"
-	gcsImage     = "fsouza/fake-gcs-server:1.47.6"
+	azuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0"
+	gcsImage     = "fsouza/fake-gcs-server:1.52.2"
 )
 
 func parsePort(endpoint string) (int, error) {

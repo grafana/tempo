@@ -37,6 +37,6 @@ func (cfg *Config) buildOptions() []ocOption {
 var _ component.Config = (*Config)(nil)
 
 // Validate checks the receiver configuration is valid
-func (cfg *Config) Validate() error {
+func (*Config) Validate() error {
 	return nil
 }
