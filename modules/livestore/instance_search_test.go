@@ -336,7 +336,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	logger := log.NewNopLogger()
 
 	// Use fake Kafka cluster for testing
-	liveStore, err := NewWithService(cfg, limits, logger, reg, true) // singlePartition = true for testing
+	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
 	return liveStore, err
 }
 

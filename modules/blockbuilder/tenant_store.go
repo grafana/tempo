@@ -35,21 +35,24 @@ const (
 )
 
 type tenantStore struct {
-	tenantID      string
-	idGenerator   util.IDGenerator
-	cfg           BlockConfig
-	startTime     time.Time
-	cycleDuration time.Duration
-	slackDuration time.Duration
-	logger        log.Logger
-	overrides     Overrides
-	enc           encoding.VersionedEncoding
-	wal           *wal.WAL
+	tenantID         string
+	idGenerator      util.IDGenerator
+	cfg              BlockConfig
+	startTime        time.Time
+	cycleDuration    time.Duration
+	slackDuration    time.Duration
+	logger           log.Logger
+	overrides        Overrides
+	enc              encoding.VersionedEncoding
+	wal              *wal.WAL
+	noCompactBlockID *backend.UUID
 
 	liveTraces *livetraces.LiveTraces[[]byte]
 }
 
 func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
+	cfg.BlockCfg.CreateWithNoCompactFlag = true // blockbuilder creates blocks with the nocompact flag set by default
+
 	s := &tenantStore{
 		tenantID:      tenantID,
 		idGenerator:   util.NewDeterministicIDGenerator(tenantID, partitionID, startOffset),
@@ -162,6 +165,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		span.RecordError(err)
 		return err
 	}
+	s.noCompactBlockID = &newMeta.BlockID
 	span.AddEvent("wrote block to backend", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
@@ -178,6 +182,18 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		"elapsed", time.Since(st),
 		"meta", newMeta,
 	)
+
+	return nil
+}
+
+func (s *tenantStore) AllowCompaction(ctx context.Context, w tempodb.Writer) error {
+	if s.noCompactBlockID == nil {
+		return nil // no block to allow compaction for
+	}
+	if err := w.DeleteNoCompactFlag(ctx, s.tenantID, *s.noCompactBlockID); err != nil {
+		return err
+	}
+	s.noCompactBlockID = nil
 
 	return nil
 }

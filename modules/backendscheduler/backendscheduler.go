@@ -40,7 +40,7 @@ type BackendScheduler struct {
 	store     storage.Store
 	overrides overrides.Interface
 
-	work *work.Work
+	work work.Interface
 
 	reader backend.RawReader
 	writer backend.RawWriter
@@ -108,7 +108,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler starting")
 
 	if s.cfg.Poll {
-		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder)
+		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder, false)
 	}
 
 	err := s.loadWorkCache(ctx)
@@ -187,7 +187,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 }
 
 func (s *BackendScheduler) stopping(_ error) error {
-	err := s.flushWorkCache(context.Background())
+	err := s.work.FlushToLocal(context.Background(), s.cfg.LocalWorkPath, nil) // flush all shards
 	if err != nil {
 		return fmt.Errorf("failed to flush work cache on shutdown: %w", err)
 	}
@@ -218,7 +218,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		}
 
 		// The job exists in memory, but may not have been persisted to disk.
-		err := s.flushWorkCache(ctx)
+		err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{j.ID})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
@@ -264,7 +264,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		s.work.StartJob(j.ID)
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 
-		err = s.flushWorkCache(ctx)
+		err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{j.ID})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
@@ -307,13 +307,13 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 		}
 
-		err := s.flushWorkCache(ctx)
+		err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{req.JobId})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
-		err = s.loadBlocklistJobsForTenant(ctx, j.Tenant(), []*work.Job{j})
+		err = s.applyJobsToBlocklist(ctx, j.Tenant(), []*work.Job{j})
 		if err != nil {
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
@@ -323,7 +323,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
 
-		err := s.flushWorkCache(ctx)
+		err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{req.JobId})
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache.
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
@@ -338,7 +338,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	}, nil
 }
 
-func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) {
+func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "replayWorkOnBlocklist")
 	defer span.End()
 
@@ -371,14 +371,17 @@ func (s *BackendScheduler) replayWorkOnBlocklist(ctx context.Context) {
 	}
 
 	for tenant, jobs := range perTenantJobs {
-		err = s.loadBlocklistJobsForTenant(ctx, tenant, jobs)
+		err = s.applyJobsToBlocklist(ctx, tenant, jobs)
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "failed to load blocklist jobs for tenant", "tenant", tenant, "error", err)
+			return fmt.Errorf("failed to load blocklist jobs for tenant %s: %w", tenant, err)
 		}
 	}
+
+	return nil
 }
 
-func (s *BackendScheduler) loadBlocklistJobsForTenant(ctx context.Context, tenant string, jobs []*work.Job) error {
+// applyJobsToBlocklist processes the jobs and applies their results to the in-memory blocklist.
+func (s *BackendScheduler) applyJobsToBlocklist(ctx context.Context, tenant string, jobs []*work.Job) error {
 	_, span := tracer.Start(ctx, "loadBlocklistJobsForTenant")
 	defer span.End()
 
