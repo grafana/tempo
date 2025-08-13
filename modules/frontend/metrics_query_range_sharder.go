@@ -243,6 +243,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 
 	// Make a copy and limit to backend time range.
 	// Preserve instant nature of request if needed
+	// Don't realign the request, preserve the cutoff for the request to the generator.
 	backendReq := searchReq
 	traceql.TrimToBefore(&backendReq, cutoff)
 
@@ -251,12 +252,6 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 		close(reqCh)
 		return
 	}
-
-	// TODO - I'm not sure this is right. We need to figure out how to properly split
-	// queries with step intervals larger than query_backend_after. i.e.
-	// we are doing a 7d+ query with a 1h step, how do we split out the requests
-	// covering the last 15 minutes (example).
-	traceql.AlignRequest(&backendReq)
 
 	// Blocks within overall time range. This is just for instrumentation, more precise time
 	// range is checked for each window.
@@ -350,8 +345,6 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 					Exemplars: exemplars,
 					MaxSeries: searchReq.MaxSeries,
 				}
-
-				traceql.AlignRequest(queryRangeReq)
 
 				return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
 			})

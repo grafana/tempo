@@ -34,14 +34,6 @@ func (p *Processor) QueryRange(ctx context.Context, req tempopb.QueryRangeReques
 		return fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
 	}
 
-	// Align after validation - This order is important and has to do with large step intervals
-	// and the frontend query_backend_after setting.
-	// 1. If we are running a 7+d query, it could have a large step interval like 1h.
-	// 2. But the request to the generators here is broken up for only the last 15 minutes (example)
-	// 3. We validate first so that we can confirm that the last 15 minutes is within the complete block timeout.
-	// 4. Then we align the request to the larger step interval.
-	traceql.AlignRequest(&req)
-
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
 		return fmt.Errorf("compiling query: %w", err)
@@ -175,7 +167,6 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	// cache the response for that, we want only the few minutes time range for this block. This has
 	// size savings but the main thing is that the response is reuseable for any overlapping query.
 	req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, m.StartTime, m.EndTime)
-	traceql.AlignRequest(&req)
 
 	if req.Start >= req.End {
 		// After alignment there is no overlap or something else isn't right

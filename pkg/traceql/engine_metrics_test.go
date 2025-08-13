@@ -353,7 +353,6 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 					{
 						// In this case start time is in the first pass
 						Attribute: IntrinsicSpanStartTimeAttribute,
-						Precision: 3,
 					},
 				},
 			},
@@ -365,7 +364,6 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				Conditions: []Condition{
 					{
 						Attribute: IntrinsicSpanStartTimeAttribute,
-						Precision: 3,
 					},
 				},
 			},
@@ -389,7 +387,6 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 					{
 						// Since there is already a second pass then span start time isn't optimized to the first pass.
 						Attribute: IntrinsicSpanStartTimeAttribute,
-						Precision: 3,
 					},
 				},
 			},
@@ -414,7 +411,6 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 					},
 					{
 						Attribute: IntrinsicSpanStartTimeAttribute,
-						Precision: 3,
 					},
 				},
 			},
@@ -440,7 +436,6 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 					{
 						// Since there is already a second pass then span start time isn't optimized to the first pass.
 						Attribute: IntrinsicSpanStartTimeAttribute,
-						Precision: 3,
 					},
 				},
 			},

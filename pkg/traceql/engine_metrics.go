@@ -129,19 +129,31 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	return IntervalOf(ts, start, end, step)
 }
 
-// TrimToBlockOverlap returns the aligned overlap between the given time and block ranges,
-// the block's borders are included.
-// If the request is instantaneous, it returns an updated step to match the new time range.
-// It assumes that blockEnd is aligned to seconds.
+// TrimToBlockOverlap returns the overlap between the given time range and block.  It is used to
+// split a block to only the portion overlapping, or when the entire block is within range then
+// opportunistically remove time slots that are known to be unused.
+// When a block is entirely within range, the output will be aligned to the step.
+// When a block is split then the output will maintain nanosecond precision on one or both sides as needed.
 func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
 	wasInstant := end-start == step
 
-	start2 := uint64(blockStart.UnixNano())
+	// We subtract 1 nanosecond from the block's start time
+	// to make sure we include the left border of the block.
+	start2 := uint64(blockStart.UnixNano()) - 1
 	// Block's endTime is rounded down to the nearest second and considered inclusive.
 	// In order to include the right border with nanoseconds, we add 1 second
 	blockEnd = blockEnd.Add(time.Second)
 	end2 := uint64(blockEnd.UnixNano())
 
+	// Align the block data range to the step. This is because
+	// low-precision timestamps within the block may be rounded up to
+	// this step.  If the boundaries exceed the overall range
+	// they will get trimmed back down.
+	start2 = alignStart(start2, end2, step)
+	end2 = alignEnd(start2, end2, step)
+
+	// Now trim to the overlap preserving nanosecond precision for
+	// when we split a block.
 	start = max(start, start2)
 	end = min(end, end2)
 
@@ -972,10 +984,15 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
-	// If step is an even multiple of 15 seconds, then we can use low precision
-	// for the span start time.
-	// lowPrecision := req.Step >= uint64(15*time.Second) && req.Step%uint64(15*time.Second) == 0
-	precision := time.Duration(req.Step)
+	// If the request range is an even multiple of the step, then we can use lower
+	// precision data that matches the step while still returning accurate results.
+	// When the range isn't an even multiple, it means that we are on the split
+	// between backend and recent data, or the edges of the request. In that case
+	// we use full nanosecond precision.
+	var precision time.Duration
+	if (req.End-req.Start)%req.Step == 0 {
+		precision = time.Duration(req.Step)
+	}
 
 	// Span start time (always required)
 	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
