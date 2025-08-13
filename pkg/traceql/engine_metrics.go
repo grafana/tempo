@@ -132,8 +132,8 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 // TrimToBlockOverlap returns the overlap between the given time range and block.  It is used to
 // split a block to only the portion overlapping, or when the entire block is within range then
 // opportunistically remove time slots that are known to be unused.
-// When a block is entirely within range, the output will be aligned to the step.
-// When a block is split then the output will maintain nanosecond precision on one or both sides as needed.
+// When possible and not exceeding the request range, borders are aligned to the step.
+// When a block is split then the borders will maintain the nanosecond precision of the request.
 func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
 	wasInstant := end-start == step
 
@@ -984,13 +984,13 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
-	// If the request range is an even multiple of the step, then we can use lower
+	// If the request range is fully aligned to the step, then we can use lower
 	// precision data that matches the step while still returning accurate results.
 	// When the range isn't an even multiple, it means that we are on the split
 	// between backend and recent data, or the edges of the request. In that case
 	// we use full nanosecond precision.
 	var precision time.Duration
-	if (req.End-req.Start)%req.Step == 0 {
+	if (req.Start%req.Step) == 0 && (req.End%req.Step) == 0 {
 		precision = time.Duration(req.Step)
 	}
 
