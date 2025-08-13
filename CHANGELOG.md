@@ -1,5 +1,5 @@
 ## main / unreleased
-* [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464) 
+* [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464)
 * [BUGFIX] Return Bad Request from frontend if the provided tag is invalid in SearchTagValuesV2 endpoint [#5493](https://github.com/grafana/tempo/pull/5493/) (@carles-grafana)
 * [CHANGE] Add test for cost_attribution in user-configurable overrides API [#5481](https://github.com/grafana/tempo/pull/5481/) (@electron0zero)
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
@@ -41,6 +41,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] Use peer attributes to determine the name of a client service virtual node in the service gra0ph [#5381](https://github.com/grafana/tempo/pull/5381) (@martenm)
 * [ENHANCEMENT] Put actual size for writing to backend [#5413](https://github.com/grafana/tempo/pull/5413) (@ruslan-mikhailov)
 * [ENHANCEMENT] Do not compact unfinished blocks [#5390](https://github.com/grafana/tempo/pull/5390) (@ruslan-mikhailov)
+* [ENHANCEMENT] Upgrade Azurite and Fake-gcs-server to latest version [#5512](https://github.com/grafana/tempo/pull/5512) (@javiermolinar)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
