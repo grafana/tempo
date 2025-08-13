@@ -9,7 +9,7 @@ on:
 jobs:
   syft-sbom:
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
 
     steps:
     - name: Checkout

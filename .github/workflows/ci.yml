@@ -21,7 +21,7 @@ permissions: {}
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     steps:
 
       - name: Check out code
@@ -62,7 +62,7 @@ jobs:
 
   unit-tests:
     name: Run Unit Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     strategy:
       fail-fast: false
       matrix:
@@ -90,7 +90,7 @@ jobs:
 
   integration-tests:
     name: Run integration tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     strategy:
       fail-fast: false
       matrix:
@@ -120,7 +120,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -149,7 +149,7 @@ jobs:
 
   benchmark:
     name: Benchmark
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -166,7 +166,7 @@ jobs:
 
   vendor-check:
     name: Vendor check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -186,7 +186,7 @@ jobs:
 
   tempo-jsonnet:
     name: Check jsonnet & tempo-mixin
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -209,7 +209,7 @@ jobs:
 
   build-technical-documentation:
     name: Build technical documentation
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     steps:
       - name: Check out code
         uses: actions/checkout@v4

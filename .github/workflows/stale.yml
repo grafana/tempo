@@ -9,7 +9,7 @@ jobs:
   stale:
     # only run in grafana/tempo.
     if: github.repository == 'grafana/tempo'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     permissions:
       issues: write
       pull-requests: write

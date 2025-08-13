@@ -18,7 +18,7 @@ jobs:
 
   get-image-tag:
     if: github.repository == 'grafana/tempo'  # skip in forks
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
@@ -36,7 +36,7 @@ jobs:
     needs: get-image-tag
     strategy:
       matrix:
-        runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
+        runner_arch: [ { runner: ubuntu-x64, arch: amd64 }, { runner: ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
     permissions:
       id-token: write
@@ -60,7 +60,7 @@ jobs:
   manifest:
     if: github.repository == 'grafana/tempo'
     needs: ['get-image-tag', 'docker-ci-tools']
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-x64
     permissions:
       id-token: write
     env:

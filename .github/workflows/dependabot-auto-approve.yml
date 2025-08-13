@@ -4,7 +4,7 @@ on: pull_request
 
 jobs:
   auto-approve-and-merge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-x64
     permissions:
       id-token: write
       pull-requests: write

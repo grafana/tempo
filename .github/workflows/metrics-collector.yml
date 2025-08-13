@@ -10,7 +10,7 @@ jobs:
     # this action keeps failing in all forks, only run in grafana/tempo.
     # stats collection action is only useful in main repo.
     if: github.repository == 'grafana/tempo'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-x64
     permissions:
       contents: read
       id-token: write
