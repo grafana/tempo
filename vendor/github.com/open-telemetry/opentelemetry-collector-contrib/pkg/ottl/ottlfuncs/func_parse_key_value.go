@@ -34,7 +34,7 @@ func createParseKeyValueFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argum
 	return parseKeyValue[K](args.Target, args.Delimiter, args.PairDelimiter)
 }
 
-func parseKeyValue[K any](target ottl.StringGetter[K], d ottl.Optional[string], p ottl.Optional[string]) (ottl.ExprFunc[K], error) {
+func parseKeyValue[K any](target ottl.StringGetter[K], d, p ottl.Optional[string]) (ottl.ExprFunc[K], error) {
 	delimiter := "="
 	if !d.IsEmpty() {
 		if d.Get() == "" {
