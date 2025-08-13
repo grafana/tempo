@@ -25,9 +25,14 @@ type instance struct {
 	tenantID string
 	logger   log.Logger
 
+	// Configuration
+	Cfg Config
+
 	// WAL and encoding
-	wal *wal.WAL
-	enc encoding.VersionedEncoding
+	wal  *wal.WAL
+	walR backend.Reader
+	walW backend.Writer
+	enc  encoding.VersionedEncoding
 
 	// Block management
 	blocksMtx      sync.RWMutex
@@ -48,13 +53,16 @@ type instance struct {
 	overrides Overrides
 }
 
-func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides Overrides, logger log.Logger) (*instance, error) {
 	enc := encoding.DefaultEncoding()
 
 	i := &instance{
 		tenantID:       instanceID,
 		logger:         log.With(logger, "tenant", instanceID),
+		Cfg:            cfg,
 		wal:            wal,
+		walR:           backend.NewReader(wal.LocalBackend()),
+		walW:           backend.NewWriter(wal.LocalBackend()),
 		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
@@ -70,6 +78,26 @@ func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger lo
 	}
 
 	return i, nil
+}
+
+// getEffectiveConfig returns the configuration with per-tenant overrides applied
+func (i *instance) getEffectiveConfig() Config {
+	cfg := i.Cfg
+
+	// Apply per-tenant overrides
+	if timeout := i.overrides.LiveStoreCompleteBlockTimeout(i.tenantID); timeout > 0 {
+		cfg.CompleteBlockTimeout = timeout
+	}
+
+	if cutoff := i.overrides.LiveStoreMetricsTimeOverlapCutoff(i.tenantID); cutoff > 0 {
+		cfg.Metrics.TimeOverlapCutoff = cutoff
+	}
+
+	if blocks := i.overrides.LiveStoreMetricsConcurrentBlocks(i.tenantID); blocks > 0 {
+		cfg.Metrics.ConcurrentBlocks = blocks
+	}
+
+	return cfg
 }
 
 func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {

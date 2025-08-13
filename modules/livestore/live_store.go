@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -32,6 +33,10 @@ type Overrides interface {
 	MaxLocalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int
 	DedicatedColumns(userID string) backend.DedicatedColumns
+	UnsafeQueryHints(userID string) bool
+	LiveStoreCompleteBlockTimeout(userID string) time.Duration
+	LiveStoreMetricsTimeOverlapCutoff(userID string) float64
+	LiveStoreMetricsConcurrentBlocks(userID string) uint
 }
 
 var metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
@@ -127,6 +132,13 @@ func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Regi
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
 
 	return s, nil
+}
+
+// NewWithService creates a new LiveStore that uses the main overrides service
+// by wrapping it with MergedOverrides
+func NewWithService(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
+	mergedOverrides := NewMergedOverrides(overridesService)
+	return New(cfg, mergedOverrides, logger, reg, singlePartition)
 }
 
 func (s *LiveStore) starting(ctx context.Context) error {
@@ -271,7 +283,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, s.wal, s.overrides, s.logger)
+	inst, err := newInstance(tenantID, s.cfg, s.wal, s.overrides, s.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}

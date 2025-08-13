@@ -2,9 +2,13 @@ package livestore
 
 import (
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/modules/generator/processor/localblocks"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,6 +24,22 @@ func (m *mockOverrides) MaxBytesPerTrace(string) int {
 
 func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 	return nil
+}
+
+func (m *mockOverrides) UnsafeQueryHints(string) bool {
+	return false
+}
+
+func (m *mockOverrides) LiveStoreCompleteBlockTimeout(string) time.Duration {
+	return 5 * time.Minute
+}
+
+func (m *mockOverrides) LiveStoreMetricsTimeOverlapCutoff(string) float64 {
+	return 0.5
+}
+
+func (m *mockOverrides) LiveStoreMetricsConcurrentBlocks(string) uint {
+	return 10
 }
 
 func TestBufferCreation(t *testing.T) {
@@ -48,4 +68,32 @@ func TestLiveStore(t *testing.T) {
 	assert.NotNil(t, b)
 	assert.NotNil(t, b.logger)
 	assert.Equal(t, 0, len(b.instances))
+}
+
+func TestMergedOverrides(t *testing.T) {
+	// Create a mock overrides service
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	assert.NoError(t, err)
+
+	// Create merged overrides
+	merged := NewMergedOverrides(limits)
+
+	// Test that it implements both interfaces
+	var _ Overrides = merged
+	var _ localblocks.ProcessorOverrides = merged
+
+	// Test that all interface methods work without panicking
+	// and return reasonable values
+	maxLocalTraces := merged.MaxLocalTracesPerUser("test-tenant")
+	assert.True(t, maxLocalTraces >= 0)
+
+	unsafeHints := merged.UnsafeQueryHints("test-tenant")
+	_ = unsafeHints // Just verify it doesn't panic
+
+	timeout := merged.LiveStoreCompleteBlockTimeout("test-tenant")
+	assert.True(t, timeout >= 0)
+
+	// Test livestore-specific overrides that have hardcoded defaults
+	assert.Equal(t, 0.5, merged.LiveStoreMetricsTimeOverlapCutoff("test-tenant"))
+	assert.Equal(t, uint(10), merged.LiveStoreMetricsConcurrentBlocks("test-tenant"))
 }
