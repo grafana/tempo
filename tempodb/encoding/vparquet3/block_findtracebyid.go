@@ -137,9 +137,9 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 }
 
-// TraceExists is not implemented for vparquet3 blocks.
+// TracesCheck is not implemented for vparquet3 blocks.
 // Only vparquet4 blocks support optimized trace existence checking.
-func (b *backendBlock) TraceExists(ctx context.Context, traceID common.ID, opts common.SearchOptions) (bool, uint64, error) {
+func (b *backendBlock) TracesCheck(ctx context.Context, traceID common.ID, opts common.SearchOptions) (bool, uint64, error) {
 	return false, 0, common.ErrUnsupported
 }
 

@@ -60,10 +60,10 @@ func (c *LocalBlock) FindTraceByID(ctx context.Context, id common.ID, opts commo
 	return c.BackendBlock.FindTraceByID(ctx, id, opts)
 }
 
-func (c *LocalBlock) TraceExists(ctx context.Context, id common.ID, opts common.SearchOptions) (bool, uint64, error) {
-	ctx, span := tracer.Start(ctx, "LocalBlock.TraceExists")
+func (c *LocalBlock) TracesCheck(ctx context.Context, id common.ID, opts common.SearchOptions) (bool, uint64, error) {
+	ctx, span := tracer.Start(ctx, "LocalBlock.TracesCheck")
 	defer span.End()
-	return c.BackendBlock.TraceExists(ctx, id, opts)
+	return c.BackendBlock.TracesCheck(ctx, id, opts)
 }
 
 func (c *LocalBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {

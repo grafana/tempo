@@ -27,7 +27,6 @@ import (
 	model_v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -650,105 +649,4 @@ func pushBatchV1(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) 
 		},
 	})
 	require.NoError(t, err)
-}
-
-func TestIngesterTraceLookup(t *testing.T) {
-	i, _, _ := defaultIngester(t, t.TempDir())
-
-	ctx := user.InjectOrgID(context.Background(), "test")
-
-	// Test with no instances (empty results)
-	resp, err := i.TraceLookup(ctx, &tempopb.TraceLookupRequest{
-		TraceIDs: [][]byte{test.ValidTraceID(nil)},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Len(t, resp.TraceIDs, 1)
-	require.Equal(t, util.TraceIDToHexString(test.ValidTraceID(nil)), resp.TraceIDs[0])
-
-	// Push a trace
-	traceID := test.ValidTraceID(nil)
-	trace := test.MakeTrace(10, traceID)
-	pushBatchV2(t, i, trace.ResourceSpans[0], traceID)
-
-	// Test TraceLookup with existing trace
-	resp, err = i.TraceLookup(ctx, &tempopb.TraceLookupRequest{
-		TraceIDs: [][]byte{traceID},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Len(t, resp.TraceIDs, 1)
-	require.Equal(t, util.TraceIDToHexString(traceID), resp.TraceIDs[0])
-	require.NotNil(t, resp.Metrics)
-	require.Greater(t, resp.Metrics.InspectedBytes, uint64(0))
-
-	// Test TraceLookup with non-existing trace
-	nonExistentID := test.ValidTraceID(nil)
-	resp, err = i.TraceLookup(ctx, &tempopb.TraceLookupRequest{
-		TraceIDs: [][]byte{nonExistentID},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Len(t, resp.TraceIDs, 1)
-	require.Equal(t, util.TraceIDToHexString(nonExistentID), resp.TraceIDs[0])
-
-	// Test TraceLookup with multiple traces (mix of existing and non-existing)
-	anotherTraceID := test.ValidTraceID(nil)
-	resp, err = i.TraceLookup(ctx, &tempopb.TraceLookupRequest{
-		TraceIDs: [][]byte{traceID, nonExistentID, anotherTraceID},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Len(t, resp.TraceIDs, 3)
-	require.Equal(t, util.TraceIDToHexString(traceID), resp.TraceIDs[0])
-	require.Equal(t, util.TraceIDToHexString(nonExistentID), resp.TraceIDs[1])
-	require.Equal(t, util.TraceIDToHexString(anotherTraceID), resp.TraceIDs[2])
-}
-
-func TestIngesterTraceLookupInvalidTraceIDs(t *testing.T) {
-	i, _, _ := defaultIngester(t, t.TempDir())
-
-	ctx := user.InjectOrgID(context.Background(), "test")
-
-	// Test with invalid trace IDs
-	resp, err := i.TraceLookup(ctx, &tempopb.TraceLookupRequest{
-		TraceIDs: [][]byte{
-			[]byte("invalid"),
-			[]byte("too-short"),
-		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Len(t, resp.TraceIDs, 2)
-	// Invalid trace IDs should return false
-	require.Equal(t, "696e76616c6964", resp.TraceIDs[0]) // hex encoding of "invalid"
-	require.Equal(t, "746f6f2d73686f7274", resp.TraceIDs[1]) // hex encoding of "too-short"
-}
-
-func TestIngesterTraceLookupNoTenant(t *testing.T) {
-	i, _, _ := defaultIngester(t, t.TempDir())
-
-	// Test without tenant context
-	resp, err := i.TraceLookup(context.Background(), &tempopb.TraceLookupRequest{
-		TraceIDs: [][]byte{test.ValidTraceID(nil)},
-	})
-	require.Error(t, err)
-	require.Nil(t, resp)
-	require.Contains(t, err.Error(), "org id")
-}
-
-func TestIngesterTraceLookupEmptyRequest(t *testing.T) {
-	i, _, _ := defaultIngester(t, t.TempDir())
-
-	ctx := user.InjectOrgID(context.Background(), "test")
-
-	// Test with empty trace IDs
-	resp, err := i.TraceLookup(ctx, &tempopb.TraceLookupRequest{
-		TraceIDs: [][]byte{},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Empty(t, resp.TraceIDs)
-	require.NotNil(t, resp.Metrics)
-	require.Equal(t, uint64(0), resp.Metrics.InspectedBytes)
 }

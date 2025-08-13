@@ -496,10 +496,10 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	return response, nil
 }
 
-// TraceExists checks if a trace exists without retrieving the actual trace data.
+// TracesCheck checks if a trace exists without retrieving the actual trace data.
 // This is much more efficient than FindTraceByID for existence checking.
-func (i *instance) TraceExists(ctx context.Context, id []byte) (*tempopb.TraceExistsResponse, error) {
-	ctx, span := tracer.Start(ctx, "instance.TraceExists")
+func (i *instance) TracesCheck(ctx context.Context, id []byte) (*tempopb.TracesCheckResponse, error) {
+	ctx, span := tracer.Start(ctx, "instance.TracesCheck")
 	defer span.End()
 
 	metrics := tempopb.TraceByIDMetrics{}
@@ -512,7 +512,7 @@ func (i *instance) TraceExists(ctx context.Context, id []byte) (*tempopb.TraceEx
 			metrics.InspectedBytes += uint64(len(b))
 		}
 		i.tracesMtx.Unlock()
-		return &tempopb.TraceExistsResponse{
+		return &tempopb.TracesCheckResponse{
 			Exists:  true,
 			Metrics: &metrics,
 		}, nil
@@ -524,10 +524,10 @@ func (i *instance) TraceExists(ctx context.Context, id []byte) (*tempopb.TraceEx
 	exists, err := i.checkTraceExistsInBlock(ctx, i.headBlock, id, &metrics)
 	i.headBlockMtx.RUnlock()
 	if err != nil {
-		return nil, fmt.Errorf("headBlock.TraceExists failed: %w", err)
+		return nil, fmt.Errorf("headBlock.TracesCheck failed: %w", err)
 	}
 	if exists {
-		return &tempopb.TraceExistsResponse{
+		return &tempopb.TracesCheckResponse{
 			Exists:  true,
 			Metrics: &metrics,
 		}, nil
@@ -540,10 +540,10 @@ func (i *instance) TraceExists(ctx context.Context, id []byte) (*tempopb.TraceEx
 	for _, c := range i.completingBlocks {
 		exists, err := i.checkTraceExistsInBlock(ctx, c, id, &metrics)
 		if err != nil {
-			return nil, fmt.Errorf("completingBlock.TraceExists failed: %w", err)
+			return nil, fmt.Errorf("completingBlock.TracesCheck failed: %w", err)
 		}
 		if exists {
-			return &tempopb.TraceExistsResponse{
+			return &tempopb.TracesCheckResponse{
 				Exists:  true,
 				Metrics: &metrics,
 			}, nil
@@ -554,10 +554,10 @@ func (i *instance) TraceExists(ctx context.Context, id []byte) (*tempopb.TraceEx
 	for _, c := range i.completeBlocks {
 		exists, err := i.checkTraceExistsInLocalBlock(ctx, c, id, &metrics)
 		if err != nil {
-			return nil, fmt.Errorf("completeBlock.TraceExists failed: %w", err)
+			return nil, fmt.Errorf("completeBlock.TracesCheck failed: %w", err)
 		}
 		if exists {
-			return &tempopb.TraceExistsResponse{
+			return &tempopb.TracesCheckResponse{
 				Exists:  true,
 				Metrics: &metrics,
 			}, nil
@@ -565,7 +565,7 @@ func (i *instance) TraceExists(ctx context.Context, id []byte) (*tempopb.TraceEx
 	}
 
 	// Trace not found anywhere
-	return &tempopb.TraceExistsResponse{
+	return &tempopb.TracesCheckResponse{
 		Exists:  false,
 		Metrics: &metrics,
 	}, nil
@@ -576,8 +576,8 @@ func (i *instance) checkTraceExistsInBlock(ctx context.Context, block common.WAL
 	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 	
-	// Use the TraceExists method - if it's not supported, return the error
-	exists, inspectedBytes, err := block.TraceExists(ctx, id, searchOpts)
+	// Use the TracesCheck method - if it's not supported, return the error
+	exists, inspectedBytes, err := block.TracesCheck(ctx, id, searchOpts)
 	if err != nil {
 		return false, err
 	}
@@ -592,8 +592,8 @@ func (i *instance) checkTraceExistsInLocalBlock(ctx context.Context, block *Loca
 	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 	
-	// Use the TraceExists method - if it's not supported, return the error
-	exists, inspectedBytes, err := block.TraceExists(ctx, id, searchOpts)
+	// Use the TracesCheck method - if it's not supported, return the error
+	exists, inspectedBytes, err := block.TracesCheck(ctx, id, searchOpts)
 	if err != nil {
 		return false, err
 	}

@@ -22,8 +22,7 @@ service MetricsGenerator {
 
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {}
-  rpc TraceExists(TraceExistsRequest) returns (TraceExistsResponse) {}
-  rpc TraceLookup(TraceLookupRequest) returns (TraceLookupResponse) {}
+  rpc TracesCheck(TracesCheckRequest) returns (TracesCheckResponse) {}
   rpc SearchRecent(SearchRequest) returns (SearchResponse) {}
   rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {}
   rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {}
@@ -72,15 +71,6 @@ message TraceByIDResponse {
 
 message TraceByIDMetrics {
   uint64 inspectedBytes = 1;
-}
-
-message TraceLookupRequest {
-  repeated bytes traceIDs = 1;
-}
-
-message TraceLookupResponse {
-  repeated string traceIDs = 1;
-  SearchMetrics metrics = 2;
 }
 
 // SearchRequest takes no block parameters and implies a "recent traces" search
@@ -504,11 +494,11 @@ message TimeSeries {
   repeated Exemplar exemplars = 4 [(gogoproto.nullable) = false];
 }
 
-message TraceExistsRequest {
+message TracesCheckRequest {
   bytes traceID = 1;
 }
 
-message TraceExistsResponse {
+message TracesCheckResponse {
   bool exists = 1;
   TraceByIDMetrics metrics = 2;
 }

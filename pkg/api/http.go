@@ -72,6 +72,7 @@ const (
 
 	PathTraces              = "/api/traces/{traceID}"
 	PathTraceLookup         = "/api/trace-lookup"
+	PathTracesCheck         = "/api/traces-check"
 	PathSearch              = "/api/search"
 	PathSearchTags          = "/api/search/tags"
 	PathSearchTagValues     = "/api/search/tag/{" + MuxVarTagName + "}/values"
@@ -813,17 +814,16 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
-// ParseTraceLookupRequest takes an http.Request and decodes the body to create a tempopb.TraceLookupRequest
-func ParseTraceLookupRequest(r *http.Request) (*tempopb.TraceLookupRequest, error) {
+func ParseTracesCheckRequest(r *http.Request) (*tempopb.TracesCheckRequest, error) {
 	body, err := tempo_io.ReadAllWithEstimate(r.Body, r.ContentLength)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
 	defer r.Body.Close()
 
-	var req tempopb.TraceLookupRequest
+	var req tempopb.TracesCheckRequest
 	if err := req.Unmarshal(body); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal TraceLookupRequest: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal TracesCheckRequest: %w", err)
 	}
 
 	return &req, nil

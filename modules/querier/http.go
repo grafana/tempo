@@ -126,24 +126,24 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 	writeFormattedContentForRequest(w, r, resp, span)
 }
 
-func (q *Querier) TraceLookupHandler(w http.ResponseWriter, r *http.Request) {
+func (q *Querier) TracesCheckHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "Querier.TraceLookupHandler")
+	ctx, span := tracer.Start(ctx, "Querier.TracesCheckHandler")
 	defer span.End()
 
 	// Parse request body
-	body, err := api.ParseTraceLookupRequest(r)
+	body, err := api.ParseTracesCheckRequest(r)
 	if err != nil {
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
 
-	span.SetAttributes(attribute.Int("traceCount", len(body.TraceIDs)))
+	span.SetAttributes(attribute.String("traceID", fmt.Sprintf("%x", body.TraceID)))
 
-	resp, err := q.TraceLookup(ctx, body)
+	resp, err := q.TracesCheck(ctx, body)
 	if err != nil {
 		handleError(w, err)
 		return

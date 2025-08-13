@@ -315,101 +315,92 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	return resp, nil
 }
 
-// TraceLookup implements tempopb.Querier.
-func (q *Querier) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequest) (*tempopb.TraceLookupResponse, error) {
+func (q *Querier) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequest) (*tempopb.TracesCheckResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.TraceLookup: %w", err)
+		return nil, fmt.Errorf("error extracting org id in Querier.TracesCheck: %w", err)
 	}
 
-	ctx, span := tracer.Start(ctx, "Querier.TraceLookup")
+	ctx, span := tracer.Start(ctx, "Querier.TracesCheck")
 	defer span.End()
 
-	span.SetAttributes(attribute.Int("traceCount", len(req.TraceIDs)))
+	span.SetAttributes(attribute.String("traceID", fmt.Sprintf("%x", req.TraceID)))
 
-	results := make(map[string]struct{}, len(req.TraceIDs))
 	var inspectedBytes uint64
-
-	// Initialize all trace IDs as not found
-	for _, traceID := range req.TraceIDs {
-		results[util.TraceIDToHexString(traceID)] = struct{}{}
+	
+	if !validation.ValidTraceID(req.TraceID) {
+		return &tempopb.TracesCheckResponse{
+			Exists:  false,
+			Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
+		}, nil
 	}
 
-	// Check each trace ID
-	for _, traceID := range req.TraceIDs {
-		traceIDStr := util.TraceIDToHexString(traceID)
-		
-		if !validation.ValidTraceID(traceID) {
-			continue // Skip invalid trace IDs, they remain false
+	// Query ingesters first
+	var getRSFn replicationSetFn
+	if q.cfg.QueryRelevantIngesters {
+		traceKey := util.TokenFor(userID, req.TraceID)
+		getRSFn = func(r ring.ReadRing) (ring.ReplicationSet, error) {
+			return r.Get(traceKey, ring.Read, nil, nil, nil)
 		}
+	}
 
-		found := false
+	forEach := func(funcCtx context.Context, client tempopb.QuerierClient) (any, error) {
+		resp, err := client.TracesCheck(funcCtx, req)
+		return resp, err
+	}
 
-		// Query ingesters
-		var getRSFn replicationSetFn
-		if q.cfg.QueryRelevantIngesters {
-			traceKey := util.TokenFor(userID, traceID)
-			getRSFn = func(r ring.ReadRing) (ring.ReplicationSet, error) {
-				return r.Get(traceKey, ring.Read, nil, nil, nil)
-			}
-		}
-
-		forEach := func(funcCtx context.Context, client tempopb.QuerierClient) (any, error) {
-			resp, err := client.FindTraceByID(funcCtx, &tempopb.TraceByIDRequest{
-				TraceID:    traceID,
-				QueryMode:  QueryModeIngesters,
-			})
-			return resp, err
-		}
-
-		partialTraces, err := q.forIngesterRings(ctx, userID, getRSFn, forEach)
-		if err == nil {
-			for _, partialTrace := range partialTraces {
-				resp := partialTrace.(*tempopb.TraceByIDResponse)
-				if resp.Trace != nil {
-					found = true
-					if resp.Metrics != nil {
-						inspectedBytes += resp.Metrics.InspectedBytes
-					}
-					break
+	partialResponses, err := q.forIngesterRings(ctx, userID, getRSFn, forEach)
+	if err == nil {
+		for _, partialResponse := range partialResponses {
+			resp := partialResponse.(*tempopb.TracesCheckResponse)
+			if resp.Exists {
+				// Found in ingesters
+				if resp.Metrics != nil {
+					inspectedBytes += resp.Metrics.InspectedBytes
 				}
+				return &tempopb.TracesCheckResponse{
+					Exists:  true,
+					Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
+				}, nil
+			}
+			if resp.Metrics != nil {
+				inspectedBytes += resp.Metrics.InspectedBytes
 			}
 		}
+	}
 
-		// If not found in ingesters, check the store
-		if !found {
-			maxBytes := q.limits.MaxBytesPerTrace(userID)
-			opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+	// If not found in ingesters, check the store
+	maxBytes := q.limits.MaxBytesPerTrace(userID)
+	opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
-			partialTraces, _, err := q.store.Find(ctx, userID, traceID, "", "", 0, 0, opts)
-			if err == nil && len(partialTraces) > 0 {
-				for _, partialTrace := range partialTraces {
-					if partialTrace != nil && partialTrace.Trace != nil {
-						found = true
-						if partialTrace.Metrics != nil {
-							inspectedBytes += partialTrace.Metrics.InspectedBytes
-						}
-						break
-					}
-				}
+	partialTraces, _, err := q.store.Find(ctx, userID, req.TraceID, "", "", 0, 0, opts)
+	if err != nil {
+		return &tempopb.TracesCheckResponse{
+			Exists:  false,
+			Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
+		}, nil
+	}
+
+	// Check if any traces were found
+	for _, partialTrace := range partialTraces {
+		if partialTrace != nil && partialTrace.Trace != nil {
+			if partialTrace.Metrics != nil {
+				inspectedBytes += partialTrace.Metrics.InspectedBytes
 			}
+			return &tempopb.TracesCheckResponse{
+				Exists:  true,
+				Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
+			}, nil
 		}
-
-		if !found {
-			delete(results, traceIDStr)
+		if partialTrace != nil && partialTrace.Metrics != nil {
+			inspectedBytes += partialTrace.Metrics.InspectedBytes
 		}
 	}
 
-	resultList := make([]string, 0, len(results))
-	for traceID := range results {
-		resultList = append(resultList, traceID)
-	}
-	resp := &tempopb.TraceLookupResponse{
-		TraceIDs: resultList,
-		Metrics: &tempopb.SearchMetrics{InspectedBytes: inspectedBytes},
-	}
-
-	return resp, nil
+	return &tempopb.TracesCheckResponse{
+		Exists:  false,
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
+	}, nil
 }
 
 // forIngesterRings runs f, in parallel, for given ingesters

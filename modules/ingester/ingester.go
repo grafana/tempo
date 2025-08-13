@@ -357,95 +357,21 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	return res, nil
 }
 
-// TraceLookup implements tempopb.Querier.
-func (i *Ingester) TraceLookup(ctx context.Context, req *tempopb.TraceLookupRequest) (res *tempopb.TraceLookupResponse, err error) {
+// TracesCheck implements tempopb.Querier.
+func (i *Ingester) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequest) (res *tempopb.TracesCheckResponse, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			level.Error(log.Logger).Log("msg", "recover in TraceLookup", "stack", r, string(debug.Stack()))
-			err = errors.New("recovered in TraceLookup")
+			level.Error(log.Logger).Log("msg", "recover in TracesCheck", "stack", r, string(debug.Stack()))
+			err = errors.New("recovered in TracesCheck")
 		}
 	}()
 
 	// tracing instrumentation
-	ctx, span := tracer.Start(ctx, "Ingester.TraceLookup")
-	defer span.End()
-
-	span.SetAttributes(attribute.Int("traceCount", len(req.TraceIDs)))
-
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	inst, ok := i.getInstanceByID(instanceID)
-	if !ok || inst == nil {
-		// Return empty results for all traces if instance doesn't exist
-		results := make([]string, 0, len(req.TraceIDs))
-		for _, traceID := range req.TraceIDs {
-			results = append(results, util.TraceIDToHexString(traceID))
-		}
-		return &tempopb.TraceLookupResponse{
-			TraceIDs: results,
-			Metrics: &tempopb.SearchMetrics{},
-		}, nil
-	}
-
-	results := make(map[string]bool)
-	var inspectedBytes uint64
-
-	// Check each trace ID
-	for _, traceID := range req.TraceIDs {
-		traceIDStr := util.TraceIDToHexString(traceID)
-		
-		if !validation.ValidTraceID(traceID) {
-			results[traceIDStr] = false
-			continue
-		}
-
-		// Check if trace exists using the more efficient TraceExists method
-		resp, err := inst.TraceExists(ctx, traceID)
-		if err != nil {
-			results[traceIDStr] = false
-			continue
-		}
-
-		found := resp.Exists
-		results[traceIDStr] = found
-
-		if resp.Metrics != nil {
-			inspectedBytes += resp.Metrics.InspectedBytes
-		}
-	}
-
-	span.AddEvent("trace lookup completed", oteltrace.WithAttributes(
-		attribute.Int("foundCount", len(results)),
-		attribute.Int64("inspectedBytes", int64(inspectedBytes)),
-	))
-
-	resultList := make([]string, 0, len(results))
-	for traceID := range results {
-		resultList = append(resultList, traceID)
-	}
-	return &tempopb.TraceLookupResponse{
-		TraceIDs: resultList,
-		Metrics: &tempopb.SearchMetrics{InspectedBytes: inspectedBytes},
-	}, nil
-}
-
-// TraceExists implements tempopb.Querier.
-func (i *Ingester) TraceExists(ctx context.Context, req *tempopb.TraceExistsRequest) (res *tempopb.TraceExistsResponse, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			level.Error(log.Logger).Log("msg", "recover in TraceExists", "stack", r, string(debug.Stack()))
-			err = errors.New("recovered in TraceExists")
-		}
-	}()
-
-	// tracing instrumentation
-	ctx, span := tracer.Start(ctx, "Ingester.TraceExists")
+	ctx, span := tracer.Start(ctx, "Ingester.TracesCheck")
 	defer span.End()
 
 	if !validation.ValidTraceID(req.TraceID) {
-		return &tempopb.TraceExistsResponse{
+		return &tempopb.TracesCheckResponse{
 			Exists:  false,
 			Metrics: &tempopb.TraceByIDMetrics{},
 		}, nil
@@ -459,14 +385,14 @@ func (i *Ingester) TraceExists(ctx context.Context, req *tempopb.TraceExistsRequ
 	inst, ok := i.getInstanceByID(instanceID)
 	if !ok || inst == nil {
 		// Return not found if instance doesn't exist
-		return &tempopb.TraceExistsResponse{
+		return &tempopb.TracesCheckResponse{
 			Exists:  false,
 			Metrics: &tempopb.TraceByIDMetrics{},
 		}, nil
 	}
 
-	// Use the optimized TraceExists method
-	resp, err := inst.TraceExists(ctx, req.TraceID)
+	// Use the optimized TracesCheck method
+	resp, err := inst.TracesCheck(ctx, req.TraceID)
 	if err != nil {
 		return nil, err
 	}
