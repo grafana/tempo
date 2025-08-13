@@ -1055,16 +1055,12 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 }
 
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
-	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
-	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
-	os.Setenv("BENCH_TENANT", "1")
-
 	testCases := []struct {
 		name  string
 		query string
 	}{
 		// span
-		/*{"spanAttValMatch", "{ span.component = `net/http` }"},
+		{"spanAttValMatch", "{ span.component = `net/http` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `does-not-exit-6c2408325a45` }"},
 		{"spanAttIntrinsicMatch", "{ name = `/cortex.Ingester/Push` }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `does-not-exit-6c2408325a45` }"},
@@ -1075,12 +1071,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
-		// trace*/
+		// trace
 		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
 		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
 
 		// mixed
-		/*{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
+		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
 		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
 
@@ -1089,7 +1085,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
 		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
-		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},*/
+		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},
 	}
 
 	ctx := context.TODO()
@@ -1229,10 +1225,6 @@ func BenchmarkIterators(b *testing.B) {
 }
 
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
-	os.Setenv("BENCH_BLOCKID", "6485a800-aaed-4c8d-a6e4-f67ff0105d99")
-	os.Setenv("BENCH_PATH", "/Users/marty/src/tmp")
-	os.Setenv("BENCH_TENANT", "1")
-
 	testCases := []string{
 		"{} | rate()",
 		"{} | rate() with(sample=true)",
