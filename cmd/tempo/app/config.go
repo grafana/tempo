@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/livestore"
+	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
@@ -48,6 +49,7 @@ type Config struct {
 	Distributor           distributor.Config             `yaml:"distributor,omitempty"`
 	IngesterClient        ingester_client.Config         `yaml:"ingester_client,omitempty"`
 	GeneratorClient       generator_client.Config        `yaml:"metrics_generator_client,omitempty"`
+	LiveStoreClient       livestore_client.Config        `yaml:"live_store_client,omitempty"`
 	Querier               querier.Config                 `yaml:"querier,omitempty"`
 	Frontend              frontend.Config                `yaml:"query_frontend,omitempty"`
 	Compactor             compactor.Config               `yaml:"compactor,omitempty"`

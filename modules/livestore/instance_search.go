@@ -653,3 +653,25 @@ func valuesToTagValuesV2RespProto(tagValues []tempopb.TagValue) ([]byte, error) 
 	}
 	return data, nil
 }
+
+func (i *instance) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+	return nil, fmt.Errorf("PushSpans not implemented in livestore")
+}
+
+func (i *instance) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+	return nil, fmt.Errorf("GetMetrics not implemented in livestore")
+}
+
+func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	return nil, fmt.Errorf("QueryRange not implemented in livestore")
+}
+
+// FindTraceByID searches for a trace by ID in the instance
+func (i *instance) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
+	return nil, fmt.Errorf("FindTraceByID not implemented in livestore")
+}
+
+// SearchRecent searches for traces in the instance
+func (i *instance) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	return nil, fmt.Errorf("SearchRecent not implemented in livestore")
+}

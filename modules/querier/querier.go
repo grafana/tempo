@@ -24,6 +24,7 @@ import (
 
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
@@ -54,6 +55,11 @@ var (
 		Name:      "querier_metrics_generator_clients",
 		Help:      "The current number of generator clients.",
 	})
+	metricMetricsLiveStoreClients = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "querier_livestore_clients",
+		Help:      "The current number of livestore clients.",
+	})
 )
 
 type (
@@ -74,6 +80,9 @@ type Querier struct {
 	generatorPool *ring_client.Pool
 	generatorRing ring.ReadRing
 
+	liveStorePool *ring_client.Pool
+	liveStoreRing ring.ReadRing
+
 	engine *traceql.Engine
 	store  storage.Store
 	limits overrides.Interface
@@ -89,6 +98,8 @@ func New(
 	ingesterRings []ring.ReadRing,
 	generatorClientConfig generator_client.Config,
 	generatorRing ring.ReadRing,
+	liveStoreClientConfig livestore_client.Config,
+	liveStoreRing ring.ReadRing,
 	store storage.Store,
 	limits overrides.Interface,
 ) (*Querier, error) {
@@ -98,6 +109,10 @@ func New(
 
 	var generatorClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
 		return generator_client.New(addr, generatorClientConfig)
+	}
+
+	var liveStoreClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
+		return livestore_client.New(addr, liveStoreClientConfig)
 	}
 
 	ingesterPools := make([]*ring_client.Pool, 0, len(ingesterRings))
@@ -122,10 +137,19 @@ func New(
 			generatorClientFactory,
 			metricMetricsGeneratorClients,
 			log.Logger),
+		liveStoreRing: liveStoreRing, // jpe - actually use in querying
+		liveStorePool: ring_client.NewPool("querier_to_livestore_pool",
+			liveStoreClientConfig.PoolConfig,
+			ring_client.NewRingServiceDiscovery(liveStoreRing),
+			liveStoreClientFactory,
+			metricMetricsLiveStoreClients,
+			log.Logger),
 		engine: traceql.NewEngine(),
 		store:  store,
 		limits: limits,
 	}
+
+	// jpe - use query live store only
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
 	return q, nil

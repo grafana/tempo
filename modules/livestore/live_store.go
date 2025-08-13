@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/flushqueues"
@@ -86,7 +87,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		// Assume partition 0.
 		s.ingestPartitionID = 0
 	} else {
-		s.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.LifecyclerConfig.ID)
+		s.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.Ring.InstanceID)
 		if err != nil {
 			return nil, fmt.Errorf("calculating ingester partition ID: %w", err)
 		}
@@ -94,7 +95,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 
 	// TODO: It's probably easier to just use the ID directly
 	//  https://raintank-corp.slack.com/archives/C05CAA0ULUF/p1752847274420489
-	s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.LifecyclerConfig.ID)
+	s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.Ring.InstanceID)
 	if err != nil {
 		return nil, fmt.Errorf("calculating ingester consumer group ID: %w", err)
 	}
@@ -108,7 +109,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 	}
 
 	s.ingestPartitionLifecycler = ring.NewPartitionInstanceLifecycler(
-		s.cfg.PartitionRing.ToLifecyclerConfig(s.ingestPartitionID, cfg.LifecyclerConfig.ID),
+		s.cfg.PartitionRing.ToLifecyclerConfig(s.ingestPartitionID, cfg.Ring.InstanceID),
 		ingester.PartitionRingName,
 		ingester.PartitionRingKey,
 		partitionRingKV,
@@ -418,4 +419,134 @@ func (s *LiveStore) completeLoop() {
 
 		}
 	}
+}
+
+// FindTraceByID implements tempopb.Querier
+func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.FindTraceByID(ctx, req)
+}
+
+// SearchRecent implements tempopb.Querier - jpe needed?
+func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchRecent(ctx, req)
+}
+
+// SearchBlock implements tempopb.Querier - jpe needed?
+func (s *LiveStore) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	return nil, fmt.Errorf("SearchBlock not implemented in livestore")
+}
+
+// SearchTags implements tempopb.Querier
+func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchTags(ctx, req.Scope)
+}
+
+// SearchTagsV2 implements tempopb.Querier
+func (s *LiveStore) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchTagsV2(ctx, req)
+}
+
+// SearchTagValues implements tempopb.Querier
+func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchTagValues(ctx, req.TagName, req.MaxTagValues, req.StaleValueThreshold)
+}
+
+// SearchTagValuesV2 implements tempopb.Querier
+func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchTagValuesV2(ctx, req)
+}
+
+// PushSpans implements tempopb.MetricsGeneratorServer
+func (s *LiveStore) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+	return nil, fmt.Errorf("PushSpans not implemented in livestore")
+}
+
+// GetMetrics implements tempopb.MetricsGeneratorServer
+func (s *LiveStore) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.GetMetrics(ctx, req)
+}
+
+// QueryRange implements tempopb.MetricsGeneratorServer
+func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.QueryRange(ctx, req)
 }
