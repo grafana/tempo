@@ -74,8 +74,10 @@ func (m *MergedOverrides) LiveStoreMetricsConcurrentBlocks(userID string) uint {
 }
 
 // Verify that MergedOverrides implements both interfaces
-var _ Overrides = (*MergedOverrides)(nil)
-var _ localblocks.ProcessorOverrides = (*MergedOverrides)(nil)
+var (
+	_ Overrides                      = (*MergedOverrides)(nil)
+	_ localblocks.ProcessorOverrides = (*MergedOverrides)(nil)
+)
 
 // ProcessorOverrides interface from modules/generator/processor/localblocks/processor.go
 // is automatically implemented by the above methods:

@@ -17,8 +17,8 @@ type Config struct {
 	LifecyclerConfig ring.LifecyclerConfig        `yaml:"lifecycler,omitempty"`
 	PartitionRing    ingester.PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
 
-	CompleteBlockTimeout time.Duration   `yaml:"complete_block_timeout"`
-	Metrics              MetricsConfig   `yaml:"metrics"`
+	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
+	Metrics              MetricsConfig `yaml:"metrics"`
 
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestConfig ingest.Config `yaml:"-"`
