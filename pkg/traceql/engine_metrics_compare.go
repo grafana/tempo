@@ -234,6 +234,7 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 	}
 
 	addValues := func(prefix Label, data map[Attribute]map[StaticMapKey]*staticWithCounts) {
+		var value *staticWithCounts
 		for a, values := range data {
 			// Compute topN values for this attribute
 			top.reset()
@@ -242,10 +243,15 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 			}
 
 			top.get(m.topN, func(v Static) {
+				value = values[v.MapKey()]
+				var counts []float64
+				if value != nil {
+					counts = value.counts
+				}
 				add(Labels{
 					prefix,
 					{Name: a.String(), Value: v},
-				}, values[v.MapKey()].counts)
+				}, counts)
 			})
 
 			if len(values) > m.topN {
