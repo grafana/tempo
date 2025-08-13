@@ -20,16 +20,23 @@
 package otlptranslator
 
 import (
-	"regexp"
+	"strings"
 )
 
-var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
-
-// sanitizeLabelName replaces anything that doesn't match
-// invalidLabelCharRE with an underscore.
+// sanitizeLabelName replaces any characters not valid according to the
+// classical Prometheus label naming scheme with an underscore.
 // Note: this does not handle all Prometheus label name restrictions (such as
 // not starting with a digit 0-9), and hence should only be used if the label
 // name is prefixed with a known valid string.
 func sanitizeLabelName(name string) string {
-	return invalidLabelCharRE.ReplaceAllString(name, "_")
+	var b strings.Builder
+	b.Grow(len(name))
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
 }

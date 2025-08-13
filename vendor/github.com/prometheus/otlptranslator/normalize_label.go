@@ -24,7 +24,7 @@ import (
 	"unicode"
 )
 
-// Normalizes the specified label to follow Prometheus label names standard.
+// NormalizeLabel normalizes the specified label to follow Prometheus label names standard.
 //
 // See rules at https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels.
 //

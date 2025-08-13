@@ -122,21 +122,14 @@ func createAttributes(resource pcommon.Resource, attributes pcommon.Map, setting
 	serviceName, haveServiceName := resourceAttrs.Get(conventions.AttributeServiceName)
 	instance, haveInstanceID := resourceAttrs.Get(conventions.AttributeServiceInstanceID)
 
-	promotedAttrs := make([]prompb.Label, 0, len(settings.PromoteResourceAttributes))
-	for _, name := range settings.PromoteResourceAttributes {
-		if value, exists := resourceAttrs.Get(name); exists {
-			promotedAttrs = append(promotedAttrs, prompb.Label{Name: name, Value: value.AsString()})
-		}
-	}
-	sort.Stable(ByLabelName(promotedAttrs))
+	promotedAttrs := settings.PromoteResourceAttributes.promotedAttributes(resourceAttrs)
 
-	// Calculate the maximum possible number of labels we could return so we can preallocate l
+	// Calculate the maximum possible number of labels we could return so we can preallocate l.
 	maxLabelCount := attributes.Len() + len(settings.ExternalLabels) + len(promotedAttrs) + len(extras)/2
 
 	if haveServiceName {
 		maxLabelCount++
 	}
-
 	if haveInstanceID {
 		maxLabelCount++
 	}
@@ -178,7 +171,7 @@ func createAttributes(resource pcommon.Resource, attributes pcommon.Map, setting
 		}
 	}
 
-	// Map service.name + service.namespace to job
+	// Map service.name + service.namespace to job.
 	if haveServiceName {
 		val := serviceName.AsString()
 		if serviceNamespace, ok := resourceAttrs.Get(conventions.AttributeServiceNamespace); ok {
@@ -186,14 +179,14 @@ func createAttributes(resource pcommon.Resource, attributes pcommon.Map, setting
 		}
 		l[model.JobLabel] = val
 	}
-	// Map service.instance.id to instance
+	// Map service.instance.id to instance.
 	if haveInstanceID {
 		l[model.InstanceLabel] = instance.AsString()
 	}
 	for key, value := range settings.ExternalLabels {
-		// External labels have already been sanitized
+		// External labels have already been sanitized.
 		if _, alreadyExists := l[key]; alreadyExists {
-			// Skip external labels if they are overridden by metric attributes
+			// Skip external labels if they are overridden by metric attributes.
 			continue
 		}
 		l[key] = value
@@ -209,8 +202,8 @@ func createAttributes(resource pcommon.Resource, attributes pcommon.Map, setting
 		if found && logOnOverwrite {
 			log.Println("label " + name + " is overwritten. Check if Prometheus reserved labels are used.")
 		}
-		// internal labels should be maintained
-		if !settings.AllowUTF8 && !(len(name) > 4 && name[:2] == "__" && name[len(name)-2:] == "__") {
+		// internal labels should be maintained.
+		if !settings.AllowUTF8 && (len(name) <= 4 || name[:2] != "__" || name[len(name)-2:] != "__") {
 			name = otlptranslator.NormalizeLabel(name)
 		}
 		l[name] = extras[i+1]
