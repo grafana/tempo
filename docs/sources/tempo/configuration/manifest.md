@@ -1190,4 +1190,8 @@ live_store:
         min_partition_owners_count: 1
         min_partition_owners_duration: 10s
         delete_inactive_partition_after: 13h0m0s
+    complete_block_timeout: 15m0s
+    metrics:
+        concurrent_blocks: 2
+        time_overlap_cutoff: 0.2
 ```
