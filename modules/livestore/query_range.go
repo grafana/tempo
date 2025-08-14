@@ -1,3 +1,6 @@
+/*
+ * This package is a fork of localblocks/query_range any changes should be made in both.
+ */
 package livestore
 
 import (
