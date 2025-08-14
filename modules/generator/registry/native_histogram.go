@@ -367,11 +367,15 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 	}
 
 	// Clear all native exemplars after emission to prevent accumulation
-	// This matches the behavior of classic histograms: s.exemplars[i].Store("")
-	// FIXME: this is not working as expected.  It appears that the internal slice retains previous exemplars and I am not seeing a Reset() method.
+	// This should match the behavior of classic histograms: s.exemplars[i].Store("")
+	//
+	// FIXME: this is not working as expected.  It appears that the internal
+	// slice retains previous exemplars and I am not seeing a Reset() method or a
+	// way to clear out the exemplars which have been recorded.
+	//
 	if nativeExemplarCount > 0 {
-		clear(s.histogram.Exemplars)                      // Clear the slice completely
-		s.histogram.Exemplars = s.histogram.Exemplars[:0] // Reset length to 0
+		clear(s.histogram.Exemplars)
+		s.histogram.Exemplars = s.histogram.Exemplars[:0]
 	}
 
 	// For pure native mode, never emit bucket exemplars - only native ones
