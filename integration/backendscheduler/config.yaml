@@ -41,6 +41,7 @@ backend_scheduler:
       measure_interval: 1s
 backend_worker:
   backend_scheduler_addr: tempo-integration-backend-scheduler:9095
+  finish_on_shutdown_timeout: 1s
 backend_scheduler_client:
   grpc_client_config:
     max_send_msg_size: 134217728
