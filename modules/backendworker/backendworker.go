@@ -191,9 +191,9 @@ func (w *BackendWorker) running(ctx context.Context) error {
 	b := backoff.New(ctx, w.cfg.Backoff)
 
 	jobCtx := ctx
-	if w.cfg.FinishOnShutdown {
+	if w.cfg.FinishOnShutdownTimeout > 0 {
 		var jobsCancel context.CancelFunc
-		jobCtx, jobsCancel = createShutdownContext(ctx, w.cfg.JobFinishTimeout)
+		jobCtx, jobsCancel = createShutdownContext(ctx, w.cfg.FinishOnShutdownTimeout)
 		defer jobsCancel()
 	}
 
