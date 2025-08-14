@@ -661,6 +661,9 @@ func (rw *readerWriter) PollNow(ctx context.Context) {
 	rw.pollBlocklist(ctx)
 }
 
+// PollNotification returns a context.Done() channel, the closure of which indicates
+// that the blocklist has been updated.  The channel is never written to, but
+// allows waiting more precisely for updated information from the backend.
 func (rw *readerWriter) PollNotification(ctx context.Context) <-chan struct{} {
 	ctx, cancel := context.WithCancel(ctx)
 
