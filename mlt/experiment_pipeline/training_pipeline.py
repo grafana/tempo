@@ -261,35 +261,35 @@ class TrainingPipeline:
     @staticmethod
     def run_prediction_task(model: MLTBaseModel, task: PredictionTask) -> PredictionResults:
         """
-        Execute a single prediction task, including model tuning, training, and prediction.
-
-        This method handles the execution of a PredictionTask, which may include hyperparameter
-        tuning, model training, making predictions, and calculating feature importance and SHAP values.
-
-        Args:
-            model (MLTBaseModel): The model to use for predictions
-            task (PredictionTask): The prediction task containing training and prediction data
-
-        Returns:
-            PredictionResults: Object containing predictions, model parameters, feature importance,
-                             and other relevant results from the prediction task
-
-        Notes:
-            - If task.is_tune_task is True, performs hyperparameter tuning before training
-            - Calculates feature importance if model supports it
-            - Generates SHAP values for predictions after min_shap_date if model supports it
-            - Stores the model object in results only for the final task
+        Execute a single prediction task, ensuring that ARIMA is trained before making predictions.
         """
         results = PredictionResults()
         train_times_dict = dict(tune_start_time=task.min_train_time, tune_end_time=task.max_train_time)
-        if task.is_tune_task:
+
+        # Only tune hyperparameters if the model supports it
+        if task.is_tune_task and hasattr(model, "tune_hyperparameters"):
             model.tune_hyperparameters(task.training_data)
-            # Make a single row dataframe with dict keys as columns
             results.model_params = pd.DataFrame([model.model_parameters | train_times_dict])
-            results.inner_cv_results = pd.DataFrame(model.cv_results_ | train_times_dict)
-            results.inner_cv_params = pd.DataFrame([model.cv_params_ | train_times_dict])
-        else:
+
+            # Handle CV results properly (check if it's a list or dict)
+            if isinstance(model.cv_results_, dict) and "results" in model.cv_results_:
+                cv_results = model.cv_results_["results"]
+            else:
+                cv_results = model.cv_results_ if isinstance(model.cv_results_, list) else []
+
+            results.inner_cv_results = pd.DataFrame(cv_results)
+            if not results.inner_cv_results.empty:
+                results.inner_cv_results["tune_start_time"] = train_times_dict["tune_start_time"]
+                results.inner_cv_results["tune_end_time"] = train_times_dict["tune_end_time"]
+
+            cv_params = model.cv_params_ if model.cv_params_ else {}  # Ensure it's a dictionary
+            results.inner_cv_params = pd.DataFrame([{**cv_params, **train_times_dict}])
+
+        # Ensure ARIMA is trained before making predictions
+        if getattr(model, "best_model_", None) is None:
             model.train_model(task.training_data)
+
+        # Generate predictions
         predictions = model.get_predictions(task.prediction_data.copy())
         prediction_end_time = predictions[task.prediction_time_column_name].max()
         predictions["in_sample_start_time"] = task.min_train_time
@@ -298,12 +298,14 @@ class TrainingPipeline:
         results.out_of_sample_predictions = predictions
         results.prediction_end_time = prediction_end_time
 
+        # Handle feature importance for models that support it
         if model.has_feature_importance:
             feature_importance = model.feature_importances(task.training_data)
             feature_importance[f"{'tune' if task.is_tune_task else 'train'}_start_time"] = task.min_train_time
             feature_importance[f"{'tune' if task.is_tune_task else 'train'}_end_time"] = task.max_train_time
             results.feature_importances = feature_importance.sort_values("score", ascending=False)
 
+        # Get in-sample predictions for analysis
         in_sample_predictions = model.get_predictions(task.training_data)
         added_cols = in_sample_predictions.columns.difference(task.training_data.columns)
         in_sample_predictions = in_sample_predictions[
@@ -313,12 +315,17 @@ class TrainingPipeline:
         in_sample_predictions["in_sample_end_time"] = task.max_train_time
         results.in_sample_predictions = in_sample_predictions
 
+        # Calculate SHAP values if the model supports them
         if model.has_shap and prediction_end_time.strftime("%Y-%m-%d") > task.min_shap_date:
             shaps = model.get_shap_values(feature_data=task.prediction_data, predictions=predictions)
             results.shaps = shaps
+
+        # Store the model in results if it's the last task
         if task.is_last_task:
             results.model = model
+
         return results
+
 
     def generate_predictions_for_prediction_period(self, data_for_training: pd.DataFrame) -> PredictionResults:
         """

@@ -1,0 +1,2 @@
+name: timeseries
+inner_cv_score: mean_absolute_error  # Or 'neg_mean_squared_error' if needed

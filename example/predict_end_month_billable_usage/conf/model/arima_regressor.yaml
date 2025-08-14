@@ -1,0 +1,14 @@
+name: arima_regressor
+object:
+  _target_: mlt.models.time_series_models.arima.MLTArimaModel
+  non_feature_columns: ${column_definitions.non_feature_columns}
+  model_type: ${model_type.name}
+  model_name: ${model.name}
+  model_parameter_grid:
+    estimator__order: 
+      - [1, 1, 1]
+      - [2, 1, 2]
+      - [3, 1, 3]
+  prediction_time_column_name: ${column_definitions.prediction_time_column_name}
+  true_label_name: ${column_definitions.true_label_name}
+  predicted_label_name: ${column_definitions.predicted_label_name}

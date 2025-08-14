@@ -1,7 +1,7 @@
 defaults:
-  - model_type: regression
-  - cv: PurgedWalkForwardCV
-  - search_cv : randomizedsearchcv
+  - model_type: time_series
+  - cv: null  # No cross-validation for ARIMA
+  - search_cv: null  # ARIMA does not use hyperparameter tuning via search_cv
   - model: arima_regressor
   - experiment_logger: regression_experiment_logger
   - _self_
@@ -11,10 +11,10 @@ run_settings:
   smoke_test : False
   experiment_name: predict_end_month_billable_usage
   get_data_directly: True
-  code_directory: examples/predict_next_day_usage
-  script_name: ${run_settings.code_directory}/main.py
+  code_directory: examples/predict_end_month_billable_usage
+  script_name: ${run_settings.code_directory}/run_arima_experiment.py
   path_results: outputs
-  multi_org: True
+  multi_org: False
   use_local_features: True
   compute: "local"
   use_gpu: False
@@ -24,7 +24,7 @@ run_settings:
 column_definitions:
   prediction_time_column_name: "prediction_date"
   evaluation_time_column_name: "evaluation_date"
-  true_label_name: "monthly_target"
+  true_label_name: "target" #"monthly_target"
   predicted_label_name: "predicted_target"
   org_id_column_name: null
   non_feature_columns: 
@@ -44,30 +44,24 @@ outer_cv_settings:
   min_shap_date: "2022-01-01"
   num_recent_prediction_days: 21
   train_test_gap: 0
-  initial_train_date_number: 100
-  number_of_dates_between_training: 100 #number of prediction days between training
-  number_of_training_periods_between_tuning: 3 #number of training periods between tuning
+  initial_train_date_number: 10
+  number_of_dates_between_training: 10
+  number_of_training_periods_between_tuning: 3
   rolling_window_size: 
-
-
-inner_cv_settings:
-  num_cv_iterations: 2  #number of parameter setting sampled during tuning
-  num_cv_jobs: 16
-  search_cv_verbose: 3
 
 data_cleaning_config:
   labeling_config:
     target: 
-    forecast_window:   #number of business days
+    forecast_window: 
 
 data_acquisition_config:
   data_path: example/predict_end_month_billable_usage/data/
-  joined_data_path: 'arima_model_data.parquet' #df_processed_662171.parquet  #sk_synthetic_data_window21_asset_1.parquet
+  joined_data_path: 'synthetic_ts.parquet' #'arima_model_data.parquet'
   debug_model_path: debug_model.pkl
 
 target: ${data_cleaning_config.labeling_config.target}_${model_type.name}
 experiment_name: ${run_settings.experiment_name}_${target}
-run_name: ${model.name}_${cv.name}_${search_cv.name}_${data_cleaning_config.labeling_config.forecast_window}D_${now:%Y_%h-%d}_${now:%H-%M-%S}
+run_name: ${model.name}_${now:%Y_%h-%d}_${now:%H-%M-%S}  # Removed `cv.name` and `search_cv.name`
 experiment_path: ${run_settings.path_results}/${experiment_name}_${now:%Y_%h-%d}
 
 hydra:
@@ -78,5 +72,3 @@ hydra:
   sweep:
     dir: ${experiment_path}
     subdir: ${run_name}
-
-

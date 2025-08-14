@@ -5,6 +5,7 @@ from typing import Dict, Callable, Union, List, Tuple, Optional
 from omegaconf import DictConfig, OmegaConf
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+from sklearn.calibration import calibration_curve
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -14,6 +15,12 @@ from sklearn.metrics import (
     mean_absolute_error,
     root_mean_squared_error,
     r2_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    confusion_matrix,
+    ConfusionMatrixDisplay,
+    classification_report
 )
 
 from mlt.models.base_models import MLTBaseModel
@@ -271,6 +278,73 @@ class ExperimentLogger(ABC):
         )
         fig.savefig(self.metrics_save_path / "Last CV Split.png", bbox_inches="tight")
         plt.close(fig)
+    
+    def save_unlabelled_prediction_processed(
+            self, unlabelled_predictions: pd.DataFrame, date: str = "2025-03-31"
+    ):
+        
+        plot_df = unlabelled_predictions[unlabelled_predictions['evaluation_date'] == date].copy()
+
+# Create scatter plot
+        # Create figure and axis
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Create scatter plot
+        ax.scatter(plot_df['overage_mrr'], plot_df['projected_amount_due'], alpha=0.5)
+        ax.set_xlabel('Actual Overage MRR')
+        ax.set_ylabel('Projected Amount Due') 
+        ax.set_title(f'Projected vs Actual Values for {date}')
+
+        # Add a perfect prediction line (y=x)
+        max_val = max(plot_df['overage_mrr'].max(), plot_df['projected_amount_due'].max())
+        ax.plot([0, max_val], [0, max_val], 'r--', label='Perfect Prediction')
+        ax.legend()
+
+        # Save figure
+        fig.savefig(self.metrics_save_path / f"unlabelled_predictions_overage_mrr_{date}.png", bbox_inches="tight")
+        plt.close(fig)
+
+        # Calculate error metrics
+        plot_df['absolute_error'] = abs(plot_df['projected_amount_due'] - plot_df['overage_mrr'])
+        plot_df['percentage_error'] = (plot_df['absolute_error'] / plot_df['overage_mrr']) * 100
+
+        stats = {
+            'Mean Absolute Error': plot_df['absolute_error'].mean(),
+            'Median Absolute Error': plot_df['absolute_error'].median(), 
+            'Mean Percentage Error': plot_df['percentage_error'].mean(),
+            'Median Percentage Error': plot_df['percentage_error'].median(),
+            'Number of Predictions': len(plot_df)
+        }
+
+        correlation = plot_df['projected_amount_due'].corr(plot_df['overage_mrr'])
+        stats['Correlation'] = correlation
+
+        # Create figure for stats
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.axis('off')
+        
+        # Create table
+        cell_text = [[f"{value:.2f}" for value in stats.values()]]
+        table = ax.table(cellText=cell_text,
+                        colLabels=list(stats.keys()),
+                        loc='center',
+                        cellLoc='center')
+        
+        # Adjust table appearance
+        table.auto_set_font_size(False)
+        table.set_fontsize(9)
+        table.scale(1.2, 2)
+        
+        # Add title
+        plt.title(f'Prediction Statistics for {date}', pad=20)
+        
+        # Save figure
+        fig.savefig(self.metrics_save_path / f"prediction_statistics_post_processing_{date}.png", bbox_inches="tight")
+        plt.close(fig)
+
+        unlabelled_predictions[self.prediction_columns_to_save].to_csv(self.experiment_path / "recent_unlabelled_predictions_post_processing.csv", index=False)
+        
+
 
     @property
     @abstractmethod
@@ -437,6 +511,175 @@ class RegressionExperimentLogger(ExperimentLogger):
         self.generate_and_save_ml_artifacts(data[self.true_label_name], data[self.predicted_label_name])
 
 
+class ClassificationExperimentLogger(ExperimentLogger):
+
+    def __init__(
+            self, 
+            experiment_path: Path,
+            inner_cv_name: str,
+            prediction_columns_to_save: List[str],
+            class_labels: List[Any],
+            label_names: List[str],
+            probability_column_names: List[str],
+            prediction_time_column_name: str,
+            true_label_name: str,
+            predicted_label_name: str,
+    ):
+        super().__init__(
+            experiment_path,
+            inner_cv_name,
+            prediction_columns_to_save,
+            prediction_time_column_name,
+            true_label_name,
+            predicted_label_name,
+        )
+       
+        self.label_names = label_names
+        self.labels = class_labels
+        self.probability_column_names = probability_column_names
+
+    @property
+    def metric_functions(self) -> Dict[str, ScoringFunction]:
+        return {
+            "macro_f1_score": lambda x, y: f1_score(x, y, average="macro"),
+            "precision_score": lambda x, y: precision_score(x, y, average="macro"),
+            "recall_score": lambda x, y: recall_score(x, y, average="macro"),
+         }
+    
+    def save_confusion_matrix(self, true_label: pd.Series, predicted_label: pd.Series):
+        """
+        Save confusion matrix for classification model.
+        """
+        normalization_options = [("Normalized", "all"), ("Not Normalized", None)]
+        for title, normalize in normalization_options:
+            fig, ax = plt.subplots(figsize=(10, 10))
+            cm = confusion_matrix(true_label, predicted_label, normalize=normalize)
+            display_labels = self.label_names[: cm.shape[0]]
+            ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=display_labels).plot(ax=ax)
+            ax.set_title(f"Confusion Matrix {title}")
+            fig.savefig(self.metrics_save_path / f"confusion_matrix_{title}.png", bbox_inches="tight")
+            plt.close()
+    
+    def generate_and_save_ml_artifacts(self, true_label: pd.Series, predicted_label: pd.Series):
+        self.save_classification_report(true_label, predicted_label)
+        self.save_confusion_matrix(true_label, predicted_label)
+        
+    def save_classification_report(self, true_label: pd.Series, predicted_label: pd.Series):
+        ml_report = classification_report(true_label, predicted_label, output_dict=True)
+        pd.DataFrame(ml_report).trnaspose().to_csv(self.metrics_save_path / "classification_report.csv")
+
+    def metric_helper(self, true_label: pd.Series, predicted_label: pd.Series, sum_axis: int):
+        if len(true_label) == 0:
+            return pd.Series([np.nan] * len(self.labels), index=self.label_names)
+        mat = confusion_matrix(true_label, predicted_label, labels=self.labels)
+        num_correct_labels_by_class = mat.sum(axis=sum_axis)
+        accuracy_by_class = np.divide(
+            mat.diagnal(),
+            num_correct_labels_by_class,
+            out=np.zeros_like(mat.diagonal(),dtype=float),
+            where=num_correct_labels_by_class != 0,
+        )
+
+        return pd.Series(accuracy_by_class, index=self.label_names)
+    
+    def find_metrics_by_period(
+            self, label_data: pd.DataFrame, metric: ScoringFunction, resampling_code: str) -> pd.DataFrame:
+        if metric == recall_score:
+            sum_axis = 1
+        elif metric == precision_score:
+            sum_axis = 0
+       
+        metric_by_period = label_data.resample(resampling_code, on=self.prediction_time_column_name).apply(
+            lambda x: self.metric_helper(x[self.true_label_name], x[self.predicted_label_name], sum_axis)
+        )
+       
+        metric_by_period = metric_by_period.dropna(how="all")
+        return metric_by_period
+    
+    def save_reliability_plots(self, data: pd.DataFrame):
+
+        fig, ax = plt.subplots(1, len(self.labels), figsize=(15,6), facecolor="w", edgecolor="k",sharey="all")
+        for i, label_name in enumerate(self.label_names):
+            label_for_plot = np.where(data[self.true_label_name] == self.labels[i], 1, 0)
+            probability = data[self.probability_column_names[i]]
+
+            fop, mpv = calibration_curve(label_for_plot, probability, n_bins=20)
+
+            ax[i].plot([0, 1], [0, 1], linestyle="--")
+            ax[i].plot(mpv, fop, marker=".", linewidth=2)
+            ax[i].set_title(f"class {label_name} vs Rest", fontsize=15)
+            ax[i].set_xlabel("Predicted Probability", fontsize=12)
+
+        ax[0].set_ylabel("Observed Relative Frequency", fontsize=12)
+
+        plt.savefig(self.metrics_save_path / "reliability_plots.png", bbox_inches="tight")
+        plt.close()
+    
+    def save_certainty_histogram(self, data: pd.DataFrame):
+
+        num_classes = len(self.labels)
+        fig, ax = plt.subplots(num_classes, 1, figsize=(15, 15), facecolor="w", edgecolor="k", sharex="all")
+        min_win_prob = round(1 / num_classes, 1)
+        bins = np.array(range(int(min_win_prob * 100), 105, 5)) / 100
+
+        for i, label in enumerate(self.labels):
+            win_probabilities = data.loc[data[self.true_label_name] == label, self.probability_column_names].max(axis=1)
+            ax[i].hist(win_probabilities, edgecolor="black", bins=bins)
+            ax[i].set_title(self.label_names[i])
+            ax[i].set_ylabel("Population", fontsize=15)
+        ax[num_classes - 1].set_xlabel("Predicted Probability")
+        ax[num_classes - 1].set_xticks(bins)
+        plt.xticks(fontsize=12)
+
+        plt.savefig(self.metrics_save_path / "certainty_histogram.png")
+        plt.close()
+
+    def save_label_population_over_time(self, data: pd.DataFrame):
+
+        data = data[[self.prediction_time_column_name, self.true_label_name, self.predicted_label_name]].melt(
+            id_vars=[self.prediction_time_column_name], var_name="label_type", value_name="applied_label"
+        )
+        original_labels = data.loc[data["label_type"] == self.ture_label_name, "applied_label"].unique()
+        predicted_labels = data.loc[data["label_type"] == self.predicted_label_name, "applied_label"].unique()
+        labels = [original_labels, predicted_labels]
+
+        for freq_name, freq_code in self.resampling_to_frequency_code.items():
+            if freq_code == "M":
+                data["frequency"] = (
+                    data[self.prediction_time_column_name].dt.year.astype(str)
+                    + data[self.prediction_time_column_name].dt.month_name()
+                )
+            else:
+                data["frequency"] = data[self.prediction_time_column_name].dt.year
+            
+            transformed_label_data = (
+                data.groupby(["frequency", "label_type", "applied_label"])[self.prediction_time_column_name]
+                .count()
+                .unstack([1, 2])
+                .fillna(0)
+            )
+            fig, ax = plt.subplots(2, 1, figsize=(15, 15), facecolor="w", edgecolor="k", sharex="col")
+
+            for ind, label_type in enumerate([self.true_label_name, self.predicted_label_name]):
+                transformed_label_data[label_type][labels[ind]].rename(dict(zip(self.labels, self.label_names))).plot(
+                    ax=ax[ind],
+                )
+                ax[ind].set_ylabel(f"Population of {label_type.title()}", fontsize=15)
+                ax[ind].legend()
+                plt.xticks(fontsize=12)
+                plt.yticks(fontsize=12)
+
+            plt.savefig(self.metrics_save_path / f"label_population_over_time_{freq_name}.png", bbox_inches="tight")
+            plt.close()
+    
+    def perform_model_checks(self, data: pd.DataFrame):
+        self.save_metrics_over_time_plot(data, metric_dict={"accuracy": recall_score, "precision": precision_score})
+        self.save_reliability_plots(data)
+        self.save_certainty_histogram(data)
+        self.save_label_population_over_time(data)
+        self.generate_and_save_ml_artifacts(data[self.true_label_name], data[self.predicted_label_name])
+    
+
 class TickFormatter:
     def __init__(self, all_dates: np.ndarray):
         self.data = all_dates
@@ -446,3 +689,4 @@ class TickFormatter:
             return np.datetime_as_string(self.data[int(value)], unit="D")
         else:
             return ""
+

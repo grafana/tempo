@@ -256,9 +256,11 @@ class MLTBaseModel(ABC):
         :return DataFrame with predictions and prediction probabilities as well as the original data
         """
         data = data.copy()
+        print('data:',len(data))
         features = self.transform_data_to_features(data)
         data = self._match_data_to_features(data, features)
         predictions = self._get_prediction_data(features, data.index)
+        print(predictions)
         data[predictions.columns] = predictions
         return data
 
@@ -369,3 +371,93 @@ class MLTBaseRegression(MLTBaseModel, ABC):
         feature_data[self.predicted_label_name] = predictions.iloc[:, 0]
 
         return feature_data
+
+
+class MLTBaseClassification(MLTBaseModel, ABC):
+    """
+    Base class for classification models.
+    """
+    def __init__(
+            self, 
+            search_cv_factory: Callable[[BaseEstimator], SearchCV],
+            cv_splitter: CVSplitter,
+            non_feature_columns: List[str],
+            model_type: str,
+            model_name: str,
+            model_parameter_grid: Dict[str, List[Any]],
+            use_gpu: bool,
+            model_objective: str,
+            prediction_time_column_name: str,
+            true_label_name: str,
+            predicted_label_name: str,
+            probability_column_names: List[str],
+            class_labels: List[any],
+            importance_type: str = "",
+            has_feature_importance: bool = True,
+            has_shap: bool = True,
+            extra_pipeline_kwargs: Dict = None,
+            use_balanced_sample_weighting: bool = False,
+    ):
+        self.model_binary = len(class_labels) == 2
+        self.model_objective = model_objective
+        self.probability_column_names = probability_column_names
+        self.class_labels = class_labels
+
+        super().__init__(
+            search_cv_factory=search_cv_factory,
+            cv_splitter=cv_splitter,
+            non_feature_columns=non_feature_columns,
+            model_type=model_type,
+            model_name=model_name,
+            model_parameter_grid=model_parameter_grid,
+            use_gpu=use_gpu,
+            prediction_time_column_name=prediction_time_column_name,
+            true_label_name=true_label_name,
+            predicted_label_name=predicted_label_name,
+            importance_type=importance_type,
+            has_feature_importance=has_feature_importance,
+            has_shap=has_shap,
+            extra_pipeline_kwargs=extra_pipeline_kwargs,
+        )
+        if use_balanced_sample_weighting:
+            self.extra_pipeline_kwargs |= {"sample_weight": use_balanced_sample_weighting}
+        
+    @abstractmethod
+    def _new_pipeline(self):
+        pass
+    
+    def get_fold_from_index(self, data: pd.DataFrame, indices: np.ndarray) -> pd.DataFrame:
+        return super().get_fold_from_index(data, indices)
+    
+    def _prepare_labels(self, label_series: pd.Series) -> np.ndarray:
+        labels = label_series.ravel()
+        if self.model_binary:
+            labels = labels + 1
+
+        return labels
+
+    def _get_prediction_data(self, features: pd.DataFrame, index: pd.Index) -> pd.DataFrame:
+        predictions = pd.DataFrame(
+            self.pipeline.predict_proba(features), columns=self.probability_column_names, index=index
+        )
+        predictions[self.predicted_label_name] = self.pipeline.predict(features)
+
+        return predictions
+    
+    @abstractmethod
+    def feature_importances(self, training_data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Get feature importances from model
+        :param training_data: training data. Not used for models other than SVM models
+        :return: Dataframe containing feature_importances and feature names
+        """
+        pass
+    
+    @abstractmethod
+    def get_shap_values(self, feature_data: pd.DataFrame, predictions: pd.Series) -> pd.DataFrame:
+
+        if self.model_binary:
+            raise NotImplementedError("SHAP values are not supported for binary classification models")
+        feature_names = [col for col in feature_data.columns if col not in self.non_feature_columns]
+        
+    

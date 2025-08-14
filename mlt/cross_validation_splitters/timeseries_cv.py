@@ -69,8 +69,8 @@ class BaseTimeSeriesCV(CVSplitter):
             raise ValueError(f"X must be a pandas DataFrame or Series, got {type(X)}")
         if not isinstance(y, pd.Series) and y is not None:
             raise ValueError(f"y must be a pandas Series, got {type(y)}")
-        if y is not None and (X.index ==y.index).sum() != len(X):
-            raise ValueError("X and y must have the same index")
+        if y is not None and (X.index == y.index).sum() != len(X):
+            raise ValueError(f"X and y must have the same index (mismatch found)")
 
     @abstractmethod
     def get_n_splits(self) -> int:

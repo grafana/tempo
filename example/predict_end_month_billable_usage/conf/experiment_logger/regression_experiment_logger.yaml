@@ -2,4 +2,4 @@ name: RegressionExperimentLogger
 object:
   _target_: mlt.experiment_reporter.experiment_logger.RegressionExperimentLogger
   _convert_: all
-  inner_cv_name: ${cv.name}
+  inner_cv_name: null #${cv.name}

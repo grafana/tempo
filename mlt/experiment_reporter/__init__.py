@@ -1,2 +1,1 @@
-from mlt.experiment_reporter.experiment_logger import RegressionExperimentLogger
-
+from mlt.experiment_reporter.experiment_logger import RegressionExperimentLogger, ClassificationExperimentLogger
