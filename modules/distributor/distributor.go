@@ -484,9 +484,11 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, ringTokens)
-	if err != nil {
-		return nil, err
+	if d.cfg.GRPCWritePathEnabled {
+		err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, ringTokens)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {

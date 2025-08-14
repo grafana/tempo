@@ -1,8 +1,11 @@
+partition_ring_live_store: true
+
 server:
   http_listen_port: 3200
   log_level: debug
 
 distributor:
+  grpc_write_path_enabled: false
   kafka_write_path_enabled: true
   receivers:
     otlp:

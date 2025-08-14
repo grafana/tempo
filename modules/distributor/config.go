@@ -42,7 +42,8 @@ type Config struct {
 	Forwarders          forwarder.ConfigList      `yaml:"forwarders"`
 	Usage               usage.Config              `yaml:"usage,omitempty"`
 
-	// Kafka
+	// Migration to Kafka write path
+	GRPCWritePathEnabled  bool               `yaml:"grpc_write_path_enabled"`
 	KafkaWritePathEnabled bool               `yaml:"kafka_write_path_enabled"`
 	KafkaConfig           ingest.KafkaConfig `yaml:"kafka_config"`
 
@@ -83,6 +84,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.RetryAfterOnResourceExhausted = 0
 	cfg.OverrideRingKey = distributorRingKey
 	cfg.ExtendWrites = true
+	cfg.GRPCWritePathEnabled = true
 
 	cfg.MaxAttributeBytes = 2048 // 2KB
 

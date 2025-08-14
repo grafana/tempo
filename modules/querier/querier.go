@@ -80,8 +80,10 @@ type Querier struct {
 	generatorPool *ring_client.Pool
 	generatorRing ring.ReadRing
 
-	liveStorePool *ring_client.Pool
-	liveStoreRing ring.ReadRing
+	queryPartitionRing bool // todo: remove after rhythm migration
+	liveStorePool      *ring_client.Pool
+	liveStoreRing      ring.ReadRing
+	partitionRing      *ring.PartitionInstanceRing
 
 	engine *traceql.Engine
 	store  storage.Store
@@ -92,14 +94,29 @@ type Querier struct {
 }
 
 // New makes a new Querier.
+//
+// Note on queryPartitionRing:
+// Pre rhyhtm we would would use the ingester or generator read rings to query recent data. This is signalled by passing queryPartitionRing as false.
+// In this case the partition ring contains ingesters, but we still query through the ingester read ring.
+//
+// Post rhythm we will query the live store for all recent data. This is signalled by passing queryPartitionRing as true.
+// In this case the partition ring contains live stores and we can query through it directly. Once the migration is complete we will be able to remove all
+// generator and ingester rings and configs from the querier.
 func New(
 	cfg Config,
+
+	// pre-rhythm rings and client configs
 	ingesterClientConfig ingester_client.Config,
 	ingesterRings []ring.ReadRing,
 	generatorClientConfig generator_client.Config,
 	generatorRing ring.ReadRing,
+
+	// post-rhyhtm ring and client config
+	queryPartitionRing bool, // todo: remove after rhythm migration
 	liveStoreClientConfig livestore_client.Config,
 	liveStoreRing ring.ReadRing,
+	partitionRing *ring.PartitionInstanceRing,
+
 	store storage.Store,
 	limits overrides.Interface,
 ) (*Querier, error) {
@@ -137,7 +154,9 @@ func New(
 			generatorClientFactory,
 			metricMetricsGeneratorClients,
 			log.Logger),
-		liveStoreRing: liveStoreRing, // jpe - actually use in querying
+		queryPartitionRing: queryPartitionRing, // jpe - do i need this bool?
+		partitionRing:      partitionRing,
+		liveStoreRing:      liveStoreRing,
 		liveStorePool: ring_client.NewPool("querier_to_livestore_pool",
 			liveStoreClientConfig.PoolConfig,
 			ring_client.NewRingServiceDiscovery(liveStoreRing),
@@ -148,8 +167,6 @@ func New(
 		store:  store,
 		limits: limits,
 	}
-
-	// jpe - use query live store only
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
 	return q, nil
@@ -346,6 +363,16 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 		return nil, ctx.Err()
 	}
 
+	if q.queryPartitionRing {
+		// todo: note that on this path we ignore getReplicationSet. can we integrate it into the partition ring query
+		// or should we remove the QueryRelevantIngesters config option that only applied to find trace by id
+		rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+		if err != nil {
+			return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
+		}
+		return forPartitionRingReplicaSets(ctx, q, rs, f)
+	}
+
 	// if we have no configured ingester rings this will fail silently. let's return an actual error instead
 	if len(q.ingesterRings) == 0 {
 		return nil, errors.New("forIngesterRings: no ingester rings configured")
@@ -432,7 +459,7 @@ func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet,
 }
 
 // forGivenGenerators runs f, in parallel, for given generators
-func (q *Querier) forGivenGenerators(ctx context.Context, replicationSet ring.ReplicationSet, f forEachGeneratorFn) ([]any, error) {
+func (q *Querier) forGivenGenerators(ctx context.Context, f forEachGeneratorFn) ([]any, error) {
 	if ctx.Err() != nil {
 		_ = level.Debug(log.Logger).Log("foreGivenGenerators context error", "ctx.Err()", ctx.Err().Error())
 		return nil, ctx.Err()
@@ -440,6 +467,20 @@ func (q *Querier) forGivenGenerators(ctx context.Context, replicationSet ring.Re
 
 	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
 	defer span.End()
+
+	if q.queryPartitionRing {
+		rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+		if err != nil {
+			return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
+		}
+		return forPartitionRingReplicaSets(ctx, q, rs, f)
+	}
+
+	// Get results from all generators
+	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, fmt.Errorf("error finding generators: %w", err)
+	}
 
 	doFunc := func(funcCtx context.Context, generator *ring.InstanceDesc) (interface{}, error) {
 		if funcCtx.Err() != nil {
@@ -725,13 +766,7 @@ func (q *Querier) SpanMetricsSummary(ctx context.Context, req *tempopb.SpanMetri
 		Limit:   0,
 	}
 
-	// Get results from all generators
-	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
-	if err != nil {
-		return nil, fmt.Errorf("error finding generators in Querier.SpanMetricsSummary: %w", err)
-	}
-
-	results, err := q.forGivenGenerators(ctx, replicationSet, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
+	results, err := q.forGivenGenerators(ctx, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
 		return client.GetMetrics(ctx, genReq)
 	})
 	if err != nil {

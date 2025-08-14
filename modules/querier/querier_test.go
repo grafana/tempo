@@ -19,7 +19,7 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	q, err := New(Config{}, ingester_client.Config{}, nil, generator_client.Config{}, nil, livestore_client.Config{}, nil, nil, o)
+	q, err := New(Config{}, ingester_client.Config{}, nil, generator_client.Config{}, nil, false, livestore_client.Config{}, nil, nil, nil, o)
 	require.NoError(t, err)
 
 	ctx := user.InjectOrgID(context.Background(), "blerg")

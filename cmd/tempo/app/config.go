@@ -43,6 +43,7 @@ type Config struct {
 	StreamOverHTTPEnabled  bool          `yaml:"stream_over_http_enabled,omitempty"`
 	HTTPAPIPrefix          string        `yaml:"http_api_prefix"`
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
+	PartitionRingLiveStore bool          `yaml:"partition_ring_live_store,omitempty"` // todo: remove after rhythm migration
 
 	Server                server.Config                  `yaml:"server,omitempty"`
 	InternalServer        internalserver.Config          `yaml:"internal_server,omitempty"`
@@ -79,6 +80,8 @@ func NewDefaultConfig() *Config {
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = SingleBinary
 	c.StreamOverHTTPEnabled = false
+	c.PartitionRingLiveStore = false
+
 	// global settings
 	f.StringVar(&c.Target, "target", SingleBinary, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
@@ -127,6 +130,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.IntVar(&c.MemberlistKV.MessageHistoryBufferBytes, "memberlist.message-history-buffer-bytes", 0, "")
 
 	// Everything else
+	flagext.DefaultValues(&c.LiveStoreClient)
+	c.LiveStoreClient.GRPCClientConfig.GRPCCompression = "snappy"
 	flagext.DefaultValues(&c.IngesterClient)
 	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
 	flagext.DefaultValues(&c.GeneratorClient)

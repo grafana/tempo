@@ -23,7 +23,6 @@ type Config struct {
 	ShuffleShardingIngestersLookbackPeriod time.Duration `yaml:"shuffle_sharding_ingesters_lookback_period"`
 	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
-	QueryLiveStoreOnly                     bool          `yaml:"query_live_store_only,omitempty"` // todo: remove. this is a temporary config option only used for rhythm migration
 }
 
 type SearchConfig struct {
@@ -72,7 +71,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		DNSLookupPeriod: 10 * time.Second,
 	}
 	cfg.ShuffleShardingIngestersLookbackPeriod = 1 * time.Hour
-	cfg.QueryLiveStoreOnly = false
 
 	f.StringVar(&cfg.Worker.FrontendAddress, prefix+".frontend-address", "", "Address of query frontend service, in host:port format.")
 }
