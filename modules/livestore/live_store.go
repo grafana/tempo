@@ -55,7 +55,7 @@ type LiveStore struct {
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
 	wal          *wal.WAL
-	overrides    *Overrides
+	overrides    overrides.Interface
 
 	flushqueues *flushqueues.PriorityQueue
 
@@ -68,8 +68,6 @@ type LiveStore struct {
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	mergedOverrides := NewOverrides(overridesService)
-
 	s := &LiveStore{
 		cfg:         cfg,
 		logger:      logger,
@@ -78,7 +76,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		ctx:         ctx,
 		cancel:      cancel,
 		instances:   make(map[string]*instance),
-		overrides:   mergedOverrides,
+		overrides:   overridesService,
 		flushqueues: flushqueues.NewPriorityQueue(metricCompleteQueueLength),
 	}
 
