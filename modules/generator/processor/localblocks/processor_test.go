@@ -438,8 +438,8 @@ func (m *mockBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, tra
 
 func (m *mockBlock) BlockMeta() *backend.BlockMeta { return m.meta }
 
-func (m *mockBlock) TracesCheck(context.Context, common.ID, common.SearchOptions) (bool, uint64, error) {
-	return false, 0, nil
+func (m *mockBlock) TracesCheck(context.Context, []common.ID, common.SearchOptions) (map[string]bool, uint64, error) {
+	return nil, 0, nil
 }
 
 func (m *mockBlock) Validate(context.Context) error { return nil }

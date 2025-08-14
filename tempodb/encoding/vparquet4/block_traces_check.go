@@ -15,62 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// TracesCheck checks if a trace exists in the block without loading the actual trace data.
-// This is much more efficient than FindTraceByID for existence checking.
-func (b *backendBlock) TracesCheck(ctx context.Context, traceID common.ID, opts common.SearchOptions) (bool, uint64, error) {
-	derivedCtx, span := tracer.Start(ctx, "parquet4.backendBlock.TracesCheck",
-		trace.WithAttributes(
-			attribute.String("blockID", b.meta.BlockID.String()),
-			attribute.String("tenantID", b.meta.TenantID),
-			attribute.Int64("blockSize", int64(b.meta.Size_)),
-		))
-	defer span.End()
-
-	var inspectedBytes uint64
-
-	// Check bloom filter first - this is very fast
-	found, err := b.checkBloom(derivedCtx, traceID)
-	if err != nil {
-		return false, 0, err
-	}
-	if !found {
-		// Bloom filter says trace doesn't exist - definitive negative
-		return false, 0, nil
-	}
-	
-	// Bloom filter says trace might exist, check index
-	ok, rowGroup, err := b.checkIndex(derivedCtx, traceID)
-	if err != nil {
-		return false, 0, err
-	}
-	if !ok {
-		// Index says trace doesn't exist - definitive negative
-		return false, 0, nil
-	}
-
-	// If we have a specific row group from the index, we can do a lightweight check
-	// without reading the full parquet file
-	if rowGroup != -1 {
-		// We have a row group hint from the index, trace very likely exists
-		// We could do an even more precise check here if needed, but for most
-		// cases this is sufficient and much faster than loading the trace
-		span.SetAttributes(attribute.Int("rowGroup", rowGroup))
-		return true, inspectedBytes, nil
-	}
-
-	// Fallback: open the parquet file and do a lightweight existence check
-	pf, rr, err := b.openForSearch(derivedCtx, opts)
-	if err != nil {
-		return false, 0, fmt.Errorf("unexpected error opening parquet file: %w", err)
-	}
-	
-	exists, err := checkTraceExistsInParquet(derivedCtx, traceID, pf)
-	inspectedBytes = rr.BytesRead()
-	span.SetAttributes(attribute.Int64("inspectedBytes", int64(inspectedBytes)))
-	
-	return exists, inspectedBytes, err
-}
-
 // checkTraceExistsInParquet does a lightweight check for trace existence in parquet
 // without loading the full trace data
 func checkTraceExistsInParquet(ctx context.Context, traceID common.ID, pf *parquet.File) (bool, error) {
@@ -132,4 +76,89 @@ func checkTraceExistsInParquet(ctx context.Context, traceID common.ID, pf *parqu
 
 	// If we got a result, the trace exists
 	return res != nil, nil
+}
+
+// TracesCheck checks if multiple traces exist in the block without loading the actual trace data.
+// This is much more efficient than calling TracesCheck individually for each trace.
+func (b *backendBlock) TracesCheck(ctx context.Context, traceIDs []common.ID, opts common.SearchOptions) (map[string]bool, uint64, error) {
+	derivedCtx, span := tracer.Start(ctx, "parquet4.backendBlock.TracesCheck",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+			attribute.Int64("blockSize", int64(b.meta.Size_)),
+			attribute.Int("traceCount", len(traceIDs)),
+		))
+	defer span.End()
+
+	results := make(map[string]bool, len(traceIDs))
+	var totalInspectedBytes uint64
+	
+	// Initialize all results as false
+	for _, traceID := range traceIDs {
+		results[string(traceID)] = false
+	}
+
+	// First pass: check bloom filter for all trace IDs
+	// This can quickly eliminate many traces that definitely don't exist
+	candidateIDs := make([]common.ID, 0, len(traceIDs))
+	for _, traceID := range traceIDs {
+		found, err := b.checkBloom(derivedCtx, traceID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if found {
+			// Bloom filter says trace might exist
+			candidateIDs = append(candidateIDs, traceID)
+		}
+		// If bloom filter says no, results[traceID] stays false
+	}
+
+	if len(candidateIDs) == 0 {
+		// Bloom filter eliminated all traces
+		return results, 0, nil
+	}
+
+	// Second pass: check index for remaining candidates
+	indexCandidates := make([]common.ID, 0, len(candidateIDs))
+	for _, traceID := range candidateIDs {
+		ok, rowGroup, err := b.checkIndex(derivedCtx, traceID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if ok {
+			if rowGroup != -1 {
+				// Index gives us a specific row group, very likely exists
+				results[string(traceID)] = true
+			} else {
+				// Index says it might exist but no specific row group
+				indexCandidates = append(indexCandidates, traceID)
+			}
+		}
+		// If index says no, results[string(traceID)] stays false
+	}
+
+	if len(indexCandidates) == 0 {
+		// Index resolved all remaining candidates
+		return results, totalInspectedBytes, nil
+	}
+
+	// Third pass: check parquet file for remaining candidates
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("unexpected error opening parquet file: %w", err)
+	}
+	
+	// Check all remaining candidates in the parquet file
+	for _, traceID := range indexCandidates {
+		exists, err := checkTraceExistsInParquet(derivedCtx, traceID, pf)
+		if err != nil {
+			return nil, 0, err
+		}
+		results[string(traceID)] = exists
+	}
+	
+	totalInspectedBytes = rr.BytesRead()
+	span.SetAttributes(attribute.Int64("totalInspectedBytes", int64(totalInspectedBytes)))
+	
+	return results, totalInspectedBytes, nil
 }

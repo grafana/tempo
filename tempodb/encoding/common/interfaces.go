@@ -14,7 +14,7 @@ import (
 
 type Finder interface {
 	FindTraceByID(ctx context.Context, id ID, opts SearchOptions) (*tempopb.TraceByIDResponse, error)
-	TracesCheck(ctx context.Context, id ID, opts SearchOptions) (bool, uint64, error) // returns (exists, inspectedBytes, error)
+	TracesCheck(ctx context.Context, ids []ID, opts SearchOptions) (map[string]bool, uint64, error) // returns (existsMap keyed by hex string, inspectedBytes, error)
 }
 
 type (

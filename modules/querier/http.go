@@ -137,13 +137,43 @@ func (q *Querier) TracesCheckHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	body, err := api.ParseTracesCheckRequest(r)
 	if err != nil {
-		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	span.SetAttributes(attribute.String("traceID", fmt.Sprintf("%x", body.TraceID)))
+	// Validate request parameters for optional fields (similar to TraceByIDHandlerV2)
+	blockStart, blockEnd, queryMode, _, _, rf1After, err := api.ValidateAndSanitizeRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	resp, err := q.TracesCheck(ctx, body)
+	// Add sharding parameters to request if not already set
+	if body.BlockStart == "" {
+		body.BlockStart = blockStart
+	}
+	if body.BlockEnd == "" {
+		body.BlockEnd = blockEnd
+	}
+	if body.QueryMode == "" {
+		body.QueryMode = queryMode
+	}
+
+	// Use time fields from the request body (now required)
+	timeStart := time.Unix(int64(body.TimeStart), 0)
+	timeEnd := time.Unix(int64(body.TimeEnd), 0)
+
+	span.SetAttributes(
+		attribute.Int("traceCount", len(body.TraceIDs)),
+		attribute.String("blockStart", body.BlockStart),
+		attribute.String("blockEnd", body.BlockEnd),
+		attribute.String("queryMode", body.QueryMode),
+		attribute.String("timeStart", fmt.Sprint(body.TimeStart)),
+		attribute.String("timeEnd", fmt.Sprint(body.TimeEnd)),
+		attribute.String("rf1After", rf1After.Format(time.RFC3339)),
+	)
+
+	resp, err := q.TracesCheck(ctx, body, timeStart, timeEnd)
 	if err != nil {
 		handleError(w, err)
 		return

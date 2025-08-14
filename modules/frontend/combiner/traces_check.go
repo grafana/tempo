@@ -7,17 +7,28 @@ import (
 
 var _ GRPCCombiner[*tempopb.TracesCheckResponse] = (*genericCombiner[*tempopb.TracesCheckResponse])(nil)
 
-// NewTracesCheck returns a traces check combiner
+// NewTracesCheck returns a traces check combiner for batch processing
 func NewTracesCheck() Combiner {
 	c := &genericCombiner[*tempopb.TracesCheckResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.TracesCheckResponse { return &tempopb.TracesCheckResponse{} },
-		current:        &tempopb.TracesCheckResponse{Exists: false, Metrics: &tempopb.TraceByIDMetrics{}},
+		current:        &tempopb.TracesCheckResponse{TraceIDs: []string{}, Metrics: &tempopb.TraceByIDMetrics{}},
 
 		combine: func(partial *tempopb.TracesCheckResponse, final *tempopb.TracesCheckResponse, resp PipelineResponse) error {
-			// If any partial response indicates the trace exists, mark it as found
-			if partial.Exists {
-				final.Exists = true
+			if final.TraceIDs == nil {
+				final.TraceIDs = []string{}
+			}
+
+			// Merge trace IDs - add any new found traces (avoid duplicates)
+			existingSet := make(map[string]bool)
+			for _, traceID := range final.TraceIDs {
+				existingSet[traceID] = true
+			}
+			
+			for _, traceID := range partial.TraceIDs {
+				if !existingSet[traceID] {
+					final.TraceIDs = append(final.TraceIDs, traceID)
+				}
 			}
 
 			// Combine metrics
@@ -35,12 +46,16 @@ func NewTracesCheck() Combiner {
 			if resp.Metrics == nil {
 				resp.Metrics = &tempopb.TraceByIDMetrics{}
 			}
+			if resp.TraceIDs == nil {
+				resp.TraceIDs = []string{}
+			}
 			return resp, nil
 		},
 
 		quit: func(resp *tempopb.TracesCheckResponse) bool {
-			// Early exit if we found the trace - no need to check more sources
-			return resp.Exists
+			// For now, don't early exit - let all sources respond
+			// This ensures we get complete metrics and don't miss any traces
+			return false
 		},
 	}
 

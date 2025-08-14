@@ -71,7 +71,6 @@ const (
 	PathPrefixGenerator = "/generator"
 
 	PathTraces              = "/api/traces/{traceID}"
-	PathTraceLookup         = "/api/trace-lookup"
 	PathTracesCheck         = "/api/traces-check"
 	PathSearch              = "/api/search"
 	PathSearchTags          = "/api/search/tags"
@@ -821,9 +820,41 @@ func ParseTracesCheckRequest(r *http.Request) (*tempopb.TracesCheckRequest, erro
 	}
 	defer r.Body.Close()
 
+	// If body is empty, return error
+	if len(body) == 0 {
+		return nil, fmt.Errorf("no trace IDs provided in request")
+	}
+
 	var req tempopb.TracesCheckRequest
-	if err := req.Unmarshal(body); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal TracesCheckRequest: %w", err)
+	
+	fmt.Printf("DEBUG: Body content: %s\n", string(body))
+	
+	// Try JSON first, then protobuf
+	if err := json.Unmarshal(body, &req); err != nil {
+		fmt.Printf("DEBUG: JSON unmarshal failed: %v\n", err)
+		// If JSON parsing fails, try protobuf
+		if err := req.Unmarshal(body); err != nil {
+			fmt.Printf("DEBUG: Protobuf unmarshal failed: %v\n", err)
+			return nil, fmt.Errorf("failed to unmarshal TracesCheckRequest as JSON or protobuf: %w", err)
+		}
+	}
+	
+	fmt.Printf("DEBUG: Parsed %d trace IDs\n", len(req.TraceIDs))
+
+	// Validate that we have at least one trace ID
+	if len(req.TraceIDs) == 0 {
+		return nil, fmt.Errorf("no trace IDs provided in request")
+	}
+
+	// Validate that timeStart and timeEnd are provided
+	if req.TimeStart == 0 {
+		return nil, fmt.Errorf("timeStart is required")
+	}
+	if req.TimeEnd == 0 {
+		return nil, fmt.Errorf("timeEnd is required")
+	}
+	if req.TimeStart >= req.TimeEnd {
+		return nil, fmt.Errorf("timeStart must be less than timeEnd")
 	}
 
 	return &req, nil

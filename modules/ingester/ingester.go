@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"runtime/debug"
@@ -370,9 +371,9 @@ func (i *Ingester) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequ
 	ctx, span := tracer.Start(ctx, "Ingester.TracesCheck")
 	defer span.End()
 
-	if !validation.ValidTraceID(req.TraceID) {
+	if len(req.TraceIDs) == 0 {
 		return &tempopb.TracesCheckResponse{
-			Exists:  false,
+			TraceIDs: []string{},
 			Metrics: &tempopb.TraceByIDMetrics{},
 		}, nil
 	}
@@ -384,21 +385,50 @@ func (i *Ingester) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequ
 	
 	inst, ok := i.getInstanceByID(instanceID)
 	if !ok || inst == nil {
-		// Return not found if instance doesn't exist
+		// Return empty list if instance doesn't exist (no traces found)
 		return &tempopb.TracesCheckResponse{
-			Exists:  false,
+			TraceIDs: []string{},
 			Metrics: &tempopb.TraceByIDMetrics{},
 		}, nil
 	}
 
-	// Use the optimized TracesCheck method
-	resp, err := inst.TracesCheck(ctx, req.TraceID)
+	// Filter valid trace IDs
+	fmt.Printf("DEBUG INGESTER: Received %d trace IDs\n", len(req.TraceIDs))
+	validTraceIDs := make([][]byte, 0, len(req.TraceIDs))
+	for i, traceIDHex := range req.TraceIDs {
+		fmt.Printf("DEBUG INGESTER: TraceID[%d]: '%s'\n", i, traceIDHex)
+		// Convert hex string to bytes
+		traceID, err := hex.DecodeString(traceIDHex)
+		if err != nil {
+			fmt.Printf("DEBUG INGESTER: Failed to decode hex: %v\n", err)
+			continue // Skip invalid hex strings
+		}
+		fmt.Printf("DEBUG INGESTER: Decoded to %d bytes: %x\n", len(traceID), traceID)
+		if validation.ValidTraceID(traceID) {
+			validTraceIDs = append(validTraceIDs, traceID)
+			fmt.Printf("DEBUG INGESTER: Valid trace ID added\n")
+		} else {
+			fmt.Printf("DEBUG INGESTER: Invalid trace ID\n")
+		}
+	}
+	fmt.Printf("DEBUG INGESTER: Final valid count: %d\n", len(validTraceIDs))
+
+	if len(validTraceIDs) == 0 {
+		return &tempopb.TracesCheckResponse{
+			TraceIDs: []string{},
+			Metrics: &tempopb.TraceByIDMetrics{},
+		}, nil
+	}
+
+	// Use the optimized batch TracesCheck method
+	resp, err := inst.TracesCheck(ctx, validTraceIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	span.AddEvent("trace existence check completed", oteltrace.WithAttributes(
-		attribute.Bool("exists", resp.Exists),
+	span.AddEvent("batch trace existence check completed", oteltrace.WithAttributes(
+		attribute.Int("totalTraces", len(req.TraceIDs)),
+		attribute.Int("foundTraces", len(resp.TraceIDs)),
 		attribute.Int64("inspectedBytes", int64(resp.Metrics.InspectedBytes)),
 	))
 

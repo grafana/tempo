@@ -294,9 +294,8 @@ func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 }
 
 // TracesCheck is not implemented for v2 WAL blocks.
-// Only vparquet4 blocks support optimized trace existence checking.
-func (a *walBlock) TracesCheck(ctx context.Context, id common.ID, _ common.SearchOptions) (bool, uint64, error) {
-	return false, 0, common.ErrUnsupported
+func (a *walBlock) TracesCheck(ctx context.Context, ids []common.ID, _ common.SearchOptions) (map[string]bool, uint64, error) {
+	return nil, 0, common.ErrUnsupported
 }
 
 // Search implements common.Searcher

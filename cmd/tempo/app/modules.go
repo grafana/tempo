@@ -480,6 +480,9 @@ func (t *App) initQuerier() (services.Service, error) {
 	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.QueryRangeHandler))
 	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
+	tracesCheckHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.TracesCheckHandler))
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTracesCheck)), tracesCheckHandler)
+
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPHandler())
 }
 

@@ -495,10 +495,15 @@ message TimeSeries {
 }
 
 message TracesCheckRequest {
-  bytes traceID = 1;
+  repeated string traceIDs = 1; // hex strings
+  string blockStart = 2;
+  string blockEnd = 3;
+  string queryMode = 4;
+  uint32 timeStart = 5;
+  uint32 timeEnd = 6;
 }
 
 message TracesCheckResponse {
-  bool exists = 1;
+  repeated string traceIDs = 1; // hex strings of traces that exist
   TraceByIDMetrics metrics = 2;
 }
