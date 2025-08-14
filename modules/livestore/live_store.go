@@ -14,10 +14,10 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -27,12 +27,6 @@ import (
 const (
 	liveStoreServiceName = "live-store"
 )
-
-type Overrides interface {
-	MaxLocalTracesPerUser(userID string) int
-	MaxBytesPerTrace(userID string) int
-	DedicatedColumns(userID string) backend.DedicatedColumns
-}
 
 var metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "live_store",
@@ -61,7 +55,7 @@ type LiveStore struct {
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
 	wal          *wal.WAL
-	overrides    Overrides
+	overrides    overrides.Interface
 
 	flushqueues *flushqueues.PriorityQueue
 
@@ -71,7 +65,7 @@ type LiveStore struct {
 	wg     sync.WaitGroup
 }
 
-func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
+func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
@@ -82,7 +76,7 @@ func New(cfg Config, overrides Overrides, logger log.Logger, reg prometheus.Regi
 		ctx:         ctx,
 		cancel:      cancel,
 		instances:   make(map[string]*instance),
-		overrides:   overrides,
+		overrides:   overridesService,
 		flushqueues: flushqueues.NewPriorityQueue(metricCompleteQueueLength),
 	}
 
@@ -271,7 +265,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, s.wal, s.overrides, s.logger)
+	inst, err := newInstance(tenantID, s.cfg, s.wal, s.overrides, s.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}

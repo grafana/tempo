@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -24,6 +25,9 @@ import (
 type instance struct {
 	tenantID string
 	logger   log.Logger
+
+	// Configuration
+	Cfg Config
 
 	// WAL and encoding
 	wal *wal.WAL
@@ -44,16 +48,16 @@ type instance struct {
 	// Block offset metadata (set during coordinated cuts)
 	// blockOffsetMeta map[uuid.UUID]offsetMetadata // TODO: Used for checking data integrity
 
-	// Overrides
-	overrides Overrides
+	overrides overrides.Interface
 }
 
-func newInstance(instanceID string, wal *wal.WAL, overrides Overrides, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides overrides.Interface, logger log.Logger) (*instance, error) {
 	enc := encoding.DefaultEncoding()
 
 	i := &instance{
 		tenantID:       instanceID,
 		logger:         log.With(logger, "tenant", instanceID),
+		Cfg:            cfg,
 		wal:            wal,
 		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
