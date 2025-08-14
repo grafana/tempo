@@ -58,13 +58,13 @@ func (m *MergedOverrides) LiveStoreCompleteBlockTimeout(userID string) time.Dura
 	return m.service.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID)
 }
 
-func (m *MergedOverrides) LiveStoreMetricsTimeOverlapCutoff(userID string) float64 {
+func (m *MergedOverrides) LiveStoreMetricsTimeOverlapCutoff(_ string) float64 {
 	// This is a livestore-specific setting, provide a reasonable default
 	// since it's not available in the main overrides service
 	return 0.5
 }
 
-func (m *MergedOverrides) LiveStoreMetricsConcurrentBlocks(userID string) uint {
+func (m *MergedOverrides) LiveStoreMetricsConcurrentBlocks(_ string) uint {
 	// This is a livestore-specific setting, provide a reasonable default
 	// since it's not available in the main overrides service
 	return 10

@@ -49,7 +49,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	require.NoError(t, err)
 	defer func() {
 		// WAL doesn't have a shutdown method, just clean up the temp directory
-		w.Clear()
+		_ = w.Clear()
 	}()
 
 	// Create instance

@@ -80,26 +80,6 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides Override
 	return i, nil
 }
 
-// getEffectiveConfig returns the configuration with per-tenant overrides applied
-func (i *instance) getEffectiveConfig() Config {
-	cfg := i.Cfg
-
-	// Apply per-tenant overrides
-	if timeout := i.overrides.LiveStoreCompleteBlockTimeout(i.tenantID); timeout > 0 {
-		cfg.CompleteBlockTimeout = timeout
-	}
-
-	if cutoff := i.overrides.LiveStoreMetricsTimeOverlapCutoff(i.tenantID); cutoff > 0 {
-		cfg.Metrics.TimeOverlapCutoff = cutoff
-	}
-
-	if blocks := i.overrides.LiveStoreMetricsConcurrentBlocks(i.tenantID); blocks > 0 {
-		cfg.Metrics.ConcurrentBlocks = blocks
-	}
-
-	return cfg
-}
-
 func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 	if len(req.Traces) != len(req.Ids) {
 		level.Error(i.logger).Log("msg", "mismatched traces and ids length", "IDs", len(req.Ids), "traces", len(req.Traces))
