@@ -8,9 +8,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-var (
-	_ localblocks.ProcessorOverrides = (*Overrides)(nil)
-)
+var _ localblocks.ProcessorOverrides = (*Overrides)(nil)
 
 type Overrides struct {
 	cfg     Config
