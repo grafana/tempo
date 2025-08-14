@@ -38,7 +38,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	// Set defaults for new fields
 	cfg.CompleteBlockTimeout = 3 * tempodb.DefaultBlocklistPoll
-	cfg.Metrics.ConcurrentBlocks = 2
+	cfg.Metrics.ConcurrentBlocks = 10
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
 	// Register flags for new fields
