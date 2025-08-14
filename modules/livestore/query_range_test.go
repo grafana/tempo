@@ -9,24 +9,16 @@ import (
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
-
-// mockOverrides implements the Overrides interface for testing
-type mockOverridesQuery struct {
-	mockOverrides
-}
-
-func (m *mockOverridesQuery) BlockRetentionForTenant(_ string) time.Duration     { return 0 }
-func (m *mockOverridesQuery) CompactionDisabledForTenant(_ string) bool          { return false }
-func (m *mockOverridesQuery) MaxBytesPerTraceForTenant(_ string) int             { return 0 }
-func (m *mockOverridesQuery) MaxCompactionRangeForTenant(_ string) time.Duration { return 0 }
 
 func TestLiveStoreQueryRange(t *testing.T) {
 	// init configuration
@@ -52,8 +44,11 @@ func TestLiveStoreQueryRange(t *testing.T) {
 		_ = w.Clear()
 	}()
 
+	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	over := NewOverrides(mover)
 	// Create instance
-	instance, err := newInstance(tenant, cfg, w, &mockOverridesQuery{}, log.NewNopLogger())
+	instance, err := newInstance(tenant, cfg, w, over, log.NewNopLogger())
 	require.NoError(t, err)
 
 	// Create test spans

@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -28,16 +27,6 @@ import (
 const (
 	liveStoreServiceName = "live-store"
 )
-
-type Overrides interface {
-	MaxLocalTracesPerUser(userID string) int
-	MaxBytesPerTrace(userID string) int
-	DedicatedColumns(userID string) backend.DedicatedColumns
-	UnsafeQueryHints(userID string) bool
-	LiveStoreCompleteBlockTimeout(userID string) time.Duration
-	LiveStoreMetricsTimeOverlapCutoff(userID string) float64
-	LiveStoreMetricsConcurrentBlocks(userID string) uint
-}
 
 var metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "live_store",
@@ -66,7 +55,7 @@ type LiveStore struct {
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
 	wal          *wal.WAL
-	overrides    Overrides
+	overrides    *Overrides
 
 	flushqueues *flushqueues.PriorityQueue
 
@@ -79,7 +68,7 @@ type LiveStore struct {
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	mergedOverrides := NewMergedOverrides(overridesService)
+	mergedOverrides := NewOverrides(overridesService)
 
 	s := &LiveStore{
 		cfg:         cfg,

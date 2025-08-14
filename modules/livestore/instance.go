@@ -50,10 +50,10 @@ type instance struct {
 	// blockOffsetMeta map[uuid.UUID]offsetMetadata // TODO: Used for checking data integrity
 
 	// Overrides
-	overrides Overrides
+	overrides *Overrides
 }
 
-func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides Overrides, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides *Overrides, logger log.Logger) (*instance, error) {
 	enc := encoding.DefaultEncoding()
 
 	i := &instance{

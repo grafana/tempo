@@ -8,77 +8,43 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// MergedOverrides implements both the livestore Overrides interface
-// and the generator ProcessorOverrides interface by delegating to
-// the main overrides service.
-//
-// Usage example:
-//
-//	// Create the main overrides service
-//	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Create merged overrides for livestore
-//	merged := NewMergedOverrides(limits)
-//
-//	// Use with livestore - New automatically wraps with MergedOverrides
-//	liveStore, err := New(cfg, limits, logger, reg, singlePartition)
-type MergedOverrides struct {
+var (
+	_ localblocks.ProcessorOverrides = (*Overrides)(nil)
+)
+
+type Overrides struct {
+	cfg     Config
 	service overrides.Interface
 }
 
 // NewMergedOverrides creates a new MergedOverrides that wraps the main overrides service
-func NewMergedOverrides(service overrides.Interface) *MergedOverrides {
-	return &MergedOverrides{
+func NewOverrides(service overrides.Interface) *Overrides {
+	return &Overrides{
 		service: service,
 	}
 }
 
 // Livestore Overrides interface implementation
-func (m *MergedOverrides) MaxLocalTracesPerUser(userID string) int {
+func (m *Overrides) MaxLocalTracesPerUser(userID string) int {
 	return m.service.MaxLocalTracesPerUser(userID)
 }
 
-func (m *MergedOverrides) MaxBytesPerTrace(userID string) int {
+func (m *Overrides) MaxBytesPerTrace(userID string) int {
 	return m.service.MaxBytesPerTrace(userID)
 }
 
-func (m *MergedOverrides) DedicatedColumns(userID string) backend.DedicatedColumns {
+func (m *Overrides) DedicatedColumns(userID string) backend.DedicatedColumns {
 	return m.service.DedicatedColumns(userID)
 }
 
-func (m *MergedOverrides) UnsafeQueryHints(userID string) bool {
+func (m *Overrides) UnsafeQueryHints(userID string) bool {
 	return m.service.UnsafeQueryHints(userID)
 }
 
-func (m *MergedOverrides) LiveStoreCompleteBlockTimeout(userID string) time.Duration {
-	// Map to the processor local blocks complete block timeout
-	return m.service.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID)
+func (m *Overrides) LiveStoreCompleteBlockTimeout(userID string) time.Duration {
+	return m.cfg.CompleteBlockTimeout
 }
 
-func (m *MergedOverrides) LiveStoreMetricsTimeOverlapCutoff(_ string) float64 {
-	// This is a livestore-specific setting, provide a reasonable default
-	// since it's not available in the main overrides service
-	return 0.5
-}
-
-func (m *MergedOverrides) LiveStoreMetricsConcurrentBlocks(_ string) uint {
-	// This is a livestore-specific setting, provide a reasonable default
-	// since it's not available in the main overrides service
+func (m *Overrides) LiveStoreMetricsConcurrentBlocks(_ string) uint {
 	return 10
 }
-
-// Verify that MergedOverrides implements both interfaces
-var (
-	_ Overrides                      = (*MergedOverrides)(nil)
-	_ localblocks.ProcessorOverrides = (*MergedOverrides)(nil)
-)
-
-// ProcessorOverrides interface from modules/generator/processor/localblocks/processor.go
-// is automatically implemented by the above methods:
-// - DedicatedColumns(string) backend.DedicatedColumns
-// - MaxLocalTracesPerUser(userID string) int
-// - MaxBytesPerTrace(string) int
-// - UnsafeQueryHints(string) bool
