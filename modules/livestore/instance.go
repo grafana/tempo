@@ -30,10 +30,8 @@ type instance struct {
 	Cfg Config
 
 	// WAL and encoding
-	wal  *wal.WAL
-	walR backend.Reader
-	walW backend.Writer
-	enc  encoding.VersionedEncoding
+	wal *wal.WAL
+	enc encoding.VersionedEncoding
 
 	// Block management
 	blocksMtx      sync.RWMutex
@@ -61,8 +59,6 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		logger:         log.With(logger, "tenant", instanceID),
 		Cfg:            cfg,
 		wal:            wal,
-		walR:           backend.NewReader(wal.LocalBackend()),
-		walW:           backend.NewWriter(wal.LocalBackend()),
 		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
