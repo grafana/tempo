@@ -395,6 +395,33 @@ sendLoop:
 		})
 	}
 
+	t.Run("avg_over_time instan query", func(t *testing.T) {
+		req := queryRangeRequest{
+			Query: "{} | avg_over_time(duration)",
+			Start: time.Now().Add(-5 * time.Minute),
+			End:   time.Now().Add(time.Minute),
+		}
+
+		countReq := req
+		countReq.Query = "{} | count_over_time()"
+		countRes := callInstantQuery(t, tempo.Endpoint(tempoPort), countReq)
+		require.NotNil(t, countRes)
+		require.Equal(t, 1, len(countRes.GetSeries()))
+		count := countRes.GetSeries()[0].Value
+
+		sumReq := req
+		sumReq.Query = "{} | sum_over_time(duration)"
+		sumRes := callInstantQuery(t, tempo.Endpoint(tempoPort), sumReq)
+		require.NotNil(t, sumRes)
+		require.Equal(t, 1, len(sumRes.GetSeries()))
+		sum := sumRes.GetSeries()[0].Value
+
+		res := callInstantQuery(t, tempo.Endpoint(tempoPort), req)
+		require.NotNil(t, res)
+		require.Equal(t, 1, len(res.GetSeries()))
+		require.InDelta(t, sum/count, res.GetSeries()[0].Value, 0.000001)
+	})
+
 	for _, testCase := range []struct {
 		name        string
 		query       string
