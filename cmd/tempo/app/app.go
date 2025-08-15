@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/dskit/signals"
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
+	"github.com/grafana/tempo/modules/frontend"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/common/version"
 	"go.uber.org/atomic"
@@ -61,7 +62,7 @@ var (
 
 // App is the root datastructure.
 type App struct {
-	cfg Config
+	Cfg Config
 
 	Server         TempoServer
 	InternalServer *server.Server
@@ -92,12 +93,14 @@ type App struct {
 	ModuleManager *modules.Manager
 	serviceMap    map[string]services.Service
 	deps          map[string][]string
+
+	AccessHandler frontend.AccessHandler
 }
 
 // New makes a new app.
 func New(cfg Config) (*App, error) {
 	app := &App{
-		cfg:       cfg,
+		Cfg:       cfg,
 		readRings: map[string]*ring.Ring{},
 		Server:    newTempoServer(),
 	}
@@ -124,7 +127,7 @@ func New(cfg Config) (*App, error) {
 }
 
 func (t *App) setupAuthMiddleware() {
-	if t.cfg.MultitenancyIsEnabled() {
+	if t.Cfg.MultitenancyIsEnabled() {
 		// don't check auth for these gRPC methods, since single call is used for multiple users
 		noGRPCAuthOn := []string{
 			"/frontend.Frontend/Process",
@@ -137,7 +140,7 @@ func (t *App) setupAuthMiddleware() {
 			ignoredMethods[m] = true
 		}
 
-		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
+		t.Cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
 			func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 				if ignoredMethods[info.FullMethod] {
 					return handler(ctx, req)
@@ -145,7 +148,7 @@ func (t *App) setupAuthMiddleware() {
 				return middleware.ServerUserHeaderInterceptor(ctx, req, info, handler)
 			},
 		}
-		t.cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
+		t.Cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
 			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 				if ignoredMethods[info.FullMethod] {
 					return handler(srv, ss)
@@ -156,10 +159,10 @@ func (t *App) setupAuthMiddleware() {
 		t.HTTPAuthMiddleware = middleware.AuthenticateUser
 		t.TracesConsumerMiddleware = receiver.MultiTenancyMiddleware()
 	} else {
-		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
+		t.Cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
 			fakeGRPCAuthUniaryMiddleware,
 		}
-		t.cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
+		t.Cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
 			fakeGRPCAuthStreamMiddleware,
 		}
 		t.HTTPAuthMiddleware = fakeHTTPAuthMiddleware
@@ -169,11 +172,11 @@ func (t *App) setupAuthMiddleware() {
 
 // Run starts, and blocks until a signal is received or Stop is called.
 func (t *App) Run() error {
-	if !t.ModuleManager.IsUserVisibleModule(t.cfg.Target) {
-		level.Warn(log.Logger).Log("msg", "selected target is an internal module, is this intended?", "target", t.cfg.Target)
+	if !t.ModuleManager.IsUserVisibleModule(t.Cfg.Target) {
+		level.Warn(log.Logger).Log("msg", "selected target is an internal module, is this intended?", "target", t.Cfg.Target)
 	}
 
-	serviceMap, err := t.ModuleManager.InitModuleServices(t.cfg.Target)
+	serviceMap, err := t.ModuleManager.InitModuleServices(t.Cfg.Target)
 	if err != nil {
 		return fmt.Errorf("failed to init module services: %w", err)
 	}
@@ -192,11 +195,11 @@ func (t *App) Run() error {
 	// Used to delay shutdown but return "not ready" during this delay.
 	shutdownRequested := atomic.NewBool(false)
 	// before starting servers, register /ready handler and gRPC health check service.
-	if t.cfg.InternalServer.Enable {
+	if t.Cfg.InternalServer.Enable {
 		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm, shutdownRequested))
 	}
 
-	t.Server.HTTPRouter().Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
+	t.Server.HTTPRouter().Path(addHTTPAPIPrefix(&t.Cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
 
 	t.Server.HTTPRouter().Path("/ready").Handler(t.readyHandler(sm, shutdownRequested))
 	t.Server.HTTPRouter().Path("/status").Handler(t.statusHandler()).Methods("GET")
@@ -241,8 +244,8 @@ func (t *App) Run() error {
 		shutdownRequested.Store(true)
 		t.Server.SetKeepAlivesEnabled(false)
 
-		if t.cfg.ShutdownDelay > 0 {
-			time.Sleep(t.cfg.ShutdownDelay)
+		if t.Cfg.ShutdownDelay > 0 {
+			time.Sleep(t.Cfg.ShutdownDelay)
 		}
 
 		sm.StopAsync()
@@ -288,7 +291,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 			return err
 		}
 
-		cfgYaml, err := util.YAMLMarshalUnmarshal(t.cfg)
+		cfgYaml, err := util.YAMLMarshalUnmarshal(t.Cfg)
 		if err != nil {
 			return err
 		}
@@ -300,7 +303,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 	case "defaults":
 		output = NewDefaultConfig()
 	case "":
-		output = t.cfg
+		output = t.Cfg
 	default:
 		return fmt.Errorf("unknown value for mode query parameter: %v", mode)
 	}
@@ -378,7 +381,7 @@ func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool)
 func (t *App) writeRuntimeConfig(w io.Writer, r *http.Request) error {
 	// Querier and query-frontend services do not run the overrides module
 	if t.Overrides == nil {
-		_, err := w.Write([]byte(fmt.Sprintf("overrides module not loaded in %s\n", t.cfg.Target)))
+		_, err := w.Write([]byte(fmt.Sprintf("overrides module not loaded in %s\n", t.Cfg.Target)))
 		return err
 	}
 	return t.Overrides.WriteStatusRuntimeConfig(w, r)

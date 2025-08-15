@@ -24,12 +24,21 @@ import (
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingSearchHandler {
+func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, accessHandler AccessHandler) streamingSearchHandler {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 		ctx := srv.Context()
+		var err error
+
+		if accessHandler != nil {
+			ctx, err = accessHandler.AddFilterSearch(ctx, req)
+			if err != nil {
+				level.Error(logger).Log("msg", "search streaming: add filter failed", "err", err)
+				return err
+			}
+		}
 
 		headers := headersFromGrpcContext(ctx)
 
@@ -75,7 +84,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 }
 
 // newSearchHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
+func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, accessHandler AccessHandler) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -84,6 +93,17 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 			return errResp, nil
 		}
 		start := time.Now()
+
+		if accessHandler != nil {
+			if err := accessHandler.AddFilterHttp(req); err != nil {
+				level.Error(logger).Log("msg", "search streaming: add filter failed", "err", err)
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Status:     http.StatusText(http.StatusBadRequest),
+					Body:       io.NopCloser(strings.NewReader(err.Error())),
+				}, nil
+			}
+		}
 
 		// parse request
 		searchReq, err := api.ParseSearchRequest(req)

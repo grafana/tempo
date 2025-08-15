@@ -6,24 +6,34 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
-func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string) *combiner.TraceByIDCombiner, logger log.Logger) http.RoundTripper {
+func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string, combiner.TraceRedactor) *combiner.TraceByIDCombiner, accessHandler AccessHandler, logger log.Logger) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, errResp := extractTenant(req, logger)
 		if errResp != nil {
 			return errResp, nil
+		}
+
+		if accessHandler != nil {
+			if err := accessHandler.AddFilterHttp(req); err != nil {
+				level.Error(logger).Log("msg", "search streaming: add filter failed", "err", err)
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Status:     http.StatusText(http.StatusBadRequest),
+					Body:       io.NopCloser(strings.NewReader(err.Error())),
+				}, nil
+			}
 		}
 
 		// validate traceID
@@ -60,7 +70,17 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat)
+		traceRedactor, err := accessHandler.TraceRedactor(req)
+		if err != nil {
+			level.Error(logger).Log("msg", "trace id: failed to get trace redactor", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Body:       io.NopCloser(strings.NewReader(reqErr.Error())),
+				Header:     http.Header{},
+			}, nil
+		}
+
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -87,13 +107,24 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 }
 
 // newTraceIDV2Handler creates a http.handler for trace by id requests
-func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger) http.RoundTripper {
+func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string, combiner.TraceRedactor) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], accessHandler AccessHandler, logger log.Logger) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, errResp := extractTenant(req, logger)
 		if errResp != nil {
 			return errResp, nil
+		}
+
+		if accessHandler != nil {
+			if err := accessHandler.AddFilterHttp(req); err != nil {
+				level.Error(logger).Log("msg", "search streaming: add filter failed", "err", err)
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Status:     http.StatusText(http.StatusBadRequest),
+					Body:       io.NopCloser(strings.NewReader(err.Error())),
+				}, nil
+			}
 		}
 
 		// validate traceID
@@ -130,7 +161,17 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat)
+		traceRedactor, err := accessHandler.TraceRedactor(req)
+		if err != nil {
+			level.Error(logger).Log("msg", "trace id: failed to get trace redactor", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Body:       io.NopCloser(strings.NewReader(reqErr.Error())),
+				Header:     http.Header{},
+			}, nil
+		}
+
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()

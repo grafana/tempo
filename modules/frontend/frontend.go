@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -62,10 +63,21 @@ type QueryFrontend struct {
 	logger                                                                                     log.Logger
 }
 
+type AccessHandler interface {
+	AddFilterHttp(r *http.Request) error
+	AddFilterSearch(c context.Context, r *tempopb.SearchRequest) (context.Context, error)
+	AddFilterTags(c context.Context, r *tempopb.SearchTagsRequest) (context.Context, error)
+	AddFilterTagValues(c context.Context, r *tempopb.SearchTagValuesRequest) (context.Context, error)
+	AddFilterQueryRange(c context.Context, r *tempopb.QueryRangeRequest) (context.Context, error)
+	AddFilterQueryInstant(c context.Context, r *tempopb.QueryInstantRequest) (context.Context, error)
+	SwitchToV2(r *http.Request) error
+	TraceRedactor(r *http.Request) (combiner.TraceRedactor, error)
+}
+
 var tracer = otel.Tracer("modules/frontend")
 
 // New returns a new QueryFrontend
-func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, authMiddleware middleware.Interface, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, authMiddleware middleware.Interface, accessHandler AccessHandler, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
@@ -204,16 +216,16 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
-	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger)
-	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger)
-	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
-	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
-	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)
-	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)
-	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger)
+	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, accessHandler, logger)
+	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, accessHandler, logger)
+	search := newSearchHTTPHandler(cfg, searchPipeline, logger, accessHandler)
+	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, accessHandler)
+	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, accessHandler)
+	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, accessHandler)
+	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, accessHandler)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger, accessHandler) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger, accessHandler)
 
 	f := &QueryFrontend{
 		// http/discrete
@@ -229,13 +241,13 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
 
 		// grpc/streaming
-		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
-		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger), // Reuses the same pipeline
+		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger, accessHandler),
+		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, accessHandler),
+		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, accessHandler),
+		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, accessHandler),
+		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger, accessHandler),
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, accessHandler),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, accessHandler), // Reuses the same pipeline
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
@@ -396,12 +408,9 @@ func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end time.Time, f
 		}
 	}
 
-	// search backwards in time with deterministic ordering
+	// search backwards in time
 	sort.Slice(blocks, func(i, j int) bool {
-		if !blocks[i].EndTime.Equal(blocks[j].EndTime) {
-			return blocks[i].EndTime.After(blocks[j].EndTime)
-		}
-		return blocks[i].BlockID.String() < blocks[j].BlockID.String()
+		return blocks[i].EndTime.After(blocks[j].EndTime)
 	})
 
 	return blocks
