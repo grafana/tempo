@@ -129,10 +129,11 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	return IntervalOf(ts, start, end, step)
 }
 
-// TrimToBlockOverlap returns the aligned overlap between the given time and block ranges,
-// the block's borders are included.
-// If the request is instantaneous, it returns an updated step to match the new time range.
-// It assumes that blockEnd is aligned to seconds.
+// TrimToBlockOverlap returns the overlap between the given time range and block.  It is used to
+// split a block to only the portion overlapping, or when the entire block is within range then
+// opportunistically remove time slots that are known to be unused.
+// When possible and not exceeding the request range, borders are aligned to the step.
+// When a block is split then the borders will maintain the nanosecond precision of the request.
 func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
 	wasInstant := end-start == step
 
@@ -144,6 +145,15 @@ func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time)
 	blockEnd = blockEnd.Add(time.Second)
 	end2 := uint64(blockEnd.UnixNano())
 
+	// Align the block data range to the step. This is because
+	// low-precision timestamps within the block may be rounded up to
+	// this step.  If the boundaries exceed the overall range
+	// they will get trimmed back down.
+	start2 = alignStart(start2, end2, step)
+	end2 = alignEnd(start2, end2, step)
+
+	// Now trim to the overlap preserving nanosecond precision for
+	// when we split a block.
 	start = max(start, start2)
 	end = min(end, end2)
 
@@ -974,11 +984,29 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
+	// If the request range is fully aligned to the step, then we can use lower
+	// precision data that matches the step while still returning accurate results.
+	// When the range isn't an even multiple, it means that we are on the split
+	// between backend and recent data, or the edges of the request. In that case
+	// we use full nanosecond precision.
+	var precision time.Duration
+	if (req.Start%req.Step) == 0 && (req.End%req.Step) == 0 {
+		precision = time.Duration(req.Step)
+	}
+
 	// Span start time (always required)
 	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		// Technically we only need the start time of matching spans, so we add it to the second pass.
 		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
-		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, Precision: precision})
+	} else {
+		// Update the existing condition to use low precision
+		for i, c := range storageReq.Conditions {
+			if c.Attribute == IntrinsicSpanStartTimeAttribute {
+				storageReq.Conditions[i].Precision = precision
+				break
+			}
+		}
 	}
 
 	// Timestamp filtering

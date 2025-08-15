@@ -218,32 +218,52 @@ func TestTrimToBlockOverlap(t *testing.T) {
 		expectedStep               time.Duration
 	}{
 		{
-			// Fully overlapping
-			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
-			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
-			"2024-01-01 01:32:59", "2024-01-01 01:38:01", 5 * time.Minute, // added 1 second to include the last second of the block
+			// Block fully within range
+			// Left border is extended to the next step.
+			// Right border is extended to the next step.
+			"2024-01-01T01:00:00Z", "2024-01-01T02:00:00Z", 5 * time.Minute,
+			"2024-01-01T01:33:00Z", "2024-01-01T01:38:00Z",
+			"2024-01-01T01:30:00Z", "2024-01-01T01:40:00Z", 5 * time.Minute,
 		},
 		{
-			// Partially Overlapping
-			"2024-01-01 01:01:00", "2024-01-01 02:01:00", 5 * time.Minute,
-			"2024-01-01 01:31:00", "2024-01-01 02:31:00",
-			"2024-01-01 01:30:59", "2024-01-01 02:01:00", 5 * time.Minute,
+			// Block overlapping right border.
+			// Left border is extended to the next step.
+			// Right border preserved.
+			"2024-01-01T01:01:00Z", "2024-01-01T02:01:00.123Z", 5 * time.Minute,
+			"2024-01-01T01:31:00Z", "2024-01-01T02:31:00Z",
+			"2024-01-01T01:30:00Z", "2024-01-01T02:01:00.123Z", 5 * time.Minute,
 		},
 		{
-			// Instant query
+			// Block overlapping left border.
+			// Left border preserved.
+			// Right border extended to the next step.
+			"2024-01-01T01:01:00.123Z", "2024-01-01T02:00:00Z", 5 * time.Minute,
+			"2024-01-01T00:31:00Z", "2024-01-01T01:31:00Z",
+			"2024-01-01T01:01:00.123Z", "2024-01-01T01:35:00Z", 5 * time.Minute,
+		},
+		{
+			// Block larger than range
+			// Neither border is extended. Nanoseconds preserved.
+			"2024-01-01T01:00:01.123Z", "2024-01-01T01:15:01.123Z", 5 * time.Minute,
+			"2024-01-01T00:00:00Z", "2024-01-01T02:00:00Z",
+			"2024-01-01T01:00:01.123Z", "2024-01-01T01:15:01.123Z", 5 * time.Minute,
+		},
+		{
+			// Instant query, block overlaps right border.
 			// Original range is 1h
-			// Inner overlap is only 30m and step is updated to match
-			"2024-01-01 01:00:00", "2024-01-01 02:00:00", time.Hour,
-			"2024-01-01 01:30:00", "2024-01-01 02:30:00",
-			"2024-01-01 01:29:59", "2024-01-01 02:00:00", 30*time.Minute + time.Nanosecond,
+			// Right border isn't extended past request range.
+			// Left border is able to be extended.
+			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
+			"2024-01-01T01:30:00.123Z", "2024-01-01T02:30:00.123Z",
+			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
 		},
 	}
 
 	for _, c := range tc {
-		start1, _ := time.Parse(time.DateTime, c.start1)
-		end1, _ := time.Parse(time.DateTime, c.end1)
-		start2, _ := time.Parse(time.DateTime, c.start2)
-		end2, _ := time.Parse(time.DateTime, c.end2)
+		start1, _ := time.Parse(time.RFC3339Nano, c.start1)
+		end1, _ := time.Parse(time.RFC3339Nano, c.end1)
+		start2, _ := time.Parse(time.RFC3339Nano, c.start2)
+		end2, _ := time.Parse(time.RFC3339Nano, c.end2)
 
 		actualStart, actualEnd, actualStep := TrimToBlockOverlap(
 			uint64(start1.UnixNano()),
@@ -253,8 +273,8 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			end2,
 		)
 
-		assert.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
-		assert.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
+		assert.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.RFC3339Nano))
+		assert.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.RFC3339Nano))
 		assert.Equal(t, c.expectedStep, time.Duration(actualStep))
 	}
 }

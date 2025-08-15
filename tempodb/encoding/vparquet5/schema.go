@@ -1,7 +1,8 @@
-package vparquet4
+package vparquet5
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/parquet-go/parquet-go"
@@ -10,6 +11,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -73,6 +75,23 @@ const (
 	FieldSpanAttrValDouble = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
 	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
 )
+
+const (
+	// These are used to round span start times into  smaller integers that are high compressable.
+	// Start value of 0 means the unix epoch. End time doesn't matter it just needs to be sufficiently high
+	// to allow the math to work without overflow.
+	roundingStart = uint64(0)
+	roundingEnd   = uint64(0xF000000000000000)
+)
+
+func roundSpanStartTime(nanos uint64, precisionSeconds int) uint32 {
+	// For test data.
+	if nanos == 0 {
+		return 0
+	}
+
+	return uint32(traceql.IntervalOf(nanos, roundingStart, roundingEnd, uint64(time.Duration(precisionSeconds)*time.Second)))
+}
 
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
@@ -190,6 +209,16 @@ type Span struct {
 
 	// Dynamically assignable dedicated attribute columns
 	DedicatedAttributes DedicatedAttributes `parquet:""`
+
+	// Precomputed/Optimized values for metrics
+	// These are stored as intervals from the unix epoch.
+	// Interval 1 at 15s means "00:00:30".  These values can be represented in
+	// fewer bits and compress better than rounding the full 64-bit nanos timestamp
+	// to the same granularity. They can also be stored safely in uint32.
+	StartTimeRounded15   uint32 `parquet:",delta"`
+	StartTimeRounded60   uint32 `parquet:",delta"`
+	StartTimeRounded300  uint32 `parquet:",delta"`
+	StartTimeRounded3600 uint32 `parquet:",delta"`
 }
 
 func (s *Span) IsRoot() bool {
@@ -473,6 +502,10 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 					ss.StatusMessage = ""
 				}
 				ss.StartTimeUnixNano = s.StartTimeUnixNano
+				ss.StartTimeRounded15 = roundSpanStartTime(s.StartTimeUnixNano, 15)
+				ss.StartTimeRounded60 = roundSpanStartTime(s.StartTimeUnixNano, 60)
+				ss.StartTimeRounded300 = roundSpanStartTime(s.StartTimeUnixNano, 300)
+				ss.StartTimeRounded3600 = roundSpanStartTime(s.StartTimeUnixNano, 3600)
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
@@ -609,21 +642,23 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 		var protoVal v1.AnyValue
 
 		if !attr.IsArray {
-			if len(attr.Value) > 0 {
+			switch {
+			case len(attr.Value) > 0:
 				protoVal.Value = &v1.AnyValue_StringValue{StringValue: attr.Value[0]}
-			} else if len(attr.ValueInt) > 0 {
+			case len(attr.ValueInt) > 0:
 				protoVal.Value = &v1.AnyValue_IntValue{IntValue: attr.ValueInt[0]}
-			} else if len(attr.ValueDouble) > 0 {
+			case len(attr.ValueDouble) > 0:
 				protoVal.Value = &v1.AnyValue_DoubleValue{DoubleValue: attr.ValueDouble[0]}
-			} else if len(attr.ValueBool) > 0 {
+			case len(attr.ValueBool) > 0:
 				protoVal.Value = &v1.AnyValue_BoolValue{BoolValue: attr.ValueBool[0]}
-			} else if attr.ValueUnsupported != nil {
+			case attr.ValueUnsupported != nil:
 				_ = jsonpb.Unmarshal(bytes.NewBufferString(*attr.ValueUnsupported), &protoVal)
-			} else {
+			default:
 				continue
 			}
 		} else {
-			if len(attr.Value) > 0 {
+			switch {
+			case len(attr.Value) > 0:
 				values := make([]*v1.AnyValue, len(attr.Value))
 
 				anyValues := make([]v1.AnyValue, len(values))
@@ -636,7 +671,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				}
 
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueInt) > 0 {
+			case len(attr.ValueInt) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueInt))
 
 				anyValues := make([]v1.AnyValue, len(values))
@@ -649,7 +684,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				}
 
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueDouble) > 0 {
+			case len(attr.ValueDouble) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueDouble))
 
 				anyValues := make([]v1.AnyValue, len(values))
@@ -662,7 +697,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				}
 
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else if len(attr.ValueBool) > 0 {
+			case len(attr.ValueBool) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueBool))
 
 				anyValues := make([]v1.AnyValue, len(values))
@@ -675,7 +710,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				}
 
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-			} else {
+			default:
 				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{}}}
 			}
 		}
