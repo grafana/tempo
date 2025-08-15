@@ -375,7 +375,7 @@ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 
 Parameters:
 
-- `scope = (resource|span|intrinsic)`
+- `scope = (resource|span|intrinsic|event|link|instrumentation)`
   Optional. Specifies the scope of the tags. If not specified, it means all scopes.
   Default = `all`
 - `start = (unix epoch seconds)`
@@ -399,7 +399,7 @@ The tags endpoint takes a scope that controls the kinds of tags or attributes re
 If nothing is provided, the endpoint returns all resource and span tags.
 
 ```bash
-GET /api/v2/search/tags?scope=<resource|span|intrinsic>
+GET /api/v2/search/tags?scope=<resource|span|intrinsic|event|link|instrumentation>
 ```
 
 Parameters:
