@@ -3,6 +3,7 @@ package livestore
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/flushqueues"
@@ -26,6 +28,12 @@ import (
 
 const (
 	liveStoreServiceName = "live-store"
+
+	ringNumTokens = 1 // we only need 1 token in the read ring per instance b/c it's for service discovery only. sharding is done with the parttition ring.
+
+	// ringAutoForgetUnhealthyPeriods is how many consecutive timeout periods an unhealthy instance
+	// in the ring will be automatically removed.
+	ringAutoForgetUnhealthyPeriods = 2
 )
 
 var metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
@@ -45,6 +53,7 @@ type LiveStore struct {
 
 	ingestPartitionID         int32
 	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
+	livestoreLifecycler       *ring.BasicLifecycler
 
 	client  *kgo.Client
 	decoder *ingest.Decoder
@@ -86,7 +95,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		// Assume partition 0.
 		s.ingestPartitionID = 0
 	} else {
-		s.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.LifecyclerConfig.ID)
+		s.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.Ring.InstanceID)
 		if err != nil {
 			return nil, fmt.Errorf("calculating ingester partition ID: %w", err)
 		}
@@ -94,11 +103,12 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 
 	// TODO: It's probably easier to just use the ID directly
 	//  https://raintank-corp.slack.com/archives/C05CAA0ULUF/p1752847274420489
-	s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.LifecyclerConfig.ID)
+	s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.Ring.InstanceID)
 	if err != nil {
 		return nil, fmt.Errorf("calculating ingester consumer group ID: %w", err)
 	}
 
+	// setup partition ring
 	partitionRingKV := cfg.PartitionRing.KVStore.Mock
 	if partitionRingKV == nil {
 		partitionRingKV, err = kv.NewClient(cfg.PartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(reg, ingester.PartitionRingName+"-lifecycler"), logger)
@@ -108,15 +118,46 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 	}
 
 	s.ingestPartitionLifecycler = ring.NewPartitionInstanceLifecycler(
-		s.cfg.PartitionRing.ToLifecyclerConfig(s.ingestPartitionID, cfg.LifecyclerConfig.ID),
+		s.cfg.PartitionRing.ToLifecyclerConfig(s.ingestPartitionID, cfg.Ring.InstanceID),
 		ingester.PartitionRingName,
 		ingester.PartitionRingKey,
 		partitionRingKV,
 		logger,
 		prometheus.WrapRegistererWithPrefix("tempo_", reg))
 
+	// setup live store read ring
+	ringStore := cfg.Ring.KVStore.Mock
+	if ringStore == nil {
+		ringStore, err = kv.NewClient(
+			cfg.Ring.KVStore,
+			ring.GetCodec(),
+			kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("tempo_", reg), "livestore"),
+			s.logger,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create KV store client: %w", err)
+		}
+	}
+
+	lifecyclerCfg, err := cfg.Ring.ToLifecyclerConfig(ringNumTokens)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
+	}
+
+	// Define lifecycler delegates in reverse order (last to be called defined first because they're
+	// chained via "next delegate").
+	delegate := ring.BasicLifecyclerDelegate(s)
+	delegate = ring.NewLeaveOnStoppingDelegate(delegate, s.logger)
+	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, s.logger)
+
+	s.livestoreLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, liveStoreServiceName, liveStoreServiceName, ringStore, delegate, s.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+	if err != nil {
+		return nil, fmt.Errorf("create ring lifecycler: %w", err)
+	}
+
 	s.subservicesWatcher = services.NewFailureWatcher()
 	s.subservicesWatcher.WatchService(s.ingestPartitionLifecycler)
+	s.subservicesWatcher.WatchService(s.livestoreLifecycler)
 
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
 
@@ -133,6 +174,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
+	}
+
+	err = services.StartAndAwaitRunning(ctx, s.livestoreLifecycler)
+	if err != nil {
+		return fmt.Errorf("failed to start livestore lifecycler: %w", err)
 	}
 
 	s.client, err = ingest.NewReaderClient(
@@ -418,4 +464,125 @@ func (s *LiveStore) completeLoop() {
 
 		}
 	}
+}
+
+// OnRingInstanceRegister implements ring.BasicLifecyclerDelegate
+func (s *LiveStore) OnRingInstanceRegister(_ *ring.BasicLifecycler, _ ring.Desc, _ bool, _ string, _ ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
+	// tokens don't matter for the livestore ring, we just need to be in the ring for service discovery
+	token := rand.Uint32() //nolint: gosec // G404 we don't need a cryptographic random number here
+	level.Info(s.logger).Log("msg", "registered in livestore ring", "token", token, "partition", s.ingestPartitionID)
+
+	return ring.ACTIVE, []uint32{token}
+}
+
+// OnRingInstanceTokens implements ring.BasicLifecyclerDelegate
+func (s *LiveStore) OnRingInstanceTokens(*ring.BasicLifecycler, ring.Tokens) {
+}
+
+// OnRingInstanceStopping implements ring.BasicLifecyclerDelegate
+func (s *LiveStore) OnRingInstanceStopping(*ring.BasicLifecycler) {
+}
+
+// OnRingInstanceHeartbeat implements ring.BasicLifecyclerDelegate
+func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
+}
+
+// FindTraceByID implements tempopb.Querier
+func (s *LiveStore) FindTraceByID(_ context.Context, _ *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
+	return nil, fmt.Errorf("FindTraceByID not implemented in livestore")
+}
+
+// SearchRecent implements tempopb.Querier
+func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.Search(ctx, req)
+}
+
+// SearchBlock implements tempopb.Querier
+func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	return nil, fmt.Errorf("SearchBlock not implemented in livestore")
+}
+
+// SearchTags implements tempopb.Querier
+func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchTags(ctx, req.Scope)
+}
+
+// SearchTagsV2 implements tempopb.Querier
+func (s *LiveStore) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchTagsV2(ctx, req)
+}
+
+// SearchTagValues implements tempopb.Querier
+func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchTagValues(ctx, req.TagName, req.MaxTagValues, req.StaleValueThreshold)
+}
+
+// SearchTagValuesV2 implements tempopb.Querier
+func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return inst.SearchTagValuesV2(ctx, req)
+}
+
+// PushSpans implements tempopb.MetricsGeneratorServer
+func (s *LiveStore) PushSpans(_ context.Context, _ *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+	return nil, fmt.Errorf("PushSpans not implemented in livestore")
+}
+
+// GetMetrics implements tempopb.MetricsGeneratorServer
+func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+	return nil, fmt.Errorf("GetMetrics not implemented in livestore") // todo: this is metrics summary, are we allowed to remove this or do we need to continue to support?
+}
+
+// QueryRange implements tempopb.MetricsGeneratorServer
+func (s *LiveStore) QueryRange(_ context.Context, _ *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	return nil, fmt.Errorf("QueryRange not implemented in livestore") // todo: implement. seems to be a disconnect between this and instance.QueryRange
 }

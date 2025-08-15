@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/ring"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 	"go.uber.org/multierr"
@@ -39,7 +40,7 @@ var validCodecs = []string{codecPushBytes, codecOTLP}
 
 // Config for a generator.
 type Config struct {
-	Ring           RingConfig      `yaml:"ring"`
+	Ring           ring.Config     `yaml:"ring"`
 	Processor      ProcessorConfig `yaml:"processor"`
 	Registry       registry.Config `yaml:"registry"`
 	Storage        storage.Config  `yaml:"storage"`

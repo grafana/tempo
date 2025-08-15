@@ -25,32 +25,34 @@ services:
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-  ingester-0:
-    image: *tempoImage
-    depends_on:
-      - kafka
-    command: "-target=ingester -config.file=/etc/tempo.yaml"
-    restart: always
-    volumes:
-      - ./tempo.yaml:/etc/tempo.yaml
-    ports:
-      - "3200"   # tempo
-    hostname: ingester-0
+  # ingester-0:
+  #   image: *tempoImage
+  #   depends_on:
+  #     - kafka
+  #   command: "-target=ingester -config.file=/etc/tempo.yaml"
+  #   restart: always
+  #   volumes:
+  #     - ./tempo.yaml:/etc/tempo.yaml
+  #   ports:
+  #     - "3200"   # tempo
+  #   hostname: ingester-0
+
   # Uncomment the following lines to enable tracing
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-  ingester-1:
-    image: *tempoImage
-    depends_on:
-      - kafka
-    command: "-target=ingester -config.file=/etc/tempo.yaml"
-    restart: always
-    volumes:
-      - ./tempo.yaml:/etc/tempo.yaml
-    ports:
-      - "3200"   # tempo
-    hostname: ingester-1
+  # ingester-1:
+  #   image: *tempoImage
+  #   depends_on:
+  #     - kafka
+  #   command: "-target=ingester -config.file=/etc/tempo.yaml"
+  #   restart: always
+  #   volumes:
+  #     - ./tempo.yaml:/etc/tempo.yaml
+  #   ports:
+  #     - "3200"   # tempo
+  #   hostname: ingester-1
+    
   # Uncomment the following lines to enable tracing
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
@@ -64,7 +66,7 @@ services:
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3201:3200"   # tempo
     hostname: live-store-zone-a-0
   # Uncomment the following lines to enable tracing
   #    environment:
@@ -272,6 +274,7 @@ services:
       - "KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093"
       - "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1"
       - "KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS=10000"
+      - "KAFKA_LOG4J_ROOT_LOGLEVEL=WARN"
     "healthcheck":
       "interval": "1s"
       "retries": 30

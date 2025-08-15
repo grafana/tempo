@@ -82,12 +82,12 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 		return
 	}
 
+	// Check tenant limits
+	maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
+
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
 		traceID := req.Ids[j]
-
-		// Check tenant limits
-		maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
 
 		// Unmarshal the trace
 		trace := &tempopb.Trace{}

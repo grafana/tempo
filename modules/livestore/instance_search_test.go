@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	crand "crypto/rand"
+	"flag"
 	"fmt"
 	"sort"
 	"strconv"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
@@ -309,20 +309,24 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
 
-	flagext.DefaultValues(&cfg.LifecyclerConfig)
-	mockStore, _ := consul.NewInMemoryClient(
+	cfg.Ring.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+	//	flagext.DefaultValues(&cfg.Ring)
+	mockParititionStore, _ := consul.NewInMemoryClient(
 		ring.GetPartitionRingCodec(),
 		log.NewNopLogger(),
 		nil,
 	)
+	mockStore, _ := consul.NewInMemoryClient(
+		ring.GetCodec(),
+		log.NewNopLogger(),
+		nil,
+	)
 
-	cfg.LifecyclerConfig.RingConfig.KVStore.Mock = mockStore
-	cfg.LifecyclerConfig.NumTokens = 1
-	cfg.LifecyclerConfig.ListenPort = 0
-	cfg.LifecyclerConfig.Addr = "localhost"
-	cfg.LifecyclerConfig.ID = "test-1"
-	cfg.LifecyclerConfig.FinalSleep = 0
-	cfg.PartitionRing.KVStore.Mock = mockStore
+	cfg.Ring.KVStore.Mock = mockStore
+	cfg.Ring.ListenPort = 0
+	cfg.Ring.InstanceAddr = "localhost"
+	cfg.Ring.InstanceID = "test-1"
+	cfg.PartitionRing.KVStore.Mock = mockParititionStore
 
 	// Create overrides
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)

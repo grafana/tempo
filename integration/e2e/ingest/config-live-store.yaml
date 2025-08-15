@@ -39,10 +39,6 @@ ingester:
   flush_object_storage: false
 
 live_store:
-  lifecycler:
-    ring:
-      kvstore:
-        store: memberlist
   partition_ring:
     kvstore:
       store: memberlist

@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/livestore"
+	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
@@ -33,6 +34,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+const defaultGRPCCompression = "snappy"
+
 // Config is the root config for App.
 type Config struct {
 	Target                 string        `yaml:"target,omitempty"`
@@ -42,12 +45,14 @@ type Config struct {
 	StreamOverHTTPEnabled  bool          `yaml:"stream_over_http_enabled,omitempty"`
 	HTTPAPIPrefix          string        `yaml:"http_api_prefix"`
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
+	PartitionRingLiveStore bool          `yaml:"partition_ring_live_store,omitempty"` // todo: remove after rhythm migration
 
 	Server                server.Config                  `yaml:"server,omitempty"`
 	InternalServer        internalserver.Config          `yaml:"internal_server,omitempty"`
 	Distributor           distributor.Config             `yaml:"distributor,omitempty"`
 	IngesterClient        ingester_client.Config         `yaml:"ingester_client,omitempty"`
 	GeneratorClient       generator_client.Config        `yaml:"metrics_generator_client,omitempty"`
+	LiveStoreClient       livestore_client.Config        `yaml:"live_store_client,omitempty"`
 	Querier               querier.Config                 `yaml:"querier,omitempty"`
 	Frontend              frontend.Config                `yaml:"query_frontend,omitempty"`
 	Compactor             compactor.Config               `yaml:"compactor,omitempty"`
@@ -77,6 +82,8 @@ func NewDefaultConfig() *Config {
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = SingleBinary
 	c.StreamOverHTTPEnabled = false
+	c.PartitionRingLiveStore = false
+
 	// global settings
 	f.StringVar(&c.Target, "target", SingleBinary, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
@@ -125,12 +132,14 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.IntVar(&c.MemberlistKV.MessageHistoryBufferBytes, "memberlist.message-history-buffer-bytes", 0, "")
 
 	// Everything else
+	flagext.DefaultValues(&c.LiveStoreClient)
+	c.LiveStoreClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.IngesterClient)
-	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.IngesterClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.GeneratorClient)
-	c.GeneratorClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.GeneratorClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.BackenSchedulerClient)
-	c.BackenSchedulerClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.BackenSchedulerClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	c.Overrides.RegisterFlagsAndApplyDefaults(f)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)
