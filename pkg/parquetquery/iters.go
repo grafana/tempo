@@ -169,6 +169,12 @@ func (t RowNumber) Preceding() RowNumber {
 	return t
 }
 
+// Releaser can be implemented by types stored in OtherEntries. If the entry
+// implements Releaser, iterators will call it when discarding unused values when Seeking.
+type Releaser interface {
+	Release()
+}
+
 // IteratorResult is a row of data with a row number and named columns of data.
 // Internally it has an unstructured list for efficient collection. The ToMap()
 // function can be used to make inspection easier.
@@ -187,6 +193,14 @@ type IteratorResult struct {
 func (r *IteratorResult) Reset() {
 	r.Entries = r.Entries[:0]
 	r.OtherEntries = r.OtherEntries[:0]
+}
+
+func (r *IteratorResult) Release() {
+	for _, e := range r.OtherEntries {
+		if releaser, ok := e.Value.(Releaser); ok {
+			releaser.Release()
+		}
+	}
 }
 
 func (r *IteratorResult) Append(rr *IteratorResult) {
@@ -971,6 +985,14 @@ func (j *JoinIterator) seek(iterNum int, t RowNumber, d int) error {
 	var err error
 	t = TruncateRowNumber(d, t)
 	if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
+
+		// Release peek if present
+		// These results have been collected but never returned upstream,
+		// so we know it is safe to release them.
+		if j.peeks[iterNum] != nil {
+			j.peeks[iterNum].Release()
+		}
+
 		j.peeks[iterNum], err = j.iters[iterNum].SeekTo(t, d)
 		if err != nil {
 			return err
@@ -984,6 +1006,13 @@ func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
 		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
+			// Release peek if present
+			// These results have been collected but never returned upstream,
+			// so we know it is safe to release them.
+			if j.peeks[iterNum] != nil {
+				j.peeks[iterNum].Release()
+			}
+
 			j.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return err
@@ -1171,6 +1200,13 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 
 func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
 	if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
+		// Release peek if present
+		// These results have been collected but never returned upstream,
+		// so we know it is safe to release them.
+		if j.peeksRequired[iterNum] != nil {
+			j.peeksRequired[iterNum].Release()
+		}
+
 		j.peeksRequired[iterNum], err = j.required[iterNum].SeekTo(t, d)
 		if err != nil {
 			return
@@ -1182,6 +1218,14 @@ func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
 func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (done bool, err error) {
 	for iterNum, iter := range j.required {
 		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
+
+			// Release peek if present
+			// These results have been collected but never returned upstream,
+			// so we know it is safe to release them.
+			if j.peeksRequired[iterNum] != nil {
+				j.peeksRequired[iterNum].Release()
+			}
+
 			j.peeksRequired[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return
@@ -1363,6 +1407,13 @@ func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range u.iters {
 		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.RowNumber, t) == -1 {
+			// Release peek if present
+			// These results have been collected but never returned upstream,
+			// so we know it is safe to release them.
+			if p != nil {
+				p.Release()
+			}
+
 			u.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return nil, fmt.Errorf("union iterator seek to failed: %w", err)

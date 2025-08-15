@@ -221,13 +221,13 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			// Fully overlapping
 			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
 			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
-			"2024-01-01 01:33:00", "2024-01-01 01:38:01", 5 * time.Minute, // added 1 second to include the last second of the block
+			"2024-01-01 01:32:59", "2024-01-01 01:38:01", 5 * time.Minute, // added 1 second to include the last second of the block
 		},
 		{
 			// Partially Overlapping
 			"2024-01-01 01:01:00", "2024-01-01 02:01:00", 5 * time.Minute,
 			"2024-01-01 01:31:00", "2024-01-01 02:31:00",
-			"2024-01-01 01:31:00", "2024-01-01 02:01:00", 5 * time.Minute,
+			"2024-01-01 01:30:59", "2024-01-01 02:01:00", 5 * time.Minute,
 		},
 		{
 			// Instant query
@@ -235,7 +235,7 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			// Inner overlap is only 30m and step is updated to match
 			"2024-01-01 01:00:00", "2024-01-01 02:00:00", time.Hour,
 			"2024-01-01 01:30:00", "2024-01-01 02:30:00",
-			"2024-01-01 01:30:00", "2024-01-01 02:00:00", 30 * time.Minute,
+			"2024-01-01 01:29:59", "2024-01-01 02:00:00", 30*time.Minute + time.Nanosecond,
 		},
 	}
 
@@ -253,9 +253,9 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			end2,
 		)
 
-		require.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
-		require.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
-		require.Equal(t, c.expectedStep, time.Duration(actualStep))
+		assert.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
+		assert.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
+		assert.Equal(t, c.expectedStep, time.Duration(actualStep))
 	}
 }
 
@@ -2436,4 +2436,27 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 	}
 
 	return result
+}
+
+// requireEqualSeriesSets is like require.Equal for SeriesSets and supports NaN.
+func requireEqualSeriesSets(t *testing.T, expected, actual SeriesSet) {
+	require.Equal(t, len(expected), len(actual))
+
+	for k, eTS := range expected {
+		aTS, ok := actual[k]
+		require.True(t, ok, "expected series %s to be in result", k)
+		require.Equal(t, eTS.Labels, aTS.Labels, "expected labels %v, got %v", eTS.Labels, aTS.Labels)
+
+		eSamples := eTS.Values
+		aSamples := aTS.Values
+
+		require.Equal(t, len(eSamples), len(aSamples), "expected %d samples for %s, got %d", len(eSamples), k, len(aSamples))
+		for i := range eSamples {
+			if math.IsNaN(eSamples[i]) {
+				require.True(t, math.IsNaN(aSamples[i]))
+			} else {
+				require.InDelta(t, eSamples[i], aSamples[i], 0.001, "expected %v, got %v, for %s[%d]", eSamples[i], aSamples[i], k, i)
+			}
+		}
+	}
 }

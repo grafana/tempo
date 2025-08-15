@@ -27,8 +27,8 @@ Be aware that using this feature will likely cause tracing data to be passed to 
 
 To experiment with the MCP server using dummy data and Claude Code:
 
-1. Run the local docker-compose example in `/example/docker-compose`. This will expose the mcp server at http://localhost:3200/api/mcp
-1. Run `claude mcp add -t stdio -s user tempo npx mcp-remote http://localhost:3200/api/mcp` to add a reference to Claude Code.
+1. Run the local docker-compose example in `/example/docker-compose/local`. This will expose the mcp server at http://localhost:3200/api/mcp
+1. Run `claude mcp add --transport=http tempo http://localhost:3200/api/mcp` to add a reference to Claude Code.
 1. Run `claude` and ask some questions
 
 This MCP server has also been tested succesfully in cursor using the [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) package.

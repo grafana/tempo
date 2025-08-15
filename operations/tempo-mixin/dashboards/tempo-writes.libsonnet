@@ -24,13 +24,12 @@ dashboard_utils {
           $.queryPanel(
             |||
               sum by (grpc_status) (
-                  rate(
-                      label_replace(
-                          {%s, __name__=~"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_[0-9]+"},
-                          "grpc_status", "$1", "__name__", "envoy_cluster_grpc_proto_collector_trace_v1_TraceService_(.+)"
-                      )
-                      [$__rate_interval:30s]
+                rate(
+                  label_replace(
+                    {__name__=~"envoy_cluster_grpc_[0-9]+", %s"},
+                    "grpc_status", "$1", "__name__", "envoy_cluster_grpc_([0-9]+)"
                   )
+                [ $__rate_interval : 30s ])
               )
             ||| % $.jobMatcher($._config.jobs.gateway),
             '{{grpc_status}}',
@@ -69,6 +68,31 @@ dashboard_utils {
         )
       )
       .addRow(
+        g.row('')
+        .addPanel(
+          $.panel('Envoy dropped connections percentage') +
+          $.queryPanel(
+            |||
+              sum(rate(envoy_http_downstream_cx_destroy{namespace="$namespace"}[5m])) by(job)
+              /
+              sum(envoy_cluster_upstream_rq_active{namespace="$namespace"}) by(job)
+              * 100
+            |||,
+            '{{job}}',
+          )
+        ).addPanel(
+          $.panel('Envoy remaining requests/connections') +
+          $.queryPanel(
+            [
+              'min(envoy_cluster_circuit_breakers_default_remaining_rq{namespace="$namespace"}) by(job)',
+              'min(envoy_cluster_circuit_breakers_default_remaining_cx{namespace="$namespace"}) by(job)',
+            ],
+            ['{{job}} rq', '{{job}} cx']
+          )
+        )
+      )
+
+      .addRow(
         g.row('Distributor')
         .addPanel(
           $.panel('Spans / sec') +
@@ -87,14 +111,26 @@ dashboard_utils {
         )
       )
       .addRow(
+        g.row('')
+        .addPanel(
+          $.panel('Receiver spans / sec') +
+          $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
+          $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused') +
+          $.queryPanel('sum(rate(tempo_distributor_ingester_append_failures_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'ingester append failure')
+        ).addPanel(
+          $.panel('Discarded spans') +
+          $.queryPanel('sum(rate(tempo_discarded_spans_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}')
+        )
+      )
+      .addRow(
         g.row('Kafka produced records')
         .addPanel(
           $.panel('Kafka append records / sec') +
-          $.queryPanel('sum(rate(tempo_distributor_kafka_appends_total{%s, status="success"}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'appends')
+          $.queryPanel('sum(rate(tempo_distributor_produce_records_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'appends')
         )
         .addPanel(
           $.panel('Kafka failed append records / sec') +
-          $.queryPanel('sum(rate(tempo_distributor_kafka_appends_total{%s, status="fail"}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'failed')
+          $.queryPanel('sum(rate(tempo_distributor_produce_failures_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}')
         )
       )
       .addRow(

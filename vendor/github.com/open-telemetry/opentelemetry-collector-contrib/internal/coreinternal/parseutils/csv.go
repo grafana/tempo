@@ -70,7 +70,7 @@ func ReadCSVRow(row string, delimiter rune, lazyQuotes bool) ([]string, error) {
 }
 
 // MapCSVHeaders creates a map of headers[i] -> fields[i].
-func MapCSVHeaders(headers []string, fields []string) (map[string]any, error) {
+func MapCSVHeaders(headers, fields []string) (map[string]any, error) {
 	if len(fields) != len(headers) {
 		return nil, fmt.Errorf("wrong number of fields: expected %d, found %d", len(headers), len(fields))
 	}

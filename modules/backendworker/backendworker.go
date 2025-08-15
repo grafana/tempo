@@ -190,6 +190,13 @@ func (w *BackendWorker) running(ctx context.Context) error {
 
 	b := backoff.New(ctx, w.cfg.Backoff)
 
+	jobCtx := ctx
+	if w.cfg.FinishOnShutdownTimeout > 0 {
+		var jobsCancel context.CancelFunc
+		jobCtx, jobsCancel = createShutdownContext(ctx, w.cfg.FinishOnShutdownTimeout)
+		defer jobsCancel()
+	}
+
 	if w.subservices != nil {
 		for {
 			select {
@@ -198,7 +205,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			case err := <-w.subservicesWatcher.Chan():
 				return fmt.Errorf("worker subservices failed: %w", err)
 			default:
-				if err := w.processJobs(ctx); err != nil {
+				if err := w.processJobs(jobCtx); err != nil {
 					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
@@ -213,7 +220,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			case <-ctx.Done():
 				return nil
 			default:
-				if err := w.processJobs(ctx); err != nil {
+				if err := w.processJobs(jobCtx); err != nil {
 					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
@@ -565,4 +572,28 @@ func (s ownsEverythingSharder) RecordDiscardedSpans(count int, tenantID string, 
 
 func (s ownsEverythingSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
 	return s.w.Combine(dataEncoding, tenantID, objs...)
+}
+
+// createShutdownContext creates a context that starts a timeout only after parentCtx is cancelled
+func createShutdownContext(parentCtx context.Context, shutdownTimeout time.Duration) (context.Context, context.CancelFunc) {
+	jobsCtx, jobsCancel := context.WithCancel(context.Background())
+
+	go func() {
+		<-parentCtx.Done() // Wait for parent cancellation
+
+		// Now start the shutdown timeout
+		timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer timeoutCancel()
+
+		select {
+		case <-timeoutCtx.Done():
+			// Timeout expired, force cancel jobs
+			jobsCancel()
+		case <-jobsCtx.Done():
+			// Jobs completed gracefully before timeout
+			return
+		}
+	}()
+
+	return jobsCtx, jobsCancel
 }

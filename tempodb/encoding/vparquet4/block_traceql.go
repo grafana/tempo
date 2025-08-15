@@ -59,6 +59,10 @@ type span struct {
 	cbSpanset      *traceql.Spanset
 }
 
+func (s *span) Release() {
+	putSpan(s)
+}
+
 func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs)+len(s.eventAttrs)+len(s.linkAttrs))
 	for _, st := range s.traceAttrs {
@@ -1552,7 +1556,7 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            V
 
 func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spansetIterator, error) {
-	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, rowGroups, pf, dc, false)
+	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, rowGroups, pf, dc, false, req.TraceSampler, req.SpanSampler)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -1560,7 +1564,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	if req.SecondPass != nil {
 		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
-		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, rowGroups, pf, dc, req.SecondPassSelectAll)
+		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, rowGroups, pf, dc, req.SecondPassSelectAll, nil, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error creating second pass iterator: %w", err)
 		}
@@ -1624,7 +1628,10 @@ func categorizeConditions(conditions []traceql.Condition) (*categorizedCondition
 	return &categorizedCond, mingled, nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, start, end uint64, rgs []parquet.RowGroup, pf *parquet.File, dc backend.DedicatedColumns, selectAll bool,
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, start, end uint64, rgs []parquet.RowGroup,
+	pf *parquet.File, dc backend.DedicatedColumns, selectAll bool,
+	traceSampler traceql.Sampler,
+	spanSampler traceql.Sampler,
 ) (parquetquery.Iterator, error) {
 	// categorize conditions by scope
 	catConditions, mingledConditions, err := categorizeConditions(conditions)
@@ -1674,7 +1681,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, linkIter)
 	}
 
-	spanIter, err := createSpanIterator(makeIter, innerIterators, catConditions.span, allConditions, dc, selectAll)
+	spanIter, err := createSpanIterator(makeIter, innerIterators, catConditions.span, allConditions, dc, selectAll, spanSampler)
 	if err != nil {
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
@@ -1689,7 +1696,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
 
-	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, allConditions, selectAll)
+	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, allConditions, selectAll, traceSampler)
 }
 
 func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
@@ -1838,7 +1845,9 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, all
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool,
+	sampler traceql.Sampler,
+) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs          = map[string]string{}
 		columnPredicates        = map[string][]parquetquery.Predicate{}
@@ -1900,6 +1909,13 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			if err != nil {
 				return nil, err
 			}
+
+			if sampler != nil {
+				pred = newSamplingPredicate(sampler, pred)
+				// Removed so that it's not used down below.
+				sampler = nil
+			}
+
 			addPredicate(columnPathSpanStartTime, pred)
 			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
 			continue
@@ -1989,7 +2005,6 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
 			continue
-
 		}
 
 		// Well-known attribute?
@@ -2127,7 +2142,11 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
 	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, nil, "")}
+		var pred parquetquery.Predicate
+		if sampler != nil {
+			pred = newSamplingPredicate(sampler, nil)
+		}
+		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, pred, "")}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -2345,7 +2364,9 @@ func createServiceStatsIterator(makeIter makeIterFn) parquetquery.Iterator {
 	return parquetquery.NewJoinIterator(DefinitionLevelServiceStats, serviceStatsIters, &serviceStatsCollector{})
 }
 
-func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool, selectAll bool,
+	sampler traceql.Sampler,
+) (parquetquery.Iterator, error) {
 	iters := make([]parquetquery.Iterator, 0, 3)
 	metaIters := make([]parquetquery.Iterator, 0)
 
@@ -2432,6 +2453,19 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 
 		required = append(required, makeIter(columnPathStartTimeUnixNano, startFilter, columnPathStartTimeUnixNano))
 		required = append(required, makeIter(columnPathEndTimeUnixNano, endFilter, columnPathEndTimeUnixNano))
+	}
+
+	if sampler != nil {
+		// We need to sample at the trace level. Therefore we choose and column
+		// and add it to the require conditions, and make it first to drive
+		// sampling at this level. This is generally the smallest trace-level column
+		// and is typically 0.1 % of the file. Doesn't need to return data.
+		// TODO: We might be able to do this without loading a real column, by using
+		// the fact that every trace is a top-level row and there are no gaps. We could
+		// inspect the number of rows in the given row groups and generate virtual row numbers.
+		pred := newSamplingPredicate(sampler, nil)
+		i := makeIter(columnPathRootServiceName, pred, "")
+		required = append([]parquetquery.Iterator{i}, required...)
 	}
 
 	// Append meta iterators if there are any (exemplars)
@@ -3300,13 +3334,13 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	case len(c.boolBuffer) == 1:
 		val = traceql.NewStaticBool(c.boolBuffer[0])
 	case len(c.strBuffer) > 1:
-		val = traceql.NewStaticStringArray(c.strBuffer)
+		val = traceql.NewStaticStringArray(util.Clone(c.strBuffer))
 	case len(c.intBuffer) > 1:
-		val = traceql.NewStaticIntArray(c.intBuffer)
+		val = traceql.NewStaticIntArray(util.Clone(c.intBuffer))
 	case len(c.floatBuffer) > 1:
-		val = traceql.NewStaticFloatArray(c.floatBuffer)
+		val = traceql.NewStaticFloatArray(util.Clone(c.floatBuffer))
 	case len(c.boolBuffer) > 1:
-		val = traceql.NewStaticBooleanArray(c.boolBuffer)
+		val = traceql.NewStaticBooleanArray(util.Clone(c.boolBuffer))
 	}
 
 	// reset the slices
@@ -3569,4 +3603,50 @@ func otlpKindToTraceqlKind(v uint64) traceql.Kind {
 	default:
 		return traceql.Kind(v)
 	}
+}
+
+type samplingPredicate struct {
+	sampler traceql.Sampler
+	inner   parquetquery.Predicate
+}
+
+var _ parquetquery.Predicate = (*samplingPredicate)(nil)
+
+func newSamplingPredicate(sampler traceql.Sampler, inner parquetquery.Predicate) *samplingPredicate {
+	return &samplingPredicate{
+		sampler: sampler,
+		inner:   inner,
+	}
+}
+
+func (p *samplingPredicate) String() string {
+	return "samplingPredicate{}"
+}
+
+func (p *samplingPredicate) KeepColumnChunk(chunk *parquetquery.ColumnChunkHelper) bool {
+	if p.inner != nil {
+		return p.inner.KeepColumnChunk(chunk)
+	}
+	return true
+}
+
+func (p *samplingPredicate) KeepPage(page parquet.Page) bool {
+	if p.inner != nil && !p.inner.KeepPage(page) {
+		return false
+	}
+
+	// We call Expect() on page because it is closer to the actual data
+	// to be processed.  We could call it earlier in KeepColumnChunk()
+	// but it reduces effectiveness of the sampler because we may
+	// skip around or exit early due to any other conditions.
+	p.sampler.Expect(uint64(page.NumValues()))
+	return true
+}
+
+func (p *samplingPredicate) KeepValue(value parquet.Value) bool {
+	if p.inner != nil && !p.inner.KeepValue(value) {
+		return false
+	}
+
+	return p.sampler.Sample()
 }
