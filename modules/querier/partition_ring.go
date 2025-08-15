@@ -34,7 +34,7 @@ func forPartitionRingReplicaSets[R any, TClient any](ctx context.Context, q *Que
 }
 
 // queryQuorumConfigForReplicationSets returns the config to use with "do until quorum" functions when running queries.
-func (q *Querier) queryQuorumConfigForReplicationSets(_ context.Context, replicationSets []ring.ReplicationSet) ring.DoUntilQuorumConfig {
+func (q *Querier) queryQuorumConfigForReplicationSets(_ context.Context, _ []ring.ReplicationSet) ring.DoUntilQuorumConfig {
 	zoneSorter := queryIngesterPartitionsRingZoneSorter("") // todo: make configurable
 
 	return ring.DoUntilQuorumConfig{

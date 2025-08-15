@@ -488,7 +488,7 @@ func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 }
 
 // FindTraceByID implements tempopb.Querier
-func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
+func (s *LiveStore) FindTraceByID(_ context.Context, _ *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
 	return nil, fmt.Errorf("FindTraceByID not implemented in livestore")
 }
 
@@ -508,7 +508,7 @@ func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest
 }
 
 // SearchBlock implements tempopb.Querier
-func (s *LiveStore) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	return nil, fmt.Errorf("SearchBlock not implemented in livestore")
 }
 
@@ -573,16 +573,16 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 }
 
 // PushSpans implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+func (s *LiveStore) PushSpans(_ context.Context, _ *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
 	return nil, fmt.Errorf("PushSpans not implemented in livestore")
 }
 
 // GetMetrics implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
 	return nil, fmt.Errorf("GetMetrics not implemented in livestore") // todo: this is metrics summary, are we allowed to remove this or do we need to continue to support?
 }
 
 // QueryRange implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+func (s *LiveStore) QueryRange(_ context.Context, _ *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	return nil, fmt.Errorf("QueryRange not implemented in livestore") // todo: implement. seems to be a disconnect between this and instance.QueryRange
 }
