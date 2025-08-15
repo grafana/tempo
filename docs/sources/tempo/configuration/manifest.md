@@ -202,7 +202,7 @@ distributor:
         cost_attribution:
             max_cardinality: 10000
             stale_duration: 15m0s
-    grpc_write_path_enabled: true
+    ingester_write_path_enabled: true
     kafka_write_path_enabled: false
     kafka_config:
         address: ""

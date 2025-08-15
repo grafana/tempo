@@ -484,7 +484,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
-	if d.cfg.GRPCWritePathEnabled {
+	if d.cfg.IngesterWritePathEnabled {
 		err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, ringTokens)
 		if err != nil {
 			return nil, err

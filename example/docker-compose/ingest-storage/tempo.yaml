@@ -5,7 +5,7 @@ server:
   log_level: debug
 
 distributor:
-  grpc_write_path_enabled: false
+  ingester_write_path_enabled: false
   kafka_write_path_enabled: true
   receivers:
     otlp:
