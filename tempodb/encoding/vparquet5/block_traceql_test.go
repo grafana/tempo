@@ -202,7 +202,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
-		// {"empty request", traceql.FetchSpansRequest{}},
+		{"empty request", traceql.FetchSpansRequest{}},
 		{
 			"Time range inside trace",
 			traceql.FetchSpansRequest{

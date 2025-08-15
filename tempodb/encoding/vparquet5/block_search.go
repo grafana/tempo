@@ -212,15 +212,18 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 
 	// Duration filtering?
 	if req.MinDurationMs > 0 || req.MaxDurationMs > 0 {
-		mn := int64(0)
+		minDur := int64(0)
+		maxDur := int64(math.MaxInt64)
+
 		if req.MinDurationMs > 0 {
-			mn = (time.Millisecond * time.Duration(req.MinDurationMs)).Nanoseconds()
+			minDur = (time.Millisecond * time.Duration(req.MinDurationMs)).Nanoseconds()
 		}
-		mx := int64(math.MaxInt64)
+
 		if req.MaxDurationMs > 0 {
-			mx = (time.Millisecond * time.Duration(req.MaxDurationMs)).Nanoseconds()
+			maxDur = (time.Millisecond * time.Duration(req.MaxDurationMs)).Nanoseconds()
 		}
-		durFilter := pq.NewIntBetweenPredicate(mn, mx)
+
+		durFilter := pq.NewIntBetweenPredicate(minDur, maxDur)
 		traceIters = append(traceIters, makeIter("DurationNano", durFilter, "Duration"))
 	}
 

@@ -755,10 +755,6 @@ func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64) []*v1
 }
 
 func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
-	return parquetTraceToTempopbTrace(meta, parquetTrace)
-}
-
-func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
 	protoTrace.ResourceSpans = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 

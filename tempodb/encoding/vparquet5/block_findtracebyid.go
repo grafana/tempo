@@ -168,10 +168,10 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		// Gets the minimum trace ID within the row group. Since the column is sorted
 		// ascending we just read the first value from the first page.
 		getRowGroupMin := func(rgIdx int) (common.ID, error) {
-			mn := rowGroupMins[rgIdx]
-			if len(mn) > 0 {
+			minID := rowGroupMins[rgIdx]
+			if len(minID) > 0 {
 				// Already loaded
-				return mn, nil
+				return minID, nil
 			}
 
 			pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
@@ -193,30 +193,30 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 
 			// Clone ensures that the byte array is disconnected
 			// from the underlying i/o buffers.
-			mn = buf[0].Clone().ByteArray()
-			rowGroupMins[rgIdx] = mn
-			return mn, nil
+			minID = buf[0].Clone().ByteArray()
+			rowGroupMins[rgIdx] = minID
+			return minID, nil
 		}
 
 		rowGroup, err = binarySearch(numRowGroups, func(rgIdx int) (int, error) {
-			mn, err := getRowGroupMin(rgIdx)
+			rgMinID, err := getRowGroupMin(rgIdx)
 			if err != nil {
 				return 0, err
 			}
 
-			if check := bytes.Compare(traceID, mn); check <= 0 {
+			if check := bytes.Compare(traceID, rgMinID); check <= 0 {
 				// Trace is before or in this group
 				return check, nil
 			}
 
-			mx, err := getRowGroupMin(rgIdx + 1)
+			rgMaxID, err := getRowGroupMin(rgIdx + 1)
 			if err != nil {
 				return 0, err
 			}
 
 			// This is actually the min of the next group, so check is exclusive not inclusive like min
 			// Except for the last group, it is inclusive
-			check := bytes.Compare(traceID, mx)
+			check := bytes.Compare(traceID, rgMaxID)
 			if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
 				// Trace is after this group
 				return 1, nil
@@ -275,7 +275,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	}
 
 	// convert to proto trace and return
-	return parquetTraceToTempopbTrace(meta, tr), nil
+	return ParquetTraceToTempopbTrace(meta, tr), nil
 }
 
 // binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found
