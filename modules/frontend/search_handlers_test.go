@@ -894,7 +894,7 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 	o, err := overrides.NewOverrides(*overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	f, err := New(*cfg, next, o, rdr, cacheProvider, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	f, err := New(*cfg, next, o, rdr, cacheProvider, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	require.NoError(t, err)
 
 	return f

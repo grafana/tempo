@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/dskit/signals"
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
+	"github.com/grafana/tempo/modules/frontend"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/common/version"
 	"go.uber.org/atomic"
@@ -92,6 +93,8 @@ type App struct {
 	ModuleManager *modules.Manager
 	serviceMap    map[string]services.Service
 	deps          map[string][]string
+
+	AccessHandler frontend.AccessHandler
 }
 
 // New makes a new app.

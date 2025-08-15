@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryInstantHandler {
+func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, accessHandler AccessHandler) streamingQueryInstantHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -33,6 +33,13 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 
 		headers := headersFromGrpcContext(ctx)
+		if accessHandler != nil {
+			ctx, err = accessHandler.AddFilterQueryInstant(ctx, req)
+			if err != nil {
+				level.Error(logger).Log("msg", "search streaming: add filter failed", "err", err)
+				return err
+			}
+		}
 
 		// --------------------------------------------------
 		// Rewrite into a query_range request.
@@ -80,7 +87,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 
 // newMetricsQueryInstantHTTPHandler handles instant queries.  Internally these are rewritten as query_range with single step
 // to make use of the existing pipeline.
-func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
+func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, accessHandler AccessHandler) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -89,6 +96,17 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			return errResp, nil
 		}
 		start := time.Now()
+
+		if accessHandler != nil {
+			if err := accessHandler.AddFilterHttp(req); err != nil {
+				level.Error(logger).Log("msg", "search streaming: add filter failed", "err", err)
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Status:     http.StatusText(http.StatusBadRequest),
+					Body:       io.NopCloser(strings.NewReader(err.Error())),
+				}, nil
+			}
+		}
 
 		// Parse request
 		i, err := api.ParseQueryInstantRequest(req)

@@ -7,11 +7,11 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func NewTypedTraceByIDV2(maxBytes int, marshalingFormat string, spanMatcher *SpanMatcher) GRPCCombiner[*tempopb.TraceByIDResponse] {
-	return NewTraceByIDV2(maxBytes, marshalingFormat, spanMatcher).(GRPCCombiner[*tempopb.TraceByIDResponse])
+func NewTypedTraceByIDV2(maxBytes int, marshalingFormat string, traceRedactor TraceRedactor) GRPCCombiner[*tempopb.TraceByIDResponse] {
+	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor).(GRPCCombiner[*tempopb.TraceByIDResponse])
 }
 
-func NewTraceByIDV2(maxBytes int, marshalingFormat string, spanMatcher *SpanMatcher) Combiner {
+func NewTraceByIDV2(maxBytes int, marshalingFormat string, traceRedactor TraceRedactor) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
 	metricsCombiner := NewTraceByIDMetricsCombiner()
@@ -35,8 +35,8 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string, spanMatcher *SpanMatc
 			// dedupe duplicate span ids
 			deduper := newDeduper()
 			traceResult = deduper.dedupe(traceResult)
-			if spanMatcher != nil {
-				spanMatcher.ProcessTraceToRedactAttributes(traceResult)
+			if traceRedactor != nil {
+				traceRedactor.ProcessTraceToRedactAttributes(traceResult)
 			}
 			resp.Trace = traceResult
 			resp.Metrics = metricsCombiner.Metrics
