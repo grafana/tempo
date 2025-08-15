@@ -293,6 +293,11 @@ func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 	}, err
 }
 
+// TracesCheck is not implemented for v2 WAL blocks.
+func (a *walBlock) TracesCheck(ctx context.Context, ids []common.ID, _ common.SearchOptions) (map[string]bool, uint64, error) {
+	return nil, 0, common.ErrUnsupported
+}
+
 // Search implements common.Searcher
 func (a *walBlock) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
 	return nil, common.ErrUnsupported

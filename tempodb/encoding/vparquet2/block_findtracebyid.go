@@ -137,6 +137,10 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 }
 
+func (b *backendBlock) TracesCheck(ctx context.Context, traceIDs []common.ID, opts common.SearchOptions) (map[string]bool, uint64, error) {
+	return nil, 0, common.ErrUnsupported
+}
+
 func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.TraceByIDResponse, error) {
 	// traceID column index
 	colIndex, _, maxDef := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
