@@ -311,8 +311,13 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 
 	cfg.Ring.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	//	flagext.DefaultValues(&cfg.Ring)
-	mockStore, _ := consul.NewInMemoryClient(
+	mockParititionStore, _ := consul.NewInMemoryClient(
 		ring.GetPartitionRingCodec(),
+		log.NewNopLogger(),
+		nil,
+	)
+	mockStore, _ := consul.NewInMemoryClient(
+		ring.GetCodec(),
 		log.NewNopLogger(),
 		nil,
 	)
@@ -321,7 +326,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	cfg.Ring.ListenPort = 0
 	cfg.Ring.InstanceAddr = "localhost"
 	cfg.Ring.InstanceID = "test-1"
-	cfg.PartitionRing.KVStore.Mock = mockStore
+	cfg.PartitionRing.KVStore.Mock = mockParititionStore
 
 	// Create overrides
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
