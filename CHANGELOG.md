@@ -48,6 +48,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
+* [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
 
 # v2.8.2
 
