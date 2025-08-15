@@ -130,7 +130,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 		w,
 	)
 
-	b := p.prepareNextTenant(ctx)
+	b := p.prepareNextTenant(ctx, false)
 	require.False(t, b, "no tenant should be found")
 	require.Nil(t, p.curTenant, "a tenant should not be set")
 	require.Nil(t, p.curSelector, "a block selector should not be set")
@@ -138,7 +138,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
 	time.Sleep(150 * time.Millisecond)
 
-	b = p.prepareNextTenant(ctx)
+	b = p.prepareNextTenant(ctx, false)
 	require.False(t, b, "no tenant with a single block should be found")
 	require.Nil(t, p.curTenant, "a tenant should not be set")
 	require.Nil(t, p.curSelector, "a block selector should not be set")
@@ -146,7 +146,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
 	time.Sleep(150 * time.Millisecond)
 
-	b = p.prepareNextTenant(ctx)
+	b = p.prepareNextTenant(ctx, false)
 	require.True(t, b, "tenant with two blocks should be found")
 	require.NotNil(t, p.curTenant, "a tenant should be set")
 	require.NotNil(t, p.curSelector, "a block selector should be set")
