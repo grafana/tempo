@@ -154,7 +154,7 @@ func New(
 			generatorClientFactory,
 			metricMetricsGeneratorClients,
 			log.Logger),
-		queryPartitionRing: queryPartitionRing, // jpe - do i need this bool?
+		queryPartitionRing: queryPartitionRing,
 		partitionRing:      partitionRing,
 		liveStoreRing:      liveStoreRing,
 		liveStorePool: ring_client.NewPool("querier_to_livestore_pool",

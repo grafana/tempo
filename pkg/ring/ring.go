@@ -22,7 +22,7 @@ var (
 func New(cfg ring.Config, name, key string, reg prometheus.Registerer) (*ring.Ring, error) {
 	reg = prometheus.WrapRegistererWithPrefix("tempo_", reg)
 
-	statReplicationFactor.Set(int64(cfg.ReplicationFactor)) // jpe - is this set to 1 for livestores by default?
+	statReplicationFactor.Set(int64(cfg.ReplicationFactor))
 	statKvStore.Set(cfg.KVStore.Store)
 
 	if cfg.ReplicationFactor == 2 {
