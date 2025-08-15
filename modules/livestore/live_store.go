@@ -467,9 +467,9 @@ func (s *LiveStore) completeLoop() {
 }
 
 // OnRingInstanceRegister implements ring.BasicLifecyclerDelegate
-func (s *LiveStore) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc ring.Desc, instanceExists bool, _ string, instanceDesc ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
+func (s *LiveStore) OnRingInstanceRegister(_ *ring.BasicLifecycler, _ ring.Desc, _ bool, _ string, _ ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
 	// tokens don't matter for the livestore ring, we just need to be in the ring for service discovery
-	token := rand.Uint32()
+	token := rand.Uint32() //nolint: gosec // G404 we don't need a cryptographic random number here
 	level.Info(s.logger).Log("msg", "registered in livestore ring", "token", token, "partition", s.ingestPartitionID)
 
 	return ring.ACTIVE, []uint32{token}

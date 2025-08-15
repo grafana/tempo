@@ -3,7 +3,6 @@ package querier
 import (
 	"context"
 	"math/rand/v2"
-	"slices"
 	"time"
 
 	"github.com/grafana/dskit/concurrency"
@@ -35,7 +34,7 @@ func forPartitionRingReplicaSets[R any, TClient any](ctx context.Context, q *Que
 }
 
 // queryQuorumConfigForReplicationSets returns the config to use with "do until quorum" functions when running queries.
-func (q *Querier) queryQuorumConfigForReplicationSets(ctx context.Context, replicationSets []ring.ReplicationSet) ring.DoUntilQuorumConfig {
+func (q *Querier) queryQuorumConfigForReplicationSets(_ context.Context, replicationSets []ring.ReplicationSet) ring.DoUntilQuorumConfig {
 	zoneSorter := queryIngesterPartitionsRingZoneSorter("") // todo: make configurable
 
 	return ring.DoUntilQuorumConfig{
@@ -43,26 +42,6 @@ func (q *Querier) queryQuorumConfigForReplicationSets(ctx context.Context, repli
 		HedgingDelay:     500 * time.Millisecond,
 		ZoneSorter:       zoneSorter,
 		Logger:           nil, // pass a logger?
-	}
-}
-
-// queryIngestersRingZoneSorter returns a ring.ZoneSorter that should be used to sort ingester zones
-// to attempt to query first, when ingest storage is disabled.
-func queryIngestersRingZoneSorter(replicationSet ring.ReplicationSet) ring.ZoneSorter {
-	return func(zones []string) []string {
-		inactiveCount := make(map[string]int, len(zones))
-
-		for _, i := range replicationSet.Instances {
-			if i.State != ring.ACTIVE {
-				inactiveCount[i.Zone]++
-			}
-		}
-
-		slices.SortFunc(zones, func(a, b string) int {
-			return inactiveCount[a] - inactiveCount[b]
-		})
-
-		return zones
 	}
 }
 

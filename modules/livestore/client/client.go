@@ -53,7 +53,7 @@ func New(addr string, cfg Config) (*Client, error) {
 	}
 
 	opts = append(opts, instrumentationOpts...)
-	conn, err := grpc.Dial(addr, opts...)
+	conn, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -34,6 +34,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+const defaultGRPCCompression = "snappy"
+
 // Config is the root config for App.
 type Config struct {
 	Target                 string        `yaml:"target,omitempty"`
@@ -131,13 +133,13 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	// Everything else
 	flagext.DefaultValues(&c.LiveStoreClient)
-	c.LiveStoreClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.LiveStoreClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.IngesterClient)
-	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.IngesterClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.GeneratorClient)
-	c.GeneratorClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.GeneratorClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	flagext.DefaultValues(&c.BackenSchedulerClient)
-	c.BackenSchedulerClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.BackenSchedulerClient.GRPCClientConfig.GRPCCompression = defaultGRPCCompression
 	c.Overrides.RegisterFlagsAndApplyDefaults(f)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)
