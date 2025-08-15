@@ -40,7 +40,7 @@ To activate the `local-blocks` processor for all users, add it to the list of pr
 ```yaml
 # Global overrides configuration.
 overrides:
-  metrics_generator_processors: ['local-blocks']
+  metrics_generator_processors: ["local-blocks"]
 ```
 
 To configure the processor per tenant, use the `metrics_generator_processor` override.
@@ -49,7 +49,7 @@ Example for per-tenant in the per-tenant overrides:
 
 ```yaml
 overrides:
-  'tenantID':
+  "tenantID":
     metrics_generator_processors:
       - local-blocks
 ```
@@ -87,6 +87,15 @@ If you configured Tempo using the `tempo-distributed` Helm chart, you can also s
 Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/blob/559ecf4a9c9eefac4521454e7a8066778e4eeff7/charts/tempo-distributed/values.yaml#L362).
 
 For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
+
+### Local blocks and metrics-generator in Azure blob storage
+
+[//]: # "Shared content for localblocks and metrics-generator in Azure blob storage"
+[//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
+
+{{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}
+
+For more information, refer to [Azure hosted storage](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/azure/).
 
 ## Evaluate query timeouts
 
