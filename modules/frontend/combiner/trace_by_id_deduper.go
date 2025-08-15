@@ -102,8 +102,8 @@ func (s *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
 	for _, batch := range s.trace.ResourceSpans {
 		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
-				if len(span.GetParentSpanId()) > 0 {
-					parentSpanID := binary.BigEndian.Uint64(span.GetParentSpanId())
+				if span != nil && len(span.ParentSpanId) > 0 {
+					parentSpanID := binary.BigEndian.Uint64(span.ParentSpanId)
 					if newParentID, ok := oldToNewSpanIDs[parentSpanID]; ok {
 						if binary.BigEndian.Uint64(span.SpanId) != newParentID {
 							binary.BigEndian.PutUint64(span.ParentSpanId, newParentID)
