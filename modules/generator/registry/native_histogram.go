@@ -366,13 +366,10 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 		}
 	}
 
-	// Clear all native exemplars after emission to prevent accumulation
-	// This should match the behavior of classic histograms: s.exemplars[i].Store("")
-	//
-	// FIXME: this is not working as expected.  It appears that the internal
-	// slice retains previous exemplars and I am not seeing a Reset() method or a
-	// way to clear out the exemplars which have been recorded.
-	//
+	// NOTE: We clear the native exemplar slice to prevent accumulation, but the
+	// client_golang package handles the expiration of exemplars internally, and
+	// we don't have control over clearing the native histogram exemplars in the
+	// same way we do for the class histogram exemplars.
 	if nativeExemplarCount > 0 {
 		clear(s.histogram.Exemplars)
 		s.histogram.Exemplars = s.histogram.Exemplars[:0]
