@@ -347,9 +347,10 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 			return nil, err
 		}
 		// Only return if we have found something.
-		if trace != nil && len(trace.ResourceSpans) > 0 {
+		if trace != nil && trace.Trace != nil && len(trace.Trace.ResourceSpans) > 0 {
 			return trace, nil
 		}
+	}
 
 	return i.headBlock.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 }

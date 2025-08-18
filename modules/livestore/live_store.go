@@ -601,7 +601,7 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	// Compile the raw version of the query for head and wal blocks
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
-	// TODO MRD look into how to propogate unsafe query hints.
+	// TODO MRD look into how to propagate unsafe query hints.
 	rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), s.cfg.TimeOverlapCutoff, false)
 	if err != nil {
 		return nil, err
