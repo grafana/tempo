@@ -122,7 +122,7 @@ func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 }
 
 func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) *kadm.Offset {
-	records := make([]record, 0, len(fetches.Records()))
+	records := make([]record, 0, fetches.NumRecords())
 
 	var lastRecord *kgo.Record
 
