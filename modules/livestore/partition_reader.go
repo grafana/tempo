@@ -95,9 +95,8 @@ func (r *PartitionReader) running(ctx context.Context) error {
 		}
 
 		r.recordFetchesMetrics(fetches)
-		advance, admOffset := r.consumeFetches(consumeCtx, fetches)
-		if advance {
-			r.commitOffset(consumeCtx, admOffset)
+		if offset := r.consumeFetches(consumeCtx, fetches); offset != nil {
+			r.commitOffset(consumeCtx, *offset)
 		}
 	}
 
@@ -122,7 +121,7 @@ func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 	return mErr.Err()
 }
 
-func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) (bool, kadm.Offset) {
+func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) *kadm.Offset {
 	records := make([]record, 0, len(fetches.Records()))
 
 	var lastRecord *kgo.Record
@@ -153,10 +152,11 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 	}
 
 	if lastRecord == nil {
-		return false, kadm.Offset{}
+		return nil
 	}
 
-	return true, kadm.NewOffsetFromRecord(lastRecord)
+	offset := kadm.NewOffsetFromRecord(lastRecord)
+	return &offset
 }
 
 func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
