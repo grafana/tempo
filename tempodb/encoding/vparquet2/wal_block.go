@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -345,7 +346,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 }
 
 func (b *walBlock) Validate(context.Context) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *walBlock) IngestionSlack() time.Duration {
@@ -660,11 +661,11 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 }
 
 func (b *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *walBlock) walPath() string {

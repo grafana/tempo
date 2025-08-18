@@ -28,6 +28,8 @@ type VersionedEncoding interface {
 	// encoding. It is expected to use internal details for efficiency.
 	NewCompactor(common.CompactionOptions) common.Compactor
 
+	CompactionSupported() bool
+
 	// CreateBlock with the given attributes and trace contents.
 	// BlockMeta is used as a container for many options. Required fields:
 	// * BlockID

@@ -5,20 +5,23 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type Block struct{}
+type Block struct {
+	meta *backend.BlockMeta
+}
 
 var _ common.BackendBlock = &Block{}
 
 func (b Block) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
-	return nil, common.ErrUnsupported
+	return nil, util.ErrUnsupported
 }
 
 func (b Block) BlockMeta() *backend.BlockMeta {
-	return nil
+	return b.meta
 }
 
 func (b Block) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
@@ -38,7 +41,7 @@ func (b Block) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb 
 }
 
 func (b Block) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	return traceql.FetchSpansResponse{}, nil
+	return traceql.FetchSpansResponse{}, util.ErrUnsupported
 }
 
 func (b Block) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {

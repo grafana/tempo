@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
@@ -59,6 +60,15 @@ func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 	activeWindow := twbs.windowForTime(now.Add(-activeWindowDuration))
 
 	for _, b := range blocklist {
+
+		enc, err := encoding.FromVersion(b.Version)
+		if err != nil {
+			continue
+		}
+		if !enc.CompactionSupported() {
+			continue
+		}
+
 		w := twbs.windowForBlock(b)
 
 		// exclude blocks that fall in last window from active -> inactive cut-over
