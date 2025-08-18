@@ -906,8 +906,8 @@ github.com/twmb/franz-go/pkg/sasl/kerberos v1.1.0 h1:alKdbddkPw3rDh+AwmUEwh6HNYg
 github.com/twmb/franz-go/pkg/sasl/kerberos v1.1.0/go.mod h1:k8BoBjyUbFj34f0rRbn+Ky12sZFAPbmShrg0karAIMo=
 github.com/twmb/franz-go/plugin/kotel v1.6.0 h1:hmvLn/cVw/Hn56H3aJVJu/a/fh6m8J6Ajwp0IcEHbH8=
 github.com/twmb/franz-go/plugin/kotel v1.6.0/go.mod h1:ADmLuCa/NzHdXdWfl22FsIlGCack+YrHjivirHCBJaY=
-github.com/twmb/franz-go/plugin/kprom v1.2.1 h1:FGWdneW9htySYmvJ5tEuAIZepjFOuTFhHLy5TrVR+QI=
-github.com/twmb/franz-go/plugin/kprom v1.2.1/go.mod h1:+dzpKnVE6By8BDRFj240dTDJS9bP2dngmuhv7egJ3Go=
+github.com/twmb/franz-go/plugin/kprom v1.3.0 h1:hpPL0LxgDZ0WuT8U+PT9uYo0icY2/Pcodgdk4Ylgblo=
+github.com/twmb/franz-go/plugin/kprom v1.3.0/go.mod h1:7wlpDMa4Ls5GBIYb3xUUxK38g1N7qy2cLYO84zAtp/w=
 github.com/twmb/franz-go/plugin/kzap v1.1.2 h1:0arX5xJ0soUPX1LlDay6ZZoxuWkWk1lggQ5M/IgRXAE=
 github.com/twmb/franz-go/plugin/kzap v1.1.2/go.mod h1:53Cl9Uz1pbdOPDvUISIxLrZIWSa2jCuY1bTMauRMBmo=
 github.com/twmb/murmur3 v1.1.8 h1:8Yt9taO/WN3l08xErzjeschgZU2QSrwm1kclYq+0aRg=
