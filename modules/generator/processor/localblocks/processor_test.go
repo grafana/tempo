@@ -228,8 +228,8 @@ func TestReplicationFactor(t *testing.T) {
 			Version:             encoding.DefaultEncoding().Version(),
 		},
 		Metrics: MetricsConfig{
-			TimeOverlapCutoff: 0.2,
 			ConcurrentBlocks:  10,
+			TimeOverlapCutoff: 0.2,
 		},
 		FilterServerSpans: false,
 		FlushToStorage:    true,

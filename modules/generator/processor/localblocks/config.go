@@ -34,7 +34,7 @@ type Config struct {
 }
 
 type MetricsConfig struct {
-	ConcurrentBlocks uint `yaml:"concurrent_blocks,omitempty"`
+	ConcurrentBlocks uint `yaml:"concurrent_blocks"`
 
 	// TimeOverlapCutoff is a tuning factor that controls whether the trace-level
 	// timestamp columns are used in a metrics query.  Loading these columns has a cost,
@@ -62,8 +62,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxLiveTracesBytes = 250_000_000
 	cfg.CompleteBlockTimeout = time.Hour
 	cfg.FilterServerSpans = true
-	cfg.Metrics.ConcurrentBlocks = 10
 	cfg.Metrics = MetricsConfig{
+		ConcurrentBlocks:  10,
 		TimeOverlapCutoff: 0.2,
 	}
 
