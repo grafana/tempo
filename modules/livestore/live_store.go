@@ -271,11 +271,11 @@ func (s *LiveStore) flushRemaining() {
 }
 
 func (s *LiveStore) consume(_ context.Context, rs []record) error {
-	s.decoder.Reset()
+	defer s.decoder.Reset()
 
 	// Process records by tenant
 	for _, record := range rs {
-		var pushReq *tempopb.PushBytesRequest
+		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.content)
 		if err != nil {
 			return fmt.Errorf("decoding record: %w", err)
