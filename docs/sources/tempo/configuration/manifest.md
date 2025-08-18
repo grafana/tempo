@@ -329,8 +329,8 @@ querier:
         query_timeout: 30s
     trace_by_id:
         query_timeout: 10s
+    concurrent_blocks: 2
     metrics:
-        concurrent_blocks: 2
         time_overlap_cutoff: 0.2
     max_concurrent_queries: 20
     frontend_worker:
@@ -1211,6 +1211,7 @@ live_store:
         min_partition_owners_duration: 10s
         delete_inactive_partition_after: 13h0m0s
     complete_block_timeout: 15m0s
-    time_overlap_cutoff: 0.2
     concurrent_blocks: 10
+    metrics:
+        time_overlap_cutoff: 0.2
 ```
