@@ -490,7 +490,6 @@ func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 
 // FindTraceByID implements tempopb.Querier
 func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
-
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
