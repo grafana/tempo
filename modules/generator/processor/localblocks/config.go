@@ -28,13 +28,14 @@ type Config struct {
 	MaxLiveTracesBytes   uint64                `yaml:"max_live_traces_bytes"`
 	FilterServerSpans    bool                  `yaml:"filter_server_spans"`
 	FlushToStorage       bool                  `yaml:"flush_to_storage"`
-	ConcurrentBlocks     uint                  `yaml:"concurrent_blocks"`
 	Metrics              MetricsConfig         `yaml:",inline"`
 
 	AdjustTimeRangeForSlack bool `yaml:"-"` // Used internally for non-flushing instance
 }
 
 type MetricsConfig struct {
+	ConcurrentBlocks uint `yaml:"concurrent_blocks,omitempty"`
+
 	// TimeOverlapCutoff is a tuning factor that controls whether the trace-level
 	// timestamp columns are used in a metrics query.  Loading these columns has a cost,
 	// so in some cases it faster to skip these columns entirely, reducing I/O but
@@ -61,7 +62,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxLiveTracesBytes = 250_000_000
 	cfg.CompleteBlockTimeout = time.Hour
 	cfg.FilterServerSpans = true
-	cfg.ConcurrentBlocks = 10
+	cfg.Metrics.ConcurrentBlocks = 10
 	cfg.Metrics = MetricsConfig{
 		TimeOverlapCutoff: 0.2,
 	}

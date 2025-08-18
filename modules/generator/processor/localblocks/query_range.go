@@ -49,7 +49,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		timeOverlapCutoff = v
 	}
 
-	concurrency := p.Cfg.ConcurrentBlocks
+	concurrency := p.Cfg.Metrics.ConcurrentBlocks
 	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
 		concurrency = uint(v)
 	}

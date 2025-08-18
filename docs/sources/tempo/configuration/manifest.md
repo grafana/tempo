@@ -329,8 +329,8 @@ querier:
         query_timeout: 30s
     trace_by_id:
         query_timeout: 10s
-    concurrent_blocks: 2
     metrics:
+        concurrent_blocks: 2
         time_overlap_cutoff: 0.2
     max_concurrent_queries: 20
     frontend_worker:
@@ -687,7 +687,6 @@ metrics_generator:
             max_live_traces_bytes: 250000000
             filter_server_spans: true
             flush_to_storage: false
-            concurrent_blocks: 10
             time_overlap_cutoff: 0.2
         host_info:
             host_identifiers:
