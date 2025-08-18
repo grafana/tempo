@@ -7,7 +7,7 @@ cloud.google.com/go/internal
 cloud.google.com/go/internal/optional
 cloud.google.com/go/internal/trace
 cloud.google.com/go/internal/version
-# cloud.google.com/go/auth v0.16.3
+# cloud.google.com/go/auth v0.16.4
 ## explicit; go 1.23.0
 cloud.google.com/go/auth
 cloud.google.com/go/auth/credentials
@@ -27,7 +27,7 @@ cloud.google.com/go/auth/internal/transport/cert
 # cloud.google.com/go/auth/oauth2adapt v0.2.8
 ## explicit; go 1.23.0
 cloud.google.com/go/auth/oauth2adapt
-# cloud.google.com/go/compute/metadata v0.7.0
+# cloud.google.com/go/compute/metadata v0.8.0
 ## explicit; go 1.23.0
 cloud.google.com/go/compute/metadata
 # cloud.google.com/go/iam v1.5.2
@@ -2218,7 +2218,7 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-# google.golang.org/api v0.243.0
+# google.golang.org/api v0.247.0
 ## explicit; go 1.23.0
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
@@ -2251,7 +2251,7 @@ google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20250728155136-f173205681a0
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b
 ## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
