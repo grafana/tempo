@@ -35,7 +35,6 @@ type Config struct {
 
 type MetricsConfig struct {
 	ConcurrentBlocks uint `yaml:"concurrent_blocks"`
-
 	// TimeOverlapCutoff is a tuning factor that controls whether the trace-level
 	// timestamp columns are used in a metrics query.  Loading these columns has a cost,
 	// so in some cases it faster to skip these columns entirely, reducing I/O but
