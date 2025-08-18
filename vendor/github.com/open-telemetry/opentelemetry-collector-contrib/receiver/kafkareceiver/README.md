@@ -94,6 +94,7 @@ The following settings can be optionally configured:
   - `full` (default = true): Whether to maintain a full set of metadata. When
     disabled, the client does not make the initial request to broker at the
     startup.
+  - `refresh_interval` (default = 10m): The refreshInterval controls the frequency at which cluster metadata is refreshed in the background.
   - `retry`
     - `max` (default = 3): The number of retries to get metadata
     - `backoff` (default = 250ms): How long to wait between metadata retries
@@ -115,6 +116,10 @@ The following settings can be optionally configured:
   - `multiplier`: The value multiplied by the backoff interval bounds
   - `randomization_factor`: A random factor used to calculate next backoff. Randomized interval = RetryInterval * (1 ± RandomizationFactor)
   - `max_elapsed_time`: The maximum amount of time trying to backoff before giving up. If set to 0, the retries are never stopped.
+- `telemetry`
+  - `metrics`
+    - `kafka_receiver_records_delay`:
+      - `enabled` (default = false) Whether the metric kafka_receiver_records_delay will be reported or not.
 
 ### Supported encodings
 

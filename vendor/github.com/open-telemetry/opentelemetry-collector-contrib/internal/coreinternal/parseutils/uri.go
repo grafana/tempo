@@ -59,7 +59,7 @@ func urlToSemconvMap(parsedURI *url.URL, m map[string]any) (map[string]any, erro
 	m[string(semconv.URLSchemeKey)] = parsedURI.Scheme
 	m[string(semconv.URLPathKey)] = parsedURI.Path
 
-	if portString := parsedURI.Port(); len(portString) > 0 {
+	if portString := parsedURI.Port(); portString != "" {
 		port, err := strconv.Atoi(portString)
 		if err != nil {
 			return nil, err
@@ -67,14 +67,14 @@ func urlToSemconvMap(parsedURI *url.URL, m map[string]any) (map[string]any, erro
 		m[string(semconv.URLPortKey)] = port
 	}
 
-	if fragment := parsedURI.Fragment; len(fragment) > 0 {
+	if fragment := parsedURI.Fragment; fragment != "" {
 		m[string(semconv.URLFragmentKey)] = fragment
 	}
 
 	if parsedURI.User != nil {
 		m[AttributeURLUserInfo] = parsedURI.User.String()
 
-		if username := parsedURI.User.Username(); len(username) > 0 {
+		if username := parsedURI.User.Username(); username != "" {
 			m[AttributeURLUsername] = username
 		}
 
@@ -83,7 +83,7 @@ func urlToSemconvMap(parsedURI *url.URL, m map[string]any) (map[string]any, erro
 		}
 	}
 
-	if query := parsedURI.RawQuery; len(query) > 0 {
+	if query := parsedURI.RawQuery; query != "" {
 		m[string(semconv.URLQueryKey)] = query
 	}
 

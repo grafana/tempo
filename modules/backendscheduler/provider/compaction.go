@@ -105,6 +105,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			span              trace.Span
 			loopCtx           context.Context
 			spanStarted       bool
+			drained           bool // Signal that we have drained the current work and should wait for the next poll
 		)
 
 		reset := func() {
@@ -120,6 +121,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			spanStarted = false
 		}
 
+		level.Info(p.logger).Log("msg", "compaction provider waiting for poll notification")
+		<-p.store.PollNotification(ctx)
+
 		for {
 			if ctx.Err() != nil {
 				level.Info(p.logger).Log("msg", "compaction provider stopping")
@@ -132,10 +136,15 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			if p.curSelector == nil {
-				if !p.prepareNextTenant(loopCtx) {
+				if !p.prepareNextTenant(loopCtx, drained) {
 					level.Info(p.logger).Log("msg", "received empty tenant")
+					// If we don't have a tenant with enough blocks, we signal drained to wait for next poll.
+					drained = true
 					metricEmptyTenantCycle.Inc()
 					span.AddEvent("no tenant selected")
+				} else {
+					// A tenant with enough blocks was selected, reset the drained state.
+					drained = false
 				}
 
 				continue
@@ -198,23 +207,37 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 	return jobs
 }
 
-func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
+func (p *CompactionProvider) prepareNextTenant(ctx context.Context, drained bool) bool {
 	_, span := tracer.Start(ctx, "prepareNextTenant")
 	defer span.End()
 
 	if p.curPriority.Len() == 0 {
 		// Rate limit calls to prioritizeTenants to prevent excessive CPU usage
-		// when cycling through tenants with no available work.  We only expect new
-		// work for tenants after a the next blocklist poll.
-		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
-			waitTime := p.cfg.MinCycleInterval - elapsed
-			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization", "wait_time", waitTime)
+		// when cycling through tenants with no available work.
+		//
+		// We only expect new work for tenants after a the next blocklist poll.  If
+		// we have been drained, wait for the next poll.
+
+		if drained {
+			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting for next poll")
 			select {
 			case <-ctx.Done():
 				return false
-			case <-time.After(waitTime):
+			case <-p.store.PollNotification(ctx):
+				// We waited for the poll, but we may have been cancelled in the meantime.
+				if ctx.Err() != nil {
+					return false
+				}
+
 				// Continue to prioritizeTenants
 			}
+		}
+
+		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
+			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting")
+			time.Sleep(p.cfg.MinCycleInterval - elapsed)
+
+			// Continue to prioritizeTenants
 		}
 
 		p.prioritizeTenants(ctx)

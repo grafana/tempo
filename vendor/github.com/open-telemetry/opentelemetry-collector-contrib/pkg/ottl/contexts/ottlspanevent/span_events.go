@@ -136,6 +136,7 @@ func EnablePathContextNames() ottl.Option[TransformContext] {
 			ctxspan.Name,
 			ctxresource.Name,
 			ctxscope.LegacyName,
+			ctxscope.Name,
 		})(p)
 	}
 }

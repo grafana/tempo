@@ -53,7 +53,7 @@ var _ agenttracepb.TraceServiceServer = (*Receiver)(nil)
 var errUnimplemented = errors.New("unimplemented")
 
 // Config handles configuration messages.
-func (ocr *Receiver) Config(agenttracepb.TraceService_ConfigServer) error {
+func (*Receiver) Config(agenttracepb.TraceService_ConfigServer) error {
 	// TODO: Implement when we define the config receiver/sender.
 	return errUnimplemented
 }

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -952,4 +953,57 @@ func TestNoCompactFlag(t *testing.T) {
 			assert.Equal(t, completedBlockID, blocklist[0].BlockID)
 		})
 	}
+}
+
+func TestPollNotification(t *testing.T) {
+	r, w, _, _ := testConfig(t, backend.EncGZIP, 0)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
+
+	blockID := backend.NewUUID()
+
+	wal := w.WAL()
+
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
+	assert.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	// write
+	numMsgs := 10
+	reqs := make([]*tempopb.Trace, numMsgs)
+	ids := make([]common.ID, numMsgs)
+	for i := range numMsgs {
+		ids[i] = test.ValidTraceID(nil)
+		reqs[i] = test.MakeTrace(10, ids[i])
+		writeTraceToWal(t, head, dec, ids[i], reqs[i], 0, 0)
+	}
+
+	_, err = w.CompleteBlock(ctx, head)
+	assert.NoError(t, err)
+	start := time.Now()
+	sleepTime := 1 * time.Second
+
+	wg := &sync.WaitGroup{}
+	for range 10 {
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-r.PollNotification(ctx)
+			require.Greater(t, time.Since(start), sleepTime, "PollNotification should not return before the first PollNow call")
+		}()
+	}
+
+	time.Sleep(sleepTime)
+
+	r.PollNow(ctx)
+
+	wg.Wait()
+
+	require.NoError(t, ctx.Err(), "context should not be cancelled before all goroutines finish")
 }
