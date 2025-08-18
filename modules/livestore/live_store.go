@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -36,11 +37,52 @@ const (
 	ringAutoForgetUnhealthyPeriods = 2
 )
 
-var metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
-	Namespace: "live_store",
-	Name:      "complete_queue_length",
-	Help:      "Number of wal blocks waiting for completion",
-})
+var (
+	// Queue management metrics
+	metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "live_store_complete_queue_length",
+		Help:      "Number of wal blocks waiting for completion",
+	})
+
+	// Block completion metrics
+	metricBlocksCompleted = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "live_store_blocks_completed_total",
+		Help:      "The total number of blocks completed",
+	})
+	metricFailedCompletions = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "live_store_failed_completions_total",
+		Help:      "The total number of failed block completions",
+	})
+	metricCompletionRetries = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "live_store_completion_retries_total",
+		Help:      "The total number of retries after a failed completion",
+	})
+	metricCompletionFailedRetries = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "live_store_completion_failed_retries_total",
+		Help:      "The total number of failed retries after a failed completion",
+	})
+	metricCompletionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace:                       "tempo",
+		Name:                            "live_store_completion_duration_seconds",
+		Help:                            "Records the amount of time to complete a block.",
+		Buckets:                         prometheus.ExponentialBuckets(1, 2, 10),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	})
+
+	// Kafka/Ingest specific metrics
+	metricRecordsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "live_store_records_processed_total",
+		Help:      "The total number of kafka records processed per tenant.",
+	}, []string{"tenant"})
+)
 
 type LiveStore struct {
 	services.Service
@@ -270,14 +312,19 @@ func (s *LiveStore) flushRemaining() {
 	}
 }
 
-func (s *LiveStore) consume(_ context.Context, rs []record) error {
+func (s *LiveStore) consume(ctx context.Context, rs []record) error {
 	defer s.decoder.Reset()
+	_, span := tracer.Start(ctx, "LiveStore.consume")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int("records_count", len(rs)))
 
 	// Process records by tenant
 	for _, record := range rs {
 		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.content)
 		if err != nil {
+			span.RecordError(err)
 			return fmt.Errorf("decoding record: %w", err)
 		}
 
@@ -285,11 +332,14 @@ func (s *LiveStore) consume(_ context.Context, rs []record) error {
 		inst, err := s.getOrCreateInstance(record.tenantID)
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", record.tenantID, "err", err)
+			span.RecordError(err)
 			continue
 		}
 
 		// Push data to tenant instance
 		inst.pushBytes(time.Now(), pushReq)
+
+		metricRecordsProcessed.WithLabelValues(record.tenantID).Inc()
 	}
 
 	return nil
@@ -440,21 +490,30 @@ func (s *LiveStore) completeLoop() {
 
 		if op.attempts > maxFlushAttempts {
 			level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
+			observeFailedOp(op)
 			continue
 		}
 
+		start := time.Now()
 		inst, err := s.getOrCreateInstance(op.tenantID)
 		if err != nil {
 			// TODO: How to handle?
 			level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
+			observeFailedOp(op)
 			return
 		}
+
 		err = inst.completeBlock(s.ctx, op.blockID)
+		duration := time.Since(start)
+		metricCompletionDuration.Observe(duration.Seconds())
+
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+			observeFailedOp(op)
 
 			delay := op.backoff()
 			op.at = time.Now().Add(delay)
+			metricCompletionRetries.Inc()
 
 			go func() {
 				time.Sleep(delay)
@@ -463,8 +522,16 @@ func (s *LiveStore) completeLoop() {
 					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
 				}
 			}()
-
+		} else {
+			metricBlocksCompleted.Inc()
 		}
+	}
+}
+
+func observeFailedOp(op *completeOp) {
+	metricFailedCompletions.Inc()
+	if op.attempts > 1 {
+		metricCompletionFailedRetries.Inc()
 	}
 }
 

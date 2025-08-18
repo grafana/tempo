@@ -20,6 +20,49 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+)
+
+const traceDataType = "trace"
+
+var (
+	// Instance-level metrics (similar to ingester instance.go)
+	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "live_store_traces_created_total",
+		Help:      "The total number of traces created per tenant.",
+	}, []string{"tenant"})
+	metricLiveTraces = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "live_store_live_traces",
+		Help:      "The current number of live traces per tenant.",
+	}, []string{"tenant"})
+	metricLiveTraceBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "live_store_live_trace_bytes",
+		Help:      "The current number of bytes consumed by live traces per tenant.",
+	}, []string{"tenant"})
+	metricBytesReceivedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "live_store_bytes_received_total",
+		Help:      "The total bytes received per tenant.",
+	}, []string{"tenant", "data_type"})
+	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "live_store_blocks_cleared_total",
+		Help:      "The total number of blocks cleared.",
+	})
+	metricCompletionSize = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "live_store_completion_size_bytes",
+		Help:      "Size in bytes of blocks completed.",
+		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+	})
 )
 
 type instance struct {
@@ -45,6 +88,10 @@ type instance struct {
 	liveTraces    *livetraces.LiveTraces[*v1.ResourceSpans]
 	traceSizes    *tracesizes.Tracker
 
+	// Metrics
+	tracesCreatedTotal prometheus.Counter
+	bytesReceivedTotal *prometheus.CounterVec
+
 	// Block offset metadata (set during coordinated cuts)
 	// blockOffsetMeta map[uuid.UUID]offsetMetadata // TODO: Used for checking data integrity
 
@@ -53,18 +100,21 @@ type instance struct {
 
 func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides overrides.Interface, logger log.Logger) (*instance, error) {
 	enc := encoding.DefaultEncoding()
+	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
-		tenantID:       instanceID,
-		logger:         log.With(logger, "tenant", instanceID),
-		Cfg:            cfg,
-		wal:            wal,
-		enc:            enc,
-		walBlocks:      map[uuid.UUID]common.WALBlock{},
-		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
-		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 30*time.Second, 5*time.Minute),
-		traceSizes:     tracesizes.New(),
-		overrides:      overrides,
+		tenantID:           instanceID,
+		logger:             logger,
+		Cfg:                cfg,
+		wal:                wal,
+		enc:                enc,
+		walBlocks:          map[uuid.UUID]common.WALBlock{},
+		completeBlocks:     map[uuid.UUID]*ingester.LocalBlock{},
+		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 30*time.Second, 5*time.Minute),
+		traceSizes:         tracesizes.New(),
+		overrides:          overrides,
+		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal: metricBytesReceivedTotal,
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
 	}
 
@@ -88,6 +138,7 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
 		traceID := req.Ids[j]
+		i.measureReceivedBytes(traceBytes.Slice)
 
 		// Unmarshal the trace
 		trace := &tempopb.Trace{}
@@ -115,6 +166,10 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 
 func (i *instance) cutIdleTraces(immediate bool) error {
 	i.liveTracesMtx.Lock()
+	// Set metrics before cutting (similar to ingester)
+	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
+	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
+
 	tracesToCut := i.liveTraces.CutIdle(time.Now(), immediate)
 	i.liveTracesMtx.Unlock()
 
@@ -132,6 +187,8 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 		if err != nil {
 			return err
 		}
+
+		i.tracesCreatedTotal.Inc()
 	}
 
 	i.blocksMtx.Lock()
@@ -145,6 +202,13 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 		return nil
 	}
 	return nil
+}
+
+func (i *instance) measureReceivedBytes(traceBytes []byte) {
+	// measure received bytes as sum of slice lengths
+	// type byte is guaranteed to be 1 byte in size
+	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
+	i.bytesReceivedTotal.WithLabelValues(i.tenantID, traceDataType).Add(float64(len(traceBytes)))
 }
 
 func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
@@ -241,14 +305,26 @@ func init() {
 }
 
 func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
+	ctx, span := tracer.Start(ctx, "instance.completeBlock",
+		oteltrace.WithAttributes(
+			attribute.String("tenant", i.tenantID),
+			attribute.String("blockID", id.String()),
+		))
+	defer span.End()
+
 	i.blocksMtx.Lock()
 	walBlock := i.walBlocks[id]
 	i.blocksMtx.Unlock()
 
 	if walBlock == nil {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
+		span.AddEvent("WAL block not found")
 		return nil
 	}
+
+	blockSize := walBlock.DataLength()
+	metricCompletionSize.Observe(float64(blockSize))
+	span.SetAttributes(attribute.Int64("block_size", int64(blockSize)))
 
 	// Create completed block
 	reader := backend.NewReader(i.wal.LocalBackend())
@@ -257,6 +333,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	iter, err := walBlock.Iterator()
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to get WAL block iterator", "id", id, "err", err)
+		span.RecordError(err)
 		return err
 	}
 	defer iter.Close()
@@ -264,12 +341,14 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	newMeta, err := i.enc.CreateBlock(ctx, &blockConfig, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
+		span.RecordError(err)
 		return err
 	}
 
 	newBlock, err := i.enc.OpenBlock(newMeta, reader)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to open complete block", "id", id, "err", err)
+		span.RecordError(err)
 		return err
 	}
 
@@ -282,6 +361,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
 		}
 		i.blocksMtx.Unlock()
+		span.AddEvent("WAL block disappeared during completion")
 		return nil
 	}
 
@@ -290,11 +370,13 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	err = walBlock.Clear()
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to clear WAL block", "id", id, "err", err)
+		span.RecordError(err)
 	}
 	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
 	i.blocksMtx.Unlock()
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
+	span.AddEvent("block completed successfully")
 	return nil
 }
 
@@ -315,6 +397,7 @@ func (i *instance) deleteOldBlocks() error {
 				return err
 			}
 			delete(i.walBlocks, id)
+			metricBlocksClearedTotal.Inc()
 		}
 	}
 
@@ -328,6 +411,7 @@ func (i *instance) deleteOldBlocks() error {
 					return err
 				}
 				delete(i.completeBlocks, id)
+				metricBlocksClearedTotal.Inc()
 			}
 		}
 	}
