@@ -334,3 +334,9 @@ func (i *instance) deleteOldBlocks() error {
 
 	return nil
 }
+
+func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.TraceByIDResponse, error) {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+	return i.headBlock.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+}
