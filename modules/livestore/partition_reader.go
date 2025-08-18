@@ -169,7 +169,6 @@ func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
 		now        = time.Now()
 		numRecords = 0
 	)
-	kadm.NewOffsetFromRecord(nil)
 
 	fetches.EachRecord(func(record *kgo.Record) {
 		numRecords++
