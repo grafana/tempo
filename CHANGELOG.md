@@ -1,4 +1,5 @@
 ## main / unreleased
+* [BUGFIX] Fix docker-compose port configuration for Alloy gRPC (4319 → 4317) [#5536](https://github.com/grafana/tempo/pull/5536)
 * [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464)
 * [BUGFIX] Return Bad Request from frontend if the provided tag is invalid in SearchTagValuesV2 endpoint [#5493](https://github.com/grafana/tempo/pull/5493/) (@carles-grafana)
 * [CHANGE] Add test for cost_attribution in user-configurable overrides API [#5481](https://github.com/grafana/tempo/pull/5481/) (@electron0zero)
