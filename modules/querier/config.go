@@ -12,9 +12,10 @@ import (
 
 // Config for a querier.
 type Config struct {
-	Search    SearchConfig    `yaml:"search"`
-	TraceByID TraceByIDConfig `yaml:"trace_by_id"`
-	Metrics   MetricsConfig   `yaml:"metrics"`
+	Search           SearchConfig    `yaml:"search"`
+	TraceByID        TraceByIDConfig `yaml:"trace_by_id"`
+	ConcurrentBlocks int             `yaml:"concurrent_blocks,omitempty"`
+	Metrics          MetricsConfig   `yaml:"metrics"`
 
 	ExtraQueryDelay                        time.Duration `yaml:"extra_query_delay,omitempty"`
 	MaxConcurrentQueries                   int           `yaml:"max_concurrent_queries"`
@@ -34,8 +35,6 @@ type TraceByIDConfig struct {
 }
 
 type MetricsConfig struct {
-	ConcurrentBlocks int `yaml:"concurrent_blocks,omitempty"`
-
 	// TimeOverlapCutoff is a tuning factor that controls whether the trace-level
 	// timestamp columns are used in a metrics query.  Loading these columns has a cost,
 	// so in some cases it faster to skip these columns entirely, reducing I/O but
@@ -52,7 +51,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 20
 	cfg.Search.QueryTimeout = 30 * time.Second
-	cfg.Metrics.ConcurrentBlocks = 2
+	cfg.ConcurrentBlocks = 2
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,

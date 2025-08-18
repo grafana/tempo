@@ -227,8 +227,8 @@ func TestReplicationFactor(t *testing.T) {
 			BloomFP:             0.05,
 			Version:             encoding.DefaultEncoding().Version(),
 		},
+		ConcurrentBlocks: 10,
 		Metrics: MetricsConfig{
-			ConcurrentBlocks:  10,
 			TimeOverlapCutoff: 0.2,
 		},
 		FilterServerSpans: false,
