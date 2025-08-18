@@ -18,7 +18,7 @@ func (v Encoding) Version() string {
 	return VersionString
 }
 
-func (v Encoding) NewCompactor(opts common.CompactionOptions) common.Compactor {
+func (v Encoding) NewCompactor(_ common.CompactionOptions) common.Compactor {
 	return nil
 }
 
@@ -26,29 +26,29 @@ func (v Encoding) CompactionSupported() bool {
 	return false
 }
 
-func (v Encoding) OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
+func (v Encoding) OpenBlock(meta *backend.BlockMeta, _ backend.Reader) (common.BackendBlock, error) {
 	return Block{meta: meta}, nil
 }
 
-func (v Encoding) CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
+func (v Encoding) CopyBlock(context.Context, *backend.BlockMeta, backend.Reader, backend.Writer) error {
 	return util.ErrUnsupported
 }
 
-func (v Encoding) MigrateBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
+func (v Encoding) MigrateBlock(context.Context, *backend.BlockMeta, *backend.BlockMeta, backend.Reader, backend.Writer) error {
 	return util.ErrUnsupported
 }
 
-func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
+func (v Encoding) CreateBlock(context.Context, *common.BlockConfig, *backend.BlockMeta, common.Iterator, backend.Reader, backend.Writer) (*backend.BlockMeta, error) {
 	return nil, util.ErrUnsupported
 }
 
 // OpenWALBlock opens an existing appendable block
-func (v Encoding) OpenWALBlock(filename, path string, ingestionSlack, additionalStartSlack time.Duration) (b common.WALBlock, warning error, err error) {
+func (v Encoding) OpenWALBlock(string, string, time.Duration, time.Duration) (b common.WALBlock, warning error, err error) {
 	return nil, nil, util.ErrUnsupported
 }
 
 // CreateWALBlock creates a new appendable block
-func (v Encoding) CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
+func (v Encoding) CreateWALBlock(*backend.BlockMeta, string, string, time.Duration) (common.WALBlock, error) {
 	return nil, util.ErrUnsupported
 }
 

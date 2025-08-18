@@ -16,7 +16,7 @@ type Block struct {
 
 var _ common.BackendBlock = &Block{}
 
-func (b Block) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
+func (b Block) FindTraceByID(context.Context, common.ID, common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	return nil, util.ErrUnsupported
 }
 
@@ -24,23 +24,23 @@ func (b Block) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
-func (b Block) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+func (b Block) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
 	return nil, nil
 }
 
-func (b Block) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
+func (b Block) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
-func (b Block) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
+func (b Block) SearchTagValues(context.Context, string, common.TagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
-func (b Block) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, mcb common.MetricsCallback, opts common.SearchOptions) error {
+func (b Block) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
-func (b Block) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+func (b Block) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, util.ErrUnsupported
 }
 
@@ -52,6 +52,6 @@ func (b Block) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.
 	return nil
 }
 
-func (b Block) Validate(ctx context.Context) error {
+func (b Block) Validate(context.Context) error {
 	return nil
 }
