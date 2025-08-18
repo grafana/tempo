@@ -931,10 +931,7 @@ func (s Static) Float() float64 {
 }
 
 func (s Static) Bool() (bool, bool) {
-	if s.Type != TypeBoolean {
-		return false, false
-	}
-	return s.valScalar != 0, true
+	return s.valScalar != 0, s.Type == TypeBoolean
 }
 
 func (s Static) Duration() (time.Duration, bool) {

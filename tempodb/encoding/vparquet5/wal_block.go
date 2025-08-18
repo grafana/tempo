@@ -1,4 +1,4 @@
-package vparquet4
+package vparquet5
 
 import (
 	"context"
@@ -137,8 +137,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 			}
 
 			for _, e := range match.Entries {
-				switch e.Key {
-				case columnPathTraceID:
+				if e.Key == columnPathTraceID {
 					traceID := e.Value.ByteArray()
 					b.meta.ObjectAdded(0, 0)
 					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID

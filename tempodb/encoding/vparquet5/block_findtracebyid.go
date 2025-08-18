@@ -1,4 +1,4 @@
-package vparquet4
+package vparquet5
 
 import (
 	"bytes"
@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -169,10 +168,10 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		// Gets the minimum trace ID within the row group. Since the column is sorted
 		// ascending we just read the first value from the first page.
 		getRowGroupMin := func(rgIdx int) (common.ID, error) {
-			min := rowGroupMins[rgIdx]
-			if len(min) > 0 {
+			minID := rowGroupMins[rgIdx]
+			if len(minID) > 0 {
 				// Already loaded
-				return min, nil
+				return minID, nil
 			}
 
 			pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
@@ -194,30 +193,30 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 
 			// Clone ensures that the byte array is disconnected
 			// from the underlying i/o buffers.
-			min = buf[0].Clone().ByteArray()
-			rowGroupMins[rgIdx] = min
-			return min, nil
+			minID = buf[0].Clone().ByteArray()
+			rowGroupMins[rgIdx] = minID
+			return minID, nil
 		}
 
 		rowGroup, err = binarySearch(numRowGroups, func(rgIdx int) (int, error) {
-			min, err := getRowGroupMin(rgIdx)
+			rgMinID, err := getRowGroupMin(rgIdx)
 			if err != nil {
 				return 0, err
 			}
 
-			if check := bytes.Compare(traceID, min); check <= 0 {
+			if check := bytes.Compare(traceID, rgMinID); check <= 0 {
 				// Trace is before or in this group
 				return check, nil
 			}
 
-			max, err := getRowGroupMin(rgIdx + 1)
+			rgMaxID, err := getRowGroupMin(rgIdx + 1)
 			if err != nil {
 				return 0, err
 			}
 
 			// This is actually the min of the next group, so check is exclusive not inclusive like min
 			// Except for the last group, it is inclusive
-			check := bytes.Compare(traceID, max)
+			check := bytes.Compare(traceID, rgMaxID)
 			if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
 				// Trace is after this group
 				return 1, nil
@@ -237,9 +236,9 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	}
 
 	// Now iterate the matching row group
-	iter := parquetquery.NewSyncIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex,
-		parquetquery.SyncIteratorOptPredicate(parquetquery.NewStringInPredicate([]string{string(traceID)})),
-		parquetquery.SyncIteratorOptMaxDefinitionLevel(maxDef),
+	iter := pq.NewSyncIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex,
+		pq.SyncIteratorOptPredicate(pq.NewStringInPredicate([]string{string(traceID)})),
+		pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
 	)
 	defer iter.Close()
 
