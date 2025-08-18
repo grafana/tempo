@@ -2,7 +2,6 @@ package regexp
 
 import (
 	"fmt"
-	"regexp"
 	"unsafe"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -93,28 +92,8 @@ func (r *Regexp) String() string {
 // shouldMemoize returns true if we believe that memoizing this regex would be faster
 // the evaluating it directly. see thoughts below.
 func shouldMemoize(m *labels.FastRegexMatcher) bool {
-	// matches labels.FastRegexMatcher
-	type cheatToSeeInternals struct {
-		reString string
-		re       *regexp.Regexp
-
-		setMatches    []string
-		stringMatcher labels.StringMatcher
-		prefix        string
-		suffix        string
-		contains      []string
-
-		matchString func(string) bool
-	}
-
-	cheat := (*cheatToSeeInternals)(unsafe.Pointer(m))
-
 	// TODO: research and improve this. we're making a guess on whether an optimization will improve the regex
 	// performance enough that its faster to not memoize. See compileMatchStringFunction() in the labels
 	// package. maybe there's even a way to do this dynamically?
-	return cheat.stringMatcher == nil && // a stringMatcher definitively rejects or accepts. if a string matcher is present the regex will never be executed
-		len(cheat.setMatches) == 0 && // setMatches definitively reject or accept. if len != 0 the regex will never be executed, but perhaps if there are a very large # of setMatches we prefer memoizing anyway?
-		cheat.prefix == "" && // prefix and suffix _do not_ prevent the regex from executing, but they are quick to evaluate and tend to nicely filter down.
-		cheat.suffix == "" // perhaps a length requirement would be an improvement? i.e. require a prefix or suffix of at least 3 chars?
-	// len(cheat.contains) == 0 // in testing, it was faster to memoize with a contains filter. perhaps if the filters are long enough we don't memoize?
+	return !m.IsOptimized()	
 }
