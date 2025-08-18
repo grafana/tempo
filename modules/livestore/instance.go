@@ -338,5 +338,18 @@ func (i *instance) deleteOldBlocks() error {
 func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.TraceByIDResponse, error) {
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
+
+	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
+	// But we should not implicitly trust that.
+	for _, b := range i.completeBlocks {
+		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+		if err != nil {
+			return nil, err
+		}
+		// Only return if we have found something.
+		if trace != nil && len(trace.ResourceSpans) > 0 {
+			return trace, nil
+		}
+
 	return i.headBlock.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 }
