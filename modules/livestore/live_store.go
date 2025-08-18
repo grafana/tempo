@@ -594,5 +594,4 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 	return inst.QueryRange(ctx, req)
-
 }
