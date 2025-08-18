@@ -215,18 +215,18 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 	return kgo.NewOffset().At(offset.At), nil
 }
 
-func (r *PartitionReader) commitOffset(ctx context.Context, offset kadm.Offset) error {
+func (r *PartitionReader) commitOffset(ctx context.Context, offset kadm.Offset) {
 	// Use the admin client to commit the offset
 	offsets := make(kadm.Offsets)
 	offsets.Add(offset)
 
 	_, err := r.adm.CommitOffsets(ctx, r.consumerGroup, offsets)
 	if err != nil {
-		return fmt.Errorf("failed to commit kafka offset %v: %w", offset, err)
+		level.Error(r.logger).Log("msg", "failed to commit kafka offset", "offset", offset.At, "topic", r.topic, "group", r.consumerGroup)
+		return
 	}
 
 	level.Info(r.logger).Log("msg", "committed kafka offset", "offset", offset.At, "topic", r.topic, "group", r.consumerGroup)
-	return nil
 }
 
 type partitionReaderMetrics struct {
