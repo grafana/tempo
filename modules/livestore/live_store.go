@@ -585,7 +585,6 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-
 	e := traceql.NewEngine()
 
 	// Compile the raw version of the query for head and wal blocks
@@ -638,5 +637,4 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	return &tempopb.QueryRangeResponse{
 		Series: rr,
 	}, nil
-
 }
