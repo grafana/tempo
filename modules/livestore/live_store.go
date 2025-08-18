@@ -271,6 +271,8 @@ func (s *LiveStore) flushRemaining() {
 }
 
 func (s *LiveStore) consume(_ context.Context, rs []record) error {
+	s.decoder.Reset()
+
 	// Process records by tenant
 	for _, record := range rs {
 		var pushReq *tempopb.PushBytesRequest

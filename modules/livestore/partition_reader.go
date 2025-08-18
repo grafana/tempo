@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -46,11 +44,6 @@ type PartitionReader struct {
 	metrics partitionReaderMetrics
 
 	logger log.Logger
-
-	// Watermark-based commit management
-	highWatermark  atomic.Int64
-	commitInterval time.Duration
-	wg             sync.WaitGroup
 }
 
 func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
@@ -60,15 +53,14 @@ func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg inge
 
 func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
 	r := &PartitionReader{
-		partitionID:    partitionID,
-		consumerGroup:  cfg.ConsumerGroup,
-		topic:          cfg.Topic,
-		client:         client,
-		adm:            kadm.NewClient(client),
-		consume:        consume,
-		metrics:        metrics,
-		logger:         log.With(logger, "partition", partitionID),
-		commitInterval: 10 * time.Second, // Commit every 10 seconds
+		partitionID:   partitionID,
+		consumerGroup: cfg.ConsumerGroup,
+		topic:         cfg.Topic,
+		client:        client,
+		adm:           kadm.NewClient(client),
+		consume:       consume,
+		metrics:       metrics,
+		logger:        log.With(logger, "partition", partitionID),
 	}
 
 	r.Service = services.NewBasicService(r.start, r.running, r.stop)
@@ -87,12 +79,9 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch last committed offset: %w", err)
 	}
+
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
-
-	// Start async commit goroutine
-	r.wg.Add(1)
-	go r.commitLoop(ctx)
 
 	for ctx.Err() == nil {
 		fetches := r.client.PollFetches(consumeCtx)
@@ -106,7 +95,10 @@ func (r *PartitionReader) running(ctx context.Context) error {
 		}
 
 		r.recordFetchesMetrics(fetches)
-		r.consumeFetches(consumeCtx, fetches)
+		advance, admOffset := r.consumeFetches(consumeCtx, fetches)
+		if advance {
+			r.commitOffset(consumeCtx, admOffset)
+		}
 	}
 
 	return nil
@@ -114,9 +106,6 @@ func (r *PartitionReader) running(ctx context.Context) error {
 
 func (r *PartitionReader) stop(error) error {
 	level.Info(r.logger).Log("msg", "stopping partition reader")
-
-	// Signal shutdown to commit loop
-	r.wg.Wait()
 
 	r.client.Close()
 
@@ -133,14 +122,15 @@ func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 	return mErr.Err()
 }
 
-func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) {
+func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) (bool, kadm.Offset) {
 	records := make([]record, 0, len(fetches.Records()))
+
+	var lastRecord *kgo.Record
 
 	var (
 		minOffset  = int64(math.MaxInt64)
 		maxOffset  = int64(0)
 		totalBytes = int64(0)
-		lastOffset = int64(0)
 	)
 	fetches.EachRecord(func(rec *kgo.Record) {
 		minOffset = min(minOffset, rec.Offset)
@@ -151,10 +141,9 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 			tenantID: string(rec.Key),
 			offset:   rec.Offset,
 		})
-		lastOffset = max(lastOffset, rec.Offset)
-	})
 
-	r.highWatermark.Swap(lastOffset)
+		lastRecord = rec
+	})
 
 	// Pass offset and byte information to the live-store
 	err := r.consume(ctx, records)
@@ -162,6 +151,12 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "min_offset", minOffset, "max_offset", maxOffset, "err", err)
 		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
 	}
+
+	if lastRecord == nil {
+		return false, kadm.Offset{}
+	}
+
+	return true, kadm.NewOffsetFromRecord(lastRecord)
 }
 
 func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
@@ -220,64 +215,17 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 	return kgo.NewOffset().At(offset.At), nil
 }
 
-func (r *PartitionReader) commitLoop(ctx context.Context) {
-	defer r.wg.Done()
-
-	ticker := time.NewTicker(r.commitInterval)
-	defer ticker.Stop()
-
-	lastCommittedOffset := int64(-1)
-
-	for {
-		select {
-		case <-ctx.Done():
-			// Final commit on shutdown
-			r.commitCurrentWatermark(lastCommittedOffset)
-			return
-		case <-ticker.C:
-			// TODO: With this approach we're risking duplicate data during ungraceful shutdowns (eg. panic)
-			//  in favor of simplicity of the committing implementation.
-
-			// Periodic commit
-			lastCommittedOffset = r.commitCurrentWatermark(lastCommittedOffset)
-		}
-	}
-}
-
-func (r *PartitionReader) commitCurrentWatermark(lastCommittedOffset int64) int64 {
-	currentWatermark := r.highWatermark.Load()
-
-	if currentWatermark > lastCommittedOffset {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		err := r.commitOffset(ctx, currentWatermark)
-		if err != nil {
-			level.Error(r.logger).Log("msg", "failed to commit watermark", "offset", currentWatermark, "err", err)
-			return lastCommittedOffset // Return old offset on failure
-		}
-
-		return currentWatermark
-	}
-
-	return lastCommittedOffset
-}
-
-func (r *PartitionReader) commitOffset(ctx context.Context, offset int64) error {
+func (r *PartitionReader) commitOffset(ctx context.Context, offset kadm.Offset) error {
 	// Use the admin client to commit the offset
 	offsets := make(kadm.Offsets)
-	offsets.Add(kadm.Offset{
-		Topic:     r.topic,
-		Partition: r.partitionID,
-		At:        offset + 1,
-	})
+	offsets.Add(offset)
 
 	_, err := r.adm.CommitOffsets(ctx, r.consumerGroup, offsets)
 	if err != nil {
-		return fmt.Errorf("failed to commit kafka offset %d: %w", offset, err)
+		return fmt.Errorf("failed to commit kafka offset %v: %w", offset, err)
 	}
 
-	level.Info(r.logger).Log("msg", "committed kafka offset", "offset", offset)
+	level.Info(r.logger).Log("msg", "committed kafka offset", "offset", offset.At, "topic", r.topic, "group", r.consumerGroup)
 	return nil
 }
 
