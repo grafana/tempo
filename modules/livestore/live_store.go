@@ -40,35 +40,35 @@ const (
 var (
 	// Queue management metrics
 	metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "live_store_complete_queue_length",
+		Namespace: "tempo_live_store",
+		Name:      "complete_queue_length",
 		Help:      "Number of wal blocks waiting for completion",
 	})
 
 	// Block completion metrics
 	metricBlocksCompleted = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "live_store_blocks_completed_total",
+		Namespace: "tempo_live_store",
+		Name:      "blocks_completed_total",
 		Help:      "The total number of blocks completed",
 	})
 	metricFailedCompletions = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "live_store_failed_completions_total",
+		Namespace: "tempo_live_store",
+		Name:      "failed_completions_total",
 		Help:      "The total number of failed block completions",
 	})
 	metricCompletionRetries = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "live_store_completion_retries_total",
+		Namespace: "tempo_live_store",
+		Name:      "completion_retries_total",
 		Help:      "The total number of retries after a failed completion",
 	})
 	metricCompletionFailedRetries = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "live_store_completion_failed_retries_total",
+		Namespace: "tempo_live_store",
+		Name:      "completion_failed_retries_total",
 		Help:      "The total number of failed retries after a failed completion",
 	})
 	metricCompletionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace:                       "tempo",
-		Name:                            "live_store_completion_duration_seconds",
+		Namespace:                       "tempo_live_store",
+		Name:                            "completion_duration_seconds",
 		Help:                            "Records the amount of time to complete a block.",
 		Buckets:                         prometheus.ExponentialBuckets(1, 2, 10),
 		NativeHistogramBucketFactor:     1.1,
@@ -78,8 +78,8 @@ var (
 
 	// Kafka/Ingest specific metrics
 	metricRecordsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "live_store_records_processed_total",
+		Namespace: "tempo_live_store",
+		Name:      "records_processed_total",
 		Help:      "The total number of kafka records processed per tenant.",
 	}, []string{"tenant"})
 )

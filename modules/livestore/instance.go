@@ -33,33 +33,33 @@ const traceDataType = "trace"
 var (
 	// Instance-level metrics (similar to ingester instance.go)
 	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "live_store_traces_created_total",
+		Namespace: "tempo_live_store",
+		Name:      "traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
 	metricLiveTraces = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "live_store_live_traces",
+		Namespace: "tempo_live_store",
+		Name:      "live_traces",
 		Help:      "The current number of live traces per tenant.",
 	}, []string{"tenant"})
 	metricLiveTraceBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "live_store_live_trace_bytes",
+		Namespace: "tempo_live_store",
+		Name:      "live_trace_bytes",
 		Help:      "The current number of bytes consumed by live traces per tenant.",
 	}, []string{"tenant"})
 	metricBytesReceivedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "live_store_bytes_received_total",
+		Namespace: "tempo_live_store",
+		Name:      "bytes_received_total",
 		Help:      "The total bytes received per tenant.",
 	}, []string{"tenant", "data_type"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "live_store_blocks_cleared_total",
+		Namespace: "tempo_live_store",
+		Name:      "blocks_cleared_total",
 		Help:      "The total number of blocks cleared.",
 	})
 	metricCompletionSize = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "live_store_completion_size_bytes",
+		Namespace: "tempo_live_store",
+		Name:      "completion_size_bytes",
 		Help:      "Size in bytes of blocks completed.",
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
 	})
