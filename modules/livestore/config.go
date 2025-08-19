@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/modules/ingester"
@@ -15,15 +16,17 @@ type Config struct {
 	Ring          ring.Config                  `yaml:"ring,omitempty"`
 	PartitionRing ingester.PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
 
-	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
-	ConcurrentBlocks     uint          `yaml:"concurrent_blocks,omitempty"`
-	Metrics              MetricsConfig `yaml:"metrics"`
+	ConcurrentBlocks uint          `yaml:"concurrent_blocks,omitempty"` // jpe - rename
+	Metrics          MetricsConfig `yaml:"metrics"`
 
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestConfig ingest.Config `yaml:"-"`
 
 	// WAL is non-configurable and only uses defaults
 	WAL wal.Config `yaml:"-"`
+
+	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
+	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
 }
 
 type MetricsConfig struct {
@@ -43,6 +46,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// Set defaults for new fields
 	cfg.CompleteBlockTimeout = 1 * time.Hour
 	cfg.ConcurrentBlocks = 10
+	cfg.CompleteBlockConcurrency = 4
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
 	// Register flags for new fields
@@ -56,5 +60,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
+	if cfg.CompleteBlockTimeout <= 0 {
+		return fmt.Errorf("complete_block_timeout must be greater than 0, got %s", cfg.CompleteBlockTimeout)
+	}
+
 	return cfg.WAL.Validate()
 }

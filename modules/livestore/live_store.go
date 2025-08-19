@@ -108,27 +108,28 @@ type LiveStore struct {
 	wal          *wal.WAL
 	overrides    overrides.Interface
 
-	flushqueues *flushqueues.PriorityQueue
-
 	// Background processing
-	ctx    context.Context
-	cancel func()
-	wg     sync.WaitGroup
+	ctx             context.Context // context for the service. all background processes should exit if this is cancelled
+	cancel          func()
+	wg              sync.WaitGroup
+	completeQueues  *flushqueues.ExclusiveQueues
+	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &LiveStore{
-		cfg:         cfg,
-		logger:      logger,
-		reg:         reg,
-		decoder:     ingest.NewDecoder(),
-		ctx:         ctx,
-		cancel:      cancel,
-		instances:   make(map[string]*instance),
-		overrides:   overridesService,
-		flushqueues: flushqueues.NewPriorityQueue(metricCompleteQueueLength),
+		cfg:             cfg,
+		logger:          logger,
+		reg:             reg,
+		decoder:         ingest.NewDecoder(),
+		ctx:             ctx,
+		cancel:          cancel,
+		instances:       make(map[string]*instance),
+		overrides:       overridesService,
+		completeQueues:  flushqueues.New(cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
+		startupComplete: make(chan struct{}),
 	}
 
 	var err error
@@ -259,8 +260,15 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
-	s.wg.Add(1)
-	go s.completeLoop()
+	for i := range s.cfg.CompleteBlockConcurrency {
+		idx := i
+		s.runInBackground(func() {
+			s.globalCompleteLoop(idx)
+		})
+	}
+
+	// allow background processes to start
+	s.startAllBackgroundProcesses()
 
 	return nil
 }
@@ -282,18 +290,9 @@ func (s *LiveStore) stopping(error) error {
 		return err
 	}
 
-	// Cancel and wait for async loops to return
-	s.cancel()
-	s.flushqueues.Close()
-	s.wg.Wait()
+	s.stopAllBackgroundProcesses()
 
 	// Flush all data to disk
-	s.flushRemaining()
-
-	return nil
-}
-
-func (s *LiveStore) flushRemaining() {
 	s.cutAllInstancesToWal()
 
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -302,14 +301,16 @@ func (s *LiveStore) flushRemaining() {
 	timeout := time.NewTimer(30 * time.Second) // TODO: Configurable?
 	defer timeout.Stop()
 
-	for s.flushqueues.Length() > 0 {
+	for !s.completeQueues.IsEmpty() {
 		select {
 		case <-ticker.C:
 		case <-timeout.C:
-			level.Error(s.logger).Log("msg", "flush remaining blocks timed out", "remaining", s.flushqueues.Length())
-			return // shutdown timeout reached
+			level.Error(s.logger).Log("msg", "flush remaining blocks timed out", "isEmpty", s.completeQueues.IsEmpty())
+			return nil // shutdown timeout reached
 		}
 	}
+
+	return nil
 }
 
 func (s *LiveStore) consume(ctx context.Context, rs []record) error {
@@ -370,58 +371,14 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 
 	s.instances[tenantID] = inst
 
-	s.wg.Add(2)
-	go s.cutToWalLoop(inst)
-	go s.cleanupLoop(inst)
+	s.runInBackground(func() {
+		s.perTenantCutToWalLoop(inst)
+	})
+	s.runInBackground(func() {
+		s.perTenantCleanupLoop(inst)
+	})
 
 	return inst, nil
-}
-
-func (s *LiveStore) cutToWalLoop(instance *instance) {
-	defer s.wg.Done()
-
-	// TODO: We don't reply blocks atm, we should do this when we replay blocks.
-	// // wait for the signal to start. we need the wal to be completely replayed
-	// // before we start cutting to WAL
-	// select {
-	// case <-i.cutToWalStart:
-	// case <-i.cutToWalStop:
-	// 	return
-	// }
-
-	// ticker
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.cutOneInstanceToWal(instance, false)
-		case <-s.ctx.Done():
-			return
-		}
-	}
-}
-
-func (s *LiveStore) cleanupLoop(inst *instance) {
-	defer s.wg.Done()
-
-	// ticker
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			// dump any blocks that have been flushed for a while
-			err := inst.deleteOldBlocks()
-			if err != nil {
-				level.Error(s.logger).Log("msg", "failed to delete old blocks", "err", err)
-			}
-		case <-s.ctx.Done():
-			return
-		}
-	}
 }
 
 func (s *LiveStore) getInstances() []*instance {
@@ -459,79 +416,9 @@ func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 	if blockID != uuid.Nil {
 		err = s.enqueueCompleteOp(inst.tenantID, blockID)
 		if err != nil {
+			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
 			return
 		}
-	}
-}
-
-func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID) error {
-	op := &completeOp{
-		tenantID: tenantID,
-		blockID:  blockID,
-		// Initial priority and backoff
-		at: time.Now(),
-		bo: 30 * time.Second,
-	}
-	_, err := s.flushqueues.Enqueue(op)
-	return err
-}
-
-func (s *LiveStore) completeLoop() {
-	defer s.wg.Done()
-
-	// TODO: Add concurrency
-	for {
-		o := s.flushqueues.Dequeue()
-		if o == nil {
-			return // queue is closed
-		}
-		op := o.(*completeOp)
-		op.attempts++
-
-		if op.attempts > maxFlushAttempts {
-			level.Error(s.logger).Log("msg", "failed to complete operation", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
-			observeFailedOp(op)
-			continue
-		}
-
-		start := time.Now()
-		inst, err := s.getOrCreateInstance(op.tenantID)
-		if err != nil {
-			// TODO: How to handle?
-			level.Error(s.logger).Log("msg", "failed to retrieve instance for completion", "tenant", op.tenantID, "err", err)
-			observeFailedOp(op)
-			return
-		}
-
-		err = inst.completeBlock(s.ctx, op.blockID)
-		duration := time.Since(start)
-		metricCompletionDuration.Observe(duration.Seconds())
-
-		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to complete block", "tenant", op.tenantID, "block", op.blockID, "err", err)
-			observeFailedOp(op)
-
-			delay := op.backoff()
-			op.at = time.Now().Add(delay)
-			metricCompletionRetries.Inc()
-
-			go func() {
-				time.Sleep(delay)
-
-				if _, err := s.flushqueues.Enqueue(op); err != nil {
-					_ = level.Error(s.logger).Log("msg", "failed to requeue block for flushing", "tenant", op.tenantID, "block", op.blockID, "err", err)
-				}
-			}()
-		} else {
-			metricBlocksCompleted.Inc()
-		}
-	}
-}
-
-func observeFailedOp(op *completeOp) {
-	metricFailedCompletions.Inc()
-	if op.attempts > 1 {
-		metricCompletionFailedRetries.Inc()
 	}
 }
 
