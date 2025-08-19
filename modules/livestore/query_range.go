@@ -68,7 +68,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 	unsafe := i.overrides.UnsafeQueryHints(i.tenantID)
 
-	timeOverlapCutoff := i.Cfg.TimeOverlapCutoff
+	timeOverlapCutoff := i.Cfg.Metrics.TimeOverlapCutoff
 	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
 		timeOverlapCutoff = v
 	}
