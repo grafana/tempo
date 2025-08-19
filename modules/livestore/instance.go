@@ -3,6 +3,8 @@ package livestore
 import (
 	"context"
 	"flag"
+	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -13,9 +15,11 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/tracesizes"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -339,6 +343,31 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
+	var completeTrace *tempopb.Trace
+	metrics := tempopb.TraceByIDMetrics{}
+	combiner := trace.NewCombiner(math.MaxInt64, true)
+	_, err := combiner.Consume(completeTrace)
+	if err != nil {
+		return nil, err
+	}
+	// TODO MRD this code looks ripe for simplification. Its the same pattern repeated several times.
+	i.liveTracesMtx.Lock()
+	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
+
+		tempTrace := &tempopb.Trace{}
+		tempTrace.ResourceSpans = liveTrace.Batches
+		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
+		// live traces format and feels inaccurate.
+		_, err := combiner.Consume(tempTrace)
+		if err != nil {
+			i.liveTracesMtx.Unlock()
+			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
+		}
+	}
+	i.liveTracesMtx.Unlock()
+
+	// TODO MRD Add limits
+
 	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
 	// But we should not implicitly trust that.
 	for _, b := range i.completeBlocks {
@@ -346,11 +375,52 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 		if err != nil {
 			return nil, err
 		}
-		// Only return if we have found something.
-		if trace != nil && trace.Trace != nil && len(trace.Trace.ResourceSpans) > 0 {
-			return trace, nil
+		if trace == nil {
+			continue
+		}
+		_, err = combiner.Consume(trace.Trace)
+		if err != nil {
+			return nil, err
+		}
+		if trace.Metrics != nil {
+			metrics.InspectedBytes += trace.Metrics.InspectedBytes
+		}
+
+	}
+
+	for _, b := range i.walBlocks {
+		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+		if err != nil {
+			return nil, err
+		}
+		if trace == nil {
+			continue
+		}
+		_, err = combiner.Consume(trace.Trace)
+		if err != nil {
+			return nil, err
+		}
+		if trace.Metrics != nil {
+			metrics.InspectedBytes += trace.Metrics.InspectedBytes
 		}
 	}
 
-	return i.headBlock.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+	trace, err := i.headBlock.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+	if err != nil {
+		return nil, err
+	}
+	if trace != nil {
+		metrics.InspectedBytes += trace.Metrics.InspectedBytes
+		_, err = combiner.Consume(trace.Trace)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	result, _ := combiner.Result()
+	response := &tempopb.TraceByIDResponse{
+		Trace:   result,
+		Metrics: &metrics,
+	}
+	return response, nil
 }
