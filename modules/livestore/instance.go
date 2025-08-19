@@ -367,53 +367,33 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 
 	// TODO MRD Add limits
 
-	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
-	for _, b := range i.completeBlocks {
+	loopBlock := func(b common.Finder) error {
 		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if trace == nil {
-			continue
+			return nil
 		}
 		_, err = combiner.Consume(trace.Trace)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if trace.Metrics != nil {
 			metrics.InspectedBytes += trace.Metrics.InspectedBytes
 		}
-
+		return nil
+	}
+	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
+	for _, b := range i.completeBlocks {
+		loopBlock(b)
 	}
 
 	for _, b := range i.walBlocks {
-		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
-		if err != nil {
-			return nil, err
-		}
-		if trace == nil {
-			continue
-		}
-		_, err = combiner.Consume(trace.Trace)
-		if err != nil {
-			return nil, err
-		}
-		if trace.Metrics != nil {
-			metrics.InspectedBytes += trace.Metrics.InspectedBytes
-		}
+		loopBlock(b)
 	}
 
-	trace, err := i.headBlock.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
-	if err != nil {
-		return nil, err
-	}
-	if trace != nil {
-		metrics.InspectedBytes += trace.Metrics.InspectedBytes
-		_, err = combiner.Consume(trace.Trace)
-		if err != nil {
-			return nil, err
-		}
-	}
+	loopBlock(i.headBlock)
 
 	result, _ := combiner.Result()
 	response := &tempopb.TraceByIDResponse{
