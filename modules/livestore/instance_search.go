@@ -398,8 +398,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	engine := traceql.NewEngine()
 
-	// we usually have 5-10 blocks on an ingester so cap of 20 is more than enough and usually more than the blocks
-	// we need to search, and this also acts as the limit on the amount of search load on the ingester.
+	// This acts as the limit on the amount of search load on the ingester.
 	wg := boundedwaitgroup.New(i.Cfg.ConcurrentBlocks)
 	var anyErr atomic.Error
 	var inspectedBlocks atomic.Int32
