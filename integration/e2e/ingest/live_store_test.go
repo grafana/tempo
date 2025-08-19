@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/tempo/integration/util"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,4 +55,16 @@ func TestLiveStore(t *testing.T) {
 
 	// test metrics
 	require.NoError(t, distributor.WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
+
+	liveStoreProcessedRecords := liveStore0
+	err = liveStoreProcessedRecords.WaitSumMetrics(e2e.Equals(1), "tempo_live_store_traces_created_total")
+	if err != nil { // then the trace went to second live store
+		require.Error(t, err, "metric not found")
+		liveStoreProcessedRecords = liveStore1
+		err = liveStoreProcessedRecords.WaitSumMetrics(e2e.Equals(1), "tempo_live_store_traces_created_total")
+		require.NoError(t, err)
+	}
+
+	// the number of processed records should be reasonable
+	assert.NoError(t, liveStoreProcessedRecords.WaitSumMetrics(e2e.Between(1, 25), "tempo_live_store_records_processed_total"))
 }
