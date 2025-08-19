@@ -31,21 +31,39 @@ const (
 )
 
 // QueryRange returns metrics.
-func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest, rawEval *traceql.MetricsEvaluator, jobEval *traceql.MetricsFrontendEvaluator) error {
+func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	e := traceql.NewEngine()
+
+	// Compile the raw version of the query for head and wal blocks
+	// These aren't cached and we put them all into the same evaluator
+	// for efficiency.
+	// TODO MRD look into how to propagate unsafe query hints.
+	rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), i.Cfg.Metrics.TimeOverlapCutoff, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// This is a summation version of the query for complete blocks
+	// which can be cached. They are timeseries, so they need the job-level evaluator.
+	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+	if err != nil {
+		return nil, err
+	}
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
 	if req.Start < uint64(cutoff.UnixNano()) {
-		return fmt.Errorf("time range must be within last %v", i.Cfg.CompleteBlockTimeout)
+		return nil, fmt.Errorf("time range must be within last %v", i.Cfg.CompleteBlockTimeout)
 	}
 
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
-		return fmt.Errorf("compiling query: %w", err)
+		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
 	unsafe := i.overrides.UnsafeQueryHints(i.tenantID)
@@ -55,7 +73,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		timeOverlapCutoff = v
 	}
 
-	concurrency := i.Cfg.Metrics.ConcurrentBlocks
+	concurrency := i.Cfg.ConcurrentBlocks
 	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
 		concurrency = uint(v)
 	}
@@ -143,10 +161,29 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	wg.Wait()
 
 	if err := jobErr.Load(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	// The code below here is taken from modules/generator/instance.go, where it combines the results from the processor.
+	// We only have one "processor" so directly evaluating the results.
+
+	// Combine the raw results into the job results
+	walResults := rawEval.Results().ToProto(req)
+	jobEval.ObserveSeries(walResults)
+
+	r := jobEval.Results()
+	rr := r.ToProto(req)
+
+	if maxSeriesReached.Load() {
+		return &tempopb.QueryRangeResponse{
+			Series: rr[:maxSeries],
+			Status: tempopb.PartialStatus_PARTIAL,
+		}, nil
+	}
+
+	return &tempopb.QueryRangeResponse{
+		Series: rr,
+	}, nil
 }
 
 func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) error {

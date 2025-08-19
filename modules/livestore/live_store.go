@@ -585,6 +585,15 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 }
 
 // QueryRange implements tempopb.MetricsGeneratorServer
-func (s *LiveStore) QueryRange(_ context.Context, _ *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	return nil, fmt.Errorf("QueryRange not implemented in livestore") // todo: implement. seems to be a disconnect between this and instance.QueryRange
+func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	inst, err := s.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+	return inst.QueryRange(ctx, req)
 }

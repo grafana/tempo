@@ -29,7 +29,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 
 	cfg := Config{}
 	cfg.Metrics.TimeOverlapCutoff = 0.5
-	cfg.Metrics.ConcurrentBlocks = 10
+	cfg.ConcurrentBlocks = 10
 	cfg.CompleteBlockTimeout = 5 * time.Minute
 
 	// Create WAL
@@ -47,7 +47,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	// Create instance
-	instance, err := newInstance(tenant, cfg, w, mover, log.NewNopLogger())
+	inst, err := newInstance(tenant, cfg, w, mover, log.NewNopLogger())
 	require.NoError(t, err)
 
 	// Create test spans
@@ -111,32 +111,32 @@ func TestLiveStoreQueryRange(t *testing.T) {
 		Ids: [][]byte{traceID1, traceID2},
 	}
 
-	instance.pushBytes(now, pushReq)
+	inst.pushBytes(now, pushReq)
 
 	// Force block creation by cutting traces and blocks
-	err = instance.cutIdleTraces(true)
+	err = inst.cutIdleTraces(true)
 	require.NoError(t, err)
 
-	blockID, err := instance.cutBlocks(true)
+	blockID, err := inst.cutBlocks(true)
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, blockID)
 
 	// Complete the block
 	ctx := context.Background()
-	err = instance.completeBlock(ctx, blockID)
+	err = inst.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 
 	// Wait a bit to ensure block is ready
 	time.Sleep(100 * time.Millisecond)
 
 	// Get the completed block for testing
-	instance.blocksMtx.RLock()
+	inst.blocksMtx.RLock()
 	var block *ingester.LocalBlock
-	for _, b := range instance.completeBlocks {
+	for _, b := range inst.completeBlocks {
 		block = b
 		break
 	}
-	instance.blocksMtx.RUnlock()
+	inst.blocksMtx.RUnlock()
 
 	require.NotNil(t, block, "block should have been created and completed")
 
@@ -211,23 +211,17 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
+			req.MaxSeries = 10
 			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
 
-			e := traceql.NewEngine()
-			rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), 0, false)
-			require.NoError(t, err)
-			jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+			results, err := inst.QueryRange(ctx, req)
 			require.NoError(t, err)
 
-			err = instance.QueryRange(ctx, req, rawEval, jobEval)
-			require.NoError(t, err)
-			results := jobEval.Results()
-
-			require.Equal(t, 1, len(results))
-			for _, ts := range results {
+			require.Equal(t, 1, len(results.Series))
+			for _, ts := range results.Series {
 				var sum float64
-				for _, val := range ts.Values {
-					sum += val
+				for _, val := range ts.Samples {
+					sum += val.Value
 				}
 				require.InDelta(t, tc.expectedSpans, sum, 0.000001)
 				require.Equal(t, tc.expectedExemplars, len(ts.Exemplars))
