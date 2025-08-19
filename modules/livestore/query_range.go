@@ -101,7 +101,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 				if err != nil {
 					jobErr.Store(err)
 				}
-				if rawEval.Length() > maxSeries {
+				if maxSeries > 0 && rawEval.Length() > maxSeries {
 					maxSeriesReached.Store(true)
 				}
 			}(i.headBlock)
@@ -125,7 +125,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 				if err != nil {
 					jobErr.Store(err)
 				}
-				if rawEval.Length() > maxSeries {
+				if maxSeries > 0 && rawEval.Length() > maxSeries {
 					maxSeriesReached.Store(true)
 				}
 			}(w)
@@ -151,7 +151,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 					return
 				}
 				jobEval.ObserveSeries(resp)
-				if jobEval.Length() > maxSeries {
+				if maxSeries > 0 && jobEval.Length() > maxSeries {
 					maxSeriesReached.Store(true)
 				}
 			}(b)
