@@ -26,6 +26,9 @@ type Config struct {
 	QueryBlockConcurrency    uint          `yaml:"query_blocks,omitempty"`
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
+
+	// testing config
+	holdAllBackgroundProcesses bool `yaml:"-"` // if this is set to true, the live store will never release its background processes
 }
 
 type MetricsConfig struct {
@@ -61,6 +64,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 func (cfg *Config) Validate() error {
 	if cfg.CompleteBlockTimeout <= 0 {
 		return fmt.Errorf("complete_block_timeout must be greater than 0, got %s", cfg.CompleteBlockTimeout)
+	}
+
+	if cfg.QueryBlockConcurrency == 0 {
+		return fmt.Errorf("query_blocks must be greater than 0, got %d", cfg.QueryBlockConcurrency)
+	}
+
+	if cfg.CompleteBlockConcurrency <= 0 {
+		return fmt.Errorf("complete_block_concurrency must be greater than 0, got %d", cfg.CompleteBlockConcurrency)
 	}
 
 	return cfg.WAL.Validate()

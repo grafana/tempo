@@ -1,11 +1,17 @@
 package livestore
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const (
@@ -36,6 +42,11 @@ func (o *completeOp) backoff() time.Duration {
 }
 
 func (s *LiveStore) startAllBackgroundProcesses() {
+	if s.cfg.holdAllBackgroundProcesses {
+		level.Warn(s.logger).Log("msg", "live store has been started with all background processes suspended! this is meant for testing only")
+		return
+	}
+
 	close(s.startupComplete)
 }
 
@@ -166,4 +177,128 @@ func observeFailedOp(op *completeOp) {
 	if op.attempts > 1 {
 		metricCompletionFailedRetries.Inc()
 	}
+}
+
+func (s *LiveStore) reloadBlocks() error {
+	// ------------------------------------
+	// wal blocks
+	// ------------------------------------
+	level.Info(s.logger).Log("msg", "reloading wal blocks")
+	walBlocks, err := s.wal.RescanBlocks(0, s.logger)
+	if err != nil {
+		return err
+	}
+
+	for _, blk := range walBlocks {
+		err := func() error {
+			meta := blk.BlockMeta()
+
+			inst, err := s.getOrCreateInstance(meta.TenantID)
+			if err != nil {
+				return fmt.Errorf("failed to get or create instance for tenant %s during reload: %w", meta.TenantID, err) // jpe - all error handling and logging
+			}
+
+			inst.blocksMtx.Lock()
+			defer inst.blocksMtx.Unlock()
+
+			level.Info(s.logger).Log("msg", "reloading wal block", "block", meta.BlockID.String())
+			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
+
+			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
+
+			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID)); err != nil {
+				return fmt.Errorf("failed to enqueue wal block for completion in wal replay: %w", err)
+			}
+
+			level.Info(s.logger).Log("msg", "reloaded wal blocks", "tenant", inst.tenantID, "count", len(inst.walBlocks))
+
+			return nil
+		}()
+
+		if err != nil {
+			return err
+		}
+	}
+
+	// ------------------------------------
+	// Complete blocks
+	// ------------------------------------
+	var (
+		ctx = s.ctx
+		l   = s.wal.LocalBackend()
+		r   = backend.NewReader(l)
+	)
+
+	tenants, err := r.Tenants(ctx)
+	if err != nil {
+		return fmt.Errorf("getting local tenants: %w", err)
+	}
+
+	for _, tenant := range tenants {
+		ids, _, err := r.Blocks(ctx, tenant)
+		if err != nil {
+			return fmt.Errorf("getting local blocks for tenant %s: %w", tenant, err)
+		}
+		level.Info(s.logger).Log("msg", "reloading complete blocks", "tenant", tenant, "count", len(ids))
+
+		for _, id := range ids {
+			level.Info(s.logger).Log("msg", "reloading complete block", "block", id.String())
+			meta, err := r.BlockMeta(ctx, id, tenant)
+
+			// delete blocks that do not have a meta or a corrupt meta
+			var clearBlock bool
+			if err != nil {
+				var vv *json.SyntaxError
+				if errors.Is(err, backend.ErrDoesNotExist) || errors.As(err, &vv) {
+					clearBlock = true
+				}
+			}
+
+			if clearBlock {
+				level.Info(s.logger).Log("msg", "clearing block", "block", id.String(), "err", err)
+				// Partially written block, delete and continue
+				err = l.ClearBlock(id, tenant)
+				if err != nil {
+					level.Error(s.logger).Log("msg", "failed to clear partially written block during replay", "err", err)
+				}
+				continue
+			}
+
+			if err != nil {
+				return err // jpe - format
+			}
+
+			blk, err := encoding.OpenBlock(meta, r)
+			if err != nil {
+				return err
+			}
+
+			err = blk.Validate(ctx)
+			if err != nil && !errors.Is(err, common.ErrUnsupported) {
+				level.Error(s.logger).Log("msg", "local block failed validation, dropping", "block", id.String(), "error", err)
+
+				err = l.ClearBlock(id, tenant)
+				if err != nil {
+					level.Error(s.logger).Log("msg", "failed to clear invalid block during replay", "err", err)
+				}
+
+				continue
+			}
+
+			level.Info(s.logger).Log("msg", "reloaded complete block", "block", id.String())
+
+			lb := ingester.NewLocalBlock(ctx, blk, l)
+
+			inst, err := s.getOrCreateInstance(tenant)
+			if err != nil {
+				return fmt.Errorf("failed to get or create instance for tenant %s during complete block reload: %w", tenant, err) // jpe - all error handling and logging
+			}
+
+			inst.blocksMtx.Lock()
+			inst.completeBlocks[id] = lb
+			inst.blocksMtx.Unlock()
+		}
+	}
+
+	return nil
 }

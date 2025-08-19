@@ -1,0 +1,244 @@
+package livestore
+
+import (
+	"testing"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/stretchr/testify/require"
+)
+
+func TestLiveStoreBasicConsume(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// Push 10 traces and store their IDs and expected traces
+	expectedTraces := make(map[string]*tempopb.Trace)
+	for i := 0; i < 10; i++ {
+		expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+		expectedTraces[string(expectedID)] = expectedTrace
+	}
+
+	// Test that all 10 traces can be found by ID
+	for id, expectedTrace := range expectedTraces {
+		requireTraceInLiveStore(t, liveStore, []byte(id), expectedTrace)
+	}
+}
+
+// TestLiveStoreFullBlockLifecycleCheating tests all stages of the trace lifecycle by "cheating". e.g. it
+// uses knowledge of the internal state of the livestore and its instances to check the correct blocks exist
+func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	// push data
+	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+
+	// in live traces
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireInstanceState(t, inst, 1, 0, 0)
+
+	// cut to head block and test
+	err = inst.cutIdleTraces(true)
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireTraceInBlock(t, inst.headBlock, expectedID, expectedTrace)
+	requireInstanceState(t, inst, 0, 0, 0)
+
+	// cut a new head block. old head block is in wal blocks
+	walUUID, err := inst.cutBlocks(true)
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireTraceInBlock(t, inst.walBlocks[walUUID], expectedID, expectedTrace)
+	requireInstanceState(t, inst, 0, 1, 0)
+
+	// force complete the wal block
+	err = inst.completeBlock(t.Context(), walUUID)
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireTraceInBlock(t, inst.completeBlocks[walUUID], expectedID, expectedTrace)
+	requireInstanceState(t, inst, 0, 0, 1)
+
+	// stop gracefully
+	services.StopAndAwaitTerminated(t.Context(), liveStore)
+}
+
+func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// push data
+	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+
+	// stop the live store and then create a new one to simulate a restart and replay the data on disk
+	services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	liveStore, err = defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireInstanceState(t, liveStore.instances[testTenantID], 0, 1, 0)
+}
+
+func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// push data
+	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	// cut to head block
+	err = inst.cutIdleTraces(true)
+	require.NoError(t, err)
+
+	// stop the live store and then create a new one to simulate a restart and replay the data on disk
+	services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	liveStore, err = defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireInstanceState(t, liveStore.instances[testTenantID], 0, 1, 0)
+}
+
+func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// push data
+	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	// cut to head block
+	err = inst.cutIdleTraces(true)
+	require.NoError(t, err)
+
+	// cut head to wal blocks
+	_, err = inst.cutBlocks(true)
+	require.NoError(t, err)
+
+	// stop the live store and then create a new one to simulate a restart and replay the data on disk
+	services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	liveStore, err = defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireInstanceState(t, liveStore.instances[testTenantID], 0, 1, 0)
+}
+
+func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	// push data
+	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	// cut to head block
+	err = inst.cutIdleTraces(true)
+	require.NoError(t, err)
+
+	// cut head to wal blocks
+	walUUID, err := inst.cutBlocks(true)
+	require.NoError(t, err)
+
+	// complete the wal blocks
+	err = inst.completeBlock(t.Context(), walUUID)
+	require.NoError(t, err)
+
+	// stop the live store and then create a new one to simulate a restart and replay the data on disk
+	services.StopAndAwaitTerminated(t.Context(), liveStore)
+
+	liveStore, err = defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireInstanceState(t, liveStore.instances[testTenantID], 0, 0, 1)
+}
+
+func requireInstanceState(t *testing.T, inst *instance, liveTraces, walBlocks, completeBlocks int) {
+	require.Equal(t, uint64(liveTraces), inst.liveTraces.Len())
+	require.Len(t, inst.walBlocks, walBlocks)
+	require.Len(t, inst.completeBlocks, completeBlocks)
+}
+
+func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte, expectedTrace *tempopb.Trace) {
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	resp, err := liveStore.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID: traceID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Trace)
+	require.Equal(t, expectedTrace, resp.Trace)
+}
+
+func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte, expectedTrace *tempopb.Trace) {
+	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	actualTrace, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.NotNil(t, actualTrace)
+	require.Equal(t, expectedTrace, actualTrace.Trace)
+}
+
+func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace) {
+	// create trace
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(5, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	// create push bytes request
+	request := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	}
+	requestRecords, err := ingest.Encode(0, testTenantID, request, 1_000_000)
+	require.NoError(t, err)
+
+	records := make([]record, 0, len(requestRecords))
+	for _, kgoRec := range requestRecords {
+		records = append(records, fromKGORecord(kgoRec))
+	}
+
+	err = liveStore.consume(t.Context(), records)
+	require.NoError(t, err)
+
+	return id, expectedTrace
+}

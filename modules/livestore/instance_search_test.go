@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -283,13 +284,6 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore) {
 	require.NoError(t, err)
 	liveStore.cfg.QueryBlockConcurrency = 1
 
-	// Start the LiveStore service to initialize WAL
-	err = liveStore.StartAsync(context.Background())
-	require.NoError(t, err)
-
-	err = liveStore.AwaitRunning(context.Background())
-	require.NoError(t, err)
-
 	// Create a fake instance for testing
 	instance, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err, "unexpected error creating new instance")
@@ -299,6 +293,7 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore) {
 
 func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	cfg.WAL.Filepath = tmpDir
 	cfg.WAL.Version = encoding.LatestEncoding().Version()
 
@@ -309,6 +304,8 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	cfg.IngestConfig.Kafka.Address = kafkaAddr
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
+
+	cfg.holdAllBackgroundProcesses = true // note that the default testing live store disables background processes so we can deterministically run tests
 
 	cfg.Ring.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	//	flagext.DefaultValues(&cfg.Ring)
@@ -342,7 +339,11 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 
 	// Use fake Kafka cluster for testing
 	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
-	return liveStore, err
+	if err != nil {
+		return nil, err
+	}
+
+	return liveStore, services.StartAndAwaitRunning(t.Context(), liveStore)
 }
 
 func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {

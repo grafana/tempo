@@ -214,6 +214,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to create WAL: %w", err)
 	}
 
+	err = s.reloadBlocks()
+	if err != nil {
+		return fmt.Errorf("failed to reload blocks from wal: %w", err)
+	}
+
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
