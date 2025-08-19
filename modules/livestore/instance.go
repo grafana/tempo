@@ -353,7 +353,6 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	// TODO MRD this code looks ripe for simplification. Its the same pattern repeated several times.
 	i.liveTracesMtx.Lock()
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
-
 		tempTrace := &tempopb.Trace{}
 		tempTrace.ResourceSpans = liveTrace.Batches
 		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
@@ -369,7 +368,6 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	// TODO MRD Add limits
 
 	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
-	// But we should not implicitly trust that.
 	for _, b := range i.completeBlocks {
 		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 		if err != nil {
