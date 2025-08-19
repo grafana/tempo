@@ -640,19 +640,6 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NotNil(t, resp2.Trace, "Should find trace from head block")
 }
 
-// Helper functions for FindByTraceID tests
-func pushTraceToInstance(t *testing.T, i *instance, trace *tempopb.Trace, traceID []byte) {
-	traceBytes, err := trace.Marshal()
-	require.NoError(t, err)
-
-	req := &tempopb.PushBytesRequest{
-		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
-		Ids:    [][]byte{traceID},
-	}
-
-	i.pushBytes(time.Now(), req)
-}
-
 func TestIncludeBlock(t *testing.T) {
 	tests := []struct {
 		blocKStart int64
