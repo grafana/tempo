@@ -281,6 +281,7 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore) {
 
 	liveStore, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
+	liveStore.cfg.ConcurrentBlocks = 1
 
 	// Start the LiveStore service to initialize WAL
 	err = liveStore.StartAsync(context.Background())

@@ -20,7 +20,6 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -272,9 +271,11 @@ func (s *LiveStore) flushRemaining() {
 }
 
 func (s *LiveStore) consume(_ context.Context, rs []record) error {
+	defer s.decoder.Reset()
+
 	// Process records by tenant
 	for _, record := range rs {
-		var pushReq *tempopb.PushBytesRequest
+		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.content)
 		if err != nil {
 			return fmt.Errorf("decoding record: %w", err)
@@ -594,23 +595,6 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	e := traceql.NewEngine()
-
-	// Compile the raw version of the query for head and wal blocks
-	// These aren't cached and we put them all into the same evaluator
-	// for efficiency.
-	// TODO MRD look into how to propagate unsafe query hints.
-	rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), s.cfg.TimeOverlapCutoff, false)
-	if err != nil {
-		return nil, err
-	}
-
-	// This is a summation version of the query for complete blocks
-	// which can be cached. They are timeseries, so they need the job-level evaluator.
-	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
-	if err != nil {
-		return nil, err
-	}
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -620,30 +604,5 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	if err != nil {
 		return nil, err
 	}
-	err = inst.QueryRange(ctx, req, rawEval, jobEval)
-	if err != nil {
-		return nil, err
-	}
-
-	// The code below here is taken from modules/generator/instance.go, where it combines the results from the processor.
-	// We only have one "processor" so directly evaluating the results.
-
-	// Combine the raw results into the job results
-	walResults := rawEval.Results().ToProto(req)
-	jobEval.ObserveSeries(walResults)
-
-	r := jobEval.Results()
-	rr := r.ToProto(req)
-
-	maxSeries := int(req.MaxSeries)
-	if maxSeries > 0 && len(rr) > maxSeries {
-		return &tempopb.QueryRangeResponse{
-			Series: rr[:maxSeries],
-			Status: tempopb.PartialStatus_PARTIAL,
-		}, nil
-	}
-
-	return &tempopb.QueryRangeResponse{
-		Series: rr,
-	}, nil
+	return inst.QueryRange(ctx, req)
 }
