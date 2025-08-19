@@ -302,7 +302,6 @@ func (i *instance) deleteOldBlocks() error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	// TODO: Configurable
 	cutoff := time.Now().Add(i.Cfg.CompleteBlockTimeout) // Delete blocks older than Complete Block Timeout
 
 	for id, walBlock := range i.walBlocks {
