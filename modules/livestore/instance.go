@@ -384,8 +384,7 @@ func (i *instance) deleteOldBlocks() error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	// TODO: Configurable
-	cutoff := time.Now().Add(-1 * time.Hour) // Delete blocks older than 1 hour
+	cutoff := time.Now().Add(i.Cfg.CompleteBlockTimeout) // Delete blocks older than Complete Block Timeout
 
 	for id, walBlock := range i.walBlocks {
 		if walBlock.BlockMeta().EndTime.Before(cutoff) {

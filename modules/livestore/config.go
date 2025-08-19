@@ -7,7 +7,6 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
-	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -42,7 +41,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.PartitionRing.RegisterFlags(prefix, f)
 
 	// Set defaults for new fields
-	cfg.CompleteBlockTimeout = 3 * tempodb.DefaultBlocklistPoll
+	cfg.CompleteBlockTimeout = 1 * time.Hour
 	cfg.ConcurrentBlocks = 10
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
