@@ -77,7 +77,7 @@ FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-p
 FILES_TO_JSONNETFMT=$(shell find ./operations/jsonnet ./operations/tempo-mixin -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -not -path "*/vendor/*" -print)
 
 ##@ Building
-.PHONY: tempo 	
+.PHONY: tempo
 tempo: ## Build tempo
 	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-$(GOARCH) $(BUILD_INFO) ./cmd/tempo
 
@@ -108,62 +108,62 @@ test: ## Run tests
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)
 
 .PHONY: benchmark
-benchmark: tools ## Run benchmarks
+benchmark: ## Run benchmarks
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
-.PHONY: test-with-cover 
-test-with-cover: tools ## Run tests with code coverage
+.PHONY: test-with-cover
+test-with-cover: ## Run tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 # tests in pkg
-.PHONY: test-with-cover-pkg 
-test-with-cover-pkg: tools  ##  Run Tempo packages' tests with code coverage
+.PHONY: test-with-cover-pkg
+test-with-cover-pkg: ##  Run Tempo packages' tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
 # tests in tempodb (excluding tempodb/wal)
 .PHONY: test-with-cover-tempodb
-test-with-cover-tempodb: tools ## Run tempodb tests with code coverage
+test-with-cover-tempodb: ## Run tempodb tests with code coverage
 	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
 
 # tests in tempodb/wal
 .PHONY: test-with-cover-tempodb-wal
-test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
+test-with-cover-tempodb-wal:  ## Test tempodb/wal with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
 # all other tests (excluding pkg & tempodb)
 .PHONY: test-with-cover-others
-test-with-cover-others: tools ## Run other tests with code coverage
+test-with-cover-others: ## Run other tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
+test-e2e: docker-tempo docker-tempo-query  ## Run end to end tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
 
 # runs only deployment modes e2e tests
 .PHONY: test-e2e-deployments
-test-e2e-deployments: tools docker-tempo docker-tempo-query ## Run end to end tests for deployments
+test-e2e-deployments: docker-tempo docker-tempo-query ## Run end to end tests for deployments
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/deployments
 
 # runs only api e2e tests
 .PHONY: test-e2e-api
-test-e2e-api: tools docker-tempo docker-tempo-query ## Run end to end tests for api
+test-e2e-api: docker-tempo docker-tempo-query ## Run end to end tests for api
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/api
 
 # runs only poller integration tests
 .PHONY: test-integration-poller
-test-integration-poller: tools ## Run poller integration tests
+test-integration-poller: ## Run poller integration tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/poller
 
 # runs only backendscheduler integration tests
 .PHONY: test-integration-backendscheduler
-test-integration-backendscheduler: tools docker-tempo ## Run backend-scheduler integration tests
+test-integration-backendscheduler: docker-tempo ## Run backend-scheduler integration tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/backendscheduler
 
 # runs only ingest integration tests
 .PHONY: test-e2e-ingest
-test-e2e-ingest: tools docker-tempo ## Run end to end tests for ingest
+test-e2e-ingest: docker-tempo ## Run end to end tests for ingest
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/ingest
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
@@ -171,7 +171,7 @@ test-e2e-ingest: tools docker-tempo ## Run end to end tests for ingest
 test-all: test-with-cover test-e2e test-e2e-deployments test-e2e-api test-integration-poller test-integration-backendscheduler test-e2e-ingest
 
 .PHONY: test-bench
-test-bench: tools docker-tempo ## Run all benchmarks
+test-bench: docker-tempo ## Run all benchmarks
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
 .PHONY: fmt check-fmt
@@ -199,7 +199,7 @@ endif
 
 ##@ Docker Images
 
-.PHONY: docker-component 
+.PHONY: docker-component
 docker-component: check-component exe # not intended to be used directly
 	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
@@ -211,11 +211,11 @@ docker-component-multi: check-component # not intended to be used directly
 	docker buildx build -t grafana/$(COMPONENT) --platform linux/amd64,linux/arm64 --output type=docker -f ./cmd/$(COMPONENT)/Dockerfile .
 
 .PHONY: docker-component-debug
-docker-component-debug: check-component exe-debug 
+docker-component-debug: check-component exe-debug
 	docker build -t grafana/$(COMPONENT)-debug --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile_debug .
 	docker tag grafana/$(COMPONENT)-debug $(COMPONENT)-debug
 
-.PHONY: docker-tempo 
+.PHONY: docker-tempo
 docker-tempo: ## Build tempo docker image
 	COMPONENT=tempo make docker-component
 
@@ -304,11 +304,11 @@ gen-proto:  ## Generate proto files
 
 ##@ Gen Traceql
 
-.PHONY: gen-traceql 
-gen-traceql: ## Generate traceql 
+.PHONY: gen-traceql
+gen-traceql: ## Generate traceql
 	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
 
-.PHONY: gen-traceql-local 
+.PHONY: gen-traceql-local
 gen-traceql-local: ## Generate traceq local
 	goyacc -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm y.output
 
@@ -316,7 +316,7 @@ gen-traceql-local: ## Generate traceq local
 ##@ Gen Parquet-Query
 
 .PHONY: gen-parquet-query
-gen-parquet-query:  ## Generate Parquet query 
+gen-parquet-query:  ## Generate Parquet query
 	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go
 
 ##@ Tempo tools
@@ -327,7 +327,7 @@ vendor-check: gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to d
 
 
 ### Tidy dependencies for tempo modules
-.PHONY: update-mod 
+.PHONY: update-mod
 update-mod: tools-update-mod ## Update module
 	go mod vendor
 	go mod tidy -e
@@ -338,8 +338,8 @@ $(GORELEASER):
 	go install github.com/goreleaser/goreleaser@v1.25.1
 
 .PHONY: release
-release: $(GORELEASER)  ## Release 
-	$(GORELEASER) release --rm-dist 
+release: $(GORELEASER)  ## Release
+	$(GORELEASER) release --rm-dist
 
 .PHONY: release-snapshot
 release-snapshot: $(GORELEASER) ## Release snapshot
