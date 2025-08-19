@@ -1,4 +1,4 @@
-FROM golang:1.24.4-alpine
+FROM golang:1.25.0-alpine
 
 ARG TARGETOS
 ARG TARGETARCH
