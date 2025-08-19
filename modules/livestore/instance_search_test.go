@@ -593,7 +593,6 @@ func TestInstanceSearchMetrics(t *testing.T) {
 }
 
 func TestInstanceFindByTraceID(t *testing.T) {
-
 	i, _ := defaultInstanceAndTmpDir(t)
 
 	tagKey := foo
