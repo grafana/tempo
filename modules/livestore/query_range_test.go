@@ -29,7 +29,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 
 	cfg := Config{}
 	cfg.Metrics.TimeOverlapCutoff = 0.5
-	cfg.ConcurrentBlocks = 10
+	cfg.QueryBlockConcurrency = 10
 	cfg.CompleteBlockTimeout = 5 * time.Minute
 
 	// Create WAL

@@ -147,7 +147,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	defer i.blocksMtx.RUnlock()
 	span.AddEvent("acquired blocks mtx")
 
-	wg := boundedwaitgroup.New(i.Cfg.ConcurrentBlocks)
+	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 
 	for _, b := range i.walBlocks {
 		if !includeBlock(b.BlockMeta(), req) {
@@ -399,7 +399,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	engine := traceql.NewEngine()
 
 	// This acts as the limit on the amount of search load on the ingester.
-	wg := boundedwaitgroup.New(i.Cfg.ConcurrentBlocks)
+	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 	var anyErr atomic.Error
 	var inspectedBlocks atomic.Int32
 	var maxBlocks int32
