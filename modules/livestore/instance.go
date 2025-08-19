@@ -52,11 +52,11 @@ var (
 		Name:      "bytes_received_total",
 		Help:      "The total bytes received per tenant.",
 	}, []string{"tenant", "data_type"})
-	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
+	metricBlocksClearedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo_live_store",
 		Name:      "blocks_cleared_total",
 		Help:      "The total number of blocks cleared.",
-	})
+	}, []string{"block_type"})
 	metricCompletionSize = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempo_live_store",
 		Name:      "completion_size_bytes",
@@ -397,7 +397,7 @@ func (i *instance) deleteOldBlocks() error {
 				return err
 			}
 			delete(i.walBlocks, id)
-			metricBlocksClearedTotal.Inc()
+			metricBlocksClearedTotal.WithLabelValues("wal").Inc()
 		}
 	}
 
@@ -411,7 +411,7 @@ func (i *instance) deleteOldBlocks() error {
 					return err
 				}
 				delete(i.completeBlocks, id)
-				metricBlocksClearedTotal.Inc()
+				metricBlocksClearedTotal.WithLabelValues("complete").Inc()
 			}
 		}
 	}
