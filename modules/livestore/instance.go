@@ -138,7 +138,10 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
 		traceID := req.Ids[j]
-		i.measureReceivedBytes(traceBytes.Slice)
+		// measure received bytes as sum of slice lengths
+		// type byte is guaranteed to be 1 byte in size
+		// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
+		i.bytesReceivedTotal.WithLabelValues(i.tenantID, traceDataType).Add(float64(len(traceBytes.Slice)))
 
 		// Unmarshal the trace
 		trace := &tempopb.Trace{}
@@ -202,13 +205,6 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 		return nil
 	}
 	return nil
-}
-
-func (i *instance) measureReceivedBytes(traceBytes []byte) {
-	// measure received bytes as sum of slice lengths
-	// type byte is guaranteed to be 1 byte in size
-	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
-	i.bytesReceivedTotal.WithLabelValues(i.tenantID, traceDataType).Add(float64(len(traceBytes)))
 }
 
 func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
