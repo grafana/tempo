@@ -147,7 +147,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	defer i.blocksMtx.RUnlock()
 	span.AddEvent("acquired blocks mtx")
 
-	wg := sync.WaitGroup{}
+	wg := boundedwaitgroup.New(i.Cfg.ConcurrentBlocks)
 
 	for _, b := range i.walBlocks {
 		if !includeBlock(b.BlockMeta(), req) {

@@ -687,6 +687,7 @@ metrics_generator:
             max_live_traces_bytes: 250000000
             filter_server_spans: true
             flush_to_storage: false
+            concurrent_blocks: 10
             time_overlap_cutoff: 0.2
         host_info:
             host_identifiers:
