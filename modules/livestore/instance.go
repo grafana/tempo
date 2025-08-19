@@ -386,14 +386,23 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	}
 	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
 	for _, b := range i.completeBlocks {
-		loopBlock(b)
+		err := loopBlock(b)
+		if err != nil {
+			return nil, fmt.Errorf("error searching in complete block %s: %w", b.BlockMeta().BlockID, err)
+		}
 	}
 
 	for _, b := range i.walBlocks {
-		loopBlock(b)
+		err := loopBlock(b)
+		if err != nil {
+			return nil, fmt.Errorf("error searching in WAL block %s: %w", b.BlockMeta().BlockID, err)
+		}
 	}
 
-	loopBlock(i.headBlock)
+	err = loopBlock(i.headBlock)
+	if err != nil {
+		return nil, fmt.Errorf("error searching in headblock %s: %w", i.headBlock.BlockMeta().BlockID, err)
+	}
 
 	result, _ := combiner.Result()
 	response := &tempopb.TraceByIDResponse{
