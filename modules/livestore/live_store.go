@@ -82,6 +82,12 @@ var (
 		Name:      "records_processed_total",
 		Help:      "The total number of kafka records processed per tenant.",
 	}, []string{"tenant"})
+
+	metricRecordsDropped = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "records_dropped_total",
+		Help:      "The total number of kafka records dropped per tenant.",
+	}, []string{"tenant", "reason"})
 )
 
 type LiveStore struct {
@@ -310,23 +316,29 @@ func (s *LiveStore) stopping(error) error {
 		select {
 		case <-ticker.C:
 		case <-timeout.C:
-			level.Error(s.logger).Log("msg", "flush remaining blocks timed out", "isEmpty", s.completeQueues.IsEmpty())
-			return nil // shutdown timeout reached
+			level.Error(s.logger).Log("msg", "flush remaining blocks timed out", "isEmpty", s.completeQueues.IsEmpty()) // jpe
+			return nil                                                                                                  // shutdown timeout reached
 		}
 	}
 
 	return nil
 }
 
-func (s *LiveStore) consume(ctx context.Context, rs []record) error {
+func (s *LiveStore) consume(ctx context.Context, rs []record, now time.Time) error {
 	defer s.decoder.Reset()
 	_, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
 	span.SetAttributes(attribute.Int("records_count", len(rs)))
 
+	cutoff := now.Add(-s.cfg.CompleteBlockTimeout)
 	// Process records by tenant
 	for _, record := range rs {
+		if record.timestamp.Before(cutoff) {
+			metricRecordsDropped.WithLabelValues(record.tenantID, "too_old").Inc()
+			continue
+		}
+
 		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.content)
 		if err != nil {

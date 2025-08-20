@@ -1,7 +1,9 @@
 package livestore
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/services"
@@ -196,6 +198,58 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
+}
+
+func TestLiveStoreConsumeDropsOldRecords(t *testing.T) { // jpe
+
+	// Reset metrics
+	metricRecordsProcessed.Reset()
+	metricRecordsDropped.Reset()
+
+	// Create a test LiveStore
+	ls := &LiveStore{
+		cfg:     cfg,
+		decoder: ingest.NewDecoder(),
+	}
+
+	now := time.Now()
+
+	// Create test records - some old, some new
+	records := []record{
+		{
+			tenantID:  "tenant1",
+			timestamp: now.Add(-45 * time.Second), // Too old (older than CompleteBlockTimeout)
+			content:   createValidPushRequest(t),
+		},
+		{
+			tenantID:  "tenant1",
+			timestamp: now.Add(-15 * time.Second), // Valid (newer than CompleteBlockTimeout)
+			content:   createValidPushRequest(t),
+		},
+		{
+			tenantID:  "tenant2",
+			timestamp: now.Add(-60 * time.Second), // Too old
+			content:   createValidPushRequest(t),
+		},
+		{
+			tenantID:  "tenant2",
+			timestamp: now.Add(-5 * time.Second), // Valid
+			content:   createValidPushRequest(t),
+		},
+	}
+
+	// Call consume
+	err := ls.consume(context.Background(), records, now)
+	require.NoError(t, err)
+
+	// Verify metrics
+	// Should have processed 2 valid records (1 per tenant)
+	require.Equal(t, float64(1), testutil.ToFloat64(metricRecordsProcessed.WithLabelValues("tenant1")))
+	require.Equal(t, float64(1), testutil.ToFloat64(metricRecordsProcessed.WithLabelValues("tenant2")))
+
+	// Should have dropped 2 old records (1 per tenant)
+	require.Equal(t, float64(1), testutil.ToFloat64(metricRecordsDropped.WithLabelValues("tenant1", "too_old")))
+	require.Equal(t, float64(1), testutil.ToFloat64(metricRecordsDropped.WithLabelValues("tenant2", "too_old")))
 }
 
 type instanceState struct {
