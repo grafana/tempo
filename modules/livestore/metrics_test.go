@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"context"
+	"flag"
 	"testing"
 	"time"
 
@@ -50,8 +51,10 @@ func setupTest(t *testing.T) *testSetup {
 
 	// Create instance
 	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	instance, err := newInstance(testTenant, cfg, w, o, log.NewNopLogger())
 	require.NoError(t, err)
+
 	return &testSetup{
 		tmpDir:    tmpDir,
 		wal:       w,
