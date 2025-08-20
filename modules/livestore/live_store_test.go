@@ -312,12 +312,18 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 	requestRecords, err := ingest.Encode(0, testTenantID, request, 1_000_000)
 	require.NoError(t, err)
 
+	// set timestamp so they are accepted
+	now := time.Now()
+	for _, kgoRec := range requestRecords {
+		kgoRec.Timestamp = now
+	}
+
 	records := make([]record, 0, len(requestRecords))
 	for _, kgoRec := range requestRecords {
 		records = append(records, fromKGORecord(kgoRec))
 	}
 
-	err = liveStore.consume(t.Context(), records, time.Now())
+	err = liveStore.consume(t.Context(), records, now)
 	require.NoError(t, err)
 
 	return id, expectedTrace
