@@ -200,40 +200,38 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
-func TestLiveStoreConsumeDropsOldRecords(t *testing.T) { // jpe
+func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
+	// default live store uses the default complete block timeout
+	ls, _ := defaultLiveStore(t, t.TempDir())
 
 	// Reset metrics
 	metricRecordsProcessed.Reset()
 	metricRecordsDropped.Reset()
 
-	// Create a test LiveStore
-	ls := &LiveStore{
-		cfg:     cfg,
-		decoder: ingest.NewDecoder(),
-	}
-
 	now := time.Now()
+	older := now.Add(-1 * (defaultCompleteBlockTimeout + time.Second))
+	newer := now.Add(-1 * (defaultCompleteBlockTimeout - time.Second))
 
 	// Create test records - some old, some new
 	records := []record{
 		{
 			tenantID:  "tenant1",
-			timestamp: now.Add(-45 * time.Second), // Too old (older than CompleteBlockTimeout)
+			timestamp: older, // Too old (older than CompleteBlockTimeout)
 			content:   createValidPushRequest(t),
 		},
 		{
 			tenantID:  "tenant1",
-			timestamp: now.Add(-15 * time.Second), // Valid (newer than CompleteBlockTimeout)
+			timestamp: newer, // Valid (newer than CompleteBlockTimeout)
 			content:   createValidPushRequest(t),
 		},
 		{
 			tenantID:  "tenant2",
-			timestamp: now.Add(-60 * time.Second), // Too old
+			timestamp: older, // Too old
 			content:   createValidPushRequest(t),
 		},
 		{
 			tenantID:  "tenant2",
-			timestamp: now.Add(-5 * time.Second), // Valid
+			timestamp: newer, // Valid
 			content:   createValidPushRequest(t),
 		},
 	}
@@ -244,12 +242,12 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) { // jpe
 
 	// Verify metrics
 	// Should have processed 2 valid records (1 per tenant)
-	require.Equal(t, float64(1), testutil.ToFloat64(metricRecordsProcessed.WithLabelValues("tenant1")))
-	require.Equal(t, float64(1), testutil.ToFloat64(metricRecordsProcessed.WithLabelValues("tenant2")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsProcessed.WithLabelValues("tenant1")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsProcessed.WithLabelValues("tenant2")))
 
 	// Should have dropped 2 old records (1 per tenant)
-	require.Equal(t, float64(1), testutil.ToFloat64(metricRecordsDropped.WithLabelValues("tenant1", "too_old")))
-	require.Equal(t, float64(1), testutil.ToFloat64(metricRecordsDropped.WithLabelValues("tenant2", "too_old")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant1", "too_old")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant2", "too_old")))
 }
 
 type instanceState struct {
@@ -282,6 +280,23 @@ func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte
 	require.Equal(t, expectedTrace, actualTrace.Trace)
 }
 
+func createValidPushRequest(t *testing.T) []byte {
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(5, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	}
+
+	records, err := ingest.Encode(0, testTenantID, req, 1_000_000)
+	require.NoError(t, err)
+
+	return records[0].Value
+}
+
 func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace) {
 	// create trace
 	id := test.ValidTraceID(nil)
@@ -302,7 +317,7 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 		records = append(records, fromKGORecord(kgoRec))
 	}
 
-	err = liveStore.consume(t.Context(), records)
+	err = liveStore.consume(t.Context(), records, time.Now())
 	require.NoError(t, err)
 
 	return id, expectedTrace
