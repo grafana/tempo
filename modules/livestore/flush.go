@@ -186,7 +186,7 @@ func (s *LiveStore) reloadBlocks() error {
 	level.Info(s.logger).Log("msg", "reloading wal blocks")
 	walBlocks, err := s.wal.RescanBlocks(0, s.logger)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to rescan wal blocks: %w", err)
 	}
 
 	for _, blk := range walBlocks {
@@ -195,26 +195,24 @@ func (s *LiveStore) reloadBlocks() error {
 
 			inst, err := s.getOrCreateInstance(meta.TenantID)
 			if err != nil {
-				return fmt.Errorf("failed to get or create instance for tenant %s during reload: %w", meta.TenantID, err) // jpe - all error handling and logging
+				return fmt.Errorf("failed to get or create instance for tenant %s: %w", meta.TenantID, err)
 			}
 
 			inst.blocksMtx.Lock()
 			defer inst.blocksMtx.Unlock()
 
-			level.Info(s.logger).Log("msg", "reloading wal block", "block", meta.BlockID.String())
+			level.Info(s.logger).Log("msg", "reloaded wal block", "block", meta.BlockID.String())
 			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
 
 			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
-
 			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID)); err != nil {
-				return fmt.Errorf("failed to enqueue wal block for completion in wal replay: %w", err)
+				return fmt.Errorf("failed to enqueue wal block for completion for tenant %s: %w", meta.TenantID, err)
 			}
 
 			level.Info(s.logger).Log("msg", "reloaded wal blocks", "tenant", inst.tenantID, "count", len(inst.walBlocks))
 
 			return nil
 		}()
-
 		if err != nil {
 			return err
 		}
@@ -231,13 +229,13 @@ func (s *LiveStore) reloadBlocks() error {
 
 	tenants, err := r.Tenants(ctx)
 	if err != nil {
-		return fmt.Errorf("getting local tenants: %w", err)
+		return fmt.Errorf("failed to get local tenants: %w", err)
 	}
 
 	for _, tenant := range tenants {
 		ids, _, err := r.Blocks(ctx, tenant)
 		if err != nil {
-			return fmt.Errorf("getting local blocks for tenant %s: %w", tenant, err)
+			return fmt.Errorf("failed to get local blocks for tenant %s: %w", tenant, err)
 		}
 		level.Info(s.logger).Log("msg", "reloading complete blocks", "tenant", tenant, "count", len(ids))
 
@@ -265,12 +263,12 @@ func (s *LiveStore) reloadBlocks() error {
 			}
 
 			if err != nil {
-				return err // jpe - format
+				return fmt.Errorf("failed to get block meta for block %s in tenant %s: %w", id.String(), tenant, err)
 			}
 
 			blk, err := encoding.OpenBlock(meta, r)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to open block %s in tenant %s: %w", id.String(), tenant, err)
 			}
 
 			err = blk.Validate(ctx)
@@ -291,7 +289,7 @@ func (s *LiveStore) reloadBlocks() error {
 
 			inst, err := s.getOrCreateInstance(tenant)
 			if err != nil {
-				return fmt.Errorf("failed to get or create instance for tenant %s during complete block reload: %w", tenant, err) // jpe - all error handling and logging
+				return fmt.Errorf("failed to get or create instance for tenant %s during complete block reload: %w", tenant, err)
 			}
 
 			inst.blocksMtx.Lock()
