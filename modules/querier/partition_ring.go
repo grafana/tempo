@@ -3,7 +3,6 @@ package querier
 import (
 	"context"
 	"math/rand/v2"
-	"time"
 
 	"github.com/grafana/dskit/concurrency"
 	"github.com/grafana/dskit/ring"
@@ -35,11 +34,11 @@ func forPartitionRingReplicaSets[R any, TClient any](ctx context.Context, q *Que
 
 // queryQuorumConfigForReplicationSets returns the config to use with "do until quorum" functions when running queries.
 func (q *Querier) queryQuorumConfigForReplicationSets(_ context.Context, _ []ring.ReplicationSet) ring.DoUntilQuorumConfig {
-	zoneSorter := queryIngesterPartitionsRingZoneSorter("") // todo: make configurable
+	zoneSorter := queryIngesterPartitionsRingZoneSorter(q.cfg.PartitionRing.PreferredZone)
 
 	return ring.DoUntilQuorumConfig{
-		MinimizeRequests: true, // todo: make configurable
-		HedgingDelay:     500 * time.Millisecond,
+		MinimizeRequests: q.cfg.PartitionRing.MinimizeRequests,
+		HedgingDelay:     q.cfg.PartitionRing.MinimizeRequestsHedgingDelay,
 		ZoneSorter:       zoneSorter,
 		Logger:           nil, // pass a logger?
 	}
