@@ -316,8 +316,8 @@ func (s *LiveStore) stopping(error) error {
 		select {
 		case <-ticker.C:
 		case <-timeout.C:
-			level.Error(s.logger).Log("msg", "flush remaining blocks timed out", "isEmpty", s.completeQueues.IsEmpty()) // jpe
-			return nil                                                                                                  // shutdown timeout reached
+			level.Error(s.logger).Log("msg", "flush remaining blocks timed out")
+			return nil // shutdown timeout reached
 		}
 	}
 
