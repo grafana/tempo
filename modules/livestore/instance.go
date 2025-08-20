@@ -292,7 +292,6 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	return id, nil
 }
 
-
 func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	ctx, span := tracer.Start(ctx, "instance.completeBlock",
 		oteltrace.WithAttributes(
