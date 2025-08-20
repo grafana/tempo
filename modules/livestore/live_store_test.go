@@ -77,7 +77,8 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	// stop gracefully
-	services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
 }
 
 func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
@@ -91,7 +92,8 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
@@ -118,7 +120,8 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
@@ -149,7 +152,8 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
@@ -184,7 +188,8 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
