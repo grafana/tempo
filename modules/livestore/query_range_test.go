@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"context"
+	"flag"
 	"path"
 	"testing"
 	"time"
@@ -28,6 +29,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	)
 
 	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.Metrics.TimeOverlapCutoff = 0.5
 	cfg.QueryBlockConcurrency = 10
 	cfg.CompleteBlockTimeout = 5 * time.Minute

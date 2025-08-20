@@ -3,7 +3,6 @@ package livestore
 import (
 	"context"
 	"fmt"
-	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -35,6 +33,9 @@ const (
 	// ringAutoForgetUnhealthyPeriods is how many consecutive timeout periods an unhealthy instance
 	// in the ring will be automatically removed.
 	ringAutoForgetUnhealthyPeriods = 2
+
+	PartitionRingKey  = "livestore-partitions"
+	PartitionRingName = "livestore-partitions"
 )
 
 var (
@@ -146,7 +147,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 	} else {
 		s.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.Ring.InstanceID)
 		if err != nil {
-			return nil, fmt.Errorf("calculating ingester partition ID: %w", err)
+			return nil, fmt.Errorf("calculating livestore partition ID: %w", err)
 		}
 	}
 
@@ -154,22 +155,22 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 	//  https://raintank-corp.slack.com/archives/C05CAA0ULUF/p1752847274420489
 	s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.Ring.InstanceID)
 	if err != nil {
-		return nil, fmt.Errorf("calculating ingester consumer group ID: %w", err)
+		return nil, fmt.Errorf("calculating livestore consumer group ID: %w", err)
 	}
 
 	// setup partition ring
 	partitionRingKV := cfg.PartitionRing.KVStore.Mock
 	if partitionRingKV == nil {
-		partitionRingKV, err = kv.NewClient(cfg.PartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(reg, ingester.PartitionRingName+"-lifecycler"), logger)
+		partitionRingKV, err = kv.NewClient(cfg.PartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(reg, PartitionRingName+"-lifecycler"), logger)
 		if err != nil {
-			return nil, fmt.Errorf("creating KV store for ingester partition ring: %w", err)
+			return nil, fmt.Errorf("creating KV store for livestore partition ring: %w", err)
 		}
 	}
 
 	s.ingestPartitionLifecycler = ring.NewPartitionInstanceLifecycler(
 		s.cfg.PartitionRing.ToLifecyclerConfig(s.ingestPartitionID, cfg.Ring.InstanceID),
-		ingester.PartitionRingName,
-		ingester.PartitionRingKey,
+		PartitionRingName,
+		PartitionRingKey,
 		partitionRingKV,
 		logger,
 		prometheus.WrapRegistererWithPrefix("tempo_", reg))
@@ -188,7 +189,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		}
 	}
 
-	lifecyclerCfg, err := cfg.Ring.ToLifecyclerConfig(ringNumTokens)
+	lifecyclerCfg, err := cfg.Ring.ToLifecyclerConfig(0)
 	if err != nil {
 		return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
 	}
@@ -309,7 +310,7 @@ func (s *LiveStore) stopping(error) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-	timeout := time.NewTimer(30 * time.Second) // TODO: Configurable?
+	timeout := time.NewTimer(s.cfg.InstanceCleanupPeriod)
 	defer timeout.Stop()
 
 	for !s.completeQueues.IsEmpty() {
@@ -441,11 +442,7 @@ func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 
 // OnRingInstanceRegister implements ring.BasicLifecyclerDelegate
 func (s *LiveStore) OnRingInstanceRegister(_ *ring.BasicLifecycler, _ ring.Desc, _ bool, _ string, _ ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
-	// tokens don't matter for the livestore ring, we just need to be in the ring for service discovery
-	token := rand.Uint32() //nolint: gosec // G404 we don't need a cryptographic random number here
-	level.Info(s.logger).Log("msg", "registered in livestore ring", "token", token, "partition", s.ingestPartitionID)
-
-	return ring.ACTIVE, []uint32{token}
+	return ring.ACTIVE, nil // no tokens needed for the livestore ring, we just need to be in the ring for service discovery
 }
 
 // OnRingInstanceTokens implements ring.BasicLifecyclerDelegate

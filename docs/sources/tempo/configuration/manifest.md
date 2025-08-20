@@ -332,6 +332,9 @@ querier:
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
+    partition_ring:
+        minimize_requests: true
+        hedging_delay: 3s
     max_concurrent_queries: 20
     frontend_worker:
         frontend_address: ""
@@ -1215,4 +1218,21 @@ live_store:
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 4
+    flush_check_period: 10s
+    flush_op_timeout: 5m0s
+    max_trace_live: 30s
+    max_trace_idle: 5s
+    max_block_duration: 30m0s
+    max_block_bytes: 524288000
+    block_config:
+        bloom_filter_false_positive: 0.01
+        bloom_filter_shard_size_bytes: 102400
+        version: ""
+        search_encoding: snappy
+        search_page_size_bytes: 1048576
+        v2_index_downsample_bytes: 1048576
+        v2_index_page_size_bytes: 256000
+        v2_encoding: zstd
+        parquet_row_group_size_bytes: 100000000
+        parquet_dedicated_columns: []
 ```

@@ -2,7 +2,6 @@ package livestore
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"math"
 	"sync"
@@ -114,7 +113,7 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		enc:                enc,
 		walBlocks:          map[uuid.UUID]common.WALBlock{},
 		completeBlocks:     map[uuid.UUID]*ingester.LocalBlock{},
-		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 30*time.Second, 5*time.Minute),
+		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceLive, cfg.MaxTraceIdle),
 		traceSizes:         tracesizes.New(),
 		overrides:          overrides,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -270,11 +269,7 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 		return uuid.Nil, nil
 	}
 
-	// TODO: Configurable
-	maxBlockDuration := 5 * time.Minute
-	maxBlockBytes := uint64(100 * 1024 * 1024) // 100MB
-
-	if !immediate && time.Since(i.lastCutTime) < maxBlockDuration && i.headBlock.DataLength() < maxBlockBytes {
+	if !immediate && time.Since(i.lastCutTime) < i.Cfg.MaxBlockDuration && i.headBlock.DataLength() < i.Cfg.MaxBlockBytes {
 		return uuid.Nil, nil
 	}
 
@@ -295,13 +290,6 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	}
 
 	return id, nil
-}
-
-var blockConfig = common.BlockConfig{}
-
-func init() {
-	// TODO MRD this is a hack until we roll the config into the livestore
-	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 }
 
 func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
@@ -338,7 +326,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 	defer iter.Close()
 
-	newMeta, err := i.enc.CreateBlock(ctx, &blockConfig, walBlock.BlockMeta(), iter, reader, writer)
+	newMeta, err := i.enc.CreateBlock(ctx, &i.Cfg.BlockConfig, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		span.RecordError(err)

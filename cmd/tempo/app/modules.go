@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"time"
 
 	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -205,14 +206,26 @@ func (t *App) initPartitionRing() (services.Service, error) {
 		return nil, fmt.Errorf("creating KV store for ingester partitions ring watcher: %w", err)
 	}
 
-	heartbeatTimeout := t.cfg.Ingester.LifecyclerConfig.RingConfig.HeartbeatTimeout
-	readRing := t.readRings[ringIngester]
+	// choose the correct partition ring based on config
+	var (
+		heartbeatTimeout time.Duration
+		readRing         ring.InstanceRingReader
+		ringName         string
+		ringKey          string
+	)
+
+	heartbeatTimeout = t.cfg.Ingester.LifecyclerConfig.RingConfig.HeartbeatTimeout
+	readRing = t.readRings[ringIngester]
+	ringName = ingester.PartitionRingName
+	ringKey = ingester.PartitionRingKey
 	if t.cfg.PartitionRingLiveStore {
 		heartbeatTimeout = t.cfg.LiveStore.Ring.HeartbeatTimeout
 		readRing = t.readRings[ringLiveStore]
+		ringName = livestore.PartitionRingName
+		ringKey = livestore.PartitionRingKey
 	}
 
-	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ingester.PartitionRingName, ingester.PartitionRingKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
+	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ringName, ringKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
 	t.partitionRing = ring.NewPartitionInstanceRing(t.partitionRingWatcher, readRing, heartbeatTimeout)
 
 	// Expose a web page to view the partitions ring state.
