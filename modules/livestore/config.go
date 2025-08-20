@@ -23,7 +23,7 @@ type Config struct {
 	// WAL is non-configurable and only uses defaults
 	WAL wal.Config `yaml:"-"`
 
-	QueryBlockConcurrency    uint          `yaml:"query_blocks,omitempty"`
+	QueryBlockConcurrency    uint          `yaml:"query_block_concurrency,omitempty"`
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
 
