@@ -17,7 +17,7 @@ func TestConfigValidate(t *testing.T) {
 	}{
 		{
 			name: "valid config",
-			modifyConfig: func(cfg *Config) {
+			modifyConfig: func(_ *Config) {
 				// Default valid config, no modifications needed
 			},
 			expectedErr: "",
