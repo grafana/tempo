@@ -8,7 +8,6 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -40,8 +39,7 @@ type Config struct {
 	MaxBlockBytes         uint64        `yaml:"max_block_bytes"`
 
 	// Block configuration
-	BlockConfig      common.BlockConfig       `yaml:"block_config"`
-	DedicatedColumns backend.DedicatedColumns `yaml:"-"`
+	BlockConfig common.BlockConfig `yaml:"block_config"`
 
 	// testing config
 	holdAllBackgroundProcesses bool `yaml:"-"` // if this is set to true, the live store will never release its background processes
