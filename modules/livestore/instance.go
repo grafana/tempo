@@ -384,7 +384,7 @@ func (i *instance) deleteOldBlocks() error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	cutoff := time.Now().Add(i.Cfg.CompleteBlockTimeout) // Delete blocks older than Complete Block Timeout
+	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout) // Delete blocks older than Complete Block Timeout
 
 	for id, walBlock := range i.walBlocks {
 		if walBlock.BlockMeta().EndTime.Before(cutoff) {
@@ -402,16 +402,14 @@ func (i *instance) deleteOldBlocks() error {
 
 	for id, completeBlock := range i.completeBlocks {
 		if completeBlock.BlockMeta().EndTime.Before(cutoff) {
-			flushedTime := completeBlock.FlushedTime()
-			if !flushedTime.IsZero() { // Only delete if flushed
-				level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
-				err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
-				if err != nil {
-					return err
-				}
-				delete(i.completeBlocks, id)
-				metricBlocksClearedTotal.WithLabelValues("complete").Inc()
+
+			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
+			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
+			if err != nil {
+				return err
 			}
+			delete(i.completeBlocks, id)
+			metricBlocksClearedTotal.WithLabelValues("complete").Inc()
 		}
 	}
 

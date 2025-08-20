@@ -28,6 +28,14 @@ type record struct {
 	offset   int64
 }
 
+func fromKGORecord(rec *kgo.Record) record {
+	return record{
+		tenantID: string(rec.Key),
+		content:  rec.Value,
+		offset:   rec.Offset,
+	}
+}
+
 type consumeFn func(context.Context, []record) error
 
 type PartitionReader struct {
@@ -72,10 +80,7 @@ func (r *PartitionReader) start(context.Context) error {
 }
 
 func (r *PartitionReader) running(ctx context.Context) error {
-	consumeCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	offset, err := r.fetchLastCommittedOffsetWithRetries(consumeCtx)
+	offset, err := r.fetchLastCommittedOffsetWithRetries(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch last committed offset: %w", err)
 	}
@@ -84,7 +89,7 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
 
 	for ctx.Err() == nil {
-		fetches := r.client.PollFetches(consumeCtx)
+		fetches := r.client.PollFetches(ctx)
 		if fetches.Err() != nil {
 			if errors.Is(fetches.Err(), context.Canceled) {
 				return nil
@@ -95,8 +100,8 @@ func (r *PartitionReader) running(ctx context.Context) error {
 		}
 
 		r.recordFetchesMetrics(fetches)
-		if offset := r.consumeFetches(consumeCtx, fetches); offset != nil {
-			r.commitOffset(consumeCtx, *offset)
+		if offset := r.consumeFetches(ctx, fetches); offset != nil {
+			r.commitOffset(ctx, *offset)
 		}
 	}
 
@@ -135,11 +140,7 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 		minOffset = min(minOffset, rec.Offset)
 		maxOffset = max(maxOffset, rec.Offset)
 		totalBytes += int64(len(rec.Value))
-		records = append(records, record{
-			content:  rec.Value,
-			tenantID: string(rec.Key),
-			offset:   rec.Offset,
-		})
+		records = append(records, fromKGORecord(rec))
 
 		lastRecord = rec
 	})

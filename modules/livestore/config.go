@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/modules/ingester"
@@ -14,16 +15,20 @@ import (
 type Config struct {
 	Ring          ring.Config                  `yaml:"ring,omitempty"`
 	PartitionRing ingester.PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
-
-	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
-	ConcurrentBlocks     uint          `yaml:"concurrent_blocks,omitempty"`
-	Metrics              MetricsConfig `yaml:"metrics"`
+	Metrics       MetricsConfig                `yaml:"metrics"`
 
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestConfig ingest.Config `yaml:"-"`
 
 	// WAL is non-configurable and only uses defaults
 	WAL wal.Config `yaml:"-"`
+
+	QueryBlockConcurrency    uint          `yaml:"query_block_concurrency,omitempty"`
+	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
+	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
+
+	// testing config
+	holdAllBackgroundProcesses bool `yaml:"-"` // if this is set to true, the live store will never release its background processes
 }
 
 type MetricsConfig struct {
@@ -42,12 +47,13 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	// Set defaults for new fields
 	cfg.CompleteBlockTimeout = 1 * time.Hour
-	cfg.ConcurrentBlocks = 10
+	cfg.QueryBlockConcurrency = 10
+	cfg.CompleteBlockConcurrency = 4
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
 	// Register flags for new fields
 	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", cfg.CompleteBlockTimeout, "Duration to keep blocks in the live store after they have been flushed.")
-	f.UintVar(&cfg.ConcurrentBlocks, prefix+".concurrent-blocks", cfg.ConcurrentBlocks, "Number of concurrent blocks to query for metrics.")
+	f.UintVar(&cfg.QueryBlockConcurrency, prefix+".concurrent-blocks", cfg.QueryBlockConcurrency, "Number of concurrent blocks to query for metrics.")
 	f.Float64Var(&cfg.Metrics.TimeOverlapCutoff, prefix+".metrics.time-overlap-cutoff", cfg.Metrics.TimeOverlapCutoff, "Time overlap cutoff ratio for metrics queries (0.0-1.0).")
 
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
@@ -56,5 +62,17 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
+	if cfg.CompleteBlockTimeout <= 0 {
+		return fmt.Errorf("complete_block_timeout must be greater than 0, got %s", cfg.CompleteBlockTimeout)
+	}
+
+	if cfg.QueryBlockConcurrency == 0 {
+		return fmt.Errorf("query_blocks must be greater than 0, got %d", cfg.QueryBlockConcurrency)
+	}
+
+	if cfg.CompleteBlockConcurrency <= 0 {
+		return fmt.Errorf("complete_block_concurrency must be greater than 0, got %d", cfg.CompleteBlockConcurrency)
+	}
+
 	return cfg.WAL.Validate()
 }
