@@ -491,7 +491,7 @@ func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest
 	return nil, fmt.Errorf("SearchBlock not implemented in livestore")
 }
 
-// SearchTags implements tempopb.Querier epj consolidate below code
+// SearchTags implements tempopb.Querier
 func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
