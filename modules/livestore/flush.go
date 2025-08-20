@@ -16,6 +16,7 @@ import (
 
 const (
 	maxBackoff       = 120 * time.Second
+	initialBackoff   = 30 * time.Second
 	maxFlushAttempts = 10
 )
 
@@ -122,7 +123,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 
 func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
 	// ticker
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(s.cfg.InstanceFlushPeriod)
 	defer ticker.Stop()
 
 	for {
@@ -137,7 +138,7 @@ func (s *LiveStore) perTenantCutToWalLoop(instance *instance) {
 
 func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 	// ticker
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(s.cfg.InstanceCleanupPeriod)
 	defer ticker.Stop()
 
 	for {
@@ -160,7 +161,7 @@ func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID) error 
 		blockID:  blockID,
 		// Initial priority and backoff
 		at: time.Now(),
-		bo: 30 * time.Second,
+		bo: initialBackoff,
 	})
 }
 

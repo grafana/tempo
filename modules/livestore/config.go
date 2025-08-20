@@ -8,7 +8,9 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -28,6 +30,18 @@ type Config struct {
 	QueryBlockConcurrency    uint          `yaml:"query_block_concurrency,omitempty"`
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
+
+	// Timing configuration
+	InstanceFlushPeriod   time.Duration `yaml:"flush_check_period"`
+	InstanceCleanupPeriod time.Duration `yaml:"flush_op_timeout"`
+	MaxTraceLive          time.Duration `yaml:"max_trace_live"`
+	MaxTraceIdle          time.Duration `yaml:"max_trace_idle"`
+	MaxBlockDuration      time.Duration `yaml:"max_block_duration"`
+	MaxBlockBytes         uint64        `yaml:"max_block_bytes"`
+
+	// Block configuration
+	BlockConfig      common.BlockConfig       `yaml:"block_config"`
+	DedicatedColumns backend.DedicatedColumns `yaml:"-"`
 
 	// testing config
 	holdAllBackgroundProcesses bool `yaml:"-"` // if this is set to true, the live store will never release its background processes
@@ -53,7 +67,18 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.CompleteBlockConcurrency = 4
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
-	// Register flags for new fields
+	// Set defaults for timing configuration (based on ingester defaults)
+	cfg.InstanceFlushPeriod = 10 * time.Second
+	cfg.InstanceCleanupPeriod = 5 * time.Minute
+	cfg.MaxTraceLive = 30 * time.Second
+	cfg.MaxTraceIdle = 5 * time.Second
+	cfg.MaxBlockDuration = 30 * time.Minute
+	cfg.MaxBlockBytes = 500 * 1024 * 1024
+
+	// Initialize block config with defaults
+	cfg.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
+
+	// Register flags for existing fields
 	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", cfg.CompleteBlockTimeout, "Duration to keep blocks in the live store after they have been flushed.")
 	f.UintVar(&cfg.QueryBlockConcurrency, prefix+".concurrent-blocks", cfg.QueryBlockConcurrency, "Number of concurrent blocks to query for metrics.")
 	f.Float64Var(&cfg.Metrics.TimeOverlapCutoff, prefix+".metrics.time-overlap-cutoff", cfg.Metrics.TimeOverlapCutoff, "Time overlap cutoff ratio for metrics queries (0.0-1.0).")
@@ -74,6 +99,38 @@ func (cfg *Config) Validate() error {
 
 	if cfg.CompleteBlockConcurrency <= 0 {
 		return fmt.Errorf("complete_block_concurrency must be greater than 0, got %d", cfg.CompleteBlockConcurrency)
+	}
+
+	if cfg.InstanceFlushPeriod <= 0 {
+		return fmt.Errorf("flush_check_period must be greater than 0, got %s", cfg.InstanceFlushPeriod)
+	}
+
+	if cfg.InstanceCleanupPeriod <= 0 {
+		return fmt.Errorf("flush_op_timeout must be greater than 0, got %s", cfg.InstanceCleanupPeriod)
+	}
+
+	if cfg.MaxTraceLive <= 0 {
+		return fmt.Errorf("max_trace_live must be greater than 0, got %s", cfg.MaxTraceLive)
+	}
+
+	if cfg.MaxTraceIdle <= 0 {
+		return fmt.Errorf("max_trace_idle must be greater than 0, got %s", cfg.MaxTraceIdle)
+	}
+
+	if cfg.MaxBlockDuration <= 0 {
+		return fmt.Errorf("max_block_duration must be greater than 0, got %s", cfg.MaxBlockDuration)
+	}
+
+	if cfg.MaxBlockBytes == 0 {
+		return fmt.Errorf("max_block_bytes must be greater than 0, got %d", cfg.MaxBlockBytes)
+	}
+
+	if cfg.MaxTraceIdle > cfg.MaxTraceLive {
+		return fmt.Errorf("max_trace_idle (%s) cannot be greater than max_trace_live (%s)", cfg.MaxTraceIdle, cfg.MaxTraceLive)
+	}
+
+	if err := common.ValidateConfig(&cfg.BlockConfig); err != nil {
+		return fmt.Errorf("block_config validation failed: %w", err)
 	}
 
 	return cfg.WAL.Validate()

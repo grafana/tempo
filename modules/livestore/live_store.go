@@ -310,7 +310,7 @@ func (s *LiveStore) stopping(error) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-	timeout := time.NewTimer(30 * time.Second) // TODO: Configurable?
+	timeout := time.NewTimer(s.cfg.InstanceCleanupPeriod)
 	defer timeout.Stop()
 
 	for !s.completeQueues.IsEmpty() {
@@ -491,7 +491,7 @@ func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest
 	return nil, fmt.Errorf("SearchBlock not implemented in livestore")
 }
 
-// SearchTags implements tempopb.Querier
+// SearchTags implements tempopb.Querier epj consolidate below code
 func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
