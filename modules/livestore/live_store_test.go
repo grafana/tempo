@@ -50,7 +50,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 
 	// in live traces
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireInstanceState(t, inst, 1, 0, 0)
+	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
 	// cut to head block and test
 	err = inst.cutIdleTraces(true)
@@ -58,7 +58,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireTraceInBlock(t, inst.headBlock, expectedID, expectedTrace)
-	requireInstanceState(t, inst, 0, 0, 0)
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 0})
 
 	// cut a new head block. old head block is in wal blocks
 	walUUID, err := inst.cutBlocks(true)
@@ -66,7 +66,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireTraceInBlock(t, inst.walBlocks[walUUID], expectedID, expectedTrace)
-	requireInstanceState(t, inst, 0, 1, 0)
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 
 	// force complete the wal block
 	err = inst.completeBlock(t.Context(), walUUID)
@@ -74,7 +74,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireTraceInBlock(t, inst.completeBlocks[walUUID], expectedID, expectedTrace)
-	requireInstanceState(t, inst, 0, 0, 1)
+	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	// stop gracefully
 	services.StopAndAwaitTerminated(t.Context(), liveStore)
@@ -97,7 +97,7 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireInstanceState(t, liveStore.instances[testTenantID], 0, 1, 0)
+	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
 func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
@@ -124,7 +124,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireInstanceState(t, liveStore.instances[testTenantID], 0, 1, 0)
+	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
 func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
@@ -155,7 +155,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireInstanceState(t, liveStore.instances[testTenantID], 0, 1, 0)
+	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
 func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
@@ -190,13 +190,19 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireInstanceState(t, liveStore.instances[testTenantID], 0, 0, 1)
+	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
-func requireInstanceState(t *testing.T, inst *instance, liveTraces, walBlocks, completeBlocks int) {
-	require.Equal(t, uint64(liveTraces), inst.liveTraces.Len())
-	require.Len(t, inst.walBlocks, walBlocks)
-	require.Len(t, inst.completeBlocks, completeBlocks)
+type instanceState struct {
+	liveTraces     int
+	walBlocks      int
+	completeBlocks int
+}
+
+func requireInstanceState(t *testing.T, inst *instance, state instanceState) {
+	require.Equal(t, uint64(state.liveTraces), inst.liveTraces.Len())
+	require.Len(t, inst.walBlocks, state.walBlocks)
+	require.Len(t, inst.completeBlocks, state.completeBlocks)
 }
 
 func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte, expectedTrace *tempopb.Trace) {
