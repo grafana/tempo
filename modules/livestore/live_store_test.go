@@ -1,7 +1,9 @@
 package livestore
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/services"
@@ -198,6 +200,56 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
+func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
+	// default live store uses the default complete block timeout
+	ls, _ := defaultLiveStore(t, t.TempDir())
+
+	// Reset metrics
+	metricRecordsProcessed.Reset()
+	metricRecordsDropped.Reset()
+
+	now := time.Now()
+	older := now.Add(-1 * (defaultCompleteBlockTimeout + time.Second))
+	newer := now.Add(-1 * (defaultCompleteBlockTimeout - time.Second))
+
+	// Create test records - some old, some new
+	records := []record{
+		{
+			tenantID:  "tenant1",
+			timestamp: older, // Too old (older than CompleteBlockTimeout)
+			content:   createValidPushRequest(t),
+		},
+		{
+			tenantID:  "tenant1",
+			timestamp: newer, // Valid (newer than CompleteBlockTimeout)
+			content:   createValidPushRequest(t),
+		},
+		{
+			tenantID:  "tenant2",
+			timestamp: older, // Too old
+			content:   createValidPushRequest(t),
+		},
+		{
+			tenantID:  "tenant2",
+			timestamp: newer, // Valid
+			content:   createValidPushRequest(t),
+		},
+	}
+
+	// Call consume
+	err := ls.consume(context.Background(), records, now)
+	require.NoError(t, err)
+
+	// Verify metrics
+	// Should have processed 2 valid records (1 per tenant)
+	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsProcessed.WithLabelValues("tenant1")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsProcessed.WithLabelValues("tenant2")))
+
+	// Should have dropped 2 old records (1 per tenant)
+	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant1", "too_old")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant2", "too_old")))
+}
+
 type instanceState struct {
 	liveTraces     int
 	walBlocks      int
@@ -228,6 +280,23 @@ func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte
 	require.Equal(t, expectedTrace, actualTrace.Trace)
 }
 
+func createValidPushRequest(t *testing.T) []byte {
+	id := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTrace(5, id)
+	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	}
+
+	records, err := ingest.Encode(0, testTenantID, req, 1_000_000)
+	require.NoError(t, err)
+
+	return records[0].Value
+}
+
 func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace) {
 	// create trace
 	id := test.ValidTraceID(nil)
@@ -243,12 +312,18 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 	requestRecords, err := ingest.Encode(0, testTenantID, request, 1_000_000)
 	require.NoError(t, err)
 
+	// set timestamp so they are accepted
+	now := time.Now()
+	for _, kgoRec := range requestRecords {
+		kgoRec.Timestamp = now
+	}
+
 	records := make([]record, 0, len(requestRecords))
 	for _, kgoRec := range requestRecords {
 		records = append(records, fromKGORecord(kgoRec))
 	}
 
-	err = liveStore.consume(t.Context(), records)
+	err = liveStore.consume(t.Context(), records, now)
 	require.NoError(t, err)
 
 	return id, expectedTrace

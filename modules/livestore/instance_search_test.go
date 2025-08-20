@@ -594,7 +594,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 }
 
 func TestInstanceFindByTraceID(t *testing.T) {
-	i, _ := defaultInstanceAndTmpDir(t)
+	i, ls := defaultInstanceAndTmpDir(t)
 
 	tagKey := foo
 	tagValue := bar
@@ -639,6 +639,9 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	resp2, err := i.FindByTraceID(context.Background(), moreIDs[0])
 	require.NoError(t, err)
 	require.NotNil(t, resp2.Trace, "Should find trace from head block")
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 func TestIncludeBlock(t *testing.T) {

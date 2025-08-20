@@ -23,20 +23,22 @@ import (
 )
 
 type record struct {
-	tenantID string
-	content  []byte
-	offset   int64
+	tenantID  string
+	content   []byte
+	offset    int64
+	timestamp time.Time
 }
 
 func fromKGORecord(rec *kgo.Record) record {
 	return record{
-		tenantID: string(rec.Key),
-		content:  rec.Value,
-		offset:   rec.Offset,
+		tenantID:  string(rec.Key),
+		content:   rec.Value,
+		offset:    rec.Offset,
+		timestamp: rec.Timestamp,
 	}
 }
 
-type consumeFn func(context.Context, []record) error
+type consumeFn func(context.Context, []record, time.Time) error
 
 type PartitionReader struct {
 	services.Service
@@ -132,21 +134,19 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 	var lastRecord *kgo.Record
 
 	var (
-		minOffset  = int64(math.MaxInt64)
-		maxOffset  = int64(0)
-		totalBytes = int64(0)
+		minOffset = int64(math.MaxInt64)
+		maxOffset = int64(0)
 	)
 	fetches.EachRecord(func(rec *kgo.Record) {
 		minOffset = min(minOffset, rec.Offset)
 		maxOffset = max(maxOffset, rec.Offset)
-		totalBytes += int64(len(rec.Value))
 		records = append(records, fromKGORecord(rec))
 
 		lastRecord = rec
 	})
 
 	// Pass offset and byte information to the live-store
-	err := r.consume(ctx, records)
+	err := r.consume(ctx, records, time.Now())
 	if err != nil {
 		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "min_offset", minOffset, "max_offset", maxOffset, "err", err)
 		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error

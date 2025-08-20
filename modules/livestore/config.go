@@ -12,6 +12,8 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
+const defaultCompleteBlockTimeout = time.Hour
+
 type Config struct {
 	Ring          ring.Config                  `yaml:"ring,omitempty"`
 	PartitionRing ingester.PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
@@ -46,7 +48,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.PartitionRing.RegisterFlags(prefix, f)
 
 	// Set defaults for new fields
-	cfg.CompleteBlockTimeout = 1 * time.Hour
+	cfg.CompleteBlockTimeout = defaultCompleteBlockTimeout
 	cfg.QueryBlockConcurrency = 10
 	cfg.CompleteBlockConcurrency = 4
 	cfg.Metrics.TimeOverlapCutoff = 0.2
