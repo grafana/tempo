@@ -490,7 +490,9 @@ func testFrontend() (*MCPServer, func(t *testing.T, req mcp.CallToolRequest, han
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
-		require.Equal(t, expected.meta, result.Meta)
+		if expected.meta != nil {
+			require.Equal(t, expected.meta, result.Meta.AdditionalFields)
+		}
 
 		if expected.err != "" {
 			// Check if the result contains an error

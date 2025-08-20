@@ -71,7 +71,14 @@ func (m *mockWriter) CompleteBlockWithBackend(context.Context, common.WALBlock, 
 	return nil, nil
 }
 
+func (m *mockWriter) AllowCompaction(context.Context, tempodb.Writer) error {
+	return nil
+}
 func (m *mockWriter) WAL() *wal.WAL { return nil }
+
+func (m *mockWriter) DeleteNoCompactFlag(_ context.Context, _ string, _ backend.UUID) error {
+	return nil
+}
 
 func TestProcessorDoesNotRace(t *testing.T) {
 	wal, err := wal.New(&wal.Config{
@@ -191,7 +198,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		err := p.QueryRange(ctx, qr, me, je)
+		err := p.QueryRange(ctx, *qr, me, je)
 		require.NoError(t, err)
 	})
 

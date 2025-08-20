@@ -359,6 +359,7 @@ query_frontend:
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
+        max_intervals: 10000
     multi_tenant_queries_enabled: true
     response_consumers: 10
     weights:
@@ -1102,4 +1103,5 @@ backend_worker:
         instance_addr: ""
         enable_inet6: false
         wait_active_instance_timeout: 10m0s
+    finish_on_shutdown_timeout: 30s
 ```

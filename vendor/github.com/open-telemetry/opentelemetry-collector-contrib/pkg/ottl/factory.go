@@ -43,7 +43,7 @@ type factory[K any] struct {
 }
 
 //nolint:unused
-func (f *factory[K]) unexportedFactoryFunc() {}
+func (*factory[K]) unexportedFactoryFunc() {}
 
 func (f *factory[K]) Name() string {
 	return f.name

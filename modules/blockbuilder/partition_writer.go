@@ -108,6 +108,31 @@ func (p *writer) flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, 
 	return g.Wait()
 }
 
+func (p *writer) allowCompaction(ctx context.Context, w tempodb.Writer) {
+	ctx, span := tracer.Start(
+		ctx, "writer.allowCompaction",
+		trace.WithAttributes(
+			attribute.Int("partition", int(p.partition)),
+			attribute.String("section_start_time", p.startTime.String()),
+		),
+	)
+	defer span.End()
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(p.m))
+	for _, i := range p.m {
+		go func() {
+			defer wg.Done()
+			level.Info(p.logger).Log("msg", "allowing compaction", "tenant", i.tenantID)
+			err := i.AllowCompaction(ctx, w)
+			if err != nil {
+				level.Error(p.logger).Log("msg", "failed to allow compaction, the block will remain uncompacted", "tenant", i.tenantID, "err", err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()

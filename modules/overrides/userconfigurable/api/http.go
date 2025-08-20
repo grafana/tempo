@@ -133,6 +133,9 @@ func (a *UserConfigOverridesAPI) PatchHandler(w http.ResponseWriter, r *http.Req
 		}
 	}
 
+	// update method does the version check internally so we don't need `If-Match` header for the PATCH calls.
+	// not requiring `If-Match` is by design to make sure PATCH is easy to use and users can use it to
+	// Patch the parts of the overrides without calling GET first to obtain ETag for `If-Match`
 	patchedLimits, version, err := a.update(ctx, userID, patch, skipConflictingOverridesCheck)
 	if err != nil {
 		writeError(w, err)

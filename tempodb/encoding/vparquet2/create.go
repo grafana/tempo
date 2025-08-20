@@ -102,6 +102,8 @@ type streamingBlock struct {
 	to    backend.Writer
 	index *index
 
+	withNoCompactFlag bool
+
 	currentBufferedTraces int
 	currentBufferedBytes  int
 }
@@ -129,6 +131,8 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		r:     r,
 		to:    to,
 		index: &index{},
+
+		withNoCompactFlag: cfg.CreateWithNoCompactFlag,
 	}
 }
 
@@ -234,6 +238,14 @@ func (b *streamingBlock) Complete() (int, error) {
 	b.meta.FooterSize = binary.LittleEndian.Uint32(buf[0:4])
 
 	b.meta.BloomShardCount = uint32(b.bloom.GetShardCount())
+
+	if b.withNoCompactFlag {
+		// write nocompact flag first to prevent compaction before completion
+		err := b.to.WriteNoCompactFlag(b.ctx, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID)
+		if err != nil {
+			return 0, fmt.Errorf("unexpected error writing nocompact flag: %w", err)
+		}
+	}
 
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom, b.index)
 }

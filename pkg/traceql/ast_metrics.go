@@ -15,7 +15,7 @@ type firstStageElement interface {
 	observe(Span) // TODO - batching?
 	observeExemplar(Span)
 	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
-	result() SeriesSet
+	result(multiplier float64) SeriesSet
 	length() int
 }
 
@@ -266,9 +266,24 @@ func (a *MetricsAggregate) observeSeries(ss []*tempopb.TimeSeries) {
 	a.seriesAgg.Combine(ss)
 }
 
-func (a *MetricsAggregate) result() SeriesSet {
+func (a *MetricsAggregate) result(multiplier float64) SeriesSet {
 	if a.agg != nil {
-		return a.agg.Series()
+		ss := a.agg.Series()
+
+		// These operations don't get scaled by the multiplier.
+		switch a.op {
+		case metricsAggregateMinOverTime, metricsAggregateMaxOverTime:
+			return ss
+		}
+
+		if multiplier > 1.0 {
+			for _, s := range ss {
+				for i := range s.Values {
+					s.Values[i] *= multiplier
+				}
+			}
+		}
+		return ss
 	}
 
 	// In the frontend-version the results come from

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,13 +44,13 @@ func TestStepRangeToIntervals(t *testing.T) {
 			start:    0,
 			end:      3,
 			step:     1,
-			expected: 4, // 0, 1, 2, 3
+			expected: 3, // 1, 2, 3
 		},
 		{
 			start:    0,
 			end:      10,
 			step:     3,
-			expected: 5, // 0, 3, 6, 9, 12
+			expected: 4, // 3, 6, 9, 12
 		},
 	}
 
@@ -71,12 +72,56 @@ func TestTimestampOf(t *testing.T) {
 			start:    10, // aligned to 9
 			step:     3,
 			end:      100,
-			expected: 15, // 9, 12, 15 <-- intervals
+			expected: 18, // 12, 15, 18 <-- intervals
+		},
+		// start <= step
+		{
+			interval: 0,
+			start:    1,
+			end:      10,
+			step:     1,
+			expected: 2,
+		},
+		{
+			interval: 1,
+			start:    1,
+			end:      5,
+			step:     1,
+			expected: 3,
+		},
+		{
+			interval: 4,
+			start:    1,
+			end:      5,
+			step:     1,
+			expected: 6,
+		},
+		// start > step
+		{
+			interval: 0,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 20,
+		},
+		{
+			interval: 2,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 40, // 3rd interval: (10;20] (20;30] (30;40]
+		},
+		{
+			interval: 3,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 50,
 		},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, TimestampOf(c.interval, c.start, c.end, c.step))
+		assert.Equal(t, c.expected, TimestampOf(c.interval, c.start, c.end, c.step), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
 	}
 }
 
@@ -85,22 +130,82 @@ func TestIntervalOf(t *testing.T) {
 		ts, start, end, step uint64
 		expected             int
 	}{
+		// start <= step
 		{expected: -1},
 		{
-			ts:   0,
-			end:  1,
-			step: 1,
+			ts:       0,
+			end:      1,
+			step:     1,
+			expected: 0, // corner case. TODO: should we return -1?
 		},
 		{
 			ts:       10,
+			start:    1,
 			end:      10,
 			step:     1,
-			expected: 10,
+			expected: 8, // 9th interval: (9;10]
+		},
+		{
+			ts:       1,
+			start:    1,
+			end:      5,
+			step:     1,
+			expected: -1, // should be excluded
+		},
+		{
+			ts:       2,
+			start:    1,
+			end:      5,
+			step:     1,
+			expected: 0, // 2nd interval: (1;2]
+		},
+		// start > step
+		{
+			ts:       15,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 0, // first interval: (10;20]
+		},
+		{
+			ts:       5,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: -1, // should be excluded
+		},
+		{
+			ts:       10,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: -1, // should be excluded
+		},
+		{
+			ts:       20,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 0, // first interval: (10;20]
+		},
+		{
+			ts:       25,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 1, // second interval: (20;30]
+		},
+		{
+			ts:       50,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 3, // 4th interval: (40;50]
 		},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, IntervalOf(c.ts, c.start, c.end, c.step))
+		assert.Equal(t, c.expected, IntervalOf(c.ts, c.start, c.end, c.step), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
 	}
 }
 
@@ -113,32 +218,52 @@ func TestTrimToBlockOverlap(t *testing.T) {
 		expectedStep               time.Duration
 	}{
 		{
-			// Fully overlapping
-			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
-			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
-			"2024-01-01 01:33:00", "2024-01-01 01:38:01", 5 * time.Minute, // added 1 second to include the last second of the block
+			// Block fully within range
+			// Left border is extended to the next step.
+			// Right border is extended to the next step.
+			"2024-01-01T01:00:00Z", "2024-01-01T02:00:00Z", 5 * time.Minute,
+			"2024-01-01T01:33:00Z", "2024-01-01T01:38:00Z",
+			"2024-01-01T01:30:00Z", "2024-01-01T01:40:00Z", 5 * time.Minute,
 		},
 		{
-			// Partially Overlapping
-			"2024-01-01 01:01:00", "2024-01-01 02:01:00", 5 * time.Minute,
-			"2024-01-01 01:31:00", "2024-01-01 02:31:00",
-			"2024-01-01 01:31:00", "2024-01-01 02:01:00", 5 * time.Minute,
+			// Block overlapping right border.
+			// Left border is extended to the next step.
+			// Right border preserved.
+			"2024-01-01T01:01:00Z", "2024-01-01T02:01:00.123Z", 5 * time.Minute,
+			"2024-01-01T01:31:00Z", "2024-01-01T02:31:00Z",
+			"2024-01-01T01:30:00Z", "2024-01-01T02:01:00.123Z", 5 * time.Minute,
 		},
 		{
-			// Instant query
+			// Block overlapping left border.
+			// Left border preserved.
+			// Right border extended to the next step.
+			"2024-01-01T01:01:00.123Z", "2024-01-01T02:00:00Z", 5 * time.Minute,
+			"2024-01-01T00:31:00Z", "2024-01-01T01:31:00Z",
+			"2024-01-01T01:01:00.123Z", "2024-01-01T01:35:00Z", 5 * time.Minute,
+		},
+		{
+			// Block larger than range
+			// Neither border is extended. Nanoseconds preserved.
+			"2024-01-01T01:00:01.123Z", "2024-01-01T01:15:01.123Z", 5 * time.Minute,
+			"2024-01-01T00:00:00Z", "2024-01-01T02:00:00Z",
+			"2024-01-01T01:00:01.123Z", "2024-01-01T01:15:01.123Z", 5 * time.Minute,
+		},
+		{
+			// Instant query, block overlaps right border.
 			// Original range is 1h
-			// Inner overlap is only 30m and step is updated to match
-			"2024-01-01 01:00:00", "2024-01-01 02:00:00", time.Hour,
-			"2024-01-01 01:30:00", "2024-01-01 02:30:00",
-			"2024-01-01 01:30:00", "2024-01-01 02:00:00", 30 * time.Minute,
+			// Right border isn't extended past request range.
+			// Left border is able to be extended.
+			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
+			"2024-01-01T01:30:00.123Z", "2024-01-01T02:30:00.123Z",
+			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
 		},
 	}
 
 	for _, c := range tc {
-		start1, _ := time.Parse(time.DateTime, c.start1)
-		end1, _ := time.Parse(time.DateTime, c.end1)
-		start2, _ := time.Parse(time.DateTime, c.start2)
-		end2, _ := time.Parse(time.DateTime, c.end2)
+		start1, _ := time.Parse(time.RFC3339Nano, c.start1)
+		end1, _ := time.Parse(time.RFC3339Nano, c.end1)
+		start2, _ := time.Parse(time.RFC3339Nano, c.start2)
+		end2, _ := time.Parse(time.RFC3339Nano, c.end2)
 
 		actualStart, actualEnd, actualStep := TrimToBlockOverlap(
 			uint64(start1.UnixNano()),
@@ -148,9 +273,9 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			end2,
 		)
 
-		require.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
-		require.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
-		require.Equal(t, c.expectedStep, time.Duration(actualStep))
+		assert.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.RFC3339Nano))
+		assert.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.RFC3339Nano))
+		assert.Equal(t, c.expectedStep, time.Duration(actualStep))
 	}
 }
 
@@ -457,11 +582,12 @@ func TestOptimizeFetchSpansRequest(t *testing.T) {
 
 func TestQuantileOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | quantile_over_time(duration, 0, 0.5, 1) by (span.foo)",
 	}
+	// intervals: (0;1], (1;2], (2;3]
 
 	var (
 		_128ns = 0.000000128
@@ -471,15 +597,18 @@ func TestQuantileOverTime(t *testing.T) {
 
 	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
 	in := []Span{
+		// 1st interval: (0;1]
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(128),
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(512),
 
+		// 2nd interval: (1;2]
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 
+		// 3rd interval: (2;3]
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
@@ -562,7 +691,7 @@ func percentileHelper(q float64, values ...float64) float64 {
 
 func TestCountOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | count_over_time() by (span.foo)",
@@ -771,7 +900,7 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 
 func TestMinOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(duration) by (span.foo)",
@@ -814,7 +943,7 @@ func TestMinOverTimeForDuration(t *testing.T) {
 
 func TestMinOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(span.buu)",
@@ -848,7 +977,7 @@ func TestMinOverTimeWithNoMatch(t *testing.T) {
 
 func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(span.http.status_code) by (span.foo)",
@@ -920,7 +1049,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 
 func TestAvgOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo)",
@@ -961,7 +1090,7 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 
 func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(1)",
@@ -1002,7 +1131,7 @@ func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
 
 func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration)",
@@ -1037,7 +1166,7 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 
 func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
@@ -1108,7 +1237,7 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 
 func TestAvgOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.buu)",
@@ -1142,7 +1271,7 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 
 func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
@@ -1215,9 +1344,80 @@ func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 	assert.Equal(t, 100.0, fooBar.Values[2])
 }
 
-func TestMaxOverTimeForDuration(t *testing.T) {
+func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500),
+	}
+
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+	}
+
+	e := NewEngine()
+	layer1A, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer1B, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer2A, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+
+	for _, s := range in {
+		layer1A.metricsPipeline.observe(s)
+	}
+
+	layer2A.ObserveSeries(layer1A.Results().ToProto(req))
+
+	for _, s := range in2 {
+		layer1B.metricsPipeline.observe(s)
+	}
+
+	layer2B.ObserveSeries(layer1B.Results().ToProto(req))
+
+	layer3.ObserveSeries(layer2A.Results().ToProto(req))
+	layer2bResults := layer2B.Results().ToProto(req)
+	truncated2bResults := make([]*tempopb.TimeSeries, 0, len(layer2bResults)-1)
+	for _, ts := range layer2bResults {
+		if !strings.Contains(ts.PromLabels, internalLabelMetaType) {
+			// add all values series
+			truncated2bResults = append(truncated2bResults, ts)
+		} else if len(ts.Samples) != 3 {
+			// the panic appears when the count series with 3 samples is missing
+			truncated2bResults = append(truncated2bResults, ts)
+		}
+	}
+	assert.NotPanics(t, func() {
+		layer3.ObserveSeries(truncated2bResults)
+	}, "should not panic on truncation")
+}
+
+func TestMaxOverTimeForDuration(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(duration) by (span.foo)",
@@ -1260,7 +1460,7 @@ func TestMaxOverTimeForDuration(t *testing.T) {
 
 func TestMaxOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(span.buu)",
@@ -1294,7 +1494,7 @@ func TestMaxOverTimeWithNoMatch(t *testing.T) {
 
 func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(span.http.status_code) by (span.foo)",
@@ -1366,7 +1566,7 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 
 func TestSumOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(duration) by (span.foo)",
@@ -1410,7 +1610,7 @@ func TestSumOverTimeForDuration(t *testing.T) {
 
 func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(span.kafka.lag) by (span.foo)",
@@ -1482,7 +1682,7 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 
 func TestSumOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(span.buu)",
@@ -1515,7 +1715,7 @@ func TestSumOverTimeWithNoMatch(t *testing.T) {
 
 func TestHistogramOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | histogram_over_time(duration) by (span.foo)",
@@ -1588,7 +1788,7 @@ func TestHistogramOverTime(t *testing.T) {
 
 func TestSecondStageTopK(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | rate() by (span.foo) | topk(2)",
@@ -1639,7 +1839,7 @@ func TestSecondStageTopKInstant(t *testing.T) {
 
 func TestSecondStageTopKAverage(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(2)",
@@ -1664,7 +1864,7 @@ func TestSecondStageTopKAverage(t *testing.T) {
 
 func TestSecondStageBottomK(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | rate() by (span.foo) | bottomk(2)",
@@ -2256,4 +2456,27 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 	}
 
 	return result
+}
+
+// requireEqualSeriesSets is like require.Equal for SeriesSets and supports NaN.
+func requireEqualSeriesSets(t *testing.T, expected, actual SeriesSet) {
+	require.Equal(t, len(expected), len(actual))
+
+	for k, eTS := range expected {
+		aTS, ok := actual[k]
+		require.True(t, ok, "expected series %s to be in result", k)
+		require.Equal(t, eTS.Labels, aTS.Labels, "expected labels %v, got %v", eTS.Labels, aTS.Labels)
+
+		eSamples := eTS.Values
+		aSamples := aTS.Values
+
+		require.Equal(t, len(eSamples), len(aSamples), "expected %d samples for %s, got %d", len(eSamples), k, len(aSamples))
+		for i := range eSamples {
+			if math.IsNaN(eSamples[i]) {
+				require.True(t, math.IsNaN(aSamples[i]))
+			} else {
+				require.InDelta(t, eSamples[i], aSamples[i], 0.001, "expected %v, got %v, for %s[%d]", eSamples[i], aSamples[i], k, i)
+			}
+		}
+	}
 }

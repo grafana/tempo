@@ -10,7 +10,8 @@ aliases:
 # User-configurable overrides
 
 User-configurable overrides in Tempo let you change overrides for your tenant using an API.
-Instead of modifying a file or Kubernetes `configmap`, you (and other services relying on Tempo) can use this API to modify the overrides directly.
+Instead of modifying a file or Kubernetes `configmap`, you (and other services relying on Tempo) can use this API to
+modify the overrides directly.
 
 ## Architecture
 
@@ -20,7 +21,8 @@ User-configurable overrides are stored in an object store bucket managed by Temp
 
 {{< admonition type="note" >}}
 We recommend using a different bucket for overrides and traces storage, but they can share a bucket if needed.
-When sharing a bucket, make sure any lifecycle rules are scoped correctly to not remove data of user-configurable overrides module.
+When sharing a bucket, make sure any lifecycle rules are scoped correctly to not remove data of user-configurable
+overrides module.
 {{< /admonition >}}
 
 Overrides of every tenant are stored at `/{tenant name}/overrides.json`:
@@ -33,7 +35,8 @@ overrides/
     └── overrides.json
 ```
 
-Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When requesting the overrides for a tenant, the overrides module:
+Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When requesting the overrides for a tenant,
+the overrides module:
 
 1. Checks this override is set in the user-configurable overrides, if so return that value.
 2. Checks if this override is set in the runtime configuration (`configmap`), if so return that value.
@@ -41,11 +44,15 @@ Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When
 
 ### Supported fields
 
-User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) for information about all overrides.
-When you set a field in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides takes priority.
+User-configurable overrides are designed to be a subset of the runtime overrides. Refer
+to [Overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) for information about all
+overrides.
+When you set a field in both the user-configurable overrides and the runtime overrides, the value from the
+user-configurable overrides takes priority.
 
 {{< admonition type="note" >}}
-Note that `processors` is an exception. Tempo merges values from both user-configurable overrides and runtime overrides into a single list.
+Note that `processors` is an exception. Tempo merges values from both user-configurable overrides and runtime overrides
+into a single list.
 {{< /admonition >}}
 
 ```yaml
@@ -89,9 +96,11 @@ metrics_generator:
 
 ## API
 
-All API requests are handled on the `/api/overrides` endpoint. The module supports `GET`, `POST`, `PATCH`, and `DELETE` requests.
+All API requests are handled on the `/api/overrides` endpoint. The module supports `GET`, `POST`, `PATCH`, and `DELETE`
+requests.
 
-This endpoint is tenant-specific. If Tempo is run in multitenant mode, all requests should have an appropriate `X-Scope-OrgID` header.
+This endpoint is tenant-specific. If Tempo is run in multitenant mode, all requests should have an appropriate
+`X-Scope-OrgID` header.
 
 If the tenant is run in distributed mode, only the query-frontend will accept API requests.
 
@@ -103,7 +112,8 @@ Returns the current overrides and it's version.
 
 Query-parameters:
 
-- `scope`: whether to return overrides from the API only `api` or merge it with the runtime overrides `merged`. Defaults to `api`.
+- `scope`: whether to return overrides from the API only `api` or merge it with the runtime overrides `merged`. Defaults
+  to `api`.
 
 Example:
 
@@ -129,7 +139,7 @@ It follows the JSON merge patch protocol ([RFC 7386](https://datatracker.ietf.or
 Example:
 
 ```shell
-curl -X PUT -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"
+curl -X PATCH -v -H "X-Scope-OrgID: 3" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"
 ```
 
 #### DELETE /api/overrides

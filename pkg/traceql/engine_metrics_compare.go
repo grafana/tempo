@@ -34,13 +34,20 @@ type MetricsCompare struct {
 	len                 int
 	start, end          int
 	topN                int
-	baselines           map[Attribute]map[StaticMapKey]staticWithCounts
-	selections          map[Attribute]map[StaticMapKey]staticWithCounts
+	baselines           map[Attribute]map[StaticMapKey]*staticWithCounts
+	selections          map[Attribute]map[StaticMapKey]*staticWithCounts
 	baselineTotals      map[Attribute][]float64
 	selectionTotals     map[Attribute][]float64
 	baselineExemplars   []Exemplar
 	selectionExemplars  []Exemplar
 	seriesAgg           SeriesAggregator
+
+	// Runtime fields to avoid allocating closures
+	// and escaping to the heap when we call span.AllAttributesFunc.
+	dest         map[Attribute]map[StaticMapKey]*staticWithCounts
+	destTotals   map[Attribute][]float64
+	interval     int
+	attrCallback func(Attribute, Static)
 }
 
 type staticWithCounts struct {
@@ -49,12 +56,14 @@ type staticWithCounts struct {
 }
 
 func newMetricsCompare(f *SpansetFilter, topN, start, end int) *MetricsCompare {
-	return &MetricsCompare{
+	m := &MetricsCompare{
 		f:     f,
 		topN:  topN,
 		start: start,
 		end:   end,
 	}
+	m.attrCallback = m.processAttribute
+	return m
 }
 
 func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
@@ -73,8 +82,8 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		m.qend = q.End
 		m.qstep = q.Step
 		m.len = IntervalCount(q.Start, q.End, q.Step)
-		m.baselines = make(map[Attribute]map[StaticMapKey]staticWithCounts)
-		m.selections = make(map[Attribute]map[StaticMapKey]staticWithCounts)
+		m.baselines = make(map[Attribute]map[StaticMapKey]*staticWithCounts)
+		m.selections = make(map[Attribute]map[StaticMapKey]*staticWithCounts)
 		m.baselineTotals = make(map[Attribute][]float64)
 		m.selectionTotals = make(map[Attribute][]float64)
 
@@ -88,14 +97,12 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 	}
 }
 
-func (m *MetricsCompare) isSelection(span Span) Static {
-	st := span.StartTimeUnixNanos()
-
+func (m *MetricsCompare) isSelection(span Span, spanStartTime uint64) Static {
 	// Determine if this span is inside the selection
 	isSelection := StaticFalse
 	if m.start > 0 && m.end > 0 {
 		// Timestamp filtering
-		if st >= uint64(m.start) && st < uint64(m.end) {
+		if spanStartTime > uint64(m.start) && spanStartTime <= uint64(m.end) {
 			isSelection, _ = m.f.Expression.execute(span)
 		}
 	} else {
@@ -114,67 +121,72 @@ func (m *MetricsCompare) observe(span Span) {
 	//   then again instead of StepAggregator.
 	// TODO - It would be nice to use those abstractions, area for future improvement
 	st := span.StartTimeUnixNanos()
+	m.interval = IntervalOf(st, m.qstart, m.qend, m.qstep)
 
 	// Determine if this span is inside the selection
-	isSelection := m.isSelection(span)
-
-	// Choose destination buffers
-	dest := m.baselines
-	destTotals := m.baselineTotals
-	if isSelection.Equals(&StaticTrue) {
-		dest = m.selections
-		destTotals = m.selectionTotals
+	// and choose destination buffers
+	if m.isSelection(span, st).Equals(&StaticTrue) {
+		m.dest = m.selections
+		m.destTotals = m.selectionTotals
+	} else {
+		m.dest = m.baselines
+		m.destTotals = m.baselineTotals
 	}
 
-	i := IntervalOf(st, m.qstart, m.qend, m.qstep)
 	// Increment values for all attributes of this span
-	span.AllAttributesFunc(func(a Attribute, v Static) {
-		// We don't group by attributes of these types because the
-		// cardinality isn't useful.
-		switch v.Type {
-		case TypeDuration:
-			return
-		}
+	span.AllAttributesFunc(m.attrCallback)
+}
 
-		// These attributes get pulled back by select all, or might be used in a comparison query,
-		// but we never group by them because the cardinality isn't useful.
-		switch a {
-		case IntrinsicSpanStartTimeAttribute,
-			IntrinsicTraceIDAttribute,
-			IntrinsicParentIDAttribute,
-			IntrinsicNestedSetLeftAttribute,
-			IntrinsicNestedSetRightAttribute,
-			IntrinsicNestedSetParentAttribute:
-			return
-		}
+// processAttribute is the callback for span.AllAttributesFunc.
+// But it's structured in a certain way to avoid allocating closures and escaping
+// to the heap.  It depends on setup of destination buffer and interval calculation
+// prior in the observe() method.
+func (m *MetricsCompare) processAttribute(a Attribute, v Static) {
+	// We don't group by attributes of these types because the
+	// cardinality isn't useful.
+	if v.Type == TypeDuration {
+		return
+	}
 
-		values, ok := dest[a]
-		if !ok {
-			values = make(map[StaticMapKey]staticWithCounts, m.len)
-			dest[a] = values
-		}
+	// These attributes get pulled back by select all, or might be used in a comparison query,
+	// but we never group by them because the cardinality isn't useful.
+	switch a {
+	case IntrinsicSpanStartTimeAttribute,
+		IntrinsicTraceIDAttribute,
+		IntrinsicParentIDAttribute,
+		IntrinsicNestedSetLeftAttribute,
+		IntrinsicNestedSetRightAttribute,
+		IntrinsicNestedSetParentAttribute:
+		return
+	}
 
-		vk := v.MapKey()
-		sc, ok := values[vk]
-		if !ok {
-			sc = staticWithCounts{val: v, counts: make([]float64, m.len)}
-			values[vk] = sc
-		}
-		sc.counts[i]++
+	values, ok := m.dest[a]
+	if !ok {
+		values = make(map[StaticMapKey]*staticWithCounts)
+		m.dest[a] = values
+	}
 
-		// TODO - It's probably faster to aggregate these at the end
-		// instead of incrementing in the hotpath twice
-		totals, ok := destTotals[a]
-		if !ok {
-			totals = make([]float64, m.len)
-			destTotals[a] = totals
-		}
-		totals[i]++
-	})
+	vk := v.MapKey()
+	sc, ok := values[vk]
+	if !ok {
+		sc = &staticWithCounts{val: v, counts: make([]float64, m.len)}
+		values[vk] = sc
+	}
+	sc.counts[m.interval]++
+
+	// TODO - It's probably faster to aggregate these at the end
+	// instead of incrementing in the hotpath twice
+	totals, ok := m.destTotals[a]
+	if !ok {
+		totals = make([]float64, m.len)
+		m.destTotals[a] = totals
+	}
+	totals[m.interval]++
 }
 
 func (m *MetricsCompare) observeExemplar(span Span) {
-	isSelection := m.isSelection(span)
+	st := span.StartTimeUnixNanos()
+	isSelection := m.isSelection(span, st)
 
 	// Exemplars
 	if len(m.baselineExemplars) >= maxExemplars || len(m.selectionExemplars) >= maxExemplars {
@@ -189,7 +201,7 @@ func (m *MetricsCompare) observeExemplar(span Span) {
 	exemplar := Exemplar{
 		Labels:      lbls,
 		Value:       math.NaN(), // TODO: What value?
-		TimestampMs: span.StartTimeUnixNanos() / uint64(time.Millisecond),
+		TimestampMs: st / uint64(time.Millisecond),
 	}
 	if isSelection.Equals(&StaticTrue) {
 		m.selectionExemplars = append(m.selectionExemplars, exemplar)
@@ -202,9 +214,9 @@ func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
 	m.seriesAgg.Combine(ss)
 }
 
-func (m *MetricsCompare) result() SeriesSet {
-	// In the other modes return these results
+func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 	if m.seriesAgg != nil {
+		// In job-level mode the series come from the series aggregator.
 		return m.seriesAgg.Results()
 	}
 
@@ -221,7 +233,7 @@ func (m *MetricsCompare) result() SeriesSet {
 		}
 	}
 
-	addValues := func(prefix Label, data map[Attribute]map[StaticMapKey]staticWithCounts) {
+	addValues := func(prefix Label, data map[Attribute]map[StaticMapKey]*staticWithCounts) {
 		for a, values := range data {
 			// Compute topN values for this attribute
 			top.reset()
@@ -284,6 +296,15 @@ func (m *MetricsCompare) result() SeriesSet {
 	}
 	for _, e := range m.selectionExemplars {
 		addExemplar(internalLabelTypeSelectionTotal, e)
+	}
+
+	// Multiply to account for sampling as needed.
+	if multiplier > 1.0 {
+		for _, s := range ss {
+			for i := range s.Values {
+				s.Values[i] *= multiplier
+			}
+		}
 	}
 
 	return ss

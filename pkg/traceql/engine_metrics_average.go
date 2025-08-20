@@ -67,9 +67,31 @@ func (a *averageOverTimeAggregator) observeSeries(ss []*tempopb.TimeSeries) {
 	a.seriesAgg.Combine(ss)
 }
 
-func (a *averageOverTimeAggregator) result() SeriesSet {
+func (a *averageOverTimeAggregator) result(multiplier float64) SeriesSet {
 	if a.agg != nil {
-		return a.agg.Series()
+		ss := a.agg.Series()
+		if multiplier > 1.0 {
+			countLabel := NewStaticString(internalMetaTypeCount)
+			for _, s := range ss {
+				// Skip non-count series.
+				found := false
+				for _, l := range s.Labels {
+					if l.Name == internalLabelMetaType && l.Value.Equals(&countLabel) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					continue
+				}
+
+				// Found a count series, scale the values by the multiplier.
+				for i := range s.Values {
+					s.Values[i] *= multiplier
+				}
+			}
+		}
+		return ss
 	}
 
 	// In the frontend-version the results come from
@@ -277,6 +299,11 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			// This is a counter series, we can skip it
 			continue
 		}
+		countIndex, ok := countPosMapper[ts.PromLabels]
+		if !ok {
+			// The count series might have been truncated, skip this value
+			continue
+		}
 		for i, sample := range ts.Samples {
 			pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
 			if pos < 0 || pos >= len(b.weightedAverageSeries[ts.PromLabels].values) {
@@ -284,7 +311,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			}
 
 			incomingMean := sample.Value
-			incomingWeight := in[countPosMapper[ts.PromLabels]].Samples[i].Value
+			incomingWeight := in[countIndex].Samples[i].Value
 			existing.addWeigthedMean(pos, incomingMean, incomingWeight)
 			b.aggregateExemplars(ts, b.weightedAverageSeries[ts.PromLabels])
 		}
@@ -506,6 +533,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 		s.average.labels = labels
 		// Average series
 		averageSeries := s.average.getAvgSeries()
+
 		// Count series
 		countSeries := s.average.getCountSeries()
 

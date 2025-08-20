@@ -2,7 +2,7 @@
 title: Construct a TraceQL query
 menuTitle: Construct a query
 description: Learn about how TraceQL works
-weight: 150
+weight: 300
 keywords:
   - query structure
   - TraceQL
@@ -17,6 +17,15 @@ The query is structured as a set of chained expressions called a pipeline.
 In TraceQL, curly brackets `{}` always select a set of spans from available traces.
 Curly brackets are commonly paired with a condition to reduce the spans fetched.
 
+The simplest query looks like this:
+
+```
+{ }
+```
+
+The conditions inside the braces are applied to each span; if there’s a match, then it’s returned.
+In this case, there are no conditions so it matches everything.
+
 Each expression in the pipeline selects or discards spansets from being included in the results set.
 For example:
 
@@ -26,13 +35,20 @@ For example:
 
 In this example, the search reduces traces to those spans where:
 
-* `http.status_code` is in the range of `200` to `299` and
-* the number of matching spans within a trace is greater than two.
+- `http.status_code` is in the range of `200` to `299` and
+- the number of matching spans within a trace is greater than two.
 
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions.
 If, for a given trace, this pipeline produces a spanset then it's included in the results of the query.
 
 Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for examples of TraceQL metrics queries.
+
+<!-- WARNING: This file is loaded by /modules/frontend/mcp.go and served to LLMs through the MCP protocol. It -->
+<!-- should be kept terse and to the point. Links and videos and such are bad. Examples are good! The below "mcp-cutoff"
+<!-- is used to remove everything above. -->
+<!-- TODO: Anthropic suggests using xml tags to organize content delivered to an LLM. Can we tag this content with xml tags  -->
+<!-- that make both hugo and llms happy? -->
+<!-- mcp-cutoff -->
 
 ## Examples
 
@@ -176,6 +192,7 @@ Intrinsics are always indicated using a `<scope>:`.
 Refer to the Intrinsics table for all current intrinsics.
 
 Intrinsics examples:
+
 ```
 { span:name = "foo" }
 { event:name = "foo" }
@@ -183,7 +200,7 @@ Intrinsics examples:
 { link:traceID = "1234" }
 ```
 
-Custom attributes are prefixed with `<scope>.`, such as `span.`,  `resource.` , `link.`, or `event`.
+Custom attributes are prefixed with `<scope>.`, such as `span.`, `resource.` , `link.`, or `event`.
 Resource has no intrinsic values.
 It only has custom attributes.
 
@@ -191,6 +208,7 @@ Attributes are separated by a period (`.`), and intrinsic fields use a colon (`:
 The `trace` scope is only an intrinsic and doesn't have any custom attributes at the trace level.
 
 Attributes example:
+
 ```
 { span.foo = "bar" }
 { resource.foo = "bar" }
@@ -202,25 +220,25 @@ Attributes example:
 
 The following table shows the current available scoped intrinsic fields:
 
-| **Field**                | **Type**    | **Definition**                                                  | **Example**                             |
-| ------------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------- |
-| `span:status`            | status enum | status: error, ok, or unset                                     | `{ span:status = ok }`                  |
-| `span:statusMessage`     | string      | optional text accompanying the span status                      | `{ span:statusMessage = "Forbidden" }`  |
-| `span:duration`          | duration    | end - start time of the span                                    | `{ span:duration > 100ms }`             |
-| `span:name`              | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`           |
-| `span:kind`              | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`                |
-| `span:id`                | string      | span id using hex string                                        | `{ span:id = "0000000000000001" }`      |
-| `span:parentID`          | string      | parent span id using hex string                                 | `{ span:parentID = "000000000000001" }` |
-| `trace:duration`         | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`            |
-| `trace:rootName`         | string      | if it exists, the name of the root span in the trace            | `{ trace:rootName = "HTTP GET" }`       |
-| `trace:rootService`      | string      | if it exists, the service name of the root span in the trace    | `{ trace:rootService = "gateway" }`     |
-| `trace:id`               | string      | trace ID using hex string                                       | `{ trace:id = "1234567890abcde" }`      |
-| `event:name`             | string      | name of event                                                   | `{ event:name = "exception" }`          |
-| `event:timeSinceStart`   | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`         |
-| `link:spanID`            | string      | link span ID using hex string                                   | `{ link:spanID = "0000000000000001" }`  |
-| `link:traceID`           | string      | link trace ID using hex string                                  | `{ link:traceID = "1234567890abcde" }`  |
-| `instrumentation:name`   | string      | instrumentation scope name                                      | `{ instrumentation:name = "grpc" }`     |
-| `instrumentation:version`| string      | instrumentation scope version                                   | `{ instrumentation:version = "1.0.0" }` |
+| **Field**                 | **Type**    | **Definition**                                                  | **Example**                             |
+| ------------------------- | ----------- | --------------------------------------------------------------- | --------------------------------------- |
+| `span:status`             | status enum | status: error, ok, or unset                                     | `{ span:status = ok }`                  |
+| `span:statusMessage`      | string      | optional text accompanying the span status                      | `{ span:statusMessage = "Forbidden" }`  |
+| `span:duration`           | duration    | end - start time of the span                                    | `{ span:duration > 100ms }`             |
+| `span:name`               | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`           |
+| `span:kind`               | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`                |
+| `span:id`                 | string      | span id using hex string                                        | `{ span:id = "0000000000000001" }`      |
+| `span:parentID`           | string      | parent span id using hex string                                 | `{ span:parentID = "000000000000001" }` |
+| `trace:duration`          | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`            |
+| `trace:rootName`          | string      | if it exists, the name of the root span in the trace            | `{ trace:rootName = "HTTP GET" }`       |
+| `trace:rootService`       | string      | if it exists, the service name of the root span in the trace    | `{ trace:rootService = "gateway" }`     |
+| `trace:id`                | string      | trace ID using hex string                                       | `{ trace:id = "1234567890abcde" }`      |
+| `event:name`              | string      | name of event                                                   | `{ event:name = "exception" }`          |
+| `event:timeSinceStart`    | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`         |
+| `link:spanID`             | string      | link span ID using hex string                                   | `{ link:spanID = "0000000000000001" }`  |
+| `link:traceID`            | string      | link trace ID using hex string                                  | `{ link:traceID = "1234567890abcde" }`  |
+| `instrumentation:name`    | string      | instrumentation scope name                                      | `{ instrumentation:name = "grpc" }`     |
+| `instrumentation:version` | string      | instrumentation scope version                                   | `{ instrumentation:version = "1.0.0" }` |
 
 The trace-level intrinsics, `trace:duration`, `trace:rootName`, and `trace:rootService`, are the same for all spans in the same trace.
 Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
@@ -249,7 +267,7 @@ Process and span attribute types are [defined by the attribute itself](https://g
 You can refer to dynamic attributes (also known as tags) on the span or the span's resource.
 
 Attributes in a query start with a span, resource, event, or link scope.
-For example, you could use `span.http` or  `resource.namespace`, depending on what you want to query.
+For example, you could use `span.http` or `resource.namespace`, depending on what you want to query.
 This provides significant performance benefits because it allows Tempo to only scan the data you are interested in.
 
 To find traces with the `GET HTTP` method, your query could look like this:
@@ -263,11 +281,13 @@ For more information about attributes and resources, refer to the [OpenTelemetry
 ### Examples
 
 Find traces that passed through the `production` environment:
+
 ```
 { resource.deployment.environment = "production" }
 ```
 
 Find any database connection string that goes to a Postgres or MySQL database:
+
 ```
 { span.db.system =~ "postgresql|mysql" }
 ```
@@ -278,6 +298,7 @@ While spans help build the structural hierarchy of your services, span events ca
 To learn more about how you can use span events, read the [What are span events?](https://grafana.com/blog/2024/08/15/all-about-span-events-what-they-are-and-how-to-query-them/) blog post.
 
 You can query for an exception in your span event:
+
 ```
 { event.exception.message =~ ".*something went wrong.*" }
 ```
@@ -286,6 +307,7 @@ If you've instrumented your traces for span links, you can use the `link` scope 
 For more information on span links, refer to the [Span Links](https://opentelemetry.io/docs/concepts/signals/traces/#span-links) documentation in the Open Telemetry project.
 
 You can search for an attribute in your link:
+
 ```
 { link.opentracing.ref_type = "child_of" }
 ```
@@ -294,11 +316,13 @@ The instrumentation scope lets you query the [instrumentation scope](https://ope
 The primary use of this scope is to query your trace data based on the various libraries and clients that are producing data.
 
 Find instrumentation scope programming language:
+
 ```
 { instrumentation.language = "java" }
 ```
 
 Find the libraries producing instrumentation for a given service:
+
 ```
 { resource.service.name = "foo" } | rate() by (instrumentation:name)
 ```
@@ -352,7 +376,7 @@ Regular expressions are anchored at both ends. This anchoring makes the queries 
 
 An unanchored query, such as: { span.foo =~ "bar" } is now treated as: { span.foo =~ "^bar$" }.
 
-If you use TraceQL with regular expressions in your Grafana dashboards and you want the unanchored behavior, update the queries to use the unanchored version, such as { span.foo =~ ".*bar.*"}.
+If you use TraceQL with regular expressions in your Grafana dashboards and you want the unanchored behavior, update the queries to use the unanchored version, such as { span.foo =~ "._bar._"}.
 
 For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 
@@ -373,6 +397,7 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 ```
 
 Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
+
 ```
 { span.any_attribute != nil }
 ```
@@ -411,7 +436,6 @@ These spanset operators perform logical checks between the sets of spans.
 
 - `{condA} && {condB}` - The and operator (`&&`) checks that both conditions found matches.
 - `{condA} || {condB}` - The union operator (`||`) checks that either condition found matches. This functions as an "OR" statement.
-
 
 For example, to find a trace that went through two specific `cloud.region`:
 
@@ -553,6 +577,7 @@ find something like a single service with more than 1 error:
 
 TraceQL supports arbitrary arithmetic in your queries.
 Using arithmetic can make queries more human readable:
+
 ```
 { span.http.request_content_length > 10 * 1024 * 1024 }
 ```
