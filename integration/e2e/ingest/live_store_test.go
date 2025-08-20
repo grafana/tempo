@@ -31,7 +31,7 @@ func TestLiveStore(t *testing.T) {
 	// Wait until joined to partition ring
 	matchers := []*labels.Matcher{
 		{Type: labels.MatchEqual, Name: "state", Value: "Active"},
-		{Type: labels.MatchEqual, Name: "name", Value: "ingester-partitions"},
+		{Type: labels.MatchEqual, Name: "name", Value: "livestore-partitions"},
 	}
 	require.NoError(t, liveStore0.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(matchers...)))
 
