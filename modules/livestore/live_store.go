@@ -189,7 +189,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		}
 	}
 
-	lifecyclerCfg, err := cfg.Ring.ToLifecyclerConfig(ringNumTokens) // jpe 0?
+	lifecyclerCfg, err := cfg.Ring.ToLifecyclerConfig(0)
 	if err != nil {
 		return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
 	}
