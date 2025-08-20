@@ -37,7 +37,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [BUGFIX] Fix search by trace:id with short trace ID [#5331](https://github.com/grafana/tempo/pull/5331) (@ruslan-mikhailov)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
-
+* [BUGFIX] Fixed incorrect root span detection when spans have a child_of link but no parent. [#3634](https://github.com/mexirica/tempo/pull/5557) (@mexirica)
 # v2.8.1
 
 * [BUGFIX] Fix ingester issue where a hash collision could lead to spans stored incorrectly [#5276](https://github.com/grafana/tempo/pull/5276) (@carles-grafana)
