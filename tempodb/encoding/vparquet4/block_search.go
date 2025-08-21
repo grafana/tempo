@@ -372,7 +372,6 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 }
 
 func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
-
 	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
 		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
 		if index == -1 {
