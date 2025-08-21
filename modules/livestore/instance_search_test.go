@@ -271,6 +271,164 @@ func TestInstanceSearchNoData(t *testing.T) {
 	require.Len(t, sr.Traces, 0)
 }
 
+// TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
+// partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
+func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				MaxBytesPerTagValuesQuery: 12,
+			},
+		},
+	}, nil, prometheus.DefaultRegisterer)
+	assert.NoError(t, err, "unexpected error creating limits")
+
+	instance, _ := defaultInstance(t)
+	instance.overrides = limits
+
+	tagKey := foo
+	tagValue := bar
+
+	// create multiple distinct values like bar0, bar1, ...
+	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, tagValue, true, false)
+
+	userCtx := user.InjectOrgID(context.Background(), testTenantID)
+
+	t.Run("SearchTagValues", func(t *testing.T) {
+		resp, err := instance.SearchTagValues(userCtx, tagKey, 0, 0)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar<idx>" fit in the 12 byte limit above.
+	})
+
+	t.Run("SearchTagValuesV2", func(t *testing.T) {
+		resp, err := instance.SearchTagValuesV2(userCtx, &tempopb.SearchTagValuesRequest{
+			TagName: "." + tagKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(resp.TagValues))
+	})
+}
+
+// TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
+// partial results if the number of inspected blocks is limited by MaxBlocksPerTagValuesQuery
+func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				MaxBlocksPerTagValuesQuery: 1,
+			},
+		},
+	}, nil, prometheus.DefaultRegisterer)
+	assert.NoError(t, err, "unexpected error creating limits")
+
+	instance, _ := defaultInstance(t)
+	instance.overrides = limits
+
+	tagKey := foo
+	tagValue := bar
+
+	// First block worth of traces
+	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, tagValue, true, false)
+
+	// Cut the headblock so the next writes land in a new block
+	blockID, err := instance.cutBlocks(true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	// Second block worth of traces
+	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, "another-"+bar, true, false)
+
+	userCtx := user.InjectOrgID(context.Background(), testTenantID)
+
+	respV1, err := instance.SearchTagValues(userCtx, tagKey, 0, 0)
+	require.NoError(t, err)
+	// livestore writeTracesForSearch creates 5 values per block
+	assert.Equal(t, 5, len(respV1.TagValues))
+
+	respV2, err := instance.SearchTagValuesV2(userCtx, &tempopb.SearchTagValuesRequest{TagName: fmt.Sprintf(".%s", tagKey)})
+	require.NoError(t, err)
+	assert.Equal(t, 5, len(respV2.TagValues))
+
+	// Now test with unlimited blocks
+	limits2, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	assert.NoError(t, err, "unexpected error creating limits")
+	instance.overrides = limits2
+
+	respV1, err = instance.SearchTagValues(userCtx, tagKey, 0, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 10, len(respV1.TagValues))
+
+	respV2, err = instance.SearchTagValuesV2(userCtx, &tempopb.SearchTagValuesRequest{TagName: fmt.Sprintf(".%s", tagKey)})
+	require.NoError(t, err)
+	assert.Equal(t, 10, len(respV2.TagValues))
+}
+
+func TestSearchTagsV2Limits(t *testing.T) {
+	tagKey := foo
+	tagValue := bar
+	ctx := user.InjectOrgID(t.Context(), "test")
+
+	for _, testCase := range []struct {
+		name                      string
+		MaxBytesPerTagValuesQuery int
+		ExpectedTagValuesMin      int
+		ExpectedTagValuesMax      int
+	}{
+		{
+			name:                      "no overrides",
+			MaxBytesPerTagValuesQuery: 0,
+			ExpectedTagValuesMin:      20,
+			ExpectedTagValuesMax:      50,
+		},
+		{
+			name:                      "small limit",
+			MaxBytesPerTagValuesQuery: 12,
+			ExpectedTagValuesMin:      1,
+			ExpectedTagValuesMax:      1,
+		},
+		{
+			name:                      "tiny limit",
+			MaxBytesPerTagValuesQuery: 1,
+			ExpectedTagValuesMin:      0,
+			ExpectedTagValuesMax:      0,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			instance, _ := defaultInstance(t)
+			limits, err := overrides.NewOverrides(overrides.Config{
+				Defaults: overrides.Overrides{
+					Read: overrides.ReadOverrides{
+						MaxBytesPerTagValuesQuery: testCase.MaxBytesPerTagValuesQuery,
+					},
+				},
+			}, nil, prometheus.DefaultRegisterer)
+			require.NoError(t, err)
+
+			instance.overrides = limits
+
+			writeTracesForSearch(t, instance, "", tagKey, tagValue, false, false)
+
+			res, err := instance.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
+				Scope: "span",
+				Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
+			})
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.Greater(t, res.Metrics.InspectedBytes, uint64(0))
+
+			if testCase.ExpectedTagValuesMax == 0 {
+				require.Len(t, res.Scopes, 0)
+				return
+			}
+
+			require.Len(t, res.Scopes, 1)
+			require.Equal(t, "span", res.Scopes[0].Name)
+			require.GreaterOrEqual(t, len(res.Scopes[0].Tags), testCase.ExpectedTagValuesMin)
+			require.LessOrEqual(t, len(res.Scopes[0].Tags), testCase.ExpectedTagValuesMax)
+		})
+	}
+}
+
 // Helper functions adapted from ingester module
 func defaultInstance(t testing.TB) (*instance, *LiveStore) {
 	instance, liveStore := defaultInstanceAndTmpDir(t)
