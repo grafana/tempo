@@ -372,6 +372,8 @@ fieldExpression:
   // NIL handling
   | fieldExpression NEQ NIL                  { $$ = newUnaryOperation(OpExists, $1) }
   | NIL NEQ fieldExpression                  { $$ = newUnaryOperation(OpExists, $3) }
+  | fieldExpression EQ NIL                  { $$ = newUnaryOperation(OpNotExists, $1) }
+  | NIL EQ fieldExpression                  { $$ = newUnaryOperation(OpNotExists, $3) }
   | NIL NEQ NIL                              { $$ = NewStaticBool(false) }
   | NIL EQ NIL                               { $$ = NewStaticBool(false) }
   // Unary operations

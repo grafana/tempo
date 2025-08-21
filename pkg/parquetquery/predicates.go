@@ -479,29 +479,93 @@ func (m *CallbackPredicate) KeepPage(pq.Page) bool { return m.cb() }
 
 func (m *CallbackPredicate) KeepValue(pq.Value) bool { return m.cb() }
 
-var _ Predicate = (*NilStringEqualPredicate)(nil)
+var _ Predicate = (*NilKeyPredicate)(nil)
 
-type NilStringEqualPredicate struct {
+type NilKeyPredicate struct {
 	value []byte
 }
 
-func NewNilStringEqualPredicate(val []byte) NilStringEqualPredicate {
-	return NilStringEqualPredicate{value: val}
+func NewNilKeyPredicate(val []byte) NilKeyPredicate {
+	return NilKeyPredicate{value: val}
 }
 
-func (p NilStringEqualPredicate) String() string {
-	return fmt.Sprintf("NilStringEqualPredicate{%s}", p.value)
+func (p NilKeyPredicate) String() string {
+	return fmt.Sprintf("NilKeyPredicate{%s}", p.value)
 }
 
-func (p NilStringEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+func (p NilKeyPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	return true
 }
 
-func (p NilStringEqualPredicate) KeepPage(page pq.Page) bool {
+func (p NilKeyPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
-func (p NilStringEqualPredicate) KeepValue(v pq.Value) bool {
+func (p NilKeyPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
 	return bytes.Equal(vv, p.value)
+}
+
+var _ Predicate = (*NilValuePredicate)(nil)
+
+type NilValuePredicate struct{}
+
+func NewNilValuePredicate() NilValuePredicate {
+	return NilValuePredicate{}
+}
+
+func (p NilValuePredicate) String() string {
+	return "NilValuePredicate{}"
+}
+
+func (p NilValuePredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	// if d := c.Dictionary(); d != nil {
+	// 	return keepDictionary(d, p.KeepValue)
+	// }
+	// ci, err := c.ColumnIndex()
+	// if err == nil && ci != nil {
+	// 	for i := 0; i < ci.NumPages(); i++ {
+	// 		min := ci.MinValue(i).IsNull()
+	// 		max := ci.MaxValue(i).IsNull()
+
+	// 		if min || max {
+	// 			return true
+	// 		}
+	// 	}
+	// 	return false
+	// }
+
+	return true
+}
+
+func (p NilValuePredicate) KeepPage(page pq.Page) bool {
+	// minV, maxV, ok := page.Bounds()
+	// if ok {
+	// 	min := minV.IsNull()
+	// 	max := maxV.IsNull()
+
+	// 	return min || max
+	// }
+
+	return true
+}
+
+func (p NilValuePredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return true
+	}
+	switch v.Kind() {
+	case pq.ByteArray:
+		return bytes.Equal(v.ByteArray(), []byte{})
+	case pq.Int32:
+		return v.Int32() == 0
+	case pq.Int64:
+		return v.Int64() == 0
+	case pq.Float:
+		return v.Float() == 0
+	case pq.Double:
+		return v.Double() == 0
+	default:
+		return false
+	}
 }
