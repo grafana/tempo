@@ -172,7 +172,6 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 						c.lastRowNumberReturned = c.syncIterator.curr
 						return c.syncIterator.curr, v, nil
 					}
-
 				}
 			}
 
