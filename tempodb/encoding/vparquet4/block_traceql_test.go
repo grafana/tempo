@@ -8,11 +8,12 @@ import (
 	"math/rand"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
+	"text/tabwriter"
 	"time"
 
+	kitlog "github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -1225,12 +1227,14 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
+		"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
 		"{} | rate() by (span.http.url)", // High cardinality attribute
 		"{resource.service.name=`loki-ingester`} | rate()",
 		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",
+		"{} | quantile_over_time(duration, .99, .9, .5)",
 		"{} | quantile_over_time(duration, .99, .9, .5)",
 		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 		"{} | histogram_over_time(duration)",
@@ -1239,7 +1243,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | min_over_time(duration) by (span.http.status_code)",
 		"{ name != nil } | compare({status=error})",
 		"{} > {} | rate() by (name)", // structural
+
+		// This is useful for sampler debugging
+		// {} | rate() with(sample=true,debug=true,info=true)
 	}
+
+	// For sampler debugging
+	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
 
 	e := traceql.NewEngine()
 	ctx := context.TODO()
@@ -1256,41 +1266,153 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{5} {
-				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
-					st := block.meta.StartTime
-					end := st.Add(time.Duration(minutes) * time.Minute)
+			st := uint64(block.meta.StartTime.UnixNano())
+			end := uint64(block.meta.EndTime.UnixNano())
 
-					if end.After(block.meta.EndTime) {
-						b.SkipNow()
-						return
-					}
-
-					req := &tempopb.QueryRangeRequest{
-						Query:     tc,
-						Step:      uint64(time.Minute),
-						Start:     uint64(st.UnixNano()),
-						End:       uint64(end.UnixNano()),
-						MaxSeries: 1000,
-					}
-
-					eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
-					require.NoError(b, err)
-
-					b.ResetTimer()
-					for i := 0; i < b.N; i++ {
-						err := eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano()), int(req.MaxSeries))
-						require.NoError(b, err)
-					}
-
-					bytes, spansTotal, _ := eval.Metrics()
-					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
-					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
-				})
+			req := &tempopb.QueryRangeRequest{
+				Query:     tc,
+				Step:      uint64(time.Minute),
+				Start:     st,
+				End:       end,
+				MaxSeries: 1000,
 			}
+
+			eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+			require.NoError(b, err)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err := eval.Do(ctx, f, st, end, int(req.MaxSeries))
+				require.NoError(b, err)
+			}
+
+			_ = eval.Results()
+
+			bytes, spansTotal, _ := eval.Metrics()
+			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
+			b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 		})
 	}
+}
+
+func TestSamplingError(t *testing.T) {
+	// Comment this out to run tests when developing.
+	t.Skip("Skipping sampling error test")
+
+	testQueries := []string{
+		"{} | rate()",                            // Simple rate, most amount of data
+		"{} | rate() by (resource.service.name)", // Same but with subseries
+		"{status=error} | rate()",                // Somewhat rare
+		"{resource.service.name=`loki-querier` && name=`chunksmemcache.store`} | rate()", // Very rare
+		"{nestedSetParent=-1} >> {}| rate()",                                             // Structural (common)
+		"{nestedSetParent=-1} >> {status=error} | rate()",                                // Structural (rare)
+		"{} | quantile_over_time(duration, .99)",                                         // Quantile (common)
+		"{resource.service.name=`tempo-gateway`} | quantile_over_time(duration, .99)",    // Quantile (rare)
+
+		// Drilldown queries
+		/*"{nestedSetParent<0 && true && status=error} | rate()",
+		"{nestedSetParent<0 && true && resource.service.name != nil} | rate() by(resource.service.name)",
+		"{nestedSetParent<0 && true} | histogram_over_time(duration)",
+		`{nestedSetParent<0 && resource.service.name="gme-alertmanager" && resource.service.namespace != nil} | rate() by(resource.service.namespace)`,
+		"{true && true && resource.service.name != nil} | rate() by(resource.service.name)",*/
+	}
+
+	options := []string{
+		"",            // Control, no sampling
+		"sample=true", // Automatic sampling
+		"sample=0.01", // Aggressive sampling. Automatic should be better accuracy.
+		"sample=0.1",  // Decent sampling. Automatic should be roughly equal.
+		"sample=0.5",  // Lowest amount of sampling possible as whole fraction. Automatic should be better performance.
+	}
+
+	e := traceql.NewEngine()
+	ctx := context.TODO()
+	opts := common.DefaultSearchOptions()
+	opts.TotalPages = 1
+
+	block := blockForBenchmarks(t)
+	_, _, err := block.openForSearch(ctx, opts)
+	require.NoError(t, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	executeQuery := func(t *testing.T, q string) (results traceql.SeriesSet, spanCount int) {
+		st := uint64(block.meta.StartTime.UnixNano())
+		end := uint64(block.meta.EndTime.UnixNano())
+
+		req := &tempopb.QueryRangeRequest{
+			Query:     q,
+			Start:     st,
+			End:       end,
+			Step:      uint64(time.Second * 15),
+			MaxSeries: 1000,
+		}
+
+		eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
+		require.NoError(t, err)
+
+		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))
+		require.NoError(t, err)
+
+		_, spansTotal, _ := eval.Metrics()
+
+		return eval.Results(), int(spansTotal)
+	}
+
+	for _, query := range testQueries {
+		t.Run(query, func(t *testing.T) {
+			// Get baseline results.
+			baselineResults, baselineSpanCount := executeQuery(t, query)
+
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "Query\tOption\tError\tWorst Error\tSpans\tEfficiency")
+
+			for _, option := range options {
+				q := query
+				if option != "" {
+					q += " with(" + option + ")"
+				}
+				results, spanCount := executeQuery(t, q)
+
+				err, worstErr := errorRate(baselineResults, results)
+
+				if err > 0 {
+					// This is done to make things comparable.
+					// An increase of 1 means 10x more error from baseline.
+					err = math.Log(err)
+				}
+
+				fmt.Fprintln(w,
+					query,
+					"\t"+option,
+					"\t"+fmt.Sprintf("%.2f", err),
+					"\t"+fmt.Sprintf("%.2f%%", worstErr*100),
+					"\t"+fmt.Sprintf("%d", spanCount),
+					"\t"+fmt.Sprintf("%.2f%%", 100.0*(1-float64(spanCount)/float64(baselineSpanCount))),
+				)
+			}
+
+			w.Flush()
+		})
+	}
+}
+
+func errorRate(baselineResults, testResults traceql.SeriesSet) (err float64, worstErr float64) {
+	for k, baseline := range baselineResults {
+		if test, ok := testResults[k]; ok {
+			for i := 0; i < len(baseline.Values) && i < len(test.Values); i++ {
+				err += (baseline.Values[i] - test.Values[i]) * (baseline.Values[i] - test.Values[i])
+				ePct := math.Abs(baseline.Values[i]-test.Values[i]) / baseline.Values[i]
+				if ePct > worstErr {
+					worstErr = ePct
+				}
+			}
+		}
+	}
+	return
 }
 
 func ptr[T any](v T) *T {
@@ -2149,7 +2271,7 @@ func randomTree(N int) []traceql.Span {
 	return nodes
 }
 
-func blockForBenchmarks(b *testing.B) *backendBlock {
+func blockForBenchmarks(b testing.TB) *backendBlock {
 	id, ok := os.LookupEnv("BENCH_BLOCKID")
 	if !ok {
 		b.Fatal("BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_BLOCKID to the guid of the block to run benchmarks against. e.g. `export BENCH_BLOCKID=030c8c4f-9d47-4916-aadc-26b90b1d2bc4`")

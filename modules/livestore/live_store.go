@@ -28,8 +28,6 @@ import (
 const (
 	liveStoreServiceName = "live-store"
 
-	ringNumTokens = 1 // we only need 1 token in the read ring per instance b/c it's for service discovery only. sharding is done with the parttition ring.
-
 	// ringAutoForgetUnhealthyPeriods is how many consecutive timeout periods an unhealthy instance
 	// in the ring will be automatically removed.
 	ringAutoForgetUnhealthyPeriods = 2

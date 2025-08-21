@@ -42,7 +42,7 @@ func TestApp_RunStop(t *testing.T) {
 	healthCheckURL := fmt.Sprintf("http://localhost:%d/ready", config.Server.HTTPListenPort)
 	require.Eventually(t, func() bool {
 		t.Log("Checking Tempo is up...")
-		// #nosec G107
+		// #nosec G107 -- nosemgrep: tainted-url-host
 		resp, httpErr := http.Get(healthCheckURL)
 		return httpErr == nil && resp.StatusCode == http.StatusOK
 	}, 30*time.Second, 1*time.Second)
@@ -53,7 +53,7 @@ func TestApp_RunStop(t *testing.T) {
 	// check health endpoint is not reachable anymore
 	require.Eventually(t, func() bool {
 		t.Log("Checking Tempo is down...")
-		// #nosec G107
+		// #nosec G107 -- nosemgrep: tainted-url-host
 		_, httpErr := http.Get(healthCheckURL)
 		return httpErr != nil
 	}, 30*time.Second, 1*time.Second)

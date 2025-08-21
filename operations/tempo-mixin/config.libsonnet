@@ -39,7 +39,7 @@
       backend_scheduler_compaction_tenant_empty_job_count_per_minute: 10,  // 10 empty jobs per minute
       backend_scheduler_bad_jobs_count_per_minute: 0,  // alert if there are any bad jobs
       backend_worker_call_retries_count_per_minute: 5,  // 5 retries per minute
-      vulture_error_rate_threshold: 0.2,  // 20% error rate
+      vulture_error_rate_threshold: 0.1,  // 10% error rate
     },
 
     per_cluster_label: 'cluster',

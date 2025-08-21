@@ -140,7 +140,7 @@ func (c ConsumerConfig) Validate() error {
 		)
 	}
 
-	if len(c.GroupRebalanceStrategy) != 0 {
+	if c.GroupRebalanceStrategy != "" {
 		switch c.GroupRebalanceStrategy {
 		case sarama.RangeBalanceStrategyName, sarama.RoundRobinBalanceStrategyName, sarama.StickyBalanceStrategyName:
 			// Valid

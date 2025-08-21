@@ -99,10 +99,6 @@ type dynamicCommand struct {
 // "tags" is a list of extra tag strings to parse, in the form <key>:"<value>".
 func DynamicCommand(name, help, group string, cmd any, tags ...string) Option {
 	return OptionFunc(func(k *Kong) error {
-		if run := getMethod(reflect.Indirect(reflect.ValueOf(cmd)), "Run"); !run.IsValid() {
-			return fmt.Errorf("kong: DynamicCommand %q must be a type with a 'Run' method; got %T", name, cmd)
-		}
-
 		k.dynamicCommands = append(k.dynamicCommands, &dynamicCommand{
 			name:  name,
 			help:  help,

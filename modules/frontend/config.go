@@ -66,8 +66,9 @@ type TraceByIDConfig struct {
 }
 
 type MetricsConfig struct {
-	Sharder QueryRangeSharderConfig `yaml:",inline"`
-	SLO     SLOConfig               `yaml:",inline"`
+	Sharder      QueryRangeSharderConfig `yaml:",inline"`
+	SLO          SLOConfig               `yaml:",inline"`
+	MaxIntervals uint64                  `yaml:"max_intervals,omitempty"`
 }
 
 type SLOConfig struct {
@@ -133,6 +134,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.MaxQueryExpressionSizeBytes = 128 * 1024
 	// enable multi tenant queries by default
 	cfg.MultiTenantQueriesEnabled = true
+	cfg.Metrics.MaxIntervals = 10_000
 }
 
 type CortexNoQuerierLimits struct{}

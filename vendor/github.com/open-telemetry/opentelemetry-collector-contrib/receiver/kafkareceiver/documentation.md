@@ -41,9 +41,9 @@ Only produced when franz-go is enabled.
 
 ### otelcol_kafka_broker_throttling_duration
 
-The throttling duration in ms imposed by the broker when receiving messages.
+The throttling duration in ms imposed by the broker when receiving messages. [deprecated]
 
-Only produced when franz-go is enabled.
+Only produced when franz-go is enabled. Deprecated in favor of kafka_broker_throttling_latency.
 
 | Unit | Metric Type | Value Type |
 | ---- | ----------- | ---------- |
@@ -55,9 +55,25 @@ Only produced when franz-go is enabled.
 | ---- | ----------- | ------ |
 | node_id | The Kafka node ID. | Any Int |
 
+### otelcol_kafka_broker_throttling_latency
+
+The throttling latency in seconds imposed by the broker when receiving records.
+
+Only produced when franz-go is enabled.
+
+| Unit | Metric Type | Value Type |
+| ---- | ----------- | ---------- |
+| s | Histogram | Double |
+
+#### Attributes
+
+| Name | Description | Values |
+| ---- | ----------- | ------ |
+| node_id | The Kafka node ID. | Any Int |
+
 ### otelcol_kafka_receiver_bytes
 
-The size in bytes of received messages seen by the broker.
+The size in bytes of received records seen by the broker.
 
 Only produced when franz-go is enabled.
 
@@ -76,7 +92,7 @@ Only produced when franz-go is enabled.
 
 ### otelcol_kafka_receiver_bytes_uncompressed
 
-The uncompressed size in bytes of received messages seen by the client.
+The uncompressed size in bytes of received records seen by the client.
 
 | Unit | Metric Type | Value Type | Monotonic |
 | ---- | ----------- | ---------- | --------- |
@@ -108,7 +124,9 @@ Current message offset
 
 ### otelcol_kafka_receiver_latency
 
-The time it took in ms to receive a batch of messages.
+The time it took in ms to receive a batch of messages. [deprecated]
+
+Only produced when franz-go is enabled. Deprecated in favor of kafka_receiver_read_latency.
 
 | Unit | Metric Type | Value Type |
 | ---- | ----------- | ---------- |
@@ -125,7 +143,9 @@ The time it took in ms to receive a batch of messages.
 
 ### otelcol_kafka_receiver_messages
 
-The number of received messages.
+The number of received messages. [deprecated]
+
+Deprecated in favor of kafka_receiver_records.
 
 | Unit | Metric Type | Value Type | Monotonic |
 | ---- | ----------- | ---------- | --------- |
@@ -170,6 +190,63 @@ Number of started partitions
 | Unit | Metric Type | Value Type | Monotonic |
 | ---- | ----------- | ---------- | --------- |
 | 1 | Sum | Int | true |
+
+### otelcol_kafka_receiver_read_latency
+
+The time it took in seconds to receive a batch of records.
+
+Only produced when franz-go is enabled.
+
+| Unit | Metric Type | Value Type |
+| ---- | ----------- | ---------- |
+| s | Histogram | Double |
+
+#### Attributes
+
+| Name | Description | Values |
+| ---- | ----------- | ------ |
+| node_id | The Kafka node ID. | Any Int |
+| topic | The Kafka topic. | Any Str |
+| partition | The Kafka topic partition. | Any Int |
+| outcome | The operation outcome. | Str: ``success``, ``failure`` |
+
+### otelcol_kafka_receiver_records
+
+The number of received records.
+
+| Unit | Metric Type | Value Type | Monotonic |
+| ---- | ----------- | ---------- | --------- |
+| 1 | Sum | Int | true |
+
+#### Attributes
+
+| Name | Description | Values |
+| ---- | ----------- | ------ |
+| node_id | The Kafka node ID. | Any Int |
+| topic | The Kafka topic. | Any Str |
+| partition | The Kafka topic partition. | Any Int |
+| outcome | The operation outcome. | Str: ``success``, ``failure`` |
+
+### otelcol_kafka_receiver_records_delay
+
+The time in seconds between producing and receiving a batch of records.
+
+Optional, only reported when enabled via config.
+Note that this metric may slow down high-volume consuming.
+Only produced when franz-go is enabled.
+This metric is reported with an assumption that the exporter and the receiver clocks are synchronized.
+
+
+| Unit | Metric Type | Value Type |
+| ---- | ----------- | ---------- |
+| s | Histogram | Double |
+
+#### Attributes
+
+| Name | Description | Values |
+| ---- | ----------- | ------ |
+| topic | The Kafka topic. | Any Str |
+| partition | The Kafka topic partition. | Any Int |
 
 ### otelcol_kafka_receiver_unmarshal_failed_log_records
 
