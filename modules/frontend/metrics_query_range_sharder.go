@@ -243,6 +243,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 
 	// Make a copy and limit to backend time range.
 	// Preserve instant nature of request if needed
+	// Don't realign the request, preserve the range for the blocks overlapping the cutoff.
 	backendReq := searchReq
 	traceql.TrimToBefore(&backendReq, cutoff)
 
@@ -377,7 +378,11 @@ func max(a, b uint32) uint32 {
 }
 
 func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) pipeline.Request {
+	// Trim the time range to only the recent which is covered by the generators.
+	// Important - don't align the request after trimming. We always need to ensure
+	// the start/end time range sent to the generators is accurate.
 	traceql.TrimToAfter(&searchReq, cutoff)
+
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {
 		return nil

@@ -396,6 +396,7 @@ query_frontend:
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
+        max_intervals: 10000
     multi_tenant_queries_enabled: true
     response_consumers: 10
     weights:
@@ -1235,4 +1236,5 @@ live_store:
         v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns: []
+    finish_on_shutdown_timeout: 30s
 ```

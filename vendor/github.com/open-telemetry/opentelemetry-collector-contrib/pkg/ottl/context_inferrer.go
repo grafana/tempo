@@ -137,7 +137,7 @@ func (s *priorityContextInferrer) infer(statements, conditions, valueExprs []str
 func (s *priorityContextInferrer) inferFromHints(hints []priorityContextInferrerHints) (inferredContext string, err error) {
 	defer func() {
 		if inferredContext != "" {
-			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Inferred OTTL context: "%s"`, inferredContext))
+			s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Inferred OTTL context: %q`, inferredContext))
 		} else {
 			s.telemetrySettings.Logger.Debug("Unable to infer OTTL context", zap.Error(err))
 		}
@@ -187,7 +187,7 @@ func (s *priorityContextInferrer) validateContextCandidate(
 	requiredFunctions map[string]struct{},
 	requiredEnums map[enumSymbol]struct{},
 ) error {
-	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Validating selected context candidate: "%s"`, context))
+	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Validating selected context candidate: %q`, context))
 	candidate, ok := s.contextCandidate[context]
 	if !ok {
 		return fmt.Errorf(`inferred context "%s" is not a valid candidate`, context)
@@ -217,7 +217,7 @@ func (s *priorityContextInferrer) inferFromLowerContexts(
 	requiredFunctions map[string]struct{},
 	requiredEnums map[enumSymbol]struct{},
 ) (inferredContext string, err error) {
-	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Trying to infer context using "%s" lower contexts`, context))
+	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Trying to infer context using %q lower contexts`, context))
 
 	defer func() {
 		if err != nil {
@@ -240,7 +240,7 @@ func (s *priorityContextInferrer) inferFromLowerContexts(
 		if candidateErr := s.validateContextCandidate(lowerCandidate, requiredFunctions, requiredEnums); candidateErr == nil {
 			return lowerCandidate, nil
 		}
-		s.telemetrySettings.Logger.Debug(fmt.Sprintf(`lower context "%s" is not a valid candidate`, lowerCandidate), zap.Error(err))
+		s.telemetrySettings.Logger.Debug(fmt.Sprintf(`lower context %q is not a valid candidate`, lowerCandidate), zap.Error(err))
 	}
 	return "", errors.New("no valid lower context found")
 }
@@ -263,7 +263,7 @@ func (s *priorityContextInferrer) sortContextCandidates(candidates []string) {
 // getConditionsHints extracts all path, function names (editor and converter), and enumSymbol
 // from the given condition. These values are used by the context inferrer as hints to
 // select a context in which the function/enum are supported.
-func (s *priorityContextInferrer) getConditionsHints(conditions []string) ([]priorityContextInferrerHints, error) {
+func (*priorityContextInferrer) getConditionsHints(conditions []string) ([]priorityContextInferrerHints, error) {
 	hints := make([]priorityContextInferrerHints, 0, len(conditions))
 	for _, condition := range conditions {
 		parsed, err := parseCondition(condition)
@@ -281,7 +281,7 @@ func (s *priorityContextInferrer) getConditionsHints(conditions []string) ([]pri
 // getStatementsHints extracts all path, function names (editor and converter), and enumSymbol
 // from the given statement. These values are used by the context inferrer as hints to
 // select a context in which the function/enum are supported.
-func (s *priorityContextInferrer) getStatementsHints(statements []string) ([]priorityContextInferrerHints, error) {
+func (*priorityContextInferrer) getStatementsHints(statements []string) ([]priorityContextInferrerHints, error) {
 	hints := make([]priorityContextInferrerHints, 0, len(statements))
 	for _, statement := range statements {
 		parsed, err := parseStatement(statement)
@@ -301,7 +301,7 @@ func (s *priorityContextInferrer) getStatementsHints(statements []string) ([]pri
 // getValueExpressionsHints extracts all path, function (converter) names, and enumSymbol
 // from the given value expressions. These values are used by the context inferrer as hints to
 // select a context in which the function/enum are supported.
-func (s *priorityContextInferrer) getValueExpressionsHints(exprs []string) ([]priorityContextInferrerHints, error) {
+func (*priorityContextInferrer) getValueExpressionsHints(exprs []string) ([]priorityContextInferrerHints, error) {
 	hints := make([]priorityContextInferrerHints, 0, len(exprs))
 	for _, expr := range exprs {
 		parsed, err := parseValueExpression(expr)
@@ -332,7 +332,7 @@ func newGrammarContextInferrerVisitor() priorityContextInferrerHints {
 	}
 }
 
-func (v *priorityContextInferrerHints) visitMathExprLiteral(_ *mathExprLiteral) {}
+func (*priorityContextInferrerHints) visitMathExprLiteral(*mathExprLiteral) {}
 
 func (v *priorityContextInferrerHints) visitEditor(e *editor) {
 	v.functions[e.Function] = struct{}{}

@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"context"
+	"time"
 )
 
 type Operands []Static
@@ -13,6 +14,9 @@ type Condition struct {
 	// Callback is used in the parquetquery.CallbackPredicate to determine if the iterator should be stopped.
 	// It's used to limit the overhead of fetching exemplars by stopping the iterator early.
 	CallBack func() bool
+
+	// Hints
+	Precision time.Duration
 }
 
 func SearchMetaConditions() []Condition {
@@ -93,6 +97,16 @@ type FetchSpansRequest struct {
 	// can make extra optimizations by returning only spansets that meet
 	// all criteria.
 	AllConditions bool
+
+	// Sampling
+	// There are two methods of sampling: trace-level samples a subset of traces,
+	// either skipping them or returning them in full.  Span-level samples a
+	// subset of spans within each trace, still returning a spanset for each
+	// matching trace. Only one will be applied at a time.  These fields are
+	// optional and there is no negative effect on the results if they are not
+	// honored at the storage layer.
+	TraceSampler Sampler
+	SpanSampler  Sampler
 
 	// SecondPassFn and Conditions allow a caller to retrieve one set of data
 	// in the first pass, filter using the SecondPassFn callback and then

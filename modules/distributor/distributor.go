@@ -746,6 +746,10 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
+				if !validation.ValidSpanID(span.SpanId) {
+					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
+				}
+
 				traceKey := util.HashForTraceID(traceID)
 				ilsKey := traceKey
 				if ils.Scope != nil {

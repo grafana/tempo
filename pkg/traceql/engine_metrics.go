@@ -59,38 +59,58 @@ func IntervalCount(start, end, step uint64) int {
 	end = alignEnd(start, end, step)
 
 	intervals := (end - start) / step
-	intervals++
 	return int(intervals)
 }
 
 // TimestampOf the given interval with the start and step.
 func TimestampOf(interval, start, end, step uint64) uint64 {
 	start = alignStart(start, end, step)
-	return start + interval*step
+	// start as initial offset plus interval's offset
+	return start + (interval+1)*step
 }
 
 // IntervalOf the given timestamp within the range and step.
+// First interval is (start; start+step]
+// Last interval is (end-step; end]
+// The first interval's left border is limited to 0
 func IntervalOf(ts, start, end, step uint64) int {
 	if isInstant(start, end, step) { // always one interval
-		if !isTsValidForInterval(ts, start, end, step) {
+		if !isTsValidForInstant(ts, start, end) {
 			return -1
 		}
 		return 0
 	}
 
 	start = alignStart(start, end, step)
-	end = alignEnd(start, end, step) + step
+	end = alignEnd(start, end, step)
 
 	if !isTsValidForInterval(ts, start, end, step) {
 		return -1
 	}
+	if ts <= start { // to avoid overflow
+		return 0 // if pass validation and less than start, always first interval
+	}
 
-	return int((ts - start) / step)
+	offset := ts - start
+	// Calculate which interval the timestamp falls into
+	// Since intervals are right-closed: (start; start+step], (start+step; start+2*step], etc.
+	// we need to handle the case where ts is exactly on a step boundary
+	interval := offset / step
+	if interval*step == offset { // the same as offset % step == 0
+		// ts is exactly on a step boundary, so it belongs to the previous interval
+		interval--
+	}
+	return int(interval)
 }
 
-// validateIntervalOf returns true if the timestamp is valid for the given range and step.
+// isTsValidForInterval returns true if the timestamp is valid for the given range and step.
 func isTsValidForInterval(ts, start, end, step uint64) bool {
-	return ts >= start && ts <= end && end != start && step != 0
+	return ts > start && ts <= end && end != start && step != 0
+}
+
+// isTsValidForInstant returns true if the timestamp is valid for the given range for instant query.
+func isTsValidForInstant(ts, start, end uint64) bool {
+	return ts >= start && ts <= end && end != start
 }
 
 // IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.
@@ -101,7 +121,7 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	end -= end % uint64(time.Millisecond)
 
 	if instant {
-		if !isTsValidForInterval(ts, start, end, step) {
+		if !isTsValidForInstant(ts, start, end) {
 			return -1
 		}
 		return 0
@@ -109,19 +129,31 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	return IntervalOf(ts, start, end, step)
 }
 
-// TrimToBlockOverlap returns the aligned overlap between the given time and block ranges,
-// the block's borders are included.
-// If the request is instantaneous, it returns an updated step to match the new time range.
-// It assumes that blockEnd is aligned to seconds.
+// TrimToBlockOverlap returns the overlap between the given time range and block.  It is used to
+// split a block to only the portion overlapping, or when the entire block is within range then
+// opportunistically remove time slots that are known to be unused.
+// When possible and not exceeding the request range, borders are aligned to the step.
+// When a block is split then the borders will maintain the nanosecond precision of the request.
 func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
 	wasInstant := end-start == step
 
-	start2 := uint64(blockStart.UnixNano())
+	// We subtract 1 nanosecond from the block's start time
+	// to make sure we include the left border of the block.
+	start2 := uint64(blockStart.UnixNano()) - 1
 	// Block's endTime is rounded down to the nearest second and considered inclusive.
 	// In order to include the right border with nanoseconds, we add 1 second
 	blockEnd = blockEnd.Add(time.Second)
 	end2 := uint64(blockEnd.UnixNano())
 
+	// Align the block data range to the step. This is because
+	// low-precision timestamps within the block may be rounded up to
+	// this step.  If the boundaries exceed the overall range
+	// they will get trimmed back down.
+	start2 = alignStart(start2, end2, step)
+	end2 = alignEnd(start2, end2, step)
+
+	// Now trim to the overlap preserving nanosecond precision for
+	// when we split a block.
 	start = max(start, start2)
 	end = min(end, end2)
 
@@ -183,6 +215,10 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
 	req.Start = alignStart(req.Start, req.End, req.Step)
 	req.End = alignEnd(req.Start, req.End, req.Step)
+
+	if req.Start > req.Step { // to avoid overflow
+		req.Start -= req.Step // force to have additional initial bucket
+	}
 }
 
 // Start time is rounded down to next step
@@ -898,6 +934,45 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplars = v
 	}
 
+	// Debug sampling hints, remove once we settle on approach.
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeQueryHints); traceSampleOk {
+		storageReq.TraceSampler = newProbablisticSampler(traceSample)
+	}
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeQueryHints); spanSampleOk {
+		storageReq.SpanSampler = newProbablisticSampler(spanSample)
+	}
+
+	if sample, sampleOk := expr.Hints.GetBool(HintSample, allowUnsafeQueryHints); sampleOk && sample {
+		// Automatic sampling
+		// Get other params
+		s := newAdaptiveSampler()
+		if debug, ok := expr.Hints.GetBool(HintDebug, allowUnsafeQueryHints); ok {
+			s.debug = debug
+		}
+		if info, ok := expr.Hints.GetBool(HintInfo, allowUnsafeQueryHints); ok {
+			s.info = info
+		}
+
+		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
+		if expr.NeedsFullTrace() {
+			storageReq.TraceSampler = s
+		} else {
+			storageReq.SpanSampler = s
+		}
+	}
+
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeQueryHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+		// Fixed sampling rate.
+		s := newProbablisticSampler(sampleFraction)
+
+		// Classify the query and determine if it needs to be at the trace-level or can be at span-level (better)
+		if expr.NeedsFullTrace() {
+			storageReq.TraceSampler = s
+		} else {
+			storageReq.SpanSampler = s
+		}
+	}
+
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req, AggregateModeRaw)
 
@@ -909,11 +984,29 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
+	// If the request range is fully aligned to the step, then we can use lower
+	// precision data that matches the step while still returning accurate results.
+	// When the range isn't an even multiple, it means that we are on the split
+	// between backend and recent data, or the edges of the request. In that case
+	// we use full nanosecond precision.
+	var precision time.Duration
+	if (req.Start%req.Step) == 0 && (req.End%req.Step) == 0 {
+		precision = time.Duration(req.Step)
+	}
+
 	// Span start time (always required)
 	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		// Technically we only need the start time of matching spans, so we add it to the second pass.
 		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
-		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, Precision: precision})
+	} else {
+		// Update the existing condition to use low precision
+		for i, c := range storageReq.Conditions {
+			if c.Attribute == IntrinsicSpanStartTimeAttribute {
+				storageReq.Conditions[i].Precision = precision
+				break
+			}
+		}
 	}
 
 	// Timestamp filtering
@@ -1124,17 +1217,26 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		e.mtx.Lock()
 
+		if e.storageReq.TraceSampler != nil {
+			e.storageReq.TraceSampler.Measured()
+		}
+
 		var validSpansCount int
 		var randomSpanIndex int
 
 		needExemplar := e.maxExemplars > 0 && e.sampleExemplar(ss.TraceID)
 
 		for i, s := range ss.Spans {
+
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
-				if st < e.start || st >= e.end {
+				if st <= e.start || st > e.end {
 					continue
 				}
+			}
+
+			if e.storageReq.SpanSampler != nil {
+				e.storageReq.SpanSampler.Measured()
 			}
 
 			validSpansCount++
@@ -1185,12 +1287,28 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvaluator) Results() SeriesSet {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	spanMultiplier := 1.0
+	if e.storageReq.SpanSampler != nil {
+		spanMultiplier = e.storageReq.SpanSampler.FinalScalingFactor()
+	}
+	traceMultiplier := 1.0
+	if e.storageReq.TraceSampler != nil {
+		traceMultiplier = e.storageReq.TraceSampler.FinalScalingFactor()
+	}
+
+	multiplier := spanMultiplier * traceMultiplier
+
 	// NOTE: skip processing of second stage because not all first stage functions can't be pushed down.
 	// for example: if query has avg_over_time(), then we can't push it down to second stage, and second stage
 	// can only be processed on the frontend.
 	// we could do this but it would require knowing if the first stage functions
 	// can be pushed down to second stage or not so we are skipping it for now, and will handle it later.
-	return e.metricsPipeline.result()
+	ss := e.metricsPipeline.result(multiplier)
+
+	return ss
 }
 
 func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
@@ -1231,7 +1349,8 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	results := m.metricsPipeline.result()
+	// Job results are not scaled by sampling, but this is here for the interface.
+	results := m.metricsPipeline.result(1.0)
 
 	if m.metricsSecondStage != nil {
 		// metrics second stage is only set when query has second stage function and mode = final

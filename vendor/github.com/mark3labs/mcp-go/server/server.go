@@ -64,6 +64,12 @@ type ServerResource struct {
 	Handler  ResourceHandlerFunc
 }
 
+// ServerResourceTemplate combines a ResourceTemplate with its handler function.
+type ServerResourceTemplate struct {
+	Template mcp.ResourceTemplate
+	Handler  ResourceTemplateHandlerFunc
+}
+
 // serverKey is the context key for storing the server instance
 type serverKey struct{}
 
@@ -175,6 +181,7 @@ type serverCapabilities struct {
 	resources *resourceCapabilities
 	prompts   *promptCapabilities
 	logging   *bool
+	sampling  *bool
 }
 
 // resourceCapabilities defines the supported resource-related features
@@ -342,6 +349,14 @@ func (s *MCPServer) AddResources(resources ...ServerResource) {
 	}
 }
 
+// SetResources replaces all existing resources with the provided list
+func (s *MCPServer) SetResources(resources ...ServerResource) {
+	s.resourcesMu.Lock()
+	s.resources = make(map[string]resourceEntry, len(resources))
+	s.resourcesMu.Unlock()
+	s.AddResources(resources...)
+}
+
 // AddResource registers a new resource and its handler
 func (s *MCPServer) AddResource(
 	resource mcp.Resource,
@@ -365,17 +380,16 @@ func (s *MCPServer) RemoveResource(uri string) {
 	}
 }
 
-// AddResourceTemplate registers a new resource template and its handler
-func (s *MCPServer) AddResourceTemplate(
-	template mcp.ResourceTemplate,
-	handler ResourceTemplateHandlerFunc,
-) {
+// AddResourceTemplates registers multiple resource templates at once
+func (s *MCPServer) AddResourceTemplates(resourceTemplates ...ServerResourceTemplate) {
 	s.implicitlyRegisterResourceCapabilities()
 
 	s.resourcesMu.Lock()
-	s.resourceTemplates[template.URITemplate.Raw()] = resourceTemplateEntry{
-		template: template,
-		handler:  handler,
+	for _, entry := range resourceTemplates {
+		s.resourceTemplates[entry.Template.URITemplate.Raw()] = resourceTemplateEntry{
+			template: entry.Template,
+			handler:  entry.Handler,
+		}
 	}
 	s.resourcesMu.Unlock()
 
@@ -384,6 +398,22 @@ func (s *MCPServer) AddResourceTemplate(
 		// Send notification to all initialized sessions
 		s.SendNotificationToAllClients(mcp.MethodNotificationResourcesListChanged, nil)
 	}
+}
+
+// SetResourceTemplates replaces all existing resource templates with the provided list
+func (s *MCPServer) SetResourceTemplates(templates ...ServerResourceTemplate) {
+	s.resourcesMu.Lock()
+	s.resourceTemplates = make(map[string]resourceTemplateEntry, len(templates))
+	s.resourcesMu.Unlock()
+	s.AddResourceTemplates(templates...)
+}
+
+// AddResourceTemplate registers a new resource template and its handler
+func (s *MCPServer) AddResourceTemplate(
+	template mcp.ResourceTemplate,
+	handler ResourceTemplateHandlerFunc,
+) {
+	s.AddResourceTemplates(ServerResourceTemplate{Template: template, Handler: handler})
 }
 
 // AddPrompts registers multiple prompts at once
@@ -407,6 +437,15 @@ func (s *MCPServer) AddPrompts(prompts ...ServerPrompt) {
 // AddPrompt registers a new prompt handler with the given name
 func (s *MCPServer) AddPrompt(prompt mcp.Prompt, handler PromptHandlerFunc) {
 	s.AddPrompts(ServerPrompt{Prompt: prompt, Handler: handler})
+}
+
+// SetPrompts replaces all existing prompts with the provided list
+func (s *MCPServer) SetPrompts(prompts ...ServerPrompt) {
+	s.promptsMu.Lock()
+	s.prompts = make(map[string]mcp.Prompt, len(prompts))
+	s.promptHandlers = make(map[string]PromptHandlerFunc, len(prompts))
+	s.promptsMu.Unlock()
+	s.AddPrompts(prompts...)
 }
 
 // DeletePrompts removes prompts from the server
@@ -567,6 +606,10 @@ func (s *MCPServer) handleInitialize(
 		capabilities.Logging = &struct{}{}
 	}
 
+	if s.capabilities.sampling != nil && *s.capabilities.sampling {
+		capabilities.Sampling = &struct{}{}
+	}
+
 	result := mcp.InitializeResult{
 		ProtocolVersion: s.protocolVersion(request.Params.ProtocolVersion),
 		ServerInfo: mcp.Implementation{
@@ -583,12 +626,22 @@ func (s *MCPServer) handleInitialize(
 		// Store client info if the session supports it
 		if sessionWithClientInfo, ok := session.(SessionWithClientInfo); ok {
 			sessionWithClientInfo.SetClientInfo(request.Params.ClientInfo)
+			sessionWithClientInfo.SetClientCapabilities(request.Params.Capabilities)
 		}
 	}
+
 	return &result, nil
 }
 
 func (s *MCPServer) protocolVersion(clientVersion string) string {
+	// For backwards compatibility, if the server does not receive an MCP-Protocol-Version header,
+	// and has no other way to identify the version - for example, by relying on the protocol version negotiated
+	// during initialization - the server SHOULD assume protocol version 2025-03-26
+	// https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#protocol-version-header
+	if len(clientVersion) == 0 {
+		clientVersion = "2025-03-26"
+	}
+
 	if slices.Contains(mcp.ValidProtocolVersions, clientVersion) {
 		return clientVersion
 	}
@@ -1023,12 +1076,12 @@ func (s *MCPServer) handleToolCall(
 
 	s.middlewareMu.RLock()
 	mw := s.toolHandlerMiddlewares
-	s.middlewareMu.RUnlock()
 
 	// Apply middlewares in reverse order
 	for i := len(mw) - 1; i >= 0; i-- {
 		finalHandler = mw[i](finalHandler)
 	}
+	s.middlewareMu.RUnlock()
 
 	result, err := finalHandler(ctx, request)
 	if err != nil {
