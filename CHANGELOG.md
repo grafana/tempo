@@ -1,4 +1,5 @@
 ## main / unreleased
+* [BUGFIX] Fix docker-compose port configuration for Alloy gRPC (4319 → 4317) [#5536](https://github.com/grafana/tempo/pull/5536)
 * [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464)
 * [BUGFIX] Return Bad Request from frontend if the provided tag is invalid in SearchTagValuesV2 endpoint [#5493](https://github.com/grafana/tempo/pull/5493/) (@carles-grafana)
 * [CHANGE] Add test for cost_attribution in user-configurable overrides API [#5481](https://github.com/grafana/tempo/pull/5481/) (@electron0zero)
@@ -18,6 +19,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [CHANGE] Improve tempo writes dashboard [#5500](https://github.com/grafana/tempo/pull/5500) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** TraceQL Metrics buckets are calculated based on data in past [#5366](https://github.com/grafana/tempo/pull/5366) (@ruslan-mikhailov)
 * [CHANGE] Change worker to shutdown after the current job, waiting 30s by default [#5460](https://github.com/grafana/tempo/pull/5460) (@zalegrala)
+* [CHANGE] Upgrade Tempo to go 1.25.0 [#5548](https://github.com/grafana/tempo/pull/5548) (@javiermolinar)
 * [FEATURE] New block encoding vParquet5-preview1 with low-resolution timestamp columns for better TraceQL metrics performance. This format is in development and breaking changes are expected before final release. [#5495](https://github.com/grafana/tempo/pull/5495) (@mdisibio)
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
 * [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
@@ -50,6 +52,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
 * [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
+* [BUGFIX] Fix cache collision for incomplete query in SearchTagValuesV2 [#5549](https://github.com/grafana/tempo/pull/5549) (@ruslan-mikhailov)
 
 # v2.8.2
 
