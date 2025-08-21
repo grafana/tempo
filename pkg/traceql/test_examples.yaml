@@ -244,8 +244,6 @@ parse_fails:
   - '{ parent = nil }'
   - '{ -parent = nil }'
   - '{ !parent = nil }'
-    # nil - will be valid when supported
-  - '{ .foo = nil }'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
