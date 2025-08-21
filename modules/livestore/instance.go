@@ -137,6 +137,7 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 
 	// Check tenant limits
 	maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
+	maxLiveTraces := i.overrides.MaxLocalTracesPerUser(i.tenantID)
 
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
@@ -161,7 +162,7 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 			}
 
 			// Push to live traces with tenant-specific limits
-			if !i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, 0, uint64(maxBytes)) {
+			if !i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), uint64(maxBytes)) {
 				level.Warn(i.logger).Log("msg", "dropped trace due to live traces limit", "tenant", i.tenantID)
 				continue
 			}
