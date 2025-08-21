@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -228,8 +227,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		return nil, fmt.Errorf("unknown scope: %s", scope)
 	}
 
-	// TODO MRD Add limits
-	maxBytestPerTags := math.MaxInt64
+	maxBytestPerTags := i.overrides.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewScopedDistinctString(maxBytestPerTags, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	mc := collector.NewMetricsCollector()
 
@@ -319,14 +317,12 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 		return nil, err
 	}
 
-	// TODO MRD Add limits
-	maxBytesPerTagValues := math.MaxInt64
+	maxBytesPerTagValues := i.overrides.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(maxBytesPerTagValues, limit, staleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
 	var inspectedBlocks, maxBlocks int
-	// TODO MRD Add limits
-	if limit := math.MaxInt64; limit > 0 {
+	if limit := i.overrides.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
 		maxBlocks = limit
 	}
 
@@ -391,8 +387,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2")
 	defer span.End()
 
-	// TODO MRD Add limits
-	limit := math.MaxInt64
+	limit := i.overrides.MaxBytesPerTagValuesQuery(userID)
 	valueCollector := collector.NewDistinctValue(limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector() // to collect bytesRead metric
 
@@ -403,8 +398,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	var anyErr atomic.Error
 	var inspectedBlocks atomic.Int32
 	var maxBlocks int32
-	// TODO MRD Add limits
-	if limit := math.MaxInt64; limit > 0 {
+	if limit := i.overrides.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
 		maxBlocks = int32(limit)
 	}
 
