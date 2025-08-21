@@ -21,7 +21,7 @@ var _ Iterator = (*NilAttributeIterator)(nil)
 
 func NewNilAttributeIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, maxDefinitionLevel int, opts ...SyncIteratorOpt) *NilAttributeIterator {
 	// Create the sync iterator
-	syncIterator := NewSyncIterator(ctx, rgs, column, columnName, readSize, filter, selectAs, maxDefinitionLevel, opts...)
+	syncIterator := NewSyncIterator(ctx, rgs, column, opts...)
 	// Apply options
 	for _, opt := range opts {
 		opt(syncIterator)
