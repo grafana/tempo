@@ -924,6 +924,7 @@ func TestSpansetFilterOperators(t *testing.T) {
 
 		// existence
 		{in: "{ .a != nil }", expected: newUnaryOperation(OpExists, NewAttribute("a")), alsoTestWithoutSpace: true},
+		{in: "{ .a = nil }", expected: newUnaryOperation(OpNotExists, NewAttribute("a")), alsoTestWithoutSpace: true},
 
 		// nil comparisons
 		{in: "{ nil != nil }", expected: NewStaticBool(false)},
@@ -986,7 +987,9 @@ func TestBinaryAndUnaryOperationsRewrites(t *testing.T) {
 		{in: "{ .foo * -1. = -1 }", expected: newBinaryOperation(OpEqual, newBinaryOperation(OpMult, NewAttribute("foo"), NewStaticFloat(-1)), NewStaticInt(-1))},
 		// rewrite != nil to existence
 		{in: "{ .foo != nil }", expected: newUnaryOperation(OpExists, NewAttribute("foo"))},
+		{in: "{ .foo = nil }", expected: newUnaryOperation(OpNotExists, NewAttribute("foo"))},
 		{in: "{ nil != .foo }", expected: newUnaryOperation(OpExists, NewAttribute("foo"))},
+		{in: "{ nil = .foo }", expected: newUnaryOperation(OpNotExists, NewAttribute("foo"))},
 	}
 
 	test := func(t *testing.T, q string, expected FieldExpression) {
