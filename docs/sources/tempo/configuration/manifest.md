@@ -1140,6 +1140,7 @@ backend_worker:
         instance_addr: ""
         enable_inet6: false
         wait_active_instance_timeout: 10m0s
+    finish_on_shutdown_timeout: 30s
 live_store:
     ring:
         kvstore:
@@ -1236,5 +1237,4 @@ live_store:
         v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
         parquet_dedicated_columns: []
-    finish_on_shutdown_timeout: 30s
 ```
