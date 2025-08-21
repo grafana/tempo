@@ -178,7 +178,7 @@ func TestOne(t *testing.T) {
 	fmt.Println(spanSet)
 }
 
-func TestBackendNilBlockSearchTraceQL(t *testing.T) {
+func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 	numTraces := 1
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
@@ -211,10 +211,10 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 		req   traceql.FetchSpansRequest
 	}{
 
-		// {"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
-		// {"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
-		// {"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
-		{"resource", "resource.service.name = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.cluster = "meow"}`)},
+		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
+		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
+		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
+		{"resource", "resource.service.name = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.service.name = nil}`)},
 	}
 
 	for _, tc := range searches {
@@ -305,6 +305,203 @@ func TestBackendNilBlockSearchTraceQL(t *testing.T) {
 				require.Equal(t, numSpansExpected, numSpansFound, "search request:%v", req)
 			}
 			require.False(t, found, "search request:%v", req)
+		})
+	}
+}
+
+// nil values for intrinsics, well known columns, and dedicated columns
+func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
+	numTraces := 1
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			wantTrace := &Trace{
+				TraceID: wantTraceID,
+				ResourceSpans: []ResourceSpans{
+					{
+						ScopeSpans: []ScopeSpans{
+							{
+								Spans: []Span{
+									{
+										// this span has nil values for everything
+										SpanID: []byte("nil-test-span-0"),
+									},
+									{
+										SpanID:                 []byte("nil-test-span-1"),
+										ParentSpanID:           []byte("nil-test-span-0"),
+										Name:                   "hello",
+										StartTimeUnixNano:      uint64(100 * time.Second),
+										DurationNano:           uint64(100 * time.Second),
+										HttpMethod:             ptr("get"),
+										HttpUrl:                ptr("url/hello/world"),
+										HttpStatusCode:         ptr(int64(500)),
+										StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
+										StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
+										TraceState:             "tracestate",
+										Kind:                   int(v1.Span_SPAN_KIND_CLIENT),
+										DroppedAttributesCount: 42,
+										DroppedEventsCount:     43,
+										DedicatedAttributes: DedicatedAttributes{
+											String01: ptr("dedicated-span-attr-value-1"),
+											String02: ptr("dedicated-span-attr-value-2"),
+											String03: ptr("dedicated-span-attr-value-3"),
+											String04: ptr("dedicated-span-attr-value-4"),
+											String05: ptr("dedicated-span-attr-value-5"),
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Resource: Resource{
+							ServiceName:      "myservice",
+							Cluster:          ptr("cluster"),
+							Namespace:        ptr("namespace"),
+							Pod:              ptr("pod"),
+							Container:        ptr("container"),
+							K8sClusterName:   ptr("k8scluster"),
+							K8sNamespaceName: ptr("k8snamespace"),
+							K8sPodName:       ptr("k8spod"),
+							K8sContainerName: ptr("k8scontainer"),
+							Attrs: []Attribute{
+								attr("foo", "abc"),
+								attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
+								attr("int-array", []int64{11, 22, 33}),
+								attr(LabelServiceName, 123), // Different type than dedicated column
+							},
+							DroppedAttributesCount: 22,
+							DedicatedAttributes: DedicatedAttributes{
+								String01: ptr("dedicated-resource-attr-value-1"),
+								String02: ptr("dedicated-resource-attr-value-2"),
+								String03: ptr("dedicated-resource-attr-value-3"),
+								String04: ptr("dedicated-resource-attr-value-4"),
+								String05: ptr("dedicated-resource-attr-value-5"),
+							},
+						},
+						ScopeSpans: []ScopeSpans{
+							{
+								Spans: []Span{
+									{
+										SpanID: []byte("nil-test-span-2"),
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			traces = append(traces, wantTrace)
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	fmt.Printf("**** traces: %d\n", len(traces))
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+
+	testcases := []struct {
+		name          string
+		req           traceql.FetchSpansRequest
+		expectedSpans []int
+	}{
+		// span 0 has all resource level nils, instrumentation level nils, and span levels nils including ded columns except for SpanID
+		// span 1 has all resource level + ded nils, instrumentation level nils, but has all span values
+		// span 2 has resource level values, but instrumentation level nils an	d span level nils except for Name
+		// Intrinsics
+		{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = nil }`), []int{0, 2}},
+		{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` = nil}`), []int{0, 2}},
+		{"Intrinsic: status", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = nil}`), []int{0, 2}},
+		{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = nil}`), []int{0, 2}},
+		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = nil}`), []int{0, 2}},
+		//Resource well-known attributes
+		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
+		{"resource.cluster", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelCluster + ` = nil}`), []int{0, 1}},
+		{"resource.namespace", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` = nil}`), []int{0, 1}},
+		{"resource.pod", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelPod + ` = nil}`), []int{0, 1}},
+		{"resource.container", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelContainer + ` = nil}`), []int{0, 1}},
+		{"resource.k8s.namespace.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` = nil}`), []int{0, 1}},
+		{"resource.k8s.cluster.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sClusterName + ` = nil}`), []int{0, 1}},
+		{"resource.k8s.pod.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sPodName + ` = nil}`), []int{0, 1}},
+		{"resource.k8s.container.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sContainerName + ` = nil}`), []int{0, 1}},
+		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
+		{"resource.cluster", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelCluster + ` = nil}`), []int{0, 1}},
+		{"resource.namespace", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` = nil}`), []int{0, 1}},
+		{"resource.pod", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelPod + ` = nil}`), []int{0, 1}},
+		{"resource.container", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelContainer + ` = nil}`), []int{0, 1}},
+		{"resource.k8s.namespace.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` = nil}`), []int{0, 1}},
+		{"resource.k8s.cluster.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sClusterName + ` = nil}`), []int{0, 1}},
+		{"resource.k8s.pod.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sPodName + ` = nil}`), []int{0, 1}},
+		{"resource.k8s.container.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sContainerName + ` = nil}`), []int{0, 1}},
+		// Resource dedicated attributes
+		{"resource.dedicated.resource.3", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = nil}`), []int{0, 1}},
+		{"resource.dedicated.resource.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.5 = nil}`), []int{0, 1}},
+
+		// Span well-known attributes
+		{"span.http.status_code", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPStatusCode + ` = nil}`), []int{0, 2}},
+		{"span.http.method", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPMethod + ` = nil}`), []int{0, 2}},
+		{"span.http.url", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPUrl + ` = nil}`), []int{0, 2}},
+
+		// Span dedicated attributes
+		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = nil}`), []int{0, 2}},
+		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = nil}`), []int{0, 2}},
+
+		// Instrumentation Scope
+		{"instrumentation:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:name = nil}`), []int{0, 1, 2}},
+		{"instrumentation:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:version = nil}`), []int{0, 1, 2}},
+	}
+
+	spanIDs := map[int][]byte{
+		0: []byte("nil-test-span-0"),
+		1: []byte("nil-test-span-1"),
+		2: []byte("nil-test-span-2"),
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name+"= nil", func(t *testing.T) {
+			req := tc.req
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			foundSpans := []traceql.Span{}
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				for _, span := range spanSet.Spans {
+					foundSpans = append(foundSpans, span)
+				}
+			}
+			//require.Len(t, foundSpans, len(tc.expectedSpans), "search request:%v", req)
+
+			found := true
+			for _, expectedSpanIdx := range tc.expectedSpans {
+				foundThisSpan := false
+				for _, span := range foundSpans {
+					if bytes.Equal(span.ID(), spanIDs[expectedSpanIdx]) {
+						foundThisSpan = true
+						break
+					}
+				}
+				if !foundThisSpan {
+					found = false
+					break
+				}
+			}
+			require.True(t, found, "search request:%v", req)
 		})
 	}
 }

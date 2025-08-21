@@ -372,7 +372,6 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 }
 
 func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
-	async := os.Getenv(EnvVarAsyncIteratorName) == EnvVarAsyncIteratorValue
 
 	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
 		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
@@ -381,11 +380,13 @@ func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.Fi
 			panic("column not found in parquet file:" + name)
 		}
 
-		if async {
-			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs, maxDef)
+		opts := []pq.SyncIteratorOpt{
+			pq.SyncIteratorOptColumnName(name),
+			pq.SyncIteratorOptPredicate(predicate),
+			pq.SyncIteratorOptSelectAs(selectAs),
+			pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
 		}
 
-		var opts []pq.SyncIteratorOpt
 		if name != columnPathSpanID && name != columnPathTraceID {
 			opts = append(opts, pq.SyncIteratorOptIntern())
 		}
