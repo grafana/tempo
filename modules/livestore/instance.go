@@ -173,7 +173,7 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 				default:
 					reason = overrides.ReasonUnknown
 				}
-				level.Warn(i.logger).Log("msg", "dropped trace due to limits", "tenant", i.tenantID, "reason", reason)
+				level.Debug(i.logger).Log("msg", "dropped spans due to limits", "tenant", i.tenantID, "reason", reason)
 				overrides.RecordDiscardedSpans(countSpans(trace), reason, i.tenantID)
 				continue
 			}
