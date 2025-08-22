@@ -30,10 +30,6 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 	}, []string{"tenant"},
 )
 
-const (
-	reasonTraceTooLarge = "trace_too_large"
-)
-
 type tenantStore struct {
 	tenantID         string
 	idGenerator      util.IDGenerator
@@ -87,7 +83,7 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 				count += len(ss.Spans)
 			}
 		}
-		overrides.RecordDiscardedSpans(count, reasonTraceTooLarge, s.tenantID)
+		overrides.RecordDiscardedSpans(count, overrides.ReasonTraceTooLarge, s.tenantID)
 	}
 
 	return nil
