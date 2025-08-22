@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -137,6 +138,7 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 
 	// Check tenant limits
 	maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
+	maxLiveTraces := i.overrides.MaxLocalTracesPerUser(i.tenantID)
 
 	// For each pre-marshalled trace, we need to unmarshal it and push to live traces
 	for j, traceBytes := range req.Traces {
@@ -161,13 +163,33 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 			}
 
 			// Push to live traces with tenant-specific limits
-			if !i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, 0, uint64(maxBytes)) {
-				level.Warn(i.logger).Log("msg", "dropped trace due to live traces limit", "tenant", i.tenantID)
+			if err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), uint64(maxBytes)); err != nil {
+				var reason string
+				switch {
+				case errors.Is(err, livetraces.ErrMaxLiveTracesExceeded):
+					reason = overrides.ReasonLiveTracesExceeded
+				case errors.Is(err, livetraces.ErrMaxTraceSizeExceeded):
+					reason = overrides.ReasonTraceTooLarge
+				default:
+					reason = overrides.ReasonUnknown
+				}
+				level.Debug(i.logger).Log("msg", "dropped spans due to limits", "tenant", i.tenantID, "reason", reason)
+				overrides.RecordDiscardedSpans(countSpans(trace), reason, i.tenantID)
 				continue
 			}
 		}
 		i.liveTracesMtx.Unlock()
 	}
+}
+
+func countSpans(trace *tempopb.Trace) int {
+	count := 0
+	for _, b := range trace.ResourceSpans {
+		for _, ss := range b.ScopeSpans {
+			count += len(ss.Spans)
+		}
+	}
+	return count
 }
 
 func (i *instance) cutIdleTraces(immediate bool) error {

@@ -455,9 +455,17 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	_, _, _, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
-	resp, err := i.SearchTagValues(userCtx, tagKey, 0, 0)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 12 byte limit above.
+	t.Run("SearchTagValues", func(t *testing.T) {
+		resp, err := i.SearchTagValues(userCtx, tagKey, 0, 0)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 12 byte limit above.
+	})
+
+	t.Run("SearchTagValuesV2", func(t *testing.T) {
+		resp, err := i.SearchTagValuesV2(userCtx, &tempopb.SearchTagValuesRequest{TagName: fmt.Sprintf(".%s", tagKey)})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(resp.TagValues))
+	})
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns

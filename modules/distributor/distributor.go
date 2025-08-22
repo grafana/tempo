@@ -48,15 +48,6 @@ import (
 )
 
 const (
-	// reasonRateLimited indicates that the tenants spans/second exceeded their limits
-	reasonRateLimited = "rate_limited"
-	// reasonTraceTooLarge indicates that a single trace has too many spans
-	reasonTraceTooLarge = "trace_too_large"
-	// reasonLiveTracesExceeded indicates that tempo is already tracking too many live traces in the ingesters for this user
-	reasonLiveTracesExceeded = "live_traces_exceeded"
-	// reasonUnknown indicates a pushByte error at the ingester level not related to GRPC
-	reasonUnknown = "unknown_error"
-
 	distributorRingKey = "distributor"
 )
 
@@ -377,7 +368,7 @@ func (d *Distributor) stopping(_ error) error {
 func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID string) error {
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
-		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
+		overrides.RecordDiscardedSpans(spanCount, overrides.ReasonRateLimited, userID)
 		// limit: number of bytes per second allowed for the user, as per ingestion rate strategy
 		limit := int(d.ingestionRateLimiter.Limit(now, userID))
 		burst := d.ingestionRateLimiter.Burst(now, userID)
@@ -936,9 +927,9 @@ func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceiv
 
 func recordDiscardedSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, writeRing ring.ReadRing, userID string) {
 	maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount := countDiscardedSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, writeRing.ReplicationFactor())
-	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
-	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
-	overrides.RecordDiscardedSpans(unknownErrorCount, reasonUnknown, userID)
+	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, overrides.ReasonLiveTracesExceeded, userID)
+	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, overrides.ReasonTraceTooLarge, userID)
+	overrides.RecordDiscardedSpans(unknownErrorCount, overrides.ReasonUnknown, userID)
 }
 
 func logDiscardedSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, writeRing ring.ReadRing, userID string, cfg *LogSpansConfig, logger log.Logger) {
