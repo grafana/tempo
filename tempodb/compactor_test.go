@@ -588,6 +588,7 @@ func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactionHonorsBlockStartEndTimes(t, version)
 		})
 	}
@@ -664,6 +665,7 @@ func TestCompactionDropsTraces(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactionDropsTraces(t, version)
 		})
 	}
@@ -809,6 +811,7 @@ func TestCompactWithConfig(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactWithConfig(t, version)
 		})
 	}
