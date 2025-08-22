@@ -162,7 +162,7 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 			}
 
 			// Push to live traces with tenant-specific limits
-			if !i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), uint64(maxBytes)) {
+			if err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), uint64(maxBytes)); err != nil {
 				level.Warn(i.logger).Log("msg", "dropped trace due to live traces limit", "tenant", i.tenantID)
 				continue
 			}
