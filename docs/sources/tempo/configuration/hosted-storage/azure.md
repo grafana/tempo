@@ -79,13 +79,16 @@ tempo:
 
 ## Sample configuration for Tempo distributed mode
 
-In Distributed mode the `trace` configuration needs to be applied against the `storage` object, which resides at the root of the Values object. Additionally, the `extraArgs` and `extraEnv` configuration need to be applied to each of the following services:
+In distributed mode, the `trace` configuration needs to be applied against the `storage` object, which resides at the root of the Values object. Additionally, the `extraArgs` and `extraEnv` configuration need to be applied to each of the following services:
 
 - `distributor`
 - `compactor`
 - `ingester`
 - `querier`
 - `queryFrontend`
+
+Distributed mode is usually installed using a Helm chart, like `tempo-distributed`.
+To use this example, add it to your `custom.yaml` or `values.yaml` file.
 
 ```yaml
 storage:
@@ -147,11 +150,7 @@ queryFrontend:
           key: tempo-traces-key
 ```
 
-## Additional configuration options
-
-The following sections provide additional configuration options for Azure blob storage.
-
-### Use localblocks and metrics-generator
+#### Use `local_blocks` and `metrics-generator`
 
 [//]: # "Shared content for localblocks and metrics-generator in Azure blob storage"
 [//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
@@ -159,6 +158,10 @@ The following sections provide additional configuration options for Azure blob s
 {{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}
 
 For more information, refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/next/metrics-from-traces/metrics-queries/configure-traceql-metrics).
+
+## Additional configuration options
+
+The following sections provide additional configuration options for Azure blob storage.
 
 ### Use Azurite for local development
 
@@ -184,7 +187,7 @@ storage:
     azure:
       container_name: container-name # how to store data in azure
       endpoint_suffix: azurite-host.svc.cluster.local:10000 # Azurite emulator host:port
-      storage_account_name: "storage-account-name"
+      STORAGE_ACCOUNT_NAME: "STORAGE-ACCOUNT-NAME"
       storage_account_key: "STORAGE_ACCOUNT_ACCESS_KEY"
 ```
 

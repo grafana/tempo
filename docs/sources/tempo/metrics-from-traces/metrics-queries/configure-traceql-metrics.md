@@ -88,9 +88,13 @@ Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/
 
 For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
 
-### Local blocks and metrics-generator in Azure blob storage
+### Local blocks and metrics-generator in Azure blob storage and Helm
 
-[//]: # "Shared content for localblocks and metrics-generator in Azure blob storage"
+{{< admonition type="note" >}}
+This configuration only applies if you are using a Helm chart, like `tempo-distributed`, to deploy Tempo.
+{{< /admonition >}}
+
+[//]: # "Shared content for localblocks and metrics-generator in Azure blob storage when using Helm"
 [//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
 
 {{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}

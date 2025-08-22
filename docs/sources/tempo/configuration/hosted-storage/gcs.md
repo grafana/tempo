@@ -7,11 +7,14 @@ aliases:
 
 # Google Cloud Storage
 
-For all configuration keys, see the storage section on the [configuration reference](../../#storage) page.
+Tempo supports Google Cloud Storage for both monolithic and distributed modes.
+
+For all configuration keys, refer to the storage section on the [configuration reference](../../#storage) page.
 
 ## Before you begin
 
-Ensure that you have a Google Cloud Storage bucket created. Refer to the [Google Cloud Storage documentation](https://cloud.google.com/storage/docs/creating-buckets) for more details.
+Ensure that you have a Google Cloud Storage bucket created.
+Refer to the [Google Cloud Storage documentation](https://cloud.google.com/storage/docs/creating-buckets) for more details.
 
 ## Permissions
 
@@ -58,7 +61,7 @@ tempo:
 
 ### Tempo distributed mode
 
-Example configuration for GCS storage for Tempo distributed mode.
+Example Helm chart configuration for GCS storage for Tempo distributed mode.
 
 ```yaml
 storage:
