@@ -19,6 +19,16 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.Resource.DedicatedAttributes.String08",
 			"rs.list.element.Resource.DedicatedAttributes.String09",
 			"rs.list.element.Resource.DedicatedAttributes.String10",
+			"rs.list.element.Resource.DedicatedAttributes.String11",
+			"rs.list.element.Resource.DedicatedAttributes.String12",
+			"rs.list.element.Resource.DedicatedAttributes.String13",
+			"rs.list.element.Resource.DedicatedAttributes.String14",
+			"rs.list.element.Resource.DedicatedAttributes.String15",
+			"rs.list.element.Resource.DedicatedAttributes.String16",
+			"rs.list.element.Resource.DedicatedAttributes.String17",
+			"rs.list.element.Resource.DedicatedAttributes.String18",
+			"rs.list.element.Resource.DedicatedAttributes.String19",
+			"rs.list.element.Resource.DedicatedAttributes.String20",
 		},
 	},
 	backend.DedicatedColumnScopeSpan: {
@@ -33,6 +43,16 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String11",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String12",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String13",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String14",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String15",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String16",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String17",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String18",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String19",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String20",
 		},
 	},
 }
@@ -68,6 +88,26 @@ func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
 			strVal = attrs.String09
 		case 9:
 			strVal = attrs.String10
+		case 10:
+			strVal = attrs.String11
+		case 11:
+			strVal = attrs.String12
+		case 12:
+			strVal = attrs.String13
+		case 13:
+			strVal = attrs.String14
+		case 14:
+			strVal = attrs.String15
+		case 15:
+			strVal = attrs.String16
+		case 16:
+			strVal = attrs.String17
+		case 17:
+			strVal = attrs.String18
+		case 18:
+			strVal = attrs.String19
+		case 19:
+			strVal = attrs.String20
 		}
 		if strVal == nil {
 			return nil
@@ -106,6 +146,26 @@ func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyV
 			attrs.String09 = &strVal.StringValue
 		case 9:
 			attrs.String10 = &strVal.StringValue
+		case 10:
+			attrs.String11 = &strVal.StringValue
+		case 11:
+			attrs.String12 = &strVal.StringValue
+		case 12:
+			attrs.String13 = &strVal.StringValue
+		case 13:
+			attrs.String14 = &strVal.StringValue
+		case 14:
+			attrs.String15 = &strVal.StringValue
+		case 15:
+			attrs.String16 = &strVal.StringValue
+		case 16:
+			attrs.String17 = &strVal.StringValue
+		case 17:
+			attrs.String18 = &strVal.StringValue
+		case 18:
+			attrs.String19 = &strVal.StringValue
+		case 19:
+			attrs.String20 = &strVal.StringValue
 		default:
 			return false
 		}

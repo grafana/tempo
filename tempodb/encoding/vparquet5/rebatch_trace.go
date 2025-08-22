@@ -143,6 +143,16 @@ func resourceSpanHash(rs *ResourceSpans) uint64 {
 	hash = addHash(rs.Resource.DedicatedAttributes.String08, hash)
 	hash = addHash(rs.Resource.DedicatedAttributes.String09, hash)
 	hash = addHash(rs.Resource.DedicatedAttributes.String10, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String11, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String12, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String13, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String14, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String15, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String16, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String17, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String18, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String19, hash)
+	hash = addHash(rs.Resource.DedicatedAttributes.String20, hash)
 
 	// sort keys for consistency
 	slices.SortFunc(rs.Resource.Attrs, func(i, j Attribute) int {

@@ -161,6 +161,16 @@ type DedicatedAttributes struct {
 	String08 *string `parquet:",snappy,optional,dict"`
 	String09 *string `parquet:",snappy,optional,dict"`
 	String10 *string `parquet:",snappy,optional,dict"`
+	String11 *string `parquet:",snappy,optional,dict"`
+	String12 *string `parquet:",snappy,optional,dict"`
+	String13 *string `parquet:",snappy,optional,dict"`
+	String14 *string `parquet:",snappy,optional,dict"`
+	String15 *string `parquet:",snappy,optional,dict"`
+	String16 *string `parquet:",snappy,optional,dict"`
+	String17 *string `parquet:",snappy,optional,dict"`
+	String18 *string `parquet:",snappy,optional,dict"`
+	String19 *string `parquet:",snappy,optional,dict"`
+	String20 *string `parquet:",snappy,optional,dict"`
 }
 
 type Event struct {
