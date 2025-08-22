@@ -562,7 +562,7 @@ func Test_UserConfigOverridesAPI_CostAttribution(t *testing.T) {
 	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster"}, *limits.CostAttribution.Dimensions)
 
 	// PATCH - update the config
-	patch := `{"cost_attribution":{"dimensions":{"deployment.environment":"environment"}}}`
+	patch := `{"cost_attribution":{"dimensions":{"namespace":""}}}`
 	w = httptest.NewRecorder()
 	req = httptest.NewRequest("PATCH", "/", bytes.NewReader([]byte(patch)))
 	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
@@ -572,7 +572,21 @@ func Test_UserConfigOverridesAPI_CostAttribution(t *testing.T) {
 	// Verify PATCH response body
 	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "deployment.environment": "environment"}, *limits.CostAttribution.Dimensions)
+	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "namespace": ""}, *limits.CostAttribution.Dimensions)
+
+	// PATCH - again update the config but with remapping
+	// it's treated as a new key because we change the config keys
+	patchUpdate := `{"cost_attribution":{"dimensions":{"k8s.namespace":"namespace"}}}`
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("PATCH", "/", bytes.NewReader([]byte(patchUpdate)))
+	req = req.WithContext(user.InjectOrgID(req.Context(), tenant))
+	overridesAPI.PatchHandler(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	// Verify PATCH response body
+	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "namespace": "", "k8s.namespace": "namespace"}, *limits.CostAttribution.Dimensions)
 
 	// GET - verify PATCH merged the config correctly
 	w = httptest.NewRecorder()
@@ -582,7 +596,7 @@ func Test_UserConfigOverridesAPI_CostAttribution(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 	err = jsoniter.Unmarshal(w.Body.Bytes(), &limits)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "deployment.environment": "environment"}, *limits.CostAttribution.Dimensions)
+	assert.Equal(t, map[string]string{"k8s.namespace.name": "namespace", "k8s.cluster": "cluster", "namespace": "", "k8s.namespace": "namespace"}, *limits.CostAttribution.Dimensions)
 	etag := w.Header().Get(headerEtag)
 
 	// DELETE - remove the config
