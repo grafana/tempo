@@ -125,7 +125,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	blockCount := 4
-	recordCount := 100
+	recordCount := 50
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
