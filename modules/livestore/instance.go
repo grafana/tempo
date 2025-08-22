@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -163,12 +164,32 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 
 			// Push to live traces with tenant-specific limits
 			if err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), uint64(maxBytes)); err != nil {
-				level.Warn(i.logger).Log("msg", "dropped trace due to live traces limit", "tenant", i.tenantID)
+				var reason string
+				switch {
+				case errors.Is(err, livetraces.ErrMaxLiveTracesExceeded):
+					reason = overrides.ReasonLiveTracesExceeded
+				case errors.Is(err, livetraces.ErrMaxTraceSizeExceeded):
+					reason = overrides.ReasonTraceTooLarge
+				default:
+					reason = overrides.ReasonUnknown
+				}
+				level.Warn(i.logger).Log("msg", "dropped trace due to limits", "tenant", i.tenantID, "reason", reason)
+				overrides.RecordDiscardedSpans(countSpans(trace), reason, i.tenantID)
 				continue
 			}
 		}
 		i.liveTracesMtx.Unlock()
 	}
+}
+
+func countSpans(trace *tempopb.Trace) int {
+	count := 0
+	for _, b := range trace.ResourceSpans {
+		for _, ss := range b.ScopeSpans {
+			count += len(ss.Spans)
+		}
+	}
+	return count
 }
 
 func (i *instance) cutIdleTraces(immediate bool) error {
