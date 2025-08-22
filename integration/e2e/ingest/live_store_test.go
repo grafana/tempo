@@ -35,10 +35,6 @@ func TestLiveStore(t *testing.T) {
 	}
 	require.NoError(t, liveStore0.WaitSumMetricsWithOptions(e2e.Equals(2), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(matchers...)))
 
-	ingester0 := util.NewTempoIngester(0)
-	ingester1 := util.NewTempoIngester(1)
-	require.NoError(t, s.StartAndWaitReady(ingester0, ingester1))
-
 	distributor := util.NewTempoDistributor()
 	require.NoError(t, s.StartAndWaitReady(distributor))
 

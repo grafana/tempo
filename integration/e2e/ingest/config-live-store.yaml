@@ -14,6 +14,8 @@ query_frontend:
     query_backend_after: 0
 
 distributor:
+  ingester_write_path_enabled: false
+  kafka_write_path_enabled: true
   receivers:
     otlp:
       protocols:
@@ -23,21 +25,6 @@ distributor:
     enabled: true
   log_discarded_spans:
     enabled: true
-
-ingester:
-  lifecycler:
-    ring:
-      kvstore:
-        store: memberlist
-  trace_idle_period: 1s
-  max_block_bytes: 1
-  max_block_duration: 2s
-  complete_block_timeout: 20s
-  flush_check_period: 1s
-  partition_ring:
-    kvstore:
-      store: memberlist
-  flush_object_storage: false
 
 live_store:
   partition_ring:
