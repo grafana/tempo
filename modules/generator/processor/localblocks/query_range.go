@@ -121,7 +121,7 @@ func (p *Processor) QueryRange(ctx context.Context, req tempopb.QueryRangeReques
 			wg.Add(1)
 			go func(b *ingester.LocalBlock) {
 				defer wg.Done()
-				resp, err := p.queryRangeCompleteBlock(ctx, b, req, timeOverlapCutoff, unsafe, int(req.Exemplars))
+				resp, err := p.queryRangeCompleteBlock(ctx, b, req, timeOverlapCutoff, unsafe)
 				if err != nil {
 					jobErr.Store(err)
 					return
