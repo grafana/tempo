@@ -25,6 +25,7 @@ type Config struct {
 	InstanceAddr           string   `yaml:"instance_addr"`
 	InstancePort           int      `yaml:"instance_port"`
 	EnableInet6            bool     `yaml:"enable_inet6"`
+	InstanceZone           string   `yaml:"instance_zone"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`
@@ -44,6 +45,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	}
 	cfg.InstanceID = hostname
 	cfg.InstanceInterfaceNames = []string{"eth0", "en0"}
+
+	f.StringVar(&cfg.InstanceZone, prefix+".instance-availability-zone", "", "Define Availability Zone in which this instance is running.")
 }
 
 func (cfg *Config) ToRingConfig() ring.Config {
@@ -66,12 +69,12 @@ func (cfg *Config) ToLifecyclerConfig(numTokens int) (ring.BasicLifecyclerConfig
 	}
 
 	instancePort := ring.GetInstancePort(cfg.InstancePort, cfg.ListenPort)
-
 	instanceAddrPort := net.JoinHostPort(instanceAddr, strconv.Itoa(instancePort))
 
 	return ring.BasicLifecyclerConfig{
 		ID:              cfg.InstanceID,
 		Addr:            instanceAddrPort,
+		Zone:            cfg.InstanceZone,
 		HeartbeatPeriod: cfg.HeartbeatPeriod,
 		NumTokens:       numTokens,
 	}, nil
