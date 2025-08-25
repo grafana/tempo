@@ -248,6 +248,9 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	// Should have dropped 2 old records (1 per tenant)
 	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant1", "too_old")))
 	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant2", "too_old")))
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 type instanceState struct {

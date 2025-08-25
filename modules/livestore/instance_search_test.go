@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	crand "crypto/rand"
+	"errors"
 	"flag"
 	"fmt"
 	"sort"
@@ -45,7 +46,7 @@ const (
 )
 
 func TestInstanceSearch(t *testing.T) {
-	i, _ := defaultInstanceAndTmpDir(t)
+	i, ls := defaultInstanceAndTmpDir(t)
 
 	tagKey := foo
 	tagValue := bar
@@ -80,6 +81,9 @@ func TestInstanceSearch(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 // TestInstanceSearchTraceQL is duplicate of TestInstanceSearch for now
@@ -92,7 +96,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 	for _, query := range queries {
 		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
-			i, _ := defaultInstanceAndTmpDir(t)
+			i, ls := defaultInstanceAndTmpDir(t)
 
 			_, ids := pushTracesToInstance(t, i, 10)
 
@@ -130,12 +134,15 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
+
+			err = services.StopAndAwaitTerminated(t.Context(), ls)
+			require.NoError(t, err)
 		})
 	}
 }
 
 func TestInstanceSearchWithStartAndEnd(t *testing.T) {
-	i, _ := defaultInstanceAndTmpDir(t)
+	i, ls := defaultInstanceAndTmpDir(t)
 
 	tagKey := foo
 	tagValue := bar
@@ -185,6 +192,9 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	err = i.completeBlock(context.Background(), blockID)
 	require.NoError(t, err)
 	searchAndAssert(req, uint32(200))
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
@@ -203,7 +213,7 @@ func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
 }
 
 func TestInstanceSearchTags(t *testing.T) {
-	i, _ := defaultInstance(t)
+	i, ls := defaultInstance(t)
 
 	// add dummy search data
 	tagKey := "foo"
@@ -228,6 +238,9 @@ func TestInstanceSearchTags(t *testing.T) {
 	require.NoError(t, err)
 
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 // nolint:revive,unparam
@@ -260,7 +273,7 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 }
 
 func TestInstanceSearchNoData(t *testing.T) {
-	i, _ := defaultInstance(t)
+	i, ls := defaultInstance(t)
 
 	req := &tempopb.SearchRequest{
 		Query: "{}",
@@ -269,6 +282,12 @@ func TestInstanceSearchNoData(t *testing.T) {
 	sr, err := i.Search(context.Background(), req)
 	assert.NoError(t, err)
 	require.Len(t, sr.Traces, 0)
+
+	err = services.StopAndAwaitTerminated(context.Background(), ls)
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	require.NoError(t, err)
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
@@ -283,7 +302,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
-	instance, _ := defaultInstance(t)
+	instance, ls := defaultInstance(t)
 	instance.overrides = limits
 
 	tagKey := foo
@@ -307,6 +326,9 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(resp.TagValues))
 	})
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 // TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
@@ -321,7 +343,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
-	instance, _ := defaultInstance(t)
+	instance, ls := defaultInstance(t)
 	instance.overrides = limits
 
 	tagKey := foo
@@ -361,6 +383,9 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	respV2, err = instance.SearchTagValuesV2(userCtx, &tempopb.SearchTagValuesRequest{TagName: fmt.Sprintf(".%s", tagKey)})
 	require.NoError(t, err)
 	assert.Equal(t, 10, len(respV2.TagValues))
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 func TestSearchTagsV2Limits(t *testing.T) {
@@ -393,39 +418,42 @@ func TestSearchTagsV2Limits(t *testing.T) {
 			ExpectedTagValuesMax:      0,
 		},
 	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			instance, _ := defaultInstance(t)
-			limits, err := overrides.NewOverrides(overrides.Config{
-				Defaults: overrides.Overrides{
-					Read: overrides.ReadOverrides{
-						MaxBytesPerTagValuesQuery: testCase.MaxBytesPerTagValuesQuery,
-					},
+		t.Log("case", testCase.name)
+
+		instance, ls := defaultInstance(t)
+		limits, err := overrides.NewOverrides(overrides.Config{
+			Defaults: overrides.Overrides{
+				Read: overrides.ReadOverrides{
+					MaxBytesPerTagValuesQuery: testCase.MaxBytesPerTagValuesQuery,
 				},
-			}, nil, prometheus.DefaultRegisterer)
-			require.NoError(t, err)
+			},
+		}, nil, prometheus.DefaultRegisterer)
+		require.NoError(t, err)
 
-			instance.overrides = limits
+		instance.overrides = limits
 
-			writeTracesForSearch(t, instance, "", tagKey, tagValue, false, false)
+		writeTracesForSearch(t, instance, "", tagKey, tagValue, false, false)
 
-			res, err := instance.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
-				Scope: "span",
-				Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
-			})
-			require.NoError(t, err)
-			require.NotNil(t, res)
-			require.Greater(t, res.Metrics.InspectedBytes, uint64(0))
-
-			if testCase.ExpectedTagValuesMax == 0 {
-				require.Len(t, res.Scopes, 0)
-				return
-			}
-
-			require.Len(t, res.Scopes, 1)
-			require.Equal(t, "span", res.Scopes[0].Name)
-			require.GreaterOrEqual(t, len(res.Scopes[0].Tags), testCase.ExpectedTagValuesMin)
-			require.LessOrEqual(t, len(res.Scopes[0].Tags), testCase.ExpectedTagValuesMax)
+		res, err := instance.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
+			Scope: "span",
+			Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
 		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Greater(t, res.Metrics.InspectedBytes, uint64(0))
+
+		if testCase.ExpectedTagValuesMax == 0 {
+			require.Len(t, res.Scopes, 0)
+			return
+		}
+
+		require.Len(t, res.Scopes, 1)
+		require.Equal(t, "span", res.Scopes[0].Name)
+		require.GreaterOrEqual(t, len(res.Scopes[0].Tags), testCase.ExpectedTagValuesMin)
+		require.LessOrEqual(t, len(res.Scopes[0].Tags), testCase.ExpectedTagValuesMax)
+
+		err = services.StopAndAwaitTerminated(ctx, ls)
+		require.NoError(t, err)
 	}
 }
 
@@ -608,7 +636,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 }
 
 func TestInstanceSearchDoesNotRace(t *testing.T) {
-	i, _ := defaultInstanceAndTmpDir(t)
+	i, ls := defaultInstanceAndTmpDir(t)
 
 	// add dummy search data
 	tagKey := foo
@@ -694,11 +722,14 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
 	wg.Wait()
+
+	err := services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 func TestInstanceSearchMetrics(t *testing.T) {
 	t.Parallel()
-	i, _ := defaultInstance(t)
+	i, ls := defaultInstance(t)
 
 	numTraces := uint32(500)
 	numBytes := uint64(0)
@@ -749,6 +780,9 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.NoError(t, err)
 	m = search()
 	require.Less(t, numBytes, m.InspectedBytes)
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
 }
 
 func TestInstanceFindByTraceID(t *testing.T) {
