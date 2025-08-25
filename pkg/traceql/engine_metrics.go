@@ -1495,6 +1495,7 @@ func (i *IntervalMapperQueryRange) Interval(ts uint64) int {
 
 func (i *IntervalMapperQueryRange) IntervalMs(tsmill int64) int {
 	ts := uint64(time.Duration(tsmill) * time.Millisecond)
+	// TODO: step is not truncated to milliseconds, it might be a bug
 	return i.interval(ts, i.startMs, i.endMs, i.step)
 }
 
