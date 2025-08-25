@@ -29,14 +29,113 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var tracer = otel.Tracer("modules/livestore")
+var (
+	tracer = otel.Tracer("modules/livestore")
+
+	errComplete = errors.New("complete")
+)
+
+// jpe - traceql max series limits?
+
+// BlockProcessor defines a function that processes a single block
+type BlockProcessor func(ctx context.Context, meta *backend.BlockMeta, searcher common.Searcher) error // jpe - add type for query range?
+
+// iterateBlocks provides a way to iterate over all blocks (head, wal, complete)
+// using concurrent processing with bounded concurrency
+func (i *instance) iterateBlocks(
+	ctx context.Context,
+	processor BlockProcessor,
+) error {
+	var anyErr atomic.Error
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	handleErr := func(err error) bool {
+		if err == nil {
+			return false
+		}
+
+		cancel()
+
+		if errors.Is(err, errComplete) || errors.Is(err, context.Canceled) { // jpe - eat context.Canceled here, but test it in the calling funcs
+			return false
+		}
+		anyErr.Store(err)
+
+		return true
+	}
+
+	i.blocksMtx.RLock()
+	if i.headBlock != nil {
+		meta := i.headBlock.BlockMeta()
+
+		ctx, span := tracer.Start(ctx, "process.headBlock")
+		span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
+
+		if err := processor(ctx, meta, i.headBlock); err != nil {
+			handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
+		}
+		span.End()
+	}
+	i.blocksMtx.RUnlock()
+
+	if err := anyErr.Load(); err != nil {
+		return err
+	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
+
+	// Process wal blocks
+	for _, b := range i.walBlocks {
+		wg.Add(1)
+		go func(block common.WALBlock) {
+			defer wg.Done()
+
+			meta := block.BlockMeta()
+
+			ctx, span := tracer.Start(ctx, "process.walBlock")
+			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
+			defer span.End()
+
+			if err := processor(ctx, meta, block); err != nil {
+				handleErr(fmt.Errorf("processing wal block (%s): %w", meta.BlockID, err))
+			}
+		}(b)
+	}
+
+	// Process complete blocks
+	for _, b := range i.completeBlocks {
+		wg.Add(1)
+		go func(block *ingester.LocalBlock) {
+			defer wg.Done()
+
+			meta := block.BlockMeta()
+
+			ctx, span := tracer.Start(ctx, "process.completeBlock")
+			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
+			defer span.End()
+
+			if err := processor(ctx, meta, block); err != nil {
+				handleErr(fmt.Errorf("processing complete block (%s): %w", meta.BlockID, err))
+			}
+		}(b)
+	}
+
+	wg.Wait()
+
+	if err := anyErr.Load(); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "instance.Search")
 	defer span.End()
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	maxResults := int(req.Limit)
 	// if limit is not set, use a safe default
@@ -64,22 +163,15 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		combiner   = traceql.NewMetadataCombiner(maxResults, mostRecent)
 		metrics    = &tempopb.SearchMetrics{}
 		opts       = common.DefaultSearchOptions()
-		anyErr     atomic.Error
 	)
 
-	search := func(blockMeta *backend.BlockMeta, block common.Searcher, spanName string) {
-		ctx, span := tracer.Start(ctx, "instance.searchBlock."+spanName)
-		defer span.End()
-
-		span.AddEvent("block entry mtx acquired")
-		span.SetAttributes(attribute.String("blockID", blockMeta.BlockID.String()))
-
+	search := func(ctx context.Context, blockMeta *backend.BlockMeta, block common.Searcher) error {
 		var resp *tempopb.SearchResponse
 		var err error
 
 		// if the combiner is complete for the block's end time, we can skip searching it
 		if combiner.IsCompleteFor(uint32(blockMeta.EndTime.Unix())) {
-			return
+			return errComplete
 		}
 
 		if api.IsTraceQLQuery(req) {
@@ -94,20 +186,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 		if errors.Is(err, common.ErrUnsupported) {
 			level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", blockMeta.BlockID)
-			return
-		}
-		if errors.Is(err, context.Canceled) {
-			// Ignore
-			return
+			return nil
 		}
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "error searching block", "blockID", blockMeta.BlockID, "err", err)
-			anyErr.Store(err)
-			return
+			return err
 		}
 
 		if resp == nil {
-			return
+			return nil
 		}
 
 		resultsMtx.Lock()
@@ -121,65 +207,22 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		for _, tr := range resp.Traces {
 			combiner.AddMetadata(tr)
 			if combiner.IsCompleteFor(traceql.TimestampNever) {
-				cancel()
-				return
+				return errComplete
 			}
 		}
+
+		return nil
 	}
 
-	// Search headblock (synchronously)
-	i.blocksMtx.RLock()
-	span.AddEvent("acquired headblock mtx")
-	if includeBlock(i.headBlock.BlockMeta(), req) {
-		search(i.headBlock.BlockMeta(), i.headBlock, "headBlock")
-	}
-	i.blocksMtx.RUnlock()
-	if err := anyErr.Load(); err != nil {
+	if err := i.iterateBlocks(ctx, search); err != nil {
+		level.Error(log.Logger).Log("msg", "error searching blocks", "err", err)
 		return nil, err
 	}
 
-	// Search all other blocks (concurrently)
-	// Lock blocks mutex until all search tasks are finished and this function exits. This avoids
-	// deadlocking with other activity (ingest, flushing), caused by releasing
-	// and then attempting to retake the lock.
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-	span.AddEvent("acquired blocks mtx")
-
-	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
-
-	for _, b := range i.walBlocks {
-		if !includeBlock(b.BlockMeta(), req) {
-			continue
-		}
-
-		wg.Add(1)
-		go func(b common.WALBlock) {
-			defer wg.Done()
-			search(b.BlockMeta(), b, "completingBlock")
-		}(b)
-	}
-
-	for _, b := range i.completeBlocks {
-		if !includeBlock(b.BlockMeta(), req) {
-			continue
-		}
-		wg.Add(1)
-		go func(b *ingester.LocalBlock) {
-			defer wg.Done()
-			search(b.BlockMeta(), b, "completeBlock")
-		}(b)
-	}
-
-	wg.Wait()
-
-	if err := anyErr.Load(); err != nil {
-		return nil, err
-	}
 	return &tempopb.SearchResponse{
 		Traces:  combiner.Metadata(),
 		Metrics: metrics,
-	}, nil
+	}, ctx.Err() // return context error in case the parent context was cancelled
 }
 
 func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
