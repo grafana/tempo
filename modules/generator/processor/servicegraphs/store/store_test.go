@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"math/rand"
+	"reflect"
 	"testing"
 	"time"
 
@@ -187,4 +188,50 @@ func countingCallback(counter *int) func(*Edge) {
 	return func(_ *Edge) {
 		*counter++
 	}
+}
+
+func TestResetEdge(t *testing.T) {
+	// Create an edge with all fields set to non-zero values
+	dimensions := map[string]string{"key1": "value1", "key2": "value2"}
+	e := &Edge{
+		key:                     "test-key",
+		TraceID:                 "trace-123",
+		ConnectionType:          Database,
+		ServerService:           "server-svc",
+		ClientService:           "client-svc",
+		ServerLatencySec:        1.5,
+		ClientLatencySec:        2.5,
+		ServerStartTimeUnixNano: 1234567890,
+		ClientEndTimeUnixNano:   9876543210,
+		Failed:                  true,
+		Dimensions:              dimensions,
+		PeerNode:                "peer-node",
+		expiration:              999999,
+		SpanMultiplier:          5.0,
+	}
+
+	// Reset the edge
+	resetEdge(e)
+
+	// Verify all fields are properly reset
+	assert.Equal(t, "", e.key, "key should be preserved")
+	assert.Equal(t, "", e.TraceID, "TraceID should be reset")
+	assert.Equal(t, Unknown, e.ConnectionType, "ConnectionType should be reset to Unknown")
+	assert.Equal(t, "", e.ServerService, "ServerService should be reset")
+	assert.Equal(t, "", e.ClientService, "ClientService should be reset")
+	assert.Equal(t, 0.0, e.ServerLatencySec, "ServerLatencySec should be reset")
+	assert.Equal(t, 0.0, e.ClientLatencySec, "ClientLatencySec should be reset")
+	assert.Equal(t, uint64(0), e.ServerStartTimeUnixNano, "ServerStartTimeUnixNano should be reset")
+	assert.Equal(t, uint64(0), e.ClientEndTimeUnixNano, "ClientEndTimeUnixNano should be reset")
+	assert.Equal(t, false, e.Failed, "Failed should be reset")
+	assert.NotNil(t, e.Dimensions, "Dimensions should not be nil (preserved from original)")
+	assert.Equal(t, 0, len(e.Dimensions), "Dimensions should be empty (cleared)")
+	assert.Equal(t, "", e.PeerNode, "PeerNode should be reset")
+	assert.Equal(t, int64(0), e.expiration, "expiration should be reset")
+	assert.Equal(t, 1.0, e.SpanMultiplier, "SpanMultiplier should be reset to 1")
+
+	assert.NotNil(t, e.Dimensions, "Dimensions should not be nil")
+	originalPtr := reflect.ValueOf(dimensions).Pointer()
+	newPtr := reflect.ValueOf(e.Dimensions).Pointer()
+	assert.Equal(t, originalPtr, newPtr, "Dimensions map should be the exact same instance, not reallocated")
 }
