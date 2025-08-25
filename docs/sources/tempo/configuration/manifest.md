@@ -605,6 +605,7 @@ metrics_generator:
         instance_addr: ""
         instance_port: 0
         enable_inet6: false
+        instance_zone: ""
     processor:
         service_graphs:
             wait: 10s
@@ -1181,6 +1182,7 @@ live_store:
         instance_addr: ""
         instance_port: 0
         enable_inet6: false
+        instance_zone: ""
     partition_ring:
         kvstore:
             store: memberlist
