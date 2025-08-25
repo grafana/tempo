@@ -9,7 +9,7 @@ dashboard_utils {
       .addRow(
         $.row('Fetched records')
         .addPanel(
-          $.panel('Kafka fetched records / sec') +
+          $.timeseriesPanel('Kafka fetched records / sec') +
           $.panelDescription(
             'Kafka fetched records / sec',
             'Overview of per-second rate of records fetched from Kafka.',
@@ -55,7 +55,7 @@ dashboard_utils {
       .addRow(
         $.row('Read bytes')
         .addPanel(
-          $.panel('Kafka read bytes / sec') +
+          $.timeseriesPanel('Kafka read bytes / sec') +
           $.panelDescription(
             'Kafka read bytes / sec',
             'Overview of per-second rate of bytes readed from Kafka.',
@@ -106,7 +106,7 @@ dashboard_utils {
       .addRow(
         $.row('Flushed blocks')
         .addPanel(
-          $.panel('Flushed blocks / sec') +
+          $.timeseriesPanel('Flushed blocks / sec') +
           $.panelDescription(
             'Block builder partition section duration',
             'Overview of the partition section duration.',
