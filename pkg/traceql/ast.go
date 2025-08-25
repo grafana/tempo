@@ -18,7 +18,7 @@ type Element interface {
 	validate() error
 }
 
-type pipelineElement interface {
+type PipelineElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
 	evaluate([]*Spanset) ([]*Spanset, error)
@@ -52,7 +52,7 @@ func NeedsFullTrace(e ...Element) bool {
 			// Example: {} | count() > 123
 			return true
 		case ScalarFilter:
-			if NeedsFullTrace(x.lhs, x.rhs) {
+			if NeedsFullTrace(x.LHS, x.RHS) {
 				return true
 			}
 		}
@@ -70,7 +70,7 @@ func (r *RootExpr) NeedsFullTrace() bool {
 	return false
 }
 
-func newRootExpr(e pipelineElement) *RootExpr {
+func newRootExpr(e PipelineElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -81,7 +81,7 @@ func newRootExpr(e pipelineElement) *RootExpr {
 	}
 }
 
-func newRootExprWithMetrics(e pipelineElement, m firstStageElement) *RootExpr {
+func newRootExprWithMetrics(e PipelineElement, m firstStageElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -93,7 +93,7 @@ func newRootExprWithMetrics(e pipelineElement, m firstStageElement) *RootExpr {
 	}
 }
 
-func newRootExprWithMetricsTwoStage(e pipelineElement, m1 firstStageElement, m2 secondStageElement) *RootExpr {
+func newRootExprWithMetricsTwoStage(e PipelineElement, m1 firstStageElement, m2 secondStageElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -159,7 +159,7 @@ func (r *RootExpr) IsNoop() bool {
 // **********************
 
 type Pipeline struct {
-	Elements []pipelineElement
+	Elements []PipelineElement
 }
 
 // nolint: revive
@@ -168,13 +168,13 @@ func (Pipeline) __scalarExpression() {}
 // nolint: revive
 func (Pipeline) __spansetExpression() {}
 
-func newPipeline(i ...pipelineElement) Pipeline {
+func newPipeline(i ...PipelineElement) Pipeline {
 	return Pipeline{
 		Elements: i,
 	}
 }
 
-func (p Pipeline) addItem(i pipelineElement) Pipeline {
+func (p Pipeline) addItem(i PipelineElement) Pipeline {
 	p.Elements = append(p.Elements, i)
 	return p
 }
@@ -211,7 +211,7 @@ func (p Pipeline) extractConditions(req *FetchSpansRequest) {
 	}
 }
 
-func extractToSecondPass(req *FetchSpansRequest, element pipelineElement) {
+func extractToSecondPass(req *FetchSpansRequest, element PipelineElement) {
 	req2 := &FetchSpansRequest{}
 	element.extractConditions(req2)
 
@@ -286,7 +286,7 @@ func newSelectOperation(exprs []Attribute) SelectOperation {
 // Scalars
 // **********************
 type ScalarExpression interface {
-	// pipelineElement
+	// PipelineElement
 	Element
 	typedExpression
 	__scalarExpression()
@@ -365,7 +365,7 @@ func (a Aggregate) extractConditions(request *FetchSpansRequest) {
 // Spansets
 // **********************
 type SpansetExpression interface {
-	pipelineElement
+	PipelineElement
 	__spansetExpression()
 }
 
@@ -466,16 +466,16 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 }
 
 type ScalarFilter struct {
-	op  Operator
-	lhs ScalarExpression
-	rhs ScalarExpression
+	Op  Operator
+	LHS ScalarExpression
+	RHS ScalarExpression
 }
 
 func newScalarFilter(op Operator, lhs, rhs ScalarExpression) ScalarFilter {
 	return ScalarFilter{
-		op:  op,
-		lhs: lhs,
-		rhs: rhs,
+		Op:  op,
+		LHS: lhs,
+		RHS: rhs,
 	}
 }
 
@@ -483,8 +483,8 @@ func newScalarFilter(op Operator, lhs, rhs ScalarExpression) ScalarFilter {
 func (ScalarFilter) __spansetExpression() {}
 
 func (f ScalarFilter) extractConditions(request *FetchSpansRequest) {
-	f.lhs.extractConditions(request)
-	f.rhs.extractConditions(request)
+	f.LHS.extractConditions(request)
+	f.RHS.extractConditions(request)
 }
 
 // **********************
@@ -1156,11 +1156,11 @@ func NewIntrinsic(n Intrinsic) Attribute {
 }
 
 var (
-	_ pipelineElement = (*Pipeline)(nil)
-	_ pipelineElement = (*Aggregate)(nil)
-	_ pipelineElement = (*SpansetOperation)(nil)
-	_ pipelineElement = (*SpansetFilter)(nil)
-	_ pipelineElement = (*CoalesceOperation)(nil)
-	_ pipelineElement = (*ScalarFilter)(nil)
-	_ pipelineElement = (*GroupOperation)(nil)
+	_ PipelineElement = (*Pipeline)(nil)
+	_ PipelineElement = (*Aggregate)(nil)
+	_ PipelineElement = (*SpansetOperation)(nil)
+	_ PipelineElement = (*SpansetFilter)(nil)
+	_ PipelineElement = (*CoalesceOperation)(nil)
+	_ PipelineElement = (*ScalarFilter)(nil)
+	_ PipelineElement = (*GroupOperation)(nil)
 )

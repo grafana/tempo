@@ -41,7 +41,7 @@ func TestFrontendTagSearchRequiresOrgID(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, next, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, next, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -77,7 +77,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 100000 (both inclusive)")
 	assert.Nil(t, f)
 
@@ -94,7 +94,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 100000 (both inclusive)")
 	assert.Nil(t, f)
 
@@ -111,7 +111,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend search concurrent requests should be greater than 0")
 	assert.Nil(t, f)
 
@@ -128,7 +128,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend search target bytes per request should be greater than 0")
 	assert.Nil(t, f)
 
@@ -147,7 +147,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "query backend after should be less than or equal to query ingester until")
 	assert.Nil(t, f)
 
@@ -163,7 +163,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend metrics concurrent requests should be greater than 0")
 	assert.Nil(t, f)
 
@@ -186,7 +186,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend metrics target bytes per request should be greater than 0")
 	assert.Nil(t, f)
 
@@ -210,7 +210,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend metrics interval should be greater than 0")
 	assert.Nil(t, f)
 
@@ -234,7 +234,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "most recent shards must be greater than 0")
 	assert.Nil(t, f)
 }
