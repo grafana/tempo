@@ -314,7 +314,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			for _, b := range t.ResourceSpans {
 				for _, l := range b.ScopeSpans {
 					for _, s := range l.Spans {
-						if len(s.GetParentSpanId()) == 0 {
+						if s != nil && len(s.ParentSpanId) == 0 {
 							s.ParentSpanId = nil
 						}
 					}
