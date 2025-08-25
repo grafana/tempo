@@ -128,6 +128,13 @@ func TestConfigValidate(t *testing.T) {
 			},
 			expectedErr: "max_trace_idle (20s) cannot be greater than max_trace_live (10s)",
 		},
+		{
+			name: "empty instance zone",
+			modifyConfig: func(cfg *Config) {
+				cfg.Ring.InstanceZone = ""
+			},
+			expectedErr: "instance_zone must be set",
+		},
 	}
 
 	for _, tt := range tests {
@@ -135,6 +142,7 @@ func TestConfigValidate(t *testing.T) {
 			// default config
 			cfg := Config{}
 			cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
 			tt.modifyConfig(&cfg)
 
 			err := cfg.Validate()
