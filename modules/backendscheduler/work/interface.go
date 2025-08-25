@@ -7,17 +7,17 @@ import (
 // Interface defines the common interface for work management
 type Interface interface {
 	// Job management
-	AddJob(j *Job) error
-	StartJob(id string)
-	GetJob(id string) *Job
-	RemoveJob(id string)
-	CompleteJob(id string)
-	FailJob(id string)
-	SetJobCompactionOutput(id string, output []string)
+	AddJob(ctx context.Context, j *Job, workerID string) error
+	StartJob(ctx context.Context, id string) error
+	RemoveJob(ctx context.Context, id string) error
+	CompleteJob(ctx context.Context, id string) error
+	FailJob(ctx context.Context, id string) error
+	SetJobCompactionOutput(ctx context.Context, id string, output []string) error
 
 	// Job queries
-	ListJobs() []*Job
 	GetJobForWorker(ctx context.Context, workerID string) *Job
+	GetJob(id string) *Job
+	ListJobs() []*Job
 
 	// Maintenance
 	Prune(ctx context.Context)
@@ -27,8 +27,10 @@ type Interface interface {
 	Unmarshal(data []byte) error
 
 	// Local file operations
-	FlushToLocal(ctx context.Context, localPath string, affectedJobIDs []string) error
-	LoadFromLocal(ctx context.Context, localPath string) error
+	FlushToLocal(ctx context.Context, affectedJobIDs []string) error
+	LoadFromLocal(ctx context.Context) error
+
+	HasLocalData() bool
 }
 
 // ShardedWorkInterface extends WorkInterface with sharding-specific methods
