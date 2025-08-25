@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.30.0"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -26,8 +26,7 @@ import (
 // there is ever a change to the ones we rely on.  This is not a complete test,
 // but just a quick way to know about changes upstream.
 func TestSemconvKeys(t *testing.T) {
-	require.Equal(t, string(semconv.DBNameKey), "db.name")
-	require.Equal(t, string(semconv.DBSystemKey), "db.system")
+	require.Equal(t, string(semconv.DBSystemNameKey), "db.system.name")
 	require.Equal(t, string(semconv.PeerServiceKey), "peer.service")
 	require.Equal(t, string(semconv.NetworkPeerAddressKey), "network.peer.address")
 	require.Equal(t, string(semconv.NetworkPeerPortKey), "network.peer.port")
@@ -532,6 +531,73 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, dbSystemSystemLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
+}
+
+func TestServiceGraphs_databaseNameAttributes(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		databaseNameAttributes []string
+		expectedDbSystemName   string
+		shouldHaveDbEdge       bool
+	}{
+		{
+			name:                   "default configuration with db.name",
+			databaseNameAttributes: []string{"db.name", "db.system.name"},
+			expectedDbSystemName:   "postgres",
+			shouldHaveDbEdge:       true,
+		},
+		{
+			name:                   "custom configuration with different order",
+			databaseNameAttributes: []string{"db.system.name", "db.name"},
+			expectedDbSystemName:   "postgres",
+			shouldHaveDbEdge:       true,
+		},
+		{
+			name:                   "db.system.name has priority when configured first",
+			databaseNameAttributes: []string{"db.system.name", "db.name"},
+			expectedDbSystemName:   "postgres",
+			shouldHaveDbEdge:       true,
+		},
+		{
+			name:                   "empty database name attributes config falls back to legacy",
+			databaseNameAttributes: []string{},
+			expectedDbSystemName:   "postgres",
+			shouldHaveDbEdge:       true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.DatabaseNameAttributes = tc.databaseNameAttributes
+
+			p := New(cfg, "test", testRegistry, log.NewNopLogger())
+			defer p.Shutdown(context.Background())
+
+			request, err := loadTestData("testdata/trace-with-queue-database.json")
+			require.NoError(t, err)
+
+			p.PushSpans(context.Background(), request)
+
+			if tc.shouldHaveDbEdge {
+				databaseLabels := labels.FromMap(map[string]string{
+					"client":          "mythical-server",
+					"server":          tc.expectedDbSystemName,
+					"connection_type": "database",
+				})
+				assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, databaseLabels))
+			} else {
+				assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_total`, labels.FromMap(map[string]string{
+					"client":          "mythical-server",
+					"server":          "postgres",
+					"connection_type": "database",
+				})))
+			}
+		})
+	}
 }
 
 func BenchmarkServiceGraphs(b *testing.B) {
