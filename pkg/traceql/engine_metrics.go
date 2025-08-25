@@ -242,7 +242,7 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 		for i, value := range s.Values {
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
-			if math.IsNaN(value) {
+			if i >= intervals || math.IsNaN(value) {
 				continue
 			}
 
