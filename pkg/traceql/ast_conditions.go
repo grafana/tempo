@@ -126,6 +126,14 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 
 func (o UnaryOperation) extractConditions(request *FetchSpansRequest) {
 	// TODO when Op is Not we should just either negate all inner Operands or just fetch the columns with OpNone
+	if o.Op == OpNotExists {
+		request.appendCondition(Condition{
+			Attribute: o.Expression.(Attribute),
+			Op:        OpNotExists,
+			Operands:  nil,
+		})
+		return
+	}
 	o.Expression.extractConditions(request)
 }
 
