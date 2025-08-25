@@ -2147,6 +2147,7 @@ func setupDependencies(t *testing.T, limits overrides.Config) (Config, ingester_
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
 	distributorConfig.DistributorRing.KVStore.Mock = nil
 	distributorConfig.DistributorRing.InstanceInterfaceNames = []string{"eth0", "en0", "lo0"}
+	distributorConfig.IngesterWritePathEnabled = true
 	distributorConfig.factory = func(addr string) (ring_client.PoolClient, error) {
 		return ingesters[addr], nil
 	}

@@ -1,9 +1,10 @@
 /*
- * livestore/query_range.go is based on this file and any changes should be kepy in sync.
+ * This package is a fork of localblocks/query_range any changes should be made in both.
  */
-package localblocks
+package livestore
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -24,32 +26,54 @@ import (
 	"go.uber.org/atomic"
 )
 
+const (
+	timeBuffer = 5 * time.Minute
+)
+
 // QueryRange returns metrics.
-func (p *Processor) QueryRange(ctx context.Context, req tempopb.QueryRangeRequest, rawEval *traceql.MetricsEvaluator, jobEval *traceql.MetricsFrontendEvaluator) error {
+func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	p.blocksMtx.RLock()
-	defer p.blocksMtx.RUnlock()
+	e := traceql.NewEngine()
 
-	cutoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
+	// Compile the raw version of the query for head and wal blocks
+	// These aren't cached and we put them all into the same evaluator
+	// for efficiency.
+	// TODO MRD look into how to propagate unsafe query hints.
+	rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), i.Cfg.Metrics.TimeOverlapCutoff, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// This is a summation version of the query for complete blocks
+	// which can be cached. They are timeseries, so they need the job-level evaluator.
+	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+	if err != nil {
+		return nil, err
+	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
 	if req.Start < uint64(cutoff.UnixNano()) {
-		return fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
+		return nil, fmt.Errorf("time range must be within last %v", i.Cfg.CompleteBlockTimeout)
 	}
 
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
-		return fmt.Errorf("compiling query: %w", err)
+		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
-	unsafe := p.overrides.UnsafeQueryHints(p.tenant)
+	unsafe := i.overrides.UnsafeQueryHints(i.tenantID)
 
-	timeOverlapCutoff := p.Cfg.Metrics.TimeOverlapCutoff
+	timeOverlapCutoff := i.Cfg.Metrics.TimeOverlapCutoff
 	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
 		timeOverlapCutoff = v
 	}
 
-	concurrency := p.Cfg.Metrics.ConcurrentBlocks
+	concurrency := i.Cfg.QueryBlockConcurrency
 	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
 		concurrency = uint(v)
 	}
@@ -68,23 +92,23 @@ func (p *Processor) QueryRange(ctx context.Context, req tempopb.QueryRangeReques
 
 	maxSeries := int(req.MaxSeries)
 
-	if p.headBlock != nil && withinRange(p.headBlock.BlockMeta()) {
+	if i.headBlock != nil && withinRange(i.headBlock.BlockMeta()) {
 		if maxSeries == 0 || !maxSeriesReached.Load() {
 			wg.Add(1)
 			go func(w common.WALBlock) {
 				defer wg.Done()
-				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				err := i.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
 				}
-				if rawEval.Length() > maxSeries {
+				if maxSeries > 0 && rawEval.Length() > maxSeries {
 					maxSeriesReached.Store(true)
 				}
-			}(p.headBlock)
+			}(i.headBlock)
 		}
 	}
 
-	for _, w := range p.walBlocks {
+	for _, w := range i.walBlocks {
 		if jobErr.Load() != nil {
 			break
 		}
@@ -97,18 +121,18 @@ func (p *Processor) QueryRange(ctx context.Context, req tempopb.QueryRangeReques
 			wg.Add(1)
 			go func(w common.WALBlock) {
 				defer wg.Done()
-				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				err := i.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
 				if err != nil {
 					jobErr.Store(err)
 				}
-				if rawEval.Length() > maxSeries {
+				if maxSeries > 0 && rawEval.Length() > maxSeries {
 					maxSeriesReached.Store(true)
 				}
 			}(w)
 		}
 	}
 
-	for _, b := range p.completeBlocks {
+	for _, b := range i.completeBlocks {
 		if jobErr.Load() != nil {
 			break
 		}
@@ -121,13 +145,13 @@ func (p *Processor) QueryRange(ctx context.Context, req tempopb.QueryRangeReques
 			wg.Add(1)
 			go func(b *ingester.LocalBlock) {
 				defer wg.Done()
-				resp, err := p.queryRangeCompleteBlock(ctx, b, req, timeOverlapCutoff, unsafe, int(req.Exemplars))
+				resp, err := i.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
 				if err != nil {
 					jobErr.Store(err)
 					return
 				}
 				jobEval.ObserveSeries(resp)
-				if jobEval.Length() > maxSeries {
+				if maxSeries > 0 && jobEval.Length() > maxSeries {
 					maxSeriesReached.Store(true)
 				}
 			}(b)
@@ -137,15 +161,34 @@ func (p *Processor) QueryRange(ctx context.Context, req tempopb.QueryRangeReques
 	wg.Wait()
 
 	if err := jobErr.Load(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	// The code below here is taken from modules/generator/instance.go, where it combines the results from the processor.
+	// We only have one "processor" so directly evaluating the results.
+
+	// Combine the raw results into the job results
+	walResults := rawEval.Results().ToProto(req)
+	jobEval.ObserveSeries(walResults)
+
+	r := jobEval.Results()
+	rr := r.ToProto(req)
+
+	if maxSeriesReached.Load() {
+		return &tempopb.QueryRangeResponse{
+			Series: rr[:maxSeries],
+			Status: tempopb.PartialStatus_PARTIAL,
+		}, nil
+	}
+
+	return &tempopb.QueryRangeResponse{
+		Series: rr,
+	}, nil
 }
 
-func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) error {
+func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvaluator, maxSeries int) error {
 	m := b.BlockMeta()
-	ctx, span := tracer.Start(ctx, "Processor.QueryRange.WALBlock", trace.WithAttributes(
+	ctx, span := tracer.Start(ctx, "instance.QueryRange.WALBlock", trace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
 		attribute.Int64("blockSize", int64(m.Size_)),
 	))
@@ -158,9 +201,9 @@ func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, e
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
-func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool, exemplars int) ([]*tempopb.TimeSeries, error) {
+func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool, exemplars int) ([]*tempopb.TimeSeries, error) {
 	m := b.BlockMeta()
-	ctx, span := tracer.Start(ctx, "Processor.QueryRange.CompleteBlock", trace.WithAttributes(
+	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", trace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
 		attribute.Int64("blockSize", int64(m.Size_)),
 	))
@@ -176,7 +219,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 		return nil, nil
 	}
 
-	cached, name, err := p.queryRangeCacheGet(ctx, m, req)
+	cached, name, err := i.queryRangeCacheGet(ctx, m, req)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +246,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	results := eval.Results().ToProto(&req)
 
 	if name != "" {
-		err = p.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{
+		err = i.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{
 			Series: results,
 		})
 		if err != nil {
@@ -214,17 +257,24 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	return results, nil
 }
 
-func (p *Processor) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta, req tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, string, error) {
+func (i *instance) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta, req tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, string, error) {
 	hash := queryRangeHashForBlock(req)
 
 	name := fmt.Sprintf("cache_query_range_%v.buf", hash)
 
-	data, err := p.walR.Read(ctx, name, (uuid.UUID)(m.BlockID), m.TenantID, nil)
+	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
+	reader, size, err := i.wal.LocalBackend().Read(ctx, name, keyPath, nil)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
 			// Not cached, but return the name/keypath so it can be set after
 			return nil, name, nil
 		}
+		return nil, "", err
+	}
+	defer reader.Close()
+
+	data, err := tempo_io.ReadAllWithEstimate(reader, size)
+	if err != nil {
 		return nil, "", err
 	}
 
@@ -237,13 +287,14 @@ func (p *Processor) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta
 	return resp, name, nil
 }
 
-func (p *Processor) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta, name string, resp *tempopb.QueryRangeResponse) error {
+func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta, name string, resp *tempopb.QueryRangeResponse) error {
 	data, err := proto.Marshal(resp)
 	if err != nil {
 		return err
 	}
 
-	return p.walW.Write(ctx, name, (uuid.UUID)(m.BlockID), m.TenantID, data, nil)
+	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
+	return i.wal.LocalBackend().Write(ctx, name, keyPath, bytes.NewReader(data), int64(len(data)), nil)
 }
 
 func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {

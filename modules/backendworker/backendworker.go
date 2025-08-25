@@ -37,8 +37,6 @@ const (
 	ringNumTokens = 512
 
 	backendWorkerRingKey = "backend-worker"
-
-	reasonCompactorDiscardedSpans = "trace_too_large_to_compact"
 )
 
 var ringOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
@@ -402,7 +400,7 @@ func (w *BackendWorker) Combine(dataEncoding string, tenantID string, objs ...[]
 	}
 
 	totalDiscarded := countSpans(dataEncoding, objs[1:]...)
-	overrides.RecordDiscardedSpans(totalDiscarded, reasonCompactorDiscardedSpans, tenantID)
+	overrides.RecordDiscardedSpans(totalDiscarded, overrides.ReasonCompactorDiscardedSpans, tenantID)
 	return objs[0], wasCombined, nil
 }
 
@@ -467,7 +465,7 @@ func (w *BackendWorker) Owns(hash string) bool {
 func (w *BackendWorker) RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string, rootServiceName string) {
 	level.Warn(log.Logger).Log("msg", "max size of trace exceeded", "tenant", tenantID, "traceId", traceID,
 		"rootSpanName", rootSpanName, "rootServiceName", rootServiceName, "discarded_span_count", count)
-	overrides.RecordDiscardedSpans(count, reasonCompactorDiscardedSpans, tenantID)
+	overrides.RecordDiscardedSpans(count, overrides.ReasonCompactorDiscardedSpans, tenantID)
 }
 
 // BlockRetentionForTenant implements CompactorOverrides

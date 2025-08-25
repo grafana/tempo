@@ -1,11 +1,17 @@
 package livetraces
 
 import (
+	"errors"
 	"hash"
 	"hash/fnv"
 	"time"
 
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+)
+
+var (
+	ErrMaxLiveTracesExceeded = errors.New("max live traces exceeded")
+	ErrMaxTraceSizeExceeded  = errors.New("max trace size exceeded")
 )
 
 type LiveTraceBatchT interface {
@@ -57,10 +63,10 @@ func (l *LiveTraces[T]) Size() uint64 {
 }
 
 func (l *LiveTraces[T]) Push(traceID []byte, batch T, max uint64) bool {
-	return l.PushWithTimestampAndLimits(time.Now(), traceID, batch, max, 0)
+	return l.PushWithTimestampAndLimits(time.Now(), traceID, batch, max, 0) == nil
 }
 
-func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte, batch T, maxLiveTraces, maxTraceSize uint64) (ok bool) {
+func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte, batch T, maxLiveTraces, maxTraceSize uint64) error {
 	token := l.token(traceID)
 
 	tr := l.Traces[token]
@@ -69,7 +75,7 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 		// Before adding this check against max
 		// Zero means no limit
 		if maxLiveTraces > 0 && uint64(len(l.Traces)) >= maxLiveTraces {
-			return false
+			return ErrMaxLiveTracesExceeded
 		}
 
 		tr = &LiveTrace[T]{
@@ -83,7 +89,7 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 
 	// Before adding check against max trace size
 	if maxTraceSize > 0 && (tr.sz+sz > maxTraceSize) {
-		return false
+		return ErrMaxTraceSizeExceeded
 	}
 
 	tr.sz += sz
@@ -91,7 +97,7 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 
 	tr.Batches = append(tr.Batches, batch)
 	tr.lastAppend = ts
-	return true
+	return nil
 }
 
 func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) []*LiveTrace[T] {
