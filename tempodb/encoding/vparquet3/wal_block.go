@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -362,7 +363,7 @@ func (b *walBlock) IngestionSlack() time.Duration {
 }
 
 func (b *walBlock) Validate(context.Context) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {

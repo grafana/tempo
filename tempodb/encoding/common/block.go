@@ -1,11 +1,8 @@
 package common
 
 import (
-	"errors"
 	"strconv"
 )
-
-var ErrUnsupported = errors.New("unsupported")
 
 const (
 	// NameObjects names the backend data object
