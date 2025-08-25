@@ -305,9 +305,7 @@ func (r *rowPool) Put(row parquet.Row) {
 	// Clear before putting into the pool.
 	// This is important so that pool entries don't hang
 	// onto the underlying buffers.
-	for i := range row {
-		row[i] = parquet.Value{}
-	}
+	clear(row)
 	r.pool.Put(row[:0]) //nolint:all //SA6002
 }
 
