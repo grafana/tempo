@@ -48,7 +48,7 @@ storage:
   trace:
     backend: local
     local:
-      path: /var/tempo
+      path: /var/tempo/traces
     pool:
       max_workers: 10
       queue_depth: 100
