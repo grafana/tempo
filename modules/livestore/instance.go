@@ -363,6 +363,8 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 
 	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
 	// Verify the WAL block still exists
 	if _, ok := i.walBlocks[id]; !ok {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared while being completed, deleting complete block", "id", id)
@@ -370,7 +372,6 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		if err != nil {
 			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
 		}
-		i.blocksMtx.Unlock()
 		span.AddEvent("WAL block disappeared during completion")
 		return nil
 	}
@@ -383,7 +384,6 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		span.RecordError(err)
 	}
 	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
-	i.blocksMtx.Unlock()
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
@@ -427,16 +427,9 @@ func (i *instance) deleteOldBlocks() error {
 }
 
 func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.TraceByIDResponse, error) {
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
-	var completeTrace *tempopb.Trace
 	metrics := tempopb.TraceByIDMetrics{}
 	combiner := trace.NewCombiner(math.MaxInt64, true)
-	_, err := combiner.Consume(completeTrace)
-	if err != nil {
-		return nil, err
-	}
+
 	// TODO MRD this code looks ripe for simplification. Its the same pattern repeated several times.
 	i.liveTracesMtx.Lock()
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
@@ -453,7 +446,6 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	i.liveTracesMtx.Unlock()
 
 	// TODO MRD Add limits
-
 	loopBlock := func(b common.Finder) error {
 		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 		if err != nil {
@@ -471,6 +463,10 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 		}
 		return nil
 	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
 	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
 	for _, b := range i.completeBlocks {
 		err := loopBlock(b)
@@ -486,7 +482,7 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 		}
 	}
 
-	err = loopBlock(i.headBlock)
+	err := loopBlock(i.headBlock)
 	if err != nil {
 		return nil, fmt.Errorf("error searching in headblock %s: %w", i.headBlock.BlockMeta().BlockID, err)
 	}
