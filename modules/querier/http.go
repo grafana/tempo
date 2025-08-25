@@ -126,6 +126,62 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 	writeFormattedContentForRequest(w, r, resp, span)
 }
 
+func (q *Querier) TracesCheckHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
+	defer cancel()
+
+	ctx, span := tracer.Start(ctx, "Querier.TracesCheckHandler")
+	defer span.End()
+
+	// Parse request body
+	body, err := api.ParseTracesCheckRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate request parameters for optional fields (similar to TraceByIDHandlerV2)
+	blockStart, blockEnd, queryMode, _, _, rf1After, err := api.ValidateAndSanitizeRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Add sharding parameters to request if not already set
+	if body.BlockStart == "" {
+		body.BlockStart = blockStart
+	}
+	if body.BlockEnd == "" {
+		body.BlockEnd = blockEnd
+	}
+	if body.QueryMode == "" {
+		body.QueryMode = queryMode
+	}
+
+	// Use time fields from the request body (now required)
+	timeStart := time.Unix(int64(body.TimeStart), 0)
+	timeEnd := time.Unix(int64(body.TimeEnd), 0)
+
+	span.SetAttributes(
+		attribute.Int("traceCount", len(body.TraceIDs)),
+		attribute.String("blockStart", body.BlockStart),
+		attribute.String("blockEnd", body.BlockEnd),
+		attribute.String("queryMode", body.QueryMode),
+		attribute.String("timeStart", fmt.Sprint(body.TimeStart)),
+		attribute.String("timeEnd", fmt.Sprint(body.TimeEnd)),
+		attribute.String("rf1After", rf1After.Format(time.RFC3339)),
+	)
+
+	resp, err := q.TracesCheck(ctx, body, timeStart, timeEnd)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	writeFormattedContentForRequest(w, r, resp, span)
+}
+
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	isSearchBlock := api.IsSearchBlock(r)
 
