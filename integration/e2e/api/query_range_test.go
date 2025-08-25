@@ -545,7 +545,9 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 }
 
 func TestQueryRangeMaxSeries(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series")
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -609,7 +611,9 @@ sendLoop:
 }
 
 func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series_disabled")
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -674,7 +678,9 @@ sendLoop:
 }
 
 func TestQueryRangeMaxSeriesDisabledQuerier(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series_disabled_querier")
 	require.NoError(t, err)
 	defer s.Close()
 
