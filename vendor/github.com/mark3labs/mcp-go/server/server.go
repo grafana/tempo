@@ -365,6 +365,24 @@ func (s *MCPServer) AddResource(
 	s.AddResources(ServerResource{Resource: resource, Handler: handler})
 }
 
+// DeleteResources removes resources from the server
+func (s *MCPServer) DeleteResources(uris ...string) {
+	s.resourcesMu.Lock()
+	var exists bool
+	for _, uri := range uris {
+		if _, ok := s.resources[uri]; ok {
+			delete(s.resources, uri)
+			exists = true
+		}
+	}
+	s.resourcesMu.Unlock()
+
+	// Send notification to all initialized sessions if listChanged capability is enabled and we actually remove a resource
+	if exists && s.capabilities.resources != nil && s.capabilities.resources.listChanged {
+		s.SendNotificationToAllClients(mcp.MethodNotificationResourcesListChanged, nil)
+	}
+}
+
 // RemoveResource removes a resource from the server
 func (s *MCPServer) RemoveResource(uri string) {
 	s.resourcesMu.Lock()
