@@ -263,7 +263,11 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	checkSearchTags("event", true)
 	checkSearchTags("link", true)
 
-	srv, err := i.SearchTagValues(ctx, tagName, 0, 0)
+	srv, err := i.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagName,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	require.Greater(t, srv.Metrics.InspectedBytes, uint64(100)) // we scanned at-least 100 bytes
 
@@ -314,7 +318,11 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	userCtx := user.InjectOrgID(context.Background(), testTenantID)
 
 	t.Run("SearchTagValues", func(t *testing.T) {
-		resp, err := instance.SearchTagValues(userCtx, tagKey, 0, 0)
+		resp, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+			TagName:             tagKey,
+			MaxTagValues:        0,
+			StaleValueThreshold: 0,
+		})
 		require.NoError(t, err)
 		require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar<idx>" fit in the 12 byte limit above.
 	})
@@ -362,7 +370,11 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 	userCtx := user.InjectOrgID(context.Background(), testTenantID)
 
-	respV1, err := instance.SearchTagValues(userCtx, tagKey, 0, 0)
+	respV1, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagKey,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	// livestore writeTracesForSearch creates 5 values per block
 	assert.Equal(t, 5, len(respV1.TagValues))
@@ -376,7 +388,11 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	instance.overrides = limits2
 
-	respV1, err = instance.SearchTagValues(userCtx, tagKey, 0, 0)
+	respV1, err = instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagKey,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	assert.Equal(t, 10, len(respV1.TagValues))
 
@@ -745,7 +761,11 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
-		_, err := i.SearchTagValues(ctx, tagKey, 0, 0)
+		_, err := i.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+			TagName:             tagKey,
+			MaxTagValues:        0,
+			StaleValueThreshold: 0,
+		})
 		require.NoError(t, err, "error getting search tag values")
 	})
 

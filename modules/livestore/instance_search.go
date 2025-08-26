@@ -36,16 +36,17 @@ var (
 )
 
 // jpe - traceql max series limits?
+type block interface {
+	common.Searcher
+	common.Finder
+}
 
-// BlockProcessor defines a function that processes a single block
-type BlockProcessor func(ctx context.Context, meta *backend.BlockMeta, searcher common.Searcher) error // jpe - add type for query range?
+// blockFn defines a function that processes a single block
+type blockFn func(ctx context.Context, meta *backend.BlockMeta, b block) error // jpe - add type for query range?
 
 // iterateBlocks provides a way to iterate over all blocks (head, wal, complete)
 // using concurrent processing with bounded concurrency
-func (i *instance) iterateBlocks(
-	ctx context.Context,
-	processor BlockProcessor,
-) error {
+func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd uint64, fn blockFn) error {
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -65,17 +66,28 @@ func (i *instance) iterateBlocks(
 		return true
 	}
 
+	withinRange := func(m *backend.BlockMeta) bool {
+		if reqStart == 0 || reqEnd == 0 {
+			return true
+		}
+
+		start := uint64(m.StartTime.UnixNano())
+		end := uint64(m.EndTime.UnixNano())
+		return reqStart <= end && reqEnd >= start
+	}
+
 	i.blocksMtx.RLock()
 	if i.headBlock != nil {
 		meta := i.headBlock.BlockMeta()
+		if withinRange(meta) { // jpe why does returning nil here hang tests?
+			ctx, span := tracer.Start(ctx, "process.headBlock")
+			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-		ctx, span := tracer.Start(ctx, "process.headBlock")
-		span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
-
-		if err := processor(ctx, meta, i.headBlock); err != nil {
-			handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
+			if err := fn(ctx, meta, i.headBlock); err != nil {
+				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
+			}
+			span.End()
 		}
-		span.End()
 	}
 	i.blocksMtx.RUnlock()
 
@@ -90,17 +102,20 @@ func (i *instance) iterateBlocks(
 
 	// Process wal blocks
 	for _, b := range i.walBlocks {
+		meta := b.BlockMeta()
+		if !withinRange(meta) {
+			continue
+		}
+
 		wg.Add(1)
 		go func(block common.WALBlock) {
 			defer wg.Done()
-
-			meta := block.BlockMeta()
 
 			ctx, span := tracer.Start(ctx, "process.walBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 			defer span.End()
 
-			if err := processor(ctx, meta, block); err != nil {
+			if err := fn(ctx, meta, block); err != nil {
 				handleErr(fmt.Errorf("processing wal block (%s): %w", meta.BlockID, err))
 			}
 		}(b)
@@ -108,17 +123,20 @@ func (i *instance) iterateBlocks(
 
 	// Process complete blocks
 	for _, b := range i.completeBlocks {
+		meta := b.BlockMeta()
+		if !withinRange(meta) {
+			continue
+		}
+
 		wg.Add(1)
 		go func(block *ingester.LocalBlock) {
 			defer wg.Done()
-
-			meta := block.BlockMeta()
 
 			ctx, span := tracer.Start(ctx, "process.completeBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 			defer span.End()
 
-			if err := processor(ctx, meta, block); err != nil {
+			if err := fn(ctx, meta, block); err != nil {
 				handleErr(fmt.Errorf("processing complete block (%s): %w", meta.BlockID, err))
 			}
 		}(b)
@@ -165,7 +183,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		opts       = common.DefaultSearchOptions()
 	)
 
-	search := func(ctx context.Context, blockMeta *backend.BlockMeta, block common.Searcher) error {
+	search := func(ctx context.Context, blockMeta *backend.BlockMeta, b block) error {
 		var resp *tempopb.SearchResponse
 		var err error
 
@@ -178,10 +196,10 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			// note: we are creating new engine for each wal block,
 			// and engine.ExecuteSearch is parsing the query for each block
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return block.Fetch(ctx, req, opts)
+				return b.Fetch(ctx, req, opts)
 			}))
 		} else {
-			resp, err = block.Search(ctx, req, opts)
+			resp, err = b.Search(ctx, req, opts)
 		}
 
 		if errors.Is(err, common.ErrUnsupported) {
@@ -214,15 +232,16 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		return nil
 	}
 
-	if err := i.iterateBlocks(ctx, search); err != nil {
-		level.Error(log.Logger).Log("msg", "error searching blocks", "err", err)
-		return nil, err
+	err := i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), search)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "error in Search", "err", err)
+		return nil, fmt.Errorf("Search: %w", err)
 	}
 
 	return &tempopb.SearchResponse{
 		Traces:  combiner.Metadata(),
 		Metrics: metrics,
-	}, ctx.Err() // return context error in case the parent context was cancelled
+	}, ctx.Err() // jpe - apply to all? return context error in case the parent context was cancelled
 }
 
 func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
@@ -259,7 +278,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	scope := req.Scope
 
 	if scope == api.ParamScopeIntrinsic {
-		// For the intrinsic scope there is nothing to do in the ingester,
+		// For the intrinsic scope there is nothing to do in the live store,
 		// these are always added by the frontend.
 		return &tempopb.SearchTagsV2Response{}, nil
 	}
@@ -277,24 +296,23 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	engine := traceql.NewEngine()
 	query := traceql.ExtractMatchers(req.Query)
 
-	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
-		ctx, span := tracer.Start(ctx, "instance.SearchTagsV2."+spanName)
-		defer span.End()
-
-		if s == nil {
+	searchBlock := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
+		if b == nil {
 			return nil
 		}
+
 		if distinctValues.Exceeded() {
-			return nil
+			return errComplete // jpe untested
 		}
 
 		// if the query is empty, use the old search
 		if traceql.IsEmptyQuery(query) {
-			err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
+			err = b.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
 				distinctValues.Collect(scope.String(), t)
 			}, mc.Add, common.DefaultSearchOptions())
+
 			if err != nil && !errors.Is(err, common.ErrUnsupported) {
-				return fmt.Errorf("unexpected error searching tags: %w", err)
+				return err
 			}
 
 			return nil
@@ -302,7 +320,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 
 		// otherwise use the filtered search
 		fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
-			return s.FetchTagNames(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
+			return b.FetchTagNames(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 		})
 
 		return engine.ExecuteTagNames(ctx, attributeScope, query, func(tag string, scope traceql.AttributeScope) bool {
@@ -310,27 +328,10 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		}, fetcher)
 	}
 
-	i.blocksMtx.RLock()
-	span.AddEvent("acquired headblock mtx")
-	err = searchBlock(ctx, i.headBlock, "headBlock")
-	i.blocksMtx.RUnlock()
+	err = i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), searchBlock)
 	if err != nil {
-		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
-	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-	span.AddEvent("acquired blocks mtx")
-
-	for _, b := range i.walBlocks {
-		if err = searchBlock(ctx, b, "completingBlock"); err != nil {
-			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
-		}
-	}
-	for _, b := range i.completeBlocks {
-		if err = searchBlock(ctx, b, "completeBlock"); err != nil {
-			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
-		}
+		level.Error(log.Logger).Log("msg", "error in SearchTagsV2", "err", err) // jpe - replace all log.Logger with i.logger
+		return nil, fmt.Errorf("SearchTagsV2: %w", err)
 	}
 
 	if distinctValues.Exceeded() {
@@ -354,11 +355,15 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	return resp, nil
 }
 
-func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit uint32, staleValueThreshold uint32) (*tempopb.SearchTagValuesResponse, error) {
+func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	tagName := req.TagName
+	limit := req.MaxTagValues
+	staleValueThreshold := req.StaleValueThreshold
 
 	maxBytesPerTagValues := i.overrides.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(maxBytesPerTagValues, limit, staleValueThreshold)
@@ -369,20 +374,21 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 		maxBlocks = limit
 	}
 
-	search := func(s common.Searcher, dv *collector.DistinctString) error {
+	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
 			return nil
 		}
 
-		if s == nil {
-			return nil
-		}
-		if dv.Exceeded() {
+		if b == nil {
 			return nil
 		}
 
+		if distinctValues.Exceeded() {
+			return errComplete
+		}
+
 		inspectedBlocks++
-		err = s.SearchTagValues(ctx, tagName, dv.Collect, mc.Add, common.DefaultSearchOptions())
+		err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, mc.Add, common.DefaultSearchOptions())
 		if err != nil && !errors.Is(err, common.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
 		}
@@ -390,25 +396,10 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 		return nil
 	}
 
-	i.blocksMtx.RLock()
-	err = search(i.headBlock, distinctValues)
-	i.blocksMtx.RUnlock()
+	err = i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), search)
 	if err != nil {
-		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
-	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
-	for _, b := range i.walBlocks {
-		if err = search(b, distinctValues); err != nil {
-			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
-		}
-	}
-	for _, b := range i.completeBlocks {
-		if err = search(b, distinctValues); err != nil {
-			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
-		}
+		level.Error(log.Logger).Log("msg", "error in SearchTagValues", "err", err)
+		return nil, fmt.Errorf("SearchTagValues: %w", err)
 	}
 
 	if distinctValues.Exceeded() {
@@ -431,14 +422,11 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	defer span.End()
 
 	limit := i.overrides.MaxBytesPerTagValuesQuery(userID)
-	valueCollector := collector.NewDistinctValue(limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-	mc := collector.NewMetricsCollector() // to collect bytesRead metric
+	vCollector := collector.NewDistinctValue(limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	mCollector := collector.NewMetricsCollector() // to collect bytesRead metric
 
 	engine := traceql.NewEngine()
 
-	// This acts as the limit on the amount of search load on the ingester.
-	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
-	var anyErr atomic.Error
 	var inspectedBlocks atomic.Int32
 	var maxBlocks int32
 	if limit := i.overrides.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
@@ -464,55 +452,36 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
 
 	// helper functions as closures, to access local variables
-	performSearch := func(ctx context.Context, s common.Searcher, collector *collector.DistinctValue[tempopb.TagValue]) error {
+	search := func(ctx context.Context, s common.Searcher) error {
+		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+			return errComplete
+		}
+
 		if traceql.IsEmptyQuery(query) {
-			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(collector.Collect), mc.Add, common.DefaultSearchOptions())
+			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(vCollector.Collect), mCollector.Add, common.DefaultSearchOptions())
 		}
 
 		// Otherwise, use the filtered search
 		fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-			return s.FetchTagValues(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
+			return s.FetchTagValues(ctx, req, cb, mCollector.Add, common.DefaultSearchOptions())
 		})
 
-		return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(collector.Collect), fetcher)
+		return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(vCollector.Collect), fetcher)
 	}
 
-	exitEarly := func() bool {
-		if anyErr.Load() != nil {
-			return true // Early exit if any error has occurred
-		}
-
-		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
-			return true
-		}
-
-		return false // Continue searching
-	}
-
-	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
-		ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2."+spanName)
-		defer span.End()
-
-		if exitEarly() {
-			return nil
-		}
-
-		return performSearch(ctx, s, valueCollector)
-	}
-
-	searchBlockWithCache := func(ctx context.Context, b *ingester.LocalBlock, spanName string) error {
-		ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2."+spanName)
-		defer span.End()
-
-		if exitEarly() {
-			return nil
+	searchWithCache := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
+		// if not a local block, fall back to regular search
+		localB, ok := b.(*ingester.LocalBlock)
+		if !ok {
+			return search(ctx, b)
 		}
 
 		// check the cache first
-		cacheData, err := b.GetDiskCache(ctx, cacheKey)
+		cacheData, err := localB.GetDiskCache(ctx, cacheKey)
 		if err != nil {
 			// just log the error and move on...we will search the block
 			_ = level.Warn(log.Logger).Log("msg", "GetDiskCache failed", "err", err)
+			return nil
 		}
 
 		// we got data...unmarshall, and add values to central collector and add bytesRead
@@ -520,31 +489,32 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			resp := &tempopb.SearchTagValuesV2Response{}
 			err = proto.Unmarshal(cacheData, resp)
 			if err != nil {
-				return err
+				return err // jpe - return error here?
 			}
-			span.SetAttributes(attribute.Bool("cached", true))
+
+			// span.SetAttributes(attribute.Bool("cached", true)) - jpe?
 			// Instead of the reporting the InspectedBytes of the cached response.
 			// we report the size of cacheData as the Inspected bytes in case we hit disk cache.
 			// we do this because, because it's incorrect and misleading to report the metrics of cachedResponse
 			// we report the size of the cacheData as the amount of data was read to search this block.
 			// this can skew our metrics because this will be lower than the data read to search the block.
 			// we can remove this if this becomes an issue but leave it in for now to more accurate.
-			mc.Add(uint64(len(cacheData)))
+			mCollector.Add(uint64(len(cacheData)))
 
 			for _, v := range resp.TagValues {
-				if valueCollector.Collect(*v) {
-					break // we have reached the limit, so stop
+				if vCollector.Collect(*v) {
+					return errComplete
 				}
 			}
 			return nil
 		}
 
 		// cache miss, search the block. We will cache the results if we find any.
-		span.SetAttributes(attribute.Bool("cached", false))
+		// span.SetAttributes(attribute.Bool("cached", false)) - jpe?
 		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-		localErr := performSearch(ctx, b, localCol)
-		if localErr != nil {
+		localErr := search(ctx, localB)
+		if localErr != nil && !errors.Is(localErr, errComplete) { // jpe - test?
 			return localErr
 		}
 
@@ -552,7 +522,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		values := localCol.Values()
 		v2RespProto, err := valuesToTagValuesV2RespProto(values)
 		if err == nil && len(v2RespProto) > 0 {
-			err2 := b.SetDiskCache(ctx, cacheKey, v2RespProto)
+			err2 := localB.SetDiskCache(ctx, cacheKey, v2RespProto)
 			if err2 != nil {
 				_ = level.Warn(log.Logger).Log("msg", "SetDiskCache failed", "err", err2)
 			}
@@ -560,82 +530,37 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 		// now add values to the central collector to make sure they are included in the response.
 		for _, v := range values {
-			if valueCollector.Collect(v) {
-				break // we have reached the limit, so stop
+			if vCollector.Collect(v) {
+				return errComplete
 			}
 		}
-		return nil
+		return localErr // could be errComplete
 	}
 
-	// head block
-	// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
-	// To avoid deadlocks this function and all others must acquire them in
-	// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
-	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
-	// that eventually a deadlock will occur.
-	i.blocksMtx.RLock()
-	span.AddEvent("acquired headblock mtx")
-	if i.headBlock != nil {
-		wg.Add(1)
-		go func() {
-			defer i.blocksMtx.RUnlock()
-			defer wg.Done()
-			if err := searchBlock(ctx, i.headBlock, "headBlock"); err != nil {
-				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
-			}
-		}()
+	err = i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), searchWithCache)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "error in SearchTagValuesV2", "err", err)
+		return nil, fmt.Errorf("SearchTagValuesV2: %w", err)
 	}
 
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-	span.AddEvent("acquired blocks mtx")
-
-	// completed blocks
-	for _, b := range i.completeBlocks {
-		wg.Add(1)
-		go func(b *ingester.LocalBlock) {
-			defer wg.Done()
-			if err := searchBlockWithCache(ctx, b, "completeBlocks"); err != nil {
-				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
-			}
-		}(b)
-	}
-
-	// completing blocks
-	for _, b := range i.walBlocks {
-		wg.Add(1)
-		go func(b common.WALBlock) {
-			defer wg.Done()
-			if err := searchBlock(ctx, b, "completingBlocks"); err != nil {
-				anyErr.Store(fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err))
-			}
-		}(b)
-	}
-
-	wg.Wait()
-
-	if err := anyErr.Load(); err != nil {
-		return nil, err
-	}
-
-	if valueCollector.Exceeded() {
-		_ = level.Warn(log.Logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "tenant", userID, "limit", limit, "size", valueCollector.Size())
+	if vCollector.Exceeded() {
+		_ = level.Warn(log.Logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "tenant", userID, "limit", limit, "size", vCollector.Size())
 	}
 
 	resp := &tempopb.SearchTagValuesV2Response{
-		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // include metrics in response
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mCollector.TotalValue()}, // include metrics in response
 	}
 
-	for _, v := range valueCollector.Values() {
+	for _, v := range vCollector.Values() {
 		v2 := v
 		resp.TagValues = append(resp.TagValues, &v2)
 	}
 
-	return resp, nil
+	return resp, nil // jpe - return ctx.Err()?
 }
 
 // includeBlock uses the provided time range to determine if the block should be included in the search.
-func includeBlock(b *backend.BlockMeta, req *tempopb.SearchRequest) bool {
+func includeBlock(b *backend.BlockMeta, req *tempopb.SearchRequest) bool { // jpe - restore
 	start := int64(req.Start)
 	end := int64(req.End)
 

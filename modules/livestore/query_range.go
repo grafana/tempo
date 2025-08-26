@@ -8,14 +8,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/modules/ingester"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -23,7 +24,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -73,99 +73,44 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		timeOverlapCutoff = v
 	}
 
-	concurrency := i.Cfg.QueryBlockConcurrency
-	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
-		concurrency = uint(v)
-	}
-
-	withinRange := func(m *backend.BlockMeta) bool {
-		start := uint64(m.StartTime.UnixNano())
-		end := uint64(m.EndTime.UnixNano())
-		return req.Start <= end && req.End >= start
-	}
-
-	var (
-		wg               = boundedwaitgroup.New(concurrency)
-		jobErr           = atomic.Error{}
-		maxSeriesReached = atomic.Bool{}
-	)
-
 	maxSeries := int(req.MaxSeries)
+	maxSeriesReached := atomic.Bool{}
+	maxSeriesReached.Store(false)
 
-	if i.headBlock != nil && withinRange(i.headBlock.BlockMeta()) {
-		if maxSeries == 0 || !maxSeriesReached.Load() {
-			wg.Add(1)
-			go func(w common.WALBlock) {
-				defer wg.Done()
-				err := i.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
-				if err != nil {
-					jobErr.Store(err)
-				}
-				if maxSeries > 0 && rawEval.Length() > maxSeries {
-					maxSeriesReached.Store(true)
-				}
-			}(i.headBlock)
+	search := func(ctx context.Context, meta *backend.BlockMeta, b block) error {
+		if walBlock, ok := b.(common.WALBlock); ok {
+			err := i.queryRangeWALBlock(ctx, walBlock, rawEval, maxSeries)
+			if err != nil {
+				return err
+			}
+			if maxSeries > 0 && rawEval.Length() > maxSeries {
+				maxSeriesReached.Store(true)
+				return errComplete
+			}
+			return nil
 		}
+
+		if localBlock, ok := b.(*ingester.LocalBlock); ok {
+			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
+			if err != nil {
+				return err
+			}
+			jobEval.ObserveSeries(resp)
+			if maxSeries > 0 && jobEval.Length() > maxSeries {
+				maxSeriesReached.Store(true)
+				return errComplete
+			}
+			return nil
+		}
+
+		return fmt.Errorf("unexpected block type: %T", b)
 	}
 
-	for _, w := range i.walBlocks {
-		if jobErr.Load() != nil {
-			break
-		}
-
-		if !withinRange(w.BlockMeta()) {
-			continue
-		}
-
-		if maxSeries == 0 || !maxSeriesReached.Load() {
-			wg.Add(1)
-			go func(w common.WALBlock) {
-				defer wg.Done()
-				err := i.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
-				if err != nil {
-					jobErr.Store(err)
-				}
-				if maxSeries > 0 && rawEval.Length() > maxSeries {
-					maxSeriesReached.Store(true)
-				}
-			}(w)
-		}
-	}
-
-	for _, b := range i.completeBlocks {
-		if jobErr.Load() != nil {
-			break
-		}
-
-		if !withinRange(b.BlockMeta()) {
-			continue
-		}
-
-		if maxSeries == 0 || !maxSeriesReached.Load() {
-			wg.Add(1)
-			go func(b *ingester.LocalBlock) {
-				defer wg.Done()
-				resp, err := i.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
-				if err != nil {
-					jobErr.Store(err)
-					return
-				}
-				jobEval.ObserveSeries(resp)
-				if maxSeries > 0 && jobEval.Length() > maxSeries {
-					maxSeriesReached.Store(true)
-				}
-			}(b)
-		}
-	}
-
-	wg.Wait()
-
-	if err := jobErr.Load(); err != nil {
+	err = i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), search)
+	if err != nil {
+		level.Error(i.logger).Log("msg", "error in QueryRange", "err", err)
 		return nil, err
 	}
-
-	// The code below here is taken from modules/generator/instance.go, where it combines the results from the processor.
-	// We only have one "processor" so directly evaluating the results.
 
 	// Combine the raw results into the job results
 	walResults := rawEval.Results().ToProto(req)
