@@ -414,7 +414,6 @@ func TestSearchTagsV2Limits(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("MaxBytesPerTagValuesQuery=%d", testCase.MaxBytesPerTagValuesQuery), func(t *testing.T) {
-
 			instance, ls := defaultInstance(t)
 			limits, err := overrides.NewOverrides(overrides.Config{
 				Defaults: overrides.Overrides{
