@@ -512,3 +512,52 @@ func BenchmarkExtendReuseSlice(b *testing.B) {
 		_ = extendReuseSlice(100, in)
 	}
 }
+
+func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
+	traceID := common.ID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+
+	childOfLink := &v1_trace.Span_Link{
+		Attributes: []*v1.KeyValue{
+			{
+				Key: "opentracing.ref_type",
+				Value: &v1.AnyValue{
+					Value: &v1.AnyValue_StringValue{StringValue: "child_of"},
+				},
+			},
+		},
+	}
+
+	spanRoot := &v1_trace.Span{
+		Name:   "root-span",
+		SpanId: []byte{0x01},
+	}
+	spanWithChildOfLink := &v1_trace.Span{
+		Name:   "not-root-span",
+		SpanId: []byte{0x02},
+		Links:  []*v1_trace.Span_Link{childOfLink},
+	}
+	spanWithParent := &v1_trace.Span{
+		Name:         "child-span",
+		SpanId:       []byte{0x03},
+		ParentSpanId: []byte{0x01},
+	}
+
+	trace := &tempopb.Trace{
+		ResourceSpans: []*v1_trace.ResourceSpans{
+			{
+				Resource: &v1_resource.Resource{},
+				ScopeSpans: []*v1_trace.ScopeSpans{
+					{
+						Scope: &v1.InstrumentationScope{},
+						Spans: []*v1_trace.Span{spanRoot, spanWithChildOfLink, spanWithParent},
+					},
+				},
+			},
+		},
+	}
+
+	meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
+	parquetTrace, _ := traceToParquet(&meta, traceID, trace, nil)
+
+	assert.Equal(t, "root-span", parquetTrace.RootSpanName)
+}
