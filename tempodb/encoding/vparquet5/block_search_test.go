@@ -20,6 +20,7 @@ import (
 )
 
 func TestBackendBlockSearch(t *testing.T) {
+	t.Parallel()
 	// Trace
 	// This is a fully-populated trace that we search for every condition
 	wantTr := &Trace{
