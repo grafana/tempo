@@ -179,12 +179,11 @@ func TestOne(t *testing.T) {
 }
 
 func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
-	numTraces := 1
+	numTraces := 100
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 	numSpansExpected := 0
-
 	for i := 0; i < numTraces; i++ {
 		if i == wantTraceIdx {
 			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
@@ -310,7 +309,7 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 
 // nil values for intrinsics, well known columns, and dedicated columns
 func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
-	numTraces := 1
+	numTraces := 100
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
