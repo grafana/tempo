@@ -256,7 +256,6 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 											case "span":
 												for _, attr := range span.Attrs {
 													if attr.Key == "foo" {
-														fmt.Printf("span attr: %v\n", attr.Key)
 														found = true
 														break
 													}
@@ -264,7 +263,6 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 											case "resource":
 												for _, attr := range resource.Resource.Attrs {
 													if attr.Key == "foo" {
-														fmt.Printf("resource attr: %v\n", attr.Key)
 														found = true
 														break
 													}
@@ -272,7 +270,6 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 											case "instrumentation":
 												for _, attr := range scope.Scope.Attrs {
 													if attr.Key == "foo" {
-														fmt.Printf("resource attr: %v\n", attr.Key)
 														found = true
 														break
 													}
