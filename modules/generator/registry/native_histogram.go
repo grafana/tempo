@@ -222,7 +222,6 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 	defer h.seriesMtx.Unlock()
 
 	activeSeries = 0
-	var totalNativeExemplars, totalBucketExemplars, totalSeries int
 
 	for _, s := range h.series {
 		// Extract histogram
@@ -239,15 +238,6 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		// pointers remain the same, and so Reset() call below can be used to clear
 		// the exemplars.
 		s.histogram = encodedMetric.GetHistogram()
-
-		// Count exemplars for collection summary
-		totalSeries++
-		totalNativeExemplars += len(s.histogram.Exemplars)
-		for _, bucket := range s.histogram.Bucket {
-			if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
-				totalBucketExemplars++
-			}
-		}
 
 		// If we are in "both" or "classic" mode, also emit classic histograms.
 		if hasClassicHistograms(h.histogramOverride) {
@@ -357,13 +347,11 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 
 	// For pure native mode, never emit bucket exemplars - only native ones
 	// For hybrid mode, fallback to bucket exemplars if no native exemplars available
-	bucketExemplarCount := 0
 	isHybridMode := hasClassicHistograms(h.histogramOverride)
 	if isHybridMode && nativeExemplarCount == 0 {
 		// Hybrid mode fallback: use bucket exemplars if no native exemplars
 		for _, bucket := range s.histogram.Bucket {
 			if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
-				bucketExemplarCount++
 				_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
 					Labels: convertLabelPairToLabels(bucket.Exemplar.GetLabel()),
 					Value:  bucket.Exemplar.GetValue(),
