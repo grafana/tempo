@@ -140,13 +140,11 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 
 	var buckets []float64
 
+	// The native histogram only uses the static buckets when the classic histograms are enabled.
 	hasClassic := hasClassicHistograms(h.histogramOverride)
 	if hasClassic {
 		// Hybrid "both" mode: include classic buckets for compatibility
 		buckets = h.buckets
-	} else {
-		// native-only: no classic buckets to force native exemplar format
-		buckets = nil
 	}
 
 	// Configure native histogram options based on mode
@@ -205,9 +203,11 @@ func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, 
 	// Use Prometheus native exemplar handling
 	exemplarObserver := s.promHistogram.(prometheus.ExemplarObserver)
 
+	labels := prometheus.Labels{h.traceIDLabelName: traceID}
+
 	for i := 0.0; i < multiplier; i++ {
 		// Let Prometheus handle exemplars natively
-		exemplarObserver.ObserveWithExemplar(value, prometheus.Labels{h.traceIDLabelName: traceID})
+		exemplarObserver.ObserveWithExemplar(value, labels)
 	}
 
 	s.lastUpdated = time.Now().UnixMilli()
@@ -321,10 +321,8 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 	//
 	// Use native exemplars when available, falling back to bucket exemplars
 
-	nativeExemplarCount := 0
 	for _, ex := range s.histogram.Exemplars {
 		if ex != nil && len(ex.Label) > 0 {
-			nativeExemplarCount++
 			_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
 				Labels: convertLabelPairToLabels(ex.GetLabel()),
 				Value:  ex.GetValue(),
@@ -340,7 +338,7 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 	// client_golang package handles the expiration of exemplars internally, and
 	// we don't have control over clearing the native histogram exemplars in the
 	// same way we do for the class histogram exemplars.
-	if nativeExemplarCount > 0 {
+	if len(s.histogram.Exemplars) > 0 {
 		clear(s.histogram.Exemplars)
 		s.histogram.Exemplars = s.histogram.Exemplars[:0]
 	}
@@ -348,7 +346,7 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 	// For pure native mode, never emit bucket exemplars - only native ones
 	// For hybrid mode, fallback to bucket exemplars if no native exemplars available
 	isHybridMode := hasClassicHistograms(h.histogramOverride)
-	if isHybridMode && nativeExemplarCount == 0 {
+	if isHybridMode && len(s.histogram.Exemplars) == 0 {
 		// Hybrid mode fallback: use bucket exemplars if no native exemplars
 		for _, bucket := range s.histogram.Bucket {
 			if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
