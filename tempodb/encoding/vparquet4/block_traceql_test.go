@@ -1356,6 +1356,9 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 					if strings.Contains(column.ColumnPath, "Span") {
 						v := column.readValue(&s.DedicatedAttributes)
 						if v == nil {
+							a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr)
+							s := traceql.NewStaticString("nil")
+							newS.addSpanAttr(a, s)
 							return
 						}
 						a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr)
