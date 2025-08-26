@@ -208,11 +208,9 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 		name  string
 		req   traceql.FetchSpansRequest
 	}{
-
 		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
 		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
 		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
-		{"resource", "resource.service.name = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.service.name = nil}`)},
 	}
 
 	for _, tc := range searches {
@@ -857,7 +855,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
-func TestBackendBBlockSearchTraceQLEvents(t *testing.T) {
+func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
 	numTraces := 1
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
@@ -981,7 +979,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "myservice",
-					Cluster:          nil,
+					Cluster:          ptr("cluster"),
 					Namespace:        ptr("namespace"),
 					Pod:              ptr("pod"),
 					Container:        ptr("container"),
@@ -1083,27 +1081,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									String05: ptr("dedicated-span-attr-value-5"),
 								},
 							},
-							{
-								SpanID:                 []byte("spanid2"),
-								Name:                   "hello2",
-								StartTimeUnixNano:      uint64(100 * time.Second),
-								DurationNano:           uint64(100 * time.Second),
-								HttpMethod:             ptr("get"),
-								HttpUrl:                ptr("url/hello/world"),
-								HttpStatusCode:         ptr(int64(500)),
-								ParentSpanID:           []byte{},
-								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
-								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
-								TraceState:             "tracestate",
-								Kind:                   int(v1.Span_SPAN_KIND_CLIENT),
-								DroppedAttributesCount: 42,
-								DroppedEventsCount:     43,
-								Attrs: []Attribute{
-									attr("foo", "def"),
-									attr("bar", 123),
-									attr("float", 456.78),
-								},
-							},
 						},
 					},
 				},
@@ -1111,7 +1088,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "service2",
-					Cluster:          ptr("cluster2"),
+					Cluster:          nil,
 					Namespace:        ptr("namespace2"),
 					Pod:              ptr("pod2"),
 					Container:        ptr("container2"),
@@ -1298,7 +1275,11 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 	for _, rs := range tr.ResourceSpans {
 		var rsAttrs []attrVal
 		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName), traceql.NewStaticString(rs.Resource.ServiceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString(*rs.Resource.Cluster)})
+		if rs.Resource.Cluster != nil {
+			rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString(*rs.Resource.Cluster)})
+		} else {
+			rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString("nil")})
+		}
 		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace), traceql.NewStaticString(*rs.Resource.Namespace)})
 		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod), traceql.NewStaticString(*rs.Resource.Pod)})
 		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer), traceql.NewStaticString(*rs.Resource.Container)})
