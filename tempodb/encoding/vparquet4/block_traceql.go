@@ -2067,6 +2067,19 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			}
 		}
 
+		// check attr not exists
+		if len(cond.Operands) == 0 {
+			switch cond.Op {
+			case traceql.OpNotExists:
+				pred, err := createNilPredicate(cond.Attribute.Name)
+				if err != nil {
+					return nil, err
+				}
+				iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
+				continue
+			}
+		}
+
 		// Else: generic attribute lookup
 		genericConditions = append(genericConditions, cond)
 	}
@@ -2886,7 +2899,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		}
 
 		switch cond.Operands[0].Type {
-
 		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
