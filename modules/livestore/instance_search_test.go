@@ -389,71 +389,104 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 }
 
 func TestSearchTagsV2Limits(t *testing.T) {
-	tagKey := foo
-	tagValue := bar
 	ctx := user.InjectOrgID(t.Context(), "test")
 
 	for _, testCase := range []struct {
-		name                      string
 		MaxBytesPerTagValuesQuery int
-		ExpectedTagValuesMin      int
-		ExpectedTagValuesMax      int
 	}{
 		{
-			name:                      "no overrides",
 			MaxBytesPerTagValuesQuery: 0,
-			ExpectedTagValuesMin:      20,
-			ExpectedTagValuesMax:      50,
 		},
 		{
-			name:                      "small limit",
-			MaxBytesPerTagValuesQuery: 12,
-			ExpectedTagValuesMin:      1,
-			ExpectedTagValuesMax:      1,
+			MaxBytesPerTagValuesQuery: 10,
 		},
 		{
-			name:                      "tiny limit",
-			MaxBytesPerTagValuesQuery: 1,
-			ExpectedTagValuesMin:      0,
-			ExpectedTagValuesMax:      0,
+			MaxBytesPerTagValuesQuery: 50,
+		},
+		{
+			MaxBytesPerTagValuesQuery: 100,
+		},
+		{
+			MaxBytesPerTagValuesQuery: 500,
+		},
+		{
+			MaxBytesPerTagValuesQuery: 1000,
 		},
 	} {
-		t.Log("case", testCase.name)
+		t.Run(fmt.Sprintf("MaxBytesPerTagValuesQuery=%d", testCase.MaxBytesPerTagValuesQuery), func(t *testing.T) {
 
-		instance, ls := defaultInstance(t)
-		limits, err := overrides.NewOverrides(overrides.Config{
-			Defaults: overrides.Overrides{
-				Read: overrides.ReadOverrides{
-					MaxBytesPerTagValuesQuery: testCase.MaxBytesPerTagValuesQuery,
+			instance, ls := defaultInstance(t)
+			limits, err := overrides.NewOverrides(overrides.Config{
+				Defaults: overrides.Overrides{
+					Read: overrides.ReadOverrides{
+						MaxBytesPerTagValuesQuery: testCase.MaxBytesPerTagValuesQuery,
+					},
 				},
-			},
-		}, nil, prometheus.DefaultRegisterer)
-		require.NoError(t, err)
+			}, nil, prometheus.DefaultRegisterer)
+			require.NoError(t, err)
 
-		instance.overrides = limits
+			defer func() {
+				err := services.StopAndAwaitTerminated(t.Context(), ls)
+				require.NoError(t, err)
+			}()
 
-		writeTracesForSearch(t, instance, "", tagKey, tagValue, false, false)
+			instance.overrides = limits
 
-		res, err := instance.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
-			Scope: "span",
-			Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
+			// push a trace
+			id := test.ValidTraceID(nil)
+			trace := test.MakeTrace(10, id)
+
+			traceBytes, err := trace.Marshal()
+			require.NoError(t, err)
+
+			// count tags
+			uniqueKeys := map[string]struct{}{}
+			for _, rs := range trace.ResourceSpans {
+				for _, ss := range rs.ScopeSpans {
+					for _, sp := range ss.Spans {
+						for _, tag := range sp.Attributes {
+							uniqueKeys[tag.Key] = struct{}{}
+						}
+					}
+				}
+			}
+			expectedTags := len(uniqueKeys)
+
+			// Create a push request for livestore
+			req := &tempopb.PushBytesRequest{
+				Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+				Ids:    [][]byte{id},
+			}
+			instance.pushBytes(time.Now(), req)
+			err = instance.cutIdleTraces(true)
+			require.NoError(t, err)
+
+			res, err := instance.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
+				Scope: "span",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.Greater(t, res.Metrics.InspectedBytes, uint64(0))
+
+			require.Len(t, res.Scopes, 1)
+			require.Equal(t, "span", res.Scopes[0].Name)
+
+			// if MaxBytesPerTagValuesQuery is 0, we expect all tags to be returned
+			if testCase.MaxBytesPerTagValuesQuery == 0 {
+				require.Equal(t, expectedTags, len(res.Scopes[0].Tags))
+				return
+			}
+
+			// if MaxBytesPerTagValuesQuery is > 0, let's count their actualSz and confirm it's less than the limit
+			actualSz := 0
+			for _, tag := range res.Scopes[0].Tags {
+				actualSz += len(tag)
+			}
+			require.LessOrEqual(t, actualSz, testCase.MaxBytesPerTagValuesQuery)
+
+			err = services.StopAndAwaitTerminated(ctx, ls)
+			require.NoError(t, err)
 		})
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		require.Greater(t, res.Metrics.InspectedBytes, uint64(0))
-
-		if testCase.ExpectedTagValuesMax == 0 {
-			require.Len(t, res.Scopes, 0)
-			return
-		}
-
-		require.Len(t, res.Scopes, 1)
-		require.Equal(t, "span", res.Scopes[0].Name)
-		require.GreaterOrEqual(t, len(res.Scopes[0].Tags), testCase.ExpectedTagValuesMin)
-		require.LessOrEqual(t, len(res.Scopes[0].Tags), testCase.ExpectedTagValuesMax)
-
-		err = services.StopAndAwaitTerminated(ctx, ls)
-		require.NoError(t, err)
 	}
 }
 
