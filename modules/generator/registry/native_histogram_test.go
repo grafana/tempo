@@ -626,6 +626,13 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 			require.Contains(t, ex.e.Labels.String(), "trace_id", "Exemplar should contain trace_id")
 			require.Greater(t, ex.e.Value, 0.0, "Exemplar should have a value")
 		}
+
+		require.Len(t, appender.exemplars, 2, "Should have exactly 2 exemplars for 2 observations")
+
+		require.Equal(t, "trace-456", appender.exemplars[0].e.Labels.Get("trace_id"))
+		require.Equal(t, 0.5, appender.exemplars[0].e.Value)
+		require.Equal(t, "trace-123", appender.exemplars[1].e.Labels.Get("trace_id"))
+		require.Equal(t, 1.5, appender.exemplars[1].e.Value)
 	})
 
 	t.Run("native_only_histogram_exemplars", func(t *testing.T) {
@@ -650,8 +657,16 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 
 		// This test might still use bucket exemplars due to Prometheus's default behavior,
 		// but it helps us understand the difference
+
+		require.Len(t, appender.exemplars, 2, "Should have exactly 2 exemplars for 2 observations")
+
 		for i, ex := range appender.exemplars {
 			t.Logf("Native-only exemplar %d: labels=%v, value=%f, trace=%v", i, ex.l, ex.e.Value, ex.e.Labels)
 		}
+
+		require.Equal(t, "trace-native-456", appender.exemplars[0].e.Labels.Get("trace_id"))
+		require.Equal(t, 0.5, appender.exemplars[0].e.Value)
+		require.Equal(t, "trace-native-123", appender.exemplars[1].e.Labels.Get("trace_id"))
+		require.Equal(t, 1.5, appender.exemplars[1].e.Value)
 	})
 }
