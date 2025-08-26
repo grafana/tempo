@@ -61,7 +61,7 @@ services:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=live-store -config.file=/etc/tempo.yaml"
+    command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-a"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
@@ -76,7 +76,7 @@ services:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=live-store -config.file=/etc/tempo.yaml"
+    command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-a"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
@@ -91,7 +91,7 @@ services:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=live-store -config.file=/etc/tempo.yaml"
+    command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-b"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
@@ -106,7 +106,7 @@ services:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=live-store -config.file=/etc/tempo.yaml"
+    command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-b"
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml

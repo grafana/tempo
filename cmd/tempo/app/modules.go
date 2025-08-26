@@ -201,35 +201,39 @@ func (t *App) initPartitionRing() (services.Service, error) {
 		return nil, nil
 	}
 
-	kvClient, err := kv.NewClient(t.cfg.Ingester.IngesterPartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ingester.PartitionRingName+"-watcher"), util_log.Logger)
-	if err != nil {
-		return nil, fmt.Errorf("creating KV store for ingester partitions ring watcher: %w", err)
-	}
-
 	// choose the correct partition ring based on config
 	var (
 		heartbeatTimeout time.Duration
 		readRing         ring.InstanceRingReader
 		ringName         string
 		ringKey          string
+		kvConfig         kv.Config
 	)
 
+	// default to ingester but use live-store if configured
 	heartbeatTimeout = t.cfg.Ingester.LifecyclerConfig.RingConfig.HeartbeatTimeout
 	readRing = t.readRings[ringIngester]
 	ringName = ingester.PartitionRingName
 	ringKey = ingester.PartitionRingKey
+	kvConfig = t.cfg.Ingester.IngesterPartitionRing.KVStore
 	if t.cfg.PartitionRingLiveStore {
 		heartbeatTimeout = t.cfg.LiveStore.Ring.HeartbeatTimeout
 		readRing = t.readRings[ringLiveStore]
 		ringName = livestore.PartitionRingName
 		ringKey = livestore.PartitionRingKey
+		kvConfig = t.cfg.LiveStore.Ring.KVStore
+	}
+
+	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating KV store for %s partitions ring watcher: %w", ringName, err)
 	}
 
 	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ringName, ringKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
 	t.partitionRing = ring.NewPartitionInstanceRing(t.partitionRingWatcher, readRing, heartbeatTimeout)
 
 	// Expose a web page to view the partitions ring state.
-	t.Server.HTTPRouter().Path("/partition-ring").Methods("GET", "POST").Handler(ring.NewPartitionRingPageHandler(t.partitionRingWatcher, ring.NewPartitionRingEditor(ingester.PartitionRingKey, kvClient)))
+	t.Server.HTTPRouter().Path("/partition-ring").Methods("GET", "POST").Handler(ring.NewPartitionRingPageHandler(t.partitionRingWatcher, ring.NewPartitionRingEditor(ringKey, kvClient)))
 
 	return t.partitionRingWatcher, nil
 }
