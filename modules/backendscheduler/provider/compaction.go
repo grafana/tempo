@@ -28,12 +28,13 @@ import (
 var tracer = otel.Tracer("modules/backendscheduler/provider/compaction")
 
 type CompactionConfig struct {
-	MeasureInterval  time.Duration           `yaml:"measure_interval"`
-	Compactor        tempodb.CompactorConfig `yaml:"compaction"`
-	MaxJobsPerTenant int                     `yaml:"max_jobs_per_tenant"`
-	MinInputBlocks   int                     `yaml:"min_input_blocks"`
-	MaxInputBlocks   int                     `yaml:"max_input_blocks"`
-	MinCycleInterval time.Duration           `yaml:"min_cycle_interval"`
+	MeasureInterval    time.Duration           `yaml:"measure_interval"`
+	Compactor          tempodb.CompactorConfig `yaml:"compaction"`
+	MaxJobsPerTenant   int                     `yaml:"max_jobs_per_tenant"`
+	MinInputBlocks     int                     `yaml:"min_input_blocks"`
+	MaxInputBlocks     int                     `yaml:"max_input_blocks"`
+	MaxCompactionLevel int                     `yaml:"max_compaction_level"`
+	MinCycleInterval   time.Duration           `yaml:"min_cycle_interval"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -43,6 +44,7 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	// Compaction
 	f.IntVar(&cfg.MinInputBlocks, prefix+".min-input-blocks", blockselector.DefaultMinInputBlocks, "Minimum number of blocks to compact in a single job.")
 	f.IntVar(&cfg.MaxInputBlocks, prefix+".max-input-blocks", blockselector.DefaultMaxInputBlocks, "Maximum number of blocks to compact in a single job.")
+	f.IntVar(&cfg.MaxCompactionLevel, prefix+".max-compaction-level", blockselector.DefaultMaxCompactionLevel, "Maximum compaction level to include in compaction jobs. 0 means no limit.")
 
 	// Tenant prioritization
 	f.DurationVar(&cfg.MinCycleInterval, prefix+".min-cycle-interval", 30*time.Second, "Minimum time between tenant prioritization cycles to prevent excessive CPU usage when no work is available.")
@@ -456,6 +458,7 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.Compactor.MaxBlockBytes,
 		p.cfg.MinInputBlocks,
 		p.cfg.MaxInputBlocks,
+		p.cfg.MaxCompactionLevel,
 	), len(blocklist)
 }
 
