@@ -1,0 +1,73 @@
+stream_over_http_enabled: true
+partition_ring_live_store: true
+
+server:
+  http_listen_port: 3200
+  log_level: info
+
+query_frontend:
+  rf1_after: "2025-01-01T00:00:00Z"
+  search:
+    query_backend_after: 10m
+    query_ingesters_until: 10m
+  metrics:
+    query_backend_after: 10m
+
+distributor:
+  ingester_write_path_enabled: false
+  kafka_write_path_enabled: true
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+  log_received_spans:
+    enabled: true
+  log_discarded_spans:
+    enabled: true
+
+live_store:
+  partition_ring:
+    kvstore:
+      store: memberlist
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+    pool:
+      max_workers: 10
+      queue_depth: 100
+    block:
+      version: vParquet3
+    blocklist_poll: 1s
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - live-store-0:7946
+    - live-store-1:7946
+
+overrides:
+  user_configurable_overrides:
+    enabled: true
+    poll_interval: 10s
+    client:
+      backend: local
+      local:
+        path: /var/tempo/overrides
+
+block_builder:
+  consume_cycle_duration: 1m
+
+ingest:
+  enabled: true
+  kafka:
+    address: kafka:9092
+    topic:   tempo-ingest
+
+querier:
+  frontend_worker:
+    frontend_address: query-frontend:9095

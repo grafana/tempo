@@ -975,6 +975,46 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 				},
 			},
 		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ name = `does-not-exist` } !< { name = `MySpan` }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "MySpan",
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ name = `does-not-exist` } !> { name = `MySpan` }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "MySpan",
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{

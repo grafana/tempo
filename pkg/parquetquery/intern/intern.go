@@ -27,7 +27,7 @@ func NewWithSize(size int) *Interner {
 func (i *Interner) UnsafeClone(v *pq.Value) pq.Value {
 	switch v.Kind() {
 	case pq.ByteArray, pq.FixedLenByteArray:
-		// Look away, this is unsafe.
+		// This is unsafe but validated by tests.
 		a := *(*pqValue)(unsafe.Pointer(v))
 		a.ptr = addressOfBytes(i.internBytes(a.byteArray()))
 		return *(*pq.Value)(unsafe.Pointer(&a))
@@ -61,8 +61,8 @@ func bytesToString(b []byte) string { return unsafe.String(unsafe.SliceData(b), 
 // The data should not be modified after call.
 func addressOfBytes(data []byte) *byte { return unsafe.SliceData(data) }
 
-// bytes converts a pointer to a slice of bytes
-func bytes(data *byte, size int) []byte { return unsafe.Slice(data, size) }
+// bytesFromPtr converts a pointer to a slice of bytes
+func bytesFromPtr(data *byte, size int) []byte { return unsafe.Slice(data, size) }
 
 // pqValue is a slimmer version of github.com/parquet-go/parquet-go's pq.Value.
 type pqValue struct {
@@ -74,5 +74,5 @@ type pqValue struct {
 }
 
 func (v *pqValue) byteArray() []byte {
-	return bytes(v.ptr, int(v.u64))
+	return bytesFromPtr(v.ptr, int(v.u64))
 }

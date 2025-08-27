@@ -168,7 +168,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 // where the eval callback returns true.  For now the behavior is only defined when there is exactly one
 // spanset on both sides and will return an error if multiple spansets are present.
 func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(s Span, l, r []Span) []Span) ([]Span, error) {
-	if len(lhs) < 1 || len(rhs) < 1 {
+	if len(rhs) < 1 {
 		return nil, nil
 	}
 
@@ -181,7 +181,12 @@ func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(s Span, l
 		return nil, nil
 	}
 
-	return eval(rhs[0].Spans[0], lhs[0].Spans, rhs[0].Spans), nil
+	var lspans []Span
+	if len(lhs) >= 1 {
+		lspans = lhs[0].Spans
+	}
+
+	return eval(rhs[0].Spans[0], lspans, rhs[0].Spans), nil
 }
 
 // addSpanset is a helper function that adds a new spanset to the output. it clones

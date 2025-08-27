@@ -1,4 +1,4 @@
-package generator
+package ring
 
 import (
 	"flag"
@@ -15,7 +15,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-type RingConfig struct {
+type Config struct {
 	KVStore          kv.Config     `yaml:"kvstore"`
 	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period"`
 	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout"`
@@ -25,12 +25,13 @@ type RingConfig struct {
 	InstanceAddr           string   `yaml:"instance_addr"`
 	InstancePort           int      `yaml:"instance_port"`
 	EnableInet6            bool     `yaml:"enable_inet6"`
+	InstanceZone           string   `yaml:"instance_zone"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`
 }
 
-func (cfg *RingConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.KVStore.RegisterFlagsWithPrefix(prefix, "collectors/", f)
 	cfg.KVStore.Store = "memberlist"
 
@@ -44,9 +45,11 @@ func (cfg *RingConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.Flag
 	}
 	cfg.InstanceID = hostname
 	cfg.InstanceInterfaceNames = []string{"eth0", "en0"}
+
+	f.StringVar(&cfg.InstanceZone, prefix+".instance-availability-zone", "", "Define Availability Zone in which this instance is running.")
 }
 
-func (cfg *RingConfig) ToRingConfig() ring.Config {
+func (cfg *Config) ToRingConfig() ring.Config {
 	rc := ring.Config{}
 	flagext.DefaultValues(&rc)
 
@@ -58,7 +61,7 @@ func (cfg *RingConfig) ToRingConfig() ring.Config {
 	return rc
 }
 
-func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) {
+func (cfg *Config) ToLifecyclerConfig(numTokens int) (ring.BasicLifecyclerConfig, error) {
 	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, log.Logger, cfg.EnableInet6)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "failed to get instance address", "err", err)
@@ -66,13 +69,13 @@ func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) 
 	}
 
 	instancePort := ring.GetInstancePort(cfg.InstancePort, cfg.ListenPort)
-
 	instanceAddrPort := net.JoinHostPort(instanceAddr, strconv.Itoa(instancePort))
 
 	return ring.BasicLifecyclerConfig{
 		ID:              cfg.InstanceID,
 		Addr:            instanceAddrPort,
+		Zone:            cfg.InstanceZone,
 		HeartbeatPeriod: cfg.HeartbeatPeriod,
-		NumTokens:       ringNumTokens,
+		NumTokens:       numTokens,
 	}, nil
 }

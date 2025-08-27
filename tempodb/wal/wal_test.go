@@ -139,6 +139,7 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 func TestFindByTraceID(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
+			t.Parallel()
 			testFindByTraceID(t, e)
 		})
 	}
@@ -157,9 +158,11 @@ func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
 
 	// Test with both append methods
 	t.Run("Append", func(t *testing.T) {
+		t.Parallel()
 		runWALTestWithAppendMode(t, e.Version(), false, f)
 	})
 	t.Run("AppendTrace", func(t *testing.T) {
+		t.Parallel()
 		runWALTestWithAppendMode(t, e.Version(), true, f)
 	})
 }
@@ -167,6 +170,7 @@ func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
 func TestIterator(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
+			t.Parallel()
 			testIterator(t, e)
 		})
 	}
@@ -210,6 +214,7 @@ func testIterator(t *testing.T, e encoding.VersionedEncoding) {
 func TestSearch(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
+			t.Parallel()
 			testSearch(t, e)
 		})
 	}
@@ -247,6 +252,7 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 func TestFetch(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
+			t.Parallel()
 			testFetch(t, e)
 		})
 	}

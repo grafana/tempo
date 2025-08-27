@@ -1,4 +1,5 @@
 ## main / unreleased
+* [BUGFIX] Fix docker-compose port configuration for Alloy gRPC (4319 → 4317) [#5536](https://github.com/grafana/tempo/pull/5536)
 * [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464)
 * [BUGFIX] Return Bad Request from frontend if the provided tag is invalid in SearchTagValuesV2 endpoint [#5493](https://github.com/grafana/tempo/pull/5493/) (@carles-grafana)
 * [CHANGE] Add test for cost_attribution in user-configurable overrides API [#5481](https://github.com/grafana/tempo/pull/5481/) (@electron0zero)
@@ -45,13 +46,15 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] Put actual size for writing to backend [#5413](https://github.com/grafana/tempo/pull/5413) (@ruslan-mikhailov)
 * [ENHANCEMENT] Do not compact unfinished blocks [#5390](https://github.com/grafana/tempo/pull/5390) (@ruslan-mikhailov)
 * [ENHANCEMENT] Upgrade Azurite and Fake-gcs-server to latest version [#5512](https://github.com/grafana/tempo/pull/5512) (@javiermolinar)
+* [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
+* [ENHANCEMENT] Improve exemplar selection in quantile_over_time() [#5278](https://github.com/grafana/tempo/pull/5278) (@zalegrala)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
-* [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
 * [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
 * [BUGFIX] Fix cache collision for incomplete query in SearchTagValuesV2 [#5549](https://github.com/grafana/tempo/pull/5549) (@ruslan-mikhailov)
+* [BUGFIX] Fix for structural operator with empty left-hand spanset [#5578](https://github.com/grafana/tempo/pull/5578) (@ruslan-mikhailov)
 
 # v2.8.2
 
