@@ -77,7 +77,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	maxSeriesReached := atomic.Bool{}
 	maxSeriesReached.Store(false)
 
-	search := func(ctx context.Context, meta *backend.BlockMeta, b block) error {
+	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if walBlock, ok := b.(common.WALBlock); ok {
 			err := i.queryRangeWALBlock(ctx, walBlock, rawEval, maxSeries)
 			if err != nil {

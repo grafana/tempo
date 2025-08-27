@@ -156,7 +156,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		return sr
 	}
 
-	searchAndAssert := func(req *tempopb.SearchRequest, _ uint32) {
+	searchAndAssert := func(req *tempopb.SearchRequest) {
 		sr := search(req, 0, 0)
 		assert.Len(t, sr.Traces, len(ids))
 		checkEqual(t, ids, sr)
@@ -180,18 +180,18 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 
 	// Test after appending to WAL.
 	// writeTracesforSearch() makes sure all traces are in the wal
-	searchAndAssert(req, uint32(100))
+	searchAndAssert(req)
 
 	// Test after cutting new headblock
 	blockID, err := i.cutBlocks(true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
-	searchAndAssert(req, uint32(100))
+	searchAndAssert(req)
 
 	// Test after completing a block
 	err = i.completeBlock(context.Background(), blockID)
 	require.NoError(t, err)
-	searchAndAssert(req, uint32(200))
+	searchAndAssert(req)
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
