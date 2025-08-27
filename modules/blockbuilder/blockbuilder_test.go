@@ -1004,21 +1004,40 @@ func countFlushedTraces(store storage.Store) int {
 	return count
 }
 
-// nolint: revive
-func sendReq(t testing.TB, ctx context.Context, client *kgo.Client, tenantID string) []*kgo.Record {
-	traceID := generateTraceID(t)
+type reqOpts struct {
+	partition int32
+	time      time.Time
+	tenantID  string
+}
 
-	now := time.Now()
-	startTime := uint64(now.UnixNano())
-	endTime := uint64(now.Add(time.Second).UnixNano())
+func (r *reqOpts) applyDefaults() {
+	if r.tenantID == "" {
+		r.tenantID = util.FakeTenantID
+	}
+	if r.time.IsZero() {
+		r.time = time.Now()
+	}
+}
+
+// nolint: revive
+func sendReqWithOpts(t testing.TB, ctx context.Context, client *kgo.Client, opts reqOpts) []*kgo.Record {
+	traceID := generateTraceID(t)
+	opts.applyDefaults()
+
+	startTime := uint64(opts.time.UnixNano())
+	endTime := uint64(opts.time.Add(time.Second).UnixNano())
 	req := test.MakePushBytesRequest(t, 10, traceID, startTime, endTime)
-	records, err := ingest.Encode(0, tenantID, req, 1_000_000)
+	records, err := ingest.Encode(opts.partition, opts.tenantID, req, 1_000_000)
 	require.NoError(t, err)
 
 	res := client.ProduceSync(ctx, records...)
 	require.NoError(t, res.FirstErr())
 
 	return records
+}
+
+func sendReq(t testing.TB, ctx context.Context, client *kgo.Client, tenantID string) []*kgo.Record {
+	return sendReqWithOpts(t, ctx, client, reqOpts{partition: 0, time: time.Now(), tenantID: tenantID})
 }
 
 // nolint: revive,unparam
@@ -1122,5 +1141,102 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		require.NoError(b, err)
 
 		b.SetBytes(int64(size))
+	}
+}
+
+type slowStore struct {
+	storage.Store
+	wait chan struct{}
+}
+
+func (s *slowStore) WriteBlock(ctx context.Context, block tempodb.WriteableBlock) error {
+	s.wait <- struct{}{} // send a signal to a goroutine
+	<-s.wait             // wait for the signal from the goroutine
+	return s.Store.WriteBlock(ctx, block)
+}
+
+// lock waits for the signal from WriteBlock locking the operation
+func (s *slowStore) lock() {
+	<-s.wait
+}
+
+// unlock sends a signal to WriteBlock unlocking the operation
+func (s *slowStore) unlock() {
+	s.wait <- struct{}{}
+}
+
+// TestBlockbuilder_twoPartitions_secondEmpty verifies correct handling of two Kafka
+// partitions where the second partition is initially empty and receives data later.
+// It uses a channel-gated store to step consumption, injects records between consume
+// cycles (sleeping longer than ConsumeCycleDuration), and asserts that:
+// - both partitions are assigned,
+// - three blocks are flushed (p0 initial, p0 later, p1 later), and
+// - committed offsets equal number of sent records.
+// The test highly coupled with the blockbuilder implementation. In case it stuck
+// due to channel, it is advised to debug consume cycle step by step.
+func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+	reqTime := time.Now().Add(-1 * time.Minute) // to be sure it won't be filtered out by cycle duration check
+
+	// Create a Kafka cluster with 2 partitions
+	_, address := testkafka.CreateCluster(t, 2, testTopic)
+
+	// Setup block-builder
+	ch := make(chan struct{})
+	store := &slowStore{Store: newStore(ctx, t), wait: ch}
+	cfg := blockbuilderConfig(t, address, []int32{0, 1})
+	cfg.ConsumeCycleDuration = time.Second
+	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
+		0: {Id: 0, State: ring.PartitionActive},
+		1: {Id: 1, State: ring.PartitionActive},
+	})
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	// First, produce to partition 0
+	sendReqWithOpts(t, ctx, client, reqOpts{partition: 0, time: reqTime, tenantID: util.FakeTenantID})
+
+	// And only then create block builder
+	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, store)
+	require.NoError(t, err)
+
+	// Verify builder is listening to both partitions
+	parts := b.getAssignedPartitions()
+	require.ElementsMatch(t, []int32{0, 1}, parts)
+
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// after initial consumption, add more records
+	store.lock()
+	sendReqWithOpts(t, ctx, client, reqOpts{partition: 0, time: reqTime, tenantID: util.FakeTenantID})
+	store.unlock()
+
+	// after processing the first partition, add more records to the second partition
+	store.lock()
+	sendReqWithOpts(t, ctx, client, reqOpts{partition: 1, time: reqTime, tenantID: util.FakeTenantID})
+	store.unlock()
+
+	// wait for the second partition to finish
+	store.lock()
+	store.unlock()
+
+	// Wait for the block to be flushed (one block per each consumePartition call)
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 3 && countFlushedTraces(store) == 3
+	}, 20*time.Second, time.Second)
+
+	// Verify offsets
+	offsets, err := kadm.NewClient(client).FetchOffsetsForTopics(ctx, testConsumerGroup, testTopic)
+	require.NoError(t, err)
+	for partition, expectedOffset := range map[int32]int64{
+		0: 2,
+		1: 1,
+	} {
+		offset, ok := offsets.Lookup(testTopic, partition)
+		require.True(t, ok, "partition %d should have a committed offset", partition)
+		require.Equal(t, expectedOffset, offset.At)
 	}
 }

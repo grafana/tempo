@@ -127,7 +127,7 @@ func (p partitionState) getStartOffset() kgo.Offset {
 }
 
 func (p partitionState) hasRecords() bool {
-	return p.endOffset >= -1
+	return p.endOffset > 0
 }
 
 func New(
@@ -265,7 +265,10 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 
 	// First iteration over all the assigned partitions to get their current lag in time
 	for i, p := range ps {
-		if !p.hasRecords() { // No records, we can skip the partition
+		if !p.hasRecords() { // No records, skip for the first iteration
+			ps[i].lastRecordTs = time.Now()
+			ps[i].commitOffset = 0 // always start at beginning
+			level.Info(b.logger).Log("msg", "partition has no records", "partition", p.partition)
 			continue
 		}
 		lastRecordTs, commitOffset, err := b.consumePartition(ctx, p)
