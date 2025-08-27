@@ -195,7 +195,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 func (s *BackendScheduler) stopping(_ error) error {
 	err := s.work.FlushToLocal(context.Background(), nil) // flush all shards
 	if err != nil {
-		return fmt.Errorf("failed to flush work cache on shutdown: %w", err)
+		level.Error(log.Logger).Log("msg", "failed to flush local work cache on shutdown", "error", err)
 	}
 
 	err = s.flushWorkCacheToBackend(context.Background())
