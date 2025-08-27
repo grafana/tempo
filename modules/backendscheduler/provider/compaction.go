@@ -160,6 +160,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			job = p.createJob(loopCtx)
 			if job == nil {
 				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant")
+				span.AddEvent("tenant exhausted")
 				// we don't have a job, reset the curTenant and try again
 				metricTenantEmptyJob.Inc()
 				reset()
@@ -167,7 +168,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			// Job successfully created, add to recent jobs cache before we send it.
-			p.addToRecentJobs(job)
+			p.addToRecentJobs(ctx, job)
 
 			select {
 			case <-ctx.Done():
@@ -460,7 +461,10 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 }
 
 // addToRecentJobs adds a job to the recent jobs cache
-func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
+func (p *CompactionProvider) addToRecentJobs(ctx context.Context, job *work.Job) {
+	_, span := tracer.Start(ctx, "addToRecentJobs")
+	defer span.End()
+
 	if job.Type != tempopb.JobType_JOB_TYPE_COMPACTION || job.JobDetail.Compaction == nil {
 		return
 	}
