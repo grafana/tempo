@@ -106,7 +106,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		return fmt.Errorf("unexpected block type: %T", b)
 	}
 
-	err = i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), search)
+	err = i.iterateBlocks(ctx, time.Unix(0, int64(req.Start)), time.Unix(0, int64(req.End)), search)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in QueryRange", "err", err)
 		return nil, err

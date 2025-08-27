@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/segmentio/fasthash/fnv1a"
@@ -24,7 +25,6 @@ import (
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -35,61 +35,54 @@ var (
 	errComplete = errors.New("complete")
 )
 
-// jpe - traceql max series limits?
 type block interface {
 	common.Searcher
 	common.Finder
 }
 
 // blockFn defines a function that processes a single block
-type blockFn func(ctx context.Context, meta *backend.BlockMeta, b block) error // jpe - add type for query range?
+type blockFn func(ctx context.Context, meta *backend.BlockMeta, b block) error
 
 // iterateBlocks provides a way to iterate over all blocks (head, wal, complete)
 // using concurrent processing with bounded concurrency
-func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd uint64, fn blockFn) error {
+func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time, fn blockFn) error {
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	handleErr := func(err error) bool {
+	handleErr := func(err error) {
 		if err == nil {
-			return false
+			return
 		}
 
 		cancel()
 
-		if errors.Is(err, errComplete) || errors.Is(err, context.Canceled) { // jpe - eat context.Canceled here, but test it in the calling funcs
-			return false
+		// we're not storing errComplete for obvious reasons. context.Canceled is ignored b/c it may be due to the
+		// cancel above which is not an error. if the context is cancelled, by something above this method than the caller
+		// can still detect and return it
+		if errors.Is(err, errComplete) || errors.Is(err, context.Canceled) {
+			return
 		}
 		anyErr.Store(err)
-
-		return true
 	}
 
-	withinRange := func(m *backend.BlockMeta) bool {
-		if reqStart == 0 || reqEnd == 0 {
-			return true
-		}
+	func() {
+		i.blocksMtx.RLock()
+		defer i.blocksMtx.RUnlock()
 
-		start := uint64(m.StartTime.UnixNano())
-		end := uint64(m.EndTime.UnixNano())
-		return reqStart <= end && reqEnd >= start
-	}
+		if i.headBlock != nil {
+			meta := i.headBlock.BlockMeta()
+			if includeBlock(meta, reqStart, reqEnd) {
+				ctx, span := tracer.Start(ctx, "process.headBlock")
+				span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-	i.blocksMtx.RLock()
-	if i.headBlock != nil {
-		meta := i.headBlock.BlockMeta()
-		if withinRange(meta) { // jpe why does returning nil here hang tests?
-			ctx, span := tracer.Start(ctx, "process.headBlock")
-			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
-
-			if err := fn(ctx, meta, i.headBlock); err != nil {
-				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
+				if err := fn(ctx, meta, i.headBlock); err != nil {
+					handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
+				}
+				span.End()
 			}
-			span.End()
 		}
-	}
-	i.blocksMtx.RUnlock()
+	}()
 
 	if err := anyErr.Load(); err != nil {
 		return err
@@ -102,14 +95,22 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd uint64, f
 
 	// Process wal blocks
 	for _, b := range i.walBlocks {
+		if ctx.Err() != nil {
+			continue
+		}
+
 		meta := b.BlockMeta()
-		if !withinRange(meta) {
+		if !includeBlock(meta, reqStart, reqEnd) {
 			continue
 		}
 
 		wg.Add(1)
 		go func(block common.WALBlock) {
 			defer wg.Done()
+
+			if ctx.Err() != nil {
+				return
+			}
 
 			ctx, span := tracer.Start(ctx, "process.walBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
@@ -123,14 +124,22 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd uint64, f
 
 	// Process complete blocks
 	for _, b := range i.completeBlocks {
+		if ctx.Err() != nil {
+			continue
+		}
+
 		meta := b.BlockMeta()
-		if !withinRange(meta) {
+		if !includeBlock(meta, reqStart, reqEnd) {
 			continue
 		}
 
 		wg.Add(1)
 		go func(block *ingester.LocalBlock) {
 			defer wg.Done()
+
+			if ctx.Err() != nil {
+				return
+			}
 
 			ctx, span := tracer.Start(ctx, "process.completeBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
@@ -203,7 +212,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		}
 
 		if errors.Is(err, common.ErrUnsupported) {
-			level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", blockMeta.BlockID)
+			level.Warn(i.logger).Log("msg", "block does not support search", "blockID", blockMeta.BlockID)
 			return nil
 		}
 		if err != nil {
@@ -232,16 +241,16 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		return nil
 	}
 
-	err := i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), search)
+	err := i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), search)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error in Search", "err", err)
+		level.Error(i.logger).Log("msg", "error in Search", "err", err)
 		return nil, fmt.Errorf("Search: %w", err)
 	}
 
 	return &tempopb.SearchResponse{
 		Traces:  combiner.Metadata(),
 		Metrics: metrics,
-	}, ctx.Err() // jpe - apply to all? return context error in case the parent context was cancelled
+	}, nil
 }
 
 func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
@@ -302,7 +311,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		}
 
 		if distinctValues.Exceeded() {
-			return errComplete // jpe untested
+			return errComplete
 		}
 
 		// if the query is empty, use the old search
@@ -328,14 +337,14 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		}, fetcher)
 	}
 
-	err = i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), searchBlock)
+	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), searchBlock)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error in SearchTagsV2", "err", err) // jpe - replace all log.Logger with i.logger
+		level.Error(i.logger).Log("msg", "error in SearchTagsV2", "err", err)
 		return nil, fmt.Errorf("SearchTagsV2: %w", err)
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "Search of tags exceeded limit, reduce cardinality or size of tags", "orgID", userID, "stopReason", distinctValues.StopReason())
+		level.Warn(i.logger).Log("msg", "Search of tags exceeded limit, reduce cardinality or size of tags", "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
 
 	collected := distinctValues.Strings()
@@ -396,14 +405,14 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 		return nil
 	}
 
-	err = i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), search)
+	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), search)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error in SearchTagValues", "err", err)
+		level.Error(i.logger).Log("msg", "error in SearchTagValues", "err", err)
 		return nil, fmt.Errorf("SearchTagValues: %w", err)
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "Search of tags exceeded limit,  reduce cardinality or size of tags", "tag", tagName, "orgID", userID, "stopReason", distinctValues.StopReason())
+		level.Warn(i.logger).Log("msg", "Search of tags exceeded limit,  reduce cardinality or size of tags", "tag", tagName, "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
 
 	return &tempopb.SearchTagValuesResponse{
@@ -453,6 +462,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	// helper functions as closures, to access local variables
 	search := func(ctx context.Context, s common.Searcher) error {
+		// note the interaction below with searchWithCache. if we ever return errComplete for reasons besides this we may need to adjust the error handling there
 		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
 			return errComplete
 		}
@@ -476,23 +486,27 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return search(ctx, b)
 		}
 
+		// pulled from context to add attrs below
+		span := trace.SpanFromContext(ctx)
+
 		// check the cache first
 		cacheData, err := localB.GetDiskCache(ctx, cacheKey)
 		if err != nil {
 			// just log the error and move on...we will search the block
-			_ = level.Warn(log.Logger).Log("msg", "GetDiskCache failed", "err", err)
+			_ = level.Warn(i.logger).Log("msg", "GetDiskCache failed", "err", err)
 			return nil
 		}
 
 		// we got data...unmarshall, and add values to central collector and add bytesRead
-		if len(cacheData) > 0 && err == nil {
+		if len(cacheData) > 0 {
 			resp := &tempopb.SearchTagValuesV2Response{}
 			err = proto.Unmarshal(cacheData, resp)
 			if err != nil {
-				return err // jpe - return error here?
+				_ = level.Warn(i.logger).Log("msg", "GetDiskCache unmarshal failed", "err", err)
+				return nil
 			}
 
-			// span.SetAttributes(attribute.Bool("cached", true)) - jpe?
+			span.SetAttributes(attribute.Bool("cached", true))
 			// Instead of the reporting the InspectedBytes of the cached response.
 			// we report the size of cacheData as the Inspected bytes in case we hit disk cache.
 			// we do this because, because it's incorrect and misleading to report the metrics of cachedResponse
@@ -510,12 +524,11 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}
 
 		// cache miss, search the block. We will cache the results if we find any.
-		// span.SetAttributes(attribute.Bool("cached", false)) - jpe?
+		span.SetAttributes(attribute.Bool("cached", false))
 		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-		localErr := search(ctx, localB)
-		if localErr != nil && !errors.Is(localErr, errComplete) { // jpe - test?
-			return localErr
+		if err := search(ctx, localB); err != nil { // note that errComplete could be returned here but it's ok to pass it up b/c it means no work was done and the localCol is invalid
+			return err
 		}
 
 		// marshal the values local collector and set the cache
@@ -524,7 +537,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		if err == nil && len(v2RespProto) > 0 {
 			err2 := localB.SetDiskCache(ctx, cacheKey, v2RespProto)
 			if err2 != nil {
-				_ = level.Warn(log.Logger).Log("msg", "SetDiskCache failed", "err", err2)
+				_ = level.Warn(i.logger).Log("msg", "SetDiskCache failed", "err", err2)
 			}
 		}
 
@@ -534,17 +547,17 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				return errComplete
 			}
 		}
-		return localErr // could be errComplete
+		return nil
 	}
 
-	err = i.iterateBlocks(ctx, uint64(req.Start), uint64(req.End), searchWithCache)
+	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), searchWithCache)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error in SearchTagValuesV2", "err", err)
+		level.Error(i.logger).Log("msg", "error in SearchTagValuesV2", "err", err)
 		return nil, fmt.Errorf("SearchTagValuesV2: %w", err)
 	}
 
 	if vCollector.Exceeded() {
-		_ = level.Warn(log.Logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "tenant", userID, "limit", limit, "size", vCollector.Size())
+		_ = level.Warn(i.logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "tenant", userID, "limit", limit, "size", vCollector.Size())
 	}
 
 	resp := &tempopb.SearchTagValuesV2Response{
@@ -556,19 +569,22 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		resp.TagValues = append(resp.TagValues, &v2)
 	}
 
-	return resp, nil // jpe - return ctx.Err()?
+	return resp, nil
 }
 
 // includeBlock uses the provided time range to determine if the block should be included in the search.
-func includeBlock(b *backend.BlockMeta, req *tempopb.SearchRequest) bool { // jpe - restore
-	start := int64(req.Start)
-	end := int64(req.End)
+func includeBlock(b *backend.BlockMeta, start, end time.Time) bool {
+	startNano := start.UnixNano()
+	endNano := end.UnixNano()
 
-	if start == 0 || end == 0 {
+	if startNano == 0 || endNano == 0 {
 		return true
 	}
 
-	return b.StartTime.Unix() <= end && b.EndTime.Unix() >= start
+	blockStart := b.StartTime.UnixNano()
+	blockEnd := b.EndTime.UnixNano()
+
+	return blockStart <= endNano && blockEnd >= startNano
 }
 
 // searchTagValuesV2CacheKey generates a cache key for the searchTagValuesV2 request

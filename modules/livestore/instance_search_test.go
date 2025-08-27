@@ -39,9 +39,9 @@ import (
 )
 
 const (
+	// todo: these are the dumbest consts i've ever seen. is the linter forcing us to do this?
 	foo          = "foo"
 	bar          = "bar"
-	qux          = "qux"
 	testTenantID = "fake"
 )
 
@@ -216,7 +216,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	i, ls := defaultInstance(t)
 
 	// add dummy search data
-	tagKey := "foo"
+	tagKey := foo
 	tagValue := bar
 
 	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
@@ -447,34 +447,40 @@ func TestSearchTagsV2Limits(t *testing.T) {
 
 			instance.overrides = limits
 
-			// push a trace
-			id := test.ValidTraceID(nil)
-			trace := test.MakeTrace(10, id)
-
-			traceBytes, err := trace.Marshal()
-			require.NoError(t, err)
-
-			// count tags
+			// push traces
 			uniqueKeys := map[string]struct{}{}
-			for _, rs := range trace.ResourceSpans {
-				for _, ss := range rs.ScopeSpans {
-					for _, sp := range ss.Spans {
-						for _, tag := range sp.Attributes {
-							uniqueKeys[tag.Key] = struct{}{}
+			numTraces := 10
+			for i := 0; i < numTraces; i++ {
+				id := test.ValidTraceID(nil)
+				trace := test.MakeTrace(1, id)
+
+				traceBytes, err := trace.Marshal()
+				require.NoError(t, err)
+
+				for _, rs := range trace.ResourceSpans {
+					for _, ss := range rs.ScopeSpans {
+						for _, sp := range ss.Spans {
+							for _, tag := range sp.Attributes {
+								uniqueKeys[tag.Key] = struct{}{}
+							}
 						}
 					}
 				}
+
+				// Create a push request for livestore
+				req := &tempopb.PushBytesRequest{
+					Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+					Ids:    [][]byte{id},
+				}
+				instance.pushBytes(time.Now(), req)
+				err = instance.cutIdleTraces(true)
+				require.NoError(t, err)
+				blockID, err := instance.cutBlocks(true)
+				require.NoError(t, err)
+				err = instance.completeBlock(ctx, blockID)
+				require.NoError(t, err)
 			}
 			expectedTags := len(uniqueKeys)
-
-			// Create a push request for livestore
-			req := &tempopb.PushBytesRequest{
-				Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
-				Ids:    [][]byte{id},
-			}
-			instance.pushBytes(time.Now(), req)
-			err = instance.cutIdleTraces(true)
-			require.NoError(t, err)
 
 			res, err := instance.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
 				Scope: "span",
@@ -688,7 +694,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	// add dummy search data
 	tagKey := foo
-	tagValue := "bar"
+	tagValue := bar
 
 	req := &tempopb.SearchRequest{
 		Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
@@ -951,10 +957,7 @@ func TestIncludeBlock(t *testing.T) {
 			actual := includeBlock(&backend.BlockMeta{
 				StartTime: time.Unix(tc.blocKStart, 0),
 				EndTime:   time.Unix(tc.blockEnd, 0),
-			}, &tempopb.SearchRequest{
-				Start: tc.reqStart,
-				End:   tc.reqEnd,
-			})
+			}, time.Unix(int64(tc.reqStart), 0), time.Unix(int64(tc.reqEnd), 0))
 
 			require.Equal(t, tc.expected, actual)
 		})

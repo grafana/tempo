@@ -471,7 +471,7 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 		return nil
 	}
 
-	err := i.iterateBlocks(ctx, 0, 0, search)
+	err := i.iterateBlocks(ctx, time.Unix(0, 0), time.Unix(0, 0), search)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in FindTraceByID", "err", err)
 		return nil, fmt.Errorf("error searching for trace: %w", err)
