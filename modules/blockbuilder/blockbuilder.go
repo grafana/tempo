@@ -584,7 +584,7 @@ func (b *BlockBuilder) getPartitionOffsets(ctx context.Context, partitionIDs []i
 func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetResponses, endsOffsets kadm.ListedOffsets) partitionState {
 	var (
 		topic = b.cfg.IngestStorageConfig.Kafka.Topic
-		ps    = partitionState{partition: partition, commitOffset: -1, endOffset: -2}
+		ps    = partitionState{partition: partition, commitOffset: -1, endOffset: 0}
 	)
 
 	lastCommit, found := commits.Lookup(topic, partition)
