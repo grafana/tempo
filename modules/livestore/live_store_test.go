@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 func TestLiveStoreBasicConsume(t *testing.T) {
@@ -215,31 +216,31 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	newer := now.Add(-1 * (defaultCompleteBlockTimeout - time.Second))
 
 	// Create test records - some old, some new
-	records := []record{
+	records := []*kgo.Record{
 		{
-			tenantID:  "tenant1",
-			timestamp: older, // Too old (older than CompleteBlockTimeout)
-			content:   createValidPushRequest(t),
+			Key:       []byte("tenant1"),
+			Timestamp: older, // Too old (older than CompleteBlockTimeout)
+			Value:     createValidPushRequest(t),
 		},
 		{
-			tenantID:  "tenant1",
-			timestamp: newer, // Valid (newer than CompleteBlockTimeout)
-			content:   createValidPushRequest(t),
+			Key:       []byte("tenant1"),
+			Timestamp: newer, // Valid (newer than CompleteBlockTimeout)
+			Value:     createValidPushRequest(t),
 		},
 		{
-			tenantID:  "tenant2",
-			timestamp: older, // Too old
-			content:   createValidPushRequest(t),
+			Key:       []byte("tenant2"),
+			Timestamp: older, // Too old
+			Value:     createValidPushRequest(t),
 		},
 		{
-			tenantID:  "tenant2",
-			timestamp: newer, // Valid
-			content:   createValidPushRequest(t),
+			Key:       []byte("tenant2"),
+			Timestamp: newer, // Valid
+			Value:     createValidPushRequest(t),
 		},
 	}
 
 	// Call consume
-	err := ls.consume(context.Background(), records, now)
+	_, err := ls.consume(context.Background(), createRecordIter(records), now)
 	require.NoError(t, err)
 
 	// Verify metrics
@@ -265,45 +266,45 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 	threeMinutesAgo := now.Add(-3 * time.Minute)
 
 	tcs := []struct {
-		records       []record
+		records       []*kgo.Record
 		expectedStart time.Time
 		expectedEnd   time.Time
 	}{
 		{ // records where the timestamp exactly matches the span timings
-			records: []record{{
-				tenantID:  testTenantID,
-				timestamp: oneMinuteAgo,
-				content:   createValidPushRequestStartEnd(t, oneMinuteAgo, oneMinuteAgo),
+			records: []*kgo.Record{{
+				Key:       []byte(testTenantID),
+				Timestamp: oneMinuteAgo,
+				Value:     createValidPushRequestStartEnd(t, oneMinuteAgo, oneMinuteAgo),
 			}, {
-				tenantID:  testTenantID,
-				timestamp: now,
-				content:   createValidPushRequestStartEnd(t, now, now),
+				Key:       []byte(testTenantID),
+				Timestamp: now,
+				Value:     createValidPushRequestStartEnd(t, now, now),
 			}},
 			expectedStart: oneMinuteAgo,
 			expectedEnd:   now,
 		},
 		{ // records where the timestamp doesn't match the span timings, but within the ingestion slack
-			records: []record{{
-				tenantID:  testTenantID,
-				timestamp: now,
-				content:   createValidPushRequestStartEnd(t, oneMinuteAgo, oneMinuteLater),
+			records: []*kgo.Record{{
+				Key:       []byte(testTenantID),
+				Timestamp: now,
+				Value:     createValidPushRequestStartEnd(t, oneMinuteAgo, oneMinuteLater),
 			}, {
-				tenantID:  testTenantID,
-				timestamp: now,
-				content:   createValidPushRequestStartEnd(t, twoMinutesAgo, twoMinutesLater),
+				Key:       []byte(testTenantID),
+				Timestamp: now,
+				Value:     createValidPushRequestStartEnd(t, twoMinutesAgo, twoMinutesLater),
 			}},
 			expectedStart: twoMinutesAgo,
 			expectedEnd:   twoMinutesLater,
 		},
 		{ // records where the timestamp doesn't match the span timings and is outside the ingestion slack
-			records: []record{{
-				tenantID:  testTenantID,
-				timestamp: now,
-				content:   createValidPushRequestStartEnd(t, threeMinutesAgo, now),
+			records: []*kgo.Record{{
+				Key:       []byte(testTenantID),
+				Timestamp: now,
+				Value:     createValidPushRequestStartEnd(t, threeMinutesAgo, now),
 			}, {
-				tenantID:  testTenantID,
-				timestamp: now,
-				content:   createValidPushRequestStartEnd(t, threeMinutesAgo, oneMinuteLater),
+				Key:       []byte(testTenantID),
+				Timestamp: now,
+				Value:     createValidPushRequestStartEnd(t, threeMinutesAgo, oneMinuteLater),
 			}},
 			expectedStart: twoMinutesAgo, // default ingestion slack is 2 minutes
 			expectedEnd:   oneMinuteLater,
@@ -314,7 +315,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		ls, err := defaultLiveStore(t, t.TempDir())
 		require.NoError(t, err)
 
-		err = ls.consume(t.Context(), tc.records, now)
+		_, err = ls.consume(t.Context(), createRecordIter(tc.records), now)
 		require.NoError(t, err)
 
 		inst, err := ls.getOrCreateInstance(testTenantID)
@@ -347,6 +348,33 @@ type instanceState struct {
 	liveTraces     int
 	walBlocks      int
 	completeBlocks int
+}
+
+// testRecordIter is a simple recordIter implementation for tests
+type testRecordIter struct {
+	records []*kgo.Record
+	index   int
+}
+
+func (t *testRecordIter) Next() *kgo.Record {
+	if t.index >= len(t.records) {
+		return nil
+	}
+	record := t.records[t.index]
+	t.index++
+	return record
+}
+
+func (t *testRecordIter) Done() bool {
+	return t.index >= len(t.records)
+}
+
+// createRecordIter creates a recordIter from a slice of *kgo.Record for testing
+func createRecordIter(records []*kgo.Record) recordIter {
+	return &testRecordIter{
+		records: records,
+		index:   0,
+	}
 }
 
 func requireInstanceState(t *testing.T, inst *instance, state instanceState) {
@@ -445,12 +473,7 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 		kgoRec.Timestamp = now
 	}
 
-	records := make([]record, 0, len(requestRecords))
-	for _, kgoRec := range requestRecords {
-		records = append(records, fromKGORecord(kgoRec))
-	}
-
-	err = liveStore.consume(t.Context(), records, now)
+	_, err = liveStore.consume(t.Context(), createRecordIter(requestRecords), now)
 	require.NoError(t, err)
 
 	return id, expectedTrace
