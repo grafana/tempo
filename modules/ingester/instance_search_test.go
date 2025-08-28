@@ -732,16 +732,21 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	end := make(chan struct{})
+	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
 
 	for j := 0; j < 500; j++ {
@@ -779,7 +784,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
 	close(end)
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 }
 
 func TestInstanceSearchMetrics(t *testing.T) {
@@ -849,16 +854,21 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	end := make(chan struct{})
+	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
 
 	// Push data
@@ -930,7 +940,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	close(end)
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
-	time.Sleep(1 * time.Second)
+	wg.Wait()
 }
 
 func TestIncludeBlock(t *testing.T) {

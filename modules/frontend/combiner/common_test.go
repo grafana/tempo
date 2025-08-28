@@ -164,49 +164,54 @@ func TestGenericCombinerHoldsErrors(t *testing.T) {
 func TestGenericCombinerDoesntRace(t *testing.T) {
 	combiner := newTestCombiner()
 	end := make(chan struct{})
+	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
-	go concurrent(func() {
+	concurrent(func() {
 		_ = combiner.AddResponse(newTestResponse(t))
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// this test is going to add a failed response which cuts off certain code paths. just wait a bit to test the other paths
 		time.Sleep(10 * time.Millisecond)
 		_ = combiner.AddResponse(newFailedTestResponse())
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		combiner.ShouldQuit()
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		combiner.StatusCode()
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, _ = combiner.HTTPFinal()
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, _ = combiner.GRPCFinal()
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, _ = combiner.GRPCDiff()
 	})
 
-	time.Sleep(100 * time.Millisecond)
 	close(end)
+	wg.Wait()
 }
 
 type testPipelineResponse struct {
