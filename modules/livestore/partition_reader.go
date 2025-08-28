@@ -117,7 +117,6 @@ func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 }
 
 func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) *kadm.Offset {
-
 	// Pass offset and byte information to the live-store
 	offset, err := r.consume(ctx, fetches.RecordIter(), time.Now())
 	if err != nil {
