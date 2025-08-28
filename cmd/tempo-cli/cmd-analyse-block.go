@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"text/tabwriter"
 	"time"
@@ -108,6 +109,7 @@ type analyseBlockCmd struct {
 	BlockID          string `arg:"" help:"block ID to list"`
 	NumAttr          int    `help:"Number of attributes to display" default:"15"`
 	GenerateJsonnet  bool   `help:"Generate overrides Jsonnet for dedicated columns"`
+	GenerateCliArgs  bool   `help:"Generate textual args for passing to parquet conversion command"`
 	SimpleSummary    bool   `help:"Print only single line of top attributes" default:"false"`
 	PrintFullSummary bool   `help:"Print full summary of the analysed block" default:"true"`
 }
@@ -130,7 +132,7 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return errors.New("failed to process block")
 	}
 
-	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet, cmd.SimpleSummary, cmd.PrintFullSummary)
+	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.GenerateCliArgs)
 }
 
 func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minStartTime time.Time, minCompactionLvl uint32) (*blockSummary, error) {
@@ -226,7 +228,7 @@ type blockSummary struct {
 	spanSummary, resourceSummary, eventSummary genericAttrSummary
 }
 
-func (s *blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printFullSummary bool) error {
+func (s *blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printFullSummary, generateCliArgs bool) error {
 	if printFullSummary {
 		if err := printSummary("span", maxAttr, s.spanSummary, false); err != nil {
 			return err
@@ -253,6 +255,10 @@ func (s *blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printF
 
 	if generateJsonnet {
 		printDedicatedColumnOverridesJsonnet(s.spanSummary, s.resourceSummary)
+	}
+
+	if generateCliArgs {
+		printCliArgs(s, maxAttr)
 	}
 
 	return nil
@@ -503,6 +509,25 @@ func printDedicatedColumnOverridesJsonnet(spanSummary, resourceSummary genericAt
 	}
 	fmt.Printf("], \n")
 	fmt.Println("")
+}
+
+func printCliArgs(s *blockSummary, maxAttr int) {
+	fmt.Println("")
+	fmt.Printf("quoted/spaced cli list:")
+
+	ss := []string{}
+
+	span := topN(maxAttr, s.spanSummary.attributes)
+	for _, a := range span {
+		ss = append(ss, fmt.Sprintf("\"span.%s\"", a.name))
+	}
+
+	resource := topN(maxAttr, s.resourceSummary.attributes)
+	for _, a := range resource {
+		ss = append(ss, fmt.Sprintf("\"resource.%s\"", a.name))
+	}
+
+	fmt.Println(strings.Join(ss, " "))
 }
 
 func topN(n int, attrs map[string]uint64) []attribute {

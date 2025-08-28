@@ -14,6 +14,7 @@ type analyseBlocksCmd struct {
 	backendOptions
 
 	Jsonnet            bool   `help:"output Jsonnet necessary for overrides"`
+	Cli                bool   `help:"Generate textual args for passing to parquet conversion command"`
 	SimpleSummary      bool   `help:"Print only single line of top attributes" default:"false"`
 	PrintFullSummary   bool   `help:"Print full summary of the analysed block" default:"true"`
 	TenantID           string `arg:"" help:"tenant-id within the bucket"`
@@ -103,5 +104,5 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 			totalBytes: totalResourceBytes,
 			attributes: topResourceAttrs,
 		},
-	}).print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary)
+	}).print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.Cli)
 }
