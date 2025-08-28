@@ -33,6 +33,9 @@ const (
 	ConsumerGroup           = "block-builder"
 	pollTimeout             = 2 * time.Second
 	cutTime                 = 10 * time.Second
+	emptyPartitionEndOffset = 0  // partition has no records
+	commitOffsetAtEnd       = -1 // offset is at the end of partition
+	commitOffsetAtStart     = -2 // offset is at the start of partition
 )
 
 var (
@@ -124,14 +127,14 @@ type partitionState struct {
 }
 
 func (p partitionState) getStartOffset() kgo.Offset {
-	if p.commitOffset >= 0 {
+	if p.commitOffset > commitOffsetAtEnd {
 		return kgo.NewOffset().At(p.commitOffset)
 	}
 	return kgo.NewOffset().AtStart()
 }
 
 func (p partitionState) hasRecords() bool {
-	return p.endOffset > 0
+	return p.endOffset > emptyPartitionEndOffset
 }
 
 func New(
@@ -368,7 +371,7 @@ outer:
 				break
 			}
 			metricFetchErrors.WithLabelValues(partLabel).Inc()
-			return time.Time{}, -1, err
+			return time.Time{}, commitOffsetAtEnd, err
 		}
 
 		if fetches.Empty() {
@@ -419,7 +422,7 @@ outer:
 
 			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
 			if err != nil {
-				return time.Time{}, -1, err
+				return time.Time{}, commitOffsetAtEnd, err
 			}
 
 			processedRecords++
@@ -452,7 +455,7 @@ outer:
 		span.AddEvent("no data")
 		// No data means we are caught up
 		ingest.SetPartitionLagSeconds(group, ps.partition, 0)
-		return time.Time{}, -1, nil
+		return time.Time{}, commitOffsetAtEnd, nil
 	}
 
 	// Record lag at the end of the consumption
@@ -460,13 +463,13 @@ outer:
 
 	err = writer.flush(ctx, b.reader, b.writer, b.compactor)
 	if err != nil {
-		return time.Time{}, -1, err
+		return time.Time{}, commitOffsetAtEnd, err
 	}
 
 	offset := kadm.NewOffsetFromRecord(lastRec)
 	err = b.commitOffset(ctx, offset, group, ps.partition)
 	if err != nil {
-		return time.Time{}, -1, err
+		return time.Time{}, commitOffsetAtEnd, err
 	}
 
 	level.Info(b.logger).Log(
@@ -584,7 +587,7 @@ func (b *BlockBuilder) getPartitionOffsets(ctx context.Context, partitionIDs []i
 func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetResponses, endsOffsets kadm.ListedOffsets) partitionState {
 	var (
 		topic = b.cfg.IngestStorageConfig.Kafka.Topic
-		ps    = partitionState{partition: partition, commitOffset: -1, endOffset: 0}
+		ps    = partitionState{partition: partition, commitOffset: commitOffsetAtEnd, endOffset: emptyPartitionEndOffset}
 	)
 
 	lastCommit, found := commits.Lookup(topic, partition)
