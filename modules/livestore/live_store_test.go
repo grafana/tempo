@@ -10,6 +10,8 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
@@ -253,6 +255,43 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
+	ls, err := defaultLiveStore(t, t.TempDir())
+	require.NoError(t, err)
+
+	now := time.Unix(1000000, 0)
+
+	expectedCreatedAt := now.Add(-time.Minute)
+	expectedLastAppend := now
+
+	err = ls.consume(t.Context(), []record{{
+		tenantID:  testTenantID,
+		timestamp: expectedCreatedAt,
+		content:   createValidPushRequestStartEnd(t, expectedCreatedAt, expectedCreatedAt),
+	}, {
+		tenantID:  testTenantID,
+		timestamp: expectedLastAppend,
+		content:   createValidPushRequestStartEnd(t, expectedLastAppend, expectedLastAppend),
+	}},
+		now,
+	)
+	require.NoError(t, err)
+
+	inst, err := ls.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	// force just pushed traces to the head block
+	err = inst.cutIdleTraces(true)
+	require.NoError(t, err)
+
+	meta := inst.headBlock.BlockMeta()
+	require.Equal(t, expectedCreatedAt, meta.StartTime)
+	require.Equal(t, expectedLastAppend, meta.EndTime)
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+}
+
 type instanceState struct {
 	liveTraces     int
 	walBlocks      int
@@ -287,6 +326,40 @@ func createValidPushRequest(t *testing.T) []byte {
 	id := test.ValidTraceID(nil)
 	expectedTrace := test.MakeTrace(5, id)
 	traceBytes, err := proto.Marshal(expectedTrace)
+	require.NoError(t, err)
+
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{id},
+	}
+
+	records, err := ingest.Encode(0, testTenantID, req, 1_000_000)
+	require.NoError(t, err)
+
+	return records[0].Value
+}
+
+func createValidPushRequestStartEnd(t *testing.T, start, end time.Time) []byte {
+	id := test.ValidTraceID(nil)
+	tr := &tempopb.Trace{
+		ResourceSpans: []*v1_trace.ResourceSpans{
+			{
+				Resource: &v1_resource.Resource{},
+				ScopeSpans: []*v1_trace.ScopeSpans{
+					{
+						Spans: []*v1_trace.Span{
+							{
+								TraceId:           id,
+								StartTimeUnixNano: uint64(start.UnixNano()),
+								EndTimeUnixNano:   uint64(end.UnixNano()),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	traceBytes, err := proto.Marshal(tr)
 	require.NoError(t, err)
 
 	req := &tempopb.PushBytesRequest{

@@ -96,9 +96,6 @@ type instance struct {
 	tracesCreatedTotal prometheus.Counter
 	bytesReceivedTotal *prometheus.CounterVec
 
-	// Block offset metadata (set during coordinated cuts)
-	// blockOffsetMeta map[uuid.UUID]offsetMetadata // TODO: Used for checking data integrity
-
 	overrides overrides.Interface
 }
 
@@ -207,11 +204,7 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 
 	// Collect the trace IDs that will be flushed
 	for _, t := range tracesToCut {
-		tr := &tempopb.Trace{
-			ResourceSpans: t.Batches,
-		}
-
-		err := i.writeHeadBlock(t.ID, tr)
+		err := i.writeHeadBlock(t.ID, t)
 		if err != nil {
 			return err
 		}
@@ -232,7 +225,7 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 	return nil
 }
 
-func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
+func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1.ResourceSpans]) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
@@ -241,6 +234,10 @@ func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	tr := &tempopb.Trace{
+		ResourceSpans: liveTrace.Batches,
 	}
 
 	// Get trace timestamp bounds
@@ -261,6 +258,20 @@ func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
 	// Convert from unix nanos to unix seconds
 	startSeconds := uint32(start / uint64(time.Second))
 	endSeconds := uint32(end / uint64(time.Second))
+
+	// constrain start/end with ingestion slack calculated off of liveTrace.createdAt and lastAppend
+	// createdAt and lastAppend are set via the record.Timestamp from kafka so they are "time.Now()" for the
+	// ingestion of this trace
+	slackDuration := i.Cfg.WAL.IngestionSlack
+	minStart := uint32(liveTrace.CreatedAt.Add(-slackDuration).Unix())
+	maxEnd := uint32(liveTrace.LastAppend.Add(slackDuration).Unix())
+
+	if startSeconds < minStart {
+		startSeconds = minStart
+	}
+	if endSeconds > maxEnd {
+		endSeconds = maxEnd
+	}
 
 	return i.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
 }

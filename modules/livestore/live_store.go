@@ -354,7 +354,7 @@ func (s *LiveStore) consume(ctx context.Context, rs []record, now time.Time) err
 		}
 
 		// Push data to tenant instance
-		inst.pushBytes(time.Now(), pushReq)
+		inst.pushBytes(record.timestamp, pushReq)
 
 		metricRecordsProcessed.WithLabelValues(record.tenantID).Inc()
 	}
