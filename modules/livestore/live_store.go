@@ -35,6 +35,10 @@ const (
 
 	PartitionRingKey  = "livestore-partitions"
 	PartitionRingName = "livestore-partitions"
+
+	droppedRecordReasonTooOld           = "too_old"
+	droppedRecordReasonDecodingFailed   = "decoding_failed"
+	droppedRecordReasonInstanceNotFound = "instance_not_found"
 )
 
 var (
@@ -339,20 +343,23 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		tenant := string(record.Key)
 
 		if record.Timestamp.Before(cutoff) {
-			metricRecordsDropped.WithLabelValues(tenant, "too_old").Inc()
+			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
 			continue
 		}
 
 		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.Value)
 		if err != nil {
+			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
+			level.Error(s.logger).Log("msg", "failed to decoded record", "tenant", tenant, "err", err)
 			span.RecordError(err)
-			return nil, fmt.Errorf("decoding record: %w", err)
+			continue
 		}
 
 		// Get or create tenant instance
 		inst, err := s.getOrCreateInstance(tenant)
 		if err != nil {
+			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
 			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
 			span.RecordError(err)
 			continue
