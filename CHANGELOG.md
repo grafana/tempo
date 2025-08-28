@@ -62,6 +62,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix cache collision for incomplete query in SearchTagValuesV2 [#5549](https://github.com/grafana/tempo/pull/5549) (@ruslan-mikhailov)
 * [BUGFIX] Fix for structural operator with empty left-hand spanset [#5578](https://github.com/grafana/tempo/pull/5578) (@ruslan-mikhailov)
 * [BUGFIX] Deadlock on invalid query to api/v2/search/tags (SearchTagsV2) [#5607](https://github.com/grafana/tempo/pull/5607) (@ruslan-mikhailov)
+* [BUGFIX] Do not start from start if block-builder is at the end of partition [#5581](https://github.com/grafana/tempo/pull/5581) (@ruslan-mikhailov)
 
 # v2.8.2
 
