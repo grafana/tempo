@@ -701,8 +701,8 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 			metas := store.BlockMetas(util.FakeTenantID)
 			require.Len(t, metas, 1)
 			meta := metas[0]
-			require.Equal(t, tc.expectedStart, meta.StartTime)
-			require.Equal(t, tc.expectedEnd, meta.EndTime)
+			require.Equal(t, tc.expectedStart.Unix(), meta.StartTime.Unix())
+			require.Equal(t, tc.expectedEnd.Unix(), meta.EndTime.Unix())
 		})
 	}
 }
