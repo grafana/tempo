@@ -683,18 +683,20 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	concurrent := func(f func()) {
 		wg.Add(1)
-		defer wg.Done()
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
 
-	go concurrent(func() {
+	concurrent(func() {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -711,12 +713,12 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		i.pushBytes(time.Now(), req)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := i.cutIdleTraces(true)
 		require.NoError(t, err, "error cutting complete traces")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// Cut wal, complete
 		blockID, _ := i.cutBlocks(true)
 		if blockID != uuid.Nil {
@@ -725,24 +727,24 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		}
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := i.deleteOldBlocks() // livestore cleanup
 		require.NoError(t, err)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := i.Search(context.Background(), req)
 		require.NoError(t, err, "error searching")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// SearchTags queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
 		_, err := i.SearchTags(ctx, "")
 		require.NoError(t, err, "error getting search tags")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
 		_, err := i.SearchTagValues(ctx, tagKey, 0, 0)
