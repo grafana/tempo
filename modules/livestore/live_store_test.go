@@ -256,40 +256,91 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 }
 
 func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
-	ls, err := defaultLiveStore(t, t.TempDir())
-	require.NoError(t, err)
-
+	// default ingestion slack is 2 minutes. create some convenient times to help the test below
 	now := time.Unix(1000000, 0)
+	oneMinuteAgo := now.Add(-time.Minute)
+	oneMinuteLater := now.Add(time.Minute)
+	twoMinutesAgo := now.Add(-2 * time.Minute)
+	twoMinutesLater := now.Add(2 * time.Minute)
+	threeMinutesAgo := now.Add(-3 * time.Minute)
 
-	expectedCreatedAt := now.Add(-time.Minute)
-	expectedLastAppend := now
+	tcs := []struct {
+		records       []record
+		expectedStart time.Time
+		expectedEnd   time.Time
+	}{
+		{ // records where the timestamp exactly matches the span timings
+			records: []record{{
+				tenantID:  testTenantID,
+				timestamp: oneMinuteAgo,
+				content:   createValidPushRequestStartEnd(t, oneMinuteAgo, oneMinuteAgo),
+			}, {
+				tenantID:  testTenantID,
+				timestamp: now,
+				content:   createValidPushRequestStartEnd(t, now, now),
+			}},
+			expectedStart: oneMinuteAgo,
+			expectedEnd:   now,
+		},
+		{ // records where the timestamp doesn't match the span timings, but within the ingestion slack
+			records: []record{{
+				tenantID:  testTenantID,
+				timestamp: now,
+				content:   createValidPushRequestStartEnd(t, oneMinuteAgo, oneMinuteLater),
+			}, {
+				tenantID:  testTenantID,
+				timestamp: now,
+				content:   createValidPushRequestStartEnd(t, twoMinutesAgo, twoMinutesLater),
+			}},
+			expectedStart: twoMinutesAgo,
+			expectedEnd:   twoMinutesLater,
+		},
+		{ // records where the timestamp doesn't match the span timings and is outside the ingestion slack
+			records: []record{{
+				tenantID:  testTenantID,
+				timestamp: now,
+				content:   createValidPushRequestStartEnd(t, threeMinutesAgo, now),
+			}, {
+				tenantID:  testTenantID,
+				timestamp: now,
+				content:   createValidPushRequestStartEnd(t, threeMinutesAgo, oneMinuteLater),
+			}},
+			expectedStart: twoMinutesAgo, // default ingestion slack is 2 minutes
+			expectedEnd:   oneMinuteLater,
+		},
+	}
 
-	err = ls.consume(t.Context(), []record{{
-		tenantID:  testTenantID,
-		timestamp: expectedCreatedAt,
-		content:   createValidPushRequestStartEnd(t, expectedCreatedAt, expectedCreatedAt),
-	}, {
-		tenantID:  testTenantID,
-		timestamp: expectedLastAppend,
-		content:   createValidPushRequestStartEnd(t, expectedLastAppend, expectedLastAppend),
-	}},
-		now,
-	)
-	require.NoError(t, err)
+	for _, tc := range tcs {
+		ls, err := defaultLiveStore(t, t.TempDir())
+		require.NoError(t, err)
 
-	inst, err := ls.getOrCreateInstance(testTenantID)
-	require.NoError(t, err)
+		err = ls.consume(t.Context(), tc.records, now)
+		require.NoError(t, err)
 
-	// force just pushed traces to the head block
-	err = inst.cutIdleTraces(true)
-	require.NoError(t, err)
+		inst, err := ls.getOrCreateInstance(testTenantID)
+		require.NoError(t, err)
 
-	meta := inst.headBlock.BlockMeta()
-	require.Equal(t, expectedCreatedAt, meta.StartTime)
-	require.Equal(t, expectedLastAppend, meta.EndTime)
+		// force just pushed traces to the head block
+		err = inst.cutIdleTraces(true)
+		require.NoError(t, err)
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
-	require.NoError(t, err)
+		meta := inst.headBlock.BlockMeta()
+		require.Equal(t, tc.expectedStart, meta.StartTime)
+		require.Equal(t, tc.expectedEnd, meta.EndTime)
+
+		// cut to complete block and test again
+		uuid, err := inst.cutBlocks(true)
+		require.NoError(t, err)
+		err = inst.completeBlock(t.Context(), uuid)
+		require.NoError(t, err)
+
+		meta = inst.completeBlocks[uuid].BlockMeta()
+		require.Equal(t, tc.expectedStart, meta.StartTime)
+		require.Equal(t, tc.expectedEnd, meta.EndTime)
+
+		err = services.StopAndAwaitTerminated(t.Context(), ls)
+		require.NoError(t, err)
+	}
 }
 
 type instanceState struct {
