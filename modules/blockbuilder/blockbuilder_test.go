@@ -824,9 +824,13 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address, []int32{0}) // Fix: Properly specify partition
 
+	// Send initial traces to ensure the partition has records
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	sendReq(ctx, t, client, util.FakeTenantID)
+
 	// Start sending traces in the background
 	go func() {
-		sendTracesFor(t, ctx, newKafkaClient(t, cfg.IngestStorageConfig.Kafka), 60*time.Second, time.Second)
+		sendTracesFor(t, ctx, client, 60*time.Second, time.Second)
 	}()
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
