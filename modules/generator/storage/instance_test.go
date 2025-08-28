@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -373,3 +374,79 @@ func (n *noopRegisterer) Register(prometheus.Collector) error { return nil }
 func (n *noopRegisterer) MustRegister(...prometheus.Collector) {}
 
 func (n *noopRegisterer) Unregister(prometheus.Collector) bool { return true }
+
+func TestInstance_emptyTenantValidation(t *testing.T) {
+	t.Parallel()
+
+	o := &mockOverrides{}
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+
+	t.Run("empty tenant should use single-tenant fallback", func(t *testing.T) {
+		var cfg Config
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.Path = t.TempDir()
+		reg := prometheus.NewRegistry()
+
+		// Empty tenant should fallback to safe default
+		instance, err := New(&cfg, o, "", reg, logger)
+
+		require.NoError(t, err)
+		require.NotNil(t, instance)
+
+		// Verify WAL directory is created with safe tenant name
+		expectedPath := filepath.Join(cfg.Path, "single-tenant")
+		_, err = os.Stat(expectedPath)
+		assert.NoError(t, err, "WAL directory should be created with single-tenant fallback")
+
+		instance.Close()
+	})
+
+	t.Run("valid tenant should work normally", func(t *testing.T) {
+		var cfg Config
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.Path = t.TempDir()
+		reg := prometheus.NewRegistry()
+
+		instance, err := New(&cfg, o, "valid-tenant", reg, logger)
+
+		require.NoError(t, err)
+		require.NotNil(t, instance)
+
+		// Verify correct WAL directory structure
+		expectedPath := filepath.Join(cfg.Path, "valid-tenant")
+		_, err = os.Stat(expectedPath)
+		assert.NoError(t, err, "WAL directory should be created for valid tenant")
+
+		instance.Close()
+	})
+
+	t.Run("prevent root directory deletion scenario", func(t *testing.T) {
+		var cfg Config
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.Path = t.TempDir()
+		reg := prometheus.NewRegistry()
+
+		// Create some existing tenant directories to simulate multi-tenant environment
+		existingTenant1 := filepath.Join(cfg.Path, "tenant-1")
+		existingTenant2 := filepath.Join(cfg.Path, "tenant-2")
+		require.NoError(t, os.MkdirAll(existingTenant1, 0o755))
+		require.NoError(t, os.MkdirAll(existingTenant2, 0o755))
+
+		// Create instance with empty tenant (should use single-tenant fallback)
+		instance, err := New(&cfg, o, "", reg, logger)
+		require.NoError(t, err)
+
+		// Verify existing tenant directories are untouched
+		_, err1 := os.Stat(existingTenant1)
+		_, err2 := os.Stat(existingTenant2)
+		assert.NoError(t, err1, "Existing tenant-1 directory should remain")
+		assert.NoError(t, err2, "Existing tenant-2 directory should remain")
+
+		// Verify single-tenant directory was created instead of root deletion
+		singleTenantPath := filepath.Join(cfg.Path, "single-tenant")
+		_, err3 := os.Stat(singleTenantPath)
+		assert.NoError(t, err3, "single-tenant directory should be created")
+
+		instance.Close()
+	})
+}
