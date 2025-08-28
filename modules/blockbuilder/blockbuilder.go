@@ -113,8 +113,12 @@ type BlockBuilder struct {
 type partitionState struct {
 	// Partition number
 	partition int32
-	// Start and end offset
-	commitOffset, endOffset int64
+	// commitOffset is the last committed consumer offset for this partition
+	// it is maintained per consumer group
+	commitOffset int64
+	// endOffset is the latest offset for this partition
+	// it represents the last message written by producers
+	endOffset int64
 	// Last committed record timestamp
 	lastRecordTs time.Time
 }
@@ -266,6 +270,8 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	// First iteration over all the assigned partitions to get their current lag in time
 	for i, p := range ps {
 		if !p.hasRecords() { // No records, skip for the first iteration
+			// We treat the partition as updated through now,
+			// and will check it again after ConsumeCycleDuration has elapsed
 			ps[i].lastRecordTs = time.Now()
 			ps[i].commitOffset = 0 // always start at beginning
 			level.Info(b.logger).Log("msg", "partition has no records", "partition", p.partition)
