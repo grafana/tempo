@@ -2068,16 +2068,13 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		}
 
 		// check attr not exists
-		if len(cond.Operands) == 0 {
-			switch cond.Op {
-			case traceql.OpNotExists:
-				pred, err := createNilPredicate(cond.Attribute.Name)
-				if err != nil {
-					return nil, err
-				}
-				iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
-				continue
+		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			pred, err := createNilPredicate(cond.Attribute.Name)
+			if err != nil {
+				return nil, err
 			}
+			iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
+			continue
 		}
 
 		// Else: generic attribute lookup
@@ -2214,16 +2211,13 @@ func createInstrumentationIterator(makeIter, makeNilIter makeIterFn, spanIterato
 		}
 
 		// check attr not exists
-		if len(cond.Operands) == 0 {
-			switch cond.Op {
-			case traceql.OpNotExists:
-				pred, err := createNilPredicate(cond.Attribute.Name)
-				if err != nil {
-					return nil, err
-				}
-				iters = append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, columnPathInstrumentationAttrKey))
-				continue
+		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			pred, err := createNilPredicate(cond.Attribute.Name)
+			if err != nil {
+				return nil, err
 			}
+			iters = append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, columnPathInstrumentationAttrKey))
+			continue
 		}
 
 		// Else: generic attribute lookup
@@ -2358,16 +2352,13 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 		}
 
 		// nil?
-		if len(cond.Operands) == 0 {
-			switch cond.Op {
-			case traceql.OpNotExists:
-				pred, err := createNilPredicate(cond.Attribute.Name)
-				if err != nil {
-					return nil, err
-				}
-				iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, columnPathResourceAttrKey))
-				continue
+		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			pred, err := createNilPredicate(cond.Attribute.Name)
+			if err != nil {
+				return nil, err
 			}
+			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, columnPathResourceAttrKey))
+			continue
 		}
 
 		// Else: generic attribute lookup
