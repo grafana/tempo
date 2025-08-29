@@ -31,7 +31,6 @@
     target: target_name,
     'config.file': '/conf/tempo.yaml',
     'mem-ballast-size-mbs': $._config.ballast_size_mbs,
-
   },
 
   tempo_live_store_pvc::
@@ -65,18 +64,31 @@
   },
 
   newLiveStoreZoneContainer(zone, zone_args)::
-    local zone_name = 'zone-%s' % zone;
-
     $.tempo_live_store_container +
     container.withArgs($.util.mapToFlags(
       $.tempo_live_store_args + zone_args
-    )) +
-    container.withEnvMixin([{ name: 'AVAILABILITY_ZONE', value: zone_name }]),
+    )),
+
+  // Helper function for zone-specific anti-affinity rules
+  liveStoreZoneAntiAffinity(zone_name)::
+    if $._config.live_store.allow_multiple_replicas_on_same_node then {} else {
+      spec+:
+        // Allow multiple live-stores from the same zone on one node,
+        // but prevent live-stores from different zones on the same node.
+        podAntiAffinity.withRequiredDuringSchedulingIgnoredDuringExecution([
+          podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecutionType.new() +
+          podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecutionType.mixin.labelSelector.withMatchExpressions([
+            { key: 'rollout-group', operator: 'In', values: ['live-store'] },
+            { key: 'name', operator: 'NotIn', values: [zone_name] },
+          ]) +
+          podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecutionType.withTopologyKey('kubernetes.io/hostname'),
+        ]).spec,
+    },
 
   newLiveStoreZoneStatefulSet(zone, container)::
     local name = 'live-store-zone-%s' % zone;
 
-    self.newLiveStoreStatefulSet(name, container, with_anti_affinity=false) +
+    self.newLiveStoreStatefulSet(name, container) +
     statefulSet.mixin.metadata.withLabels({ 'rollout-group': 'live-store' }) +
     statefulSet.mixin.metadata.withAnnotations({ 'rollout-max-unavailable': std.toString($._config.live_store.max_unavailable) }) +
     statefulSet.mixin.spec.template.metadata.withLabels({ name: name, 'rollout-group': 'live-store' }) +
@@ -85,22 +97,9 @@
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
     statefulSet.mixin.spec.withReplicas($._config.live_store.replicas) +
     (if !std.isObject($._config.node_selector) then {} else statefulSet.mixin.spec.template.spec.withNodeSelectorMixin($._config.node_selector)) +
-    if $._config.live_store.allow_multiple_replicas_on_same_node then {} else {
-      spec+:
-        // Allow to schedule 2+ live-stores in the same zone on the same node, but do not schedule 2+ live-stores in
-        // different zones on the same node. In case of 1 node failure in the Kubernetes cluster, only live-stores
-        // in 1 zone will be affected.
-        podAntiAffinity.withRequiredDuringSchedulingIgnoredDuringExecution([
-          podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecutionType.new() +
-          podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecutionType.mixin.labelSelector.withMatchExpressions([
-            { key: 'rollout-group', operator: 'In', values: ['live-store'] },
-            { key: 'name', operator: 'NotIn', values: [name] },
-          ]) +
-          podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecutionType.withTopologyKey('kubernetes.io/hostname'),
-        ]).spec,
-    },
+    self.liveStoreZoneAntiAffinity(name),
 
-  newLiveStoreStatefulSet(name, container, with_anti_affinity=true)::
+  newLiveStoreStatefulSet(name, container)::
     statefulSet.new(
       name,
       3,
@@ -111,7 +110,6 @@
         [$._config.gossip_member_label]: 'true',
       },
     )
-    + (if with_anti_affinity then k.util.antiAffinityStatefulSet else {})
     + statefulSet.mixin.spec.withServiceName(target_name)
     + statefulSet.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_live_store_configmap.data['tempo.yaml'])),
@@ -122,8 +120,7 @@
     ]) +
     statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
-    $.util.podPriority('high') +
-    (if with_anti_affinity then $.util.antiAffinity else {}),
+    $.util.podPriority('high'),
 
   newLiveStoreZoneService(sts)::
     $.util.serviceFor(sts, $._config.service_ignored_labels) +
