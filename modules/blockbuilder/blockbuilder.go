@@ -568,12 +568,29 @@ func (b *BlockBuilder) getPartitionOffsets(ctx context.Context, partitionIDs []i
 		topic = b.cfg.IngestStorageConfig.Kafka.Topic
 		group = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
 	)
-	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
+
+	// Use FetchOffsets directly instead of FetchOffsetsForTopics to avoid automatic -1 backfill
+	commits, err := b.kadm.FetchOffsets(ctx, group)
 	if err != nil {
 		return nil, nil, err
 	}
 	if err := commits.Error(); err != nil {
 		return nil, nil, err
+	}
+
+	// Manually handle missing partitions by setting them to -2 (start from beginning)
+	// instead of franz-go's default -1 backfill
+	for _, partitionID := range partitionIDs {
+		if _, found := commits.Lookup(topic, partitionID); !found {
+			// No commit found for this partition, set to start from beginning
+			commits.Add(kadm.OffsetResponse{
+				Offset: kadm.Offset{
+					Topic:     topic,
+					Partition: partitionID,
+					At:        commitOffsetAtStart,
+				},
+			})
+		}
 	}
 
 	endsOffsets, err := b.partitionOffsetClient.FetchPartitionsLastProducedOffsets(ctx, partitionIDs)
