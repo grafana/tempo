@@ -473,9 +473,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 				if spanSet == nil {
 					break
 				}
-				for _, span := range spanSet.Spans {
-					foundSpans = append(foundSpans, span)
-				}
+				foundSpans = append(foundSpans, spanSet.Spans...)
 			}
 			// for some reason i am seeing fanthom spans even though only two traces with 3 spans should have been created
 			// require.Len(t, foundSpans, len(tc.expectedSpans), "search request:%v", req)
