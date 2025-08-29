@@ -1480,8 +1480,8 @@ github.com/twmb/franz-go/pkg/sasl/kerberos
 # github.com/twmb/franz-go/plugin/kotel v1.6.0
 ## explicit; go 1.22.0
 github.com/twmb/franz-go/plugin/kotel
-# github.com/twmb/franz-go/plugin/kprom v1.2.1
-## explicit; go 1.21
+# github.com/twmb/franz-go/plugin/kprom v1.3.0
+## explicit; go 1.23.8
 github.com/twmb/franz-go/plugin/kprom
 # github.com/twmb/franz-go/plugin/kzap v1.1.2
 ## explicit; go 1.18
