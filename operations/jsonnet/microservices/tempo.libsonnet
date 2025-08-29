@@ -8,6 +8,7 @@
 (import 'frontend.libsonnet') +
 (import 'querier.libsonnet') +
 (import 'block-builder.libsonnet') +
+(import 'live-store.libsonnet') +
 (import 'backend-scheduler.libsonnet') +
 (import 'backend-worker.libsonnet') +
 (import 'vulture.libsonnet') +
