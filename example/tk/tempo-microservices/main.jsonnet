@@ -1,9 +1,9 @@
 local tempo = import '../../../operations/jsonnet/microservices/tempo.libsonnet';
 local dashboards = import 'dashboards/grafana.libsonnet';
+local kafka = import 'kafka/kafka.libsonnet';
 local metrics = import 'metrics/prometheus.libsonnet';
 local minio = import 'minio/minio.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
-local kafka = import 'kafka/kafka.libsonnet';
 
 minio + metrics + load + kafka + tempo {
 
@@ -22,12 +22,12 @@ minio + metrics + load + kafka + tempo {
     querier+: {},
     ingester+: {
       replicas: 0,
-      pvc_size: '1Gi'   ,
+      pvc_size: '1Gi',
       pvc_storage_class: 'local-path',
     },
     live_store+: {
       replicas: 2,
-      pvc_size: '1Gi'   ,
+      pvc_size: '1Gi',
       pvc_storage_class: 'local-path',
       allow_multiple_replicas_on_same_node: true,
     },
@@ -47,13 +47,13 @@ minio + metrics + load + kafka + tempo {
       },
     },
     metrics_generator+: {
-      replicas: 1,
+      replicas: 0,
       ephemeral_storage_limit_size: '2Gi',
       ephemeral_storage_request_size: '1Gi',
       pvc_size: '1Gi',
       pvc_storage_class: 'local-path',
     },
-    block_builder+:{
+    block_builder+: {
       replicas: 2,
     },
     memcached+: {

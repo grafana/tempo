@@ -125,10 +125,6 @@
     $.util.podPriority('high') +
     (if with_anti_affinity then $.util.antiAffinity else {}),
 
-  // Creates a headless service for the per-zone live-stores StatefulSet. We don't use it
-  // but we need to create it anyway because it's responsible for the network identity of
-  // the StatefulSet pods. For more information, see:
-  // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#statefulset-v1-apps
   newLiveStoreZoneService(sts)::
     $.util.serviceFor(sts, $._config.service_ignored_labels) +
     service.mixin.spec.withClusterIp('None'),  // Headless.
