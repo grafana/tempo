@@ -55,6 +55,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
 * [BUGFIX] Fix cache collision for incomplete query in SearchTagValuesV2 [#5549](https://github.com/grafana/tempo/pull/5549) (@ruslan-mikhailov)
 * [BUGFIX] Fix for structural operator with empty left-hand spanset [#5578](https://github.com/grafana/tempo/pull/5578) (@ruslan-mikhailov)
+* [BUGFIX] Fix search by trace:id for short IDs with leading zeros [#5587](https://github.com/grafana/tempo/pull/5587) (@ruslan-mikhailov)
 
 # v2.8.2
 
