@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -295,40 +296,40 @@ func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 
 // Search implements common.Searcher
 func (a *walBlock) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
-	return nil, common.ErrUnsupported
+	return nil, util.ErrUnsupported
 }
 
 // SearchTags implements common.Searcher
 func (a *walBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 // SearchTagValues implements common.Searcher
 func (a *walBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (a *walBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 // Fetch implements traceql.SpansetFetcher
 func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	return traceql.FetchSpansResponse{}, common.ErrUnsupported
+	return traceql.FetchSpansResponse{}, util.ErrUnsupported
 }
 
 // FetchTagValues implements common.Searcher
 func (a *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 // FetchTagNames implements common.Searcher
 func (a *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (a *walBlock) Validate(context.Context) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (a *walBlock) fullFilename() string {
