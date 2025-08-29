@@ -19,13 +19,9 @@ type NilAttributeIterator struct {
 
 var _ Iterator = (*NilAttributeIterator)(nil)
 
-func NewNilAttributeIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, maxDefinitionLevel int, opts ...SyncIteratorOpt) *NilAttributeIterator {
+func NewNilAttributeIterator(ctx context.Context, rgs []pq.RowGroup, column int, readSize int, filter Predicate, selectAs string, maxDefinitionLevel int, opts ...SyncIteratorOpt) *NilAttributeIterator {
 	// Create the sync iterator
 	syncIterator := NewSyncIterator(ctx, rgs, column, opts...)
-	// Apply options
-	for _, opt := range opts {
-		opt(syncIterator)
-	}
 
 	i := &NilAttributeIterator{
 		syncIterator:          *syncIterator,
@@ -46,7 +42,7 @@ func (c *NilAttributeIterator) String() string {
 }
 
 func (c *NilAttributeIterator) Next() (*IteratorResult, error) {
-	rn, v, err := c.next()
+	rn, v, err := c.next2()
 	if err != nil {
 		return nil, err
 	}
@@ -64,19 +60,7 @@ func (c *NilAttributeIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber)
 	return c.syncIterator.popRowGroup()
 }
 
-func (c *NilAttributeIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done bool) {
-	return c.syncIterator.seekRowGroup(seekTo, definitionLevel)
-}
-
-func (c *NilAttributeIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bool, err error) {
-	return c.syncIterator.seekPages(seekTo, definitionLevel)
-}
-
-func (c *NilAttributeIterator) seekWithinPage(to RowNumber, definitionLevel int) {
-	c.syncIterator.seekWithinPage(to, definitionLevel)
-}
-
-func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
+func (c *NilAttributeIterator) next2() (RowNumber, *pq.Value, error) {
 	for {
 		if c.syncIterator.currRowGroup == nil {
 			rg, min, max := c.popRowGroup()
