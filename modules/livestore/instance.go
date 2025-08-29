@@ -438,10 +438,13 @@ func (i *instance) deleteOldBlocks() error {
 }
 
 func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.TraceByIDResponse, error) {
-	metrics := tempopb.TraceByIDMetrics{}
-	combiner := trace.NewCombiner(math.MaxInt64, true)
+	var (
+		metricsMtx sync.Mutex
+		metrics    = tempopb.TraceByIDMetrics{}
+		combiner   = trace.NewCombiner(math.MaxInt64, true)
+	)
 
-	// TODO MRD this code looks ripe for simplification. Its the same pattern repeated several times.
+	// Check live traces first
 	i.liveTracesMtx.Lock()
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
 		tempTrace := &tempopb.Trace{}
@@ -456,8 +459,7 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	}
 	i.liveTracesMtx.Unlock()
 
-	// TODO MRD Add limits
-	loopBlock := func(b common.Finder) error {
+	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 		if err != nil {
 			return err
@@ -465,37 +467,25 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 		if trace == nil {
 			return nil
 		}
+
 		_, err = combiner.Consume(trace.Trace)
 		if err != nil {
 			return err
 		}
+
 		if trace.Metrics != nil {
+			metricsMtx.Lock()
+			defer metricsMtx.Unlock()
+
 			metrics.InspectedBytes += trace.Metrics.InspectedBytes
 		}
 		return nil
 	}
 
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
-	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
-	for _, b := range i.completeBlocks {
-		err := loopBlock(b)
-		if err != nil {
-			return nil, fmt.Errorf("error searching in complete block %s: %w", b.BlockMeta().BlockID, err)
-		}
-	}
-
-	for _, b := range i.walBlocks {
-		err := loopBlock(b)
-		if err != nil {
-			return nil, fmt.Errorf("error searching in WAL block %s: %w", b.BlockMeta().BlockID, err)
-		}
-	}
-
-	err := loopBlock(i.headBlock)
+	err := i.iterateBlocks(ctx, time.Unix(0, 0), time.Unix(0, 0), search)
 	if err != nil {
-		return nil, fmt.Errorf("error searching in headblock %s: %w", i.headBlock.BlockMeta().BlockID, err)
+		level.Error(i.logger).Log("msg", "error in FindTraceByID", "err", err)
+		return nil, fmt.Errorf("error searching for trace: %w", err)
 	}
 
 	result, _ := combiner.Result()

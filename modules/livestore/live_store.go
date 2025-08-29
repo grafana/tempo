@@ -552,7 +552,7 @@ func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagV
 		return nil, err
 	}
 
-	return inst.SearchTagValues(ctx, req.TagName, req.MaxTagValues, req.StaleValueThreshold)
+	return inst.SearchTagValues(ctx, req)
 }
 
 // SearchTagValuesV2 implements tempopb.Querier

@@ -39,9 +39,9 @@ import (
 )
 
 const (
+	// todo: these are the dumbest consts i've ever seen. is the linter forcing us to do this?
 	foo          = "foo"
 	bar          = "bar"
-	qux          = "qux"
 	testTenantID = "fake"
 )
 
@@ -156,7 +156,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		return sr
 	}
 
-	searchAndAssert := func(req *tempopb.SearchRequest, _ uint32) {
+	searchAndAssert := func(req *tempopb.SearchRequest) {
 		sr := search(req, 0, 0)
 		assert.Len(t, sr.Traces, len(ids))
 		checkEqual(t, ids, sr)
@@ -180,18 +180,18 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 
 	// Test after appending to WAL.
 	// writeTracesforSearch() makes sure all traces are in the wal
-	searchAndAssert(req, uint32(100))
+	searchAndAssert(req)
 
 	// Test after cutting new headblock
 	blockID, err := i.cutBlocks(true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
-	searchAndAssert(req, uint32(100))
+	searchAndAssert(req)
 
 	// Test after completing a block
 	err = i.completeBlock(context.Background(), blockID)
 	require.NoError(t, err)
-	searchAndAssert(req, uint32(200))
+	searchAndAssert(req)
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
@@ -216,7 +216,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	i, ls := defaultInstance(t)
 
 	// add dummy search data
-	tagKey := "foo"
+	tagKey := foo
 	tagValue := bar
 
 	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
@@ -263,7 +263,11 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	checkSearchTags("event", true)
 	checkSearchTags("link", true)
 
-	srv, err := i.SearchTagValues(ctx, tagName, 0, 0)
+	srv, err := i.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagName,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	require.Greater(t, srv.Metrics.InspectedBytes, uint64(100)) // we scanned at-least 100 bytes
 
@@ -314,7 +318,11 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	userCtx := user.InjectOrgID(context.Background(), testTenantID)
 
 	t.Run("SearchTagValues", func(t *testing.T) {
-		resp, err := instance.SearchTagValues(userCtx, tagKey, 0, 0)
+		resp, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+			TagName:             tagKey,
+			MaxTagValues:        0,
+			StaleValueThreshold: 0,
+		})
 		require.NoError(t, err)
 		require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar<idx>" fit in the 12 byte limit above.
 	})
@@ -362,7 +370,11 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 	userCtx := user.InjectOrgID(context.Background(), testTenantID)
 
-	respV1, err := instance.SearchTagValues(userCtx, tagKey, 0, 0)
+	respV1, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagKey,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	// livestore writeTracesForSearch creates 5 values per block
 	assert.Equal(t, 5, len(respV1.TagValues))
@@ -376,7 +388,11 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	instance.overrides = limits2
 
-	respV1, err = instance.SearchTagValues(userCtx, tagKey, 0, 0)
+	respV1, err = instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagKey,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	assert.Equal(t, 10, len(respV1.TagValues))
 
@@ -431,34 +447,40 @@ func TestSearchTagsV2Limits(t *testing.T) {
 
 			instance.overrides = limits
 
-			// push a trace
-			id := test.ValidTraceID(nil)
-			trace := test.MakeTrace(10, id)
-
-			traceBytes, err := trace.Marshal()
-			require.NoError(t, err)
-
-			// count tags
+			// push traces
 			uniqueKeys := map[string]struct{}{}
-			for _, rs := range trace.ResourceSpans {
-				for _, ss := range rs.ScopeSpans {
-					for _, sp := range ss.Spans {
-						for _, tag := range sp.Attributes {
-							uniqueKeys[tag.Key] = struct{}{}
+			numTraces := 10
+			for i := 0; i < numTraces; i++ {
+				id := test.ValidTraceID(nil)
+				trace := test.MakeTrace(1, id)
+
+				traceBytes, err := trace.Marshal()
+				require.NoError(t, err)
+
+				for _, rs := range trace.ResourceSpans {
+					for _, ss := range rs.ScopeSpans {
+						for _, sp := range ss.Spans {
+							for _, tag := range sp.Attributes {
+								uniqueKeys[tag.Key] = struct{}{}
+							}
 						}
 					}
 				}
+
+				// Create a push request for livestore
+				req := &tempopb.PushBytesRequest{
+					Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+					Ids:    [][]byte{id},
+				}
+				instance.pushBytes(time.Now(), req)
+				err = instance.cutIdleTraces(true)
+				require.NoError(t, err)
+				blockID, err := instance.cutBlocks(true)
+				require.NoError(t, err)
+				err = instance.completeBlock(ctx, blockID)
+				require.NoError(t, err)
 			}
 			expectedTags := len(uniqueKeys)
-
-			// Create a push request for livestore
-			req := &tempopb.PushBytesRequest{
-				Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
-				Ids:    [][]byte{id},
-			}
-			instance.pushBytes(time.Now(), req)
-			err = instance.cutIdleTraces(true)
-			require.NoError(t, err)
 
 			res, err := instance.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
 				Scope: "span",
@@ -672,7 +694,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	// add dummy search data
 	tagKey := foo
-	tagValue := "bar"
+	tagValue := bar
 
 	req := &tempopb.SearchRequest{
 		Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
@@ -747,7 +769,11 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
-		_, err := i.SearchTagValues(ctx, tagKey, 0, 0)
+		_, err := i.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+			TagName:             tagKey,
+			MaxTagValues:        0,
+			StaleValueThreshold: 0,
+		})
 		require.NoError(t, err, "error getting search tag values")
 	})
 
@@ -933,10 +959,7 @@ func TestIncludeBlock(t *testing.T) {
 			actual := includeBlock(&backend.BlockMeta{
 				StartTime: time.Unix(tc.blocKStart, 0),
 				EndTime:   time.Unix(tc.blockEnd, 0),
-			}, &tempopb.SearchRequest{
-				Start: tc.reqStart,
-				End:   tc.reqEnd,
-			})
+			}, time.Unix(int64(tc.reqStart), 0), time.Unix(int64(tc.reqEnd), 0))
 
 			require.Equal(t, tc.expected, actual)
 		})
