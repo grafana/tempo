@@ -2,8 +2,10 @@ package ingest
 
 import (
 	"math/rand"
+	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -113,6 +115,43 @@ func BenchmarkEncodeDecode(b *testing.B) {
 	}
 }
 
+func TestResetPushBytesRequest(t *testing.T) {
+	// Create a request with all fields set to non-zero values
+	traces := []tempopb.PreallocBytes{
+		{Slice: []byte("trace1")},
+		{Slice: []byte("trace2")},
+		{Slice: []byte("trace3")},
+	}
+	ids := [][]byte{
+		[]byte("id1"),
+		[]byte("id2"),
+		[]byte("id3"),
+	}
+	req := &tempopb.PushBytesRequest{
+		Traces:                traces,
+		Ids:                   ids,
+		SkipMetricsGeneration: true,
+	}
+
+	resetPushBytesRequest(req)
+
+	// Verify all fields are properly reset
+	assert.NotNil(t, req.Traces, "Traces should not be nil")
+	assert.NotNil(t, req.Ids, "Ids should not be nil")
+	assert.Equal(t, 0, len(req.Traces), "Traces should be empty after reset")
+	assert.Equal(t, 0, len(req.Ids), "Ids should be empty after reset")
+	assert.Equal(t, false, req.SkipMetricsGeneration, "SkipMetricsGeneration should be reset to false")
+
+	// Verify slices are reused (not reallocated) by comparing pointers
+	originalTracesPtr := reflect.ValueOf(traces).Pointer()
+	newTracesPtr := reflect.ValueOf(req.Traces).Pointer()
+	assert.Equal(t, originalTracesPtr, newTracesPtr, "Traces slice should be reused, not reallocated")
+
+	originalIDsPtr := reflect.ValueOf(ids).Pointer()
+	newIDsPtr := reflect.ValueOf(req.Ids).Pointer()
+	assert.Equal(t, originalIDsPtr, newIDsPtr, "Ids slice should be reused, not reallocated")
+}
+
 // Helper function to generate a test trace
 func generateRequest(entries, lineLength int) *tempopb.PushBytesRequest {
 	stream := &tempopb.PushBytesRequest{
@@ -182,5 +221,50 @@ func BenchmarkGeneratorDecoderPushBytes(b *testing.B) {
 		require.NoError(b, err)
 		for range iterator { // nolint:revive // we want to run the side effects of ranging itself
 		}
+	}
+}
+
+// Original implementation without clear() for comparison
+func encoderPoolPutOriginal(req *tempopb.PushBytesRequest) {
+	req.Traces = req.Traces[:0]
+	req.Ids = req.Ids[:0]
+	req.SkipMetricsGeneration = false
+	encoderPool.Put(req)
+}
+
+// Benchmark with different request sizes to see scaling behavior
+func BenchmarkEncoderPoolPutDifferentSizes(b *testing.B) {
+	sizes := []struct {
+		name    string
+		entries int
+		length  int
+	}{
+		{"Small", 10, 50},
+		{"Medium", 100, 200},
+		{"Large", 1000, 500},
+	}
+
+	for _, size := range sizes {
+		req := generateRequest(size.entries, size.length)
+
+		b.Run(size.name+"_Original", func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				pooled := encoderPool.Get().(*tempopb.PushBytesRequest)
+				pooled.Traces = append(pooled.Traces, req.Traces...)
+				pooled.Ids = append(pooled.Ids, req.Ids...)
+				encoderPoolPutOriginal(pooled)
+			}
+		})
+
+		b.Run(size.name+"_WithClear", func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				pooled := encoderPool.Get().(*tempopb.PushBytesRequest)
+				pooled.Traces = append(pooled.Traces, req.Traces...)
+				pooled.Ids = append(pooled.Ids, req.Ids...)
+				encoderPoolPut(pooled)
+			}
+		})
 	}
 }
