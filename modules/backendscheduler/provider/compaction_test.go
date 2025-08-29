@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -57,7 +58,8 @@ func TestCompactionProvider(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	w := work.New(work.Config{})
+	w, err := work.New(work.Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "should be able to create work instance")
 
 	p := NewCompactionProvider(
 		cfg,
@@ -72,7 +74,7 @@ func TestCompactionProvider(t *testing.T) {
 	var receivedJobs []*work.Job
 	for job := range jobChan {
 		receivedJobs = append(receivedJobs, job)
-		err = w.AddJob(job)
+		err = w.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err)
 	}
 
@@ -120,7 +122,8 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	w := work.New(work.Config{})
+	w, err := work.New(work.Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "should be able to create work instance")
 
 	p := NewCompactionProvider(
 		cfg,
@@ -166,7 +169,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 		metas = store.BlockMetas(tenant)
 
 		// Add each job to the work queue, so we don't process the blocks within.
-		err = w.AddJob(job)
+		err = w.AddJob(ctx, job, uuid.NewString())
 		require.NoError(t, err, "should be able to add job to work queue")
 
 		for _, blockID := range job.GetCompactionInput() {
@@ -287,7 +290,8 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	w := work.New(work.Config{})
+	w, err := work.New(work.Config{LocalWorkPath: t.TempDir() + "/work"})
+	require.NoError(t, err, "should be able to create work instance")
 
 	p := NewCompactionProvider(
 		cfg,
@@ -345,7 +349,7 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 
 	// Now add a job to the work queue and verify it is removed from the recent jobs cache
 	firstJob := receivedJobs[0]
-	err = w.AddJob(firstJob)
+	err = w.AddJob(ctx, firstJob, uuid.NewString())
 	require.NoError(t, err, "should be able to add first job to work queue")
 
 	// Get a new block selector for the tenant
