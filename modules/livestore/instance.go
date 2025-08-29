@@ -3,8 +3,6 @@ package livestore
 import (
 	"context"
 	"errors"
-	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -15,11 +13,9 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/tracesizes"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -435,63 +431,4 @@ func (i *instance) deleteOldBlocks() error {
 	}
 
 	return nil
-}
-
-func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.TraceByIDResponse, error) {
-	var (
-		metricsMtx sync.Mutex
-		metrics    = tempopb.TraceByIDMetrics{}
-		combiner   = trace.NewCombiner(math.MaxInt64, true)
-	)
-
-	// Check live traces first
-	i.liveTracesMtx.Lock()
-	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
-		tempTrace := &tempopb.Trace{}
-		tempTrace.ResourceSpans = liveTrace.Batches
-		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
-		// live traces format and feels inaccurate.
-		_, err := combiner.Consume(tempTrace)
-		if err != nil {
-			i.liveTracesMtx.Unlock()
-			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
-		}
-	}
-	i.liveTracesMtx.Unlock()
-
-	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
-		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
-		if err != nil {
-			return err
-		}
-		if trace == nil {
-			return nil
-		}
-
-		_, err = combiner.Consume(trace.Trace)
-		if err != nil {
-			return err
-		}
-
-		if trace.Metrics != nil {
-			metricsMtx.Lock()
-			defer metricsMtx.Unlock()
-
-			metrics.InspectedBytes += trace.Metrics.InspectedBytes
-		}
-		return nil
-	}
-
-	err := i.iterateBlocks(ctx, time.Unix(0, 0), time.Unix(0, 0), search)
-	if err != nil {
-		level.Error(i.logger).Log("msg", "error in FindTraceByID", "err", err)
-		return nil, fmt.Errorf("error searching for trace: %w", err)
-	}
-
-	result, _ := combiner.Result()
-	response := &tempopb.TraceByIDResponse{
-		Trace:   result,
-		Metrics: &metrics,
-	}
-	return response, nil
 }
