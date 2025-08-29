@@ -2579,7 +2579,7 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 }
 
 func createNilPredicate(attribute string) (parquetquery.Predicate, error) {
-	return parquetquery.NewNilKeyPredicate([]byte(attribute)), nil
+	return parquetquery.NewStringEqualPredicate([]byte(attribute)), nil
 }
 
 func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
