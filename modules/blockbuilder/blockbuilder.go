@@ -130,6 +130,16 @@ func (p partitionState) getStartOffset() kgo.Offset {
 	if p.commitOffset > commitOffsetAtEnd {
 		return kgo.NewOffset().At(p.commitOffset)
 	}
+	// If commit offset is AtEnd (-1), it nevertheless will consume from the start.
+	// This is a workaround for franz-go and default Kafka behaviour:
+	// in case consumer is new and has no committed offsets, it will start consuming from the end,
+	// while for block builder, it should consume from the earliest record.
+	// The workaround is dirty and can break the consumer if it starts returning AtEnd (-1) for
+	// already running consumer.
+	// TODO: replace the workaround with proper new consumer offset initialization
+	// if p.commitOffset == commitOffsetAtEnd {
+	// 	return kgo.NewOffset().AtEnd()
+	// }
 	return kgo.NewOffset().AtStart()
 }
 
