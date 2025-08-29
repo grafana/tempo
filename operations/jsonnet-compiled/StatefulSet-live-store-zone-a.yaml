@@ -43,9 +43,6 @@ spec:
         - -live-store.instance-availability-zone=zone-a
         - -mem-ballast-size-mbs=1024
         - -target=live-store
-        env:
-        - name: AVAILABILITY_ZONE
-          value: zone-a
         image: grafana/tempo:latest
         imagePullPolicy: IfNotPresent
         name: live-store
