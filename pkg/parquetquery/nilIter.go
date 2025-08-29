@@ -19,7 +19,7 @@ type NilAttributeIterator struct {
 
 var _ Iterator = (*NilAttributeIterator)(nil)
 
-func NewNilAttributeIterator(ctx context.Context, rgs []pq.RowGroup, column int, readSize int, filter Predicate, selectAs string, maxDefinitionLevel int, opts ...SyncIteratorOpt) *NilAttributeIterator {
+func NewNilAttributeIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ...SyncIteratorOpt) *NilAttributeIterator {
 	// Create the sync iterator
 	syncIterator := NewSyncIterator(ctx, rgs, column, opts...)
 
