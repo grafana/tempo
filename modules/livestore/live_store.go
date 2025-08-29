@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -34,6 +35,10 @@ const (
 
 	PartitionRingKey  = "livestore-partitions"
 	PartitionRingName = "livestore-partitions"
+
+	droppedRecordReasonTooOld           = "too_old"
+	droppedRecordReasonDecodingFailed   = "decoding_failed"
+	droppedRecordReasonInstanceNotFound = "instance_not_found"
 )
 
 var (
@@ -323,43 +328,59 @@ func (s *LiveStore) stopping(error) error {
 	return nil
 }
 
-func (s *LiveStore) consume(ctx context.Context, rs []record, now time.Time) error {
+func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
 	defer s.decoder.Reset()
 	_, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
-	span.SetAttributes(attribute.Int("records_count", len(rs)))
+	recordCount := 0
+	var lastRecord *kgo.Record
 
 	cutoff := now.Add(-s.cfg.CompleteBlockTimeout)
 	// Process records by tenant
-	for _, record := range rs {
-		if record.timestamp.Before(cutoff) {
-			metricRecordsDropped.WithLabelValues(record.tenantID, "too_old").Inc()
+	for !rs.Done() {
+		record := rs.Next()
+		tenant := string(record.Key)
+
+		if record.Timestamp.Before(cutoff) {
+			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
 			continue
 		}
 
 		s.decoder.Reset()
-		pushReq, err := s.decoder.Decode(record.content)
+		pushReq, err := s.decoder.Decode(record.Value)
 		if err != nil {
+			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
+			level.Error(s.logger).Log("msg", "failed to decoded record", "tenant", tenant, "err", err)
 			span.RecordError(err)
-			return fmt.Errorf("decoding record: %w", err)
+			continue
 		}
 
 		// Get or create tenant instance
-		inst, err := s.getOrCreateInstance(record.tenantID)
+		inst, err := s.getOrCreateInstance(tenant)
 		if err != nil {
-			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", record.tenantID, "err", err)
+			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
+			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
 			span.RecordError(err)
 			continue
 		}
 
 		// Push data to tenant instance
-		inst.pushBytes(time.Now(), pushReq)
+		inst.pushBytes(record.Timestamp, pushReq)
 
-		metricRecordsProcessed.WithLabelValues(record.tenantID).Inc()
+		metricRecordsProcessed.WithLabelValues(tenant).Inc()
+		recordCount++
+		lastRecord = record
 	}
 
-	return nil
+	span.SetAttributes(attribute.Int("records_count", recordCount))
+
+	if lastRecord == nil {
+		return nil, nil
+	}
+
+	offset := kadm.NewOffsetFromRecord(lastRecord)
+	return &offset, nil
 }
 
 func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {

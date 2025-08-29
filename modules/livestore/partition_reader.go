@@ -3,7 +3,6 @@ package livestore
 import (
 	"context"
 	"fmt"
-	"math"
 	"strconv"
 	"time"
 
@@ -22,23 +21,12 @@ import (
 	"github.com/twmb/franz-go/plugin/kprom"
 )
 
-type record struct {
-	tenantID  string
-	content   []byte
-	offset    int64
-	timestamp time.Time
+type recordIter interface {
+	Next() *kgo.Record
+	Done() bool
 }
 
-func fromKGORecord(rec *kgo.Record) record {
-	return record{
-		tenantID:  string(rec.Key),
-		content:   rec.Value,
-		offset:    rec.Offset,
-		timestamp: rec.Timestamp,
-	}
-}
-
-type consumeFn func(context.Context, []record, time.Time) error
+type consumeFn func(context.Context, recordIter, time.Time) (*kadm.Offset, error)
 
 type PartitionReader struct {
 	services.Service
@@ -129,35 +117,15 @@ func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 }
 
 func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) *kadm.Offset {
-	records := make([]record, 0, fetches.NumRecords())
-
-	var lastRecord *kgo.Record
-
-	var (
-		minOffset = int64(math.MaxInt64)
-		maxOffset = int64(0)
-	)
-	fetches.EachRecord(func(rec *kgo.Record) {
-		minOffset = min(minOffset, rec.Offset)
-		maxOffset = max(maxOffset, rec.Offset)
-		records = append(records, fromKGORecord(rec))
-
-		lastRecord = rec
-	})
-
 	// Pass offset and byte information to the live-store
-	err := r.consume(ctx, records, time.Now())
+	offset, err := r.consume(ctx, fetches.RecordIter(), time.Now())
 	if err != nil {
-		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "min_offset", minOffset, "max_offset", maxOffset, "err", err)
 		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
-	}
-
-	if lastRecord == nil {
+		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "err", err)
 		return nil
 	}
 
-	offset := kadm.NewOffsetFromRecord(lastRecord)
-	return &offset
+	return offset
 }
 
 func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
