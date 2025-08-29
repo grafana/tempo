@@ -41,6 +41,7 @@ const (
 	OpSpansetUnionAncestor
 	OpSpansetUnionDescendant
 	OpExists // OpNotExists is not parseable directly in the grammar. span.foo != nil and nil != span.foo are rewritten to something like exists(span.foo). this distinguishes it from when span.foo is nil in an expression like span.foo != "bar"
+	OpNotExists
 )
 
 func (op Operator) isBoolean() bool {
@@ -55,7 +56,8 @@ func (op Operator) isBoolean() bool {
 		op == OpLess ||
 		op == OpLessEqual ||
 		op == OpNot ||
-		op == OpExists
+		op == OpExists ||
+		op == OpNotExists
 }
 
 func (op Operator) binaryTypesValid(lhsT StaticType, rhsT StaticType) bool {
@@ -113,6 +115,8 @@ func (op Operator) unaryTypesValid(t StaticType) bool {
 	case OpNot:
 		return t == TypeBoolean
 	case OpExists:
+		return true
+	case OpNotExists:
 		return true
 	}
 
