@@ -335,3 +335,54 @@ This example means the attribute `resource.cluster` had too many values.
 ```
 { __meta_error="__too_many_values__", resource.cluster=<nil> }
 ```
+
+## Query hints and sampling
+
+TraceQL metrics queries support query hints using the `with()` syntax to optimize performance and control sampling behavior.
+
+TraceQL metrics queries support sampling hints to improve performance by processing a subset of data.
+
+Sampling is particularly effective for:
+
+- Aggregation queries over large datasets
+- Dashboard queries requiring fast refresh
+- Exploratory data analysis
+
+{{< admonition  type="note" >}}
+Sampling hints only work with TraceQL metrics queries (those using functions like `rate()`, `count_over_time()`, etc.).
+{{< /admonition >}}
+
+### Adaptive sampling: `with(sample=true)`
+
+Automatically determines optimal sampling strategy based on query selectivity and data volume.
+
+```
+{ resource.service.name="frontend" } | rate() with(sample=true)
+```
+
+- **Use case:** Heavy queries with large result sets
+- **Performance:** 2-4x improvement on queries like `{ } | rate()`
+- **Accuracy:** Maintains high accuracy by adapting sampling rate
+
+#### Fixed span sampling: `with(span_sample=0.xx)`
+
+Samples a fixed percentage of spans for span-level aggregations.
+
+```
+{ status=error } | count_over_time() with(span_sample=0.1)
+```
+
+#### Fixed trace sampling: `with(trace_sample=0.xx)`
+
+Samples a fixed percentage of traces for trace-level aggregations.
+
+```
+{ } | count() by (resource.service.name) with(trace_sample=0.05)
+```
+
+### When to use sampling
+
+- **Heavy aggregation queries** with large datasets
+- **Exploratory analysis** where approximate results are acceptable
+- **Dashboard queries** that need faster refresh times
+- **Avoid sampling** for precise metrics or rare event detection

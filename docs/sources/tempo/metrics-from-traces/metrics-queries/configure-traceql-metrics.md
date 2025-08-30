@@ -40,7 +40,7 @@ To activate the `local-blocks` processor for all users, add it to the list of pr
 ```yaml
 # Global overrides configuration.
 overrides:
-  metrics_generator_processors: ['local-blocks']
+  metrics_generator_processors: ["local-blocks"]
 ```
 
 To configure the processor per tenant, use the `metrics_generator_processor` override.
@@ -49,7 +49,7 @@ Example for per-tenant in the per-tenant overrides:
 
 ```yaml
 overrides:
-  'tenantID':
+  "tenantID":
     metrics_generator_processors:
       - local-blocks
 ```
@@ -135,3 +135,31 @@ query_frontend:
     concurrent_jobs: 8
     target_bytes_per_job: 1.25e+09 # ~1.25GB
 ```
+
+## Sampling and performance optimization
+
+TraceQL metrics queries support sampling hints to improve performance on large datasets.
+
+### Sampling configuration considerations
+
+When using sampling in your TraceQL metrics queries, consider:
+
+- **Timeout settings:** Sampled queries run faster but may still benefit from adequate timeouts
+- **Concurrent jobs:** Sampling reduces per-job processing time, allowing higher concurrency
+- **Job sizing:** With sampling, smaller job sizes may be more efficient
+
+Example configuration optimized for sampling:
+
+```yaml
+query_frontend:
+  metrics:
+    concurrent_jobs: 1500 # Higher concurrency with sampling
+    target_bytes_per_job: 1.5e+08 # Smaller jobs with sampling
+```
+
+### Sampling best practices
+
+- Use `sample=true` for dashboard queries requiring fast refresh
+- Apply fixed sampling rates for consistent approximation levels
+- Avoid sampling for alerts or precise measurements
+- Test sampling accuracy against your specific data patterns
