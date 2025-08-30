@@ -381,24 +381,19 @@ func TestInstance_emptyTenantValidation(t *testing.T) {
 	o := &mockOverrides{}
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 
-	t.Run("empty tenant should use single-tenant fallback", func(t *testing.T) {
+	t.Run("empty tenant should return error when RemoteWriteAddOrgIDHeader is true", func(t *testing.T) {
 		var cfg Config
 		cfg.RegisterFlagsAndApplyDefaults("", nil)
 		cfg.Path = t.TempDir()
+		cfg.RemoteWriteAddOrgIDHeader = true
 		reg := prometheus.NewRegistry()
 
-		// Empty tenant should fallback to safe default
+		// Empty tenant should return error when org ID header is required
 		instance, err := New(&cfg, o, "", reg, logger)
 
-		require.NoError(t, err)
-		require.NotNil(t, instance)
-
-		// Verify WAL directory is created with safe tenant name
-		expectedPath := filepath.Join(cfg.Path, "single-tenant")
-		_, err = os.Stat(expectedPath)
-		assert.NoError(t, err, "WAL directory should be created with single-tenant fallback")
-
-		instance.Close()
+		require.Error(t, err)
+		require.Nil(t, instance)
+		assert.Contains(t, err.Error(), "tenant cannot be empty")
 	})
 
 	t.Run("valid tenant should work normally", func(t *testing.T) {
@@ -416,36 +411,6 @@ func TestInstance_emptyTenantValidation(t *testing.T) {
 		expectedPath := filepath.Join(cfg.Path, "valid-tenant")
 		_, err = os.Stat(expectedPath)
 		assert.NoError(t, err, "WAL directory should be created for valid tenant")
-
-		instance.Close()
-	})
-
-	t.Run("prevent root directory deletion scenario", func(t *testing.T) {
-		var cfg Config
-		cfg.RegisterFlagsAndApplyDefaults("", nil)
-		cfg.Path = t.TempDir()
-		reg := prometheus.NewRegistry()
-
-		// Create some existing tenant directories to simulate multi-tenant environment
-		existingTenant1 := filepath.Join(cfg.Path, "tenant-1")
-		existingTenant2 := filepath.Join(cfg.Path, "tenant-2")
-		require.NoError(t, os.MkdirAll(existingTenant1, 0o755))
-		require.NoError(t, os.MkdirAll(existingTenant2, 0o755))
-
-		// Create instance with empty tenant (should use single-tenant fallback)
-		instance, err := New(&cfg, o, "", reg, logger)
-		require.NoError(t, err)
-
-		// Verify existing tenant directories are untouched
-		_, err1 := os.Stat(existingTenant1)
-		_, err2 := os.Stat(existingTenant2)
-		assert.NoError(t, err1, "Existing tenant-1 directory should remain")
-		assert.NoError(t, err2, "Existing tenant-2 directory should remain")
-
-		// Verify single-tenant directory was created instead of root deletion
-		singleTenantPath := filepath.Join(cfg.Path, "single-tenant")
-		_, err3 := os.Stat(singleTenantPath)
-		assert.NoError(t, err3, "single-tenant directory should be created")
 
 		instance.Close()
 	})

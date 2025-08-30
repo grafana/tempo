@@ -61,10 +61,9 @@ var _ Storage = (*storageImpl)(nil)
 func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ log.Logger) (Storage, error) {
 	// TODO move this to the generator.go
 
-	// Validate empty tenant to prevent WAL directory deletion
-	if tenant == "" {
-		// Use Tempo standard default for single-tenant mode
-		tenant = "single-tenant"
+	// Validate empty tenant to prevent WAL directory deletion only when org ID header is required
+	if cfg.RemoteWriteAddOrgIDHeader && tenant == "" {
+		return nil, errors.New("tenant cannot be empty")
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
