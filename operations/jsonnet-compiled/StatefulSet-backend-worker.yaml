@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 46188d18f0d8adfa8586e9dbeb744db2
+        config_hash: b0788f1dcd73338f86e9c38714e3ea68
       labels:
         app: backend-worker
         name: backend-worker
