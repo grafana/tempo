@@ -92,7 +92,8 @@ func (p *Pool) Put(s []byte) int {
 		return -1
 	}
 
-	p.buckets[bkt].Put(s) // nolint: staticcheck
+	// reset length for safety
+	p.buckets[bkt].Put(s[:0]) // nolint: staticcheck
 
 	return bkt // for testing
 }
