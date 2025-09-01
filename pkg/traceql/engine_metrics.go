@@ -50,6 +50,25 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 	return uint64(interval.Nanoseconds())
 }
 
+// TimestampOf the given interval with the start and step.
+//
+// Deprecated: use IntervalMapper instead.
+func TimestampOf(interval, start, end, step uint64) uint64 {
+	intervalMapper := NewIntervalMapper(start, end, step)
+	return intervalMapper.TimestampOf(int(interval))
+}
+
+// IntervalOf the given timestamp within the range and step.
+// First interval is (start; start+step]
+// Last interval is (end-step; end]
+// The first interval's left border is limited to 0
+//
+// Deprecated: use IntervalMapper instead.
+func IntervalOf(ts, start, end, step uint64) int {
+	intervalMapper := NewIntervalMapper(start, end, step)
+	return intervalMapper.Interval(ts)
+}
+
 // TrimToBlockOverlap returns the overlap between the given time range and block.  It is used to
 // split a block to only the portion overlapping, or when the entire block is within range then
 // opportunistically remove time slots that are known to be unused.
