@@ -116,7 +116,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 	}
 	i.lifecycler = lc
 
-	if ingestCfg := cfg.IngestStorageConfig; ingestCfg.Enabled {
+	if cfg.IngestStorageConfig.Enabled {
 		if singlePartition {
 			// For single-binary don't require hostname to identify a partition.
 			// Assume partition 0.
@@ -151,6 +151,9 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 
 	i.subservicesWatcher = services.NewFailureWatcher()
 	i.subservicesWatcher.WatchService(i.lifecycler)
+	if cfg.IngestStorageConfig.Enabled {
+		i.subservicesWatcher.WatchService(i.ingestPartitionLifecycler)
+	}
 
 	i.Service = services.NewBasicService(i.starting, i.running, i.stopping)
 	return i, nil

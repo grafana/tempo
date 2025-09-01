@@ -28,12 +28,13 @@ import (
 var tracer = otel.Tracer("modules/backendscheduler/provider/compaction")
 
 type CompactionConfig struct {
-	MeasureInterval  time.Duration           `yaml:"measure_interval"`
-	Compactor        tempodb.CompactorConfig `yaml:"compaction"`
-	MaxJobsPerTenant int                     `yaml:"max_jobs_per_tenant"`
-	MinInputBlocks   int                     `yaml:"min_input_blocks"`
-	MaxInputBlocks   int                     `yaml:"max_input_blocks"`
-	MinCycleInterval time.Duration           `yaml:"min_cycle_interval"`
+	MeasureInterval    time.Duration           `yaml:"measure_interval"`
+	Compactor          tempodb.CompactorConfig `yaml:"compaction"`
+	MaxJobsPerTenant   int                     `yaml:"max_jobs_per_tenant"`
+	MinInputBlocks     int                     `yaml:"min_input_blocks"`
+	MaxInputBlocks     int                     `yaml:"max_input_blocks"`
+	MaxCompactionLevel int                     `yaml:"max_compaction_level"`
+	MinCycleInterval   time.Duration           `yaml:"min_cycle_interval"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -43,6 +44,7 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	// Compaction
 	f.IntVar(&cfg.MinInputBlocks, prefix+".min-input-blocks", blockselector.DefaultMinInputBlocks, "Minimum number of blocks to compact in a single job.")
 	f.IntVar(&cfg.MaxInputBlocks, prefix+".max-input-blocks", blockselector.DefaultMaxInputBlocks, "Maximum number of blocks to compact in a single job.")
+	f.IntVar(&cfg.MaxCompactionLevel, prefix+".max-compaction-level", blockselector.DefaultMaxCompactionLevel, "Maximum compaction level to include in compaction jobs. 0 means no limit.")
 
 	// Tenant prioritization
 	f.DurationVar(&cfg.MinCycleInterval, prefix+".min-cycle-interval", 30*time.Second, "Minimum time between tenant prioritization cycles to prevent excessive CPU usage when no work is available.")
@@ -105,6 +107,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			span              trace.Span
 			loopCtx           context.Context
 			spanStarted       bool
+			drained           bool // Signal that we have drained the current work and should wait for the next poll
 		)
 
 		reset := func() {
@@ -120,6 +123,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			spanStarted = false
 		}
 
+		level.Info(p.logger).Log("msg", "compaction provider waiting for poll notification")
+		<-p.store.PollNotification(ctx)
+
 		for {
 			if ctx.Err() != nil {
 				level.Info(p.logger).Log("msg", "compaction provider stopping")
@@ -132,10 +138,15 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			if p.curSelector == nil {
-				if !p.prepareNextTenant(loopCtx) {
+				if !p.prepareNextTenant(loopCtx, drained) {
 					level.Info(p.logger).Log("msg", "received empty tenant")
+					// If we don't have a tenant with enough blocks, we signal drained to wait for next poll.
+					drained = true
 					metricEmptyTenantCycle.Inc()
 					span.AddEvent("no tenant selected")
+				} else {
+					// A tenant with enough blocks was selected, reset the drained state.
+					drained = false
 				}
 
 				continue
@@ -151,6 +162,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			job = p.createJob(loopCtx)
 			if job == nil {
 				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant")
+				span.AddEvent("tenant exhausted")
 				// we don't have a job, reset the curTenant and try again
 				metricTenantEmptyJob.Inc()
 				reset()
@@ -158,7 +170,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 
 			// Job successfully created, add to recent jobs cache before we send it.
-			p.addToRecentJobs(job)
+			p.addToRecentJobs(ctx, job)
 
 			select {
 			case <-ctx.Done():
@@ -198,23 +210,37 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 	return jobs
 }
 
-func (p *CompactionProvider) prepareNextTenant(ctx context.Context) bool {
+func (p *CompactionProvider) prepareNextTenant(ctx context.Context, drained bool) bool {
 	_, span := tracer.Start(ctx, "prepareNextTenant")
 	defer span.End()
 
 	if p.curPriority.Len() == 0 {
 		// Rate limit calls to prioritizeTenants to prevent excessive CPU usage
-		// when cycling through tenants with no available work.  We only expect new
-		// work for tenants after a the next blocklist poll.
-		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
-			waitTime := p.cfg.MinCycleInterval - elapsed
-			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization", "wait_time", waitTime)
+		// when cycling through tenants with no available work.
+		//
+		// We only expect new work for tenants after a the next blocklist poll.  If
+		// we have been drained, wait for the next poll.
+
+		if drained {
+			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting for next poll")
 			select {
 			case <-ctx.Done():
 				return false
-			case <-time.After(waitTime):
+			case <-p.store.PollNotification(ctx):
+				// We waited for the poll, but we may have been cancelled in the meantime.
+				if ctx.Err() != nil {
+					return false
+				}
+
 				// Continue to prioritizeTenants
 			}
+		}
+
+		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
+			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting")
+			time.Sleep(p.cfg.MinCycleInterval - elapsed)
+
+			// Continue to prioritizeTenants
 		}
 
 		p.prioritizeTenants(ctx)
@@ -433,11 +459,15 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.Compactor.MaxBlockBytes,
 		p.cfg.MinInputBlocks,
 		p.cfg.MaxInputBlocks,
+		p.cfg.MaxCompactionLevel,
 	), len(blocklist)
 }
 
 // addToRecentJobs adds a job to the recent jobs cache
-func (p *CompactionProvider) addToRecentJobs(job *work.Job) {
+func (p *CompactionProvider) addToRecentJobs(ctx context.Context, job *work.Job) {
+	_, span := tracer.Start(ctx, "addToRecentJobs")
+	defer span.End()
+
 	if job.Type != tempopb.JobType_JOB_TYPE_COMPACTION || job.JobDetail.Compaction == nil {
 		return
 	}

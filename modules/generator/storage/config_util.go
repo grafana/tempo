@@ -50,8 +50,7 @@ func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConf
 		}
 
 		output.SendNativeHistograms = sendNativeHistograms
-		// TODO: enable exemplars
-		// cloneCfg.SendExemplars = sendExemplars
+		output.SendExemplars = true
 
 		outputs = append(outputs, output)
 	}

@@ -603,6 +603,110 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 	}
 }
 
+func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
+	// default ingestion slack is 2 minutes. create some convenient times to help the test below
+	now := time.Unix(1000000, 0)
+	oneMinuteAgo := now.Add(-time.Minute)
+	oneMinuteLater := now.Add(time.Minute)
+	twoMinutesAgo := now.Add(-2 * time.Minute)
+	threeMinutesAgo := now.Add(-3 * time.Minute)
+
+	tcs := []struct {
+		name          string
+		startTime     time.Time
+		endTime       time.Time
+		recordTime    time.Time
+		expectedStart time.Time
+		expectedEnd   time.Time
+	}{
+		{ // records where the timestamp exactly matches the span timings
+			name:          "exact match",
+			startTime:     oneMinuteAgo,
+			endTime:       oneMinuteAgo,
+			recordTime:    oneMinuteAgo,
+			expectedStart: oneMinuteAgo,
+			expectedEnd:   oneMinuteAgo,
+		},
+		{ // records where the timestamp doesn't match the span timings, but within the ingestion slack
+			name:          "within ingestion slack",
+			startTime:     oneMinuteAgo,
+			endTime:       oneMinuteLater,
+			recordTime:    now,
+			expectedStart: oneMinuteAgo,
+			expectedEnd:   oneMinuteLater,
+		},
+		{ // records where the timestamp doesn't match the span timings and is outside the ingestion slack
+			name:          "outside ingestion slack",
+			startTime:     threeMinutesAgo,
+			endTime:       now,
+			recordTime:    now,
+			expectedStart: twoMinutesAgo, // default ingestion slack is 2 minutes
+			expectedEnd:   now,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancelCause(context.Background())
+			t.Cleanup(func() { cancel(errors.New("test done")) })
+
+			k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+			kafkaCommits := atomic.NewInt32(0)
+			k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+				kafkaCommits.Inc()
+				return nil, nil, false
+			})
+
+			store := newStore(ctx, t)
+			cfg := blockbuilderConfig(t, address, []int32{0})
+
+			client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+
+			// Create a trace with specific start/end times
+			traceID := generateTraceID(t)
+			startTimeNano := uint64(tc.startTime.UnixNano())
+			endTimeNano := uint64(tc.endTime.UnixNano())
+			req := test.MakePushBytesRequest(t, 1, traceID, startTimeNano, endTimeNano)
+			records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
+			require.NoError(t, err)
+
+			// Set the record timestamp
+			for _, record := range records {
+				record.Timestamp = tc.recordTime
+			}
+
+			// Send the record
+			res := client.ProduceSync(ctx, records...)
+			require.NoError(t, res.FirstErr())
+
+			b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+			require.NoError(t, err)
+			require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+			t.Cleanup(func() {
+				require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+			})
+
+			// Wait for record to be consumed and committed
+			require.Eventually(t, func() bool {
+				return kafkaCommits.Load() > 0
+			}, time.Minute, time.Second)
+
+			// Wait for the block to be flushed
+			require.Eventually(t, func() bool {
+				return len(store.BlockMetas(util.FakeTenantID)) == 1
+			}, time.Minute, time.Second)
+
+			// Verify block timestamps
+			metas := store.BlockMetas(util.FakeTenantID)
+			require.Len(t, metas, 1)
+			meta := metas[0]
+			require.Equal(t, tc.expectedStart.Unix(), meta.StartTime.Unix())
+			require.Equal(t, tc.expectedEnd.Unix(), meta.EndTime.Unix())
+		})
+	}
+}
+
 func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })

@@ -884,7 +884,7 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 		return &literal[K]{value: bool(*b)}, nil
 	}
 	if b := val.Bytes; b != nil {
-		return &literal[K]{value: ([]byte)(*b)}, nil
+		return &literal[K]{value: []byte(*b)}, nil
 	}
 
 	if val.Enum != nil {

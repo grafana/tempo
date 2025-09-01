@@ -50,10 +50,11 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 	return uint64(interval.Nanoseconds())
 }
 
-// TrimToBlockOverlap returns the aligned overlap between the given time and block ranges,
-// the block's borders are included.
-// If the request is instantaneous, it returns an updated step to match the new time range.
-// It assumes that blockEnd is aligned to seconds.
+// TrimToBlockOverlap returns the overlap between the given time range and block.  It is used to
+// split a block to only the portion overlapping, or when the entire block is within range then
+// opportunistically remove time slots that are known to be unused.
+// When possible and not exceeding the request range, borders are aligned to the step.
+// When a block is split then the borders will maintain the nanosecond precision of the request.
 func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time) (uint64, uint64, uint64) {
 	wasInstant := end-start == step
 
@@ -65,6 +66,15 @@ func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time)
 	blockEnd = blockEnd.Add(time.Second)
 	end2 := uint64(blockEnd.UnixNano())
 
+	// Align the block data range to the step. This is because
+	// low-precision timestamps within the block may be rounded up to
+	// this step.  If the boundaries exceed the overall range
+	// they will get trimmed back down.
+	start2 = alignStart(start2, end2, step)
+	end2 = alignEnd(start2, end2, step)
+
+	// Now trim to the overlap preserving nanosecond precision for
+	// when we split a block.
 	start = max(start, start2)
 	end = min(end, end2)
 
@@ -928,11 +938,29 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
+	// If the request range is fully aligned to the step, then we can use lower
+	// precision data that matches the step while still returning accurate results.
+	// When the range isn't an even multiple, it means that we are on the split
+	// between backend and recent data, or the edges of the request. In that case
+	// we use full nanosecond precision.
+	var precision time.Duration
+	if (req.Start%req.Step) == 0 && (req.End%req.Step) == 0 {
+		precision = time.Duration(req.Step)
+	}
+
 	// Span start time (always required)
 	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		// Technically we only need the start time of matching spans, so we add it to the second pass.
 		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
-		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute, Precision: precision})
+	} else {
+		// Update the existing condition to use low precision
+		for i, c := range storageReq.Conditions {
+			if c.Attribute == IntrinsicSpanStartTimeAttribute {
+				storageReq.Conditions[i].Precision = precision
+				break
+			}
+		}
 	}
 
 	// Timestamp filtering
@@ -1356,13 +1384,7 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 		existing, ok := b.ss[ts.PromLabels]
 		if !ok {
 			// Convert proto labels to traceql labels
-			labels := make(Labels, 0, len(ts.Labels))
-			for _, l := range ts.Labels {
-				labels = append(labels, Label{
-					Name:  l.Key,
-					Value: StaticFromAnyValue(l.Value),
-				})
-			}
+			labels, _ := convertProtoLabelsToTraceQL(ts.Labels, false)
 
 			existing = TimeSeries{
 				Labels:    labels,
@@ -1397,15 +1419,9 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 			break
 		}
 		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
-			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
+			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 		}
-		labels := make(Labels, 0, len(exemplar.Labels))
-		for _, l := range exemplar.Labels {
-			labels = append(labels, Label{
-				Name:  l.Key,
-				Value: StaticFromAnyValue(l.Value),
-			})
-		}
+		labels, _ := convertProtoLabelsToTraceQL(exemplar.Labels, false)
 		existing.Exemplars = append(existing.Exemplars, Exemplar{
 			Labels:      labels,
 			Value:       exemplar.Value,
@@ -1566,58 +1582,64 @@ func (i *IntervalMapperInstant) isTsValid(ts, start, end uint64) bool {
 }
 
 type histSeries struct {
-	labels    Labels
-	hist      []Histogram
-	exemplars []Exemplar
-}
-
-type HistogramAggregator struct {
-	ss              map[string]histSeries
-	qs              []float64
-	intervalMapper  IntervalMapper
+	labels          Labels
+	hist            []Histogram
+	exemplars       []Exemplar
 	exemplarBuckets bucketSet
 }
 
-func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplars uint32) *HistogramAggregator {
+type HistogramAggregator struct {
+	ss             map[string]histSeries
+	qs             []float64
+	intervalMapper IntervalMapper
+	exemplarLimit  uint32
+	// Reusable buffer for all label processing
+	labelBuffer            Labels
+	exemplarBucketsCreator func() bucketSet
+}
+
+func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, exemplarLimit uint32) *HistogramAggregator {
 	return &HistogramAggregator{
-		qs:              qs,
-		intervalMapper:  NewIntervalMapperFromReq(req),
-		ss:              make(map[string]histSeries),
-		exemplarBuckets: newExemplarBucketSet(exemplars, req.Start, req.End, req.Step),
+		ss:             make(map[string]histSeries),
+		qs:             qs,
+		intervalMapper: NewIntervalMapperFromReq(req),
+		exemplarLimit:  exemplarLimit,
+		labelBuffer:    make(Labels, 0, 8), // Pre-allocate with reasonable capacity
+		exemplarBucketsCreator: func() bucketSet {
+			return newExemplarBucketSet(exemplarLimit, req.Start, req.End, req.Step)
+		},
 	}
 }
 
 func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
-	// var min, max time.Time
-
 	for _, ts := range in {
-		// Convert proto labels to traceql labels
-		// while at the same time stripping the bucket label
-		withoutBucket := make(Labels, 0, len(ts.Labels))
+		// Convert proto labels to traceql labels while stripping the bucket label
 		var bucket Static
-		for _, l := range ts.Labels {
-			if l.Key == internalLabelBucket {
-				bucket = StaticFromAnyValue(l.Value)
-				continue
-			}
-			withoutBucket = append(withoutBucket, Label{
-				Name:  l.Key,
-				Value: StaticFromAnyValue(l.Value),
-			})
-		}
+		h.labelBuffer, bucket = convertProtoLabelsToTraceQL(ts.Labels, true)
 
 		if bucket.Type == TypeNil {
 			// Bad __bucket label?
 			continue
 		}
 
-		withoutBucketStr := withoutBucket.String()
+		withoutBucketStr := h.labelBuffer.String()
 
 		existing, ok := h.ss[withoutBucketStr]
 		if !ok {
+			// Create a copy of the labels since the buffer will be reused
+			withoutBucket := make(Labels, len(h.labelBuffer))
+			copy(withoutBucket, h.labelBuffer)
+
+			// Create a fresh histogram slice for each series to avoid sharing memory
+			// Pool reuse was causing data contamination between series
+			histSlice := make([]Histogram, h.intervalMapper.IntervalCount())
+
 			existing = histSeries{
 				labels: withoutBucket,
-				hist:   make([]Histogram, h.intervalMapper.IntervalCount()),
+				hist:   histSlice,
+				// Pre-allocate exemplars slice with capacity hint to reduce allocations
+				exemplars:       make([]Exemplar, 0, len(ts.Exemplars)),
+				exemplarBuckets: h.exemplarBucketsCreator(),
 			}
 		}
 
@@ -1633,21 +1655,18 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			}
 		}
 
+		// Collect exemplars per series, not globally
 		for _, exemplar := range ts.Exemplars {
-			if h.exemplarBuckets.testTotal() {
+			if existing.exemplarBuckets.testTotal() {
 				break
 			}
-			if h.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
+			if existing.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) {
 				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 			}
 
-			labels := make(Labels, 0, len(exemplar.Labels))
-			for _, l := range exemplar.Labels {
-				labels = append(labels, Label{
-					Name:  l.Key,
-					Value: StaticFromAnyValue(l.Value),
-				})
-			}
+			// Convert exemplar labels directly (no need for buffer reuse here)
+			labels, _ := convertProtoLabelsToTraceQL(exemplar.Labels, false)
+
 			existing.exemplars = append(existing.exemplars, Exemplar{
 				Labels:      labels,
 				Value:       exemplar.Value,
@@ -1661,32 +1680,105 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 func (h *HistogramAggregator) Results() SeriesSet {
 	results := make(SeriesSet, len(h.ss)*len(h.qs))
 
+	// Aggregate buckets across all series and time intervals for better quantile calculation
+	aggregatedBuckets := make(map[float64]int) // bucketMax -> totalCount
+
 	for _, in := range h.ss {
+		// Aggregate bucket counts across all time intervals
+		for _, hist := range in.hist {
+			for _, bucket := range hist.Buckets {
+				aggregatedBuckets[bucket.Max] += bucket.Count
+			}
+		}
+	}
+
+	// Calculate quantile values from aggregated distribution
+	// Convert map to sorted slice
+	buckets := make([]HistogramBucket, 0, len(aggregatedBuckets))
+	for bucketMax, count := range aggregatedBuckets {
+		buckets = append(buckets, HistogramBucket{
+			Max:   bucketMax,
+			Count: count,
+		})
+	}
+
+	sort.Slice(buckets, func(i, j int) bool {
+		return buckets[i].Max < buckets[j].Max
+	})
+
+	quantileValues := make([]float64, len(h.qs))
+	for i, q := range h.qs {
+		quantileValues[i] = Log2Quantile(q, buckets)
+	}
+
+	// Build results using the calculated quantile values
+	for _, in := range h.ss {
+		for i := range in.hist {
+			if len(in.hist[i].Buckets) > 0 {
+				// Sort interval buckets in place for performance
+				sort.Slice(in.hist[i].Buckets, func(a, b int) bool {
+					return in.hist[i].Buckets[a].Max < in.hist[i].Buckets[b].Max
+				})
+			}
+		}
+
 		// For each input series, we create a new series for each quantile.
-		for _, q := range h.qs {
+		for qIdx, q := range h.qs {
 			// Append label for the quantile
 			labels := append((Labels)(nil), in.labels...)
 			labels = append(labels, Label{"p", NewStaticFloat(q)})
 			s := labels.String()
 
 			ts := TimeSeries{
-				Labels:    labels,
-				Values:    make([]float64, len(in.hist)),
-				Exemplars: in.exemplars,
+				Labels: labels,
+				Values: make([]float64, len(in.hist)),
 			}
+
 			for i := range in.hist {
+				if len(in.hist[i].Buckets) == 0 {
+					ts.Values[i] = 0.0
+					continue
+				}
 
-				buckets := in.hist[i].Buckets
-				sort.Slice(buckets, func(i, j int) bool {
-					return buckets[i].Max < buckets[j].Max
-				})
-
-				ts.Values[i] = Log2Quantile(q, buckets)
+				// Use sorted buckets for quantile calculation
+				ts.Values[i] = Log2Quantile(q, in.hist[i].Buckets)
 			}
+
+			// Select exemplars for this quantile using simplified assignment logic
+			for _, exemplar := range in.exemplars {
+				if h.assignExemplarToQuantile(exemplar.Value, quantileValues, buckets) == qIdx {
+					ts.Exemplars = append(ts.Exemplars, exemplar)
+				}
+			}
+
 			results[s] = ts
 		}
 	}
+
 	return results
+}
+
+// assignExemplarToQuantile determines which quantile (if any) an exemplar should be assigned to.
+// Returns the quantile index, or -1 if the exemplar doesn't fit any quantile reasonably well.
+// This uses a simple closest-match strategy with reasonable bucket validation.
+func (h *HistogramAggregator) assignExemplarToQuantile(exemplarValue float64, quantileValues []float64, buckets []HistogramBucket) int {
+	if len(quantileValues) == 0 || len(buckets) == 0 {
+		return -1
+	}
+
+	bestIdx := -1
+	bestDiff := math.Inf(1)
+
+	for i, quantileValue := range quantileValues {
+		// Find the closest quantile value for better visual alignment
+		diff := math.Abs(exemplarValue - quantileValue)
+		if diff < bestDiff {
+			bestDiff = diff
+			bestIdx = i
+		}
+	}
+
+	return bestIdx
 }
 
 func (h *HistogramAggregator) Length() int {
@@ -1705,11 +1797,18 @@ func Log2Bucketize(v uint64) float64 {
 // Log2Quantile returns the quantile given bucket labeled with float ranges and counts. Uses
 // exponential power-of-two interpolation between buckets as needed.
 func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
+	value, _ := Log2QuantileWithBucket(p, buckets)
+	return value
+}
+
+// Log2QuantileWithBucket returns both the quantile value and the bucket index where the quantile falls.
+// This avoids rescanning buckets when you need to determine which bucket contains a specific value.
+func Log2QuantileWithBucket(p float64, buckets []HistogramBucket) (float64, int) {
 	if math.IsNaN(p) ||
 		p < 0 ||
 		p > 1 ||
 		len(buckets) == 0 {
-		return 0
+		return 0, -1
 	}
 
 	totalCount := 0
@@ -1718,7 +1817,7 @@ func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 	}
 
 	if totalCount == 0 {
-		return 0
+		return 0, -1
 	}
 
 	// Maximum amount of samples to include. We round up to better handle
@@ -1749,7 +1848,7 @@ func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 		// Quantile is the max range for the bucket. No reason
 		// to enter interpolation below.
 		if total == maxSamples {
-			return b.Max
+			return b.Max, bucket
 		}
 	}
 
@@ -1759,17 +1858,16 @@ func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 
 	// Exponential interpolation between buckets
 	// The current bucket represents the maximum value
-	max := math.Log2(buckets[bucket].Max)
-	var min float64
+	maxV := math.Log2(buckets[bucket].Max)
+	var minV float64
 	if bucket > 0 {
 		// Prior bucket represents the min
-		min = math.Log2(buckets[bucket-1].Max)
+		minV = math.Log2(buckets[bucket-1].Max)
 	} else {
 		// There is no prior bucket, assume powers of 2
-		min = max - 1
+		minV = maxV - 1
 	}
-	mid := math.Pow(2, min+(max-min)*interp)
-	return mid
+	return math.Pow(2, minV+(maxV-minV)*interp), bucket
 }
 
 var (
@@ -1788,6 +1886,29 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 		return 0, TypeNil
 	}
 	return f, v.Type
+}
+
+// convertProtoLabelsToTraceQL converts protobuf labels to traceql Labels format.
+// If skipBucket is true, it will skip any label with key matching internalLabelBucket.
+// Returns the converted labels and the bucket value (if found and not skipped).
+func convertProtoLabelsToTraceQL(protoLabels []commonv1proto.KeyValue, skipBucket bool) (Labels, Static) {
+	// TODO: consider memory pooling for Labels and Static to reduce allocations
+	labels := make(Labels, 0, len(protoLabels))
+	var bucket Static
+
+	for i := range protoLabels {
+		l := &protoLabels[i]
+		if skipBucket && l.Key == internalLabelBucket {
+			bucket = StaticFromAnyValue(l.Value)
+			continue
+		}
+		labels = append(labels, Label{
+			Name:  l.Key,
+			Value: StaticFromAnyValue(l.Value),
+		})
+	}
+
+	return labels, bucket
 }
 
 // processTopK implements TopKBottomK topk method

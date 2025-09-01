@@ -1,8 +1,11 @@
+partition_ring_live_store: true
+
 server:
   http_listen_port: 3200
-  log_level: info
+  log_level: debug
 
 distributor:
+  ingester_write_path_enabled: false
   kafka_write_path_enabled: true
   receivers:
     otlp:
@@ -26,7 +29,10 @@ memberlist:
   join_members:
     - ingester-0:7946
     - ingester-1:7946
-    - ingester-2:7946
+    - live-store-zone-a-0:7946
+    - live-store-zone-a-1:7946
+    - live-store-zone-b-0:7946
+    - live-store-zone-b-1:7946
 
 compactor:
   compaction:
@@ -53,6 +59,9 @@ metrics_generator:
   processor:
     local_blocks:
       flush_to_storage: true
+
+query_frontend:
+  rf1_after: "1999-01-01T00:00:00Z"
 
 storage:
   trace:
@@ -85,3 +94,6 @@ block_builder:
   assigned_partitions:
     block-builder-0: [0,2]
     block-builder-1: [1]
+
+usage_report:
+  reporting_enabled: false

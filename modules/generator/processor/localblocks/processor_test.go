@@ -132,19 +132,21 @@ func TestProcessorDoesNotRace(t *testing.T) {
 
 	concurrent := func(f func()) {
 		wg.Add(1)
-		defer wg.Done()
+		go func() {
+			defer wg.Done()
 
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
 
-	go concurrent(func() {
+	concurrent(func() {
 		tr := test.MakeTrace(10, nil)
 		for _, b := range tr.ResourceSpans {
 			for _, ss := range b.ScopeSpans {
@@ -160,28 +162,28 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		p.PushSpans(ctx, req)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := p.cutIdleTraces(true)
 		require.NoError(t, err, "cutting idle traces")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := p.cutBlocks(true)
 		require.NoError(t, err, "cutting blocks")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := p.flushBlock(uuid.New())
 		require.NoError(t, err, "flushing blocks")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := p.deleteOldBlocks()
 		require.NoError(t, err, "deleting old blocks")
 	})
 
 	// Run multiple queries
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := p.GetMetrics(ctx, &tempopb.SpanMetricsRequest{
 			Query:   "{}",
 			GroupBy: "status",
@@ -189,7 +191,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := p.GetMetrics(ctx, &tempopb.SpanMetricsRequest{
 			Query:   "{}",
 			GroupBy: "status",
@@ -197,8 +199,8 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	go concurrent(func() {
-		err := p.QueryRange(ctx, qr, me, je)
+	concurrent(func() {
+		err := p.QueryRange(ctx, *qr, me, je)
 		require.NoError(t, err)
 	})
 

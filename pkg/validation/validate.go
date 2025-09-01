@@ -1,8 +1,14 @@
 package validation
 
+import "bytes"
+
 // ValidTraceID confirms that trace ids are 128 bits
 func ValidTraceID(id []byte) bool {
 	return len(id) == 16
+}
+
+func ValidSpanID(id []byte) bool {
+	return len(id) == 8 && !bytes.Equal(id, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 }
 
 // SmallestPositiveNonZeroIntPerTenant is returning the minimal positive and

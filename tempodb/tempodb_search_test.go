@@ -36,6 +36,7 @@ import (
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -62,7 +63,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 				traceQLDuration,
 			)
 		})
-		if vers == vparquet4.VersionString {
+		if vers == vparquet4.VersionString || vers == vparquet5.VersionString {
 			t.Run("event/link/instrumentation query", func(t *testing.T) {
 				runEventLinkInstrumentationSearchTest(t, vers)
 			})
@@ -974,6 +975,46 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 				},
 			},
 		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ name = `does-not-exist` } !< { name = `MySpan` }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "MySpan",
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ name = `does-not-exist` } !> { name = `MySpan` }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "MySpan",
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{
@@ -1591,7 +1632,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 
 			actualMap := valueCollector.Strings()
 
-			if (bm.Version == vparquet4.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
+			if (bm.Version == vparquet4.VersionString || bm.Version == vparquet5.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
 				// v4 has scope, events, and links
 				tc.expected["instrumentation"] = []string{"scope-attr-str"}
 				tc.expected["event"] = []string{"exception.message"}
@@ -1919,7 +1960,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 
 func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// only run this test for vparquet4
-	if blockVersion != vparquet4.VersionString {
+	if blockVersion != vparquet4.VersionString && blockVersion != vparquet5.VersionString {
 		return
 	}
 

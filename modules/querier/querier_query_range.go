@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -24,19 +23,13 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 }
 
 func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	// Get results from all generators
-	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
-	if err != nil {
-		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
-	}
-
 	// correct max series limit logic should've been set by the query-frontend sharder
 	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}
 
-	results, err := q.forGivenGenerators(ctx, replicationSet, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
+	results, err := q.forGivenGenerators(ctx, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
 		return client.QueryRange(ctx, req)
 	})
 	if err != nil {

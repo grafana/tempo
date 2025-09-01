@@ -1,3 +1,6 @@
+/*
+* ingester is used as the template for livestore/instance_search.go any changes here should be reflected there and vice versa.
+ */
 package ingester
 
 import (
@@ -606,23 +609,23 @@ func includeBlock(b *backend.BlockMeta, req *tempopb.SearchRequest) bool {
 // searchTagValuesV2CacheKey generates a cache key for the searchTagValuesV2 request
 // cache key is used as the filename to store the protobuf data on disk
 func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, prefix string) string {
-	query := req.Query
+	var cacheKey string
 	if req.Query != "" {
-		ast, err := traceql.Parse(req.Query)
-		if err == nil {
+		q := traceql.ExtractMatchers(req.Query)
+		if ast, err := traceql.Parse(q); err == nil {
 			// forces the query into a canonical form
-			query = ast.String()
+			cacheKey = ast.String()
 		} else {
 			// In case of a bad TraceQL query, we ignore the query and return unfiltered results.
 			// if we fail to parse the query, we will assume query is empty and compute the cache key.
-			query = ""
+			cacheKey = ""
 		}
 	}
 
 	// NOTE: we are not adding req.Start and req.End to the cache key because we don't respect the start and end
 	// please add them to cacheKey if we start respecting them
 	h := fnv1a.HashString64(req.TagName)
-	h = fnv1a.AddString64(h, query)
+	h = fnv1a.AddString64(h, cacheKey)
 	h = fnv1a.AddUint64(h, uint64(limit))
 
 	return fmt.Sprintf("%s_%v.buf", prefix, h)

@@ -136,7 +136,9 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 		rw.compactorCfg.MaxCompactionObjects,
 		rw.compactorCfg.MaxBlockBytes,
 		blockselector.DefaultMinInputBlocks,
-		blockselector.DefaultMaxInputBlocks)
+		blockselector.DefaultMaxInputBlocks,
+		blockselector.DefaultMaxCompactionLevel,
+	)
 
 	start := time.Now()
 

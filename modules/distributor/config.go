@@ -42,9 +42,10 @@ type Config struct {
 	Forwarders          forwarder.ConfigList      `yaml:"forwarders"`
 	Usage               usage.Config              `yaml:"usage,omitempty"`
 
-	// Kafka
-	KafkaWritePathEnabled bool               `yaml:"kafka_write_path_enabled"`
-	KafkaConfig           ingest.KafkaConfig `yaml:"kafka_config"`
+	// Migration to Kafka write path
+	IngesterWritePathEnabled bool               `yaml:"ingester_write_path_enabled"`
+	KafkaWritePathEnabled    bool               `yaml:"kafka_write_path_enabled"`
+	KafkaConfig              ingest.KafkaConfig `yaml:"kafka_config"`
 
 	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
@@ -83,6 +84,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.RetryAfterOnResourceExhausted = 0
 	cfg.OverrideRingKey = distributorRingKey
 	cfg.ExtendWrites = true
+	cfg.IngesterWritePathEnabled = true
 
 	cfg.MaxAttributeBytes = 2048 // 2KB
 

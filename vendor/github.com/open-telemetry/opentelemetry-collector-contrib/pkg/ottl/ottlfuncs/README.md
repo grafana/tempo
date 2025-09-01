@@ -533,6 +533,8 @@ Available Converters:
 - [UnixSeconds](#unixseconds)
 - [UserAgent](#useragent)
 - [UUID](#UUID)
+- [UUIDv7](#UUIDv7)
+- [Values](#values)
 - [Weekday](#weekday)
 - [Year](#year)
 
@@ -1983,14 +1985,14 @@ Examples:
 
 ### SliceToMap
 
-`SliceToMap(target, keyPath, Optional[valuePath])`
+`SliceToMap(target, Optional[keyPath], Optional[valuePath])`
 
 The `SliceToMap` converter converts a slice of objects to a map. The arguments are as follows:
 
 - `target`: A list of maps containing the entries to be converted.
-- `keyPath`: A string array that determines the name of the keys for the map entries by pointing to the value of an attribute within each slice item. Note that
-the `keyPath` must resolve to a string value, otherwise the converter will not be able to convert the item
-to a map entry.
+- `keyPath`: An optional string array that determines the name of the keys for the map entries by pointing to the value of an attribute within each slice item. Note that
+if `keyPath` is provided, it must resolve to a string value, otherwise the converter will not be able to convert the item to a map entry. If `keyPath` isn't provided, the string representation of the index when looping through objects in the slice will be the key for the object in the output map. 
+
 - `valuePath`: This optional string array determines which attribute should be used as the value for the map entry. If no
 `valuePath` is defined, the value of the map entry will be the same as the original slice item.
 
@@ -2020,6 +2022,22 @@ attributes:
       name: foo
       value: 2
     bar:
+      name: bar
+      value: 5
+```
+
+- `SliceToMap(resource.attributes["things"])`:
+
+This converts the input above to the following:
+
+```yaml
+attributes:
+  hello: world
+  things:
+    "0":
+      name: foo
+      value: 2
+    "1":
       name: bar
       value: 5
 ```
@@ -2422,8 +2440,8 @@ The `UserAgent` Converter parses the string argument trying to match it against 
 
 `value` is a string or a path to a string.  If `value` is not a string an error is returned.
 
-The results of the parsing are returned as a map containing `user_agent.name`, `user_agent.version` and `user_agent.original`
-as defined in semconv v1.25.0.
+The results of the parsing are returned as a map containing `user_agent.name`, `user_agent.version`, `user_agent.original`, `os.name`, and `os.version` as defined in semconv v1.34.0. `os.name` and `os.version` are omitted if empty.
+
 
 Parsing is done using the [uap-go package](https://github.com/ua-parser/uap-go). The specific formats it recognizes can be found [here](https://github.com/ua-parser/uap-core/blob/master/regexes.yaml).
 
@@ -2433,13 +2451,23 @@ Examples:
   ```yaml
   "user_agent.name": "curl"
   "user_agent.version": "7.81.0"
-  "user_agent.original": "curl/7.81.0"
+  "user_agent.original": "curl/7.81.0",
+  "os.name": "Other",
   ```
 - `Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0`
   ```yaml
   "user_agent.name": "Firefox"
   "user_agent.version": "126.0"
-  "user_agent.original": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"
+  "user_agent.original": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
+  "os.name": "Linux",
+  ```
+- `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59`
+  ```yaml
+  "user_agent.name": "Edge"
+  "user_agent.version": "91.0.864"
+  "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59",
+  "os.name": "Windows",
+  "os.version": "10"
   ```
 
 ### URL
@@ -2485,6 +2513,26 @@ results in
 `UUID()`
 
 The `UUID` function generates a v4 uuid string.
+
+### UUIDv7
+
+`UUIDv7()`
+
+The `UUIDv7` function generates a version 7 UUID using the current Unix epoch timestamp.
+
+The returned type is `string`.
+
+### Values
+
+`Values(target)` converts a `pcommon.Map` into a slice containing its values.
+
+`target` is a `pcommon.Map`
+
+The function returns a `pcommon.Slice`. The order of elements in the output `pcommon.Slice` is not guaranteed.
+
+Examples:
+- `Values(resource.attributes)`
+- `Values({"key1": "value1", "key2": 5, "key3": [1,2], "key4": {"b1": "c"}})`
 
 ### Weekday
 

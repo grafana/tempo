@@ -166,10 +166,6 @@ sendLoop:
 				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 				require.NotNil(t, queryRangeRes)
 				require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
-				if query == "{} | quantile_over_time(duration, .5, 0.9, 0.99)" {
-					// Bug: https://github.com/grafana/tempo/issues/5167
-					t.Skip("Bug in quantile_over_time in calculating exemplars")
-				}
 
 				exemplarCount := 0
 
@@ -572,7 +568,9 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 }
 
 func TestQueryRangeMaxSeries(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series")
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -636,7 +634,9 @@ sendLoop:
 }
 
 func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series_disabled")
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -701,7 +701,9 @@ sendLoop:
 }
 
 func TestQueryRangeMaxSeriesDisabledQuerier(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series_disabled_querier")
 	require.NoError(t, err)
 	defer s.Close()
 

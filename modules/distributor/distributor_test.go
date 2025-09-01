@@ -75,7 +75,7 @@ func batchesToTraces(t *testing.T, batches []*v1.ResourceSpans) ptrace.Traces {
 func TestRequestsByTraceID(t *testing.T) {
 	traceIDA := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 	traceIDB := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-
+	spanID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
 	// These 2 trace IDs are known to collide under fnv32
 	collision1, _ := util.HexStringToTraceID("fd5980503add11f09f80f77608c1b2da")
 	collision2, _ := util.HexStringToTraceID("091ea7803ade11f0998a055186ee1243")
@@ -146,6 +146,7 @@ func TestRequestsByTraceID(t *testing.T) {
 							Spans: []*v1.Span{
 								{
 									TraceId:           traceIDA,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(10 * time.Second),
 									EndTimeUnixNano:   uint64(20 * time.Second),
 								},
@@ -164,6 +165,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDA,
+											SpanId:            []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
 											StartTimeUnixNano: uint64(10 * time.Second),
 											EndTimeUnixNano:   uint64(20 * time.Second),
 										},
@@ -189,11 +191,13 @@ func TestRequestsByTraceID(t *testing.T) {
 							Spans: []*v1.Span{
 								{
 									TraceId:           traceIDA,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(30 * time.Second),
 									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
 									TraceId:           traceIDB,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
 								},
@@ -212,6 +216,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDA,
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
@@ -229,6 +234,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDB,
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
 										},
@@ -258,6 +264,7 @@ func TestRequestsByTraceID(t *testing.T) {
 							Spans: []*v1.Span{
 								{
 									TraceId:           traceIDA,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(30 * time.Second),
 									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
@@ -274,6 +281,7 @@ func TestRequestsByTraceID(t *testing.T) {
 							Spans: []*v1.Span{
 								{
 									TraceId:           traceIDB,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
 								},
@@ -295,6 +303,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDA,
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
@@ -315,6 +324,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDB,
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
 										},
@@ -344,11 +354,13 @@ func TestRequestsByTraceID(t *testing.T) {
 							Spans: []*v1.Span{
 								{
 									TraceId:           traceIDA,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(30 * time.Second),
 									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
 									TraceId:           traceIDB,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
 								},
@@ -370,6 +382,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDA,
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
@@ -390,6 +403,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDB,
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
 										},
@@ -419,11 +433,13 @@ func TestRequestsByTraceID(t *testing.T) {
 							Spans: []*v1.Span{
 								{
 									TraceId:           traceIDA,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(30 * time.Second),
 									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
 									TraceId:           traceIDB,
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
 								},
@@ -445,6 +461,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDA,
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
@@ -465,6 +482,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDB,
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
 										},
@@ -498,12 +516,14 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									TraceId:           traceIDB,
 									Name:              "spanA",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(30 * time.Second),
 									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
 									TraceId:           traceIDB,
 									Name:              "spanB",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
 								},
@@ -529,12 +549,14 @@ func TestRequestsByTraceID(t *testing.T) {
 										{
 											TraceId:           traceIDB,
 											Name:              "spanA",
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
 										{
 											TraceId:           traceIDB,
 											Name:              "spanB",
+											SpanId:            spanID,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
 										},
@@ -567,11 +589,13 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									TraceId:           traceIDB,
 									Name:              "spanA",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(30 * time.Second),
 									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
 									TraceId:           traceIDB,
+									SpanId:            spanID,
 									Name:              "spanC",
 									StartTimeUnixNano: uint64(20 * time.Second),
 									EndTimeUnixNano:   uint64(50 * time.Second),
@@ -579,6 +603,7 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									TraceId:           traceIDA,
 									Name:              "spanE",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(70 * time.Second),
 									EndTimeUnixNano:   uint64(80 * time.Second),
 								},
@@ -599,11 +624,13 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									TraceId:           traceIDB,
 									Name:              "spanB",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(10 * time.Second),
 									EndTimeUnixNano:   uint64(30 * time.Second),
 								},
 								{
 									TraceId:           traceIDA,
+									SpanId:            spanID,
 									Name:              "spanD",
 									StartTimeUnixNano: uint64(60 * time.Second),
 									EndTimeUnixNano:   uint64(80 * time.Second),
@@ -632,12 +659,14 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDB,
+											SpanId:            spanID,
 											Name:              "spanA",
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
 										{
 											TraceId:           traceIDB,
+											SpanId:            spanID,
 											Name:              "spanC",
 											StartTimeUnixNano: uint64(20 * time.Second),
 											EndTimeUnixNano:   uint64(50 * time.Second),
@@ -658,6 +687,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDB,
+											SpanId:            spanID,
 											Name:              "spanB",
 											StartTimeUnixNano: uint64(10 * time.Second),
 											EndTimeUnixNano:   uint64(30 * time.Second),
@@ -682,6 +712,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDA,
+											SpanId:            spanID,
 											Name:              "spanE",
 											StartTimeUnixNano: uint64(70 * time.Second),
 											EndTimeUnixNano:   uint64(80 * time.Second),
@@ -702,6 +733,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           traceIDA,
+											SpanId:            spanID,
 											Name:              "spanD",
 											StartTimeUnixNano: uint64(60 * time.Second),
 											EndTimeUnixNano:   uint64(80 * time.Second),
@@ -738,17 +770,20 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									TraceId:           collision2,
 									Name:              "spanA",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(30 * time.Second),
 									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
 									TraceId:           collision2,
 									Name:              "spanC",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(20 * time.Second),
 									EndTimeUnixNano:   uint64(50 * time.Second),
 								},
 								{
 									TraceId:           collision1,
+									SpanId:            spanID,
 									Name:              "spanE",
 									StartTimeUnixNano: uint64(70 * time.Second),
 									EndTimeUnixNano:   uint64(80 * time.Second),
@@ -770,12 +805,14 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									TraceId:           collision2,
 									Name:              "spanB",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(10 * time.Second),
 									EndTimeUnixNano:   uint64(30 * time.Second),
 								},
 								{
 									TraceId:           collision1,
 									Name:              "spanD",
+									SpanId:            spanID,
 									StartTimeUnixNano: uint64(60 * time.Second),
 									EndTimeUnixNano:   uint64(80 * time.Second),
 								},
@@ -803,6 +840,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           collision1,
+											SpanId:            spanID,
 											Name:              "spanE",
 											StartTimeUnixNano: uint64(70 * time.Second),
 											EndTimeUnixNano:   uint64(80 * time.Second),
@@ -823,6 +861,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           collision1,
+											SpanId:            spanID,
 											Name:              "spanD",
 											StartTimeUnixNano: uint64(60 * time.Second),
 											EndTimeUnixNano:   uint64(80 * time.Second),
@@ -847,12 +886,14 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           collision2,
+											SpanId:            spanID,
 											Name:              "spanA",
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
 										{
 											TraceId:           collision2,
+											SpanId:            spanID,
 											Name:              "spanC",
 											StartTimeUnixNano: uint64(20 * time.Second),
 											EndTimeUnixNano:   uint64(50 * time.Second),
@@ -873,6 +914,7 @@ func TestRequestsByTraceID(t *testing.T) {
 									Spans: []*v1.Span{
 										{
 											TraceId:           collision2,
+											SpanId:            spanID,
 											Name:              "spanB",
 											StartTimeUnixNano: uint64(10 * time.Second),
 											EndTimeUnixNano:   uint64(30 * time.Second),
@@ -2105,6 +2147,7 @@ func setupDependencies(t *testing.T, limits overrides.Config) (Config, ingester_
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
 	distributorConfig.DistributorRing.KVStore.Mock = nil
 	distributorConfig.DistributorRing.InstanceInterfaceNames = []string{"eth0", "en0", "lo0"}
+	distributorConfig.IngesterWritePathEnabled = true
 	distributorConfig.factory = func(addr string) (ring_client.PoolClient, error) {
 		return ingesters[addr], nil
 	}
@@ -2350,4 +2393,52 @@ func TestCheckForRateLimits(t *testing.T) {
 			require.Equal(t, tc.expectError, s.Message())
 		})
 	}
+}
+
+func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
+	validTraceID := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	invalidSpanIDs := [][]byte{
+		{}, // empty
+		{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // all zero
+		{0x01}, // too short
+		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07},             // 7 bytes
+		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}, // 9 bytes
+	}
+	for _, spanID := range invalidSpanIDs {
+		batches := []*v1.ResourceSpans{
+			{
+				ScopeSpans: []*v1.ScopeSpans{
+					{
+						Spans: []*v1.Span{
+							{
+								TraceId: validTraceID,
+								SpanId:  spanID,
+							},
+						},
+					},
+				},
+			},
+		}
+		_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "span ids must be 64 bit")
+	}
+	// Valid span id should not error
+	validSpanID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	batches := []*v1.ResourceSpans{
+		{
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Spans: []*v1.Span{
+						{
+							TraceId: validTraceID,
+							SpanId:  validSpanID,
+						},
+					},
+				},
+			},
+		},
+	}
+	_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+	require.NoError(t, err)
 }
