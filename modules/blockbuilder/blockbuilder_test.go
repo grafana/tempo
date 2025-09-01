@@ -766,6 +766,8 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+		cancel(errors.New("test cleanup"))
+		store.Shutdown()
 	})
 
 	// Wait for the records to be consumed and committed
