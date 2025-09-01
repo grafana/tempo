@@ -1,10 +1,11 @@
 local tempo = import '../../../operations/jsonnet/microservices/tempo.libsonnet';
 local dashboards = import 'dashboards/grafana.libsonnet';
+local kafka = import 'kafka/kafka.libsonnet';
 local metrics = import 'metrics/prometheus.libsonnet';
 local minio = import 'minio/minio.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
 
-minio + metrics + load + tempo {
+minio + metrics + load + kafka + tempo {
 
   dashboards:
     dashboards.deploy(),
@@ -17,31 +18,42 @@ minio + metrics + load + tempo {
     cluster: 'k3d',
     namespace: 'default',
     block_builder_concurrent_rollout_enabled: true,
-    compactor+: {
-    },
-    querier+: {
-    },
+    compactor+: {},
+    querier+: {},
     ingester+: {
-      pvc_size: '5Gi',
+      replicas: 0,
+      pvc_size: '1Gi',
+      pvc_storage_class: 'local-path',
+    },
+    live_store+: {
+      replicas: 2,
+      pvc_size: '1Gi',
+      pvc_storage_class: 'local-path',
+      allow_multiple_replicas_on_same_node: true,
+    },
+    backend_scheduler+: {
+      pvc_size: '200Mi',
       pvc_storage_class: 'local-path',
     },
     distributor+: {
       receivers: {
         otlp: {
           protocols: {
-            grpc: null,
+            grpc: {
+              endpoint: '0.0.0.0:4317',
+            },
           },
         },
       },
     },
     metrics_generator+: {
-      replicas: 1,
+      replicas: 0,
       ephemeral_storage_limit_size: '2Gi',
       ephemeral_storage_request_size: '1Gi',
       pvc_size: '1Gi',
       pvc_storage_class: 'local-path',
     },
-    block_builder+:{
+    block_builder+: {
       replicas: 2,
     },
     memcached+: {
@@ -69,6 +81,25 @@ minio + metrics + load + tempo {
         },
       },
     },
+    partition_ring_live_store: true,
+    distributor+: {
+      ingester_write_path_enabled: false,
+      kafka_write_path_enabled: true,
+    },
+    ingest+: {
+      enabled: true,
+      kafka+: {
+        address: 'kafka:9092',
+        topic: 'tempo-ingest',
+      },
+    },
+    block_builder+: {
+      consume_cycle_duration: '30s',
+      assigned_partitions: {
+        'block-builder-0': [0],
+        'block-builder-1': [1],
+      },
+    },
   },
 
   local k = import 'ksonnet-util/kausal.libsonnet',
@@ -88,19 +119,8 @@ minio + metrics + load + tempo {
       containerPort.new('otlp-grpc', 4317),
     ]),
 
-  tempo_ingester_container+::
-    k.util.resourcesRequests('500m', '500Mi'),
-
-  // clear affinity so we can run multiple ingesters on a single node
-  tempo_ingester_statefulset+: {
-    spec+: {
-      template+: {
-        spec+: {
-          affinity: {},
-        },
-      },
-    },
-  },
+  tempo_live_store_container+::
+    k.util.resourcesRequests('500m', '1Gi'),
 
   tempo_querier_container+::
     k.util.resourcesRequests('500m', '500Mi'),

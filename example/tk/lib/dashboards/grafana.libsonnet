@@ -7,7 +7,7 @@ local mixins = import 'mixins.libsonnet';
   deploy(frontend_url='http://query-frontend'):
     grafana
     + grafana.withReplicas(1)
-    + grafana.withImage('grafana/grafana:9.3.2')
+    + grafana.withImage('grafana/grafana:11.4.0')
     + grafana.withRootUrl('http://grafana')
     + grafana.withTheme('dark')
     + grafana.withAnonymous()
