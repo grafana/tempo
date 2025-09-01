@@ -91,6 +91,11 @@ func TrimToBlockOverlap(start, end, step uint64, blockStart, blockEnd time.Time)
 	// they will get trimmed back down.
 	start2 = alignStart(start2, end2, step)
 	end2 = alignEnd(start2, end2, step)
+	// if wasn't instant and may become instant,
+	// add one nanosecond. This usually happens to small blocks.
+	if !wasInstant && isInstant(start2, end2, step) {
+		end2++
+	}
 
 	// Now trim to the overlap preserving nanosecond precision for
 	// when we split a block.
