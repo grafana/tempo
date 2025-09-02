@@ -381,11 +381,10 @@ func TestInstance_emptyTenantValidation(t *testing.T) {
 	o := &mockOverrides{}
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 
-	t.Run("empty tenant should return error when RemoteWriteAddOrgIDHeader is true", func(t *testing.T) {
+	t.Run("empty tenant should return error", func(t *testing.T) {
 		var cfg Config
 		cfg.RegisterFlagsAndApplyDefaults("", nil)
 		cfg.Path = t.TempDir()
-		cfg.RemoteWriteAddOrgIDHeader = true
 		reg := prometheus.NewRegistry()
 
 		// Empty tenant should return error when org ID header is required
