@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    name: live-store-rollout-pdb
+  name: live-store-rollout-pdb
+  namespace: tracing
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      rollout-group: live-store

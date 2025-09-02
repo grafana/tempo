@@ -90,23 +90,26 @@ func (r *Regexp) String() string {
 	return strings
 }
 
+// cheatToSeeInternals is a struct that mirrors the memory layout of labels.FastRegexMatcher
+// to allow unsafe access to its private fields for performance optimization decisions.
+// This struct must match the exact memory layout of FastRegexMatcher.
+type cheatToSeeInternals struct {
+	reString string
+	re       *regexp.Regexp
+
+	setMatches    []string
+	stringMatcher labels.StringMatcher
+	prefix        string
+	suffix        string
+	contains      []string
+
+	matchString func(string) bool
+}
+
 // shouldMemoize returns true if we believe that memoizing this regex would be faster
 // the evaluating it directly. see thoughts below.
 func shouldMemoize(m *labels.FastRegexMatcher) bool {
-	// matches labels.FastRegexMatcher
-	type cheatToSeeInternals struct {
-		reString string
-		re       *regexp.Regexp
-
-		setMatches    []string
-		stringMatcher labels.StringMatcher
-		prefix        string
-		suffix        string
-		contains      []string
-
-		matchString func(string) bool
-	}
-
+	// This is unsafe but validated by tests.
 	cheat := (*cheatToSeeInternals)(unsafe.Pointer(m))
 
 	// TODO: research and improve this. we're making a guess on whether an optimization will improve the regex

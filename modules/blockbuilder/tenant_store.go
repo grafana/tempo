@@ -30,10 +30,6 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 	}, []string{"tenant"},
 )
 
-const (
-	reasonTraceTooLarge = "trace_too_large"
-)
-
 type tenantStore struct {
 	tenantID         string
 	idGenerator      util.IDGenerator
@@ -73,7 +69,7 @@ func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime 
 func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error {
 	maxSz := s.overrides.MaxBytesPerTrace(s.tenantID)
 
-	if !s.liveTraces.PushWithTimestampAndLimits(ts, traceID, tr, 0, uint64(maxSz)) {
+	if err := s.liveTraces.PushWithTimestampAndLimits(ts, traceID, tr, 0, uint64(maxSz)); err != nil {
 		// Record dropped spans due to trace too large
 		// We have to unmarhal to count the number of spans.
 		// TODO - There might be a better way
@@ -87,7 +83,7 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 				count += len(ss.Spans)
 			}
 		}
-		overrides.RecordDiscardedSpans(count, reasonTraceTooLarge, s.tenantID)
+		overrides.RecordDiscardedSpans(count, overrides.ReasonTraceTooLarge, s.tenantID)
 	}
 
 	return nil

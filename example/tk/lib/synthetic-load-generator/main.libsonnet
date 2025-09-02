@@ -12,6 +12,6 @@
   synthetic_load_generator_deployment:
     deployment.new('synthetic-load-generator',
                    1,
-                   [ $.synthetic_load_generator_container ],
+                   [$.synthetic_load_generator_container],
                    { app: 'synthetic_load_generator' }),
 }

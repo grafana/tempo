@@ -1,3 +1,6 @@
+/*
+ * livestore/query_range.go is based on this file and any changes should be kepy in sync.
+ */
 package localblocks
 
 import (

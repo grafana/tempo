@@ -128,7 +128,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 			return nil, fmt.Errorf("create KV store client: %w", err)
 		}
 
-		lifecyclerCfg, err := cfg.Ring.toLifecyclerConfig()
+		lifecyclerCfg, err := cfg.Ring.ToLifecyclerConfig(ringNumTokens)
 		if err != nil {
 			return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
 		}

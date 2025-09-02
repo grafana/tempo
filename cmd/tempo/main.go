@@ -240,6 +240,10 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 		return nil, fmt.Errorf("failed to initialise trace resources: %w", err)
 	}
 
+	otel.SetErrorHandler(otelErrorHandlerFunc(func(err error) {
+		level.Error(log.Logger).Log("msg", "OpenTelemetry.ErrorHandler", "err", err)
+	}))
+
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithResource(resources),
@@ -257,10 +261,6 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 
 	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
 	otel.SetTextMapPropagator(propagator)
-
-	otel.SetErrorHandler(otelErrorHandlerFunc(func(err error) {
-		level.Error(log.Logger).Log("msg", "OpenTelemetry.ErrorHandler", "err", err)
-	}))
 
 	// Install the OpenTracing bridge
 	// TODO the bridge emits warnings because the Jaeger exporter does not defer context setup

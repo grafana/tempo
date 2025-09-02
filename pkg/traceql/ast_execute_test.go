@@ -2067,3 +2067,27 @@ func BenchmarkAggregate(b *testing.B) {
 		_, _ = agg.evaluate(ss)
 	}
 }
+
+func TestNotParentWithEmptyLHS(t *testing.T) {
+	// Build a single spanset with only RHS candidates matching name="list-articles"
+	rhsChild := newMockSpan([]byte{1}).WithNestedSetInfo(0, 1, 2)
+	rhsChild.attributes[IntrinsicNameAttribute] = NewStaticString("list-articles")
+
+	ss := []*Spanset{
+		{Spans: []Span{rhsChild}},
+	}
+
+	query := "{ span:name = `some-span-that-does-not-exist` } !< { span:name = `list-articles` }"
+	ast, err := Parse(query)
+	require.NoError(t, err)
+
+	out, err := ast.Pipeline.evaluate(ss)
+	require.NoError(t, err)
+
+	// Expect the RHS span to be returned because no LHS parent exists (negated parent)
+	require.Len(t, out, 1)
+	require.Len(t, out[0].Spans, 1)
+	nameStatic, _ := out[0].Spans[0].AttributeFor(IntrinsicNameAttribute)
+	expected := NewStaticString("list-articles")
+	require.True(t, nameStatic.Equals(&expected))
+}
