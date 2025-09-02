@@ -62,7 +62,7 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ l
 	// TODO move this to the generator.go
 
 	// Validate empty tenant to prevent WAL directory deletion only when org ID header is required
-	if cfg.RemoteWriteAddOrgIDHeader && tenant == "" {
+	if tenant == "" {
 		return nil, errors.New("tenant cannot be empty")
 	}
 
