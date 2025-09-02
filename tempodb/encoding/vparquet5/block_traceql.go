@@ -819,7 +819,7 @@ func (s *span) attributesMatched() int {
 // can return a slice of dropped and kept spansets?
 var spanPool = sync.Pool{
 	New: func() interface{} {
-		return &span{}
+		return &span{rowNum: parquetquery.EmptyRowNumber()}
 	},
 }
 
