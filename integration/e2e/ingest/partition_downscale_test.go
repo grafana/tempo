@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -147,4 +148,282 @@ func TestPartitionDownscale(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, trace2)
 	require.Equal(t, util.SpanCount(expected2), util.SpanCount(trace2))
+}
+
+func TestLiveStorePartitionDownscale(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, "config-live-store.yaml", "config.yaml"))
+
+	// Start dependencies
+	kafka := e2edb.NewKafka()
+	require.NoError(t, s.StartAndWaitReady(kafka))
+
+	// Start live-store instances
+	liveStore0 := util.NewTempoLiveStore(0)
+	liveStore1 := util.NewTempoLiveStore(1)
+	require.NoError(t, s.StartAndWaitReady(liveStore0, liveStore1))
+	waitUntilJoinedToPartitionRing(t, liveStore0, 2) // wait for both to join
+
+	// Start other Tempo components
+	distributor := util.NewTempoDistributor()
+	querier := util.NewTempoQuerier()
+	queryFrontend := util.NewTempoQueryFrontend()
+	require.NoError(t, s.StartAndWaitReady(distributor, querier, queryFrontend))
+
+	// Generate and emit initial traces
+	c, err := util.NewJaegerToOTLPExporter(distributor.Endpoint(4317))
+	require.NoError(t, err)
+	require.NotNil(t, c)
+
+	tracePool := newTracePool()
+	firstTrace, err := tracePool.Generate()
+	require.NoError(t, err)
+	require.NoError(t, firstTrace.EmitAllBatches(c))
+
+	// Wait for traces to be received
+	expected, err := firstTrace.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+	distributorSpanCount := util.SpanCount(expected)
+	require.NoError(t, distributor.WaitSumMetrics(e2e.Equals(distributorSpanCount), "tempo_distributor_spans_received_total"))
+
+	// Verify traces are processed by one of the live-stores
+	// First try to find which live-store processed the records
+	// We will shutdown this instance later
+	var liveStoreInactive, liveStoreActive *e2e.HTTPService
+
+	ls := waitForTraceInLiveStore(t, 1, liveStore0, liveStore1)
+	if ls == liveStore0 {
+		liveStoreInactive = liveStore0
+		liveStoreActive = liveStore1
+	} else {
+		liveStoreInactive = liveStore1
+		liveStoreActive = liveStore0
+	}
+
+	apiClient := httpclient.New("http://"+queryFrontend.Endpoint(3200), "")
+
+	t.Run("verify partition is ACTIVE", func(t *testing.T) {
+		for _, liveStore := range []*e2e.HTTPService{liveStoreInactive, liveStoreActive} {
+			res := preparePartitionDownscale(t, http.MethodGet, liveStore)
+			require.Equal(t, "PartitionActive", res.State)
+		}
+	})
+
+	t.Run("prepare partition for downscale", func(t *testing.T) {
+		// Set live-store's partition to INACTIVE state (prepare for downscale)
+		for range 2 { // repeated action will be noop
+			res := preparePartitionDownscale(t, http.MethodPost, liveStoreInactive)
+			require.Greater(t, res.Timestamp, int64(0)) // ts > 0 ==> INACTIVE
+			require.Equal(t, "PartitionInactive", res.State)
+		}
+
+		// Test GET method
+		res := preparePartitionDownscale(t, http.MethodGet, liveStoreInactive)
+		require.Greater(t, res.Timestamp, int64(0)) // ts > 0 ==> INACTIVE
+		require.Equal(t, "PartitionInactive", res.State)
+		res = preparePartitionDownscale(t, http.MethodGet, liveStoreActive)
+		require.Equal(t, "PartitionActive", res.State) // still active
+
+		for _, component := range []*e2e.HTTPService{liveStoreInactive, liveStoreActive, distributor} {
+			verifyPartitionState(t, component, "Inactive", 1)
+			verifyPartitionState(t, component, "Active", 1)
+		}
+	})
+
+	t.Run("verify data is still accessible during downscale", func(t *testing.T) {
+		// Even with partition INACTIVE, existing data should still be queryable
+		// from the live-store during the grace period
+		trace, err := apiClient.QueryTrace(firstTrace.HexID())
+		require.NoError(t, err)
+		require.NotNil(t, trace)
+		require.Equal(t, util.SpanCount(expected), util.SpanCount(trace))
+	})
+
+	t.Run("generate new traces during downscale", func(t *testing.T) {
+		inactiveCount, err := liveStoreInactive.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
+		require.NoError(t, err)
+
+		// Send 10 traces. In case of a bug when it sends to both live-stores,
+		// possibility of false pass is 1/1024.
+		const numTraces = 10
+		traces := make([]string, 0, numTraces)
+		spanCounts := make([]float64, 0, numTraces)
+
+		// Generate new traces - these should be processed by the other live-store
+		// since the first one is in INACTIVE state
+		for range numTraces {
+			trace, err := tracePool.Generate()
+			require.NoError(t, err)
+			require.NoError(t, trace.EmitAllBatches(c))
+			expected, err := trace.ConstructTraceFromEpoch()
+			require.NoError(t, err)
+			traces = append(traces, trace.HexID())
+			spanCounts = append(spanCounts, util.SpanCount(expected))
+		}
+
+		for _, spanCount := range spanCounts {
+			distributorSpanCount += spanCount
+		}
+		// Wait for new traces to be received
+		require.NoError(t, distributor.WaitSumMetrics(e2e.Equals(distributorSpanCount), "tempo_distributor_spans_received_total"))
+		require.NoError(t, liveStoreActive.WaitSumMetrics(e2e.GreaterOrEqual(float64(1)), "tempo_live_store_records_processed_total"))
+
+		// Verify inactive live-store still has the same number of processed records
+		inactiveCountAfter, err := liveStoreInactive.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
+		require.NoError(t, err)
+		require.Equal(t, inactiveCount, inactiveCountAfter, "inactive count should be the same")
+
+		// The other live-store (not the one being downscaled) should process new records
+		for i, traceID := range traces {
+			actualTrace, err := apiClient.QueryTrace(traceID)
+			require.NoError(t, err)
+			require.Equal(t, spanCounts[i], util.SpanCount(actualTrace))
+		}
+	})
+
+	t.Run("cancel downscale preparation", func(t *testing.T) {
+		// Cancel partition downscale
+		res := preparePartitionDownscale(t, http.MethodDelete, liveStoreInactive)
+		require.Equal(t, int64(0), res.Timestamp) // ts == 0 ==> ACTIVE
+		require.Equal(t, "PartitionActive", res.State)
+
+		// Verify partition is back to ACTIVE
+		res = preparePartitionDownscale(t, http.MethodGet, liveStoreInactive)
+		require.Equal(t, int64(0), res.Timestamp) // ts == 0 ==> ACTIVE
+		require.Equal(t, "PartitionActive", res.State)
+
+		for _, component := range []*e2e.HTTPService{liveStoreInactive, liveStoreActive, distributor} {
+			verifyPartitionState(t, component, "Active", 2)
+		}
+		for _, liveStore := range []*e2e.HTTPService{liveStoreInactive, liveStoreActive} {
+			res := preparePartitionDownscale(t, http.MethodGet, liveStore)
+			require.Equal(t, "PartitionActive", res.State)
+		}
+	})
+
+	t.Run("verify normal operation after cancellation", func(t *testing.T) {
+		inactiveCount, err := liveStoreInactive.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
+		require.NoError(t, err)
+		activeCount, err := liveStoreActive.SumMetrics([]string{"tempo_live_store_records_processed_total"}, e2e.SkipMissingMetrics)
+		require.NoError(t, err)
+
+		// Send 10 traces. Possibility of false positive is 1/1024.
+		const numTraces = 10
+		traces := make([]string, 0, numTraces)
+		spanCounts := make([]float64, 0, numTraces)
+
+		for range numTraces {
+			trace, err := tracePool.Generate()
+			require.NoError(t, err)
+			require.NoError(t, trace.EmitAllBatches(c))
+			expected, err := trace.ConstructTraceFromEpoch()
+			require.NoError(t, err)
+			traces = append(traces, trace.HexID())
+			spanCounts = append(spanCounts, util.SpanCount(expected))
+		}
+
+		// Wait for new traces to be received
+		for _, spanCount := range spanCounts {
+			distributorSpanCount += spanCount
+		}
+		// Verify distributor and both live-stores have processed new records
+		require.NoError(t, distributor.WaitSumMetrics(e2e.Equals(distributorSpanCount), "tempo_distributor_spans_received_total"))
+		require.NoError(t, liveStoreActive.WaitSumMetrics(e2e.Greater(activeCount[0]), "tempo_live_store_records_processed_total"))
+		require.NoError(t, liveStoreInactive.WaitSumMetrics(e2e.Greater(inactiveCount[0]), "tempo_live_store_records_processed_total"))
+
+		// The other live-store (not the one being downscaled) should process new records
+		for i, traceID := range traces {
+			actualTrace, err := apiClient.QueryTrace(traceID)
+			require.NoError(t, err)
+			require.Equal(t, spanCounts[i], util.SpanCount(actualTrace))
+		}
+	})
+}
+
+type tracePool struct {
+	pool map[string]*tempoUtil.TraceInfo
+	ts   time.Time
+	idx  int
+}
+
+func newTracePool() *tracePool {
+	return &tracePool{
+		pool: make(map[string]*tempoUtil.TraceInfo),
+		ts:   time.Now(),
+		idx:  0,
+	}
+}
+
+func (p *tracePool) Generate() (*tempoUtil.TraceInfo, error) {
+	p.idx++
+	// We add a second to make sure the trace ID is different
+	// as seed of the rand is based on the timestamp
+	info := tempoUtil.NewTraceInfo(p.ts.Add(time.Second*time.Duration(p.idx)), "")
+	if p.pool[info.HexID()] != nil {
+		return nil, fmt.Errorf("test is invalid, generated the same trace ID: %s", info.HexID())
+	}
+	p.pool[info.HexID()] = info
+	return info, nil
+}
+
+func TestTracePool(t *testing.T) {
+	pool := newTracePool()
+	for i := range 50 {
+		trace, err := pool.Generate()
+		require.NoError(t, err, "error generating trace %d", i)
+		require.NotNil(t, trace, "trace is nil for %d", i)
+	}
+}
+
+func waitForTraceInLiveStore(t *testing.T, expectedRecords int, liveStores ...*e2e.HTTPService) *e2e.HTTPService {
+	ch := make(chan *e2e.HTTPService)
+	timeout := 30 * time.Second
+
+	for _, liveStore := range liveStores {
+		go func(liveStore *e2e.HTTPService) {
+			err := liveStore.WaitSumMetrics(e2e.GreaterOrEqual(float64(expectedRecords)), "tempo_live_store_records_processed_total")
+			if err == nil {
+				ch <- liveStore
+			}
+		}(liveStore)
+	}
+
+	select {
+	case liveStore := <-ch:
+		{
+			close(ch)
+			return liveStore
+		}
+	case <-time.After(timeout):
+		t.Fatalf("timeout waiting for trace to appear in any live-store after %s", timeout)
+	}
+	return nil
+}
+
+func verifyPartitionState(t *testing.T, liveStore *e2e.HTTPService, expectedState string, expectedCount int) {
+	partitionStateMatchers := []*labels.Matcher{
+		{Type: labels.MatchEqual, Name: "state", Value: expectedState},
+		{Type: labels.MatchEqual, Name: "name", Value: "livestore-partitions"},
+	}
+	require.NoError(t, liveStore.WaitSumMetricsWithOptions(e2e.Equals(float64(expectedCount)), []string{"tempo_partition_ring_partitions"}, e2e.WithLabelMatchers(partitionStateMatchers...)))
+}
+
+type preparePartitionDownscaleResponse struct {
+	Timestamp int64  `json:"timestamp"`
+	State     string `json:"state"`
+}
+
+func preparePartitionDownscale(t *testing.T, method string, liveStore *e2e.HTTPService) preparePartitionDownscaleResponse {
+	req, err := http.NewRequest(method, "http://"+liveStore.Endpoint(3200)+"/live-store/prepare-partition-downscale", nil)
+	require.NoError(t, err)
+	httpResp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, httpResp.StatusCode)
+
+	var result preparePartitionDownscaleResponse
+	require.NoError(t, json.NewDecoder(httpResp.Body).Decode(&result))
+	return result
 }
