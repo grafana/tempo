@@ -337,14 +337,16 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 
 				var hasChildOfLink bool
 				for _, spanLink := range s.Links {
-					for _, attr := range spanLink.GetAttributes() {
-						if attr.Key == "opentracing.ref_type" && attr.GetValue().GetStringValue() == "child_of" {
-							hasChildOfLink = true
+					if bytes.Equal(s.TraceId, spanLink.TraceId) {
+						for _, attr := range spanLink.GetAttributes() {
+							if attr.Key == "opentracing.ref_type" && attr.GetValue().GetStringValue() == "child_of" {
+								hasChildOfLink = true
+								break
+							}
+						}
+						if hasChildOfLink {
 							break
 						}
-					}
-					if hasChildOfLink {
-						break
 					}
 				}
 
