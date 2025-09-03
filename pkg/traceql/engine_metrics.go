@@ -1510,17 +1510,17 @@ type IntervalMapperQueryRange struct {
 	intervalCount    int
 }
 
-func (i *IntervalMapperQueryRange) Interval(ts uint64) int {
+func (i IntervalMapperQueryRange) Interval(ts uint64) int {
 	return i.interval(ts, i.start, i.end, i.step)
 }
 
-func (i *IntervalMapperQueryRange) IntervalMs(tsmill int64) int {
+func (i IntervalMapperQueryRange) IntervalMs(tsmill int64) int {
 	ts := uint64(time.Duration(tsmill) * time.Millisecond)
 	// TODO: step is not truncated to milliseconds, it might be a bug
 	return i.interval(ts, i.startMs, i.endMs, i.step)
 }
 
-func (i *IntervalMapperQueryRange) interval(ts, start, end, step uint64) int {
+func (i IntervalMapperQueryRange) interval(ts, start, end, step uint64) int {
 	if !i.isTsValid(ts, start, end, step) {
 		return -1
 	}
@@ -1540,16 +1540,16 @@ func (i *IntervalMapperQueryRange) interval(ts, start, end, step uint64) int {
 	return int(interval)
 }
 
-func (i *IntervalMapperQueryRange) TimestampOf(interval int) uint64 {
+func (i IntervalMapperQueryRange) TimestampOf(interval int) uint64 {
 	// start as initial offset plus interval's offset
 	return i.start + (uint64(interval)+1)*i.step
 }
 
-func (i *IntervalMapperQueryRange) IntervalCount() int {
+func (i IntervalMapperQueryRange) IntervalCount() int {
 	return i.intervalCount
 }
 
-func (i *IntervalMapperQueryRange) isTsValid(ts, start, end, step uint64) bool {
+func (i IntervalMapperQueryRange) isTsValid(ts, start, end, step uint64) bool {
 	return ts > start && ts <= end && end != start && step != 0
 }
 
@@ -1558,14 +1558,14 @@ type IntervalMapperInstant struct {
 	startMs, endMs uint64
 }
 
-func (i *IntervalMapperInstant) Interval(ts uint64) int {
+func (i IntervalMapperInstant) Interval(ts uint64) int {
 	if !i.isTsValid(ts, i.start, i.end) {
 		return -1
 	}
 	return 0 // Instant queries only have one bucket
 }
 
-func (i *IntervalMapperInstant) IntervalMs(tsmill int64) int {
+func (i IntervalMapperInstant) IntervalMs(tsmill int64) int {
 	ts := uint64(time.Duration(tsmill) * time.Millisecond)
 	if !i.isTsValid(ts, i.startMs, i.endMs) {
 		return -1
@@ -1574,15 +1574,15 @@ func (i *IntervalMapperInstant) IntervalMs(tsmill int64) int {
 	return 0 // Instant queries only have one bucket
 }
 
-func (i *IntervalMapperInstant) IntervalCount() int {
+func (i IntervalMapperInstant) IntervalCount() int {
 	return 1 // Instant queries only have one bucket
 }
 
-func (i *IntervalMapperInstant) TimestampOf(int) uint64 {
+func (i IntervalMapperInstant) TimestampOf(int) uint64 {
 	return i.end
 }
 
-func (i *IntervalMapperInstant) isTsValid(ts, start, end uint64) bool {
+func (i IntervalMapperInstant) isTsValid(ts, start, end uint64) bool {
 	return ts >= start && ts <= end && end != start
 }
 
