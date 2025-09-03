@@ -4,6 +4,7 @@
 * [ENHANCEMENT] On startup, first record for live store to consume is not older than two complete block timeouts [#5693](https://github.com/grafana/tempo/pull/5693) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add secure connection support to tempo-cli [#5692](https://github.com/grafana/tempo/pull/5692) (@TheoBrigitte)
 * [ENHANCEMENT] Add config to enable instance label for spanmetrics series[#5706](https://github.com/grafana/tempo/pull/5706) (@ie-pham)
+* [ENHANCEMENT] Add endpoints for partition downscaling for live-store [#5600](https://github.com/grafana/tempo/pull/5600) (@ruslan-mikhailov)
 
 # v2.9.0-rc.0
 
