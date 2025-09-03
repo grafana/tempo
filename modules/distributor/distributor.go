@@ -465,7 +465,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	maxAttributeBytes := d.getMaxAttributeBytes(userID)
 
-	ringTokens, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
+	ringTokens, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes, d.logger)
 	if err != nil {
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
@@ -692,44 +692,60 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 	}, ring.DoBatchOptions{})
 }
 
+type truncatedAttribute struct {
+	attributeName string
+	originalSize  int
+}
+
+func logTruncatedAttributes(truncatedAttr []truncatedAttribute, message string, tenant string, l log.Logger) {
+	// Group by attribute name for better insights
+	attrSummary := make(map[string]int) // attr_name -> []original_sizes
+	for _, attr := range truncatedAttr {
+		attrSummary[attr.attributeName] = attr.originalSize
+	}
+
+	l.Log(message,
+		"tenant", tenant,
+		"total_truncated", len(truncatedAttr),
+		"unique_attributes", len(attrSummary),
+		"attribute_details", attrSummary,
+	)
+}
+
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, int, error) {
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int, l log.Logger) (ringTokens []uint32, traces []*rebatchedTrace, truncatedCount int, error error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
-	truncatedAttributeCount := 0
+	truncatedAttributes := make([]truncatedAttribute, 0, 30)
+	truncatedAttributesName := make([]truncatedAttribute, 0, 30)
 	currentTime := uint32(time.Now().Unix())
 	for _, b := range batches {
 		spansByILS := make(map[uint64]*v1.ScopeSpans)
 		// check resource for large attributes
 		if maxSpanAttrSize > 0 && b.Resource != nil {
-			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
-			truncatedAttributeCount += resourceAttrTruncatedCount
+			processAttributes(b.Resource.Attributes, maxSpanAttrSize, &truncatedAttributes, &truncatedAttributesName)
 		}
 
 		for _, ils := range b.ScopeSpans {
 
 			// check instrumentation for large attributes
 			if maxSpanAttrSize > 0 && ils.Scope != nil {
-				scopeAttrTruncatedCount := processAttributes(ils.Scope.Attributes, maxSpanAttrSize)
-				truncatedAttributeCount += scopeAttrTruncatedCount
+				processAttributes(ils.Scope.Attributes, maxSpanAttrSize, &truncatedAttributes, &truncatedAttributesName)
 			}
 
 			for _, span := range ils.Spans {
 				// check spans for large attributes
 				if maxSpanAttrSize > 0 {
-					spanAttrTruncatedCount := processAttributes(span.Attributes, maxSpanAttrSize)
-					truncatedAttributeCount += spanAttrTruncatedCount
+					processAttributes(span.Attributes, maxSpanAttrSize, &truncatedAttributes, &truncatedAttributesName)
 
 					// check large attributes for events and links
 					for _, event := range span.Events {
-						eventAttrTruncatedCount := processAttributes(event.Attributes, maxSpanAttrSize)
-						truncatedAttributeCount += eventAttrTruncatedCount
+						processAttributes(event.Attributes, maxSpanAttrSize, &truncatedAttributes, &truncatedAttributesName)
 					}
 
 					for _, link := range span.Links {
-						linkAttrTruncatedCount := processAttributes(link.Attributes, maxSpanAttrSize)
-						truncatedAttributeCount += linkAttrTruncatedCount
+						processAttributes(link.Attributes, maxSpanAttrSize, &truncatedAttributes, &truncatedAttributesName)
 					}
 				}
 				traceID := span.TraceId
@@ -803,38 +819,44 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 
 	metricTracesPerBatch.Observe(float64(len(tracesByID)))
 
-	ringTokens := make([]uint32, 0, len(tracesByID))
-	traces := make([]*rebatchedTrace, 0, len(tracesByID))
+	ringTokens = make([]uint32, 0, len(tracesByID))
+	traces = make([]*rebatchedTrace, 0, len(tracesByID))
 
 	for _, tr := range tracesByID {
 		ringTokens = append(ringTokens, util.TokenFor(userID, tr.id))
 		traces = append(traces, tr)
 	}
 
-	return ringTokens, traces, truncatedAttributeCount, nil
+	if len(truncatedAttributes) > 0 {
+		logTruncatedAttributes(truncatedAttributes, "attributes values truncated in batch", userID, level.Warn(l))
+	}
+
+	if len(truncatedAttributesName) > 0 {
+		logTruncatedAttributes(truncatedAttributesName, "attributes names truncated in batch", userID, level.Warn(l))
+	}
+
+	return ringTokens, traces, len(truncatedAttributes) + len(truncatedAttributesName), nil
 }
 
 // find and truncate the span attributes that are too large
-func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int) int {
-	count := 0
+func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncatedAttributesValues *[]truncatedAttribute, truncatedAttributesName *[]truncatedAttribute) {
 	for _, attr := range attributes {
+		keyLenght := len(attr.Key)
 		if len(attr.Key) > maxAttrSize {
 			attr.Key = attr.Key[:maxAttrSize]
-			count++
+			*truncatedAttributesName = append(*truncatedAttributesName, truncatedAttribute{attributeName: attr.Key, originalSize: keyLenght})
 		}
-
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
-			if len(value.StringValue) > maxAttrSize {
+			valueLenght := len(value.StringValue)
+			if valueLenght > maxAttrSize {
 				value.StringValue = value.StringValue[:maxAttrSize]
-				count++
+				*truncatedAttributesValues = append(*truncatedAttributesValues, truncatedAttribute{attributeName: attr.Key, originalSize: valueLenght})
 			}
 		default:
 			continue
 		}
 	}
-
-	return count
 }
 
 // discardedPredicate determines if a trace is discarded based on the number of successful replications.

@@ -941,7 +941,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			if tt.emptyTenant {
 				tenant = ""
 			}
-			ringTokens, rebatchedTraces, _, err := requestsByTraceID(tt.batches, tenant, 1, 1000)
+			ringTokens, rebatchedTraces, _, err := requestsByTraceID(tt.batches, tenant, 1, 1000, kitlog.NewNopLogger())
 			require.Equal(t, len(ringTokens), len(rebatchedTraces))
 
 			for i, expectedID := range tt.expectedIDs {
@@ -969,6 +969,7 @@ func TestRequestsByTraceID(t *testing.T) {
 func TestProcessAttributes(t *testing.T) {
 	spanCount := 10
 	batchCount := 3
+	logger := kitlog.NewNopLogger()
 	trace := test.MakeTraceWithSpanCount(batchCount, spanCount, []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F})
 
 	maxAttrByte := 1000
@@ -1023,9 +1024,9 @@ func TestProcessAttributes(t *testing.T) {
 		},
 	}
 
-	_, rebatchedTrace, truncatedCount, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
+	_, rebatchedTrace, truncatedAttr, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte, logger)
 	// 2 at resource level, 2 at span level, 2 at event level, 2 at link level, 2 at scope level
-	assert.Equal(t, 10, truncatedCount)
+	assert.Equal(t, 10, truncatedAttr)
 	for _, rT := range rebatchedTrace {
 		for _, resource := range rT.trace.ResourceSpans {
 			// find large resource attributes
@@ -1113,7 +1114,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 				{
 					ScopeSpans: blerg,
 				},
-			}, "test", spansPer*len(traces), 5)
+			}, "test", spansPer*len(traces), 5, kitlog.NewNopLogger())
 			require.NoError(b, err)
 		}
 	}
@@ -2419,7 +2420,7 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 				},
 			},
 		}
-		_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+		_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000, kitlog.NewNopLogger())
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "span ids must be 64 bit")
 	}
@@ -2439,6 +2440,6 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 			},
 		},
 	}
-	_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+	_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000, kitlog.NewNopLogger())
 	require.NoError(t, err)
 }
