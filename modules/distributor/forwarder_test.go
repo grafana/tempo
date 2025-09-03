@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	kitlog "github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,7 @@ func TestForwarder(t *testing.T) {
 	require.NoError(t, err)
 
 	b := test.MakeBatch(10, id)
-	keys, rebatchedTraces, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000, kitlog.NewNopLogger())
+	keys, rebatchedTraces, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000, log.NewNopLogger())
 	require.NoError(t, err)
 
 	o, err := overrides.NewOverrides(oCfg, nil, prometheus.DefaultRegisterer)
