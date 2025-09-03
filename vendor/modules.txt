@@ -735,7 +735,6 @@ github.com/grafana/dskit/server
 github.com/grafana/dskit/services
 github.com/grafana/dskit/signals
 github.com/grafana/dskit/spanlogger
-github.com/grafana/dskit/spanprofiler
 github.com/grafana/dskit/tenant
 github.com/grafana/dskit/test
 github.com/grafana/dskit/tracing
@@ -1587,9 +1586,6 @@ go.mongodb.org/mongo-driver/x/bsonx/bsoncore
 ## explicit; go 1.13
 go.opencensus.io
 go.opencensus.io/internal
-go.opencensus.io/metric/metricdata
-go.opencensus.io/metric/metricproducer
-go.opencensus.io/resource
 go.opencensus.io/resource/resourcekeys
 go.opencensus.io/trace
 go.opencensus.io/trace/internal
@@ -1925,17 +1921,6 @@ go.opentelemetry.io/otel/semconv/v1.37.0
 go.opentelemetry.io/otel/semconv/v1.37.0/otelconv
 go.opentelemetry.io/otel/semconv/v1.6.1
 go.opentelemetry.io/otel/semconv/v1.9.0
-# go.opentelemetry.io/otel/bridge/opencensus v1.38.0
-## explicit; go 1.23.0
-go.opentelemetry.io/otel/bridge/opencensus
-go.opentelemetry.io/otel/bridge/opencensus/internal
-go.opentelemetry.io/otel/bridge/opencensus/internal/oc2otel
-go.opentelemetry.io/otel/bridge/opencensus/internal/ocmetric
-go.opentelemetry.io/otel/bridge/opencensus/internal/otel2oc
-# go.opentelemetry.io/otel/bridge/opentracing v1.38.0
-## explicit; go 1.23.0
-go.opentelemetry.io/otel/bridge/opentracing
-go.opentelemetry.io/otel/bridge/opentracing/migration
 # go.opentelemetry.io/otel/exporters/jaeger v1.17.0
 ## explicit; go 1.19
 go.opentelemetry.io/otel/exporters/jaeger

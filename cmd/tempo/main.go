@@ -14,15 +14,11 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
-	"github.com/grafana/dskit/spanprofiler"
-	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel"
-	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
-	ot_bridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
@@ -31,7 +27,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/cmd/tempo/build"
 	"github.com/grafana/tempo/pkg/gogocodec"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -232,9 +227,10 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	resources, err := resource.New(context.Background(),
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, config.Target)),
-			semconv.ServiceVersionKey.String(build.Version),
+			semconv.ServiceVersionKey.String(fmt.Sprintf("%s-%s", Version, Revision)),
 		),
 		resource.WithHost(),
+		resource.WithTelemetrySDK(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialise trace resources: %w", err)
@@ -261,17 +257,6 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 
 	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
 	otel.SetTextMapPropagator(propagator)
-
-	// Install the OpenTracing bridge
-	// TODO the bridge emits warnings because the Jaeger exporter does not defer context setup
-	bridgeTracer, _ := ot_bridge.NewTracerPair(tp.Tracer("OpenTracing"))
-	bridgeTracer.SetWarningHandler(func(msg string) {
-		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
-	})
-	ot.SetGlobalTracer(spanprofiler.NewTracer(bridgeTracer))
-
-	// Install the OpenCensus bridge
-	oc_bridge.InstallTraceBridge(oc_bridge.WithTracerProvider(tp))
 
 	return shutdown, nil
 }

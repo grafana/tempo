@@ -21,6 +21,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [CHANGE] **BREAKING CHANGE** TraceQL Metrics buckets are calculated based on data in past [#5366](https://github.com/grafana/tempo/pull/5366) (@ruslan-mikhailov)
 * [CHANGE] Change worker to shutdown after the current job, waiting 30s by default [#5460](https://github.com/grafana/tempo/pull/5460) (@zalegrala)
 * [CHANGE] Upgrade Tempo to go 1.25.0 [#5548](https://github.com/grafana/tempo/pull/5548) (@javiermolinar)
+* [CHANGE] Drop tracing bridges in favor of otel-only tracing [#5594](https://github.com/grafana/tempo/pull/5594) (@zalegrala)
 * [FEATURE] New block encoding vParquet5-preview1 with low-resolution timestamp columns for better TraceQL metrics performance. This format is in development and breaking changes are expected before final release. [#5495](https://github.com/grafana/tempo/pull/5495) (@mdisibio)
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
 * [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
