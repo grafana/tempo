@@ -47,6 +47,10 @@ var (
 	rf1After             time.Time
 	tempoQueryLiveStores bool
 	logger               *zap.Logger
+
+	validationMode    bool
+	validationCycles  int
+	validationTimeout time.Duration
 )
 
 type traceMetrics struct {
@@ -61,6 +65,14 @@ type traceMetrics struct {
 	requested               int
 	requestFailed           int
 	notFoundSearchAttribute int
+}
+
+// getTotalErrors returns the total number of errors across all metrics
+func (tm traceMetrics) getTotalErrors() int {
+	return tm.incorrectResult + tm.incorrectMetricsResult + tm.missingSpans +
+		tm.notFoundByID + tm.notFoundSearch + tm.notFoundTraceQL +
+		tm.notFoundByMetrics + tm.inaccurateMetrics + tm.requestFailed +
+		tm.notFoundSearchAttribute
 }
 
 const (
@@ -123,6 +135,11 @@ func init() {
 	flag.DurationVar(&tempoMetricsBackoffDuration, "tempo-metrics-backoff-duration", 0, "The amount of time to pause between TraceQL Metrics Tempo calls.  Set to 0s to disable.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 	flag.DurationVar(&tempoRecentTracesCutoffDuration, "tempo-recent-traces-backoff-duration", 14*time.Minute, "Cutoff between recent and old traces query checks")
+
+	// Validation mode flags
+	flag.BoolVar(&validationMode, "validation-mode", false, "Run in validation mode: execute a fixed number of cycles and exit with status code")
+	flag.IntVar(&validationCycles, "validation-cycles", 3, "Number of write/read cycles to perform in validation mode")
+	flag.DurationVar(&validationTimeout, "validation-timeout", 5*time.Minute, "Maximum time to run validation mode before timing out")
 
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
 	flag.BoolVar(&tempoQueryLiveStores, "tempo-query-livestore", false, "When to query live stores")
@@ -198,6 +215,13 @@ func main() {
 		}
 		newStart, ts = selectPastTimestamp(startTime, newest, interval, vultureConfig.tempoRetentionDuration, r)
 		return
+	}
+
+	// Check if we're running in validation mode
+	if validationMode {
+		logger.Info("Running in validation mode", zap.Int("cycles", validationCycles), zap.Duration("timeout", validationTimeout))
+		exitCode := runValidationMode(vultureConfig, jaegerClient, httpClient, startTime, r, interval, logger)
+		os.Exit(exitCode)
 	}
 
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
