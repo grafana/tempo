@@ -85,7 +85,7 @@ var (
 	metricBytesIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_bytes_received_total",
-		Help:      "The total number of proto bytes received per tenant",
+		Help:      "The total number of proto bytes received per tenant, after limits",
 	}, []string{"tenant"})
 	metricIngressBytes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
