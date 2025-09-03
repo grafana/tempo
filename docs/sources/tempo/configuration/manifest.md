@@ -26,6 +26,7 @@ server:
     grpc_listen_address: ""
     grpc_listen_port: 9095
     grpc_listen_conn_limit: 0
+    grpc_collect_max_streams_by_conn: true
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
@@ -75,12 +76,19 @@ server:
     log_request_headers: false
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
+    trace_request_headers: false
+    trace_request_exclude_headers_list: ""
     http_path_prefix: ""
     cluster_validation:
         label: ""
         grpc:
             enabled: false
             soft_validation: false
+        http:
+            enabled: false
+            soft_validation: false
+            excluded_paths: ""
+            excluded_user_agents: ""
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -90,6 +98,7 @@ internal_server:
     grpc_listen_address: ""
     grpc_listen_port: 0
     grpc_listen_conn_limit: 0
+    grpc_collect_max_streams_by_conn: false
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
@@ -139,12 +148,19 @@ internal_server:
     log_request_headers: false
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
+    trace_request_headers: false
+    trace_request_exclude_headers_list: ""
     http_path_prefix: ""
     cluster_validation:
         label: ""
         grpc:
             enabled: false
             soft_validation: false
+        http:
+            enabled: false
+            soft_validation: false
+            excluded_paths: ""
+            excluded_user_agents: ""
     enable: false
 distributor:
     ring:
@@ -194,6 +210,7 @@ distributor:
         cost_attribution:
             max_cardinality: 10000
             stale_duration: 15m0s
+    ingester_write_path_enabled: true
     kafka_write_path_enabled: false
     kafka_config:
         address: ""
@@ -212,6 +229,7 @@ distributor:
         producer_max_buffered_bytes: 0
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
+        consumer_group_lag_metric_update_interval: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
     max_attribute_bytes: 2048
@@ -281,6 +299,39 @@ metrics_generator_client:
         connect_backoff_max_delay: 5s
         cluster_validation:
             label: ""
+live_store_client:
+    pool_config:
+        checkinterval: 15s
+        healthcheckenabled: true
+        healthchecktimeout: 1s
+        maxconcurrenthealthchecks: 0
+    remote_timeout: 5s
+    grpc_client_config:
+        max_recv_msg_size: 104857600
+        max_send_msg_size: 104857600
+        grpc_compression: snappy
+        rate_limit: 0
+        rate_limit_burst: 0
+        backoff_on_ratelimits: false
+        backoff_config:
+            min_period: 100ms
+            max_period: 10s
+            max_retries: 10
+        initial_stream_window_size: 63KiB1023B
+        initial_connection_window_size: 63KiB1023B
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
+        connect_timeout: 5s
+        connect_backoff_base_delay: 1s
+        connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
 querier:
     search:
         query_timeout: 30s
@@ -289,6 +340,9 @@ querier:
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
+    partition_ring:
+        minimize_requests: true
+        hedging_delay: 3s
     max_concurrent_queries: 20
     frontend_worker:
         frontend_address: ""
@@ -334,7 +388,7 @@ query_frontend:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
         default_result_limit: 20
-        max_result_limit: 262144
+        max_result_limit: 0
         max_duration: 168h0m0s
         query_backend_after: 15m0s
         query_ingesters_until: 30m0s
@@ -350,6 +404,7 @@ query_frontend:
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
+        max_intervals: 10000
     multi_tenant_queries_enabled: true
     response_consumers: 10
     weights:
@@ -357,6 +412,8 @@ query_frontend:
         retry_with_weights: true
         max_traceql_conditions: 4
         max_regex_conditions: 1
+    mcp_server:
+        enabled: false
     max_query_expression_size_bytes: 131072
     rf1_after: 0001-01-01T00:00:00Z
 compactor:
@@ -556,6 +613,7 @@ metrics_generator:
         instance_addr: ""
         instance_port: 0
         enable_inet6: false
+        instance_zone: ""
     processor:
         service_graphs:
             wait: 10s
@@ -705,6 +763,7 @@ ingest:
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
+        consumer_group_lag_metric_update_interval: 1m0s
 block_builder:
     instance_id: hostname
     assigned_partitions: {}
@@ -938,6 +997,7 @@ memberlist:
     min_join_backoff: 1s
     max_join_backoff: 1m0s
     max_join_retries: 10
+    abort_if_cluster_fast_join_fails: false
     abort_if_cluster_join_fails: false
     rejoin_interval: 0s
     left_ingesters_timeout: 5m0s
@@ -945,6 +1005,7 @@ memberlist:
     leave_timeout: 20s
     broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0
+    watch_prefix_buffer_size: 128
     bind_addr: []
     bind_port: 7946
     packet_dial_timeout: 2s
@@ -971,11 +1032,11 @@ cache:
         writeback_buffer: 10000
     caches: []
 backend_scheduler:
-    tenant_measurement_interval: 1m0s
     work:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
     maintenance_interval: 1m0s
+    backend_flush_interval: 1m0s
     provider:
         retention:
             interval: 1h0m0s
@@ -994,11 +1055,12 @@ backend_scheduler:
                 max_time_per_tenant: 5m0s
                 compaction_cycle: 30s
             max_jobs_per_tenant: 1000
-            backoff:
-                min_period: 100ms
-                max_period: 10s
-                max_retries: 0
+            min_input_blocks: 2
+            max_input_blocks: 4
+            max_compaction_level: 0
+            min_cycle_interval: 30s
     job_timeout: 15s
+    local_work_path: /var/tempo
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
@@ -1088,4 +1150,102 @@ backend_worker:
         instance_addr: ""
         enable_inet6: false
         wait_active_instance_timeout: 10m0s
+    finish_on_shutdown_timeout: 30s
+live_store:
+    ring:
+        kvstore:
+            store: memberlist
+            prefix: collectors/
+            consul:
+                host: localhost:8500
+                acl_token: ""
+                http_client_timeout: 20s
+                consistent_reads: false
+                watch_rate_limit: 1
+                watch_burst_size: 1
+                cas_retry_delay: 1s
+            etcd:
+                endpoints: []
+                dial_timeout: 10s
+                max_retries: 10
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                username: ""
+                password: ""
+            multi:
+                primary: ""
+                secondary: ""
+                mirror_enabled: false
+                mirror_timeout: 2s
+        heartbeat_period: 5s
+        heartbeat_timeout: 1m0s
+        instance_id: hostname
+        instance_interface_names:
+            - eth0
+        instance_addr: ""
+        instance_port: 0
+        enable_inet6: false
+        instance_zone: ""
+    partition_ring:
+        kvstore:
+            store: memberlist
+            prefix: collectors/
+            consul:
+                host: localhost:8500
+                acl_token: ""
+                http_client_timeout: 20s
+                consistent_reads: false
+                watch_rate_limit: 1
+                watch_burst_size: 1
+                cas_retry_delay: 1s
+            etcd:
+                endpoints: []
+                dial_timeout: 10s
+                max_retries: 10
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                username: ""
+                password: ""
+            multi:
+                primary: ""
+                secondary: ""
+                mirror_enabled: false
+                mirror_timeout: 2s
+        min_partition_owners_count: 1
+        min_partition_owners_duration: 10s
+        delete_inactive_partition_after: 13h0m0s
+    metrics:
+        time_overlap_cutoff: 0.2
+    query_block_concurrency: 10
+    complete_block_timeout: 1h0m0s
+    complete_block_concurrency: 4
+    flush_check_period: 10s
+    flush_op_timeout: 5m0s
+    max_trace_live: 30s
+    max_trace_idle: 5s
+    max_block_duration: 30m0s
+    max_block_bytes: 524288000
+    block_config:
+        bloom_filter_false_positive: 0.01
+        bloom_filter_shard_size_bytes: 102400
+        version: ""
+        search_encoding: snappy
+        search_page_size_bytes: 1048576
+        v2_index_downsample_bytes: 1048576
+        v2_index_page_size_bytes: 256000
+        v2_encoding: zstd
+        parquet_row_group_size_bytes: 100000000
+        parquet_dedicated_columns: []
 ```
