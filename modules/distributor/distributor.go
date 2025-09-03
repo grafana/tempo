@@ -710,7 +710,7 @@ func logTruncatedAttributes(truncatedAttr []truncatedAttribute, message string, 
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int, l log.Logger) (ringTokens []uint32, traces []*rebatchedTrace, truncatedCount int, error error) {
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int, l log.Logger) (ringTokens []uint32, traces []*rebatchedTrace, truncatedCount int, err error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
 	truncatedAttributes := make([]truncatedAttribute, 0, 30)
@@ -801,7 +801,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				}
 
 				// increase span count for trace
-				existingTrace.spanCount = existingTrace.spanCount + 1
+				existingTrace.spanCount++
 
 				// Count spans with timestamps in the future
 				if end > currentTime {
