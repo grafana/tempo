@@ -694,8 +694,8 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 }
 
 type truncatedAttribute struct {
-	AttributeName string `json:"attributeName"`
-	OriginalSize  int    `json:"originalSize"`
+	AttributeName     string `json:"attributeName"`
+	OriginalSizeBytes int    `json:"originalSizeBytes"`
 }
 
 func logTruncatedAttributes(truncatedAttr []truncatedAttribute, message string, tenant string, l log.Logger) {
@@ -840,14 +840,14 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 		keyLenght := len(attr.Key)
 		if len(attr.Key) > maxAttrSize {
 			attr.Key = attr.Key[:maxAttrSize]
-			*truncatedAttributesName = append(*truncatedAttributesName, truncatedAttribute{AttributeName: attr.Key, OriginalSize: keyLenght})
+			*truncatedAttributesName = append(*truncatedAttributesName, truncatedAttribute{AttributeName: attr.Key, OriginalSizeBytes: keyLenght})
 		}
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			valueLenght := len(value.StringValue)
 			if valueLenght > maxAttrSize {
 				value.StringValue = value.StringValue[:maxAttrSize]
-				*truncatedAttributesValues = append(*truncatedAttributesValues, truncatedAttribute{AttributeName: attr.Key, OriginalSize: valueLenght})
+				*truncatedAttributesValues = append(*truncatedAttributesValues, truncatedAttribute{AttributeName: attr.Key, OriginalSizeBytes: valueLenght})
 			}
 		default:
 			continue
