@@ -47,15 +47,7 @@ func TestLiveStore(t *testing.T) {
 	// test metrics
 	require.NoError(t, distributor.WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
 
-	liveStoreProcessedRecords := liveStore0
-	err = liveStoreProcessedRecords.WaitSumMetrics(e2e.Equals(1), "tempo_live_store_traces_created_total")
-	if err != nil { // then the trace went to second live store
-		require.Error(t, err, "metric not found")
-		liveStoreProcessedRecords = liveStore1
-		err = liveStoreProcessedRecords.WaitSumMetrics(e2e.Equals(1), "tempo_live_store_traces_created_total")
-		require.NoError(t, err)
-	}
-
+	liveStoreProcessedRecords := waitForTraceInLiveStore(t, 1, liveStore0, liveStore1)
 	// the number of processed records should be reasonable
 	assert.NoError(t, liveStoreProcessedRecords.WaitSumMetrics(e2e.Between(1, 25), "tempo_live_store_records_processed_total"))
 }
