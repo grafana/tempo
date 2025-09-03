@@ -60,6 +60,7 @@
 * [ENHANCEMENT] Refactor method to wait for a healthy broker [#5618](https://github.com/grafana/tempo/pull/5618) (@javiermolinar)
 * [ENHANCEMENT] Remove duplicated metric to count the number of processed records [#5654](https://github.com/grafana/tempo/pull/5654) (@javiermolinar)
 * [ENHANCEMENT] Don't enqueue records to kafka when the context has been cancelled [#5499](https://github.com/grafana/tempo/pull/5499) (@javiermolinar)
+* [ENHANCEMENT] Add endpoints for partition downscaling for live-store [#5600](https://github.com/grafana/tempo/pull/5600) (@ruslan-mikhailov)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
