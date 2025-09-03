@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [CHANGE] Upgrade Tempo to go 1.25.0 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
+* [ENHANCEMENT] Add endpoints for partition downscaling for live-store [#5600](https://github.com/grafana/tempo/pull/5600) (@ruslan-mikhailov)
 
 # v2.9.0-rc.0
 
