@@ -3,6 +3,7 @@ package distributor
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -693,22 +694,17 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 }
 
 type truncatedAttribute struct {
-	attributeName string
-	originalSize  int
+	AttributeName string `json:"attributeName"`
+	OriginalSize  int    `json:"originalSize"`
 }
 
 func logTruncatedAttributes(truncatedAttr []truncatedAttribute, message string, tenant string, l log.Logger) {
-	// Group by attribute name for better insights
-	attrSummary := make(map[string]int) // attr_name -> []original_sizes
-	for _, attr := range truncatedAttr {
-		attrSummary[attr.attributeName] = attr.originalSize
-	}
+	b, _ := json.Marshal(truncatedAttr)
 
-	l.Log(message,
+	l.Log("msg", message,
 		"tenant", tenant,
-		"total_truncated", len(truncatedAttr),
-		"unique_attributes", len(attrSummary),
-		"attribute_details", attrSummary,
+		"truncated_total", len(truncatedAttr),
+		"truncated_attributes", string(b),
 	)
 }
 
@@ -844,14 +840,14 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 		keyLenght := len(attr.Key)
 		if len(attr.Key) > maxAttrSize {
 			attr.Key = attr.Key[:maxAttrSize]
-			*truncatedAttributesName = append(*truncatedAttributesName, truncatedAttribute{attributeName: attr.Key, originalSize: keyLenght})
+			*truncatedAttributesName = append(*truncatedAttributesName, truncatedAttribute{AttributeName: attr.Key, OriginalSize: keyLenght})
 		}
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			valueLenght := len(value.StringValue)
 			if valueLenght > maxAttrSize {
 				value.StringValue = value.StringValue[:maxAttrSize]
-				*truncatedAttributesValues = append(*truncatedAttributesValues, truncatedAttribute{attributeName: attr.Key, originalSize: valueLenght})
+				*truncatedAttributesValues = append(*truncatedAttributesValues, truncatedAttribute{AttributeName: attr.Key, OriginalSize: valueLenght})
 			}
 		default:
 			continue
