@@ -150,30 +150,33 @@ func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
 			continue
 		}
 
-		i.liveTracesMtx.Lock()
-		// Push each batch in the trace to live traces
-		for _, batch := range trace.ResourceSpans {
-			if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
-				continue
+		func() {
+			i.liveTracesMtx.Lock()
+			defer i.liveTracesMtx.Unlock()
+			// Push each batch in the trace to live traces
+			for _, batch := range trace.ResourceSpans {
+				if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
+					continue
+				}
+
+				// Push to live traces with tenant-specific limits
+				if err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), uint64(maxBytes)); err != nil {
+					var reason string
+					switch {
+					case errors.Is(err, livetraces.ErrMaxLiveTracesExceeded):
+						reason = overrides.ReasonLiveTracesExceeded
+					case errors.Is(err, livetraces.ErrMaxTraceSizeExceeded):
+						reason = overrides.ReasonTraceTooLarge
+					default:
+						reason = overrides.ReasonUnknown
+					}
+					level.Debug(i.logger).Log("msg", "dropped spans due to limits", "tenant", i.tenantID, "reason", reason)
+					overrides.RecordDiscardedSpans(countSpans(trace), reason, i.tenantID)
+					continue
+				}
 			}
 
-			// Push to live traces with tenant-specific limits
-			if err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), uint64(maxBytes)); err != nil {
-				var reason string
-				switch {
-				case errors.Is(err, livetraces.ErrMaxLiveTracesExceeded):
-					reason = overrides.ReasonLiveTracesExceeded
-				case errors.Is(err, livetraces.ErrMaxTraceSizeExceeded):
-					reason = overrides.ReasonTraceTooLarge
-				default:
-					reason = overrides.ReasonUnknown
-				}
-				level.Debug(i.logger).Log("msg", "dropped spans due to limits", "tenant", i.tenantID, "reason", reason)
-				overrides.RecordDiscardedSpans(countSpans(trace), reason, i.tenantID)
-				continue
-			}
-		}
-		i.liveTracesMtx.Unlock()
+		}()
 	}
 }
 
@@ -188,13 +191,15 @@ func countSpans(trace *tempopb.Trace) int {
 }
 
 func (i *instance) cutIdleTraces(immediate bool) error {
-	i.liveTracesMtx.Lock()
-	// Set metrics before cutting (similar to ingester)
-	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
-	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
+	tracesToCut := func() []*livetraces.LiveTrace[*v1.ResourceSpans] {
+		i.liveTracesMtx.Lock()
+		defer i.liveTracesMtx.Unlock()
+		// Set metrics before cutting (similar to ingester)
+		metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
+		metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
 
-	tracesToCut := i.liveTraces.CutIdle(time.Now(), immediate)
-	i.liveTracesMtx.Unlock()
+		return i.liveTraces.CutIdle(time.Now(), immediate)
+	}()
 
 	if len(tracesToCut) == 0 {
 		return nil

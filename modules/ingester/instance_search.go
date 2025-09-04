@@ -130,12 +130,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
 	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
-	i.headBlockMtx.RLock()
-	span.AddEvent("acquired headblock mtx")
-	if includeBlock(i.headBlock.BlockMeta(), req) {
-		search(i.headBlock.BlockMeta(), i.headBlock, "headBlock")
-	}
-	i.headBlockMtx.RUnlock()
+	func() {
+		i.headBlockMtx.RLock()
+		defer i.headBlockMtx.RUnlock()
+		span.AddEvent("acquired headblock mtx")
+		if includeBlock(i.headBlock.BlockMeta(), req) {
+			search(i.headBlock.BlockMeta(), i.headBlock, "headBlock")
+		}
+	}()
 	if err := anyErr.Load(); err != nil {
 		return nil, err
 	}
@@ -351,9 +353,11 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 		return nil
 	}
 
-	i.headBlockMtx.RLock()
-	err = search(i.headBlock, distinctValues)
-	i.headBlockMtx.RUnlock()
+	func() {
+		i.headBlockMtx.RLock()
+		defer i.headBlockMtx.RUnlock()
+		err = search(i.headBlock, distinctValues)
+	}()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
 	}

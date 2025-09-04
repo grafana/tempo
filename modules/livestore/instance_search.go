@@ -590,19 +590,24 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	)
 
 	// Check live traces first
-	i.liveTracesMtx.Lock()
-	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
-		tempTrace := &tempopb.Trace{}
-		tempTrace.ResourceSpans = liveTrace.Batches
-		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
-		// live traces format and feels inaccurate.
-		_, err := combiner.Consume(tempTrace)
-		if err != nil {
-			i.liveTracesMtx.Unlock()
-			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
+	var err error
+	func() {
+		i.liveTracesMtx.Lock()
+		defer i.liveTracesMtx.Unlock()
+		if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
+			tempTrace := &tempopb.Trace{}
+			tempTrace.ResourceSpans = liveTrace.Batches
+			// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
+			// live traces format and feels inaccurate.
+			_, err := combiner.Consume(tempTrace)
+			if err != nil {
+				return
+			}
 		}
+	}()
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
 	}
-	i.liveTracesMtx.Unlock()
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
@@ -627,7 +632,7 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 		return nil
 	}
 
-	err := i.iterateBlocks(ctx, time.Unix(0, 0), time.Unix(0, 0), search)
+	err = i.iterateBlocks(ctx, time.Unix(0, 0), time.Unix(0, 0), search)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in FindTraceByID", "err", err)
 		return nil, fmt.Errorf("error searching for trace: %w", err)

@@ -150,6 +150,7 @@ func (f *generatorForwarder) watchOverrides() {
 
 func (f *generatorForwarder) watchOverridesIteration() {
 	f.mutex.Lock()
+	defer f.mutex.Unlock()
 
 	var (
 		queuesToDelete []*queue.Queue[*request]
@@ -197,7 +198,6 @@ func (f *generatorForwarder) watchOverridesIteration() {
 		f.queues[q.tenantID] = f.createQueueAndStartWorkers(q.tenantID, q.queueSize, q.workerCount)
 	}
 
-	f.mutex.Unlock()
 }
 
 func (f *generatorForwarder) start(_ context.Context) error {

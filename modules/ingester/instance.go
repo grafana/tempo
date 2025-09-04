@@ -312,7 +312,11 @@ func (i *instance) CompleteBlock(ctx context.Context, blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	var completingBlock common.WALBlock
 	for _, iterBlock := range i.completingBlocks {
-		if (uuid.UUID)(iterBlock.BlockMeta().BlockID) == blockID {
+		blockMeta := iterBlock.BlockMeta()
+		if blockMeta == nil {
+			continue
+		}
+		if (uuid.UUID)(blockMeta.BlockID) == blockID {
 			completingBlock = iterBlock
 			break
 		}
@@ -331,8 +335,8 @@ func (i *instance) CompleteBlock(ctx context.Context, blockID uuid.UUID) error {
 	ingesterBlock := NewLocalBlock(ctx, backendBlock, i.local)
 
 	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
-	i.blocksMtx.Unlock()
 
 	return nil
 }
@@ -412,18 +416,19 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	metrics := tempopb.TraceByIDMetrics{}
 
 	// live traces
-	i.tracesMtx.Lock()
-	if liveTrace, ok := i.traces[util.HashForTraceID(id)]; ok {
-		completeTrace, err = model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.batches)
-		for _, b := range liveTrace.batches {
-			metrics.InspectedBytes += uint64(len(b))
+	func() {
+		i.tracesMtx.Lock()
+		defer i.tracesMtx.Unlock()
+		if liveTrace, ok := i.traces[util.HashForTraceID(id)]; ok {
+			completeTrace, err = model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.batches)
+			for _, b := range liveTrace.batches {
+				metrics.InspectedBytes += uint64(len(b))
+			}
 		}
-		if err != nil {
-			i.tracesMtx.Unlock()
-			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
-		}
+	}()
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
 	}
-	i.tracesMtx.Unlock()
 
 	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
@@ -435,9 +440,12 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	}
 
 	// headBlock
-	i.headBlockMtx.RLock()
-	tr, err := i.headBlock.FindTraceByID(ctx, id, searchOpts)
-	i.headBlockMtx.RUnlock()
+	var tr *tempopb.TraceByIDResponse
+	func() {
+		i.headBlockMtx.RLock()
+		defer i.headBlockMtx.RUnlock()
+		tr, err = i.headBlock.FindTraceByID(ctx, id, searchOpts)
+	}()
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
@@ -669,8 +677,8 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 	}
 
 	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 	i.completeBlocks = append(i.completeBlocks, rediscoveredBlocks...)
-	i.blocksMtx.Unlock()
 
 	return rediscoveredBlocks, nil
 }
