@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -220,8 +221,39 @@ func main() {
 	// Check if we're running in validation mode
 	if validationMode {
 		logger.Info("Running in validation mode", zap.Int("cycles", validationCycles), zap.Duration("timeout", validationTimeout))
-		exitCode := runValidationMode(vultureConfig, jaegerClient, httpClient, startTime, r, interval, logger)
-		os.Exit(exitCode)
+
+		ctx := context.Background()
+
+		validationConfig := ValidationConfig{
+			Cycles:                validationCycles,
+			Timeout:               validationTimeout,
+			TempoOrgID:            vultureConfig.tempoOrgID,
+			WriteBackoffDuration:  vultureConfig.tempoWriteBackoffDuration,
+			SearchBackoffDuration: vultureConfig.tempoSearchBackoffDuration,
+		}
+
+		service := NewValidationService(validationConfig, RealClock{}, logger)
+		result := service.RunValidation(ctx, jaegerClient, httpClient, httpClient)
+
+		// Log detailed results before exiting
+		logger.Info("Validation completed",
+			zap.Int("total_traces", result.TotalTraces),
+			zap.Int("validations_passed", result.SuccessCount),
+			zap.Int("validations_failed", len(result.Failures)),
+			zap.Duration("duration", result.Duration),
+		)
+
+		// Optionally log each failure for debugging
+		for _, failure := range result.Failures {
+			logger.Error("Validation failure",
+				zap.String("phase", failure.Phase),
+				zap.String("traceID", failure.TraceID),
+				zap.Int("cycle", failure.Cycle),
+				zap.Error(failure.Error),
+			)
+		}
+
+		os.Exit(result.ExitCode())
 	}
 
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
