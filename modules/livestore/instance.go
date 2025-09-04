@@ -1,8 +1,10 @@
 package livestore
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -197,7 +199,10 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 	if len(tracesToCut) == 0 {
 		return nil
 	}
-
+	// Sort by ID
+	sort.Slice(tracesToCut, func(i, j int) bool {
+		return bytes.Compare(tracesToCut[i].ID, tracesToCut[j].ID) == -1
+	})
 	// Collect the trace IDs that will be flushed
 	for _, t := range tracesToCut {
 		err := i.writeHeadBlock(t.ID, t)
