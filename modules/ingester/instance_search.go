@@ -546,6 +546,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
 			}
 		}()
+	} else {
+		i.headBlockMtx.RUnlock()
 	}
 
 	i.blocksMtx.RLock()
