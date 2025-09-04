@@ -204,7 +204,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 				return fmt.Errorf("worker subservices failed: %w", err)
 			default:
 				if err := w.processJobs(jobCtx); err != nil {
-					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
+					level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
 				}
@@ -219,7 +219,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 				return nil
 			default:
 				if err := w.processJobs(jobCtx); err != nil {
-					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
+					level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
 				}
@@ -231,16 +231,19 @@ func (w *BackendWorker) running(ctx context.Context) error {
 }
 
 func (w *BackendWorker) processJobs(ctx context.Context) error {
-	var resp *tempopb.NextJobResponse
-	var err error
+	var (
+		resp *tempopb.NextJobResponse
+		err  error
+	)
 
 	// Request next job
 	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		resp, err = w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
+		var funcErr error
+		resp, funcErr = w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: w.workerID,
 		})
-		if err != nil {
-			if errStatus, ok := status.FromError(err); ok {
+		if funcErr != nil {
+			if errStatus, ok := status.FromError(funcErr); ok {
 				if errStatus.Code() == codes.NotFound {
 					return errStatus.Err()
 				}
@@ -251,6 +254,9 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("failed processing jobs: %w", err)
+	}
 
 	if resp == nil || resp.JobId == "" {
 		return fmt.Errorf("no jobs available")
@@ -348,7 +354,8 @@ func (w *BackendWorker) stopping(_ error) error {
 		return services.StopManagerAndAwaitStopped(context.Background(), w.subservices)
 	}
 
-	// TODO: consider waiting for any jobs to finish
+	level.Info(log.Logger).Log("msg", "backend worker stopped")
+
 	return nil
 }
 
@@ -545,7 +552,7 @@ func (w *BackendWorker) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc
 func (w *BackendWorker) OnRingInstanceTokens(*ring.BasicLifecycler, ring.Tokens) {}
 
 // OnRingInstanceStopping is called while the lifecycler is stopping. The lifecycler
-// will continue to hearbeat the ring the this function is executing and will proceed
+// will continue to heartbeat the ring the this function is executing and will proceed
 // to unregister the instance from the ring only after this function has returned.
 func (w *BackendWorker) OnRingInstanceStopping(*ring.BasicLifecycler) {}
 
@@ -586,6 +593,7 @@ func createShutdownContext(parentCtx context.Context, shutdownTimeout time.Durat
 		select {
 		case <-timeoutCtx.Done():
 			// Timeout expired, force cancel jobs
+			level.Warn(log.Logger).Log("msg", "job timeout expired")
 			jobsCancel()
 		case <-jobsCtx.Done():
 			// Jobs completed gracefully before timeout
