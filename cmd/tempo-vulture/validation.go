@@ -121,7 +121,7 @@ type (
 )
 
 func (vs *ValidationService) writeValidationTraces(
-	ctx context.Context,
+	_ context.Context,
 	writer TraceWriter,
 ) ([]traceInfo, error) {
 	traces := make([]traceInfo, 0, vs.config.Cycles)
@@ -150,7 +150,7 @@ func (vs *ValidationService) writeValidationTraces(
 }
 
 func (vs *ValidationService) validateTraceRetrieval(
-	ctx context.Context,
+	_ context.Context,
 	traces []traceInfo,
 	httpClient httpclient.TempoHTTPClient,
 	result *ValidationResult,
@@ -194,7 +194,7 @@ func (vs *ValidationService) validateTraceRetrieval(
 }
 
 func (vs *ValidationService) validateTraceSearch(
-	ctx context.Context,
+	_ context.Context,
 	traces []traceInfo,
 	httpClient httpclient.TempoHTTPClient,
 	result *ValidationResult,

@@ -68,14 +68,6 @@ type traceMetrics struct {
 	notFoundSearchAttribute int
 }
 
-// getTotalErrors returns the total number of errors across all metrics
-func (tm traceMetrics) getTotalErrors() int {
-	return tm.incorrectResult + tm.incorrectMetricsResult + tm.missingSpans +
-		tm.notFoundByID + tm.notFoundSearch + tm.notFoundTraceQL +
-		tm.notFoundByMetrics + tm.inaccurateMetrics + tm.requestFailed +
-		tm.notFoundSearchAttribute
-}
-
 const (
 	defaultOTLPGRPCEndpoint = 4317
 )
