@@ -2710,20 +2710,25 @@ func TestSearchByShortTraceID(t *testing.T) {
 			return block.Fetch(ctx, req, common.DefaultSearchOptions())
 		})
 
-		t.Run(fmt.Sprintf("%s: include trace id", v.Version()), func(t *testing.T) {
-			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)}
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
-			require.NoError(t, err, "search request: %+v", req)
-			require.NotEmpty(t, res.Traces)
+		for name, traceID := range map[string]string{
+			"short trace id":                    wantMeta.TraceID,
+			"short trace id with leading zeros": strings.Repeat("0", 32-len(wantMeta.TraceID)) + wantMeta.TraceID,
+		} {
+			t.Run(fmt.Sprintf("%s: include trace id %s", v.Version(), name), func(t *testing.T) {
+				req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id="%s"}`, traceID)}
+				res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+				require.NoError(t, err, "search request: %+v", req)
+				require.NotEmpty(t, res.Traces)
 
-			actual := actualForExpectedMeta(wantMeta, res)
-			require.NotNil(t, actual, "search request: %v", req)
+				actual := actualForExpectedMeta(wantMeta, res)
+				require.NotNil(t, actual, "search request: %v", req)
 
-			actual.SpanSet = nil // todo: add the matching spansets to wantmeta
-			actual.SpanSets = nil
-			actual.ServiceStats = nil
-			require.Equal(t, wantMeta, actual, "search request: %v", req)
-		})
+				actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+				actual.SpanSets = nil
+				actual.ServiceStats = nil
+				require.Equal(t, wantMeta, actual, "search request: %v", req)
+			})
+		}
 
 		t.Run(fmt.Sprintf("%s: include span id", v.Version()), func(t *testing.T) {
 			spanID := "0000000000010203"
@@ -2754,14 +2759,19 @@ func TestSearchByShortTraceID(t *testing.T) {
 			require.Equal(t, wantMeta, actual, "search request: %v", req)
 		})
 
-		t.Run(fmt.Sprintf("%s: exclude trace id", v.Version()), func(t *testing.T) {
-			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id!="%s"}`, wantMeta.TraceID)}
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
-			require.NoError(t, err, "search request: %+v", req)
-			require.NotEmpty(t, res.Traces)
-			actual := actualForExpectedMeta(wantMeta, res)
-			require.Nil(t, actual, "search request: %v", req)
-		})
+		for name, traceID := range map[string]string{
+			"short trace id":                    wantMeta.TraceID,
+			"short trace id with leading zeros": strings.Repeat("0", 32-len(wantMeta.TraceID)) + wantMeta.TraceID,
+		} {
+			t.Run(fmt.Sprintf("%s: exclude trace id %s", v.Version(), name), func(t *testing.T) {
+				req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id!="%s"}`, traceID)}
+				res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+				require.NoError(t, err, "search request: %+v", req)
+				require.NotEmpty(t, res.Traces)
+				actual := actualForExpectedMeta(wantMeta, res)
+				require.Nil(t, actual, "search request: %v", req)
+			})
+		}
 
 		t.Run(fmt.Sprintf("%s: exclude span id", v.Version()), func(t *testing.T) {
 			spanID := "0000000000010203"
