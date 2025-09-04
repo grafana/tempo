@@ -231,8 +231,10 @@ func (w *BackendWorker) running(ctx context.Context) error {
 }
 
 func (w *BackendWorker) processJobs(ctx context.Context) error {
-	var resp *tempopb.NextJobResponse
-	var err error
+	var (
+		resp *tempopb.NextJobResponse
+		err  error
+	)
 
 	// Request next job
 	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
