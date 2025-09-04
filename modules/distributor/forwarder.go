@@ -140,60 +140,64 @@ func (f *generatorForwarder) watchOverrides() {
 	for {
 		select {
 		case <-ticker.C:
-			f.mutex.Lock()
-
-			var (
-				queuesToDelete []*queue.Queue[*request]
-				queuesToAdd    []struct {
-					tenantID               string
-					queueSize, workerCount int
-				}
-			)
-
-			for tenantID, q := range f.queues {
-				queueSize, workerCount := f.getQueueConfig(tenantID)
-				// if the queue size or worker count has changed, shutdown the queue manager and create a new one
-				if q.ShouldUpdate(queueSize, workerCount) {
-					_ = level.Info(f.logger).Log(
-						"msg", "Marking queue manager for update",
-						"tenant", tenantID,
-						"old_queue_size", q.Size(),
-						"new_queue_size", queueSize,
-						"old_worker_count", q.WorkerCount(),
-						"new_worker_count", workerCount,
-					)
-					queuesToDelete = append(queuesToDelete, q)
-					queuesToAdd = append(queuesToAdd, struct {
-						tenantID               string
-						queueSize, workerCount int
-					}{tenantID: tenantID, queueSize: queueSize, workerCount: workerCount})
-				}
-			}
-
-			// Spawn a goroutine to asynchronously shut down queue managers
-			go func() {
-				for _, q := range queuesToDelete {
-					// shutdown the queue manager
-					// this will block until all workers have finished and the queue is drained
-					_ = level.Info(f.logger).Log("msg", "Shutting down queue manager", "tenant", q.TenantID())
-					if err := q.Shutdown(context.Background()); err != nil {
-						_ = level.Error(f.logger).Log("msg", "error shutting down queue manager", "tenant", q.TenantID(), "err", err)
-					}
-				}
-			}()
-
-			// Synchronously update queue managers
-			for _, q := range queuesToAdd {
-				_ = level.Info(f.logger).Log("msg", "Updating queue manager", "tenant", q.tenantID)
-				f.queues[q.tenantID] = f.createQueueAndStartWorkers(q.tenantID, q.queueSize, q.workerCount)
-			}
-
-			f.mutex.Unlock()
+			f.watchOverridesIteration()
 		case <-f.shutdown:
 			ticker.Stop()
 			return
 		}
 	}
+}
+
+func (f *generatorForwarder) watchOverridesIteration() {
+	f.mutex.Lock()
+
+	var (
+		queuesToDelete []*queue.Queue[*request]
+		queuesToAdd    []struct {
+			tenantID               string
+			queueSize, workerCount int
+		}
+	)
+
+	for tenantID, q := range f.queues {
+		queueSize, workerCount := f.getQueueConfig(tenantID)
+		// if the queue size or worker count has changed, shutdown the queue manager and create a new one
+		if q.ShouldUpdate(queueSize, workerCount) {
+			_ = level.Info(f.logger).Log(
+				"msg", "Marking queue manager for update",
+				"tenant", tenantID,
+				"old_queue_size", q.Size(),
+				"new_queue_size", queueSize,
+				"old_worker_count", q.WorkerCount(),
+				"new_worker_count", workerCount,
+			)
+			queuesToDelete = append(queuesToDelete, q)
+			queuesToAdd = append(queuesToAdd, struct {
+				tenantID               string
+				queueSize, workerCount int
+			}{tenantID: tenantID, queueSize: queueSize, workerCount: workerCount})
+		}
+	}
+
+	// Spawn a goroutine to asynchronously shut down queue managers
+	go func() {
+		for _, q := range queuesToDelete {
+			// shutdown the queue manager
+			// this will block until all workers have finished and the queue is drained
+			_ = level.Info(f.logger).Log("msg", "Shutting down queue manager", "tenant", q.TenantID())
+			if err := q.Shutdown(context.Background()); err != nil {
+				_ = level.Error(f.logger).Log("msg", "error shutting down queue manager", "tenant", q.TenantID(), "err", err)
+			}
+		}
+	}()
+
+	// Synchronously update queue managers
+	for _, q := range queuesToAdd {
+		_ = level.Info(f.logger).Log("msg", "Updating queue manager", "tenant", q.tenantID)
+		f.queues[q.tenantID] = f.createQueueAndStartWorkers(q.tenantID, q.queueSize, q.workerCount)
+	}
+
+	f.mutex.Unlock()
 }
 
 func (f *generatorForwarder) start(_ context.Context) error {
