@@ -103,6 +103,24 @@ func TestSearchTagsV2(t *testing.T) {
 			},
 		},
 		{
+			name:  "invalid query",
+			query: ` { a="test" } `,
+			scope: "none",
+			// same results as no filtering
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
+					{
+						Name: "span",
+						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
+					},
+					{
+						Name: "resource",
+						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
+					},
+				},
+			},
+		},
+		{
 			name:  "first batch - resource",
 			query: fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
 			scope: "resource",
