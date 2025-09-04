@@ -249,7 +249,7 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 				}
 			}
 
-			return fmt.Errorf("error getting next job: %w", err)
+			return fmt.Errorf("error getting next job: %w", funcErr)
 		}
 
 		return nil
