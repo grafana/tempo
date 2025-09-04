@@ -269,7 +269,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		}, fetcher)
 	}
 
-	func() {
+	func() { // anon function to defer unlock right after search
 		i.headBlockMtx.RLock()
 		defer i.headBlockMtx.RUnlock()
 		span.AddEvent("acquired headblock mtx")
