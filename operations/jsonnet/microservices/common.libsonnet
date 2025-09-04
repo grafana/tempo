@@ -107,6 +107,16 @@
         statefulset.spec.template.spec.withInitContainers([
           $.tempo_chown_container('ingester-data'),
         ]),
+
+      tempo_live_store_zone_a_statefulset+:
+        statefulset.spec.template.spec.withInitContainers([
+          $.tempo_chown_container('live-store-data'),
+        ]),
+
+      tempo_live_store_zone_b_statefulset+:
+        statefulset.spec.template.spec.withInitContainers([
+          $.tempo_chown_container('live-store-data'),
+        ]),
     },
   },
 }
