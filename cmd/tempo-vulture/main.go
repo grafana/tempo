@@ -205,17 +205,17 @@ func main() {
 			oldest = startTime
 		}
 		newStart, ts = selectPastTimestamp(oldest, now, interval, vultureConfig.tempoRetentionDuration, r)
-		return
+		return newStart, ts, skip
 	}
 
 	selectOldTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
 		newest := now.Add(-vultureConfig.tempoRecentTracesCutoffDuration)
 		if newest.Before(startTime) { // if vulture's just started and no traces to query
 			skip = true
-			return
+			return newStart, ts, skip
 		}
 		newStart, ts = selectPastTimestamp(startTime, newest, interval, vultureConfig.tempoRetentionDuration, r)
-		return
+		return newStart, ts, skip
 	}
 
 	// Check if we're running in validation mode
