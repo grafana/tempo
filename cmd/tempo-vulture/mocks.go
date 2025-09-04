@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sync"
+	"time"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
@@ -107,7 +108,7 @@ func (m *MockHTTPClient) QueryTraceWithRange(id string, start int64, end int64) 
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.requestsCount++
-	return m.traceResp, m.err
+	return m.traceResp, nil
 }
 
 func (m *MockHTTPClient) GetRequestsCount() int {
@@ -216,4 +217,17 @@ func (m *MockHTTPClient) GetMetricsCount() int {
 	m.m.Lock()
 	defer m.m.Unlock()
 	return m.metricsCount
+}
+
+type MockClock struct {
+	now    time.Time
+	sleeps []time.Duration
+}
+
+func (m *MockClock) Now() time.Time {
+	return m.now
+}
+
+func (m *MockClock) Sleep(d time.Duration) {
+	m.sleeps = append(m.sleeps, d)
 }
