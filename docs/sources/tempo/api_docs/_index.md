@@ -702,23 +702,6 @@ Actual API parameters must be URL-encoded. This example is left unencoded for re
 GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.name)
 ```
 
-#### Query hints
-
-Sampling provides approximate results with significantly improved query performance. Sampling hints are only available with TraceQL metrics queries, those using functions like `rate()` and `count_over_time()`.
-
-TraceQL metrics queries support query hints for performance optimization:
-
-- **Sampling hints**: Control data sampling for improved performance
-  - `sample=true` - Adaptive sampling based on query characteristics
-  - `span_sample=0.xx` - Fixed span-level sampling (0.01 = 1%)
-  - `trace_sample=0.xx` - Fixed trace-level sampling (0.05 = 5%)
-
-#### Example with sampling
-
-```
-GET /api/metrics/query_range?q={resource.service.name="myservice"}|rate()with(sample=true)&since=1h&step=1m
-```
-
 ### Query Echo endpoint
 
 ```
