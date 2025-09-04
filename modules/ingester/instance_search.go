@@ -269,10 +269,12 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		}, fetcher)
 	}
 
-	i.headBlockMtx.RLock()
-	span.AddEvent("acquired headblock mtx")
-	err = searchBlock(ctx, i.headBlock, "headBlock")
-	i.headBlockMtx.RUnlock()
+	func() {
+		i.headBlockMtx.RLock()
+		defer i.headBlockMtx.RUnlock()
+		span.AddEvent("acquired headblock mtx")
+		err = searchBlock(ctx, i.headBlock, "headBlock")
+	}()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
 	}
