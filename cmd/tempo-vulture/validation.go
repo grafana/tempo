@@ -114,9 +114,11 @@ func (vs *ValidationService) RunValidation(
 }
 
 // Aliases for interfaces
-type TraceWriter = util.JaegerClient
-type TraceQuerier = httpclient.TempoHTTPClient
-type TraceSearcher = httpclient.TempoHTTPClient
+type (
+	TraceWriter   = util.JaegerClient
+	TraceQuerier  = httpclient.TempoHTTPClient
+	TraceSearcher = httpclient.TempoHTTPClient
+)
 
 func (vs *ValidationService) writeValidationTraces(
 	ctx context.Context,
@@ -153,7 +155,6 @@ func (vs *ValidationService) validateTraceRetrieval(
 	httpClient httpclient.TempoHTTPClient,
 	result *ValidationResult,
 ) {
-
 	for i, trace := range traces {
 		cycle := i + 1
 		vs.logger.Info("Validating trace retrieval", zap.Int("cycle", cycle), zap.String("traceID", trace.id))
@@ -198,7 +199,6 @@ func (vs *ValidationService) validateTraceSearch(
 	httpClient httpclient.TempoHTTPClient,
 	result *ValidationResult,
 ) {
-
 	vs.logger.Info("Waiting for search indexing to complete...")
 
 	vs.logger.Info("writtenTraces", zap.Int("count", len(traces)))
