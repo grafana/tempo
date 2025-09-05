@@ -25,15 +25,9 @@ data:
                 container_name: tempo
             backend: gcs
             blocklist_poll: "0"
-            cache: memcached
             gcs:
                 bucket_name: tempo
                 chunk_buffer_size: 1.048576e+07
-            memcached:
-                consistent_hash: true
-                host: memcached
-                service: memcached-client
-                timeout: 200ms
             pool:
                 queue_depth: 2000
             s3:

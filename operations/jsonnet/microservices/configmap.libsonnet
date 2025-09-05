@@ -37,13 +37,6 @@
         pool: {
           queue_depth: 2000,
         },
-        cache: 'memcached',
-        memcached: {
-          consistent_hash: true,
-          timeout: '200ms',
-          host: 'memcached',
-          service: 'memcached-client',
-        },
       },
     },
     overrides: {
