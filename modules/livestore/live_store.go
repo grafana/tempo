@@ -92,6 +92,12 @@ var (
 		Name:      "records_dropped_total",
 		Help:      "The total number of kafka records dropped per tenant.",
 	}, []string{"tenant", "reason"})
+
+	metricMostRecentKafkaRecord = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo_live_store",
+		Name:      "latest_kafka_timestamp_seconds",
+		Help:      "The timestamp of the most recent kafka record pulled.",
+	})
 )
 
 type LiveStore struct {
@@ -382,6 +388,9 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 	if lastRecord == nil {
 		return nil, nil
 	}
+
+	// Update metric with the timestamp of the most recent kafka record
+	metricMostRecentKafkaRecord.Set(float64(lastRecord.Timestamp.Unix()))
 
 	offset := kadm.NewOffsetFromRecord(lastRecord)
 	return &offset, nil
