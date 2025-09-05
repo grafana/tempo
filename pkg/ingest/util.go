@@ -1,13 +1,19 @@
 package ingest
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/backoff"
 	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 const (
@@ -18,7 +24,7 @@ const (
 // Regular expression used to parse the ingester numeric ID.
 var ingesterIDRegexp = regexp.MustCompile("-([0-9]+)$")
 
-// IngesterPartitionID returns the partition ID owner the the given ingester.
+// IngesterPartitionID returns the partition ID owner of the given ingester.
 func IngesterPartitionID(ingesterID string) (int32, error) {
 	match := ingesterIDRegexp.FindStringSubmatch(ingesterID)
 	if len(match) == 0 {
@@ -43,6 +49,28 @@ func LiveStoreConsumerGroupID(instanceID string) (string, error) {
 	// Extract everything before the numeric suffix
 	prefixEnd := len(instanceID) - len(match[0])
 	return instanceID[:prefixEnd], nil
+}
+
+// It retry until Kafka broker is ready
+func WaitForKafkaBroker(ctx context.Context, c *kgo.Client, l log.Logger) error {
+	boff := backoff.New(ctx, backoff.Config{
+		MinBackoff: 100 * time.Millisecond,
+		MaxBackoff: time.Minute, // If there is a network hiccup, we prefer to wait longer retrying, than fail the service.
+		MaxRetries: 10,
+	})
+
+	for boff.Ongoing() {
+		err := c.Ping(ctx)
+		if err == nil {
+			break
+		}
+		level.Warn(l).Log("msg", "ping kafka; will retry", "err", err)
+		boff.Wait()
+	}
+	if err := boff.ErrCause(); err != nil {
+		return fmt.Errorf("kafka broker not ready after %d retries: %w", boff.NumRetries(), err)
+	}
+	return nil
 }
 
 func HandleKafkaError(err error, forceMetadataRefresh func()) {

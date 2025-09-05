@@ -182,26 +182,12 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to create kafka reader client: %w", err)
 	}
 
+	err = ingest.WaitForKafkaBroker(ctx, b.kafkaClient, b.logger)
+	if err != nil {
+		return fmt.Errorf("failed to start blockbuilder: %w", err)
+	}
+
 	b.partitionOffsetClient = ingest.NewPartitionOffsetClient(b.kafkaClient, topic)
-
-	boff := backoff.New(ctx, backoff.Config{
-		MinBackoff: 100 * time.Millisecond,
-		MaxBackoff: time.Minute, // If there is a network hiccup, we prefer to wait longer retrying, than fail the service.
-		MaxRetries: 10,
-	})
-
-	for boff.Ongoing() {
-		err := b.kafkaClient.Ping(ctx)
-		if err == nil {
-			break
-		}
-		level.Warn(b.logger).Log("msg", "ping kafka; will retry", "err", err)
-		boff.Wait()
-	}
-	if err := boff.ErrCause(); err != nil {
-		return fmt.Errorf("failed to ping kafka: %w", err)
-	}
-
 	b.kadm = kadm.NewClient(b.kafkaClient)
 
 	ingest.ExportPartitionLagMetrics(
