@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"runtime/debug"
@@ -358,6 +359,83 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	span.AddEvent("trace found", oteltrace.WithAttributes(attribute.Bool("found", res != nil && res.Trace != nil)))
 
 	return res, nil
+}
+
+// TracesCheck implements tempopb.Querier.
+func (i *Ingester) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequest) (res *tempopb.TracesCheckResponse, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(log.Logger).Log("msg", "recover in TracesCheck", "stack", r, string(debug.Stack()))
+			err = errors.New("recovered in TracesCheck")
+		}
+	}()
+
+	// tracing instrumentation
+	ctx, span := tracer.Start(ctx, "Ingester.TracesCheck")
+	defer span.End()
+
+	if len(req.TraceIDs) == 0 {
+		return &tempopb.TracesCheckResponse{
+			TraceIDs: []string{},
+			Metrics: &tempopb.TraceByIDMetrics{},
+		}, nil
+	}
+
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		// Return empty list if instance doesn't exist (no traces found)
+		return &tempopb.TracesCheckResponse{
+			TraceIDs: []string{},
+			Metrics: &tempopb.TraceByIDMetrics{},
+		}, nil
+	}
+
+	// Filter valid trace IDs
+	fmt.Printf("DEBUG INGESTER: Received %d trace IDs\n", len(req.TraceIDs))
+	validTraceIDs := make([][]byte, 0, len(req.TraceIDs))
+	for i, traceIDHex := range req.TraceIDs {
+		fmt.Printf("DEBUG INGESTER: TraceID[%d]: '%s'\n", i, traceIDHex)
+		// Convert hex string to bytes
+		traceID, err := hex.DecodeString(traceIDHex)
+		if err != nil {
+			fmt.Printf("DEBUG INGESTER: Failed to decode hex: %v\n", err)
+			continue // Skip invalid hex strings
+		}
+		fmt.Printf("DEBUG INGESTER: Decoded to %d bytes: %x\n", len(traceID), traceID)
+		if validation.ValidTraceID(traceID) {
+			validTraceIDs = append(validTraceIDs, traceID)
+			fmt.Printf("DEBUG INGESTER: Valid trace ID added\n")
+		} else {
+			fmt.Printf("DEBUG INGESTER: Invalid trace ID\n")
+		}
+	}
+	fmt.Printf("DEBUG INGESTER: Final valid count: %d\n", len(validTraceIDs))
+
+	if len(validTraceIDs) == 0 {
+		return &tempopb.TracesCheckResponse{
+			TraceIDs: []string{},
+			Metrics: &tempopb.TraceByIDMetrics{},
+		}, nil
+	}
+
+	// Use the optimized batch TracesCheck method
+	resp, err := inst.TracesCheck(ctx, validTraceIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	span.AddEvent("batch trace existence check completed", oteltrace.WithAttributes(
+		attribute.Int("totalTraces", len(req.TraceIDs)),
+		attribute.Int("foundTraces", len(resp.TraceIDs)),
+		attribute.Int64("inspectedBytes", int64(resp.Metrics.InspectedBytes)),
+	))
+
+	return resp, nil
 }
 
 func (i *Ingester) CheckReady(ctx context.Context) error {

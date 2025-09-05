@@ -566,6 +566,9 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 	tr, _ := combiner.Result()
 	return &tempopb.TraceByIDResponse{Trace: tr, Metrics: &tempopb.TraceByIDMetrics{}}, nil
 }
+func (b *walBlock) TracesCheck(ctx context.Context, ids []common.ID, _ common.SearchOptions) (map[string]bool, uint64, error) {
+	return nil, 0, common.ErrUnsupported
+}
 
 func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ common.SearchOptions) (*tempopb.SearchResponse, error) {
 	results := &tempopb.SearchResponse{

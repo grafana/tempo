@@ -154,6 +154,11 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 	}, err
 }
 
+
+func (b *BackendBlock) TracesCheck(ctx context.Context, traceIDs []common.ID, _ common.SearchOptions) (map[string]bool, uint64, error) {
+	return nil, 0, common.ErrUnsupported
+}
+
 func (b *BackendBlock) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
 	return nil, common.ErrUnsupported
 }

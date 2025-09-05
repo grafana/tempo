@@ -2,6 +2,7 @@ package querier
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -354,6 +355,119 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	return resp, nil
+}
+
+func (q *Querier) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequest, timeStart, timeEnd time.Time) (*tempopb.TracesCheckResponse, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting org id in Querier.TracesCheck: %w", err)
+	}
+
+	ctx, span := tracer.Start(ctx, "Querier.TracesCheck")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int("traceCount", len(req.TraceIDs)))
+
+	var inspectedBytes uint64
+	var foundTraceIDs []string
+
+	// Query ingesters first (only if queryMode allows)
+	if req.QueryMode == "" || req.QueryMode == QueryModeAll || req.QueryMode == QueryModeIngesters {
+		for _, traceIDHex := range req.TraceIDs {
+			// Convert hex string to bytes for validation
+			traceID, err := hex.DecodeString(traceIDHex)
+			if err != nil || !validation.ValidTraceID(traceID) {
+				continue
+			}
+
+			var getRSFn replicationSetFn
+			if q.cfg.QueryRelevantIngesters {
+				traceKey := util.TokenFor(userID, traceID)
+				getRSFn = func(r ring.ReadRing) (ring.ReplicationSet, error) {
+					return r.Get(traceKey, ring.Read, nil, nil, nil)
+				}
+			}
+
+			// Create a single trace request for each trace ID
+			singleReq := &tempopb.TracesCheckRequest{
+				TraceIDs:   []string{traceIDHex},
+				BlockStart: req.BlockStart,
+				BlockEnd:   req.BlockEnd,
+				QueryMode:  QueryModeIngesters,
+				TimeStart:  req.TimeStart,
+				TimeEnd:    req.TimeEnd,
+			}
+
+			forEach := func(funcCtx context.Context, client tempopb.QuerierClient) (any, error) {
+				resp, err := client.TracesCheck(funcCtx, singleReq)
+				return resp, err
+			}
+
+			partialResponses, err := q.forIngesterRings(ctx, userID, getRSFn, forEach)
+			if err == nil {
+				traceIDStr := util.TraceIDToHexString(traceID)
+				for _, partialResponse := range partialResponses {
+					resp := partialResponse.(*tempopb.TracesCheckResponse)
+					for _, foundID := range resp.TraceIDs {
+						if foundID == traceIDStr {
+							foundTraceIDs = append(foundTraceIDs, traceIDStr)
+							goto nextTrace // Found in ingesters, move to next trace
+						}
+					}
+					if resp.Metrics != nil {
+						inspectedBytes += resp.Metrics.InspectedBytes
+					}
+				}
+			}
+		nextTrace:
+		}
+	}
+
+	// Check storage blocks (only if queryMode allows and we have unfound traces)
+	// Create a set of already found trace IDs for quick lookup
+	foundSet := make(map[string]bool)
+	for _, traceID := range foundTraceIDs {
+		foundSet[traceID] = true
+	}
+	
+	unfoundTraces := make([][]byte, 0)
+	for _, traceIDHex := range req.TraceIDs {
+		if !foundSet[traceIDHex] {
+			// Convert hex string to bytes for validation and storage query
+			traceID, err := hex.DecodeString(traceIDHex)
+			if err == nil && validation.ValidTraceID(traceID) {
+				unfoundTraces = append(unfoundTraces, traceID)
+			}
+		}
+	}
+
+	if len(unfoundTraces) > 0 && (req.QueryMode == "" || req.QueryMode == QueryModeAll || req.QueryMode == QueryModeBlocks) {
+		maxBytes := q.limits.MaxBytesPerTrace(userID)
+		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+
+		// Check each unfound trace in storage with block filtering
+		for _, traceID := range unfoundTraces {
+			partialTraces, _, err := q.store.Find(ctx, userID, traceID, req.BlockStart, req.BlockEnd, int64(req.TimeStart), int64(req.TimeEnd), opts)
+			if err == nil {
+				traceIDStr := util.TraceIDToHexString(traceID)
+				// Check if any traces were found
+				for _, partialTrace := range partialTraces {
+					if partialTrace != nil && partialTrace.Trace != nil {
+						foundTraceIDs = append(foundTraceIDs, traceIDStr)
+						break
+					}
+					if partialTrace != nil && partialTrace.Metrics != nil {
+						inspectedBytes += partialTrace.Metrics.InspectedBytes
+					}
+				}
+			}
+		}
+	}
+
+	return &tempopb.TracesCheckResponse{
+		TraceIDs: foundTraceIDs,
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
+	}, nil
 }
 
 // forIngesterRings runs f, in parallel, for given ingesters
@@ -1162,3 +1276,4 @@ func protoToTraceQLStatic(kv *tempopb.KeyValue) traceqlmetrics.KeyValue {
 		Value: val,
 	}
 }
+
