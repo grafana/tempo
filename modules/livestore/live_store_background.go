@@ -117,6 +117,7 @@ func (s *LiveStore) globalCompleteLoop(idx int) {
 			}()
 		} else {
 			metricBlocksCompleted.Inc()
+			s.completeQueues.Clear(op)
 		}
 	}
 }
@@ -170,6 +171,7 @@ func (s *LiveStore) enqueueOp(op *completeOp) error {
 		return fmt.Errorf("complete queues are stopped, cannot enqueue operation for block %s", op.blockID.String())
 	}
 
+	level.Debug(s.logger).Log("msg", "enqueueing complete op", "tenant", op.tenantID, "block", op.blockID, "attempts", op.attempts)
 	return s.completeQueues.Enqueue(op)
 }
 
