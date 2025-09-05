@@ -308,6 +308,10 @@ func (s *LiveStore) stopping(error) error {
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
 
+	if s.cfg.holdAllBackgroundProcesses { // nothing to do
+		return nil
+	}
+
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
