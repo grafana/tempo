@@ -386,6 +386,15 @@ Update the `storage` configuration options based upon your requirements:
 
 - [Google Cloud Storage configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/gcs)
 
+#### Azure with the `local_blocks` and metrics-generator processors
+
+[//]: # "Shared content for local_blocks and metrics-generator in Azure blob storage when using Helm"
+[//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
+
+{{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}
+
+For more information about the local-blocks processor, refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/next/metrics-from-traces/metrics-queries/configure-traceql-metrics).
+
 ### Set traces receivers
 
 The Helm chart values in your `custom.yaml` file are configured to use OTLP.
