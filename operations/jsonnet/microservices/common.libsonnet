@@ -62,6 +62,11 @@
         service.mixin.spec.withIpFamilies(['IPv6']),
       ingest_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
+      tempo_live_store_zone_a_service+:
+        service.mixin.spec.withIpFamilies(['IPv6']),
+      tempo_live_store_zone_b_service+:
+        service.mixin.spec.withIpFamilies(['IPv6']),
+
       memcached+: {
         service+:
           service.mixin.spec.withIpFamilies(['IPv6']),
