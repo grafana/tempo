@@ -305,8 +305,6 @@ func (s *LiveStore) stopping(error) error {
 		return err
 	}
 
-	s.stopAllBackgroundProcesses()
-
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
 
@@ -324,6 +322,8 @@ func (s *LiveStore) stopping(error) error {
 			return nil // shutdown timeout reached
 		}
 	}
+
+	s.stopAllBackgroundProcesses()
 
 	return nil
 }
