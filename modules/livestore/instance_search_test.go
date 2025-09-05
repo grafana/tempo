@@ -579,7 +579,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	// Create metrics
 	reg := prometheus.NewRegistry()
 
-	logger := log.NewNopLogger()
+	logger := &testLogger{t}
 
 	// Use fake Kafka cluster for testing
 	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
@@ -588,6 +588,17 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	}
 
 	return liveStore, services.StartAndAwaitRunning(t.Context(), liveStore)
+}
+
+var _ log.Logger = (*testLogger)(nil)
+
+type testLogger struct {
+	t testing.TB
+}
+
+func (l *testLogger) Log(keyvals ...interface{}) error {
+	l.t.Log(keyvals...)
+	return nil
 }
 
 func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {
