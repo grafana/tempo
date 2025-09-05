@@ -37,7 +37,7 @@ spec:
           limits:
             memory: 1536Mi
           requests:
-            cpu: 500m
+            cpu: 100m
             memory: 1329Mi
       - args:
         - --memcached.address=localhost:11211
