@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -43,6 +44,10 @@ var (
 	tempoRetentionDuration          time.Duration
 	tempoRecentTracesCutoffDuration time.Duration
 	tempoPushTLS                    bool
+
+	validationMode    bool
+	validationCycles  int
+	validationTimeout time.Duration
 
 	rf1After time.Time
 
@@ -123,6 +128,11 @@ func init() {
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 	flag.DurationVar(&tempoRecentTracesCutoffDuration, "tempo-recent-traces-backoff-duration", 14*time.Minute, "Cutoff between recent and old traces query checks")
 
+	// Validation mode flags
+	flag.BoolVar(&validationMode, "validation-mode", false, "Run in validation mode: execute a fixed number of cycles and exit with status code")
+	flag.IntVar(&validationCycles, "validation-cycles", 3, "Number of write/read cycles to perform in validation mode")
+	flag.DurationVar(&validationTimeout, "validation-timeout", 5*time.Minute, "Maximum time to run validation mode before timing out")
+
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
 }
 
@@ -186,17 +196,55 @@ func main() {
 			oldest = startTime
 		}
 		newStart, ts = selectPastTimestamp(oldest, now, interval, vultureConfig.tempoRetentionDuration, r)
-		return
+		return newStart, ts, skip
 	}
 
 	selectOldTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
 		newest := now.Add(-vultureConfig.tempoRecentTracesCutoffDuration)
 		if newest.Before(startTime) { // if vulture's just started and no traces to query
 			skip = true
-			return
+			return newStart, ts, skip
 		}
 		newStart, ts = selectPastTimestamp(startTime, newest, interval, vultureConfig.tempoRetentionDuration, r)
-		return
+		return newStart, ts, skip
+	}
+
+	// Check if we're running in validation mode
+	if validationMode {
+		logger.Info("Running in validation mode", zap.Int("cycles", validationCycles), zap.Duration("timeout", validationTimeout))
+
+		ctx := context.Background()
+
+		validationConfig := ValidationConfig{
+			Cycles:                validationCycles,
+			Timeout:               validationTimeout,
+			TempoOrgID:            vultureConfig.tempoOrgID,
+			WriteBackoffDuration:  vultureConfig.tempoWriteBackoffDuration,
+			SearchBackoffDuration: vultureConfig.tempoSearchBackoffDuration,
+		}
+
+		service := NewValidationService(validationConfig, RealClock{}, logger)
+		result := service.RunValidation(ctx, jaegerClient, httpClient, httpClient)
+
+		// Log detailed results before exiting
+		logger.Info("Validation completed",
+			zap.Int("total_traces", result.TotalTraces),
+			zap.Int("validations_passed", result.SuccessCount),
+			zap.Int("validations_failed", len(result.Failures)),
+			zap.Duration("duration", result.Duration),
+		)
+
+		// Optionally log each failure for debugging
+		for _, failure := range result.Failures {
+			logger.Error("Validation failure",
+				zap.String("phase", failure.Phase),
+				zap.String("traceID", failure.TraceID),
+				zap.Int("cycle", failure.Cycle),
+				zap.Error(failure.Error),
+			)
+		}
+
+		os.Exit(result.ExitCode())
 	}
 
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)

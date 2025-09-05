@@ -1,4 +1,5 @@
 ## main / unreleased
+* [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605)
 * [BUGFIX] Prevent metrics-generator WAL deletion when tenant is empty [#5586](https://github.com/grafana/tempo/pull/5586) (@sienna011022)
 * [BUGFIX] Fix docker-compose port configuration for Alloy gRPC (4319 → 4317) [#5536](https://github.com/grafana/tempo/pull/5536)
 * [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464)
