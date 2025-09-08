@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -21,11 +22,24 @@ type analyseBlocksCmd struct {
 	MinCompactionLevel int    `help:"Min compaction level to analyse" default:"3"`
 	MaxBlocks          int    `help:"Max number of blocks to analyse" default:"10"`
 	NumAttr            int    `help:"Number of attributes to display" default:"15"`
-	MaxStartTime       string `help:"Oldest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
-	MinStartTime       string `help:"Newest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
+	// NumBlob            int    `help:"Number of blob attributes to display" default:"5"`
+	BlobThreshold string `help:"Convert column to blob when dictionary size reaches this value" default:"10MiB"`
+	BlobLength    string `help:"Convert column to blob when max length reaches this value" default:"2KiB"`
+	MaxStartTime  string `help:"Oldest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
+	MinStartTime  string `help:"Newest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
 }
 
 func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
+	blobBytes, err := humanize.ParseBytes(cmd.BlobThreshold)
+	if err != nil {
+		return err
+	}
+
+	blobLength, err := humanize.ParseBytes(cmd.BlobLength)
+	if err != nil {
+		return err
+	}
+
 	r, _, _, err := loadBackend(&cmd.backendOptions, ctx)
 	if err != nil {
 		return err
@@ -38,7 +52,7 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 	}
 
 	processedBlocks := map[uuid.UUID]struct{}{}
-	topSpanAttrs, topResourceAttrs := make(map[string]uint64), make(map[string]uint64)
+	topSpanAttrs, topResourceAttrs := make(map[string]*attribute), make(map[string]*attribute)
 	totalSpanBytes, totalResourceBytes := uint64(0), uint64(0)
 
 	var maxStartTime, minStartTime time.Time
@@ -82,27 +96,25 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 		}
 
 		for k, v := range blockSum.spanSummary.attributes {
-			topSpanAttrs[k] += v
+			topSpanAttrs[k].totalBytes += v.totalBytes
 		}
-		totalSpanBytes += blockSum.spanSummary.totalBytes
+		totalSpanBytes += blockSum.spanSummary.totalBytes()
 
 		for k, v := range blockSum.resourceSummary.attributes {
-			topResourceAttrs[k] += v
+			topResourceAttrs[k].totalBytes += v.totalBytes
 		}
-		totalResourceBytes += blockSum.resourceSummary.totalBytes
+		totalResourceBytes += blockSum.resourceSummary.totalBytes()
 
 		processedBlocks[block] = struct{}{}
 	}
 
 	// Get top N attributes from map
 	return (&blockSummary{
-		spanSummary: genericAttrSummary{
-			totalBytes: totalSpanBytes,
+		spanSummary: attributeSummary{
 			attributes: topSpanAttrs,
 		},
-		resourceSummary: genericAttrSummary{
-			totalBytes: totalResourceBytes,
+		resourceSummary: attributeSummary{
 			attributes: topResourceAttrs,
 		},
-	}).print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.Cli)
+	}).print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.Cli, blobBytes, blobLength)
 }

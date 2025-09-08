@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"github.com/parquet-go/parquet-go"
 
@@ -55,14 +56,29 @@ func (cmd *convertParquet4to5) Run() error {
 		dedicatedCols = make(backend.DedicatedColumns, 0, len(cmd.DedicatedColumns))
 
 		for _, col := range cmd.DedicatedColumns {
+
+			col, blob := strings.CutPrefix(col, "blob/")
+
+			typ := backend.DedicatedColumnTypeString
+			if blob {
+				typ = backend.DedicatedColumnTypeBlob
+			}
+
 			att, err := traceql.ParseIdentifier(col)
 			if err != nil {
 				return err
 			}
 
-			scope := backend.DedicatedColumnScopeSpan
-			if att.Scope == traceql.AttributeScopeResource {
+			var scope backend.DedicatedColumnScope
+			switch att.Scope {
+			case traceql.AttributeScopeSpan:
+				scope = backend.DedicatedColumnScopeSpan
+			case traceql.AttributeScopeResource:
 				scope = backend.DedicatedColumnScopeResource
+			case traceql.AttributeScopeEvent:
+				scope = backend.DedicatedColumnScopeEvent
+			default:
+				return fmt.Errorf("dedicated columns must be scoped: %s", att.Scope)
 			}
 
 			fmt.Printf("add dedicated column scope=%s name=%s\n", scope, att.Name)
@@ -70,7 +86,7 @@ func (cmd *convertParquet4to5) Run() error {
 			dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
 				Scope: scope,
 				Name:  att.Name,
-				Type:  backend.DedicatedColumnTypeString,
+				Type:  typ,
 			})
 		}
 	} else {
