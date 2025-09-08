@@ -25,7 +25,7 @@
               max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
             ||| % [$._config.group_by_cluster, $._config.jobs.distributor, $._config.namespace],
             labels: {
-              severity: 'warning',
+              severity: 'critical',
             },
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy distributor(s).',
