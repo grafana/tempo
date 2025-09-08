@@ -30,6 +30,7 @@ type ValidationConfig struct {
 	Cycles                int
 	Timeout               time.Duration
 	TempoOrgID            string
+	TempoBasicAuthToken   string
 	WriteBackoffDuration  time.Duration
 	SearchBackoffDuration time.Duration
 }
