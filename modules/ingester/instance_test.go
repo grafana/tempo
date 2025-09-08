@@ -1214,6 +1214,53 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 	}
 }
 
+func TestInstanceGetTraceTotalSize(t *testing.T) {
+	maxBytes := 1000
+
+	// Use a separate registry to avoid conflicts
+	registry := prometheus.NewRegistry()
+	limits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
+				MaxBytesPerTrace: maxBytes,
+			},
+		},
+	}, nil, registry)
+	require.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester.limiter = limiter
+	i, err := ingester.getOrCreateInstance(testTenantID)
+	require.NoError(t, err, "unexpected error creating new instance")
+
+	// Use a unique trace ID to avoid conflicts with other tests
+	id := []byte{0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88}
+
+	// Push first request that fits
+	req1 := makeRequestWithByteLimit(maxBytes-100, id)
+	response := i.PushBytesRequest(context.Background(), req1)
+	errored, _, _ := CheckPushBytesError(response)
+	require.False(t, errored)
+
+	// Verify trace size is tracked
+	totalSize := i.traceSizes.GetCurrentSize(id)
+
+	require.Greater(t, totalSize, 0)
+	require.LessOrEqual(t, totalSize, maxBytes)
+
+	// Push second request that would exceed limit
+	req2 := makeRequestWithByteLimit(maxBytes, id)
+	response = i.PushBytesRequest(context.Background(), req2)
+	_, _, traceTooLargeCount := CheckPushBytesError(response)
+	require.Greater(t, traceTooLargeCount, 0)
+
+	// Total size should include both requests (even the rejected one)
+	newTotalSize := i.traceSizes.GetCurrentSize(id)
+	require.Greater(t, newTotalSize, totalSize)
+	require.Greater(t, newTotalSize, maxBytes)
+}
+
 func CheckPushBytesError(response *tempopb.PushResponse) (errored bool, maxLiveTracesCount int, traceTooLargeCount int) {
 	for _, result := range response.ErrorsByTrace {
 		switch result {

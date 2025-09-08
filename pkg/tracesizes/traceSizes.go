@@ -63,3 +63,12 @@ func (s *Tracker) ClearIdle(idleSince time.Time) {
 		}
 	}
 }
+
+func (s *Tracker) GetCurrentSize(traceID []byte) int {
+	token := s.token(traceID)
+	tr := s.sizes[token]
+	if tr == nil {
+		return 0
+	}
+	return tr.size
+}

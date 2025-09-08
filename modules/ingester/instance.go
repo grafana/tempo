@@ -204,7 +204,8 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	reqSize := len(traceBytes)
 
 	if maxBytes > 0 && !i.traceSizes.Allow(id, reqSize, maxBytes) {
-		i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "size", reqSize, "trace", hex.EncodeToString(id))
+		totalSize := i.traceSizes.GetCurrentSize(id)
+		i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "req_size", reqSize, "total_size", totalSize, "trace", hex.EncodeToString(id))
 		return errTraceTooLarge
 	}
 
