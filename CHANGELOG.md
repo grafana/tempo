@@ -1,5 +1,6 @@
 ## main / unreleased
 * [CHANGE] Add total size logging functionality to track trace [#5625](https://github.com/grafana/tempo/pull/5625)(@sienna011022)
+* [BUGFIX] Prevent metrics-generator WAL deletion when tenant is empty [#5586](https://github.com/grafana/tempo/pull/5586) (@sienna011022)
 * [BUGFIX] Fix docker-compose port configuration for Alloy gRPC (4319 → 4317) [#5536](https://github.com/grafana/tempo/pull/5536)
 * [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464)
 * [BUGFIX] Return Bad Request from frontend if the provided tag is invalid in SearchTagValuesV2 endpoint [#5493](https://github.com/grafana/tempo/pull/5493/) (@carles-grafana)
@@ -21,6 +22,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [CHANGE] **BREAKING CHANGE** TraceQL Metrics buckets are calculated based on data in past [#5366](https://github.com/grafana/tempo/pull/5366) (@ruslan-mikhailov)
 * [CHANGE] Change worker to shutdown after the current job, waiting 30s by default [#5460](https://github.com/grafana/tempo/pull/5460) (@zalegrala)
 * [CHANGE] Upgrade Tempo to go 1.25.0 [#5548](https://github.com/grafana/tempo/pull/5548) (@javiermolinar)
+* [CHANGE] Drop tracing bridges in favor of otel-only tracing [#5594](https://github.com/grafana/tempo/pull/5594) (@zalegrala)
 * [FEATURE] New block encoding vParquet5-preview1 with low-resolution timestamp columns for better TraceQL metrics performance. This format is in development and breaking changes are expected before final release. [#5495](https://github.com/grafana/tempo/pull/5495) (@mdisibio)
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
 * [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
@@ -30,6 +32,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] fix tempo configuration options that are always overrided with config overrides section [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
 * [ENHANCEMENT] Add endpoint for partition downscaling [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
 * [ENHANCEMENT] Add alert for high error rate reported by vulture [#5206](https://github.com/grafana/tempo/pull/5206) (@ruslan-mikhailov)
+* [ENHANCEMENT] Support the new `db.namespace` attribute for service-graph DB nodes [#5602](https://github.com/grafana/tempo/pull/5602) (@gouthamve)
 * [ENHANCEMENT] Add backend scheduler and worker to the resources dashboard [#5206](https://github.com/grafana/tempo/pull/5241) (@javiermolinar)
 * [ENHANCEMENT] Allow configure group lag exporter update time [#5431](https://github.com/grafana/tempo/pull/5431) (@javiermolinar)
 * [ENHANCEMENT] TraceQL metrics performance increase for simple queries [#5247](https://github.com/grafana/tempo/pull/5247) (@mdisibio)
@@ -49,6 +52,8 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] Upgrade Azurite and Fake-gcs-server to latest version [#5512](https://github.com/grafana/tempo/pull/5512) (@javiermolinar)
 * [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
 * [ENHANCEMENT] Improve exemplar selection in quantile_over_time() [#5278](https://github.com/grafana/tempo/pull/5278) (@zalegrala)
+* [ENHANCEMENT] Add live store to jsonnet lib [#5591](https://github.com/grafana/tempo/pull/5591) [#5606](https://github.com/grafana/tempo/pull/5606) [#5609](https://github.com/grafana/tempo/pull/5609) (@mapno)
+* [ENHANCEMENT] Allow block-builder to operate over empty partitions [#5581](https://github.com/grafana/tempo/pull/5581) (@ruslan-mikhailov)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
@@ -56,6 +61,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
 * [BUGFIX] Fix cache collision for incomplete query in SearchTagValuesV2 [#5549](https://github.com/grafana/tempo/pull/5549) (@ruslan-mikhailov)
 * [BUGFIX] Fix for structural operator with empty left-hand spanset [#5578](https://github.com/grafana/tempo/pull/5578) (@ruslan-mikhailov)
+* [BUGFIX] Deadlock on invalid query to api/v2/search/tags (SearchTagsV2) [#5607](https://github.com/grafana/tempo/pull/5607) (@ruslan-mikhailov)
 
 # v2.8.2
 

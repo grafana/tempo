@@ -1,10 +1,10 @@
 package livestore
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"fmt"
-	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -15,11 +15,9 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/tracesizes"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -95,9 +93,6 @@ type instance struct {
 	// Metrics
 	tracesCreatedTotal prometheus.Counter
 	bytesReceivedTotal *prometheus.CounterVec
-
-	// Block offset metadata (set during coordinated cuts)
-	// blockOffsetMeta map[uuid.UUID]offsetMetadata // TODO: Used for checking data integrity
 
 	overrides overrides.Interface
 }
@@ -204,14 +199,13 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 	if len(tracesToCut) == 0 {
 		return nil
 	}
-
+	// Sort by ID
+	sort.Slice(tracesToCut, func(i, j int) bool {
+		return bytes.Compare(tracesToCut[i].ID, tracesToCut[j].ID) == -1
+	})
 	// Collect the trace IDs that will be flushed
 	for _, t := range tracesToCut {
-		tr := &tempopb.Trace{
-			ResourceSpans: t.Batches,
-		}
-
-		err := i.writeHeadBlock(t.ID, tr)
+		err := i.writeHeadBlock(t.ID, t)
 		if err != nil {
 			return err
 		}
@@ -232,7 +226,7 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 	return nil
 }
 
-func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
+func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1.ResourceSpans]) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
@@ -241,6 +235,10 @@ func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	tr := &tempopb.Trace{
+		ResourceSpans: liveTrace.Batches,
 	}
 
 	// Get trace timestamp bounds
@@ -261,6 +259,20 @@ func (i *instance) writeHeadBlock(id []byte, tr *tempopb.Trace) error {
 	// Convert from unix nanos to unix seconds
 	startSeconds := uint32(start / uint64(time.Second))
 	endSeconds := uint32(end / uint64(time.Second))
+
+	// constrain start/end with ingestion slack calculated off of liveTrace.createdAt and lastAppend
+	// createdAt and lastAppend are set via the record.Timestamp from kafka so they are "time.Now()" for the
+	// ingestion of this trace
+	slackDuration := i.Cfg.WAL.IngestionSlack
+	minStart := uint32(liveTrace.CreatedAt.Add(-slackDuration).Unix())
+	maxEnd := uint32(liveTrace.LastAppend.Add(slackDuration).Unix())
+
+	if startSeconds < minStart {
+		startSeconds = minStart
+	}
+	if endSeconds > maxEnd {
+		endSeconds = maxEnd
+	}
 
 	return i.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
 }
@@ -424,73 +436,4 @@ func (i *instance) deleteOldBlocks() error {
 	}
 
 	return nil
-}
-
-func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.TraceByIDResponse, error) {
-	metrics := tempopb.TraceByIDMetrics{}
-	combiner := trace.NewCombiner(math.MaxInt64, true)
-
-	// TODO MRD this code looks ripe for simplification. Its the same pattern repeated several times.
-	i.liveTracesMtx.Lock()
-	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
-		tempTrace := &tempopb.Trace{}
-		tempTrace.ResourceSpans = liveTrace.Batches
-		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
-		// live traces format and feels inaccurate.
-		_, err := combiner.Consume(tempTrace)
-		if err != nil {
-			i.liveTracesMtx.Unlock()
-			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
-		}
-	}
-	i.liveTracesMtx.Unlock()
-
-	// TODO MRD Add limits
-	loopBlock := func(b common.Finder) error {
-		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
-		if err != nil {
-			return err
-		}
-		if trace == nil {
-			return nil
-		}
-		_, err = combiner.Consume(trace.Trace)
-		if err != nil {
-			return err
-		}
-		if trace.Metrics != nil {
-			metrics.InspectedBytes += trace.Metrics.InspectedBytes
-		}
-		return nil
-	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
-	// Loop over all the complete blocks looking for a specific ID. The implementation looks like it will return nil if the trace is not found.
-	for _, b := range i.completeBlocks {
-		err := loopBlock(b)
-		if err != nil {
-			return nil, fmt.Errorf("error searching in complete block %s: %w", b.BlockMeta().BlockID, err)
-		}
-	}
-
-	for _, b := range i.walBlocks {
-		err := loopBlock(b)
-		if err != nil {
-			return nil, fmt.Errorf("error searching in WAL block %s: %w", b.BlockMeta().BlockID, err)
-		}
-	}
-
-	err := loopBlock(i.headBlock)
-	if err != nil {
-		return nil, fmt.Errorf("error searching in headblock %s: %w", i.headBlock.BlockMeta().BlockID, err)
-	}
-
-	result, _ := combiner.Result()
-	response := &tempopb.TraceByIDResponse{
-		Trace:   result,
-		Metrics: &metrics,
-	}
-	return response, nil
 }

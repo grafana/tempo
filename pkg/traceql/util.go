@@ -45,7 +45,36 @@ func MakeCollectTagValueFunc(collect func(tempopb.TagValue) bool) func(v Static)
 }
 
 // bucketSet is a simple set of buckets that can be used to track the number of exemplars
-type bucketSet struct {
+type bucketSet interface {
+	testTotal() bool
+	addAndTest(ts uint64) bool
+}
+
+// newExemplarBucketSet creates a new bucket set for the aligned time range
+// start and end are in nanoseconds.
+// If the range is instant, empty bucket set is returned.
+func newExemplarBucketSet(exemplars uint32, start, end, step uint64) bucketSet {
+	if isInstant(start, end, step) {
+		return &alwaysFullBucketSet{}
+	}
+
+	start = alignStart(start, end, step)
+	end = alignEnd(start, end, step)
+
+	return newBucketSet(exemplars, start, end)
+}
+
+type alwaysFullBucketSet struct{}
+
+func (b *alwaysFullBucketSet) testTotal() bool {
+	return true
+}
+
+func (b *alwaysFullBucketSet) addAndTest(uint64) bool {
+	return true
+}
+
+type limitedBucketSet struct {
 	sz, maxTotal, maxBucket int
 	buckets                 []int
 	start, end, bucketWidth uint64
@@ -53,7 +82,7 @@ type bucketSet struct {
 
 // newBucketSet creates a new bucket set for the given time range
 // start and end are in nanoseconds
-func newBucketSet(exemplars uint32, start, end uint64) *bucketSet {
+func newBucketSet(exemplars uint32, start, end uint64) *limitedBucketSet {
 	if exemplars > maxExemplars || exemplars == 0 {
 		exemplars = maxExemplars
 	}
@@ -69,7 +98,7 @@ func newBucketSet(exemplars uint32, start, end uint64) *bucketSet {
 	interval := end - start
 	bucketWidth := interval / uint64(buckets)
 
-	return &bucketSet{
+	return &limitedBucketSet{
 		sz:          int(buckets),
 		maxTotal:    int(exemplars),
 		maxBucket:   maxExemplarsPerBucket,
@@ -80,19 +109,19 @@ func newBucketSet(exemplars uint32, start, end uint64) *bucketSet {
 	}
 }
 
-func (b *bucketSet) len() int {
+func (b *limitedBucketSet) len() int {
 	return b.buckets[b.sz]
 }
 
-func (b *bucketSet) testTotal() bool {
+func (b *limitedBucketSet) testTotal() bool {
 	return b.len() >= b.maxTotal
 }
 
-func (b *bucketSet) inRange(ts uint64) bool {
+func (b *limitedBucketSet) inRange(ts uint64) bool {
 	return b.start <= ts && ts <= b.end
 }
 
-func (b *bucketSet) bucket(ts uint64) int {
+func (b *limitedBucketSet) bucket(ts uint64) int {
 	if b.start == b.end {
 		return 0
 	}
@@ -109,7 +138,7 @@ func (b *bucketSet) bucket(ts uint64) int {
 
 // addAndTest adds a timestamp to the bucket set and returns true if the total exceeds the max total
 // the timestamp is in milliseconds
-func (b *bucketSet) addAndTest(ts uint64) bool {
+func (b *limitedBucketSet) addAndTest(ts uint64) bool {
 	if !b.inRange(ts) || b.testTotal() || b.sz == 0 {
 		return true
 	}

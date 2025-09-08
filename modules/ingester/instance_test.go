@@ -1075,17 +1075,19 @@ func BenchmarkInstanceContention(t *testing.B) {
 
 	concurrent := func(f func()) {
 		wg.Add(1)
-		defer wg.Done()
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
-	go concurrent(func() {
+	concurrent(func() {
 		request := makeRequestWithByteLimit(10_000, nil)
 		response := i.PushBytesRequest(ctx, request)
 		errored, _, _ := CheckPushBytesError(response)
@@ -1093,13 +1095,13 @@ func BenchmarkInstanceContention(t *testing.B) {
 		pushes++
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "error cutting complete traces")
 		traceFlushes++
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		blockID, _ := i.CutBlockIfReady(0, 0, false)
 		if blockID != uuid.Nil {
 			err := i.CompleteBlock(context.Background(), blockID)
@@ -1114,19 +1116,19 @@ func BenchmarkInstanceContention(t *testing.B) {
 		blockFlushes++
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := i.ClearOldBlocks(ingester.cfg.FlushObjectStorage, 0)
 		require.NoError(t, err, "error clearing flushed blocks")
 		retentions++
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := i.FindTraceByID(ctx, []byte{0x01}, false)
 		require.NoError(t, err, "error finding trace by id")
 		finds++
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		x, err := i.Search(ctx, &tempopb.SearchRequest{
 			Query: "{ .foo=`bar` }",
 		})
@@ -1135,7 +1137,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 		searches++
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := i.SearchTags(ctx, "")
 		require.NoError(t, err, "error searching tags")
 		searchTags++

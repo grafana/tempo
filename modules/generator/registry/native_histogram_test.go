@@ -587,3 +587,86 @@ func expectedSeriesLen(samples []sample) int {
 	}
 	return len(series)
 }
+
+// Test specifically for native-only mode to ensure exemplars work
+func Test_NativeOnlyExemplars(t *testing.T) {
+	buckets := []float64{1, 2}
+	collectionTimeMs := time.Now().UnixMilli()
+
+	t.Run("native_only_with_exemplars", func(t *testing.T) {
+		onAdd := func(uint32) bool { return true }
+		// Use HistogramModeNative to test native-only behavior
+		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil)
+
+		// Add some observations with exemplars
+		lvc := newLabelValueCombo([]string{"service"}, []string{"test-service"})
+		h.ObserveWithExemplar(lvc, 1.5, "trace-123", 1.0)
+		h.ObserveWithExemplar(lvc, 0.5, "trace-456", 1.0)
+
+		// Collect metrics
+		appender := &capturingAppender{}
+		activeSeries, err := h.collectMetrics(appender, collectionTimeMs)
+		require.NoError(t, err)
+
+		t.Logf("Active series: %d", activeSeries)
+		t.Logf("Captured samples: %d", len(appender.samples))
+		t.Logf("Captured exemplars: %d", len(appender.exemplars))
+
+		for i, ex := range appender.exemplars {
+			t.Logf("Exemplar %d: labels=%v, value=%f, trace=%v", i, ex.l, ex.e.Value, ex.e.Labels)
+		}
+
+		// We should have exemplars
+		require.Greater(t, len(appender.exemplars), 0, "Native-only mode should capture exemplars")
+
+		// Verify that exemplars have the correct format for native histograms
+		for _, ex := range appender.exemplars {
+			// Exemplars should be attached to the main histogram metric, not bucket metrics
+			require.Equal(t, "test_native_histogram", ex.l.Get(labels.MetricName), "Exemplar should be attached to main histogram metric")
+			require.Contains(t, ex.e.Labels.String(), "trace_id", "Exemplar should contain trace_id")
+			require.Greater(t, ex.e.Value, 0.0, "Exemplar should have a value")
+		}
+
+		require.Len(t, appender.exemplars, 2, "Should have exactly 2 exemplars for 2 observations")
+
+		require.Equal(t, "trace-456", appender.exemplars[0].e.Labels.Get("trace_id"))
+		require.Equal(t, 0.5, appender.exemplars[0].e.Value)
+		require.Equal(t, "trace-123", appender.exemplars[1].e.Labels.Get("trace_id"))
+		require.Equal(t, 1.5, appender.exemplars[1].e.Value)
+	})
+
+	t.Run("native_only_histogram_exemplars", func(t *testing.T) {
+		onAdd := func(uint32) bool { return true }
+
+		// Create a native histogram with empty buckets to force native-only mode
+		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil)
+
+		// Add some observations with exemplars
+		lvc := newLabelValueCombo([]string{"service"}, []string{"native-only-xyz"})
+		h.ObserveWithExemplar(lvc, 1.5, "trace-native-123", 1.0)
+		h.ObserveWithExemplar(lvc, 0.5, "trace-native-456", 1.0)
+
+		// Collect metrics
+		appender := &capturingAppender{}
+		activeSeries, err := h.collectMetrics(appender, collectionTimeMs)
+		require.NoError(t, err)
+
+		t.Logf("Native-only - Active series: %d", activeSeries)
+		t.Logf("Native-only - Captured samples: %d", len(appender.samples))
+		t.Logf("Native-only - Captured exemplars: %d", len(appender.exemplars))
+
+		// This test might still use bucket exemplars due to Prometheus's default behavior,
+		// but it helps us understand the difference
+
+		require.Len(t, appender.exemplars, 2, "Should have exactly 2 exemplars for 2 observations")
+
+		for i, ex := range appender.exemplars {
+			t.Logf("Native-only exemplar %d: labels=%v, value=%f, trace=%v", i, ex.l, ex.e.Value, ex.e.Labels)
+		}
+
+		require.Equal(t, "trace-native-456", appender.exemplars[0].e.Labels.Get("trace_id"))
+		require.Equal(t, 0.5, appender.exemplars[0].e.Value)
+		require.Equal(t, "trace-native-123", appender.exemplars[1].e.Labels.Get("trace_id"))
+		require.Equal(t, 1.5, appender.exemplars[1].e.Value)
+	})
+}

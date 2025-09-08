@@ -109,8 +109,13 @@
 
   tempo_query_frontend_config:: $.tempo_config {},
   tempo_block_builder_config:: $.tempo_config {},
+  tempo_live_store_config:: $.tempo_config {},
   tempo_backend_scheduler_config:: $.tempo_config {},
-  tempo_backend_worker_config:: $.tempo_config {},
+  tempo_backend_worker_config:: $.tempo_config {
+    backend_worker+: {
+      backend_scheduler_addr: 'backend-scheduler.%s.svc.cluster.local.:9095' % [$._config.namespace],
+    },
+  },
 
   // This will be the single configmap that stores `overrides.yaml`.
   overrides_config:

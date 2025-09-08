@@ -75,6 +75,18 @@ func TestBucketSet_Bucket(t *testing.T) {
 	}
 }
 
+func TestBucketSet_Instant(t *testing.T) {
+	start := uint64(10)
+	end := uint64(1010)
+	step := end - start
+
+	bs := newExemplarBucketSet(maxExemplars, start, end, step)
+	assert.True(t, bs.testTotal())
+	assert.True(t, bs.addAndTest(start-1))
+	assert.True(t, bs.addAndTest(start))
+	assert.True(t, bs.addAndTest(start+1))
+}
+
 func TestBucketSet(t *testing.T) {
 	s := newBucketSet(maxExemplars, uint64(100*time.Second.Nanoseconds()), uint64(199*time.Second.Nanoseconds())) //nolint: gosec // G115
 

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"path"
 	"sort"
 	"strconv"
 	"sync"
@@ -26,22 +27,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/ingest/testkafka"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 const (
+	// todo: these are the dumbest consts i've ever seen. is the linter forcing us to do this?
 	foo          = "foo"
 	bar          = "bar"
-	qux          = "qux"
 	testTenantID = "fake"
 )
 
@@ -156,7 +160,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		return sr
 	}
 
-	searchAndAssert := func(req *tempopb.SearchRequest, _ uint32) {
+	searchAndAssert := func(req *tempopb.SearchRequest) {
 		sr := search(req, 0, 0)
 		assert.Len(t, sr.Traces, len(ids))
 		checkEqual(t, ids, sr)
@@ -180,18 +184,18 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 
 	// Test after appending to WAL.
 	// writeTracesforSearch() makes sure all traces are in the wal
-	searchAndAssert(req, uint32(100))
+	searchAndAssert(req)
 
 	// Test after cutting new headblock
 	blockID, err := i.cutBlocks(true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
-	searchAndAssert(req, uint32(100))
+	searchAndAssert(req)
 
 	// Test after completing a block
 	err = i.completeBlock(context.Background(), blockID)
 	require.NoError(t, err)
-	searchAndAssert(req, uint32(200))
+	searchAndAssert(req)
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
@@ -216,7 +220,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	i, ls := defaultInstance(t)
 
 	// add dummy search data
-	tagKey := "foo"
+	tagKey := foo
 	tagValue := bar
 
 	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
@@ -263,7 +267,11 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	checkSearchTags("event", true)
 	checkSearchTags("link", true)
 
-	srv, err := i.SearchTagValues(ctx, tagName, 0, 0)
+	srv, err := i.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagName,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	require.Greater(t, srv.Metrics.InspectedBytes, uint64(100)) // we scanned at-least 100 bytes
 
@@ -314,7 +322,11 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	userCtx := user.InjectOrgID(context.Background(), testTenantID)
 
 	t.Run("SearchTagValues", func(t *testing.T) {
-		resp, err := instance.SearchTagValues(userCtx, tagKey, 0, 0)
+		resp, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+			TagName:             tagKey,
+			MaxTagValues:        0,
+			StaleValueThreshold: 0,
+		})
 		require.NoError(t, err)
 		require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar<idx>" fit in the 12 byte limit above.
 	})
@@ -362,7 +374,11 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 	userCtx := user.InjectOrgID(context.Background(), testTenantID)
 
-	respV1, err := instance.SearchTagValues(userCtx, tagKey, 0, 0)
+	respV1, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagKey,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	// livestore writeTracesForSearch creates 5 values per block
 	assert.Equal(t, 5, len(respV1.TagValues))
@@ -376,7 +392,11 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	instance.overrides = limits2
 
-	respV1, err = instance.SearchTagValues(userCtx, tagKey, 0, 0)
+	respV1, err = instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
+		TagName:             tagKey,
+		MaxTagValues:        0,
+		StaleValueThreshold: 0,
+	})
 	require.NoError(t, err)
 	assert.Equal(t, 10, len(respV1.TagValues))
 
@@ -431,34 +451,40 @@ func TestSearchTagsV2Limits(t *testing.T) {
 
 			instance.overrides = limits
 
-			// push a trace
-			id := test.ValidTraceID(nil)
-			trace := test.MakeTrace(10, id)
-
-			traceBytes, err := trace.Marshal()
-			require.NoError(t, err)
-
-			// count tags
+			// push traces
 			uniqueKeys := map[string]struct{}{}
-			for _, rs := range trace.ResourceSpans {
-				for _, ss := range rs.ScopeSpans {
-					for _, sp := range ss.Spans {
-						for _, tag := range sp.Attributes {
-							uniqueKeys[tag.Key] = struct{}{}
+			numTraces := 10
+			for i := 0; i < numTraces; i++ {
+				id := test.ValidTraceID(nil)
+				trace := test.MakeTrace(1, id)
+
+				traceBytes, err := trace.Marshal()
+				require.NoError(t, err)
+
+				for _, rs := range trace.ResourceSpans {
+					for _, ss := range rs.ScopeSpans {
+						for _, sp := range ss.Spans {
+							for _, tag := range sp.Attributes {
+								uniqueKeys[tag.Key] = struct{}{}
+							}
 						}
 					}
 				}
+
+				// Create a push request for livestore
+				req := &tempopb.PushBytesRequest{
+					Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+					Ids:    [][]byte{id},
+				}
+				instance.pushBytes(time.Now(), req)
+				err = instance.cutIdleTraces(true)
+				require.NoError(t, err)
+				blockID, err := instance.cutBlocks(true)
+				require.NoError(t, err)
+				err = instance.completeBlock(ctx, blockID)
+				require.NoError(t, err)
 			}
 			expectedTags := len(uniqueKeys)
-
-			// Create a push request for livestore
-			req := &tempopb.PushBytesRequest{
-				Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
-				Ids:    [][]byte{id},
-			}
-			instance.pushBytes(time.Now(), req)
-			err = instance.cutIdleTraces(true)
-			require.NoError(t, err)
 
 			res, err := instance.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
 				Scope: "span",
@@ -553,7 +579,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	// Create metrics
 	reg := prometheus.NewRegistry()
 
-	logger := log.NewNopLogger()
+	logger := &testLogger{t}
 
 	// Use fake Kafka cluster for testing
 	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
@@ -562,6 +588,17 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	}
 
 	return liveStore, services.StartAndAwaitRunning(t.Context(), liveStore)
+}
+
+var _ log.Logger = (*testLogger)(nil)
+
+type testLogger struct {
+	t testing.TB
+}
+
+func (l *testLogger) Log(keyvals ...interface{}) error {
+	l.t.Log(keyvals...)
+	return nil
 }
 
 func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {
@@ -672,7 +709,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	// add dummy search data
 	tagKey := foo
-	tagValue := "bar"
+	tagValue := bar
 
 	req := &tempopb.SearchRequest{
 		Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
@@ -683,18 +720,20 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	concurrent := func(f func()) {
 		wg.Add(1)
-		defer wg.Done()
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
 
-	go concurrent(func() {
+	concurrent(func() {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -711,12 +750,12 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		i.pushBytes(time.Now(), req)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := i.cutIdleTraces(true)
 		require.NoError(t, err, "error cutting complete traces")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// Cut wal, complete
 		blockID, _ := i.cutBlocks(true)
 		if blockID != uuid.Nil {
@@ -725,27 +764,31 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		}
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := i.deleteOldBlocks() // livestore cleanup
 		require.NoError(t, err)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := i.Search(context.Background(), req)
 		require.NoError(t, err, "error searching")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// SearchTags queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
 		_, err := i.SearchTags(ctx, "")
 		require.NoError(t, err, "error getting search tags")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
-		_, err := i.SearchTagValues(ctx, tagKey, 0, 0)
+		_, err := i.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+			TagName:             tagKey,
+			MaxTagValues:        0,
+			StaleValueThreshold: 0,
+		})
 		require.NoError(t, err, "error getting search tag values")
 	})
 
@@ -931,12 +974,220 @@ func TestIncludeBlock(t *testing.T) {
 			actual := includeBlock(&backend.BlockMeta{
 				StartTime: time.Unix(tc.blocKStart, 0),
 				EndTime:   time.Unix(tc.blockEnd, 0),
-			}, &tempopb.SearchRequest{
-				Start: tc.reqStart,
-				End:   tc.reqEnd,
-			})
+			}, time.Unix(int64(tc.reqStart), 0), time.Unix(int64(tc.reqEnd), 0))
 
 			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestLiveStoreQueryRange(t *testing.T) {
+	// init configuration
+	var (
+		tempDir = t.TempDir()
+		tenant  = "TestLiveStoreQueryRange"
+	)
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.Metrics.TimeOverlapCutoff = 0.5
+	cfg.QueryBlockConcurrency = 10
+	cfg.CompleteBlockTimeout = 5 * time.Minute
+
+	// Create WAL
+	walCfg := &wal.Config{
+		Filepath: path.Join(tempDir, "wal"),
+		Version:  encoding.DefaultEncoding().Version(),
+	}
+	w, err := wal.New(walCfg)
+	require.NoError(t, err)
+	defer func() {
+		// WAL doesn't have a shutdown method, just clean up the temp directory
+		_ = w.Clear()
+	}()
+
+	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	// Create instance
+	inst, err := newInstance(tenant, cfg, w, mover, log.NewNopLogger())
+	require.NoError(t, err)
+
+	// Create test spans
+	now := time.Now()
+	duration := time.Millisecond
+	span1Start := now.Add(-10 * time.Second)
+	span2Start := now.Add(-time.Second + time.Millisecond)
+
+	sp := test.MakeSpan(test.ValidTraceID(nil))
+	sp.StartTimeUnixNano = uint64(span1Start.UnixNano())
+	sp.EndTimeUnixNano = uint64(span1Start.Add(duration).UnixNano())
+	sp.Kind = trace_v1.Span_SPAN_KIND_SERVER
+
+	sp2 := test.MakeSpan(test.ValidTraceID(nil))
+	sp2.StartTimeUnixNano = uint64(span2Start.UnixNano())
+	sp2.EndTimeUnixNano = uint64(span2Start.Add(duration).UnixNano())
+	sp2.Kind = trace_v1.Span_SPAN_KIND_SERVER
+
+	// Create traces from spans
+	trace1 := &tempopb.Trace{
+		ResourceSpans: []*trace_v1.ResourceSpans{
+			{
+				ScopeSpans: []*trace_v1.ScopeSpans{
+					{
+						Spans: []*trace_v1.Span{sp},
+					},
+				},
+			},
+		},
+	}
+
+	trace2 := &tempopb.Trace{
+		ResourceSpans: []*trace_v1.ResourceSpans{
+			{
+				ScopeSpans: []*trace_v1.ScopeSpans{
+					{
+						Spans: []*trace_v1.Span{sp2},
+					},
+				},
+			},
+		},
+	}
+
+	// Marshal traces to bytes
+	trace1Bytes, err := trace1.Marshal()
+	require.NoError(t, err)
+
+	trace2Bytes, err := trace2.Marshal()
+	require.NoError(t, err)
+
+	// Create trace IDs
+	traceID1 := test.ValidTraceID(nil)
+	traceID2 := test.ValidTraceID(nil)
+
+	// Push traces using pushBytes
+	pushReq := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: trace1Bytes},
+			{Slice: trace2Bytes},
+		},
+		Ids: [][]byte{traceID1, traceID2},
+	}
+
+	inst.pushBytes(now, pushReq)
+
+	// Force block creation by cutting traces and blocks
+	err = inst.cutIdleTraces(true)
+	require.NoError(t, err)
+
+	blockID, err := inst.cutBlocks(true)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, blockID)
+
+	// Complete the block
+	ctx := context.Background()
+	err = inst.completeBlock(ctx, blockID)
+	require.NoError(t, err)
+
+	// Wait a bit to ensure block is ready
+	time.Sleep(100 * time.Millisecond)
+
+	// Get the completed block for testing
+	inst.blocksMtx.RLock()
+	var block *ingester.LocalBlock
+	for _, b := range inst.completeBlocks {
+		block = b
+		break
+	}
+	inst.blocksMtx.RUnlock()
+
+	require.NotNil(t, block, "block should have been created and completed")
+
+	type testCase struct {
+		name              string
+		req               *tempopb.QueryRangeRequest
+		expectedSpans     int
+		expectedExemplars int
+	}
+
+	for _, tc := range []testCase{
+		{
+			// -------------- SP1 ------- SP2 ---------
+			// ---------^------------^-----------------
+			// ------- START ------ END ---------------
+			name: "first trace",
+			req: &tempopb.QueryRangeRequest{
+				Query:     "{} | count_over_time()",
+				Start:     uint64(span1Start.Add(-1 * time.Second).UnixNano()),
+				End:       uint64(span1Start.Add(duration + time.Second).UnixNano()),
+				Step:      uint64(time.Second),
+				Exemplars: 2,
+			},
+			expectedSpans:     1,
+			expectedExemplars: 1,
+		},
+		{
+			// -------------- SP1 ------- SP2 ---------
+			// ----------------------^------------^----
+			// ------------------- START ------- END --
+			name: "second trace",
+			req: &tempopb.QueryRangeRequest{
+				Query:     "{} | count_over_time()",
+				Start:     uint64(span2Start.Add(-1 * time.Second).UnixNano()),
+				End:       uint64(now.UnixNano()),
+				Step:      uint64(time.Second),
+				Exemplars: 2,
+			},
+			expectedSpans:     1,
+			expectedExemplars: 1,
+		},
+		{
+			// -------------- SP1 ------- SP2 -----------
+			// ---------------^-------------------^------
+			// ------------- START ------------- END ----
+			name: "start of block included",
+			req: &tempopb.QueryRangeRequest{
+				Query:     "{} | count_over_time()",
+				Start:     uint64(block.BlockMeta().StartTime.UnixNano()),
+				End:       uint64(now.UnixNano()),
+				Step:      uint64(time.Second),
+				Exemplars: 2,
+			},
+			expectedSpans:     2,
+			expectedExemplars: 2,
+		},
+		{
+			// -------------- SP1 ------- SP2 ------------------
+			// ----------------------------^-------------^------
+			// ------------------------- START -------- END ----
+			name: "end of block included",
+			req: &tempopb.QueryRangeRequest{
+				Query:     "{} | count_over_time()",
+				Start:     uint64(block.BlockMeta().EndTime.UnixNano()),
+				End:       uint64(now.UnixNano()),
+				Step:      uint64(time.Second),
+				Exemplars: 2,
+			},
+			expectedSpans:     0, // TODO: possible bug
+			expectedExemplars: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			req.MaxSeries = 10
+			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
+
+			results, err := inst.QueryRange(ctx, req)
+			require.NoError(t, err)
+
+			require.Equal(t, 1, len(results.Series))
+			for _, ts := range results.Series {
+				var sum float64
+				for _, val := range ts.Samples {
+					sum += val.Value
+				}
+				require.InDelta(t, tc.expectedSpans, sum, 0.000001)
+				require.Equal(t, tc.expectedExemplars, len(ts.Exemplars))
+			}
 		})
 	}
 }
