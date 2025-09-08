@@ -80,7 +80,7 @@ func TestBucketSet_Instant(t *testing.T) {
 	end := uint64(1010)
 	step := end - start
 
-	bs := newExemplarBucketSet(maxExemplars, start, end, step)
+	bs := newExemplarBucketSet(100, start, end, step)
 	assert.True(t, bs.testTotal())
 	assert.True(t, bs.addAndTest(start-1))
 	assert.True(t, bs.addAndTest(start))

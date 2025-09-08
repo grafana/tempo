@@ -159,7 +159,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		}
 	} else {
 		innerAggFunc = func() RangeAggregator {
-			return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
+			return NewStepAggregator(q.Start, q.End, q.Step, q.Exemplars, innerAgg)
 		}
 	}
 

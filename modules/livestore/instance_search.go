@@ -652,7 +652,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
 	// TODO MRD look into how to propagate unsafe query hints.
-	rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), i.Cfg.Metrics.TimeOverlapCutoff, false)
+	rawEval, err := e.CompileMetricsQueryRange(req, i.Cfg.Metrics.TimeOverlapCutoff, false)
 	if err != nil {
 		return nil, err
 	}
@@ -784,7 +784,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loca
 	}
 
 	// Not in cache or not cacheable, so execute
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, exemplars, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}

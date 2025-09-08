@@ -40,6 +40,7 @@ type MetricsCompare struct {
 	baselineExemplars  []Exemplar
 	selectionExemplars []Exemplar
 	seriesAgg          SeriesAggregator
+	maxExemplars       int
 
 	// Runtime fields to avoid allocating closures
 	// and escaping to the heap when we call span.AllAttributesFunc.

@@ -2456,7 +2456,7 @@ func TestHistogramAggregator(t *testing.T) {
 		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
 		End:       uint64(time.Now().UnixNano()),
 		Step:      uint64(15 * time.Second.Nanoseconds()),
-		Exemplars: maxExemplars,
+		Exemplars: 100,
 	}
 	const seriesCount = 6
 
@@ -2698,7 +2698,7 @@ func BenchmarkHistogramAggregator_Results(b *testing.B) {
 		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
 		End:       uint64(time.Now().UnixNano()),
 		Step:      uint64(15 * time.Second.Nanoseconds()),
-		Exemplars: maxExemplars,
+		Exemplars: 100,
 	}
 
 	benchmarks := []struct {

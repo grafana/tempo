@@ -83,9 +83,6 @@ type limitedBucketSet struct {
 // newBucketSet creates a new bucket set for the given time range
 // start and end are in nanoseconds
 func newBucketSet(exemplars uint32, start, end uint64) *limitedBucketSet {
-	if exemplars > maxExemplars || exemplars == 0 {
-		exemplars = maxExemplars
-	}
 	buckets := exemplars / maxExemplarsPerBucket
 	if buckets == 0 { // edge case for few exemplars
 		buckets = 1
