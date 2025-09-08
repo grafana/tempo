@@ -482,7 +482,7 @@ type StepAggregator struct {
 
 var _ RangeAggregator = (*StepAggregator)(nil)
 
-func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator) *StepAggregator {
+func NewStepAggregator(start, end, step uint64, exemplars uint32, innerAgg func() VectorAggregator) *StepAggregator {
 	mapper := NewIntervalMapper(start, end, step)
 	intervals := mapper.IntervalCount()
 	vectors := make([]VectorAggregator, intervals)
@@ -493,8 +493,8 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 	return &StepAggregator{
 		intervalMapper:  mapper,
 		vectors:         vectors,
-		exemplars:       make([]Exemplar, 0, maxExemplars),
-		exemplarBuckets: newExemplarBucketSet(maxExemplars, start, end, step),
+		exemplars:       make([]Exemplar, 0, exemplars),
+		exemplarBuckets: newExemplarBucketSet(exemplars, start, end, step),
 	}
 }
 

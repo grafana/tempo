@@ -39,7 +39,7 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 		weightedAverageSeries: make(map[SeriesMapKey]*averageSeries),
 		len:                   intervalMapper.IntervalCount(),
 		intervalMapper:        intervalMapper,
-		exemplarBuckets:       newExemplarBucketSet(maxExemplars, q.Start, q.End, q.Step),
+		exemplarBuckets:       newExemplarBucketSet(q.GetExemplars(), q.Start, q.End, q.Step),
 	}
 
 	if mode == AggregateModeRaw {
@@ -404,6 +404,7 @@ type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 	getSpanAttValue  func(s Span) float64
 	intervalMapper   IntervalMapper
 	start, end, step uint64
+	maxExemplars     uint32
 
 	// Data
 	series     map[F]avgOverTimeSeries[S]
@@ -579,8 +580,8 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 		intervals := g.intervalMapper.IntervalCount()
 		s = avgOverTimeSeries[S]{
 			vals:            g.buf.vals,
-			average:         newAverageSeries(intervals, maxExemplars, nil),
-			exemplarBuckets: newExemplarBucketSet(maxExemplars, g.start, g.end, g.step),
+			average:         newAverageSeries(intervals, int(g.maxExemplars), nil),
+			exemplarBuckets: newExemplarBucketSet(g.maxExemplars, g.start, g.end, g.step),
 			initialized:     true,
 		}
 		g.series[g.buf.fast] = s
