@@ -85,7 +85,12 @@ var (
 	metricBytesIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_bytes_received_total",
-		Help:      "The total number of proto bytes received per tenant",
+		Help:      "The total number of proto bytes received per tenant, after limits",
+	}, []string{"tenant"})
+	metricIngressBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_ingress_bytes_total",
+		Help:      "The total number of bytes received per tenant, before limits",
 	}, []string{"tenant"})
 	metricTracesPerBatch = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
@@ -418,6 +423,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 	defer d.padWithArtificialDelay(reqStart, userID)
+	metricIngressBytes.WithLabelValues(userID).Add(float64(size))
 
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
