@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -211,7 +212,34 @@ func main() {
 
 	// Check if we're running in validation mode
 	if validationMode {
-		logger.Info("Running in validation mode", zap.Int("cycles", validationCycles), zap.Duration("timeout", validationTimeout))
+		accessPolicyToken := os.Getenv("TEMPO_ACCESS_POLICY_TOKEN")
+		if accessPolicyToken == "" {
+			logger.Error("TEMPO_ACCESS_POLICY_TOKEN environment variable is required in validation mode")
+			os.Exit(1)
+		}
+
+		// Construct the basic auth token for HTTP headers
+		basicAuthToken := constructAuthToken(vultureConfig.tempoOrgID, accessPolicyToken)
+
+		httpClient.SetHeader("Authorization", fmt.Sprintf("Basic %s", basicAuthToken))
+
+		// Create authenticated jaeger client for writing traces
+		authJaegerClient, err := utilpkg.NewJaegerToOTLPExporterWithAuth(
+			pushEndpoint,
+			vultureConfig.tempoOrgID,
+			basicAuthToken,
+			vultureConfig.tempoPushTLS,
+		)
+		if err != nil {
+			logger.Error("Failed to create authenticated OTLP exporter", zap.Error(err))
+			os.Exit(1)
+		}
+
+		logger.Info("Running in validation mode",
+			zap.Int("cycles", validationCycles),
+			zap.Duration("timeout", validationTimeout),
+			zap.String("org_id", vultureConfig.tempoOrgID),
+		)
 
 		ctx := context.Background()
 
@@ -219,12 +247,13 @@ func main() {
 			Cycles:                validationCycles,
 			Timeout:               validationTimeout,
 			TempoOrgID:            vultureConfig.tempoOrgID,
+			TempoBasicAuthToken:   basicAuthToken,
 			WriteBackoffDuration:  vultureConfig.tempoWriteBackoffDuration,
 			SearchBackoffDuration: vultureConfig.tempoSearchBackoffDuration,
 		}
 
 		service := NewValidationService(validationConfig, RealClock{}, logger)
-		result := service.RunValidation(ctx, jaegerClient, httpClient, httpClient)
+		result := service.RunValidation(ctx, authJaegerClient, httpClient, httpClient)
 
 		// Log detailed results before exiting
 		logger.Info("Validation completed",
@@ -273,6 +302,15 @@ func main() {
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+}
+
+// constructAuthToken creates base64(orgID:accessToken) if both are provided
+func constructAuthToken(orgID, accessToken string) string {
+	if orgID == "" || accessToken == "" {
+		return ""
+	}
+	combined := fmt.Sprintf("%s:%s", orgID, accessToken)
+	return base64.StdEncoding.EncodeToString([]byte(combined))
 }
 
 func getGRPCEndpoint(endpoint string) (string, error) {
