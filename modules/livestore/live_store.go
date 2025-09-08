@@ -278,7 +278,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	for i := range s.cfg.CompleteBlockConcurrency {
 		idx := i
 		s.runInBackground(func() {
-			s.globalCompleteLoop(idx)
+			s.globalCompleteLoop(ctx, idx)
 		})
 	}
 

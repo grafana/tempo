@@ -1,6 +1,7 @@
 package livestore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,8 +73,14 @@ func (s *LiveStore) runInBackground(fn func()) {
 	}()
 }
 
-func (s *LiveStore) globalCompleteLoop(idx int) {
+func (s *LiveStore) globalCompleteLoop(ctx context.Context, idx int) {
 	for {
+		// Check for a shutdown event, if none then continue.
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		o := s.completeQueues.Dequeue(idx)
 		if o == nil {
 			return // queue is closed
