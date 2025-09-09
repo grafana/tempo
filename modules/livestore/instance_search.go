@@ -77,9 +77,6 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 	}
 
 	func() {
-		i.blocksMtx.RLock()
-		defer i.blocksMtx.RUnlock()
-
 		if i.headBlock != nil {
 			meta := i.headBlock.BlockMeta()
 			if includeBlock(meta, reqStart, reqEnd) {
@@ -97,9 +94,6 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 	if err := anyErr.Load(); err != nil {
 		return err
 	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 
 	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 
@@ -251,6 +245,9 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		return nil
 	}
 
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
 	err := i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), search)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in Search", "err", err)
@@ -347,6 +344,9 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		}, fetcher)
 	}
 
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
 	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), searchBlock)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in SearchTagsV2", "err", err)
@@ -414,6 +414,9 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 
 		return nil
 	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 
 	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), search)
 	if err != nil {
@@ -537,6 +540,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		span.SetAttributes(attribute.Bool("cached", false))
 		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+
 		if err := search(ctx, localB); err != nil { // note that errComplete could be returned here but it's ok to pass it up b/c it means no work was done and the localCol is invalid
 			return err
 		}
@@ -559,6 +563,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}
 		return nil
 	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 
 	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), searchWithCache)
 	if err != nil {
@@ -627,6 +634,9 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 		return nil
 	}
 
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
 	err := i.iterateBlocks(ctx, time.Unix(0, 0), time.Unix(0, 0), search)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in FindTraceByID", "err", err)
@@ -663,9 +673,6 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	if err != nil {
 		return nil, err
 	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
 	if req.Start < uint64(cutoff.UnixNano()) {
@@ -716,6 +723,9 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 		return fmt.Errorf("unexpected block type: %T", b)
 	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 
 	err = i.iterateBlocks(ctx, time.Unix(0, int64(req.Start)), time.Unix(0, int64(req.End)), search)
 	if err != nil {

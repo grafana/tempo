@@ -22,7 +22,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 

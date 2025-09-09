@@ -317,16 +317,16 @@ func (s *LiveStore) stopping(error) error {
 
 	timeout := time.NewTimer(s.cfg.InstanceCleanupPeriod)
 	defer timeout.Stop()
-
-	for !s.completeQueues.IsEmpty() {
-		select {
-		case <-ticker.C:
-		case <-timeout.C:
-			level.Error(s.logger).Log("msg", "flush remaining blocks timed out")
-			return nil // shutdown timeout reached
+	/*
+		for !s.completeQueues.IsEmpty() {
+			select {
+			case <-ticker.C:
+			case <-timeout.C:
+				level.Error(s.logger).Log("msg", "flush remaining blocks timed out")
+				return nil // shutdown timeout reached
+			}
 		}
-	}
-
+	*/
 	s.stopAllBackgroundProcesses()
 
 	return nil
