@@ -2,7 +2,6 @@ package livestore
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -124,16 +123,18 @@ func TestInstanceBackpressure(t *testing.T) {
 	id1 := test.ValidTraceID(nil)
 	pushTrace(t.Context(), t, instance, test.MakeTrace(1, id1), id1)
 
-	var id2 []byte
+	id2 := test.ValidTraceID(nil)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	// Use a channel to coordinate the blocking push operation
+	pushComplete := make(chan struct{})
 	go func() {
-		defer wg.Done()
+		defer close(pushComplete)
 		// Second write will block waiting for the live traces to have room
-		id2 = test.ValidTraceID(nil)
 		pushTrace(t.Context(), t, instance, test.MakeTrace(1, id2), id2)
 	}()
+
+	// Give goroutine time to start and block
+	time.Sleep(10 * time.Millisecond)
 
 	// First trace is found
 	res, err := instance.FindByTraceID(t.Context(), id1)
@@ -142,15 +143,22 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.NotNil(t, res.Trace)
 	require.Greater(t, res.Trace.Size(), 0)
 
-	require.Eventually(t, func() bool { return len(id2) > 0 }, time.Second*5, time.Millisecond*100)
-
-	// Second is not
+	// Second is not (should be blocked)
 	res, err = instance.FindByTraceID(t.Context(), id2)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Nil(t, res.Trace)
 
+	// Free up space for the blocked push
 	require.NoError(t, instance.cutIdleTraces(true))
+
+	// Wait for push to complete with timeout
+	select {
+	case <-pushComplete:
+		// Push completed successfully
+	case <-time.After(1 * time.Second):
+		t.Fatal("push operation did not complete within timeout")
+	}
 
 	// After cut, second trace is pushed to instance and can be found
 	res, err = instance.FindByTraceID(t.Context(), id2)
@@ -159,6 +167,5 @@ func TestInstanceBackpressure(t *testing.T) {
 	require.NotNil(t, res.Trace)
 	require.Greater(t, res.Trace.Size(), 0)
 
-	wg.Wait()
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
