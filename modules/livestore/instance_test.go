@@ -1,6 +1,7 @@
 package livestore
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -33,14 +34,14 @@ func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces in
 	return instance, ls
 }
 
-func pushTrace(t *testing.T, instance *instance, tr *tempopb.Trace, id []byte) {
+func pushTrace(ctx context.Context, t *testing.T, instance *instance, tr *tempopb.Trace, id []byte) {
 	b, err := tr.Marshal()
 	require.NoError(t, err)
 	req := &tempopb.PushBytesRequest{
 		Traces: []tempopb.PreallocBytes{{Slice: b}},
 		Ids:    [][]byte{id},
 	}
-	instance.pushBytes(t.Context(), time.Now(), req)
+	instance.pushBytes(ctx, time.Now(), req)
 }
 
 // TestInstanceLimits verifies MaxBytesPerTrace and MaxLocalTracesPerUser enforcement in livestore.
@@ -60,8 +61,8 @@ func TestInstanceLimits(t *testing.T) {
 		// two different traces with different ids
 		id1 := test.ValidTraceID(nil)
 		id2 := test.ValidTraceID(nil)
-		pushTrace(t, instance, test.MakeTrace(5, id1), id1)
-		pushTrace(t, instance, test.MakeTrace(5, id2), id2)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id1), id1)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id2), id2)
 		require.Equal(t, uint64(2), instance.liveTraces.Len())
 
 		err := services.StopAndAwaitTerminated(t.Context(), ls)
@@ -74,9 +75,9 @@ func TestInstanceLimits(t *testing.T) {
 
 		id := test.ValidTraceID(nil)
 		// First push fits
-		pushTrace(t, instance, test.MakeTrace(5, id), id)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
 		// Second push with same id will exceed combined size (> maxBytes)
-		pushTrace(t, instance, test.MakeTrace(5, id), id)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
 		// Only one live trace stored, and accumulated size should be <= maxBytes
 		require.Equal(t, uint64(1), instance.liveTraces.Len())
 		require.LessOrEqual(t, instance.liveTraces.Size(), uint64(maxBytes))
@@ -91,7 +92,9 @@ func TestInstanceLimits(t *testing.T) {
 
 		for range 10 {
 			id := test.ValidTraceID(nil)
-			pushTrace(t, instance, test.MakeTrace(1, id), id)
+			ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(1*time.Second)) // Time out after 1s, push should be immediate
+			t.Cleanup(cancel)
+			pushTrace(ctx, t, instance, test.MakeTrace(1, id), id)
 		}
 		require.Equal(t, uint64(4), instance.liveTraces.Len())
 
@@ -105,7 +108,7 @@ func TestInstanceNoLimits(t *testing.T) {
 
 	for range 100 {
 		id := test.ValidTraceID(nil)
-		pushTrace(t, instance, test.MakeTrace(1, id), id)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(1, id), id)
 	}
 
 	assert.Equal(t, uint64(100), instance.liveTraces.Len())
@@ -119,7 +122,7 @@ func TestInstanceBackpressure(t *testing.T) {
 	instance, ls := instanceWithPushLimits(t, 0, 1)
 
 	id1 := test.ValidTraceID(nil)
-	pushTrace(t, instance, test.MakeTrace(1, id1), id1)
+	pushTrace(t.Context(), t, instance, test.MakeTrace(1, id1), id1)
 
 	var id2 []byte
 
@@ -129,7 +132,7 @@ func TestInstanceBackpressure(t *testing.T) {
 		defer wg.Done()
 		// Second write will block waiting for the live traces to have room
 		id2 = test.ValidTraceID(nil)
-		pushTrace(t, instance, test.MakeTrace(1, id2), id2)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(1, id2), id2)
 	}()
 
 	// First trace is found

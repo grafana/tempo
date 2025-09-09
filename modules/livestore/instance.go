@@ -148,6 +148,7 @@ func (i *instance) backpressure(ctx context.Context) bool {
 			// per wal flush, so wait a bit.
 			select {
 			case <-ctx.Done():
+				return false
 			case <-time.After(1 * time.Second):
 			}
 
@@ -166,6 +167,7 @@ func (i *instance) backpressure(ctx context.Context) bool {
 		// so wait a bit.
 		select {
 		case <-ctx.Done():
+			return false
 		case <-time.After(1 * time.Second):
 		}
 
@@ -184,6 +186,13 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 
 	// Wait for room in pipeline if needed
 	for i.backpressure(ctx) {
+	}
+
+	select {
+	case <-ctx.Done():
+		level.Error(i.logger).Log("msg", "failed to pushBytes", "tenant", i.tenantID, "err", ctx.Err())
+		return
+	default:
 	}
 
 	// Check tenant limits
