@@ -54,7 +54,8 @@ type block interface {
 type blockFn func(ctx context.Context, meta *backend.BlockMeta, b block) error
 
 // iterateBlocks provides a way to iterate over all blocks (head, wal, complete)
-// using concurrent processing with bounded concurrency
+// using concurrent processing with bounded concurrency. Any locks should be set before calling
+// this function.
 func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time, fn blockFn) error {
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
