@@ -237,9 +237,12 @@ func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 		metricTotalSpans.WithLabelValues(p.tenant).Add(float64(numSpans))
 
 		// Check max trace size
-		if maxSz > 0 && !p.traceSizes.Allow(traceID, batch.Size(), maxSz) {
-			metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
-			continue
+		if maxSz > 0 {
+			allowResult := p.traceSizes.Allow(traceID, batch.Size(), maxSz)
+			if !allowResult.IsAllowed {
+				metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
+				continue
+			}
 		}
 
 		// Live traces
