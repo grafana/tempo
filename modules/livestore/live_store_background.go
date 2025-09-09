@@ -205,14 +205,28 @@ func (s *LiveStore) reloadBlocks() error {
 			defer inst.blocksMtx.Unlock()
 
 			level.Info(s.logger).Log("msg", "reloaded wal block", "block", meta.BlockID.String())
-			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
+
+			// Update the snapshot with new wal block
+			oldSnapshot := inst.blocksSnapshot.Load()
+			newWalBlocks := make(map[uuid.UUID]common.WALBlock, len(oldSnapshot.walBlocks)+1)
+			for k, v := range oldSnapshot.walBlocks {
+				newWalBlocks[k] = v
+			}
+			newWalBlocks[(uuid.UUID)(meta.BlockID)] = blk
+			
+			newSnapshot := &blocksSnapshot{
+				headBlock:      oldSnapshot.headBlock,
+				walBlocks:      newWalBlocks,
+				completeBlocks: oldSnapshot.completeBlocks,
+			}
+			inst.blocksSnapshot.Store(newSnapshot)
 
 			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
 			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID)); err != nil {
 				return fmt.Errorf("failed to enqueue wal block for completion for tenant %s: %w", meta.TenantID, err)
 			}
 
-			level.Info(s.logger).Log("msg", "reloaded wal blocks", "tenant", inst.tenantID, "count", len(inst.walBlocks))
+			level.Info(s.logger).Log("msg", "reloaded wal blocks", "tenant", inst.tenantID, "count", len(newWalBlocks))
 
 			return nil
 		}()
@@ -296,7 +310,22 @@ func (s *LiveStore) reloadBlocks() error {
 			}
 
 			inst.blocksMtx.Lock()
-			inst.completeBlocks[id] = lb
+
+			// Update the snapshot with new complete block
+			oldSnapshot := inst.blocksSnapshot.Load()
+			newCompleteBlocks := make(map[uuid.UUID]*ingester.LocalBlock, len(oldSnapshot.completeBlocks)+1)
+			for k, v := range oldSnapshot.completeBlocks {
+				newCompleteBlocks[k] = v
+			}
+			newCompleteBlocks[id] = lb
+			
+			newSnapshot := &blocksSnapshot{
+				headBlock:      oldSnapshot.headBlock,
+				walBlocks:      oldSnapshot.walBlocks,
+				completeBlocks: newCompleteBlocks,
+			}
+			inst.blocksSnapshot.Store(newSnapshot)
+
 			inst.blocksMtx.Unlock()
 		}
 	}

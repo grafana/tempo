@@ -76,17 +76,17 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
-	func() {
-		i.blocksMtx.RLock()
-		defer i.blocksMtx.RUnlock()
+	// Lock-free read of blocks snapshot
+	snapshot := i.getBlocksSnapshot()
 
-		if i.headBlock != nil {
-			meta := i.headBlock.BlockMeta()
+	func() {
+		if snapshot.headBlock != nil {
+			meta := snapshot.headBlock.BlockMeta()
 			if includeBlock(meta, reqStart, reqEnd) {
 				ctx, span := tracer.Start(ctx, "process.headBlock")
 				span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-				if err := fn(ctx, meta, i.headBlock); err != nil {
+				if err := fn(ctx, meta, snapshot.headBlock); err != nil {
 					handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
 				}
 				span.End()
@@ -98,13 +98,10 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		return err
 	}
 
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
 	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 
 	// Process wal blocks
-	for _, b := range i.walBlocks {
+	for _, b := range snapshot.walBlocks {
 		if ctx.Err() != nil {
 			continue
 		}
@@ -133,7 +130,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 	}
 
 	// Process complete blocks
-	for _, b := range i.completeBlocks {
+	for _, b := range snapshot.completeBlocks {
 		if ctx.Err() != nil {
 			continue
 		}
@@ -663,9 +660,6 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	if err != nil {
 		return nil, err
 	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
 	if req.Start < uint64(cutoff.UnixNano()) {

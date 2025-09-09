@@ -1091,14 +1091,13 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	// Wait a bit to ensure block is ready
 	time.Sleep(100 * time.Millisecond)
 
-	// Get the completed block for testing
-	inst.blocksMtx.RLock()
+	// Get the completed block for testing using lock-free snapshot
+	snapshot := inst.getBlocksSnapshot()
 	var block *ingester.LocalBlock
-	for _, b := range inst.completeBlocks {
+	for _, b := range snapshot.completeBlocks {
 		block = b
 		break
 	}
-	inst.blocksMtx.RUnlock()
 
 	require.NotNil(t, block, "block should have been created and completed")
 

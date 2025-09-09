@@ -62,7 +62,8 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireTraceInBlock(t, inst.headBlock, expectedID, expectedTrace)
+	snapshot := inst.getBlocksSnapshot()
+	requireTraceInBlock(t, snapshot.headBlock, expectedID, expectedTrace)
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 0})
 
 	// cut a new head block. old head block is in wal blocks
@@ -70,7 +71,8 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireTraceInBlock(t, inst.walBlocks[walUUID], expectedID, expectedTrace)
+	snapshot = inst.getBlocksSnapshot()
+	requireTraceInBlock(t, snapshot.walBlocks[walUUID], expectedID, expectedTrace)
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 
 	// force complete the wal block
@@ -78,7 +80,8 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
-	requireTraceInBlock(t, inst.completeBlocks[walUUID], expectedID, expectedTrace)
+	snapshot = inst.getBlocksSnapshot()
+	requireTraceInBlock(t, snapshot.completeBlocks[walUUID], expectedID, expectedTrace)
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	// stop gracefully
@@ -325,7 +328,8 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		err = inst.cutIdleTraces(true)
 		require.NoError(t, err)
 
-		meta := inst.headBlock.BlockMeta()
+		snapshot := inst.getBlocksSnapshot()
+		meta := snapshot.headBlock.BlockMeta()
 		require.Equal(t, tc.expectedStart, meta.StartTime)
 		require.Equal(t, tc.expectedEnd, meta.EndTime)
 
@@ -335,7 +339,10 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		err = inst.completeBlock(t.Context(), uuid)
 		require.NoError(t, err)
 
-		meta = inst.completeBlocks[uuid].BlockMeta()
+		snapshot = inst.getBlocksSnapshot()
+		completeBlock := snapshot.completeBlocks[uuid]
+		require.NotNil(t, completeBlock, "complete block should exist")
+		meta = completeBlock.BlockMeta()
 		require.Equal(t, tc.expectedStart, meta.StartTime)
 		require.Equal(t, tc.expectedEnd, meta.EndTime)
 
@@ -402,8 +409,9 @@ func createRecordIter(records []*kgo.Record) recordIter {
 
 func requireInstanceState(t *testing.T, inst *instance, state instanceState) {
 	require.Equal(t, uint64(state.liveTraces), inst.liveTraces.Len())
-	require.Len(t, inst.walBlocks, state.walBlocks)
-	require.Len(t, inst.completeBlocks, state.completeBlocks)
+	snapshot := inst.getBlocksSnapshot()
+	require.Len(t, snapshot.walBlocks, state.walBlocks)
+	require.Len(t, snapshot.completeBlocks, state.completeBlocks)
 }
 
 func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte, expectedTrace *tempopb.Trace) {

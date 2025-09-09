@@ -6,6 +6,7 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -31,6 +32,13 @@ import (
 )
 
 const traceDataType = "trace"
+
+// blocksSnapshot represents an immutable snapshot of all blocks
+type blocksSnapshot struct {
+	headBlock      common.WALBlock
+	walBlocks      map[uuid.UUID]common.WALBlock
+	completeBlocks map[uuid.UUID]*ingester.LocalBlock
+}
 
 var (
 	// Instance-level metrics (similar to ingester instance.go)
@@ -78,11 +86,9 @@ type instance struct {
 	wal *wal.WAL
 	enc encoding.VersionedEncoding
 
-	// Block management
-	blocksMtx      sync.RWMutex
-	headBlock      common.WALBlock
-	walBlocks      map[uuid.UUID]common.WALBlock
-	completeBlocks map[uuid.UUID]*ingester.LocalBlock
+	// Block management - using atomic pointer for lock-free reads
+	blocksMtx      sync.Mutex                     // Regular mutex for write operations only
+	blocksSnapshot atomic.Pointer[blocksSnapshot] // Atomic pointer to immutable snapshot
 	lastCutTime    time.Time
 
 	// Live traces
@@ -107,8 +113,6 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		Cfg:                cfg,
 		wal:                wal,
 		enc:                enc,
-		walBlocks:          map[uuid.UUID]common.WALBlock{},
-		completeBlocks:     map[uuid.UUID]*ingester.LocalBlock{},
 		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceLive, cfg.MaxTraceIdle),
 		traceSizes:         tracesizes.New(),
 		overrides:          overrides,
@@ -117,12 +121,23 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
 	}
 
+	// Initialize the blocks snapshot
+	i.blocksSnapshot.Store(&blocksSnapshot{
+		walBlocks:      make(map[uuid.UUID]common.WALBlock),
+		completeBlocks: make(map[uuid.UUID]*ingester.LocalBlock),
+	})
+
 	err := i.resetHeadBlock()
 	if err != nil {
 		return nil, err
 	}
 
 	return i, nil
+}
+
+// getBlocksSnapshot returns the current immutable snapshot of blocks - lock-free!
+func (i *instance) getBlocksSnapshot() *blocksSnapshot {
+	return i.blocksSnapshot.Load()
 }
 
 func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
@@ -187,6 +202,20 @@ func countSpans(trace *tempopb.Trace) int {
 	return count
 }
 
+// flushHeadBlock must be called under blocksMtx's lock
+func (i *instance) flushHeadBlock() error {
+	// Get current snapshot to access headBlock
+	snapshot := i.blocksSnapshot.Load()
+	if snapshot.headBlock != nil {
+		err := snapshot.headBlock.Flush()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	return nil
+}
+
 func (i *instance) cutIdleTraces(immediate bool) error {
 	i.liveTracesMtx.Lock()
 	// Set metrics before cutting (similar to ingester)
@@ -215,26 +244,21 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
-	if i.headBlock != nil {
-		err := i.headBlock.Flush()
-		if err != nil {
-			return err
-		}
 
-		return nil
-	}
-	return nil
+	return i.flushHeadBlock()
 }
 
 func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1.ResourceSpans]) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	if i.headBlock == nil {
+	snapshot := i.blocksSnapshot.Load()
+	if snapshot.headBlock == nil {
 		err := i.resetHeadBlock()
 		if err != nil {
 			return err
 		}
+		snapshot = i.blocksSnapshot.Load()
 	}
 
 	tr := &tempopb.Trace{
@@ -274,9 +298,10 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 		endSeconds = maxEnd
 	}
 
-	return i.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
+	return snapshot.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
 }
 
+// resetHeadBlock must be called under blocksMtx's lock
 func (i *instance) resetHeadBlock() error {
 	dedicatedColumns := i.overrides.DedicatedColumns(i.tenantID)
 
@@ -290,7 +315,16 @@ func (i *instance) resetHeadBlock() error {
 	if err != nil {
 		return err
 	}
-	i.headBlock = block
+
+	// Get current snapshot and create new snapshot with new headBlock
+	oldSnapshot := i.blocksSnapshot.Load()
+	newSnapshot := &blocksSnapshot{
+		headBlock:      block,
+		walBlocks:      oldSnapshot.walBlocks,      // Share immutable map reference
+		completeBlocks: oldSnapshot.completeBlocks, // Share immutable map reference
+	}
+	i.blocksSnapshot.Store(newSnapshot)
+
 	i.lastCutTime = time.Now()
 	return nil
 }
@@ -299,22 +333,38 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
+	// Get current snapshot
+	snapshot := i.blocksSnapshot.Load()
+	headBlock := snapshot.headBlock
+	if headBlock == nil || headBlock.DataLength() == 0 {
 		return uuid.Nil, nil
 	}
 
-	if !immediate && time.Since(i.lastCutTime) < i.Cfg.MaxBlockDuration && i.headBlock.DataLength() < i.Cfg.MaxBlockBytes {
+	if !immediate && time.Since(i.lastCutTime) < i.Cfg.MaxBlockDuration && headBlock.DataLength() < i.Cfg.MaxBlockBytes {
 		return uuid.Nil, nil
 	}
 
 	// Final flush
-	err := i.headBlock.Flush()
+	err := headBlock.Flush()
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	id := (uuid.UUID)(i.headBlock.BlockMeta().BlockID)
-	i.walBlocks[id] = i.headBlock
+	id := (uuid.UUID)(headBlock.BlockMeta().BlockID)
+
+	// Create new map with the head block moved to walBlocks
+	newWalBlocks := make(map[uuid.UUID]common.WALBlock, len(snapshot.walBlocks)+1)
+	for k, v := range snapshot.walBlocks {
+		newWalBlocks[k] = v
+	}
+	newWalBlocks[id] = headBlock
+
+	newSnapshot := &blocksSnapshot{
+		headBlock:      nil, // Will be set by resetHeadBlock
+		walBlocks:      newWalBlocks,
+		completeBlocks: snapshot.completeBlocks,
+	}
+	i.blocksSnapshot.Store(newSnapshot)
 
 	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String())
 
@@ -335,8 +385,10 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	defer span.End()
 
 	i.blocksMtx.Lock()
-	walBlock := i.walBlocks[id]
-	i.blocksMtx.Unlock()
+	defer i.blocksMtx.Unlock()
+
+	snapshot := i.blocksSnapshot.Load()
+	walBlock := snapshot.walBlocks[id]
 
 	if walBlock == nil {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
@@ -374,28 +426,32 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
-	// Verify the WAL block still exists
-	if _, ok := i.walBlocks[id]; !ok {
-		level.Warn(i.logger).Log("msg", "WAL block disappeared while being completed, deleting complete block", "id", id)
-		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
-		if err != nil {
-			level.Error(i.logger).Log("msg", "failed to clear complete block after WAL disappeared", "block", id, "err", err)
+	// Create new maps with the completed block and without the WAL block
+	newWalBlocks := make(map[uuid.UUID]common.WALBlock, len(snapshot.walBlocks))
+	for k, v := range snapshot.walBlocks {
+		if k != id {
+			newWalBlocks[k] = v
 		}
-		span.AddEvent("WAL block disappeared during completion")
-		return nil
 	}
 
-	i.completeBlocks[id] = ingester.NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+	newCompleteBlocks := make(map[uuid.UUID]*ingester.LocalBlock, len(snapshot.completeBlocks)+1)
+	for k, v := range snapshot.completeBlocks {
+		newCompleteBlocks[k] = v
+	}
+	newCompleteBlocks[id] = ingester.NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
+
+	newSnapshot := &blocksSnapshot{
+		headBlock:      snapshot.headBlock,
+		walBlocks:      newWalBlocks,
+		completeBlocks: newCompleteBlocks,
+	}
+	i.blocksSnapshot.Store(newSnapshot)
 
 	err = walBlock.Clear()
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to clear WAL block", "id", id, "err", err)
 		span.RecordError(err)
 	}
-	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
@@ -407,32 +463,50 @@ func (i *instance) deleteOldBlocks() error {
 	defer i.blocksMtx.Unlock()
 
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout) // Delete blocks older than Complete Block Timeout
+	snapshot := i.blocksSnapshot.Load()
 
-	for id, walBlock := range i.walBlocks {
+	needsUpdate := false
+	newWalBlocks := make(map[uuid.UUID]common.WALBlock, len(snapshot.walBlocks))
+	newCompleteBlocks := make(map[uuid.UUID]*ingester.LocalBlock, len(snapshot.completeBlocks))
+
+	// Copy current blocks, excluding old ones
+	for id, walBlock := range snapshot.walBlocks {
 		if walBlock.BlockMeta().EndTime.Before(cutoff) {
-			if _, ok := i.completeBlocks[id]; !ok {
+			if _, ok := snapshot.completeBlocks[id]; !ok {
 				level.Warn(i.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
 			}
 			err := walBlock.Clear()
 			if err != nil {
 				return err
 			}
-			delete(i.walBlocks, id)
 			metricBlocksClearedTotal.WithLabelValues("wal").Inc()
+			needsUpdate = true
+		} else {
+			newWalBlocks[id] = walBlock
 		}
 	}
 
-	for id, completeBlock := range i.completeBlocks {
+	for id, completeBlock := range snapshot.completeBlocks {
 		if completeBlock.BlockMeta().EndTime.Before(cutoff) {
-
 			level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
 			err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
 			if err != nil {
 				return err
 			}
-			delete(i.completeBlocks, id)
 			metricBlocksClearedTotal.WithLabelValues("complete").Inc()
+			needsUpdate = true
+		} else {
+			newCompleteBlocks[id] = completeBlock
 		}
+	}
+
+	if needsUpdate {
+		newSnapshot := &blocksSnapshot{
+			headBlock:      snapshot.headBlock,
+			walBlocks:      newWalBlocks,
+			completeBlocks: newCompleteBlocks,
+		}
+		i.blocksSnapshot.Store(newSnapshot)
 	}
 
 	return nil
