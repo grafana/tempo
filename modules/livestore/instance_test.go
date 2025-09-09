@@ -1,6 +1,7 @@
 package livestore
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -14,15 +15,15 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
-func instanceWithPushLimits(t *testing.T, maxBytes int, maxTraces int) (*instance, *LiveStore) {
+func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore) {
 	instance, ls := defaultInstance(t)
 	limits, err := overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
 			Global: overrides.GlobalOverrides{
-				MaxBytesPerTrace: maxBytes,
+				MaxBytesPerTrace: maxBytesPerTrace,
 			},
 			Ingestion: overrides.IngestionOverrides{
-				MaxLocalTracesPerUser: maxTraces,
+				MaxLocalTracesPerUser: maxLiveTraces,
 			},
 		},
 	}, nil, prometheus.DefaultRegisterer)
@@ -39,7 +40,7 @@ func pushTrace(t *testing.T, instance *instance, tr *tempopb.Trace, id []byte) {
 		Traces: []tempopb.PreallocBytes{{Slice: b}},
 		Ids:    [][]byte{id},
 	}
-	instance.pushBytes(time.Now(), req)
+	instance.pushBytes(t.Context(), time.Now(), req)
 }
 
 // TestInstanceLimits verifies MaxBytesPerTrace and MaxLocalTracesPerUser enforcement in livestore.
@@ -112,4 +113,49 @@ func TestInstanceNoLimits(t *testing.T) {
 
 	err := services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
+}
+
+func TestInstanceBackpressure(t *testing.T) {
+	instance, ls := instanceWithPushLimits(t, 0, 1)
+
+	id1 := test.ValidTraceID(nil)
+	pushTrace(t, instance, test.MakeTrace(1, id1), id1)
+
+	var id2 []byte
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// Second write will block waiting for the live traces to have room
+		id2 = test.ValidTraceID(nil)
+		pushTrace(t, instance, test.MakeTrace(1, id2), id2)
+	}()
+
+	// First trace is found
+	res, err := instance.FindByTraceID(t.Context(), id1)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Trace)
+	require.Greater(t, res.Trace.Size(), 0)
+
+	require.Eventually(t, func() bool { return len(id2) > 0 }, time.Second*5, time.Millisecond*100)
+
+	// Second is not
+	res, err = instance.FindByTraceID(t.Context(), id2)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Nil(t, res.Trace)
+
+	require.NoError(t, instance.cutIdleTraces(true))
+
+	// After cut, second trace is pushed to instance and can be found
+	res, err = instance.FindByTraceID(t.Context(), id2)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Trace)
+	require.Greater(t, res.Trace.Size(), 0)
+
+	wg.Wait()
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }

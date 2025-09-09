@@ -30,7 +30,11 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-const traceDataType = "trace"
+const (
+	traceDataType              = "trace"
+	reasonWaitingForLiveTraces = "waiting_for_live_traces"
+	reasonWaitingForWAL        = "waiting_for_wal"
+)
 
 var (
 	// Instance-level metrics (similar to ingester instance.go)
@@ -65,6 +69,12 @@ var (
 		Help:      "Size in bytes of blocks completed.",
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
 	})
+	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "live_store",
+		Name:      "back_pressure_seconds_total",
+		Help:      "The total amount of time spent waiting to process data from queue",
+	}, []string{"reason"})
 )
 
 type instance struct {
@@ -125,10 +135,55 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 	return i, nil
 }
 
-func (i *instance) pushBytes(ts time.Time, req *tempopb.PushBytesRequest) {
+func (i *instance) backpressure(ctx context.Context) bool {
+	maxLiveTraces := i.overrides.MaxLocalTracesPerUser(i.tenantID)
+	if maxLiveTraces > 0 {
+		// Check live traces
+		i.liveTracesMtx.Lock()
+		liveTracesCount := int(i.liveTraces.Len())
+		i.liveTracesMtx.Unlock()
+
+		if liveTracesCount >= maxLiveTraces {
+			// Live traces exceeds the expected amount of data in
+			// per wal flush, so wait a bit.
+			select {
+			case <-ctx.Done():
+			case <-time.After(1 * time.Second):
+			}
+
+			metricBackPressure.WithLabelValues(reasonWaitingForLiveTraces).Inc()
+			return true
+		}
+	}
+
+	// Check outstanding wal blocks
+	i.blocksMtx.RLock()
+	count := len(i.walBlocks)
+	i.blocksMtx.RUnlock()
+
+	if count > 1 {
+		// There are multiple outstanding WAL blocks that need completion
+		// so wait a bit.
+		select {
+		case <-ctx.Done():
+		case <-time.After(1 * time.Second):
+		}
+
+		metricBackPressure.WithLabelValues(reasonWaitingForWAL).Inc()
+		return true
+	}
+
+	return false
+}
+
+func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.PushBytesRequest) {
 	if len(req.Traces) != len(req.Ids) {
 		level.Error(i.logger).Log("msg", "mismatched traces and ids length", "IDs", len(req.Ids), "traces", len(req.Traces))
 		return
+	}
+
+	// Wait for room in pipeline if needed
+	for i.backpressure(ctx) {
 	}
 
 	// Check tenant limits
