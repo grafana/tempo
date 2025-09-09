@@ -86,8 +86,7 @@ type instance struct {
 	wal *wal.WAL
 	enc encoding.VersionedEncoding
 
-	// Block management - using atomic pointer for lock-free reads
-	blocksMtx      sync.Mutex                     // Regular mutex for write operations only
+	blocksMtx      sync.Mutex                     // Regular mutex for write operations
 	blocksSnapshot atomic.Pointer[blocksSnapshot] // Atomic pointer to immutable snapshot
 	lastCutTime    time.Time
 
@@ -121,7 +120,6 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
 	}
 
-	// Initialize the blocks snapshot
 	i.blocksSnapshot.Store(&blocksSnapshot{
 		walBlocks:      make(map[uuid.UUID]common.WALBlock),
 		completeBlocks: make(map[uuid.UUID]*ingester.LocalBlock),
@@ -135,7 +133,6 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 	return i, nil
 }
 
-// getBlocksSnapshot returns the current immutable snapshot of blocks - lock-free!
 func (i *instance) getBlocksSnapshot() *blocksSnapshot {
 	return i.blocksSnapshot.Load()
 }
@@ -204,7 +201,6 @@ func countSpans(trace *tempopb.Trace) int {
 
 // flushHeadBlock must be called under blocksMtx's lock
 func (i *instance) flushHeadBlock() error {
-	// Get current snapshot to access headBlock
 	snapshot := i.blocksSnapshot.Load()
 	if snapshot.headBlock != nil {
 		err := snapshot.headBlock.Flush()
@@ -333,7 +329,6 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	// Get current snapshot
 	snapshot := i.blocksSnapshot.Load()
 	headBlock := snapshot.headBlock
 	if headBlock == nil || headBlock.DataLength() == 0 {
@@ -352,7 +347,7 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 
 	id := (uuid.UUID)(headBlock.BlockMeta().BlockID)
 
-	// Create new map with the head block moved to walBlocks
+	// Recreate WAL map to not race with currently loaded snapshots
 	newWalBlocks := make(map[uuid.UUID]common.WALBlock, len(snapshot.walBlocks)+1)
 	for k, v := range snapshot.walBlocks {
 		newWalBlocks[k] = v
@@ -360,7 +355,7 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	newWalBlocks[id] = headBlock
 
 	newSnapshot := &blocksSnapshot{
-		headBlock:      nil, // Will be set by resetHeadBlock
+		headBlock:      snapshot.headBlock,
 		walBlocks:      newWalBlocks,
 		completeBlocks: snapshot.completeBlocks,
 	}
@@ -426,7 +421,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	// Create new maps with the completed block and without the WAL block
+	// Recreate maps to not race with currently loaded snapshots
 	newWalBlocks := make(map[uuid.UUID]common.WALBlock, len(snapshot.walBlocks))
 	for k, v := range snapshot.walBlocks {
 		if k != id {

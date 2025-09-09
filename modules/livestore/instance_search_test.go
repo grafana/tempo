@@ -1091,7 +1091,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	// Wait a bit to ensure block is ready
 	time.Sleep(100 * time.Millisecond)
 
-	// Get the completed block for testing using lock-free snapshot
+	// Get the completed block for testing using snapshot
 	snapshot := inst.getBlocksSnapshot()
 	var block *ingester.LocalBlock
 	for _, b := range snapshot.completeBlocks {

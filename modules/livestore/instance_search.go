@@ -76,7 +76,6 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
-	// Lock-free read of blocks snapshot
 	snapshot := i.getBlocksSnapshot()
 
 	func() {
