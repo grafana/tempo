@@ -1279,3 +1279,26 @@ func CheckPushBytesError(response *tempopb.PushResponse) (errored bool, maxLiveT
 
 	return errored, maxLiveTracesCount, traceTooLargeCount
 }
+
+func BenchmarkInstancePushBytesExistingTrace(b *testing.B) {
+	instance, _ := defaultInstance(b)
+
+	// Create larger test data for more meaningful load
+	largeData := make([]byte, 1024*1024) // 1MB data
+	for i := range largeData {
+		largeData[i] = byte(i % 256)
+	}
+	request := makeRequest(largeData)
+
+	// Extract trace data for direct PushBytes call
+	traceID := request.Ids[0]
+	traceBytes := request.Traces[0].Slice
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = instance.PushBytes(ctx, traceID, traceBytes)
+		}
+	})
+}
