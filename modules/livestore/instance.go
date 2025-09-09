@@ -188,11 +188,9 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 	for i.backpressure(ctx) {
 	}
 
-	select {
-	case <-ctx.Done():
-		level.Error(i.logger).Log("msg", "failed to pushBytes", "tenant", i.tenantID, "err", ctx.Err())
+	if err := ctx.Err(); err != nil {
+		level.Error(i.logger).Log("msg", "failed to push bytes to instance", "err", err)
 		return
-	default:
 	}
 
 	// Check tenant limits
