@@ -54,9 +54,11 @@ type block interface {
 type blockFn func(ctx context.Context, meta *backend.BlockMeta, b block) error
 
 // iterateBlocks provides a way to iterate over all blocks (head, wal, complete)
-// using concurrent processing with bounded concurrency. Any locks should be set before calling
-// this function.
+// using concurrent processing with bounded concurrency.
 func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time, fn blockFn) error {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -65,7 +67,6 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		if err == nil {
 			return
 		}
-
 		cancel()
 
 		// we're not storing errComplete for obvious reasons. context.Canceled is ignored b/c it may be due to the
@@ -77,20 +78,18 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
-	func() {
-		if i.headBlock != nil {
-			meta := i.headBlock.BlockMeta()
-			if includeBlock(meta, reqStart, reqEnd) {
-				ctx, span := tracer.Start(ctx, "process.headBlock")
-				span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
+	if i.headBlock != nil {
+		meta := i.headBlock.BlockMeta()
+		if includeBlock(meta, reqStart, reqEnd) {
+			ctx, span := tracer.Start(ctx, "process.headBlock")
+			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-				if err := fn(ctx, meta, i.headBlock); err != nil {
-					handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
-				}
-				span.End()
+			if err := fn(ctx, meta, i.headBlock); err != nil {
+				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
 			}
+			span.End()
 		}
-	}()
+	}
 
 	if err := anyErr.Load(); err != nil {
 		return err
@@ -246,9 +245,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		return nil
 	}
 
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
 	err := i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), search)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in Search", "err", err)
@@ -345,9 +341,6 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		}, fetcher)
 	}
 
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
 	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), searchBlock)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in SearchTagsV2", "err", err)
@@ -415,9 +408,6 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 
 		return nil
 	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 
 	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), search)
 	if err != nil {
@@ -565,9 +555,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return nil
 	}
 
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
 	err = i.iterateBlocks(ctx, time.Unix(int64(req.Start), 0), time.Unix(int64(req.End), 0), searchWithCache)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "error in SearchTagValuesV2", "err", err)
@@ -634,9 +621,6 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 		}
 		return nil
 	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 
 	err := i.iterateBlocks(ctx, time.Unix(0, 0), time.Unix(0, 0), search)
 	if err != nil {
@@ -724,9 +708,6 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 		return fmt.Errorf("unexpected block type: %T", b)
 	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 
 	err = i.iterateBlocks(ctx, time.Unix(0, int64(req.Start)), time.Unix(0, int64(req.End)), search)
 	if err != nil {
