@@ -136,16 +136,15 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 }
 
 func (i *instance) backpressure(ctx context.Context) bool {
-	maxLiveTraces := i.overrides.MaxLocalTracesPerUser(i.tenantID)
-	if maxLiveTraces > 0 {
+	if i.Cfg.MaxLiveTracesBytes > 0 {
 		// Check live traces
 		i.liveTracesMtx.Lock()
-		liveTracesCount := int(i.liveTraces.Len())
+		sz := i.liveTraces.Size()
 		i.liveTracesMtx.Unlock()
 
-		if liveTracesCount >= maxLiveTraces {
-			// Live traces exceeds the expected amount of data in
-			// per wal flush, so wait a bit.
+		if sz >= i.Cfg.MaxLiveTracesBytes {
+			// Live traces exceeds the expected amount of data in per wal flush,
+			// so wait a bit.
 			select {
 			case <-ctx.Done():
 				return false

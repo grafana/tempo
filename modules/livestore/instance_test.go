@@ -118,10 +118,12 @@ func TestInstanceNoLimits(t *testing.T) {
 }
 
 func TestInstanceBackpressure(t *testing.T) {
-	instance, ls := instanceWithPushLimits(t, 0, 1)
+	instance, ls := defaultInstance(t)
 
 	id1 := test.ValidTraceID(nil)
 	pushTrace(t.Context(), t, instance, test.MakeTrace(1, id1), id1)
+
+	instance.Cfg.MaxLiveTracesBytes = instance.liveTraces.Size() // Set max size to current live-traces size
 
 	id2 := test.ValidTraceID(nil)
 
