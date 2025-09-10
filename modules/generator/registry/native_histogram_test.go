@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testTenant = "test-tenant"
+
 // Duplicate labels should not grow the series count.
 func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 	var seriesAdded int
@@ -21,7 +23,7 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 		return true
 	}
 
-	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil)
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, nil)
 
 	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
 
@@ -497,7 +499,7 @@ func Test_Histograms(t *testing.T) {
 				}
 
 				onAdd := func(uint32) bool { return true }
-				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil)
+				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, nil)
 				testHistogram(t, h, tc.collections)
 			})
 		})
@@ -596,7 +598,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 	t.Run("native_only_with_exemplars", func(t *testing.T) {
 		onAdd := func(uint32) bool { return true }
 		// Use HistogramModeNative to test native-only behavior
-		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil)
+		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, nil)
 
 		// Add some observations with exemplars
 		lvc := newLabelValueCombo([]string{"service"}, []string{"test-service"})
@@ -639,7 +641,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 		onAdd := func(uint32) bool { return true }
 
 		// Create a native histogram with empty buckets to force native-only mode
-		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil)
+		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, nil)
 
 		// Add some observations with exemplars
 		lvc := newLabelValueCombo([]string{"service"}, []string{"native-only-xyz"})

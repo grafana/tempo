@@ -41,6 +41,10 @@ type nativeHistogram struct {
 	// reload of the process, and a new instance of the histogram to be created.
 	histogramOverride HistogramMode
 
+	overrides Overrides
+	// The tenant for this registry instance is received at create time and does not change.
+	tenant string
+
 	externalLabels map[string]string
 
 	// classic
@@ -82,7 +86,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -105,6 +109,8 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		buckets:           buckets,
 		histogramOverride: histogramOverride,
 		externalLabels:    externalLabels,
+		overrides:         overrides,
+		tenant:            tenant,
 
 		// classic
 		nameCount:  fmt.Sprintf("%s_count", name),
@@ -153,9 +159,9 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		Help:    "Native histogram for metric " + h.name(),
 		Buckets: buckets, // nil for pure native, h.buckets for hybrid
 		// Native histogram parameters
-		NativeHistogramBucketFactor:     1.1,
-		NativeHistogramMaxBucketNumber:  100,
-		NativeHistogramMinResetDuration: 15 * time.Minute,
+		NativeHistogramBucketFactor:     h.overrides.MetricsGeneratorNativeHistogramBucketFactor(h.tenant),
+		NativeHistogramMaxBucketNumber:  h.overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(h.tenant),
+		NativeHistogramMinResetDuration: h.overrides.MetricsGeneratorNativeHistogramMinResetDuration(h.tenant),
 	}
 
 	if hasClassic {
@@ -260,7 +266,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		activeSeries += 0
 	}
 
-	return
+	return activeSeries, err
 }
 
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
@@ -363,7 +369,7 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 		}
 	}
 
-	return
+	return err
 }
 
 func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
@@ -455,7 +461,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		s.registerSeenSeries()
 	}
 
-	return
+	return activeSeries, err
 }
 
 func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {
