@@ -2,14 +2,94 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
+	utilpkg "github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/util"
 	"go.uber.org/zap"
 )
+
+func RunValidationMode(
+	ctx context.Context,
+	vultureConfig vultureConfiguration,
+	pushEndpoint string,
+	logger *zap.Logger,
+) int {
+	accessPolicyToken := os.Getenv("TEMPO_ACCESS_POLICY_TOKEN")
+	if accessPolicyToken == "" {
+		logger.Error("TEMPO_ACCESS_POLICY_TOKEN environment variable is required in validation mode")
+		os.Exit(1)
+	}
+
+	// Construct the basic auth token for HTTP headers
+	basicAuthToken := constructAuthToken(vultureConfig.tempoOrgID, accessPolicyToken)
+
+	httpClient := httpclient.New(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID)
+	httpClient.SetHeader("Authorization", fmt.Sprintf("Basic %s", basicAuthToken))
+
+	// Create authenticated jaeger client for writing traces
+	authJaegerClient, err := utilpkg.NewJaegerToOTLPExporterWithAuth(
+		pushEndpoint,
+		vultureConfig.tempoOrgID,
+		basicAuthToken,
+		vultureConfig.tempoPushTLS,
+	)
+	if err != nil {
+		logger.Error("Failed to create authenticated OTLP exporter", zap.Error(err))
+		os.Exit(1)
+	}
+
+	logger.Info("Running in validation mode",
+		zap.Int("cycles", validationCycles),
+		zap.Duration("timeout", validationTimeout),
+		zap.String("org_id", vultureConfig.tempoOrgID),
+	)
+
+	validationConfig := ValidationConfig{
+		Cycles:                validationCycles,
+		TempoOrgID:            vultureConfig.tempoOrgID,
+		TempoBasicAuthToken:   basicAuthToken,
+		WriteBackoffDuration:  vultureConfig.tempoWriteBackoffDuration,
+		SearchBackoffDuration: vultureConfig.tempoSearchBackoffDuration,
+	}
+
+	service := NewValidationService(validationConfig, RealClock{}, logger)
+	result := service.RunValidation(ctx, authJaegerClient, httpClient, httpClient)
+
+	// Log detailed results before exiting
+	logger.Info("Validation completed",
+		zap.Int("total_traces", result.TotalTraces),
+		zap.Int("validations_passed", result.SuccessCount),
+		zap.Int("validations_failed", len(result.Failures)),
+		zap.Duration("duration", result.Duration),
+	)
+
+	// Optionally log each failure for debugging
+	for _, failure := range result.Failures {
+		logger.Error("Validation failure",
+			zap.String("phase", failure.Phase),
+			zap.String("traceID", failure.TraceID),
+			zap.Int("cycle", failure.Cycle),
+			zap.Error(failure.Error),
+		)
+	}
+
+	return result.ExitCode()
+}
+
+// constructAuthToken creates base64(orgID:accessToken) if both are provided
+func constructAuthToken(orgID, accessToken string) string {
+	if orgID == "" || accessToken == "" {
+		return ""
+	}
+	combined := fmt.Sprintf("%s:%s", orgID, accessToken)
+	return base64.StdEncoding.EncodeToString([]byte(combined))
+}
 
 type traceInfo struct {
 	id        string
@@ -98,14 +178,30 @@ func (vs *ValidationService) RunValidation(
 	}
 
 	// Wait for indexing
-	vs.clock.Sleep(vs.config.WriteBackoffDuration * 2)
+	if err := vs.contextAwareSleep(ctx, vs.config.WriteBackoffDuration*2); err != nil {
+		// Context cancelled - add failure and return early
+		result.Failures = append(result.Failures, ValidationFailure{
+			Phase:     "timeout",
+			Error:     ctx.Err(),
+			Timestamp: vs.clock.Now(),
+		})
+		return result
+	}
 
 	// Validate that we can retrieve them by trace ID
 	vs.validateTraceRetrieval(ctx, traces, querier, &result)
 
 	// If search is enabled, validate we can query for the traces
 	if vs.config.SearchBackoffDuration > 0 {
-		vs.clock.Sleep(vs.config.SearchBackoffDuration)
+		if err := vs.contextAwareSleep(ctx, vs.config.SearchBackoffDuration); err != nil {
+			result.Failures = append(result.Failures, ValidationFailure{
+				Phase:     "timeout",
+				Error:     ctx.Err(),
+				Timestamp: vs.clock.Now(),
+			})
+			return result
+		}
+
 		vs.validateTraceSearch(ctx, traces, searcher, &result)
 	}
 
@@ -121,8 +217,17 @@ type (
 	TraceSearcher = httpclient.TempoHTTPClient
 )
 
+func (vs *ValidationService) contextAwareSleep(ctx context.Context, duration time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(duration):
+		return nil
+	}
+}
+
 func (vs *ValidationService) writeValidationTraces(
-	_ context.Context,
+	ctx context.Context,
 	writer TraceWriter,
 ) ([]traceInfo, error) {
 	traces := make([]traceInfo, 0, vs.config.Cycles)
@@ -133,7 +238,7 @@ func (vs *ValidationService) writeValidationTraces(
 
 		vs.logger.Info("Writing trace", zap.Int("cycle", i+1), zap.String("traceID", info.HexID()))
 
-		err := info.EmitBatches(writer)
+		err := info.EmitBatchesWithContext(ctx, writer)
 		if err != nil {
 			vs.logger.Error("Failed to write trace", zap.Int("cycle", i+1), zap.Error(err))
 			return traces, err // Any write failure is critical

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -211,70 +210,16 @@ func main() {
 		return newStart, ts, skip
 	}
 
+	if os.Getenv("TEMPO_ACCESS_POLICY_TOKEN") != "" && !validationMode {
+		logger.Warn("TEMPO_ACCESS_POLICY_TOKEN is set but validationMode is false. This variable should only be necessary in validationMode.")
+	}
+
 	// Check if we're running in validation mode
 	if validationMode {
-		accessPolicyToken := os.Getenv("TEMPO_ACCESS_POLICY_TOKEN")
-		if accessPolicyToken == "" {
-			logger.Error("TEMPO_ACCESS_POLICY_TOKEN environment variable is required in validation mode")
-			os.Exit(1)
-		}
-
-		// Construct the basic auth token for HTTP headers
-		basicAuthToken := constructAuthToken(vultureConfig.tempoOrgID, accessPolicyToken)
-
-		httpClient.SetHeader("Authorization", fmt.Sprintf("Basic %s", basicAuthToken))
-
-		// Create authenticated jaeger client for writing traces
-		authJaegerClient, err := utilpkg.NewJaegerToOTLPExporterWithAuth(
-			pushEndpoint,
-			vultureConfig.tempoOrgID,
-			basicAuthToken,
-			vultureConfig.tempoPushTLS,
-		)
-		if err != nil {
-			logger.Error("Failed to create authenticated OTLP exporter", zap.Error(err))
-			os.Exit(1)
-		}
-
-		logger.Info("Running in validation mode",
-			zap.Int("cycles", validationCycles),
-			zap.Duration("timeout", validationTimeout),
-			zap.String("org_id", vultureConfig.tempoOrgID),
-		)
-
-		ctx := context.Background()
-
-		validationConfig := ValidationConfig{
-			Cycles:                validationCycles,
-			Timeout:               validationTimeout,
-			TempoOrgID:            vultureConfig.tempoOrgID,
-			TempoBasicAuthToken:   basicAuthToken,
-			WriteBackoffDuration:  vultureConfig.tempoWriteBackoffDuration,
-			SearchBackoffDuration: vultureConfig.tempoSearchBackoffDuration,
-		}
-
-		service := NewValidationService(validationConfig, RealClock{}, logger)
-		result := service.RunValidation(ctx, authJaegerClient, httpClient, httpClient)
-
-		// Log detailed results before exiting
-		logger.Info("Validation completed",
-			zap.Int("total_traces", result.TotalTraces),
-			zap.Int("validations_passed", result.SuccessCount),
-			zap.Int("validations_failed", len(result.Failures)),
-			zap.Duration("duration", result.Duration),
-		)
-
-		// Optionally log each failure for debugging
-		for _, failure := range result.Failures {
-			logger.Error("Validation failure",
-				zap.String("phase", failure.Phase),
-				zap.String("traceID", failure.TraceID),
-				zap.Int("cycle", failure.Cycle),
-				zap.Error(failure.Error),
-			)
-		}
-
-		os.Exit(result.ExitCode())
+		ctx, cancel := context.WithTimeout(context.Background(), validationTimeout)
+		exitCode := RunValidationMode(ctx, vultureConfig, pushEndpoint, logger)
+		cancel()
+		os.Exit(exitCode)
 	}
 
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
@@ -309,15 +254,6 @@ func createHTTPClient(queryURL string, orgID string, queryLiveStores bool) *http
 	httpClient := httpclient.New(queryURL, orgID)
 	httpClient.QueryLiveStores = queryLiveStores
 	return httpClient
-}
-
-// constructAuthToken creates base64(orgID:accessToken) if both are provided
-func constructAuthToken(orgID, accessToken string) string {
-	if orgID == "" || accessToken == "" {
-		return ""
-	}
-	combined := fmt.Sprintf("%s:%s", orgID, accessToken)
-	return base64.StdEncoding.EncodeToString([]byte(combined))
 }
 
 func getGRPCEndpoint(endpoint string) (string, error) {
