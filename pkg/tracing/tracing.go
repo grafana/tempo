@@ -29,7 +29,7 @@ func InstallOpenTelemetryTracer(appName, target string) (func(), error) {
 	resources, err := resource.New(context.Background(),
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, target)),
-			semconv.ServiceVersionKey.String(build.Version),
+			semconv.ServiceVersionKey.String(fmt.Sprintf("%s-%s", build.Version, build.Revision)),
 		),
 		resource.WithHost(),
 		resource.WithTelemetrySDK(),
