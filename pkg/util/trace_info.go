@@ -105,8 +105,12 @@ func (t *TraceInfo) Done() {
 }
 
 func (t *TraceInfo) EmitBatches(c JaegerClient) error {
+	return t.EmitBatchesWithContext(context.Background(), c)
+}
+
+func (t *TraceInfo) EmitBatchesWithContext(ctx context.Context, c JaegerClient) error {
 	for i := int64(0); i < t.generateRandomInt(1, maxBatchesPerWrite); i++ {
-		ctx := user.InjectOrgID(context.Background(), t.tempoOrgID)
+		ctx := user.InjectOrgID(ctx, t.tempoOrgID)
 		ctx, err := user.InjectIntoGRPCRequest(ctx)
 		if err != nil {
 			return fmt.Errorf("error injecting org id: %w", err)
