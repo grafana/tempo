@@ -273,6 +273,10 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 	for hash, s := range h.series {
+		// TODO: native histogram bucket configuration is only checked when the
+		// series is created.  We need a way to determine if the overrides has
+		// changed, and recreate the series if needed.  Without this, the bucket
+		// config is only set at startup.
 		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
 			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
