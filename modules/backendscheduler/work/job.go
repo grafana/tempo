@@ -104,12 +104,6 @@ func (j *Job) GetType() tempopb.JobType {
 	return j.Type
 }
 
-func (j *Job) SetWorkerID(id string) {
-	j.mtx.Lock()
-	defer j.mtx.Unlock()
-	j.WorkerID = id
-}
-
 func (j *Job) GetWorkerID() string {
 	j.mtx.Lock()
 	defer j.mtx.Unlock()

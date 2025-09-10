@@ -12,4 +12,5 @@ var (
 	ErrTenantNotFound = errors.New("tenant not found")
 	// ErrTenantMissing is returned when a tenant is not specified
 	ErrTenantMissing = errors.New("tenant missing")
+	ErrEmptyWorkerID = errors.New("worker ID is empty")
 )
