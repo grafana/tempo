@@ -32,7 +32,7 @@ func newTracesCheckHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.
 			"msg", "traces check request",
 			"tenant", tenant)
 
-		comb := combiner.NewTracesCheck()
+		comb := combiner.NewTracesCheck(logger)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()

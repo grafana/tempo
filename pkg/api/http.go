@@ -827,19 +827,13 @@ func ParseTracesCheckRequest(r *http.Request) (*tempopb.TracesCheckRequest, erro
 
 	var req tempopb.TracesCheckRequest
 	
-	fmt.Printf("DEBUG: Body content: %s\n", string(body))
-	
 	// Try JSON first, then protobuf
 	if err := json.Unmarshal(body, &req); err != nil {
-		fmt.Printf("DEBUG: JSON unmarshal failed: %v\n", err)
 		// If JSON parsing fails, try protobuf
 		if err := req.Unmarshal(body); err != nil {
-			fmt.Printf("DEBUG: Protobuf unmarshal failed: %v\n", err)
 			return nil, fmt.Errorf("failed to unmarshal TracesCheckRequest as JSON or protobuf: %w", err)
 		}
 	}
-	
-	fmt.Printf("DEBUG: Parsed %d trace IDs\n", len(req.TraceIDs))
 
 	// Validate that we have at least one trace ID
 	if len(req.TraceIDs) == 0 {

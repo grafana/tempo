@@ -73,6 +73,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
 	}
 
+	if cfg.TracesCheck.QueryShards < minQueryShards || cfg.TracesCheck.QueryShards > maxQueryShards {
+		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
+	}
+
 	if cfg.Search.Sharder.ConcurrentRequests <= 0 {
 		return nil, fmt.Errorf("frontend search concurrent requests should be greater than 0")
 	}
@@ -104,6 +108,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	// Propagate RF1After to search and traceByID sharders
 	cfg.Search.Sharder.RF1After = cfg.RF1After
 	cfg.TraceByID.RF1After = cfg.RF1After
+	cfg.TracesCheck.RF1After = cfg.RF1After
 
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
@@ -120,6 +125,17 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
+		},
+		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
+		next)
+
+	tracesCheckPipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
+			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.TracesCheck, cfg.Weights),
+			multiTenantMiddleware(cfg, logger),
+			newAsyncTracesCheckSharder(&cfg.TracesCheck, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
 		next)
@@ -196,7 +212,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger)
-	tracesCheck := newTracesCheckHandler(cfg, tracePipeline, o, logger)
+	tracesCheck := newTracesCheckHandler(cfg, tracesCheckPipeline, o, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)
