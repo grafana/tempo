@@ -178,7 +178,7 @@ func (vs *ValidationService) RunValidation(
 	}
 
 	// Wait for indexing
-	if err := vs.contextAwareSleep(ctx, vs.config.WriteBackoffDuration*2); err != nil {
+	if err := vs.sleepWithContext(ctx, vs.config.WriteBackoffDuration*2); err != nil {
 		// Context cancelled - add failure and return early
 		result.Failures = append(result.Failures, ValidationFailure{
 			Phase:     "timeout",
@@ -193,7 +193,7 @@ func (vs *ValidationService) RunValidation(
 
 	// If search is enabled, validate we can query for the traces
 	if vs.config.SearchBackoffDuration > 0 {
-		if err := vs.contextAwareSleep(ctx, vs.config.SearchBackoffDuration); err != nil {
+		if err := vs.sleepWithContext(ctx, vs.config.SearchBackoffDuration); err != nil {
 			result.Failures = append(result.Failures, ValidationFailure{
 				Phase:     "timeout",
 				Error:     ctx.Err(),
@@ -217,7 +217,7 @@ type (
 	TraceSearcher = httpclient.TempoHTTPClient
 )
 
-func (vs *ValidationService) contextAwareSleep(ctx context.Context, duration time.Duration) error {
+func (vs *ValidationService) sleepWithContext(ctx context.Context, duration time.Duration) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
