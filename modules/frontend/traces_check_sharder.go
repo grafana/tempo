@@ -88,13 +88,13 @@ func (s *asyncTracesCheckSharder) buildShardedRequests(parent pipeline.Request) 
 
 	reqs[0], err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
 		params[querier.QueryModeKey] = querier.QueryModeIngesters
-		
+
 		// Copy the request body
 		if len(bodyBytes) > 0 {
 			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 			r.ContentLength = int64(len(bodyBytes))
 		}
-		
+
 		return api.BuildQueryRequest(r, params), nil
 	})
 	if err != nil {

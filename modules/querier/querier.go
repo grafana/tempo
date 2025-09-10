@@ -388,7 +388,7 @@ func (q *Querier) TracesCheck(ctx context.Context, req *tempopb.TracesCheckReque
 	for _, traceID := range foundTraceIDs {
 		foundSet[traceID] = true
 	}
-	
+
 	unfoundTraces := make([][]byte, 0)
 	for _, traceIDHex := range req.TraceIDs {
 		if !foundSet[traceIDHex] {
@@ -425,7 +425,7 @@ func (q *Querier) TracesCheck(ctx context.Context, req *tempopb.TracesCheckReque
 
 	return &tempopb.TracesCheckResponse{
 		TraceIDs: foundTraceIDs,
-		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
+		Metrics:  &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
 	}, nil
 }
 
@@ -1217,4 +1217,3 @@ func protoToTraceQLStatic(kv *tempopb.KeyValue) traceqlmetrics.KeyValue {
 		Value: val,
 	}
 }
-

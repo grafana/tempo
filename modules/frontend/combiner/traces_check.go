@@ -37,7 +37,7 @@ func NewTracesCheck(logger log.Logger) Combiner {
 			for _, traceID := range final.TraceIDs {
 				existingSet[traceID] = true
 			}
-			
+
 			newTraceCount := 0
 			for _, traceID := range partial.TraceIDs {
 				if !existingSet[traceID] {

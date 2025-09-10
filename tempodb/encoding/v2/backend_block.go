@@ -154,7 +154,6 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 	}, err
 }
 
-
 func (b *BackendBlock) TracesCheck(ctx context.Context, traceIDs []common.ID, _ common.SearchOptions) (map[string]bool, uint64, error) {
 	return nil, 0, common.ErrUnsupported
 }

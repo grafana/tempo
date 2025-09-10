@@ -16,7 +16,6 @@ import (
 
 // newTracesCheckHandler creates a http.handler for traces check requests
 func newTracesCheckHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
-
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {

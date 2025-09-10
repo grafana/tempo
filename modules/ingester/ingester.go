@@ -374,7 +374,7 @@ func (i *Ingester) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequ
 	if len(req.TraceIDs) == 0 {
 		return &tempopb.TracesCheckResponse{
 			TraceIDs: []string{},
-			Metrics: &tempopb.TraceByIDMetrics{},
+			Metrics:  &tempopb.TraceByIDMetrics{},
 		}, nil
 	}
 
@@ -382,13 +382,13 @@ func (i *Ingester) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequ
 	if err != nil {
 		return nil, err
 	}
-	
+
 	inst, ok := i.getInstanceByID(instanceID)
 	if !ok || inst == nil {
 		// Return empty list if instance doesn't exist (no traces found)
 		return &tempopb.TracesCheckResponse{
 			TraceIDs: []string{},
-			Metrics: &tempopb.TraceByIDMetrics{},
+			Metrics:  &tempopb.TraceByIDMetrics{},
 		}, nil
 	}
 
@@ -408,7 +408,7 @@ func (i *Ingester) TracesCheck(ctx context.Context, req *tempopb.TracesCheckRequ
 	if len(validTraceIDs) == 0 {
 		return &tempopb.TracesCheckResponse{
 			TraceIDs: []string{},
-			Metrics: &tempopb.TraceByIDMetrics{},
+			Metrics:  &tempopb.TraceByIDMetrics{},
 		}, nil
 	}
 

@@ -826,7 +826,7 @@ func ParseTracesCheckRequest(r *http.Request) (*tempopb.TracesCheckRequest, erro
 	}
 
 	var req tempopb.TracesCheckRequest
-	
+
 	// Try JSON first, then protobuf
 	if err := json.Unmarshal(body, &req); err != nil {
 		// If JSON parsing fails, try protobuf

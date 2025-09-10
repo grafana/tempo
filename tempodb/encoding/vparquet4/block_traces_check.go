@@ -51,7 +51,6 @@ func checkTraceExistsInParquet(ctx context.Context, traceID common.ID, pf *parqu
 		min := buf[0].Clone().ByteArray()
 		return bytes.Compare(traceID, min), nil
 	})
-
 	if err != nil {
 		return false, fmt.Errorf("error binary searching row groups: %w", err)
 	}
@@ -92,7 +91,7 @@ func (b *backendBlock) TracesCheck(ctx context.Context, traceIDs []common.ID, op
 
 	results := make(map[string]bool, len(traceIDs))
 	var totalInspectedBytes uint64
-	
+
 	// Initialize all results as false
 	for _, traceID := range traceIDs {
 		results[string(traceID)] = false
@@ -147,7 +146,7 @@ func (b *backendBlock) TracesCheck(ctx context.Context, traceIDs []common.ID, op
 	if err != nil {
 		return nil, 0, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	
+
 	// Check all remaining candidates in the parquet file
 	for _, traceID := range indexCandidates {
 		exists, err := checkTraceExistsInParquet(derivedCtx, traceID, pf)
@@ -156,9 +155,9 @@ func (b *backendBlock) TracesCheck(ctx context.Context, traceIDs []common.ID, op
 		}
 		results[string(traceID)] = exists
 	}
-	
+
 	totalInspectedBytes = rr.BytesRead()
 	span.SetAttributes(attribute.Int64("totalInspectedBytes", int64(totalInspectedBytes)))
-	
+
 	return results, totalInspectedBytes, nil
 }

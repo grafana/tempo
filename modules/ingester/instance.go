@@ -505,7 +505,7 @@ func (i *instance) TracesCheck(ctx context.Context, ids [][]byte) (*tempopb.Trac
 	metrics := tempopb.TraceByIDMetrics{}
 	foundTraceIDs := make([]string, 0, len(ids))
 	remainingIDs := make([]common.ID, 0, len(ids))
-	
+
 	// Convert byte slices to common.ID and check live traces
 	i.tracesMtx.Lock()
 	for _, id := range ids {
@@ -525,7 +525,7 @@ func (i *instance) TracesCheck(ctx context.Context, ids [][]byte) (*tempopb.Trac
 		// All traces found in live traces
 		return &tempopb.TracesCheckResponse{
 			TraceIDs: foundTraceIDs,
-			Metrics: &metrics,
+			Metrics:  &metrics,
 		}, nil
 	}
 
@@ -536,7 +536,7 @@ func (i *instance) TracesCheck(ctx context.Context, ids [][]byte) (*tempopb.Trac
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.TracesCheckBatch failed: %w", err)
 	}
-	
+
 	// Add found traces from headBlock and update remaining
 	nextRemainingIDs := make([]common.ID, 0, len(remainingIDs))
 	for _, id := range remainingIDs {
@@ -551,7 +551,7 @@ func (i *instance) TracesCheck(ctx context.Context, ids [][]byte) (*tempopb.Trac
 	if len(remainingIDs) == 0 {
 		return &tempopb.TracesCheckResponse{
 			TraceIDs: foundTraceIDs,
-			Metrics: &metrics,
+			Metrics:  &metrics,
 		}, nil
 	}
 
@@ -563,12 +563,12 @@ func (i *instance) TracesCheck(ctx context.Context, ids [][]byte) (*tempopb.Trac
 		if len(remainingIDs) == 0 {
 			break
 		}
-		
+
 		results, err := i.checkTracesExistInBlockBatch(ctx, c, remainingIDs, &metrics)
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.TracesCheckBatch failed: %w", err)
 		}
-		
+
 		// Add found traces and update remaining
 		nextRemainingIDs := make([]common.ID, 0, len(remainingIDs))
 		for _, id := range remainingIDs {
@@ -586,12 +586,12 @@ func (i *instance) TracesCheck(ctx context.Context, ids [][]byte) (*tempopb.Trac
 		if len(remainingIDs) == 0 {
 			break
 		}
-		
+
 		results, err := i.checkTracesExistInLocalBlockBatch(ctx, c, remainingIDs, &metrics)
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.TracesCheckBatch failed: %w", err)
 		}
-		
+
 		// Add found traces and update remaining
 		nextRemainingIDs := make([]common.ID, 0, len(remainingIDs))
 		for _, id := range remainingIDs {
@@ -606,22 +606,21 @@ func (i *instance) TracesCheck(ctx context.Context, ids [][]byte) (*tempopb.Trac
 
 	return &tempopb.TracesCheckResponse{
 		TraceIDs: foundTraceIDs,
-		Metrics: &metrics,
+		Metrics:  &metrics,
 	}, nil
 }
-
 
 // checkTracesExistInBlockBatch checks if multiple traces exist in a WAL block using efficient batch methods
 func (i *instance) checkTracesExistInBlockBatch(ctx context.Context, block common.WALBlock, ids []common.ID, metrics *tempopb.TraceByIDMetrics) (map[string]bool, error) {
 	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
-	
+
 	// Use the TracesCheckBatch method - if it's not supported, return the error
 	results, inspectedBytes, err := block.TracesCheck(ctx, ids, searchOpts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Update metrics with the bytes that were actually inspected
 	metrics.InspectedBytes += inspectedBytes
 	return results, nil
@@ -631,13 +630,13 @@ func (i *instance) checkTracesExistInBlockBatch(ctx context.Context, block commo
 func (i *instance) checkTracesExistInLocalBlockBatch(ctx context.Context, block *LocalBlock, ids []common.ID, metrics *tempopb.TraceByIDMetrics) (map[string]bool, error) {
 	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
-	
+
 	// Use the TracesCheckBatch method - if it's not supported, return the error
 	results, inspectedBytes, err := block.TracesCheck(ctx, ids, searchOpts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Update metrics with the bytes that were actually inspected
 	metrics.InspectedBytes += inspectedBytes
 	return results, nil
