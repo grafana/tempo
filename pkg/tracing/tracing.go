@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/cmd/tempo/build"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/prometheus/common/version"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -29,7 +29,7 @@ func InstallOpenTelemetryTracer(appName, target string) (func(), error) {
 	resources, err := resource.New(context.Background(),
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, target)),
-			semconv.ServiceVersionKey.String(fmt.Sprintf("%s-%s", build.Version, build.Revision)),
+			semconv.ServiceVersionKey.String(fmt.Sprintf("%s-%s", version.Version, version.Revision)),
 		),
 		resource.WithHost(),
 		resource.WithTelemetrySDK(),

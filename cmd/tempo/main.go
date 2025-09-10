@@ -37,6 +37,7 @@ func init() {
 	version.Version = Version
 	version.Branch = Branch
 	version.Revision = Revision
+
 	prometheus.MustRegister(ver.NewCollector(appName))
 
 	// Register the gogocodec as early as possible.
