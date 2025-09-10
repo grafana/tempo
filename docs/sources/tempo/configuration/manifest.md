@@ -1235,6 +1235,7 @@ live_store:
     flush_op_timeout: 5m0s
     max_trace_live: 30s
     max_trace_idle: 5s
+    max_live_traces_bytes: 250000000
     max_block_duration: 30m0s
     max_block_bytes: 524288000
     block_config:

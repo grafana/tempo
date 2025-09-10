@@ -370,7 +370,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		}
 
 		// Push data to tenant instance
-		inst.pushBytes(record.Timestamp, pushReq)
+		inst.pushBytes(ctx, record.Timestamp, pushReq)
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++

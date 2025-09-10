@@ -476,7 +476,7 @@ func TestSearchTagsV2Limits(t *testing.T) {
 					Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 					Ids:    [][]byte{id},
 				}
-				instance.pushBytes(time.Now(), req)
+				instance.pushBytes(t.Context(), time.Now(), req)
 				err = instance.cutIdleTraces(true)
 				require.NoError(t, err)
 				blockID, err := instance.cutBlocks(true)
@@ -620,7 +620,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(time.Now(), req)
+		i.pushBytes(t.Context(), time.Now(), req)
 
 		ids = append(ids, id)
 		traces = append(traces, testTrace)
@@ -694,7 +694,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(now, req)
+		i.pushBytes(t.Context(), now, req)
 	}
 
 	// traces have to be cut to show up in searches
@@ -747,7 +747,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(time.Now(), req)
+		i.pushBytes(t.Context(), time.Now(), req)
 	})
 
 	concurrent(func() {
@@ -822,7 +822,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(time.Now(), req)
+		i.pushBytes(t.Context(), time.Now(), req)
 	}
 
 	search := func() *tempopb.SearchMetrics {
@@ -1073,7 +1073,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 		Ids: [][]byte{traceID1, traceID2},
 	}
 
-	inst.pushBytes(now, pushReq)
+	inst.pushBytes(t.Context(), now, pushReq)
 
 	// Force block creation by cutting traces and blocks
 	err = inst.cutIdleTraces(true)
