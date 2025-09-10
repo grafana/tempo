@@ -23,7 +23,7 @@ func RunValidationMode(
 	accessPolicyToken := os.Getenv("TEMPO_ACCESS_POLICY_TOKEN")
 	if accessPolicyToken == "" {
 		logger.Error("TEMPO_ACCESS_POLICY_TOKEN environment variable is required in validation mode")
-		os.Exit(1)
+		return 1
 	}
 
 	// Construct the basic auth token for HTTP headers
