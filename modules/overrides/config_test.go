@@ -467,6 +467,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                 []string{"host-id-1", "host-id-2"},
 		MetricsGeneratorProcessorHostInfoMetricName:                      "host_info",
 		MetricsGeneratorIngestionSlack:                                   1 * time.Minute,
+		MetricsGeneratorNativeHistogramBucketFactor:                      1.5,
+		MetricsGeneratorNativeHistogramMaxBucketNumber:                   200,
+		MetricsGeneratorNativeHistogramMinResetDuration:                  10 * time.Minute,
 
 		BlockRetention:     model.Duration(7 * 24 * time.Hour),
 		CompactionDisabled: true,
