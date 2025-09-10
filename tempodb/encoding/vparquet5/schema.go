@@ -161,6 +161,11 @@ type DedicatedAttributes struct {
 	String08 *string `parquet:",snappy,optional,dict"`
 	String09 *string `parquet:",snappy,optional,dict"`
 	String10 *string `parquet:",snappy,optional,dict"`
+	Int01    *int64  `parquet:",snappy,optional"`
+	Int02    *int64  `parquet:",snappy,optional"`
+	Int03    *int64  `parquet:",snappy,optional"`
+	Int04    *int64  `parquet:",snappy,optional"`
+	Int05    *int64  `parquet:",snappy,optional"`
 }
 
 type Event struct {
