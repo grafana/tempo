@@ -54,8 +54,11 @@ type block interface {
 type blockFn func(ctx context.Context, meta *backend.BlockMeta, b block) error
 
 // iterateBlocks provides a way to iterate over all blocks (head, wal, complete)
-// using concurrent processing with bounded concurrency
+// using concurrent processing with bounded concurrency.
 func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time, fn blockFn) error {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -64,7 +67,6 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		if err == nil {
 			return
 		}
-
 		cancel()
 
 		// we're not storing errComplete for obvious reasons. context.Canceled is ignored b/c it may be due to the
@@ -76,30 +78,22 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
-	func() {
-		i.blocksMtx.RLock()
-		defer i.blocksMtx.RUnlock()
+	if i.headBlock != nil {
+		meta := i.headBlock.BlockMeta()
+		if includeBlock(meta, reqStart, reqEnd) {
+			ctx, span := tracer.Start(ctx, "process.headBlock")
+			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-		if i.headBlock != nil {
-			meta := i.headBlock.BlockMeta()
-			if includeBlock(meta, reqStart, reqEnd) {
-				ctx, span := tracer.Start(ctx, "process.headBlock")
-				span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
-
-				if err := fn(ctx, meta, i.headBlock); err != nil {
-					handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
-				}
-				span.End()
+			if err := fn(ctx, meta, i.headBlock); err != nil {
+				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
 			}
+			span.End()
 		}
-	}()
+	}
 
 	if err := anyErr.Load(); err != nil {
 		return err
 	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 
 	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 
@@ -537,6 +531,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		span.SetAttributes(attribute.Bool("cached", false))
 		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+
 		if err := search(ctx, localB); err != nil { // note that errComplete could be returned here but it's ok to pass it up b/c it means no work was done and the localCol is invalid
 			return err
 		}
@@ -663,9 +658,6 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	if err != nil {
 		return nil, err
 	}
-
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
 	if req.Start < uint64(cutoff.UnixNano()) {
