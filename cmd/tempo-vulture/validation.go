@@ -40,7 +40,7 @@ func RunValidationMode(
 		vultureConfig.tempoPushTLS,
 	)
 	if err != nil {
-		logger.Error("Failed to create authenticated OTLP exporter", zap.Error(err))
+		logger.Error("failed to create authenticated OTLP exporter", zap.Error(err))
 		os.Exit(1)
 	}
 
@@ -71,7 +71,7 @@ func RunValidationMode(
 
 	// Optionally log each failure for debugging
 	for _, failure := range result.Failures {
-		logger.Error("Validation failure",
+		logger.Error("validation failure",
 			zap.String("phase", failure.Phase),
 			zap.String("traceID", failure.TraceID),
 			zap.Int("cycle", failure.Cycle),
@@ -240,7 +240,7 @@ func (vs *ValidationService) writeValidationTraces(
 
 		err := info.EmitBatchesWithContext(ctx, writer)
 		if err != nil {
-			vs.logger.Error("Failed to write trace", zap.Int("cycle", i+1), zap.Error(err))
+			vs.logger.Error("failed to write trace", zap.Int("cycle", i+1), zap.Error(err))
 			return traces, err // Any write failure is critical
 		}
 
@@ -270,7 +270,7 @@ func (vs *ValidationService) validateTraceRetrieval(
 
 		retrievedTrace, err := httpClient.QueryTraceWithRange(trace.id, start, end)
 		if err != nil {
-			vs.logger.Error("Failed to read trace", zap.Int("cycle", cycle), zap.Error(err))
+			vs.logger.Error("failed to read trace", zap.Int("cycle", cycle), zap.Error(err))
 			// failures++
 			result.Failures = append(result.Failures, ValidationFailure{
 				TraceID:   trace.id,
@@ -283,7 +283,7 @@ func (vs *ValidationService) validateTraceRetrieval(
 		}
 
 		if len(retrievedTrace.ResourceSpans) == 0 {
-			vs.logger.Error("Retrieved trace has no spans", zap.Int("cycle", cycle))
+			vs.logger.Error("retrieved trace has no spans", zap.Int("cycle", cycle))
 			result.Failures = append(result.Failures, ValidationFailure{
 				TraceID:   trace.id,
 				Cycle:     cycle,
@@ -300,7 +300,7 @@ func (vs *ValidationService) validateTraceRetrieval(
 }
 
 func (vs *ValidationService) validateTraceSearch(
-	_ context.Context,
+	ctx context.Context,
 	traces []traceInfo,
 	httpClient httpclient.TempoHTTPClient,
 	result *ValidationResult,
@@ -317,7 +317,7 @@ func (vs *ValidationService) validateTraceSearch(
 		info := util.NewTraceInfoWithMaxLongWrites(traceInfo.timestamp, 0, vs.config.TempoOrgID)
 		expected, err := info.ConstructTraceFromEpoch()
 		if err != nil {
-			logger.Error("Failed to construct expected trace for search", zap.Int("cycle", cycle), zap.Error(err))
+			logger.Error("failed to construct expected trace for search", zap.Int("cycle", cycle), zap.Error(err))
 			result.Failures = append(result.Failures, ValidationFailure{
 				TraceID:   traceInfo.id,
 				Cycle:     cycle,
@@ -345,9 +345,9 @@ func (vs *ValidationService) validateTraceSearch(
 		start := traceInfo.timestamp.Add(-30 * time.Minute).Unix()
 		end := traceInfo.timestamp.Add(30 * time.Minute).Unix()
 
-		searchResp, err := httpClient.SearchWithRange(searchQuery, start, end)
+		searchResp, err := httpClient.SearchWithRangeContext(ctx, searchQuery, start, end)
 		if err != nil {
-			logger.Error("Search API failed", zap.Int("cycle", cycle), zap.Error(err))
+			logger.Error("search API failed", zap.Int("cycle", cycle), zap.Error(err))
 			result.Failures = append(result.Failures, ValidationFailure{
 				TraceID:   traceInfo.id,
 				Cycle:     cycle,
@@ -374,7 +374,7 @@ func (vs *ValidationService) validateTraceSearch(
 		if found {
 			logger.Info("Found trace via search", zap.Int("cycle", cycle))
 		} else {
-			logger.Error("Trace not found in search results",
+			logger.Error("trace not found in search results",
 				zap.Int("cycle", cycle),
 				zap.String("traceID", traceInfo.id),
 				zap.Int("foundTraces", len(searchResp.Traces)),
