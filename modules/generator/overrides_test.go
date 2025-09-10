@@ -133,15 +133,15 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(st
 	return m.spanMetricsDimensionMappings
 }
 
-func (m *mockOverrides) MetricsGeneratorNativeHistogramBucketFactor(userID string) float64 {
+func (m *mockOverrides) MetricsGeneratorNativeHistogramBucketFactor(string) float64 {
 	return m.nativeHistogramBucketFactor
 }
 
-func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32 {
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) uint32 {
 	return m.nativeHistogramMaxBucketNumber
 }
 
-func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration {
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
 	return m.nativeHistogramMinResetDuration
 }
 
