@@ -9,7 +9,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-const VersionString = "vparquet5-preview1"
+const VersionString = "vParquet5-preview2"
 
 type Encoding struct{}
 
