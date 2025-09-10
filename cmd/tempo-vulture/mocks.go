@@ -102,6 +102,10 @@ func (m *MockHTTPClient) QueryTrace(id string) (*tempopb.Trace, error) {
 
 //nolint:all
 func (m *MockHTTPClient) QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error) {
+	return m.QueryTraceWithRangeContext(context.Background(), id, start, end)
+}
+
+func (m *MockHTTPClient) QueryTraceWithRangeContext(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -184,6 +188,10 @@ func (m *MockHTTPClient) SearchTraceQLWithRange(query string, start int64, end i
 
 //nolint:all
 func (m *MockHTTPClient) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
+	return m.SearchWithRangeContext(context.Background(), tags, start, end)
+}
+
+func (m *MockHTTPClient) SearchWithRangeContext(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
