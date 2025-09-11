@@ -288,10 +288,6 @@ func (r *rowGroupRows) ReadRows(rows []Row) (int, error) {
 		return 0, io.EOF
 	}
 
-	for rowIndex := range rows {
-		rows[rowIndex] = rows[rowIndex][:0]
-	}
-
 	// When this is the first call to ReadRows, we issue a seek to the first row
 	// because this starts prefetching pages asynchronously on columns.
 	//
@@ -314,6 +310,10 @@ readColumnValues:
 
 		for rowIndex := range rows {
 			numValuesInRow := 1
+
+			if columnIndex == 0 {
+				rows[rowIndex] = rows[rowIndex][:0]
+			}
 
 			for {
 				if c.offset == c.length {

@@ -715,7 +715,12 @@ func reconstructFuncOfMap(columnIndex int16, node Node) (int16, reconstructFunc)
 		levels.definitionLevel++
 
 		if columns[0][0].definitionLevel < levels.definitionLevel {
-			value.Set(reflect.MakeMap(value.Type()))
+			valueType := value.Type()
+			if valueType.Kind() == reflect.Interface {
+				value.Set(reflect.ValueOf(map[string]any{}))
+			} else {
+				value.Set(reflect.MakeMap(valueType))
+			}
 			return nil
 		}
 
