@@ -229,6 +229,13 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to reload blocks from wal: %w", err)
 	}
 
+	for _, inst := range s.getInstances() {
+		err = inst.deleteOldBlocks()
+		if err != nil {
+			level.Warn(s.logger).Log("msg", "failed to delete old blocks", "err", err, "tenant", inst.tenantID)
+		}
+	}
+
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
