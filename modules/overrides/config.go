@@ -288,6 +288,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 
 	// Generator - NativeHistograms config
 	f.Float64Var(&c.Defaults.MetricsGenerator.NativeHistogramBucketFactor, "metrics-generator.native-histogram-bucket-factor", 1.1, "The growth factor between buckets for native histograms.")
+	_ = (*Uint32Value)(&c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber).Set("100")
 	f.Var((*Uint32Value)(&c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber), "metrics-generator.native-histogram-max-bucket-number", "The maximum number of buckets for native histograms.")
 	f.DurationVar(&c.Defaults.MetricsGenerator.NativeHistogramMinResetDuration, "metrics-generator.native-histogram-min-reset-duration", 15*time.Minute, "The minimum duration before a native histogram can be reset.")
 

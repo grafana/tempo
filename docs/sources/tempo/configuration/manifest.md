@@ -908,6 +908,7 @@ overrides:
             generate_native_histograms: classic
             ingestion_time_range_slack: 0s
             native_histogram_bucket_factor: 1.1
+            native_histogram_max_bucket_number: 100
             native_histogram_min_reset_duration: 15m0s
         global:
             max_bytes_per_trace: 5000000
