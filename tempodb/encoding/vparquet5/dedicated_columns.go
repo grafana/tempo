@@ -1,6 +1,8 @@
 package vparquet5
 
 import (
+	"iter"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -188,9 +190,13 @@ func (dm *dedicatedColumnMapping) get(attr string) (dedicatedColumn, bool) {
 	return col, ok
 }
 
-func (dm *dedicatedColumnMapping) forEach(callback func(attr string, column dedicatedColumn)) {
-	for _, k := range dm.keys {
-		callback(k, dm.mapping[k])
+func (dm *dedicatedColumnMapping) items() iter.Seq2[string, dedicatedColumn] {
+	return func(yield func(string, dedicatedColumn) bool) {
+		for _, k := range dm.keys {
+			if !yield(k, dm.mapping[k]) {
+				return
+			}
+		}
 	}
 }
 
