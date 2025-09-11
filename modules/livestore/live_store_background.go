@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -18,6 +19,7 @@ const (
 	maxBackoff       = 120 * time.Second
 	initialBackoff   = 30 * time.Second
 	maxFlushAttempts = 10
+	flushJitter      = 10
 )
 
 type completeOp struct {
@@ -156,14 +158,31 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 	}
 }
 
-func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID) error {
-	return s.enqueueOp(&completeOp{
+func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID, jitter bool) error {
+	op := &completeOp{
 		tenantID: tenantID,
 		blockID:  blockID,
 		// Initial priority and backoff
 		at: time.Now(),
 		bo: initialBackoff,
-	})
+	}
+
+	if jitter {
+		return s.enqueueOpWithJitter(op)
+	}
+
+	return s.enqueueOp(op)
+}
+
+func (s *LiveStore) enqueueOpWithJitter(op *completeOp) error {
+	delay := time.Duration(rand.Float32() * float32(flushJitter))
+	go func() {
+		time.Sleep(delay)
+		if err := s.enqueueOp(op); err != nil {
+			level.Error(s.logger).Log("msg", "failed to enqueue block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+		}
+	}()
+	return nil
 }
 
 func (s *LiveStore) enqueueOp(op *completeOp) error {
@@ -208,7 +227,7 @@ func (s *LiveStore) reloadBlocks() error {
 			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
 
 			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
-			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID)); err != nil {
+			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID), true); err != nil {
 				return fmt.Errorf("failed to enqueue wal block for completion for tenant %s: %w", meta.TenantID, err)
 			}
 
