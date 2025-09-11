@@ -55,15 +55,54 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String20",
 		},
 	},
+	backend.DedicatedColumnScopeEvent: {
+		backend.DedicatedColumnTypeString: {
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String01",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String02",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String03",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String04",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String05",
+		},
+	},
 }
 
 type dedicatedColumn struct {
 	Type        backend.DedicatedColumnType
+	Flags       uint8
 	ColumnPath  string
 	ColumnIndex int
 }
 
-func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
+func (dc dedicatedColumn) Blob() bool {
+	return dc.Flags&uint8(backend.DedicatedColumnFlagBlob) != 0
+}
+
+func (attrs DedicatedAttributes5) readValue(dc dedicatedColumn) *v1.AnyValue {
+	switch dc.Type {
+	case backend.DedicatedColumnTypeString:
+		var strVal *string
+		switch dc.ColumnIndex {
+		case 0:
+			strVal = attrs.String01
+		case 1:
+			strVal = attrs.String02
+		case 2:
+			strVal = attrs.String03
+		case 3:
+			strVal = attrs.String04
+		case 4:
+			strVal = attrs.String05
+		}
+
+		if strVal != nil {
+			return &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: *strVal}}
+		}
+	}
+
+	return nil
+}
+
+func (attrs DedicatedAttributes20) readValue(dc dedicatedColumn) *v1.AnyValue {
 	switch dc.Type {
 	case backend.DedicatedColumnTypeString:
 		var strVal *string
@@ -108,6 +147,7 @@ func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
 			strVal = attrs.String19
 		case 19:
 			strVal = attrs.String20
+
 		}
 		if strVal == nil {
 			return nil
@@ -118,7 +158,23 @@ func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
 	}
 }
 
-func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyValue) bool {
+func (attrs *DedicatedAttributesSpan) readValue(dc dedicatedColumn) *v1.AnyValue {
+	switch dc.Type {
+	case backend.DedicatedColumnTypeString:
+		return attrs.DedicatedAttributes20.readValue(dc)
+	}
+	return nil
+}
+
+func (attrs *DedicatedAttributesEvent) readValue(dc dedicatedColumn) *v1.AnyValue {
+	switch dc.Type {
+	case backend.DedicatedColumnTypeString:
+		return attrs.DedicatedAttributes5.readValue(dc)
+	}
+	return nil
+}
+
+func (attrs *DedicatedAttributes5) writeValue(dc dedicatedColumn, value *v1.AnyValue) bool {
 	switch dc.Type {
 	case backend.DedicatedColumnTypeString:
 		strVal, ok := value.Value.(*v1.AnyValue_StringValue)
@@ -128,51 +184,111 @@ func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyV
 		switch dc.ColumnIndex {
 		case 0:
 			attrs.String01 = &strVal.StringValue
+			return true
 		case 1:
 			attrs.String02 = &strVal.StringValue
+			return true
 		case 2:
 			attrs.String03 = &strVal.StringValue
+			return true
 		case 3:
 			attrs.String04 = &strVal.StringValue
+			return true
 		case 4:
 			attrs.String05 = &strVal.StringValue
-		case 5:
-			attrs.String06 = &strVal.StringValue
-		case 6:
-			attrs.String07 = &strVal.StringValue
-		case 7:
-			attrs.String08 = &strVal.StringValue
-		case 8:
-			attrs.String09 = &strVal.StringValue
-		case 9:
-			attrs.String10 = &strVal.StringValue
-		case 10:
-			attrs.String11 = &strVal.StringValue
-		case 11:
-			attrs.String12 = &strVal.StringValue
-		case 12:
-			attrs.String13 = &strVal.StringValue
-		case 13:
-			attrs.String14 = &strVal.StringValue
-		case 14:
-			attrs.String15 = &strVal.StringValue
-		case 15:
-			attrs.String16 = &strVal.StringValue
-		case 16:
-			attrs.String17 = &strVal.StringValue
-		case 17:
-			attrs.String18 = &strVal.StringValue
-		case 18:
-			attrs.String19 = &strVal.StringValue
-		case 19:
-			attrs.String20 = &strVal.StringValue
-		default:
+			return true
+		}
+	}
+	return false
+}
+
+func (attrs *DedicatedAttributes20) writeValue(dc dedicatedColumn, value *v1.AnyValue) bool {
+	switch dc.Type {
+	case backend.DedicatedColumnTypeString:
+		strVal, ok := value.Value.(*v1.AnyValue_StringValue)
+		if !ok {
 			return false
 		}
-	default:
-		return false
+		switch dc.ColumnIndex {
+		case 0:
+			attrs.String01 = &strVal.StringValue
+			return true
+		case 1:
+			attrs.String02 = &strVal.StringValue
+			return true
+		case 2:
+			attrs.String03 = &strVal.StringValue
+			return true
+		case 3:
+			attrs.String04 = &strVal.StringValue
+			return true
+		case 4:
+			attrs.String05 = &strVal.StringValue
+			return true
+		case 5:
+			attrs.String06 = &strVal.StringValue
+			return true
+		case 6:
+			attrs.String07 = &strVal.StringValue
+			return true
+		case 7:
+			attrs.String08 = &strVal.StringValue
+			return true
+		case 8:
+			attrs.String09 = &strVal.StringValue
+			return true
+		case 9:
+			attrs.String10 = &strVal.StringValue
+			return true
+		case 10:
+			attrs.String11 = &strVal.StringValue
+			return true
+		case 11:
+			attrs.String12 = &strVal.StringValue
+			return true
+		case 12:
+			attrs.String13 = &strVal.StringValue
+			return true
+		case 13:
+			attrs.String14 = &strVal.StringValue
+			return true
+		case 14:
+			attrs.String15 = &strVal.StringValue
+			return true
+		case 15:
+			attrs.String16 = &strVal.StringValue
+			return true
+		case 16:
+			attrs.String17 = &strVal.StringValue
+			return true
+		case 17:
+			attrs.String18 = &strVal.StringValue
+			return true
+		case 18:
+			attrs.String19 = &strVal.StringValue
+			return true
+		case 19:
+			attrs.String20 = &strVal.StringValue
+			return true
+		}
 	}
-	return true
+	return false
+}
+
+func (attrs *DedicatedAttributesSpan) writeValue(dc dedicatedColumn, value *v1.AnyValue) bool {
+	switch dc.Type {
+	case backend.DedicatedColumnTypeString:
+		return attrs.DedicatedAttributes20.writeValue(dc, value)
+	}
+	return false
+}
+
+func (attrs *DedicatedAttributesEvent) writeValue(dc dedicatedColumn, value *v1.AnyValue) bool {
+	switch dc.Type {
+	case backend.DedicatedColumnTypeString:
+		return attrs.DedicatedAttributes5.writeValue(dc, value)
+	}
+	return false
 }
 
 func newDedicatedColumnMapping(size int) dedicatedColumnMapping {
@@ -203,6 +319,13 @@ func (dm *dedicatedColumnMapping) forEach(callback func(attr string, column dedi
 	for _, k := range dm.keys {
 		callback(k, dm.mapping[k])
 	}
+}
+
+func (dm *dedicatedColumnMapping) Blob(index int) bool {
+	if index >= 0 && index < len(dm.keys) {
+		return dm.mapping[dm.keys[index]].Blob()
+	}
+	return false
 }
 
 var allScopes = []backend.DedicatedColumnScope{backend.DedicatedColumnScopeResource, backend.DedicatedColumnScopeSpan}
@@ -239,6 +362,7 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 
 			mapping.put(c.Name, dedicatedColumn{
 				Type:        c.Type,
+				Flags:       c.Flags,
 				ColumnPath:  spareColumnPaths[i],
 				ColumnIndex: i,
 			})

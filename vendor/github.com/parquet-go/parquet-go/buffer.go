@@ -604,9 +604,7 @@ func bufferPoolBucketIndexAndSizeOfPut(size int) (int, int) {
 	return -1, size
 }
 
-var (
-	buffers bufferPool
-)
+var buffers bufferPool
 
 type bufferedPage struct {
 	Page

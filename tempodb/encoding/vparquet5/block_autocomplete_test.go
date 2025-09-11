@@ -138,7 +138,7 @@ func TestFetchTagNames(t *testing.T) {
 						{Key: "generic-01", Value: []string{"bar"}}, // generic
 						{Key: "resource-same", Value: []string{"foo"}},
 					},
-					DedicatedAttributes: DedicatedAttributes{
+					DedicatedAttributes: DedicatedAttributes20{
 						String01: strPtr("dedicated-01"),
 					},
 				},
@@ -162,8 +162,10 @@ func TestFetchTagNames(t *testing.T) {
 									{Key: "generic-01-01", Value: []string{"foo"}}, // generic
 									{Key: "span-same", Value: []string{"foo"}},     // generic
 								},
-								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-01-01"),
+								DedicatedAttributes: DedicatedAttributesSpan{
+									DedicatedAttributes20: DedicatedAttributes20{
+										String01: strPtr("dedicated-01-01"),
+									},
 								},
 								Events: []Event{
 									{
@@ -190,8 +192,10 @@ func TestFetchTagNames(t *testing.T) {
 								Attrs: []Attribute{
 									{Key: "generic-01-02", Value: []string{"foo"}}, // generic
 								},
-								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-01-02"),
+								DedicatedAttributes: DedicatedAttributesSpan{
+									DedicatedAttributes20: DedicatedAttributes20{
+										String01: strPtr("dedicated-01-02"),
+									},
 								},
 							},
 						},
@@ -206,7 +210,7 @@ func TestFetchTagNames(t *testing.T) {
 						{Key: "generic-02", Value: []string{"bar"}}, // generic
 						{Key: "resource-same", Value: []string{"foo"}},
 					},
-					DedicatedAttributes: DedicatedAttributes{
+					DedicatedAttributes: DedicatedAttributes20{
 						String01: strPtr("dedicated-02"),
 					},
 				},
@@ -230,8 +234,10 @@ func TestFetchTagNames(t *testing.T) {
 									{Key: "generic-02-01", Value: []string{"foo"}}, // generic
 									{Key: "span-same", Value: []string{"foo"}},     // generic
 								},
-								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-02-01"),
+								DedicatedAttributes: DedicatedAttributesSpan{
+									DedicatedAttributes20: DedicatedAttributes20{
+										String01: strPtr("dedicated-02-01"),
+									},
 								},
 								Events: []Event{
 									{

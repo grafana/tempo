@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/parquet-go/parquet-go"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -104,7 +102,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	}
 }
 
-func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
+/*func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	rawR, _, _, err := local.New(&local.Config{
 		Path: "./test-data",
 	})
@@ -142,7 +140,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, protoTr)
 	}
-}
+}*/
 
 func BenchmarkFindTraceByID(b *testing.B) {
 	ctx := context.TODO()

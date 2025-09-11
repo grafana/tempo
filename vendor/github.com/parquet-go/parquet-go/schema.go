@@ -28,6 +28,7 @@ type Schema struct {
 	root  Node
 	funcs onceValue[schemaFuncs]
 	state onceValue[schemaState]
+	cfg   SchemaConfig
 }
 
 type schemaFuncs struct {
@@ -49,6 +50,27 @@ func (v *onceValue[T]) load(f func() *T) *T {
 	v.once.Do(func() { v.value = f() })
 	return v.value
 }
+
+type (
+	schemaOption      func(*SchemaConfig)
+	FieldTagsCallback func(parentStruct reflect.Type, f *reflect.StructField, tag string) (replacement string)
+)
+
+func FieldTagsCallbackOption(cb FieldTagsCallback) schemaOption {
+	return func(cfg *SchemaConfig) {
+		cfg.fieldTagsCallback = cb
+	}
+}
+
+type SchemaConfig struct {
+	fieldTagsCallback FieldTagsCallback
+}
+
+type SchemaOption interface {
+	ConfigureSchema(cfg *SchemaConfig)
+}
+
+func (opt schemaOption) ConfigureSchema(config *SchemaConfig) { opt(config) }
 
 // SchemaOf constructs a parquet schema from a Go value.
 //
@@ -132,24 +154,41 @@ func (v *onceValue[T]) load(f func() *T) *T {
 //	}
 //
 // The schema name is the Go type name of the value.
-func SchemaOf(model any) *Schema {
-	return schemaOf(dereference(reflect.TypeOf(model)))
+func SchemaOf(model any, opts ...SchemaOption) *Schema {
+	cfg := SchemaConfig{}
+	for _, opt := range opts {
+		opt.ConfigureSchema(&cfg)
+	}
+
+	return schemaOfWithConfig(dereference(reflect.TypeOf(model)), cfg)
 }
 
 var cachedSchemas sync.Map // map[reflect.Type]*Schema
 
 func schemaOf(model reflect.Type) *Schema {
-	cached, _ := cachedSchemas.Load(model)
-	schema, _ := cached.(*Schema)
-	if schema != nil {
-		return schema
+	return schemaOfWithConfig(model, SchemaConfig{})
+}
+
+func schemaOfWithConfig(model reflect.Type, cfg SchemaConfig) *Schema {
+	cacheable := cfg.fieldTagsCallback == nil
+
+	if cacheable {
+		cached, _ := cachedSchemas.Load(model)
+		schema, _ := cached.(*Schema)
+		if schema != nil {
+			return schema
+		}
 	}
 	if model.Kind() != reflect.Struct {
 		panic("cannot construct parquet schema from value of type " + model.String())
 	}
-	schema = NewSchema(model.Name(), nodeOf(model, nil))
-	if actual, loaded := cachedSchemas.LoadOrStore(model, schema); loaded {
-		schema = actual.(*Schema)
+	schema := NewSchema(model.Name(), nodeOf(model, nil, cfg))
+	schema.cfg = cfg
+
+	if cacheable {
+		if actual, loaded := cachedSchemas.LoadOrStore(model, schema); loaded {
+			schema = actual.(*Schema)
+		}
 	}
 	return schema
 }
@@ -399,10 +438,10 @@ type structNode struct {
 	fields []structField
 }
 
-func structNodeOf(t reflect.Type) *structNode {
+func structNodeOf(t reflect.Type, cfg SchemaConfig) *structNode {
 	// Collect struct fields first so we can order them before generating the
 	// column indexes.
-	fields := structFieldsOf(t)
+	fields := structFieldsOf(t, cfg)
 
 	s := &structNode{
 		gotype: t,
@@ -411,24 +450,34 @@ func structNodeOf(t reflect.Type) *structNode {
 
 	for i := range fields {
 		field := structField{name: fields[i].Name, index: fields[i].Index}
+
+		tagParquet := fields[i].Tag.Get("parquet")
+		if cfg.fieldTagsCallback != nil {
+			tagParquet = cfg.fieldTagsCallback(t, &fields[i], tagParquet)
+		}
+
 		field.Node = makeNodeOf(fields[i].Type, fields[i].Name, []string{
-			fields[i].Tag.Get("parquet"),
+			tagParquet,
 			fields[i].Tag.Get("parquet-key"),
 			fields[i].Tag.Get("parquet-value"),
-		})
+		}, cfg)
 		s.fields[i] = field
 	}
 
 	return s
 }
 
-func structFieldsOf(t reflect.Type) []reflect.StructField {
+func structFieldsOf(t reflect.Type, cfg SchemaConfig) []reflect.StructField {
 	fields := appendStructFields(t, nil, nil, 0)
 
 	for i := range fields {
 		f := &fields[i]
 
-		if tag := f.Tag.Get("parquet"); tag != "" {
+		tag := f.Tag.Get("parquet")
+		if cfg.fieldTagsCallback != nil {
+			tag = cfg.fieldTagsCallback(t, f, tag)
+		}
+		if tag != "" {
 			name, _ := split(tag)
 			if name != "" {
 				f.Name = name
@@ -574,7 +623,7 @@ func forEachStructTagOption(sf reflect.StructField, do func(t reflect.Type, opti
 	}
 }
 
-func nodeOf(t reflect.Type, tag []string) Node {
+func nodeOf(t reflect.Type, tag []string, cfg SchemaConfig) Node {
 	switch t {
 	case reflect.TypeOf(deprecated.Int96{}):
 		return Leaf(Int96Type)
@@ -611,13 +660,13 @@ func nodeOf(t reflect.Type, tag []string) Node {
 		n = String()
 
 	case reflect.Ptr:
-		n = Optional(nodeOf(t.Elem(), nil))
+		n = Optional(nodeOf(t.Elem(), nil, cfg))
 
 	case reflect.Slice:
 		if elem := t.Elem(); elem.Kind() == reflect.Uint8 { // []byte?
 			n = Leaf(ByteArrayType)
 		} else {
-			n = Repeated(nodeOf(elem, nil))
+			n = Repeated(nodeOf(elem, nil, cfg))
 		}
 
 	case reflect.Array:
@@ -641,8 +690,8 @@ func nodeOf(t reflect.Type, tag []string) Node {
 			n = JSON()
 		} else {
 			n = Map(
-				makeNodeOf(t.Key(), t.Name(), []string{keyTag}),
-				makeNodeOf(t.Elem(), t.Name(), []string{valueTag}),
+				makeNodeOf(t.Key(), t.Name(), []string{keyTag}, cfg),
+				makeNodeOf(t.Elem(), t.Name(), []string{valueTag}, cfg),
 			)
 		}
 
@@ -664,7 +713,7 @@ func nodeOf(t reflect.Type, tag []string) Node {
 		})
 
 	case reflect.Struct:
-		return structNodeOf(t)
+		return structNodeOf(t, cfg)
 	}
 
 	if n == nil {
@@ -795,7 +844,7 @@ var (
 	_ WriterOption   = (*Schema)(nil)
 )
 
-func makeNodeOf(t reflect.Type, name string, tag []string) Node {
+func makeNodeOf(t reflect.Type, name string, tag []string, cfg SchemaConfig) Node {
 	var (
 		node       Node
 		optional   bool
@@ -842,9 +891,10 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 
 	forEachTagOption(tag, func(option, args string) {
 		if t.Kind() == reflect.Map {
-			node = nodeOf(t, tag)
+			node = nodeOf(t, tag, cfg)
 			return
 		}
+
 		switch option {
 		case "":
 			return
@@ -916,7 +966,7 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 		case "list":
 			switch t.Kind() {
 			case reflect.Slice:
-				element := nodeOf(t.Elem(), nil)
+				element := nodeOf(t.Elem(), nil, cfg)
 				setNode(element)
 				setList()
 			default:
@@ -1045,14 +1095,14 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 		// Note for strings "optional" applies only to the entire BYTE_ARRAY and
 		// not each individual byte.
 		if optional && !isUint8 {
-			node = Repeated(Optional(nodeOf(t.Elem(), tag)))
+			node = Repeated(Optional(nodeOf(t.Elem(), tag, cfg)))
 			// Don't also apply "optional" to the whole list.
 			optional = false
 		}
 	}
 
 	if node == nil {
-		node = nodeOf(t, tag)
+		node = nodeOf(t, tag, cfg)
 	}
 
 	if compressed != nil {

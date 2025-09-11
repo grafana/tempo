@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/dataquality"
@@ -62,10 +65,11 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	} else {
 		// Need to convert from proto->parquet obj
 		var (
-			buffer      = &Trace{}
-			connected   bool
-			resMapping  = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
-			spanMapping = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+			buffer       = &Trace{}
+			connected    bool
+			resMapping   = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+			spanMapping  = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+			eventMapping = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
 		)
 		next = func(context.Context) error {
 			id, tr, err := i.Next(ctx)
@@ -79,7 +83,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			// Copy ID to allow it to escape the iterator.
 			id = append([]byte(nil), id...)
 
-			buffer, connected = traceToParquetWithMapping(id, tr, buffer, resMapping, spanMapping)
+			buffer, connected = traceToParquetWithMapping(id, tr, buffer, resMapping, spanMapping, eventMapping)
 			if !connected {
 				dataquality.WarnDisconnectedTrace(meta.TenantID, dataquality.PhaseTraceWalToComplete)
 			}
@@ -151,7 +155,73 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 
 	w := &backendWriter{ctx, to, DataFileName, (uuid.UUID)(meta.BlockID), meta.TenantID, nil}
 	bw := createBufferedWriter(w)
-	pw := parquet.NewGenericWriter[*Trace](bw)
+
+	var (
+		resMapping   = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+		spanMapping  = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+		eventMapping = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
+	)
+
+	fieldTagsCallback := func(typ reflect.Type, f *reflect.StructField, tag string) (replacement string) {
+		// Determine scope based on parent type.
+		var dm *dedicatedColumnMapping
+		switch typ {
+		case reflect.TypeOf(DedicatedAttributesSpan{}):
+			dm = &spanMapping
+		case reflect.TypeOf(DedicatedAttributes20{}):
+			dm = &resMapping
+		case reflect.TypeOf(DedicatedAttributesEvent{}):
+			dm = &eventMapping
+		default:
+			return tag
+		}
+
+		// Parse dedicated column index out of the name.
+		// String01 is index 0 below.
+		indexStr, ok := strings.CutPrefix(f.Name, "String")
+		if !ok {
+			return tag
+		}
+		index, err := strconv.Atoi(indexStr)
+		if err != nil {
+			return tag
+		}
+
+		if dm.Blob(index - 1) {
+			return ",zstd,optional"
+		}
+
+		return tag
+	}
+
+	schema := parquet.SchemaOf(&Trace{}, parquet.FieldTagsCallbackOption(fieldTagsCallback))
+
+	options := []parquet.WriterOption{
+		schema,
+	}
+
+	// Minor optimization: skip page bounds for blob columns. The min/max values are not
+	// selective, and this saves a little bit of storage and overhead.
+	for key, col := range spanMapping.mapping {
+		if col.Blob() {
+			fmt.Println("Blob column:", col.ColumnPath, key)
+			options = append(options, parquet.SkipPageBounds(strings.Split(col.ColumnPath, ".")...))
+		}
+	}
+	for key, col := range resMapping.mapping {
+		if col.Blob() {
+			fmt.Println("Blob column:", col.ColumnPath, key)
+			options = append(options, parquet.SkipPageBounds(strings.Split(col.ColumnPath, ".")...))
+		}
+	}
+	for key, col := range eventMapping.mapping {
+		if col.Blob() {
+			fmt.Println("Blob column:", col.ColumnPath, key)
+			options = append(options, parquet.SkipPageBounds(strings.Split(col.ColumnPath, ".")...))
+		}
+	}
+
+	pw := parquet.NewGenericWriter[*Trace](bw, options...)
 
 	return &streamingBlock{
 		ctx:               ctx,
@@ -290,6 +360,7 @@ func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
 	for _, rs := range tr.ResourceSpans {
 		size += estimateAttrSize(rs.Resource.Attrs)
 		size += 21 // 21 resource lvl fields including dedicated attributes
+		size += 50 // 50 dedicated columns
 
 		for _, ils := range rs.ScopeSpans {
 			size += 2 // 2 scope span lvl fields
@@ -298,6 +369,7 @@ func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
 
 			for _, s := range ils.Spans {
 				size += 35 // 35 span lvl fields including dedicated attributes
+				size += 50 // 50 dedicated columns
 				size += len(s.SpanID) + len(s.ParentSpanID)
 				size += estimateAttrSize(s.Attrs)
 				size += estimateEventsSize(s.Events)
@@ -324,7 +396,8 @@ func estimateAttrSize(attrs []Attribute) (size int) {
 
 func estimateEventsSize(events []Event) (size int) {
 	for _, e := range events {
-		size += 4 // 4 event lvl fields
+		size += 4  // 4 event lvl fields
+		size += 50 // 50 dedicated columns
 		size += estimateAttrSize(e.Attrs)
 	}
 	return

@@ -292,6 +292,7 @@ type walBlock struct {
 	ingestionSlack time.Duration
 	dedcolsRes     dedicatedColumnMapping
 	dedcolsSpan    dedicatedColumnMapping
+	dedcolsEvent   dedicatedColumnMapping
 
 	// Unflushed data
 	buffer        *Trace
@@ -343,7 +344,7 @@ func (b *walBlock) IngestionSlack() time.Duration {
 
 func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32, adjustIngestionSlack bool) error {
 	var connected bool
-	b.buffer, connected = traceToParquetWithMapping(id, trace, b.buffer, b.dedcolsRes, b.dedcolsSpan)
+	b.buffer, connected = traceToParquetWithMapping(id, trace, b.buffer, b.dedcolsRes, b.dedcolsSpan, b.dedcolsEvent)
 	if !connected {
 		dataquality.WarnDisconnectedTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}

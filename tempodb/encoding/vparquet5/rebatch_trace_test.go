@@ -27,7 +27,7 @@ func TestRebatchTrace(t *testing.T) {
 		r4 = Resource{
 			ServiceName:         "service1",
 			Cluster:             ptr("cluster1"),
-			DedicatedAttributes: DedicatedAttributes{String01: ptr("string01")},
+			DedicatedAttributes: DedicatedAttributes20{String01: ptr("string01")},
 		}
 		// setup distinct instrumentation scopes
 		s1 = InstrumentationScope{

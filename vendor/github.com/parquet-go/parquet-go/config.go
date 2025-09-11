@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"math"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
-
-	"slices"
 
 	"github.com/parquet-go/parquet-go/compress"
 	"github.com/parquet-go/parquet-go/encoding"

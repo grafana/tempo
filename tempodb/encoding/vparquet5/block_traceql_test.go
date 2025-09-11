@@ -672,7 +672,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 						{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
 					},
 					DroppedAttributesCount: 22,
-					DedicatedAttributes: DedicatedAttributes{
+					DedicatedAttributes: DedicatedAttributes20{
 						String01: ptr("dedicated-resource-attr-value-1"),
 						String02: ptr("dedicated-resource-attr-value-2"),
 						String03: ptr("dedicated-resource-attr-value-3"),
@@ -752,12 +752,14 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									},
 								},
 								Links: links,
-								DedicatedAttributes: DedicatedAttributes{
-									String01: ptr("dedicated-span-attr-value-1"),
-									String02: ptr("dedicated-span-attr-value-2"),
-									String03: ptr("dedicated-span-attr-value-3"),
-									String04: ptr("dedicated-span-attr-value-4"),
-									String05: ptr("dedicated-span-attr-value-5"),
+								DedicatedAttributes: DedicatedAttributesSpan{
+									DedicatedAttributes20: DedicatedAttributes20{
+										String01: ptr("dedicated-span-attr-value-1"),
+										String02: ptr("dedicated-span-attr-value-2"),
+										String03: ptr("dedicated-span-attr-value-3"),
+										String04: ptr("dedicated-span-attr-value-4"),
+										String05: ptr("dedicated-span-attr-value-5"),
+									},
 								},
 							},
 						},
@@ -779,7 +781,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 						attr("foo", "abc2"),
 						attr(LabelServiceName, 1234), // Different type than dedicated column
 					},
-					DedicatedAttributes: DedicatedAttributes{
+					DedicatedAttributes: DedicatedAttributes20{
 						String01: ptr("dedicated-resource-attr-value-6"),
 						String02: ptr("dedicated-resource-attr-value-7"),
 						String03: ptr("dedicated-resource-attr-value-8"),
@@ -975,7 +977,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 
 		dcm.forEach(func(attr string, column dedicatedColumn) {
 			if strings.Contains(column.ColumnPath, "Resource") {
-				v := column.readValue(&rs.Resource.DedicatedAttributes)
+				v := rs.Resource.DedicatedAttributes.readValue(column)
 				if v == nil {
 					return
 				}
@@ -1029,7 +1031,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 
 				dcm.forEach(func(attr string, column dedicatedColumn) {
 					if strings.Contains(column.ColumnPath, "Span") {
-						v := column.readValue(&s.DedicatedAttributes)
+						v := s.DedicatedAttributes.readValue(column)
 						if v == nil {
 							return
 						}
@@ -1063,7 +1065,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		query string
 	}{
 		// span
-		{"spanAttValMatch", "{ span.component = `net/http` }"},
+		/*{"spanAttValMatch", "{ span.component = `net/http` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `does-not-exit-6c2408325a45` }"},
 		{"spanAttIntrinsicMatch", "{ name = `/cortex.Ingester/Push` }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `does-not-exit-6c2408325a45` }"},
@@ -1088,13 +1090,21 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
 		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
-		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},
+		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},*/
+
+		{"span generic", "{span.ICCID=~`.*bar.*`}"},
+		{"span blob", "{span.model=~`.*bar.*`}"},
+		{"span dedicated", "{span.charges=~`.*bar.*`}"},
 	}
+
+	os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
+	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20")
+	os.Setenv("VP5_BENCH_TENANTID", "328776")
 
 	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
-	opts.StartPage = 3
-	opts.TotalPages = 2
+	// opts.StartPage = 3
+	// opts.TotalPages = 2
 
 	block := blockForBenchmarks(b)
 
@@ -1292,6 +1302,58 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
 			b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 		})
+	}
+}
+
+func BenchmarkReadTraces(b *testing.B) {
+	// For sampler debugging
+	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
+
+	ctx := b.Context()
+	// opts := common.DefaultSearchOptions()
+
+	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-10")
+	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20")
+	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20-dyn")
+
+	// os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
+	// os.Setenv("VP5_BENCH_TENANTID", "328776")
+
+	os.Setenv("VP5_BENCH_BLOCKID", "26142bda-e8f4-4886-a669-e47829e6aa90")
+	os.Setenv("VP5_BENCH_TENANTID", "797642")
+
+	// os.Setenv("VP5_BENCH_BLOCKID", "d1240180-7d43-49b3-b691-06ddcc4e53b3")
+	// os.Setenv("VP5_BENCH_TENANTID", "1")
+
+	block := blockForBenchmarks(b)
+
+	/*id, err := util.HexStringToTraceID("84dbab961d9b7c10dcf4aa8b929fe6a7")
+	require.NoError(b, err)*/
+
+	/*pf, _, err := block.openForSearch(ctx, opts)
+		require.NoError(b, err)
+
+		rdr := parquet.NewReader(pf)
+	    row := parquet.Row{}*/
+
+	pool := newRowPool(1_000_000)
+	iter, err := block.rawIter(ctx, pool)
+	require.NoError(b, err)
+
+	for b.Loop() {
+		for {
+			id, row, err := iter.Next(ctx)
+			require.NoError(b, err)
+			if id == nil {
+				break
+			}
+			require.NotNil(b, row)
+			pool.Put(row)
+		}
+
+		/*tr, err := block.FindTraceByID(ctx, id, opts)
+		require.NoError(b, err)
+		require.NotNil(b, tr)*/
 	}
 }
 

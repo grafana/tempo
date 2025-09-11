@@ -339,7 +339,7 @@ func TestTraceToParquet(t *testing.T) {
 							attr("res.double.array", []float64{1.1, 2.2, 3.3}),
 							attr("res.bool.array", []bool{true, false, true, true}),
 						},
-						DedicatedAttributes: DedicatedAttributes{
+						DedicatedAttributes: DedicatedAttributes20{
 							String01: ptr("dedicated-resource-attr-value-1"),
 							String02: ptr("dedicated-resource-attr-value-2"),
 							String03: ptr("dedicated-resource-attr-value-3"),
@@ -379,12 +379,14 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "span.unsupported.kvlist", ValueUnsupported: ptr("{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}"), IsArray: false},
 							},
 							DroppedAttributesCount: 0,
-							DedicatedAttributes: DedicatedAttributes{
-								String01: ptr("dedicated-span-attr-value-1"),
-								String02: ptr("dedicated-span-attr-value-2"),
-								String03: ptr("dedicated-span-attr-value-3"),
-								String04: ptr("dedicated-span-attr-value-4"),
-								String05: ptr("dedicated-span-attr-value-5"),
+							DedicatedAttributes: DedicatedAttributesSpan{
+								DedicatedAttributes20: DedicatedAttributes20{
+									String01: ptr("dedicated-span-attr-value-1"),
+									String02: ptr("dedicated-span-attr-value-2"),
+									String03: ptr("dedicated-span-attr-value-3"),
+									String04: ptr("dedicated-span-attr-value-4"),
+									String05: ptr("dedicated-span-attr-value-5"),
+								},
 							},
 						}},
 					}},
@@ -796,7 +798,7 @@ func BenchmarkEventToParquet(b *testing.B) {
 
 	ee := &Event{}
 	for i := 0; i < b.N; i++ {
-		eventToParquet(e, ee, s.StartTimeUnixNano)
+		eventToParquet(e, ee, s.StartTimeUnixNano, dedicatedColumnMapping{})
 	}
 }
 
@@ -826,7 +828,7 @@ func BenchmarkDeconstruct(b *testing.B) {
 				test.AddDedicatedAttributes(dbt)
 
 				tr, _ := traceToParquet(&meta, id, dbt, nil)
-				sch := parquet.SchemaOf(tr)
+				sch := parquet.SchemaOf(tr, nil)
 
 				b.ResetTimer()
 
@@ -875,7 +877,7 @@ func estimateRowSize(t *testing.T, name string) {
 		}
 
 		tr := row[0]
-		sch := parquet.SchemaOf(tr)
+		sch := parquet.SchemaOf(tr, nil)
 		row := sch.Deconstruct(nil, tr)
 
 		totalProtoSize += int64(estimateMarshalledSizeFromParquetRow(row))

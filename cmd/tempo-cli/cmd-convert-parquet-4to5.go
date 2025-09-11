@@ -57,11 +57,14 @@ func (cmd *convertParquet4to5) Run() error {
 
 		for _, col := range cmd.DedicatedColumns {
 
-			col, blob := strings.CutPrefix(col, "blob/")
+			var (
+				typ   = backend.DedicatedColumnTypeString
+				flags = backend.DedicatedColumnFlagNone
+			)
 
-			typ := backend.DedicatedColumnTypeString
+			col, blob := strings.CutPrefix(col, "blob/")
 			if blob {
-				typ = backend.DedicatedColumnTypeBlob
+				flags |= backend.DedicatedColumnFlagBlob
 			}
 
 			att, err := traceql.ParseIdentifier(col)
@@ -87,6 +90,7 @@ func (cmd *convertParquet4to5) Run() error {
 				Scope: scope,
 				Name:  att.Name,
 				Type:  typ,
+				Flags: uint8(flags),
 			})
 		}
 	} else {

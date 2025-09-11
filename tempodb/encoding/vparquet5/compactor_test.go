@@ -154,7 +154,7 @@ func TestCountSpans(t *testing.T) {
 	rootSpan := "foo"
 	rootService := "bar"
 
-	sch := parquet.SchemaOf(new(Trace))
+	sch := parquet.SchemaOf(new(Trace), nil)
 	traceID := make([]byte, 16)
 	_, err := crand.Read(traceID)
 	require.NoError(t, err)

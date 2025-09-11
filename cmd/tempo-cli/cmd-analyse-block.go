@@ -111,7 +111,7 @@ type analyseBlockCmd struct {
 	BlockID  string `arg:"" help:"block ID to list"`
 	NumAttr  int    `help:"Number of attributes to display" default:"15"`
 	// NumBlob       int    `help:"Number of blob attributes to display" default:"5"`
-	BlobThreshold string `help:"Convert column to blob when dictionary size reaches this value" default:"10MiB"`
+	BlobThreshold string `help:"Convert column to blob when dictionary size reaches this value" default:"4MiB"`
 	BlobLength    string `help:"Convert column to blob when max length reaches this value" default:"2KiB"`
 
 	GenerateJsonnet  bool `help:"Generate overrides Jsonnet for dedicated columns"`

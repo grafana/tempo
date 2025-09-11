@@ -80,7 +80,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	var (
 		replicationFactor   = inputs[0].ReplicationFactor
 		nextCompactionLevel = compactionLevel + 1
-		sch                 = parquet.SchemaOf(new(Trace))
+		sch                 = parquet.SchemaOf(new(Trace), nil)
 	)
 
 	// Dedupe rows and also call the metrics callback.

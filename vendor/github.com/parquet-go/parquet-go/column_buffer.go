@@ -980,7 +980,6 @@ func (col *int32ColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
 	n := len(col.values)
 	col.values = col.values[:n+rows.Len()]
 	sparse.GatherInt32(col.values[n:], rows.Int32Array())
-
 }
 
 func (col *int32ColumnBuffer) ReadValuesAt(values []Value, offset int64) (n int, err error) {
@@ -2281,7 +2280,7 @@ func writeRowsFuncOfStruct(t reflect.Type, schema *Schema, path columnPath) writ
 		writeRows writeRowsFunc
 	}
 
-	fields := structFieldsOf(t)
+	fields := structFieldsOf(t, schema.cfg)
 	columns := make([]column, len(fields))
 
 	for i, f := range fields {

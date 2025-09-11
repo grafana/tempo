@@ -25,12 +25,20 @@ const (
 
 	DedicatedColumnScopeResource DedicatedColumnScope = "resource"
 	DedicatedColumnScopeSpan     DedicatedColumnScope = "span"
+	DedicatedColumnScopeEvent    DedicatedColumnScope = "event"
 
 	DefaultDedicatedColumnType  = DedicatedColumnTypeString
 	DefaultDedicatedColumnScope = DedicatedColumnScopeSpan
 
 	maxSupportedSpanColumns     = 10
 	maxSupportedResourceColumns = 10
+)
+
+type DedicatedColumnFlag uint8
+
+const (
+	DedicatedColumnFlagNone DedicatedColumnFlag = 0x00
+	DedicatedColumnFlagBlob                     = 0x01
 )
 
 func DedicatedColumnTypeFromTempopb(t tempopb.DedicatedColumn_Type) (DedicatedColumnType, error) {
@@ -96,7 +104,8 @@ type DedicatedColumn struct {
 	// The Name of the attribute stored in the dedicated column
 	Name string `yaml:"name" json:"n"`
 	// The Type of attribute value
-	Type DedicatedColumnType `yaml:"type" json:"t,omitempty"`
+	Type  DedicatedColumnType `yaml:"type" json:"t,omitempty"`
+	Flags uint8               `yaml:"flags" json:"f,omitempty"`
 }
 
 func (dc *DedicatedColumn) MarshalJSON() ([]byte, error) {

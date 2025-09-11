@@ -142,15 +142,22 @@ type Attribute struct {
 	Key string `parquet:",snappy,dict"`
 
 	IsArray          bool      `parquet:",snappy"`
-	Value            []string  `parquet:",snappy,dict,list"`
+	Value            []string  `parquet:",snappy,list"` // Spillover for blobs
 	ValueInt         []int64   `parquet:",snappy,list"`
 	ValueDouble      []float64 `parquet:",snappy,list"`
 	ValueBool        []bool    `parquet:",snappy,list"`
 	ValueUnsupported *string   `parquet:",snappy,optional"`
 }
 
-// DedicatedAttributes add spare columns to the schema that can be assigned to attributes at runtime.
-type DedicatedAttributes struct {
+type DedicatedAttributes5 struct {
+	String01 *string `parquet:",snappy,optional,dict"`
+	String02 *string `parquet:",snappy,optional,dict"`
+	String03 *string `parquet:",snappy,optional,dict"`
+	String04 *string `parquet:",snappy,optional,dict"`
+	String05 *string `parquet:",snappy,optional,dict"`
+}
+
+type DedicatedAttributes20 struct {
 	String01 *string `parquet:",snappy,optional,dict"`
 	String02 *string `parquet:",snappy,optional,dict"`
 	String03 *string `parquet:",snappy,optional,dict"`
@@ -173,11 +180,18 @@ type DedicatedAttributes struct {
 	String20 *string `parquet:",snappy,optional,dict"`
 }
 
+type DedicatedAttributesEvent struct {
+	DedicatedAttributes5
+	// Blob5
+}
+
 type Event struct {
 	TimeSinceStartNano     uint64      `parquet:",delta"`
 	Name                   string      `parquet:",snappy,dict"`
 	Attrs                  []Attribute `parquet:",list"`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
+
+	DedicatedAttributes DedicatedAttributesEvent `parquet:""`
 }
 
 type Link struct {
@@ -186,6 +200,11 @@ type Link struct {
 	TraceState             string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:",list"`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
+}
+
+type DedicatedAttributesSpan struct {
+	DedicatedAttributes20
+	// Blob5
 }
 
 // nolint:revive
@@ -218,7 +237,7 @@ type Span struct {
 	HttpStatusCode *int64  `parquet:",snappy,optional"`
 
 	// Dynamically assignable dedicated attribute columns
-	DedicatedAttributes DedicatedAttributes `parquet:""`
+	DedicatedAttributes DedicatedAttributesSpan `parquet:""`
 
 	// Precomputed/Optimized values for metrics
 	// These are stored as intervals from the unix epoch.
@@ -263,7 +282,7 @@ type Resource struct {
 	K8sContainerName *string `parquet:",snappy,optional,dict"`
 
 	// Dynamically assignable dedicated attribute columns
-	DedicatedAttributes DedicatedAttributes `parquet:""`
+	DedicatedAttributes DedicatedAttributes20 `parquet:""`
 }
 
 type ResourceSpans struct {
@@ -384,11 +403,12 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	// Dedicated attribute column assignments
 	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
 	dedicatedSpanAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+	dedicatedEventAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
 
-	return traceToParquetWithMapping(id, tr, ot, dedicatedResourceAttributes, dedicatedSpanAttributes)
+	return traceToParquetWithMapping(id, tr, ot, dedicatedResourceAttributes, dedicatedSpanAttributes, dedicatedEventAttributes)
 }
 
-func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedicatedResourceAttributes, dedicatedSpanAttributes dedicatedColumnMapping) (*Trace, bool) {
+func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedicatedResourceAttributes, dedicatedSpanAttributes, dedicatedEventAttributes dedicatedColumnMapping) (*Trace, bool) {
 	if ot == nil {
 		ot = &Trace{}
 	}
@@ -416,7 +436,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 		ob.Resource.K8sNamespaceName = nil
 		ob.Resource.K8sPodName = nil
 		ob.Resource.K8sContainerName = nil
-		ob.Resource.DedicatedAttributes = DedicatedAttributes{}
+		ob.Resource.DedicatedAttributes = DedicatedAttributes20{}
 
 		if b.Resource != nil {
 			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
@@ -455,7 +475,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				if !written {
 					// Dynamically assigned dedicated resource attribute columns
 					if spareColumn, exists := dedicatedResourceAttributes.get(a.Key); exists {
-						written = spareColumn.writeValue(&ob.Resource.DedicatedAttributes, a.Value)
+						written = ob.Resource.DedicatedAttributes.writeValue(spareColumn, a.Value)
 					}
 				}
 
@@ -490,7 +510,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 
 				ss.Events = extendReuseSlice(len(s.Events), ss.Events)
 				for ie, e := range s.Events {
-					eventToParquet(e, &ss.Events[ie], s.StartTimeUnixNano)
+					eventToParquet(e, &ss.Events[ie], s.StartTimeUnixNano, dedicatedEventAttributes)
 				}
 
 				// nested set values do not come from the proto, they are calculated
@@ -522,7 +542,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				ss.HttpMethod = nil
 				ss.HttpUrl = nil
 				ss.HttpStatusCode = nil
-				ss.DedicatedAttributes = DedicatedAttributes{}
+				ss.DedicatedAttributes = DedicatedAttributesSpan{}
 
 				ss.Links = extendReuseSlice(len(s.Links), ss.Links)
 				for ie, e := range s.Links {
@@ -560,7 +580,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 					if !written {
 						// Dynamically assigned dedicated span attribute columns
 						if spareColumn, exists := dedicatedSpanAttributes.get(a.Key); exists {
-							written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
+							written = ss.DedicatedAttributes.writeValue(spareColumn, a.Value)
 						}
 					}
 
@@ -622,14 +642,25 @@ func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *Instrumentati
 	}
 }
 
-func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64) {
+func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64, dedicatedEventAttributes dedicatedColumnMapping) {
 	ee.Name = e.Name
 	ee.TimeSinceStartNano = e.TimeUnixNano - spanStartTime
 	ee.DroppedAttributesCount = int32(e.DroppedAttributesCount)
-
 	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
-	for i, a := range e.Attributes {
-		attrToParquet(a, &ee.Attrs[i])
+
+	written := false
+	for _, a := range e.Attributes {
+		// Dynamically assigned dedicated span attribute columns
+		if spareColumn, exists := dedicatedEventAttributes.get(a.Key); exists {
+			written = ee.DedicatedAttributes.writeValue(spareColumn, a.Value)
+		}
+	}
+
+	// If not landed in a dedicated column, add to the generic.
+	if !written {
+		for i, a := range e.Attributes {
+			attrToParquet(a, &ee.Attrs[i])
+		}
 	}
 }
 
@@ -817,7 +848,7 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 
 		// dynamically assigned dedicated resource attribute columns
 		dedicatedResourceAttributes.forEach(func(attr string, col dedicatedColumn) {
-			val := col.readValue(&rs.Resource.DedicatedAttributes)
+			val := rs.Resource.DedicatedAttributes.readValue(col)
 			if val != nil {
 				protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
 					Key:   attr,
@@ -897,7 +928,7 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 
 				// dynamically assigned dedicated resource attribute columns
 				dedicatedSpanAttributes.forEach(func(attr string, col dedicatedColumn) {
-					val := col.readValue(&span.DedicatedAttributes)
+					val := span.DedicatedAttributes.readValue(col)
 					if val != nil {
 						protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
 							Key:   attr,

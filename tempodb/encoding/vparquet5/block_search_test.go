@@ -45,7 +45,7 @@ func TestBackendBlockSearch(t *testing.T) {
 					Attrs: []Attribute{
 						attr("bat", "baz"),
 					},
-					DedicatedAttributes: DedicatedAttributes{
+					DedicatedAttributes: DedicatedAttributes20{
 						String01: ptr("dedicated-resource-attr-value-1"),
 						String02: ptr("dedicated-resource-attr-value-2"),
 						String03: ptr("dedicated-resource-attr-value-3"),
@@ -67,12 +67,14 @@ func TestBackendBlockSearch(t *testing.T) {
 								Attrs: []Attribute{
 									attr("foo", "bar"),
 								},
-								DedicatedAttributes: DedicatedAttributes{
-									String01: ptr("dedicated-span-attr-value-1"),
-									String02: ptr("dedicated-span-attr-value-2"),
-									String03: ptr("dedicated-span-attr-value-3"),
-									String04: ptr("dedicated-span-attr-value-4"),
-									String05: ptr("dedicated-span-attr-value-5"),
+								DedicatedAttributes: DedicatedAttributesSpan{
+									DedicatedAttributes20: DedicatedAttributes20{
+										String01: ptr("dedicated-span-attr-value-1"),
+										String02: ptr("dedicated-span-attr-value-2"),
+										String03: ptr("dedicated-span-attr-value-3"),
+										String04: ptr("dedicated-span-attr-value-4"),
+										String05: ptr("dedicated-span-attr-value-5"),
+									},
 								},
 							},
 						},
@@ -303,7 +305,7 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	resourceAttrVals[LabelK8sPodName] = "kpod"
 	resourceAttrVals[LabelK8sContainerName] = "k8scon"
 
-	dedicatedResourceAttrs := DedicatedAttributes{
+	dedicatedResourceAttrs := DedicatedAttributes20{
 		String01: ptr("dedicated-resource-attr-value-1"),
 		String02: ptr("dedicated-resource-attr-value-2"),
 		String03: ptr("dedicated-resource-attr-value-3"),
@@ -326,12 +328,14 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	spanAttrVals[LabelHTTPUrl] = "url"
 	spanAttrVals[LabelHTTPStatusCode] = "404"
 
-	dedicatedSpanAttrs := DedicatedAttributes{
-		String01: ptr("dedicated-span-attr-value-1"),
-		String02: ptr("dedicated-span-attr-value-2"),
-		String03: ptr("dedicated-span-attr-value-3"),
-		String04: ptr("dedicated-span-attr-value-4"),
-		String05: ptr("dedicated-span-attr-value-5"),
+	dedicatedSpanAttrs := DedicatedAttributesSpan{
+		DedicatedAttributes20: DedicatedAttributes20{
+			String01: ptr("dedicated-span-attr-value-1"),
+			String02: ptr("dedicated-span-attr-value-2"),
+			String03: ptr("dedicated-span-attr-value-3"),
+			String04: ptr("dedicated-span-attr-value-4"),
+			String05: ptr("dedicated-span-attr-value-5"),
+		},
 	}
 	spanAttrVals["dedicated.span.1"] = *dedicatedSpanAttrs.String01
 	spanAttrVals["dedicated.span.2"] = *dedicatedSpanAttrs.String02
