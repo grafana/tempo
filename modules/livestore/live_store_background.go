@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -175,7 +175,7 @@ func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID, jitter
 }
 
 func (s *LiveStore) enqueueOpWithJitter(op *completeOp) error {
-	delay := time.Duration(rand.Float32() * float32(flushJitter))
+	delay := time.Duration(rand.Float32() * float32(flushJitter)) //gosec:disable G404 — It doesn't require strong randomness
 	go func() {
 		time.Sleep(delay)
 		if err := s.enqueueOp(op); err != nil {
