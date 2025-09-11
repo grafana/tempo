@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"hash/fnv"
 	"math"
 	"sync"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type nativeHistogram struct {
@@ -71,6 +71,9 @@ type nativeHistogramSeries struct {
 	countLabels labels.Labels
 	sumLabels   labels.Labels
 	// bucketLabels []labels.Labels
+
+	// Overrides tracking to determine if we need to recreate the series
+	overridesHash uint64
 }
 
 func (hs *nativeHistogramSeries) isNew() bool {
@@ -153,15 +156,17 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		buckets = h.buckets
 	}
 
+	hsh, bucketFactor, maxBucketNum, minResetDur := h.hashOverrides()
+
 	// Configure native histogram options based on mode
 	nativeOpts := prometheus.HistogramOpts{
 		Name:    h.name(),
 		Help:    "Native histogram for metric " + h.name(),
 		Buckets: buckets, // nil for pure native, h.buckets for hybrid
 		// Native histogram parameters
-		NativeHistogramBucketFactor:     h.overrides.MetricsGeneratorNativeHistogramBucketFactor(h.tenant),
-		NativeHistogramMaxBucketNumber:  h.overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(h.tenant),
-		NativeHistogramMinResetDuration: h.overrides.MetricsGeneratorNativeHistogramMinResetDuration(h.tenant),
+		NativeHistogramBucketFactor:     bucketFactor,
+		NativeHistogramMaxBucketNumber:  maxBucketNum,
+		NativeHistogramMinResetDuration: minResetDur,
 	}
 
 	if hasClassic {
@@ -173,6 +178,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		promHistogram: prometheus.NewHistogram(nativeOpts),
 		lastUpdated:   0,
 		firstSeries:   atomic.NewBool(true),
+		overridesHash: hsh,
 	}
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
@@ -270,18 +276,38 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 }
 
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
+	overridesHash, _, _, _ := h.hashOverrides()
+
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
+
 	for hash, s := range h.series {
-		// TODO: native histogram bucket configuration is only checked when the
-		// series is created.  We need a way to determine if the overrides has
-		// changed, and recreate the series if needed.  Without this, the bucket
-		// config is only set at startup.
+
+		if s.overridesHash != overridesHash {
+			// The overrides have changed, so we need to recreate the series.
+			delete(h.series, hash)
+			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			continue
+		}
+
 		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
 			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
 		}
 	}
+}
+
+func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {
+	var (
+		bucketFactor = h.overrides.MetricsGeneratorNativeHistogramBucketFactor(h.tenant)
+		maxBucketNum = h.overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(h.tenant)
+		minResetDur  = h.overrides.MetricsGeneratorNativeHistogramMinResetDuration(h.tenant)
+	)
+
+	s := fmt.Sprintf("%s%f%d%s", h.tenant, bucketFactor, maxBucketNum, minResetDur)
+	hsh := fnv.New64a()
+	hsh.Write([]byte(s))
+	return hsh.Sum64(), bucketFactor, maxBucketNum, minResetDur
 }
 
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
@@ -477,13 +503,6 @@ func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {
 		}
 	}
 	return lbs
-}
-
-func convertTimestampToMs(ts *timestamppb.Timestamp) int64 {
-	if ts == nil {
-		return 0
-	}
-	return ts.GetSeconds()*1000 + int64(ts.GetNanos()/1_000_000)
 }
 
 // getIfGreaterThenZeroOr returns v1 is if it's greater than zero, otherwise it returns v2.

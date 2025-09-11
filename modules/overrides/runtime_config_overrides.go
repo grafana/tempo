@@ -427,15 +427,24 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramBucketFactor(userID string) float64 {
-	return o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramBucketFactor
+	if factor := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramBucketFactor; factor != 0.0 {
+		return factor
+	}
+	return o.defaultLimits.MetricsGenerator.NativeHistogramBucketFactor
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32 {
-	return o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMaxBucketNumber
+	if num := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMaxBucketNumber; num != 0 {
+		return num
+	}
+	return o.defaultLimits.MetricsGenerator.NativeHistogramMaxBucketNumber
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMinResetDuration
+	if dur := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMinResetDuration; dur != 0 {
+		return dur
+	}
+	return o.defaultLimits.MetricsGenerator.NativeHistogramMinResetDuration
 }
 
 // MetricsGenerationTraceIDLabelName is the label name used for the trace ID in metrics.
