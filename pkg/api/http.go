@@ -61,10 +61,12 @@ const (
 	urlParamGroupBy = "groupBy"
 	// urlParamMetric  = "metric"
 
-	HeaderAccept         = "Accept"
-	HeaderContentType    = "Content-Type"
-	HeaderAcceptProtobuf = "application/protobuf"
-	HeaderAcceptJSON     = "application/json"
+	HeaderAccept                    = "Accept"
+	HeaderContentType               = "Content-Type"
+	HeaderAcceptProtobuf            = "application/protobuf"
+	HeaderAcceptJSON                = "application/json"
+	HeaderRecentDataTarget          = "X-Recent-Data-Target"
+	HeaderRecentDataTargetLiveStore = "live-store"
 
 	PathPrefixQuerier   = "/querier"
 	PathPrefixGenerator = "/generator"
@@ -100,6 +102,11 @@ const (
 	defaultSpansPerSpanSet = 3
 	defaultSince           = 1 * time.Hour
 )
+
+func ParseRecentDataTargetHeader(req *http.Request) string {
+	v := req.Header.Get(HeaderRecentDataTarget)
+	return v
+}
 
 func ParseTraceID(r *http.Request) ([]byte, error) {
 	vars := mux.Vars(r)
