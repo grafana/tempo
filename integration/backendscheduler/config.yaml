@@ -39,6 +39,7 @@ backend_scheduler:
     compaction:
       min_cycle_interval: 50ms
       measure_interval: 1s
+      max_concurrent_tenants: 3
 backend_worker:
   backend_scheduler_addr: tempo-integration-backend-scheduler:9095
   finish_on_shutdown_timeout: 1s

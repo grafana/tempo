@@ -1059,6 +1059,7 @@ backend_scheduler:
             max_input_blocks: 4
             max_compaction_level: 0
             min_cycle_interval: 30s
+            max_concurrent_tenants: 1
     job_timeout: 15s
     local_work_path: /var/tempo
 backend_scheduler_client:

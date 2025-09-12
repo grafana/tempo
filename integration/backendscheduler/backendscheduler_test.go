@@ -170,6 +170,8 @@ func testWithConfig(t *testing.T, configFile string) {
 	// - one in the compaction provider channel
 	// - one between the provider pull and the scheduler push
 	// - one in the merged channel
+	// - one job created per instance which has not been received by the provider
+	// - one job created per instance which has been received by the provider, but not written to the scheduler channel
 
 	// NOTE: Since the measurement of outstanding blocks also skips the blocks
 	// from jobs which have not been processed, we expect our outstanding blocks
@@ -183,8 +185,8 @@ func testWithConfig(t *testing.T, configFile string) {
 	// and we may end up with jobs which between 2 and 4 blocks outstanding.
 	// - 4 jobs not yet recorded by the scheduler (no worker running yet)
 	// - between 2 and 4 blocks per job (default settings)
-	expectedTotalOutstandingMin := totalOutstanding - 16
-	expectedTotalOutstandingMax := totalOutstanding - 8
+	expectedTotalOutstandingMin := totalOutstanding - (4 * 4) - (cfg.BackendScheduler.ProviderConfig.Compaction.MaxConcurrentTenants * 2 * 4)
+	expectedTotalOutstandingMax := totalOutstanding - (4 * 2) - (cfg.BackendScheduler.ProviderConfig.Compaction.MaxConcurrentTenants * 2 * 2)
 
 	outstanding, err := scheduler.SumMetrics([]string{"tempodb_compaction_outstanding_blocks"})
 	require.NoError(t, err)
