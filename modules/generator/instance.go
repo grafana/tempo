@@ -222,9 +222,12 @@ func (i *instance) updateProcessors() error {
 
 	desiredProcessors, desiredCfg = i.updateSubprocessors(desiredProcessors, desiredCfg)
 
-	i.processorsMtx.RLock()
-	toAdd, toRemove, toReplace, err := i.diffProcessors(desiredProcessors, desiredCfg)
-	i.processorsMtx.RUnlock()
+	var toAdd, toRemove, toReplace []string
+	func() {
+		i.processorsMtx.RLock()
+		defer i.processorsMtx.RUnlock()
+		toAdd, toRemove, toReplace, err = i.diffProcessors(desiredProcessors, desiredCfg)
+	}()
 
 	if err != nil {
 		return err
@@ -497,19 +500,20 @@ func (i *instance) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsReque
 func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
 	var processors []*localblocks.Processor
 
-	i.processorsMtx.RLock()
-	for _, processor := range i.processors {
-		switch p := processor.(type) {
-		case *localblocks.Processor:
-			processors = append(processors, p)
+	func() {
+		i.processorsMtx.RLock()
+		defer i.processorsMtx.RUnlock()
+		for _, processor := range i.processors {
+			switch p := processor.(type) {
+			case *localblocks.Processor:
+				processors = append(processors, p)
+			}
 		}
-	}
 
-	if i.queuebasedLocalBlocks != nil {
-		processors = append(processors, i.queuebasedLocalBlocks)
-	}
-
-	i.processorsMtx.RUnlock()
+		if i.queuebasedLocalBlocks != nil {
+			processors = append(processors, i.queuebasedLocalBlocks)
+		}
+	}()
 
 	if len(processors) == 0 {
 		return resp, fmt.Errorf("localblocks processor not found")
