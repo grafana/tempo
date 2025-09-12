@@ -54,6 +54,7 @@ Additionally the `compaction_tenant_backoff_total` metric has been renamed to `c
 * [ENHANCEMENT] Add live store to jsonnet lib [#5591](https://github.com/grafana/tempo/pull/5591) [#5606](https://github.com/grafana/tempo/pull/5606) [#5609](https://github.com/grafana/tempo/pull/5609) (@mapno)
 * [ENHANCEMENT] Allow block-builder to operate over empty partitions [#5581](https://github.com/grafana/tempo/pull/5581) (@ruslan-mikhailov)
 * [ENHANCEMENT] Measure bytes received before limits [#5601](https://github.com/grafana/tempo/pull/5601) (@mapno)
+* [ENHANCEMENT] Refactor method to wait for a healthy broker [#5618](https://github.com/grafana/tempo/pull/5618) (@javiermolinar)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
