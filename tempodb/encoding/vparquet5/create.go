@@ -162,7 +162,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		eventMapping = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
 	)
 
-	fieldTagsCallback := func(typ reflect.Type, f *reflect.StructField, tag string) (replacement string) {
+	fieldTagsCallback := func(typ reflect.Type, f *reflect.StructField, tags *parquet.ParquetTags) {
 		// Determine scope based on parent type.
 		var dm *dedicatedColumnMapping
 		switch typ {
@@ -173,25 +173,24 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		case reflect.TypeOf(DedicatedAttributesEvent{}):
 			dm = &eventMapping
 		default:
-			return tag
+			return
 		}
 
 		// Parse dedicated column index out of the name.
 		// String01 is index 0 below.
 		indexStr, ok := strings.CutPrefix(f.Name, "String")
 		if !ok {
-			return tag
+			return
 		}
 		index, err := strconv.Atoi(indexStr)
 		if err != nil {
-			return tag
+			return
 		}
 
 		if dm.Blob(index - 1) {
-			return ",zstd,optional"
+			tags.Parquet = ",zstd,optional"
+			return
 		}
-
-		return tag
 	}
 
 	schema := parquet.SchemaOf(&Trace{}, parquet.FieldTagsCallbackOption(fieldTagsCallback))

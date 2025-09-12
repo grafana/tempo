@@ -56,14 +56,16 @@ func TestStepRangeToIntervals(t *testing.T) {
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, IntervalCount(c.start, c.end, c.step))
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		require.Equal(t, c.expected, mapper.IntervalCount())
 	}
 }
 
 func TestTimestampOf(t *testing.T) {
 	tc := []struct {
-		interval, start, end, step uint64
-		expected                   uint64
+		interval         int
+		start, end, step uint64
+		expected         uint64
 	}{
 		{
 			expected: 0,
@@ -122,7 +124,22 @@ func TestTimestampOf(t *testing.T) {
 	}
 
 	for _, c := range tc {
-		assert.Equal(t, c.expected, TimestampOf(c.interval, c.start, c.end, c.step), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		assert.Equal(t, c.expected, mapper.TimestampOf(c.interval), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
+	}
+}
+
+// TestTimestampOfIntervals checks that bucket timestamps are within the range.
+func TestTimestampOfIntervals(t *testing.T) {
+	start := uint64(10)
+	end := uint64(100)
+	step := uint64(10)
+
+	mapper := NewIntervalMapper(start, end, step)
+	intervals := mapper.IntervalCount()
+	for i := range intervals {
+		ts := mapper.TimestampOf(i)
+		assert.True(t, ts > start && ts <= end, "ts: %d, start: %d, end: %d", ts, start, end)
 	}
 }
 
@@ -206,7 +223,8 @@ func TestIntervalOf(t *testing.T) {
 	}
 
 	for _, c := range tc {
-		assert.Equal(t, c.expected, IntervalOf(c.ts, c.start, c.end, c.step), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		assert.Equal(t, c.expected, mapper.Interval(c.ts), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
 	}
 }
 
@@ -775,6 +793,52 @@ func TestCountOverTimeInstantNs(t *testing.T) {
 				{Name: "__name__", Value: NewStaticString("count_over_time")},
 			},
 			Values:    []float64{4},
+			Exemplars: make([]Exemplar, 0),
+		},
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+	require.Equal(t, out, result)
+	require.Equal(t, len(result), seriesCount)
+}
+
+func TestAvgOverTimeInstantNs(t *testing.T) {
+	// not rounded values to simulate real world data
+	start := 1*time.Second - 9*time.Nanosecond
+	end := 3*time.Second + 9*time.Nanosecond
+	step := end - start // for instant queries step == end-start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | avg_over_time(span:duration)",
+	}
+
+	in := []Span{
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(uint64(1 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(uint64(2 * time.Second)),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(uint64(3 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(uint64(4 * time.Second)),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(uint64(5 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(uint64(6 * time.Second)),
+
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(uint64(7 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(uint64(8 * time.Second)),
+	}
+
+	out := SeriesSet{
+		`{__name__="avg_over_time"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "__name__", Value: NewStaticString("avg_over_time")},
+			},
+			Values:    []float64{(3 + 4 + 5 + 6) / 4.},
 			Exemplars: make([]Exemplar, 0),
 		},
 	}

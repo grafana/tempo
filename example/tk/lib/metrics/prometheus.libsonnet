@@ -11,7 +11,7 @@ prometheus {
 
   prometheus_config+:: {
     scrape_configs: [
-      scrape_configs.kubernetes_pods + {
+      scrape_configs.kubernetes_pods {
         // add the label 'cluster' to every scraped metric
         relabel_configs+: [
           {

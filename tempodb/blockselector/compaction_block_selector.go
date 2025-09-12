@@ -14,9 +14,10 @@ type CompactionBlockSelector interface {
 }
 
 const (
-	activeWindowDuration  = 24 * time.Hour
-	DefaultMinInputBlocks = 2
-	DefaultMaxInputBlocks = 4
+	activeWindowDuration      = 24 * time.Hour
+	DefaultMinInputBlocks     = 2
+	DefaultMaxInputBlocks     = 4
+	DefaultMaxCompactionLevel = 0
 )
 
 /*************************** Time Window Block Selector **************************/
@@ -32,6 +33,7 @@ type timeWindowBlockSelector struct {
 	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
 	MaxCompactionObjects int           // maximum size of compacted objects
 	MaxBlockBytes        uint64        // maximum block size, estimate
+	MaxCompactionLevel   uint32        // maximum compaction level
 
 	entries []timeWindowBlockEntry
 }
@@ -45,13 +47,14 @@ type timeWindowBlockEntry struct {
 
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
-func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks, maxInputBlocks int) CompactionBlockSelector {
+func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks, maxInputBlocks, maxCompactionLevel int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
 		MinInputBlocks:       minInputBlocks,
 		MaxInputBlocks:       maxInputBlocks,
 		MaxCompactionRange:   maxCompactionRange,
 		MaxCompactionObjects: maxCompactionObjects,
 		MaxBlockBytes:        maxBlockBytes,
+		MaxCompactionLevel:   uint32(maxCompactionLevel),
 	}
 
 	now := time.Now()
@@ -59,6 +62,11 @@ func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 	activeWindow := twbs.windowForTime(now.Add(-activeWindowDuration))
 
 	for _, b := range blocklist {
+		if twbs.MaxCompactionLevel != 0 && b.CompactionLevel >= twbs.MaxCompactionLevel {
+			// skip blocks that are already at max compaction level
+			continue
+		}
+
 		w := twbs.windowForBlock(b)
 
 		// exclude blocks that fall in last window from active -> inactive cut-over

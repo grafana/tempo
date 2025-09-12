@@ -62,6 +62,11 @@
         service.mixin.spec.withIpFamilies(['IPv6']),
       ingest_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
+      tempo_live_store_zone_a_service+:
+        service.mixin.spec.withIpFamilies(['IPv6']),
+      tempo_live_store_zone_b_service+:
+        service.mixin.spec.withIpFamilies(['IPv6']),
+
       memcached+: {
         service+:
           service.mixin.spec.withIpFamilies(['IPv6']),
@@ -106,6 +111,16 @@
       tempo_ingester_statefulset+:
         statefulset.spec.template.spec.withInitContainers([
           $.tempo_chown_container('ingester-data'),
+        ]),
+
+      tempo_live_store_zone_a_statefulset+:
+        statefulset.spec.template.spec.withInitContainers([
+          $.tempo_chown_container('live-store-data'),
+        ]),
+
+      tempo_live_store_zone_b_statefulset+:
+        statefulset.spec.template.spec.withInitContainers([
+          $.tempo_chown_container('live-store-data'),
         ]),
     },
   },
