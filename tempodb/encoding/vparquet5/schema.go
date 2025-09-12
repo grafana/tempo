@@ -2,7 +2,6 @@ package vparquet5
 
 import (
 	"bytes"
-	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/parquet-go/parquet-go"
@@ -11,7 +10,6 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -83,15 +81,6 @@ const (
 	roundingStart = uint64(0)
 	roundingEnd   = uint64(0xF000000000000000)
 )
-
-func roundSpanStartTime(nanos uint64, precisionSeconds int) uint32 {
-	// For test data.
-	if nanos == 0 {
-		return 0
-	}
-
-	return uint32(traceql.IntervalOf(nanos, roundingStart, roundingEnd, uint64(time.Duration(precisionSeconds)*time.Second)))
-}
 
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
@@ -502,10 +491,17 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 					ss.StatusMessage = ""
 				}
 				ss.StartTimeUnixNano = s.StartTimeUnixNano
-				ss.StartTimeRounded15 = roundSpanStartTime(s.StartTimeUnixNano, 15)
-				ss.StartTimeRounded60 = roundSpanStartTime(s.StartTimeUnixNano, 60)
-				ss.StartTimeRounded300 = roundSpanStartTime(s.StartTimeUnixNano, 300)
-				ss.StartTimeRounded3600 = roundSpanStartTime(s.StartTimeUnixNano, 3600)
+				if s.StartTimeUnixNano == 0 {
+					ss.StartTimeRounded15 = 0
+					ss.StartTimeRounded60 = 0
+					ss.StartTimeRounded300 = 0
+					ss.StartTimeRounded3600 = 0
+				} else {
+					ss.StartTimeRounded15 = uint32(intervalMapper15Seconds.Interval(s.StartTimeUnixNano))
+					ss.StartTimeRounded60 = uint32(intervalMapper60Seconds.Interval(s.StartTimeUnixNano))
+					ss.StartTimeRounded300 = uint32(intervalMapper300Seconds.Interval(s.StartTimeUnixNano))
+					ss.StartTimeRounded3600 = uint32(intervalMapper3600Seconds.Interval(s.StartTimeUnixNano))
+				}
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)

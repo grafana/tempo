@@ -30,6 +30,11 @@ var (
 	pqEventPool           = parquetquery.NewResultPool(1)
 	pqLinkPool            = parquetquery.NewResultPool(1)
 	pqInstrumentationPool = parquetquery.NewResultPool(1)
+
+	intervalMapper15Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(15*time.Second))
+	intervalMapper60Seconds   = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(60*time.Second))
+	intervalMapper300Seconds  = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(300*time.Second))
+	intervalMapper3600Seconds = traceql.NewIntervalMapper(roundingStart, roundingEnd, uint64(3600*time.Second))
 )
 
 type attrVal struct {
@@ -819,7 +824,7 @@ func (s *span) attributesMatched() int {
 // can return a slice of dropped and kept spansets?
 var spanPool = sync.Pool{
 	New: func() interface{} {
-		return &span{}
+		return &span{rowNum: parquetquery.EmptyRowNumber()}
 	},
 }
 
@@ -2933,13 +2938,13 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanStartRounded15:
-			sp.startTimeUnixNanos = traceql.TimestampOf(kv.Value.Uint64(), roundingStart, roundingEnd, uint64(15*time.Second))
+			sp.startTimeUnixNanos = intervalMapper15Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanStartRounded60:
-			sp.startTimeUnixNanos = traceql.TimestampOf(kv.Value.Uint64(), roundingStart, roundingEnd, uint64(60*time.Second))
+			sp.startTimeUnixNanos = intervalMapper60Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanStartRounded300:
-			sp.startTimeUnixNanos = traceql.TimestampOf(kv.Value.Uint64(), roundingStart, roundingEnd, uint64(300*time.Second))
+			sp.startTimeUnixNanos = intervalMapper300Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanStartRounded3600:
-			sp.startTimeUnixNanos = traceql.TimestampOf(kv.Value.Uint64(), roundingStart, roundingEnd, uint64(3600*time.Second))
+			sp.startTimeUnixNanos = intervalMapper3600Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos

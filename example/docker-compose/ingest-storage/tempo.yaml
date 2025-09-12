@@ -60,6 +60,9 @@ metrics_generator:
     local_blocks:
       flush_to_storage: true
 
+query_frontend:
+  rf1_after: "1999-01-01T00:00:00Z"
+
 storage:
   trace:
     backend: s3

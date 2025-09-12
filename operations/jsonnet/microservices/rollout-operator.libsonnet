@@ -20,7 +20,7 @@
   local replica_template = (import 'replica-template.libsonnet').replica_template,
 
   _config+:: {
-    rollout_operator_enabled: $._config.multi_zone_ingester_enabled || $._config.block_builder_concurrent_rollout_enabled,
+    rollout_operator_enabled: $._config.multi_zone_ingester_enabled || $._config.block_builder_concurrent_rollout_enabled || $._config.live_store.replicas > 0,
     // Configure the rollout operator to accept webhook requests made as part of scaling
     // statefulsets up or down. This allows the rollout operator to ensure that stateful
     // components (ingesters, store-gateways) are scaled up or down safely.
@@ -41,6 +41,7 @@
     // Automatically add groups based on enabled features
     rollout_operator_enabled_groups+::
       (if $._config.block_builder_concurrent_rollout_enabled then ['block-builder'] else []) +
+      (if $._config.live_store.replicas > 0 then ['live-store'] else []) +
       (if $._config.multi_zone_ingester_enabled then ['ingester'] else []),
 
     assert !$._config.rollout_operator_enabled || std.length($._config.rollout_operator_enabled_groups) > 0 : 'rollout_operator_enabled_groups must be set if rollout_operator_enabled is true',

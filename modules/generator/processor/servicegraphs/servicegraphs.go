@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -286,8 +287,12 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 		dbName string
 	)
 
-	// Check for db.name first.  The dbName is set initially to maintain backwards compatbility.
+	// Check for db.name or db.namespace first.  The dbName is set initially to maintain backwards compatbility.
 	if name, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), resourceAttr, span.Attributes); ok {
+		dbName = name
+		isDatabase = true
+	}
+	if name, ok := processor_util.FindAttributeValue(string(semconvnew.DBNamespaceKey), span.Attributes); ok {
 		dbName = name
 		isDatabase = true
 	}

@@ -9,7 +9,7 @@ local tanka = import 'github.com/grafana/jsonnet-libs/tanka-util/main.libsonnet'
       apiserver=cluster.apiServer,
     )
     + tanka.environment.withLabels({ cluster: cluster.name })
-    + tanka.environment.withData( cluster.data {
+    + tanka.environment.withData(cluster.data {
 
       _config+:: {
         namespace: cluster.namespace,
