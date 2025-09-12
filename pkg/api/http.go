@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/prometheus/common/model"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -70,6 +71,7 @@ const (
 	PathPrefixGenerator = "/generator"
 
 	PathTraces              = "/api/traces/{traceID}"
+	PathTracesCheck         = "/api/traces-check"
 	PathSearch              = "/api/search"
 	PathSearchTags          = "/api/search/tags"
 	PathSearchTagValues     = "/api/search/tag/{" + MuxVarTagName + "}/values"
@@ -809,4 +811,45 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	}
 
 	return buffer, nil
+}
+
+func ParseTracesCheckRequest(r *http.Request) (*tempopb.TracesCheckRequest, error) {
+	body, err := tempo_io.ReadAllWithEstimate(r.Body, r.ContentLength)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read request body: %w", err)
+	}
+	defer r.Body.Close()
+
+	// If body is empty, return error
+	if len(body) == 0 {
+		return nil, fmt.Errorf("no trace IDs provided in request")
+	}
+
+	var req tempopb.TracesCheckRequest
+
+	// Try JSON first, then protobuf
+	if err := json.Unmarshal(body, &req); err != nil {
+		// If JSON parsing fails, try protobuf
+		if err := req.Unmarshal(body); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal TracesCheckRequest as JSON or protobuf: %w", err)
+		}
+	}
+
+	// Validate that we have at least one trace ID
+	if len(req.TraceIDs) == 0 {
+		return nil, fmt.Errorf("no trace IDs provided in request")
+	}
+
+	// Validate that timeStart and timeEnd are provided
+	if req.TimeStart == 0 {
+		return nil, fmt.Errorf("timeStart is required")
+	}
+	if req.TimeEnd == 0 {
+		return nil, fmt.Errorf("timeEnd is required")
+	}
+	if req.TimeStart >= req.TimeEnd {
+		return nil, fmt.Errorf("timeStart must be less than timeEnd")
+	}
+
+	return &req, nil
 }

@@ -354,7 +354,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 		return completingBlock.Clear()
 	}
 
-	return errors.New("Error finding wal completingBlock to clear")
+	return errors.New("error finding wal completingBlock to clear")
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend.
@@ -494,6 +494,152 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 		Metrics: &metrics,
 	}
 	return response, nil
+}
+
+// TracesCheck checks if traces exist without retrieving the actual trace data.
+// This is much more efficient than FindTraceByID for existence checking.
+func (i *instance) TracesCheck(ctx context.Context, ids [][]byte) (*tempopb.TracesCheckResponse, error) {
+	ctx, span := tracer.Start(ctx, "instance.TracesCheck")
+	defer span.End()
+
+	metrics := tempopb.TraceByIDMetrics{}
+	foundTraceIDs := make([]string, 0, len(ids))
+	remainingIDs := make([]common.ID, 0, len(ids))
+
+	// Convert byte slices to common.ID and check live traces
+	i.tracesMtx.Lock()
+	for _, id := range ids {
+		if liveTrace, ok := i.traces[util.HashForTraceID(id)]; ok {
+			// Trace exists in live traces - count bytes but don't decode
+			for _, b := range liveTrace.batches {
+				metrics.InspectedBytes += uint64(len(b))
+			}
+			foundTraceIDs = append(foundTraceIDs, util.TraceIDToHexString(id))
+		} else {
+			remainingIDs = append(remainingIDs, id)
+		}
+	}
+	i.tracesMtx.Unlock()
+
+	if len(remainingIDs) == 0 {
+		// All traces found in live traces
+		return &tempopb.TracesCheckResponse{
+			TraceIDs: foundTraceIDs,
+			Metrics:  &metrics,
+		}, nil
+	}
+
+	// Check headBlock with batch operation
+	i.headBlockMtx.RLock()
+	headResults, err := i.checkTracesExistInBlockBatch(ctx, i.headBlock, remainingIDs, &metrics)
+	i.headBlockMtx.RUnlock()
+	if err != nil {
+		return nil, fmt.Errorf("headBlock.TracesCheckBatch failed: %w", err)
+	}
+
+	// Add found traces from headBlock and update remaining
+	nextRemainingIDs := make([]common.ID, 0, len(remainingIDs))
+	for _, id := range remainingIDs {
+		if headResults[string(id)] {
+			foundTraceIDs = append(foundTraceIDs, util.TraceIDToHexString(id))
+		} else {
+			nextRemainingIDs = append(nextRemainingIDs, id)
+		}
+	}
+	remainingIDs = nextRemainingIDs
+
+	if len(remainingIDs) == 0 {
+		return &tempopb.TracesCheckResponse{
+			TraceIDs: foundTraceIDs,
+			Metrics:  &metrics,
+		}, nil
+	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	// Check completingBlocks with batch operations
+	for _, c := range i.completingBlocks {
+		if len(remainingIDs) == 0 {
+			break
+		}
+
+		results, err := i.checkTracesExistInBlockBatch(ctx, c, remainingIDs, &metrics)
+		if err != nil {
+			return nil, fmt.Errorf("completingBlock.TracesCheckBatch failed: %w", err)
+		}
+
+		// Add found traces and update remaining
+		nextRemainingIDs := make([]common.ID, 0, len(remainingIDs))
+		for _, id := range remainingIDs {
+			if results[string(id)] {
+				foundTraceIDs = append(foundTraceIDs, util.TraceIDToHexString(id))
+			} else {
+				nextRemainingIDs = append(nextRemainingIDs, id)
+			}
+		}
+		remainingIDs = nextRemainingIDs
+	}
+
+	// Check completeBlocks with batch operations
+	for _, c := range i.completeBlocks {
+		if len(remainingIDs) == 0 {
+			break
+		}
+
+		results, err := i.checkTracesExistInLocalBlockBatch(ctx, c, remainingIDs, &metrics)
+		if err != nil {
+			return nil, fmt.Errorf("completeBlock.TracesCheckBatch failed: %w", err)
+		}
+
+		// Add found traces and update remaining
+		nextRemainingIDs := make([]common.ID, 0, len(remainingIDs))
+		for _, id := range remainingIDs {
+			if results[string(id)] {
+				foundTraceIDs = append(foundTraceIDs, util.TraceIDToHexString(id))
+			} else {
+				nextRemainingIDs = append(nextRemainingIDs, id)
+			}
+		}
+		remainingIDs = nextRemainingIDs
+	}
+
+	return &tempopb.TracesCheckResponse{
+		TraceIDs: foundTraceIDs,
+		Metrics:  &metrics,
+	}, nil
+}
+
+// checkTracesExistInBlockBatch checks if multiple traces exist in a WAL block using efficient batch methods
+func (i *instance) checkTracesExistInBlockBatch(ctx context.Context, block common.WALBlock, ids []common.ID, metrics *tempopb.TraceByIDMetrics) (map[string]bool, error) {
+	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
+	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+
+	// Use the TracesCheckBatch method - if it's not supported, return the error
+	results, inspectedBytes, err := block.TracesCheck(ctx, ids, searchOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update metrics with the bytes that were actually inspected
+	metrics.InspectedBytes += inspectedBytes
+	return results, nil
+}
+
+// checkTracesExistInLocalBlockBatch checks if multiple traces exist in a local block using efficient batch methods
+func (i *instance) checkTracesExistInLocalBlockBatch(ctx context.Context, block *LocalBlock, ids []common.ID, metrics *tempopb.TraceByIDMetrics) (map[string]bool, error) {
+	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
+	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+
+	// Use the TracesCheckBatch method - if it's not supported, return the error
+	results, inspectedBytes, err := block.TracesCheck(ctx, ids, searchOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update metrics with the bytes that were actually inspected
+	metrics.InspectedBytes += inspectedBytes
+	return results, nil
 }
 
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.

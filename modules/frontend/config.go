@@ -19,6 +19,7 @@ type Config struct {
 	MaxRetries                int                    `yaml:"max_retries,omitempty"`
 	Search                    SearchConfig           `yaml:"search"`
 	TraceByID                 TraceByIDConfig        `yaml:"trace_by_id"`
+	TracesCheck               TracesCheckConfig      `yaml:"traces_check"`
 	Metrics                   MetricsConfig          `yaml:"metrics"`
 	MultiTenantQueriesEnabled bool                   `yaml:"multi_tenant_queries_enabled"`
 	ResponseConsumers         int                    `yaml:"response_consumers"`
@@ -65,6 +66,16 @@ type TraceByIDConfig struct {
 	RF1After time.Time `yaml:"-"`
 }
 
+type TracesCheckConfig struct {
+	QueryShards      int       `yaml:"query_shards,omitempty"`
+	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
+	SLO              SLOConfig `yaml:",inline"`
+
+	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
+	// or determined at runtime based on search request parameters.
+	RF1After time.Time `yaml:"-"`
+}
+
 type MetricsConfig struct {
 	Sharder      QueryRangeSharderConfig `yaml:",inline"`
 	SLO          SLOConfig               `yaml:",inline"`
@@ -102,6 +113,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		SLO: slo,
 	}
 	cfg.TraceByID = TraceByIDConfig{
+		QueryShards: 50,
+		SLO:         slo,
+	}
+	cfg.TracesCheck = TracesCheckConfig{
 		QueryShards: 50,
 		SLO:         slo,
 	}

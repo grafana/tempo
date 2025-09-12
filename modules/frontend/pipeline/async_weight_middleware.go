@@ -23,6 +23,7 @@ type Weights struct {
 	DefaultWeight        int
 	TraceQLSearchWeight  int
 	TraceByIDWeight      int
+	TracesCheckWeight    int
 	MaxTraceQLConditions int
 	MaxRegexConditions   int
 }
@@ -32,6 +33,7 @@ const (
 	TraceByID
 	TraceQLSearch
 	TraceQLMetrics
+	TracesCheck
 )
 
 type weightRequestWare struct {
@@ -53,6 +55,7 @@ func NewWeightRequestWare(rt RequestType, cfg WeightsConfig) AsyncMiddleware[com
 		DefaultWeight:        1,
 		TraceQLSearchWeight:  1,
 		TraceByIDWeight:      2,
+		TracesCheckWeight:    3,
 		MaxTraceQLConditions: cfg.MaxTraceQLConditions,
 		MaxRegexConditions:   cfg.MaxRegexConditions,
 	}
@@ -81,6 +84,8 @@ func (c weightRequestWare) setWeight(req Request) {
 		req.SetWeight(c.weights.TraceByIDWeight)
 	case TraceQLSearch, TraceQLMetrics:
 		c.setTraceQLWeight(req)
+	case TracesCheck:
+		req.SetWeight(c.weights.TracesCheckWeight)
 	default:
 		req.SetWeight(c.weights.DefaultWeight)
 	}
