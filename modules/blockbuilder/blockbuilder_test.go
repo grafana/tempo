@@ -759,6 +759,7 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 		}
 		return store.WriteBlock(ctx, block)
 	})
+	t.Cleanup(func() { require.NoError(t, services.StopAndAwaitTerminated(ctx, store)) })
 
 	// Create the block builder
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
