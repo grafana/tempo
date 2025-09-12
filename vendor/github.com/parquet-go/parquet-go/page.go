@@ -351,6 +351,7 @@ func CopyPages(dst PageWriter, src PageReader) (numValues int64, err error) {
 		}
 		n, err := dst.WritePage(p)
 		numValues += n
+		Release(p)
 		if err != nil {
 			return numValues, err
 		}
