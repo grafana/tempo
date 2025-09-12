@@ -57,6 +57,9 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
 		MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
 		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
+		MetricsGeneratorNativeHistogramBucketFactor:                                 c.MetricsGenerator.NativeHistogramBucketFactor,
+		MetricsGeneratorNativeHistogramMaxBucketNumber:                              c.MetricsGenerator.NativeHistogramMaxBucketNumber,
+		MetricsGeneratorNativeHistogramMinResetDuration:                             c.MetricsGenerator.NativeHistogramMinResetDuration,
 
 		BlockRetention:     c.Compaction.BlockRetention,
 		CompactionWindow:   c.Compaction.CompactionWindow,
@@ -103,6 +106,9 @@ type LegacyOverrides struct {
 	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
 	MetricsGeneratorGenerateNativeHistograms                                    HistogramMethod                  `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
+	MetricsGeneratorNativeHistogramBucketFactor                                 float64                          `yaml:"metrics_generator_native_histogram_bucket_factor,omitempty" json:"metrics_generator_native_histogram_bucket_factor,omitempty"`
+	MetricsGeneratorNativeHistogramMaxBucketNumber                              uint32                           `yaml:"metrics_generator_native_histogram_max_bucket_number,omitempty" json:"metrics_generator_native_histogram_max_bucket_number,omitempty"`
+	MetricsGeneratorNativeHistogramMinResetDuration                             time.Duration                    `yaml:"metrics_generator_native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 	MetricsGeneratorTraceIDLabelName                                            string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
@@ -223,6 +229,9 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					MetricName:      l.MetricsGeneratorProcessorHostInfoMetricName,
 				},
 			},
+			NativeHistogramBucketFactor:     l.MetricsGeneratorNativeHistogramBucketFactor,
+			NativeHistogramMaxBucketNumber:  l.MetricsGeneratorNativeHistogramMaxBucketNumber,
+			NativeHistogramMinResetDuration: l.MetricsGeneratorNativeHistogramMinResetDuration,
 		},
 		Forwarders: l.Forwarders,
 		Global: GlobalOverrides{

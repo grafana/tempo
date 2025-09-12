@@ -74,6 +74,9 @@ type Interface interface {
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
+	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
+	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
+	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration
 	BlockRetention(userID string) time.Duration
 	CompactionDisabled(userID string) bool
 	MaxSearchDuration(userID string) time.Duration

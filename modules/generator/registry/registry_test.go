@@ -342,9 +342,12 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 }
 
 type mockOverrides struct {
-	maxActiveSeries          uint32
-	disableCollection        bool
-	generateNativeHistograms overrides.HistogramMethod
+	maxActiveSeries                 uint32
+	disableCollection               bool
+	generateNativeHistograms        overrides.HistogramMethod
+	nativeHistogramMaxBucketNumber  uint32
+	nativeHistogramBucketFactor     float64
+	nativeHistogramMinResetDuration time.Duration
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -367,6 +370,18 @@ func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) overr
 
 func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {
 	return ""
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramBucketFactor(string) float64 {
+	return m.nativeHistogramBucketFactor
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) uint32 {
+	return m.nativeHistogramMaxBucketNumber
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
+	return m.nativeHistogramMinResetDuration
 }
 
 func mustGetHostname() string {

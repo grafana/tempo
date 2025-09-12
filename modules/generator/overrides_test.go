@@ -11,6 +11,9 @@ import (
 
 type mockOverrides struct {
 	processors                                         map[string]struct{}
+	nativeHistogramMaxBucketNumber                     uint32
+	nativeHistogramBucketFactor                        float64
+	nativeHistogramMinResetDuration                    time.Duration
 	serviceGraphsHistogramBuckets                      []float64
 	serviceGraphsDimensions                            []string
 	serviceGraphsPeerAttributes                        []string
@@ -128,6 +131,18 @@ func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout
 // MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(string) []sharedconfig.DimensionMappings {
 	return m.spanMetricsDimensionMappings
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramBucketFactor(string) float64 {
+	return m.nativeHistogramBucketFactor
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) uint32 {
+	return m.nativeHistogramMaxBucketNumber
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
+	return m.nativeHistogramMinResetDuration
 }
 
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
