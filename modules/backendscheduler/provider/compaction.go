@@ -558,10 +558,12 @@ func (i *compactionInstance) run(ctx context.Context, wg *boundedwaitgroup.Bound
 		defer wg.Done()
 		defer close(instanceJobs)
 
+		level.Debug(i.logger).Log("msg", "compaction instance started")
+
 		for {
 			select {
 			case <-ctx.Done():
-				level.Info(i.logger).Log("msg", "compaction instance stopping")
+				level.Debug(i.logger).Log("msg", "compaction instance stopping")
 				span.AddEvent("context done")
 				return
 			default:
@@ -575,7 +577,7 @@ func (i *compactionInstance) run(ctx context.Context, wg *boundedwaitgroup.Bound
 
 				select {
 				case <-ctx.Done():
-					level.Info(i.logger).Log("msg", "compaction instance stopping")
+					level.Debug(i.logger).Log("msg", "compaction instance stopping")
 					span.AddEvent("context done")
 					return
 				case instanceJobs <- job:
@@ -592,7 +594,7 @@ func (i *compactionInstance) run(ctx context.Context, wg *boundedwaitgroup.Bound
 }
 
 func (i *compactionInstance) createJob(ctx context.Context) *work.Job {
-	_, span := tracer.Start(ctx, "createJob")
+	_, span := tracer.Start(ctx, "compactionInstance.createJob")
 	defer span.End()
 
 	span.SetAttributes(attribute.String("tenant_id", i.tenant))
