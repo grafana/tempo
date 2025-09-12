@@ -245,6 +245,154 @@ func TestUsageTracker(t *testing.T) {
 	}
 }
 
+func TestScopeAwareAttributeMatching(t *testing.T) {
+	// Test data with both resource and span attributes having the same key
+	data := []*v1.ResourceSpans{
+		{
+			Resource: &v1resource.Resource{
+				Attributes: []*v1common.KeyValue{
+					{
+						Key:   "service.name",
+						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "resource-service"}},
+					},
+					{
+						Key:   "k8s.namespace.name",
+						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "resource-namespace"}},
+					},
+				},
+			},
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Spans: []*v1.Span{
+						{
+							Attributes: []*v1common.KeyValue{
+								{Key: "service.name", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "span-service"}}},
+								{Key: "k8s.namespace.name", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "span-namespace"}}},
+								{Key: "db.system", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "postgresql"}}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	t.Run("resource scoped attribute", func(t *testing.T) {
+		dimensions := map[string]string{"resource.service.name": "service"}
+
+		u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return dimensions }, func(_ string) uint64 { return 0 })
+		require.NoError(t, err)
+
+		u.Observe("test", data)
+		series := u.tenants["test"].series
+
+		// Should only use resource-level value
+		expectedHash := hash([]string{"service"}, []string{"resource-service"})
+		require.Contains(t, series, expectedHash)
+		require.Equal(t, []string{"resource-service"}, series[expectedHash].labels)
+	})
+
+	t.Run("span scoped attribute", func(t *testing.T) {
+		dimensions := map[string]string{"span.db.system": "database"}
+
+		u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return dimensions }, func(_ string) uint64 { return 0 })
+		require.NoError(t, err)
+
+		u.Observe("test", data)
+		series := u.tenants["test"].series
+
+		// Should only use span-level value
+		expectedHash := hash([]string{"database"}, []string{"postgresql"})
+		require.Contains(t, series, expectedHash)
+		require.Equal(t, []string{"postgresql"}, series[expectedHash].labels)
+	})
+
+	t.Run("unscoped attribute maintains backward compatibility", func(t *testing.T) {
+		dimensions := map[string]string{"service.name": "service"}
+
+		u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return dimensions }, func(_ string) uint64 { return 0 })
+		require.NoError(t, err)
+
+		u.Observe("test", data)
+		series := u.tenants["test"].series
+
+		// Should use span value (overwrites resource value - current behavior)
+		expectedHash := hash([]string{"service"}, []string{"span-service"})
+		require.Contains(t, series, expectedHash)
+		require.Equal(t, []string{"span-service"}, series[expectedHash].labels)
+	})
+
+	t.Run("multiple scoped attributes", func(t *testing.T) {
+		dimensions := map[string]string{
+			"resource.k8s.namespace.name": "namespace",
+			"span.db.system":              "database",
+		}
+
+		u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return dimensions }, func(_ string) uint64 { return 0 })
+		require.NoError(t, err)
+
+		u.Observe("test", data)
+		series := u.tenants["test"].series
+
+		// Should use resource namespace and span database
+		expectedHash := hash([]string{"database", "namespace"}, []string{"postgresql", "resource-namespace"})
+		require.Contains(t, series, expectedHash)
+		require.Equal(t, []string{"postgresql", "resource-namespace"}, series[expectedHash].labels)
+	})
+
+	t.Run("scoped attribute prevents overwrite", func(t *testing.T) {
+		// This is the key test - scoped attributes should not be overwritten
+		dimensions := map[string]string{
+			"resource.k8s.namespace.name": "namespace",
+			"k8s.namespace.name":          "unscoped_namespace",
+		}
+
+		u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return dimensions }, func(_ string) uint64 { return 0 })
+		require.NoError(t, err)
+
+		u.Observe("test", data)
+		series := u.tenants["test"].series
+
+		// Should have resource-namespace for the scoped dimension and span-namespace for unscoped
+		expectedHash := hash([]string{"namespace", "unscoped_namespace"}, []string{"resource-namespace", "span-namespace"})
+		require.Contains(t, series, expectedHash)
+		require.Equal(t, []string{"resource-namespace", "span-namespace"}, series[expectedHash].labels)
+	})
+}
+
+func TestParseDimensionKey(t *testing.T) {
+	tests := []struct {
+		input         string
+		expectedAttr  string
+		expectedScope Scope
+	}{
+		{input: "resource.service.name", expectedAttr: "service.name", expectedScope: ScopeResource},
+		{input: "resource.k8s.cluster.name", expectedAttr: "k8s.cluster.name", expectedScope: ScopeResource},
+		{input: "resource.k8s.namespace.name", expectedAttr: "k8s.namespace.name", expectedScope: ScopeResource},
+		{input: "resource.telemetry.sdk.name", expectedAttr: "telemetry.sdk.name", expectedScope: ScopeResource},
+		{input: "span.db.system", expectedAttr: "db.system", expectedScope: ScopeSpan},
+		{input: "span.http.method", expectedAttr: "http.method", expectedScope: ScopeSpan},
+		{input: "span.rpc.method", expectedAttr: "rpc.method", expectedScope: ScopeSpan},
+		{input: "span.k8s.namespace.name", expectedAttr: "k8s.namespace.name", expectedScope: ScopeSpan},
+		{input: "http.status_code", expectedAttr: "http.status_code", expectedScope: ScopeAll},
+		{input: "service.name", expectedAttr: "service.name", expectedScope: ScopeAll},
+		{input: "k8s.namespace.name", expectedAttr: "k8s.namespace.name", expectedScope: ScopeAll},
+		{input: "k8s.cluster.name", expectedAttr: "k8s.cluster.name", expectedScope: ScopeAll},
+		{input: "user.team", expectedAttr: "user.team", expectedScope: ScopeAll},
+		{input: "teamName", expectedAttr: "teamName", expectedScope: ScopeAll},
+		{input: "team_name", expectedAttr: "team_name", expectedScope: ScopeAll},
+		{input: "MyCustomAttribute", expectedAttr: "MyCustomAttribute", expectedScope: ScopeAll},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			attr, scope := parseDimensionKey(tt.input)
+			require.Equal(t, tt.expectedAttr, attr)
+			require.Equal(t, tt.expectedScope, scope)
+		})
+	}
+}
+
 func BenchmarkUsageTrackerObserve(b *testing.B) {
 	var (
 		tr   = test.MakeTrace(10, nil)
