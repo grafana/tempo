@@ -91,7 +91,8 @@ overrides:
   defaults:
     cost_attribution:
       dimensions:
-        service.name: ""
+        service.name: "" # unscoped matches both resource and span attributes
+        span.http.target: "service_route" # span scoped attribute, also remapped to custom label in metrics.
     metrics_generator:
       processors: [service-graphs, span-metrics, local-blocks] # enables metrics generator
       generate_native_histograms: both

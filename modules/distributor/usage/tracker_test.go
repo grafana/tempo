@@ -213,6 +213,42 @@ func TestUsageTracker(t *testing.T) {
 		expected:   expected,
 	})
 
+	// -------------------------------------------------------------
+	// Test case 7 - Resource scoped attribute only
+	// -------------------------------------------------------------
+	name = "resource_scoped"
+	dimensions = map[string]string{"resource.service.name": ""}
+	expected = make(map[uint64]*bucket)
+	expected[hash([]string{"resource_service_name"}, []string{"svc"})] = &bucket{
+		labels: []string{"svc"},
+		bytes:  uint64(data[0].Size()), // Uses resource-level service.name value
+	}
+	testCases = append(testCases, testcase{
+		name:       name,
+		dimensions: dimensions,
+		expected:   expected,
+	})
+
+	// -------------------------------------------------------------
+	// Test case 8 - Span scoped attribute (exists in span data)
+	// -------------------------------------------------------------
+	name = "span_scoped"
+	dimensions = map[string]string{"span.attr": ""}
+	expected = make(map[uint64]*bucket)
+	expected[hash([]string{"span_attr"}, []string{"1"})] = &bucket{
+		labels: []string{"1"},
+		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3), // attr=1 in 75% of spans
+	}
+	expected[hash([]string{"span_attr"}, []string{"2"})] = &bucket{
+		labels: []string{"2"},
+		bytes:  nonSpanRatio(0.25) + spanSize(2), // attr=2 in 25% of spans
+	}
+	testCases = append(testCases, testcase{
+		name:       name,
+		dimensions: dimensions,
+		expected:   expected,
+	})
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := testConfig()
@@ -241,6 +277,197 @@ func TestUsageTracker(t *testing.T) {
 				// is within 1 byte of expected. We already ensured the total is 100% accurate above.
 				require.InDelta(t, expectedBucket.bytes, actual[expectedHash].bytes, 1.0)
 			}
+		})
+	}
+}
+
+func TestScopeAwareAttributeMatching(t *testing.T) {
+	// Test data with both resource and span attributes having the same key
+	data := []*v1.ResourceSpans{
+		{
+			Resource: &v1resource.Resource{
+				Attributes: []*v1common.KeyValue{
+					{
+						Key:   "service.name",
+						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "resource-service"}},
+					},
+					{
+						Key:   "k8s.namespace.name",
+						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "resource-namespace"}},
+					},
+					{
+						Key:   "team.name",
+						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "resource-team"}},
+					},
+				},
+			},
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Spans: []*v1.Span{
+						{
+							Attributes: []*v1common.KeyValue{
+								{Key: "service.name", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "span-service"}}},
+								{Key: "k8s.namespace.name", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "span-namespace"}}},
+								{Key: "db.system", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "postgresql"}}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name          string
+		dimensions    map[string]string
+		expectSeries  func(t *testing.T, series map[uint64]*bucket)
+		expectMapping func(t *testing.T, mapping []mapping)
+	}{
+		{
+			// should only get value from resource scope and not from the spans
+			name:       "resource scoped attribute",
+			dimensions: map[string]string{"resource.service.name": "service.name"},
+			expectSeries: func(t *testing.T, series map[uint64]*bucket) {
+				expectedHash := hash([]string{"service_name"}, []string{"resource-service"})
+				require.Contains(t, series, expectedHash)
+				require.Equal(t, []string{"resource-service"}, series[expectedHash].labels)
+			},
+			expectMapping: func(t *testing.T, mapping []mapping) {
+				require.Equal(t, "service.name", mapping[0].from)
+				require.Equal(t, ScopeResource, mapping[0].scope)
+			},
+		},
+		{
+			// should only use span-level value
+			name:       "span scoped attribute",
+			dimensions: map[string]string{"span.db.system": "database"},
+			expectSeries: func(t *testing.T, series map[uint64]*bucket) {
+				expectedHash := hash([]string{"database"}, []string{"postgresql"})
+				require.Contains(t, series, expectedHash)
+				require.Equal(t, []string{"postgresql"}, series[expectedHash].labels)
+			},
+			expectMapping: func(t *testing.T, mapping []mapping) {
+				require.Equal(t, "db.system", mapping[0].from)
+				require.Equal(t, ScopeSpan, mapping[0].scope)
+			},
+		},
+		{
+			// team.name is only at resource level so this should be a missingLabel
+			name:       "span scope config doesn't match resource attribute",
+			dimensions: map[string]string{"span.team.name": "team_name"},
+			expectSeries: func(t *testing.T, series map[uint64]*bucket) {
+				expectedHash := hash([]string{"team_name"}, []string{missingLabel})
+				require.Contains(t, series, expectedHash)
+				require.Equal(t, []string{missingLabel}, series[expectedHash].labels)
+			},
+			expectMapping: func(t *testing.T, mapping []mapping) {
+				require.Equal(t, "team.name", mapping[0].from)
+				require.Equal(t, ScopeSpan, mapping[0].scope)
+			},
+		},
+		{
+			// should use span value (overwrites resource value)
+			name:       "unscoped attribute matches both with span overwriting resource values",
+			dimensions: map[string]string{"service.name": "service"},
+			expectSeries: func(t *testing.T, series map[uint64]*bucket) {
+				expectedHash := hash([]string{"service"}, []string{"span-service"})
+				require.Contains(t, series, expectedHash)
+				require.Equal(t, []string{"span-service"}, series[expectedHash].labels)
+			},
+			expectMapping: func(t *testing.T, mapping []mapping) {
+				require.Equal(t, "service.name", mapping[0].from)
+				require.Equal(t, ScopeAll, mapping[0].scope)
+			},
+		},
+		{
+			// should use resource namespace and span database
+			name: "multiple scoped attributes",
+			dimensions: map[string]string{
+				"resource.k8s.namespace.name": "namespace",
+				"span.db.system":              "database",
+			},
+			expectSeries: func(t *testing.T, series map[uint64]*bucket) {
+				expectedHash := hash([]string{"database", "namespace"}, []string{"postgresql", "resource-namespace"})
+				require.Contains(t, series, expectedHash)
+				require.Equal(t, []string{"postgresql", "resource-namespace"}, series[expectedHash].labels)
+			},
+			expectMapping: func(t *testing.T, mapping []mapping) {
+				require.Equal(t, "k8s.namespace.name", mapping[0].from)
+				require.Equal(t, ScopeResource, mapping[0].scope)
+				require.Equal(t, "db.system", mapping[1].from)
+				require.Equal(t, ScopeSpan, mapping[1].scope)
+			},
+		},
+		{
+			// scoped attributes should not be overwritten
+			name: "scoped attribute prevents overwrite",
+			dimensions: map[string]string{
+				"resource.k8s.namespace.name": "resource_namespace",
+				"k8s.namespace.name":          "unscoped_namespace",
+			},
+			expectSeries: func(t *testing.T, series map[uint64]*bucket) {
+				expectedHash := hash([]string{"resource_namespace", "unscoped_namespace"}, []string{"resource-namespace", "span-namespace"})
+				require.Contains(t, series, expectedHash)
+				require.Equal(t, []string{"resource-namespace", "span-namespace"}, series[expectedHash].labels)
+			},
+			expectMapping: func(t *testing.T, mapping []mapping) {
+				for _, item := range mapping {
+					// resource mapping is first, because we sort them
+					require.Equal(t, "k8s.namespace.name", item.from)
+					if item.to == 0 {
+						require.Equal(t, ScopeResource, item.scope)
+					} else {
+						require.Equal(t, ScopeAll, item.scope)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return tt.dimensions }, func(_ string) uint64 { return 0 })
+			require.NoError(t, err)
+
+			u.Observe("test", data)
+			series := u.tenants["test"].series
+			mapping := u.tenants["test"].mapping
+
+			tt.expectSeries(t, series)
+			tt.expectMapping(t, mapping)
+		})
+	}
+}
+
+func TestParseDimensionKey(t *testing.T) {
+	tests := []struct {
+		input         string
+		expectedAttr  string
+		expectedScope Scope
+	}{
+		{input: "resource.service.name", expectedAttr: "service.name", expectedScope: ScopeResource},
+		{input: "resource.k8s.cluster.name", expectedAttr: "k8s.cluster.name", expectedScope: ScopeResource},
+		{input: "resource.k8s.namespace.name", expectedAttr: "k8s.namespace.name", expectedScope: ScopeResource},
+		{input: "resource.telemetry.sdk.name", expectedAttr: "telemetry.sdk.name", expectedScope: ScopeResource},
+		{input: "span.db.system", expectedAttr: "db.system", expectedScope: ScopeSpan},
+		{input: "span.http.method", expectedAttr: "http.method", expectedScope: ScopeSpan},
+		{input: "span.rpc.method", expectedAttr: "rpc.method", expectedScope: ScopeSpan},
+		{input: "span.k8s.namespace.name", expectedAttr: "k8s.namespace.name", expectedScope: ScopeSpan},
+		{input: "http.status_code", expectedAttr: "http.status_code", expectedScope: ScopeAll},
+		{input: "service.name", expectedAttr: "service.name", expectedScope: ScopeAll},
+		{input: "k8s.namespace.name", expectedAttr: "k8s.namespace.name", expectedScope: ScopeAll},
+		{input: "k8s.cluster.name", expectedAttr: "k8s.cluster.name", expectedScope: ScopeAll},
+		{input: "user.team", expectedAttr: "user.team", expectedScope: ScopeAll},
+		{input: "teamName", expectedAttr: "teamName", expectedScope: ScopeAll},
+		{input: "team_name", expectedAttr: "team_name", expectedScope: ScopeAll},
+		{input: "MyCustomAttribute", expectedAttr: "MyCustomAttribute", expectedScope: ScopeAll},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			attr, scope := parseDimensionKey(tt.input)
+			require.Equal(t, tt.expectedAttr, attr)
+			require.Equal(t, tt.expectedScope, scope)
 		})
 	}
 }
