@@ -130,29 +130,20 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 		w,
 	)
 
-	b := p.prepareNextTenant(ctx, false)
-	require.False(t, b, "no tenant should be found")
-	require.Nil(t, p.curTenant, "a tenant should not be set")
-	require.Nil(t, p.curSelector, "a block selector should not be set")
-
-	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
-	time.Sleep(150 * time.Millisecond)
-
-	b = p.prepareNextTenant(ctx, false)
-	require.False(t, b, "no tenant with a single block should be found")
-	require.Nil(t, p.curTenant, "a tenant should not be set")
-	require.Nil(t, p.curSelector, "a block selector should not be set")
-
-	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
-	time.Sleep(150 * time.Millisecond)
-
-	b = p.prepareNextTenant(ctx, false)
-	require.True(t, b, "tenant with two blocks should be found")
-	require.NotNil(t, p.curTenant, "a tenant should be set")
-	require.NotNil(t, p.curSelector, "a block selector should be set")
-
 	jobChan := p.Start(ctx)
 	require.NotNil(t, jobChan, "job channel should not be nil")
+
+	require.Equal(t, 0, p.priority.Len(), "priority queue should be empty when no data exists")
+
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
+	time.Sleep(150 * time.Millisecond)
+
+	require.Equal(t, 0, p.priority.Len(), "priority queue should be empty when only one block exists")
+
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
+	time.Sleep(250 * time.Millisecond)
+
+	require.Equal(t, 1, p.priority.Len(), "priority queue should have one tenant with two blocks")
 
 	blocksSeen := make(map[string]struct{})
 	var metas []*backend.BlockMeta
@@ -326,7 +317,7 @@ func TestCompactionProvider_RecentJobsCachePreventseDuplicatesAndCleansUp(t *tes
 		//
 		// metas := collectAllMetas(twbs)
 		//
-		// // All blocks which have been received were addded to the work queue.
+		// // All blocks which have been received were added to the work queue.
 		// // New instances of the block selector should yield zero blocks.
 		// require.Len(t, metas, 0)
 	}

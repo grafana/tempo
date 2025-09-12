@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/grafana/tempo/modules/backendscheduler/work/tenantselector"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -28,13 +30,14 @@ import (
 var tracer = otel.Tracer("modules/backendscheduler/provider/compaction")
 
 type CompactionConfig struct {
-	MeasureInterval    time.Duration           `yaml:"measure_interval"`
-	Compactor          tempodb.CompactorConfig `yaml:"compaction"`
-	MaxJobsPerTenant   int                     `yaml:"max_jobs_per_tenant"`
-	MinInputBlocks     int                     `yaml:"min_input_blocks"`
-	MaxInputBlocks     int                     `yaml:"max_input_blocks"`
-	MaxCompactionLevel int                     `yaml:"max_compaction_level"`
-	MinCycleInterval   time.Duration           `yaml:"min_cycle_interval"`
+	MeasureInterval      time.Duration           `yaml:"measure_interval"`
+	Compactor            tempodb.CompactorConfig `yaml:"compaction"`
+	MaxJobsPerTenant     int                     `yaml:"max_jobs_per_tenant"`
+	MinInputBlocks       int                     `yaml:"min_input_blocks"`
+	MaxInputBlocks       int                     `yaml:"max_input_blocks"`
+	MaxCompactionLevel   int                     `yaml:"max_compaction_level"`
+	MinCycleInterval     time.Duration           `yaml:"min_cycle_interval"`
+	MaxConcurrentTenants int                     `yaml:"max_concurrent_tenants"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -45,6 +48,7 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	f.IntVar(&cfg.MinInputBlocks, prefix+".min-input-blocks", blockselector.DefaultMinInputBlocks, "Minimum number of blocks to compact in a single job.")
 	f.IntVar(&cfg.MaxInputBlocks, prefix+".max-input-blocks", blockselector.DefaultMaxInputBlocks, "Maximum number of blocks to compact in a single job.")
 	f.IntVar(&cfg.MaxCompactionLevel, prefix+".max-compaction-level", blockselector.DefaultMaxCompactionLevel, "Maximum compaction level to include in compaction jobs. 0 means no limit.")
+	f.IntVar(&cfg.MaxConcurrentTenants, prefix+"backend-scheduler.compaction-provider.max-concurrent-tenants", 1, "Maximum number of tenants to compact concurrently.")
 
 	// Tenant prioritization
 	f.DurationVar(&cfg.MinCycleInterval, prefix+".min-cycle-interval", 30*time.Second, "Minimum time between tenant prioritization cycles to prevent excessive CPU usage when no work is available.")
@@ -65,9 +69,8 @@ type CompactionProvider struct {
 	sched Scheduler
 
 	// Dependencies needed for tenant selection
-	curPriority        *tenantselector.PriorityQueue
-	curTenant          *tenantselector.Item
-	curSelector        blockselector.CompactionBlockSelector
+	priority           *tenantselector.PriorityQueue
+	priorityMtx        sync.Mutex
 	lastPrioritizeTime time.Time
 
 	// Recent jobs cache for duplicate block ID prevention.
@@ -87,44 +90,29 @@ func NewCompactionProvider(
 		logger:          logger,
 		store:           store,
 		overrides:       overrides,
-		curPriority:     tenantselector.NewPriorityQueue(),
+		priority:        tenantselector.NewPriorityQueue(),
 		sched:           scheduler,
 		outstandingJobs: make(map[string][]backend.UUID),
 	}
 }
 
 func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
-	jobs := make(chan *work.Job, 1)
+	var (
+		// jobs is the main output channel for jobs created by this provider
+		jobs = make(chan *work.Job, 1)
+		// instanceJobs is the channel used by instances to send jobs to the main jobs channel
+		instanceJobs = make(chan *work.Job, 1)
+	)
 
 	go func() {
 		defer close(jobs)
 
 		level.Info(p.logger).Log("msg", "compaction provider started")
 
-		var (
-			job               *work.Job
-			curTenantJobCount int
-			span              trace.Span
-			loopCtx           context.Context
-			spanStarted       bool
-			drained           bool // Signal that we have drained the current work and should wait for the next poll
-		)
-
-		reset := func() {
-			metricTenantReset.WithLabelValues(p.curTenant.Value()).Inc()
-			span.AddEvent("tenant reset", trace.WithAttributes(
-				attribute.String("tenant_id", p.curTenant.Value()),
-				attribute.Int("job_count", curTenantJobCount),
-			))
-			p.curSelector = nil
-			p.curTenant = nil
-			curTenantJobCount = 0
-			span.End()
-			spanStarted = false
-		}
-
 		level.Info(p.logger).Log("msg", "compaction provider waiting for poll notification")
 		<-p.store.PollNotification(ctx)
+
+		var job *work.Job
 
 		for {
 			if ctx.Err() != nil {
@@ -132,42 +120,18 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				return
 			}
 
-			if !spanStarted {
-				loopCtx, span = tracer.Start(ctx, "compactionProviderLoop")
-				spanStarted = true
+			select {
+			case <-ctx.Done():
+			case job = <-instanceJobs:
+				level.Warn(p.logger).Log("msg", "received job from instance")
 			}
 
-			if p.curSelector == nil {
-				if !p.prepareNextTenant(loopCtx, drained) {
-					level.Info(p.logger).Log("msg", "received empty tenant")
-					// If we don't have a tenant with enough blocks, we signal drained to wait for next poll.
-					drained = true
-					metricEmptyTenantCycle.Inc()
-					span.AddEvent("no tenant selected")
-				} else {
-					// A tenant with enough blocks was selected, reset the drained state.
-					drained = false
-				}
-
-				continue
-			}
-
-			if curTenantJobCount >= p.cfg.MaxJobsPerTenant {
-				level.Info(p.logger).Log("msg", "max jobs per tenant reached, skipping to next tenant")
-				span.AddEvent("max jobs per tenant reached")
-				reset()
-				continue
-			}
-
-			job = p.createJob(loopCtx)
 			if job == nil {
-				level.Info(p.logger).Log("msg", "tenant exhausted, skipping to next tenant")
-				span.AddEvent("tenant exhausted")
-				// we don't have a job, reset the curTenant and try again
 				metricTenantEmptyJob.Inc()
-				reset()
 				continue
 			}
+
+			spew.Dump(job)
 
 			// Job successfully created, add to recent jobs cache before we send it.
 			p.addToRecentJobs(ctx, job)
@@ -175,18 +139,87 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			select {
 			case <-ctx.Done():
 				level.Info(p.logger).Log("msg", "compaction provider stopping")
-				span.AddEvent("context done")
-				span.End()
 				return
 			case jobs <- job:
-				metricJobsCreated.WithLabelValues(p.curTenant.Value()).Inc()
-				curTenantJobCount++
-				span.AddEvent("job created", trace.WithAttributes(
-					attribute.String("job_id", job.ID),
-					attribute.String("tenant_id", p.curTenant.Value()),
-				))
-				span.End()
-				spanStarted = false
+			}
+		}
+	}()
+
+	tenantCh := make(chan *tenantselector.Item, 1)
+
+	// Manage the instances which operate on a tenant
+	go func() {
+		var (
+			wg     = boundedwaitgroup.New(uint(p.cfg.MaxConcurrentTenants))
+			tenant *tenantselector.Item
+		)
+
+		for {
+			select {
+			case <-ctx.Done():
+				level.Info(p.logger).Log("msg", "compaction provider instance manager stopping")
+				wg.Wait()
+				return
+			case tenant = <-tenantCh:
+				if tenant == nil {
+					continue
+				}
+
+				// Merge instance jobs into main jobs channel
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					tenantID := tenant.Value()
+
+					level.Info(p.logger).Log("msg", "starting compaction instance for tenant", "tenant_id", tenantID)
+
+					var (
+						selector, _ = p.newBlockSelector(tenantID)
+						i           = newInstance(tenantID, selector, p.cfg, p.logger)
+						ch          = i.run(ctx)
+					)
+
+					for {
+						select {
+						case <-ctx.Done():
+							level.Debug(p.logger).Log("msg", "compaction provider instance job merger stopping")
+							return
+						case job, ok := <-ch:
+							if !ok {
+								level.Info(p.logger).Log("msg", "compaction provider instance job channel closed")
+								return
+							}
+
+							select {
+							case <-ctx.Done():
+								level.Info(p.logger).Log("msg", "compaction provider instance job merger stopping")
+								return
+							case instanceJobs <- job:
+								metricJobsCreated.WithLabelValues(tenantID).Inc()
+							}
+						}
+					}
+				}()
+			}
+		}
+	}()
+
+	go func() {
+		defer close(tenantCh)
+
+		level.Info(p.logger).Log("msg", "tenant priority loop started")
+
+		for {
+			select {
+			case <-ctx.Done():
+				level.Info(p.logger).Log("msg", "compaction provider tenant priority loop stopping")
+				return
+			case <-p.store.PollNotification(ctx):
+				level.Info(p.logger).Log("msg", "received poll notification")
+				p.prioritizeTenants(ctx)
+				// case tenantCh <- p.getNextTenant(ctx):
+				// 	level.Info(p.logger).Log("msg", "sent tenant to instance manager")
 			}
 		}
 	}()
@@ -210,113 +243,68 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 	return jobs
 }
 
-func (p *CompactionProvider) prepareNextTenant(ctx context.Context, drained bool) bool {
-	_, span := tracer.Start(ctx, "prepareNextTenant")
+func (p *CompactionProvider) getNextTenant(ctx context.Context) *tenantselector.Item {
+	_, span := tracer.Start(ctx, "getNextTenant")
 	defer span.End()
 
-	if p.curPriority.Len() == 0 {
-		// Rate limit calls to prioritizeTenants to prevent excessive CPU usage
-		// when cycling through tenants with no available work.
-		//
-		// We only expect new work for tenants after a the next blocklist poll.  If
-		// we have been drained, wait for the next poll.
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			p.priorityMtx.Lock()
+			defer p.priorityMtx.Unlock()
 
-		if drained {
-			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting for next poll")
-			select {
-			case <-ctx.Done():
-				return false
-			case <-p.store.PollNotification(ctx):
-				// We waited for the poll, but we may have been cancelled in the meantime.
-				if ctx.Err() != nil {
-					return false
-				}
-
-				// Continue to prioritizeTenants
+			// If we have not prioritized any tenants yet, do so now.
+			if p.priority.Len() == 0 {
+				p.prioritizeTenants(ctx)
 			}
+
+			tenant := heap.Pop(p.priority).(*tenantselector.Item)
+			if tenant != nil {
+				return tenant
+			}
+
+			// If we have an empty tenant, then we have read all tenants from the
+			// current priority queue.  However, its possible that we got here
+			// because we did not fully drain all tenants due to per-tenant job
+			// limits.  Repopulate the priority queue and try again.
+			p.prioritizeTenants(ctx)
+			tenant = heap.Pop(p.priority).(*tenantselector.Item)
+			if tenant != nil {
+				return tenant
+			}
+
+			// If we still have no tenant, then we are fully drained.  Wait for the next poll.
+			metricEmptyTenantCycle.Inc()
+
+			<-p.store.PollNotification(ctx)
 		}
-
-		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
-			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting")
-			time.Sleep(p.cfg.MinCycleInterval - elapsed)
-
-			// Continue to prioritizeTenants
-		}
-
-		p.prioritizeTenants(ctx)
-		p.lastPrioritizeTime = time.Now()
-		if p.curPriority.Len() == 0 {
-			return false
-		}
 	}
-
-	p.curTenant = heap.Pop(p.curPriority).(*tenantselector.Item)
-	if p.curTenant == nil {
-		span.AddEvent("no more tenants to compact")
-		return false
-	}
-
-	level.Info(p.logger).Log("msg", "new tenant selected", "tenant_id", p.curTenant.Value())
-
-	p.curSelector, _ = p.newBlockSelector(p.curTenant.Value())
-	return true
-}
-
-func (p *CompactionProvider) createJob(ctx context.Context) *work.Job {
-	_, span := tracer.Start(ctx, "createJob")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("tenant_id", p.curTenant.Value()))
-
-	input, ok := p.getNextBlockIDs(ctx)
-	if !ok {
-		span.AddEvent("not-enough-input-blocks", trace.WithAttributes(
-			attribute.Int("input_blocks", len(input)),
-		))
-
-		span.SetStatus(codes.Error, "not enough input blocks for compaction")
-		return nil
-	}
-
-	span.AddEvent("input blocks selected", trace.WithAttributes(
-		attribute.Int("input_blocks", len(input)),
-		attribute.StringSlice("input_block_ids", input),
-	))
-	span.SetStatus(codes.Ok, "compaction job created")
-	return &work.Job{
-		ID:   uuid.New().String(),
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Tenant:     p.curTenant.Value(),
-			Compaction: &tempopb.CompactionDetail{Input: input},
-		},
-	}
-}
-
-func (p *CompactionProvider) getNextBlockIDs(_ context.Context) ([]string, bool) {
-	ids := make([]string, 0, p.cfg.MaxInputBlocks)
-
-	toBeCompacted, _ := p.curSelector.BlocksToCompact()
-
-	if len(toBeCompacted) == 0 {
-		return nil, false
-	}
-
-	for _, b := range toBeCompacted {
-		ids = append(ids, b.BlockID.String())
-	}
-
-	return ids, len(ids) >= p.cfg.MinInputBlocks
 }
 
 // prioritizeTenants prioritizes tenants based on the number of outstanding blocks.
 func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
+	p.priorityMtx.Lock()
+	defer func() {
+		p.lastPrioritizeTime = time.Now()
+		p.priorityMtx.Unlock()
+	}()
+
+	// If we have been called too recently, wait until the min cycle interval has passed.
+	if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
+		level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting")
+		time.Sleep(p.cfg.MinCycleInterval - elapsed)
+
+		// Continue to prioritizeTenants
+	}
+
 	tenants := []tenantselector.Tenant{}
 
 	_, span := tracer.Start(ctx, "prioritizeTenants")
 	defer span.End()
 
-	p.curPriority = tenantselector.NewPriorityQueue() // wipe and restart
+	p.priority = tenantselector.NewPriorityQueue() // wipe and restart
 
 	var (
 		blocklistLen      int
@@ -372,7 +360,7 @@ func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
 
 		if priority >= p.cfg.MinInputBlocks {
 			item = tenantselector.NewItem(tenant.ID, priority)
-			heap.Push(p.curPriority, item)
+			heap.Push(p.priority, item)
 		}
 	}
 }
@@ -491,4 +479,160 @@ func (p *CompactionProvider) addToRecentJobs(ctx context.Context, job *work.Job)
 	p.outstandingJobsMtx.Lock()
 	p.outstandingJobs[job.ID] = blockIDs
 	p.outstandingJobsMtx.Unlock()
+}
+
+// TODO: above, we have a single loop which operates on a single tenant at a
+// time.  We could improve this situation by breaking this up into multiple
+// instance, where an instance writes a job into a channel to be merged by the
+// single output channel as above.  Ideally we have some flexibiilty in how the
+// instances are managed such that perhaps a large tenant continues to drain,
+// while some of the smaller tenants are exhausted.  If an instance drains a
+// tenant, we shut it down and start a new instance.  The number of instances
+// is limited by the max concurrent tenants config using the blocking wait
+// group.  I'm immagining a small loop somewhere which manages the instances
+// and when one dies, a new tenant is selected and and instance is started.
+
+// TODO: its not clear to me if the above should write directly into the output
+// channel, or if we should have an intermediate channel per instance which is
+// merged into the output channel.  Presumably, if the instance is writing to
+// an intermediate, a new kind of object could be chosen, and the job itself
+// would be created in the merger.  This would allow us to have a smaller
+// object passed around between goroutines, and the job creation (which
+// includes a UUID generation) would be done in a single goroutine.  This might
+// be better for performance.
+
+type tenantDrainer interface {
+	run(ctx context.Context) <-chan *work.Job
+}
+
+var _ tenantDrainer = (*compactionInstance)(nil)
+
+// compactionInstance operates on a single tenant to push compaction jobs to the scheduler.
+type compactionInstance struct {
+	tenant   string
+	selector blockselector.CompactionBlockSelector
+	cfg      CompactionConfig
+	logger   log.Logger
+}
+
+func newInstance(
+	tenantID string,
+	selector blockselector.CompactionBlockSelector,
+	cfg CompactionConfig,
+	logger log.Logger,
+) *compactionInstance {
+	i := &compactionInstance{
+		tenant:   tenantID,
+		selector: selector,
+		cfg:      cfg,
+		logger:   log.With(logger, "tenant_id", tenantID),
+	}
+
+	return i
+}
+
+func (i *compactionInstance) run(ctx context.Context) <-chan *work.Job {
+	_, span := tracer.Start(ctx, "compactionInstance.run")
+	defer span.End()
+
+	instanceJobs := make(chan *work.Job)
+
+	go func() {
+		defer close(instanceJobs)
+
+		level.Debug(i.logger).Log("msg", "compaction instance started")
+
+		jobCount := 0
+
+		for {
+			select {
+			case <-ctx.Done():
+				level.Debug(i.logger).Log("msg", "compaction instance stopping")
+				span.AddEvent("context done")
+				return
+			default:
+				job := i.createJob(ctx)
+				if job == nil {
+					span.AddEvent("tenant exhausted", trace.WithAttributes(
+						attribute.String("tenant_id", i.tenant),
+					))
+					return
+				}
+
+				if jobCount >= i.cfg.MaxJobsPerTenant {
+					level.Info(i.logger).Log("msg", "max jobs per tenant reached, stopping instance")
+					span.AddEvent("max jobs per tenant reached", trace.WithAttributes(
+						attribute.String("tenant_id", i.tenant),
+						attribute.Int("job_count", jobCount),
+					))
+					return
+				}
+
+				select {
+				case <-ctx.Done():
+					level.Debug(i.logger).Log("msg", "compaction instance stopping")
+					span.AddEvent("context done")
+					return
+				case instanceJobs <- job:
+					span.AddEvent("job created", trace.WithAttributes(
+						attribute.String("job_id", job.ID),
+						attribute.String("tenant_id", i.tenant),
+					))
+
+					metricJobsCreated.WithLabelValues(i.tenant).Inc()
+
+					jobCount++
+				}
+			}
+		}
+	}()
+
+	return instanceJobs
+}
+
+func (i *compactionInstance) createJob(ctx context.Context) *work.Job {
+	_, span := tracer.Start(ctx, "compactionInstance.createJob")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("tenant_id", i.tenant))
+
+	input, ok := i.getNextBlockIDs(ctx)
+	if !ok {
+		span.AddEvent("not-enough-input-blocks", trace.WithAttributes(
+			attribute.Int("input_blocks", len(input)),
+		))
+
+		span.SetStatus(codes.Error, "not enough input blocks for compaction")
+		return nil
+	}
+
+	span.AddEvent("input blocks selected", trace.WithAttributes(
+		attribute.Int("input_blocks", len(input)),
+		attribute.StringSlice("input_block_ids", input),
+	))
+	span.SetStatus(codes.Ok, "compaction job created")
+	return &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:     i.tenant,
+			Compaction: &tempopb.CompactionDetail{Input: input},
+		},
+	}
+}
+
+func (i *compactionInstance) getNextBlockIDs(_ context.Context) ([]string, bool) {
+	ids := make([]string, 0, i.cfg.MaxInputBlocks)
+
+	toBeCompacted, _ := i.selector.BlocksToCompact()
+
+	if len(toBeCompacted) == 0 {
+		return nil, false
+	}
+
+	for _, b := range toBeCompacted {
+		ids = append(ids, b.BlockID.String())
+	}
+
+	return ids, len(ids) >= i.cfg.MinInputBlocks
 }
