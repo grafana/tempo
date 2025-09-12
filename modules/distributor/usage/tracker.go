@@ -106,7 +106,7 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]m
 		//    service.name="foo.bar" => "foo_bar"
 		//    service.name="service" => "service"
 		//    resource.service.name="" => "resource_service_name"
-		//    span.name="" => "span_name"
+		//    span.attr="" => "span_attr"
 		var sanitized string
 		if v == "" {
 			// The dimension is using default mapping
