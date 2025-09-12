@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
@@ -47,6 +48,7 @@ func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *fla
 	f.IntVar(&cfg.MinInputBlocks, prefix+".min-input-blocks", blockselector.DefaultMinInputBlocks, "Minimum number of blocks to compact in a single job.")
 	f.IntVar(&cfg.MaxInputBlocks, prefix+".max-input-blocks", blockselector.DefaultMaxInputBlocks, "Maximum number of blocks to compact in a single job.")
 	f.IntVar(&cfg.MaxCompactionLevel, prefix+".max-compaction-level", blockselector.DefaultMaxCompactionLevel, "Maximum compaction level to include in compaction jobs. 0 means no limit.")
+	f.IntVar(&cfg.MaxConcurrentTenants, prefix+"backend-scheduler.compaction-provider.max-concurrent-tenants", 1, "Maximum number of tenants to compact concurrently.")
 
 	// Tenant prioritization
 	f.DurationVar(&cfg.MinCycleInterval, prefix+".min-cycle-interval", 30*time.Second, "Minimum time between tenant prioritization cycles to prevent excessive CPU usage when no work is available.")
@@ -68,6 +70,7 @@ type CompactionProvider struct {
 
 	// Dependencies needed for tenant selection
 	priority           *tenantselector.PriorityQueue
+	priorityMtx        sync.Mutex
 	lastPrioritizeTime time.Time
 
 	// Recent jobs cache for duplicate block ID prevention.
@@ -120,11 +123,15 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			select {
 			case <-ctx.Done():
 			case job = <-instanceJobs:
-				if job == nil {
-					metricTenantEmptyJob.Inc()
-					continue
-				}
+				level.Warn(p.logger).Log("msg", "received job from instance")
 			}
+
+			if job == nil {
+				metricTenantEmptyJob.Inc()
+				continue
+			}
+
+			spew.Dump(job)
 
 			// Job successfully created, add to recent jobs cache before we send it.
 			p.addToRecentJobs(ctx, job)
@@ -201,13 +208,18 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 	go func() {
 		defer close(tenantCh)
 
+		level.Info(p.logger).Log("msg", "tenant priority loop started")
+
 		for {
 			select {
 			case <-ctx.Done():
+				level.Info(p.logger).Log("msg", "compaction provider tenant priority loop stopping")
 				return
 			case <-p.store.PollNotification(ctx):
+				level.Info(p.logger).Log("msg", "received poll notification")
 				p.prioritizeTenants(ctx)
-			case tenantCh <- p.getNextTenant(ctx):
+				// case tenantCh <- p.getNextTenant(ctx):
+				// 	level.Info(p.logger).Log("msg", "sent tenant to instance manager")
 			}
 		}
 	}()
@@ -231,49 +243,6 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 	return jobs
 }
 
-func (p *CompactionProvider) prepareNextTenant(ctx context.Context, drained bool) bool {
-	_, span := tracer.Start(ctx, "prepareNextTenant")
-	defer span.End()
-
-	if p.priority.Len() == 0 {
-		// Rate limit calls to prioritizeTenants to prevent excessive CPU usage
-		// when cycling through tenants with no available work.
-		//
-		// We only expect new work for tenants after a the next blocklist poll.  If
-		// we have been drained, wait for the next poll.
-
-		if drained {
-			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting for next poll")
-			select {
-			case <-ctx.Done():
-				return false
-			case <-p.store.PollNotification(ctx):
-				// We waited for the poll, but we may have been cancelled in the meantime.
-				if ctx.Err() != nil {
-					return false
-				}
-
-				// Continue to prioritizeTenants
-			}
-		}
-
-		if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
-			level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting")
-			time.Sleep(p.cfg.MinCycleInterval - elapsed)
-
-			// Continue to prioritizeTenants
-		}
-
-		p.prioritizeTenants(ctx)
-		p.lastPrioritizeTime = time.Now()
-		if p.priority.Len() == 0 {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (p *CompactionProvider) getNextTenant(ctx context.Context) *tenantselector.Item {
 	_, span := tracer.Start(ctx, "getNextTenant")
 	defer span.End()
@@ -283,33 +252,53 @@ func (p *CompactionProvider) getNextTenant(ctx context.Context) *tenantselector.
 		case <-ctx.Done():
 			return nil
 		default:
+			p.priorityMtx.Lock()
+			defer p.priorityMtx.Unlock()
+
+			// If we have not prioritized any tenants yet, do so now.
+			if p.priority.Len() == 0 {
+				p.prioritizeTenants(ctx)
+			}
+
 			tenant := heap.Pop(p.priority).(*tenantselector.Item)
 			if tenant != nil {
 				return tenant
 			}
 
-			//  TODO: If the tenant is nil, then we need to wait for the
-			//  prioritization to happen, which is on every poll.  Should we wait for
-			//  poll here also?  This seems insufficient, because if we have
-			//  exhausted all tenants, we will just spin.  We need to wait for
-			//  either a poll or a timer.
+			// If we have an empty tenant, then we have read all tenants from the
+			// current priority queue.  However, its possible that we got here
+			// because we did not fully drain all tenants due to per-tenant job
+			// limits.  Repopulate the priority queue and try again.
+			p.prioritizeTenants(ctx)
+			tenant = heap.Pop(p.priority).(*tenantselector.Item)
+			if tenant != nil {
+				return tenant
+			}
 
-			// TODO: we need to reimplement the drain logic.  If we have not
-			// completely drained the all tenants, but skipped some because we
-			// exceeded the max jobs, then we should come back to that tenant, but
-			// the only way to do that is to reprioritize.
+			// If we still have no tenant, then we are fully drained.  Wait for the next poll.
+			metricEmptyTenantCycle.Inc()
 
-			// TODO: this is to say, that if we try to prioritiuze right here, and
-			// then read a tenant, but we are still nil, then we need to wait for the
-			// next poll.
-
-			time.Sleep(100 * time.Millisecond)
+			<-p.store.PollNotification(ctx)
 		}
 	}
 }
 
 // prioritizeTenants prioritizes tenants based on the number of outstanding blocks.
 func (p *CompactionProvider) prioritizeTenants(ctx context.Context) {
+	p.priorityMtx.Lock()
+	defer func() {
+		p.lastPrioritizeTime = time.Now()
+		p.priorityMtx.Unlock()
+	}()
+
+	// If we have been called too recently, wait until the min cycle interval has passed.
+	if elapsed := time.Since(p.lastPrioritizeTime); elapsed < p.cfg.MinCycleInterval {
+		level.Debug(p.logger).Log("msg", "rate limiting tenant prioritization; waiting")
+		time.Sleep(p.cfg.MinCycleInterval - elapsed)
+
+		// Continue to prioritizeTenants
+	}
+
 	tenants := []tenantselector.Tenant{}
 
 	_, span := tracer.Start(ctx, "prioritizeTenants")
