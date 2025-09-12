@@ -505,6 +505,11 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 			return nil
 		default:
 			if err = f(ctx); err != nil {
+				if ctx.Err() != nil {
+					// Parent was canceled while executing, return
+					return nil
+				}
+
 				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
 				metricWorkerCallRetries.WithLabelValues().Inc()
 				// Add jitter so all workers don't all retry at once and cause a thundering herd.

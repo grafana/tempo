@@ -228,6 +228,13 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to reload blocks from wal: %w", err)
 	}
 
+	for _, inst := range s.getInstances() {
+		err = inst.deleteOldBlocks()
+		if err != nil {
+			level.Warn(s.logger).Log("msg", "failed to delete old blocks", "err", err, "tenant", inst.tenantID)
+		}
+	}
+
 	err = services.StartAndAwaitRunning(ctx, s.ingestPartitionLifecycler)
 	if err != nil {
 		return fmt.Errorf("failed to start partition lifecycler: %w", err)
@@ -291,10 +298,12 @@ func (s *LiveStore) stopping(error) error {
 		return err
 	}
 
-	s.stopAllBackgroundProcesses()
-
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
+
+	if s.cfg.holdAllBackgroundProcesses { // nothing to do
+		return nil
+	}
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -302,14 +311,7 @@ func (s *LiveStore) stopping(error) error {
 	timeout := time.NewTimer(s.cfg.InstanceCleanupPeriod)
 	defer timeout.Stop()
 
-	for !s.completeQueues.IsEmpty() {
-		select {
-		case <-ticker.C:
-		case <-timeout.C:
-			level.Error(s.logger).Log("msg", "flush remaining blocks timed out")
-			return nil // shutdown timeout reached
-		}
-	}
+	s.stopAllBackgroundProcesses()
 
 	return nil
 }
@@ -352,7 +354,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		}
 
 		// Push data to tenant instance
-		inst.pushBytes(record.Timestamp, pushReq)
+		inst.pushBytes(ctx, record.Timestamp, pushReq)
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
