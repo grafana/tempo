@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/modules/backendscheduler/work/tenantselector"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -28,13 +29,14 @@ import (
 var tracer = otel.Tracer("modules/backendscheduler/provider/compaction")
 
 type CompactionConfig struct {
-	MeasureInterval    time.Duration           `yaml:"measure_interval"`
-	Compactor          tempodb.CompactorConfig `yaml:"compaction"`
-	MaxJobsPerTenant   int                     `yaml:"max_jobs_per_tenant"`
-	MinInputBlocks     int                     `yaml:"min_input_blocks"`
-	MaxInputBlocks     int                     `yaml:"max_input_blocks"`
-	MaxCompactionLevel int                     `yaml:"max_compaction_level"`
-	MinCycleInterval   time.Duration           `yaml:"min_cycle_interval"`
+	MeasureInterval      time.Duration           `yaml:"measure_interval"`
+	Compactor            tempodb.CompactorConfig `yaml:"compaction"`
+	MaxJobsPerTenant     int                     `yaml:"max_jobs_per_tenant"`
+	MinInputBlocks       int                     `yaml:"min_input_blocks"`
+	MaxInputBlocks       int                     `yaml:"max_input_blocks"`
+	MaxCompactionLevel   int                     `yaml:"max_compaction_level"`
+	MinCycleInterval     time.Duration           `yaml:"min_cycle_interval"`
+	MaxConcurrentTenants int                     `yaml:"max_concurrent_tenants"`
 }
 
 func (cfg *CompactionConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -190,6 +192,8 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 			}
 		}
 	}()
+
+	//
 
 	// Measure the tenants to get their current compaction status in a separate
 	// goroutine to avoid blocking the main job loop.
@@ -491,4 +495,145 @@ func (p *CompactionProvider) addToRecentJobs(ctx context.Context, job *work.Job)
 	p.outstandingJobsMtx.Lock()
 	p.outstandingJobs[job.ID] = blockIDs
 	p.outstandingJobsMtx.Unlock()
+}
+
+// TODO: above, we have a single loop which operates on a single tenant at a
+// time.  We could improve this situation by breaking this up into multiple
+// instance, where an instance writes a job into a channel to be merged by the
+// single output channel as above.  Ideally we have some flexibiilty in how the
+// intances are managed such that perhaps a large tenant continues to drain,
+// while some of the smaller tenants are exhausted.  If an instance drains a
+// tenant, we shut it down and start a new instance.  The number of instances
+// is limited by the max concurrent tenants config using the blocking wait
+// group.  I'm immagining a small loop somewhere which manages the instances
+// and when one dies, a new tenant is selected and and instance is started.
+
+// TODO: its not clear to me if the above should write directly into the output
+// channel, or if we should have an intermediate channel per instance which is
+// merged into the output channel.  Presumably, if the instance is writing to
+// an intermediate, a new kind of object could be chosen, and the job itself
+// would be created in the merger.  This would allow us to have a smaller
+// object passed around between goroutines, and the job creation (which
+// includes a UUID generation) would be done in a single goroutine.  This might
+// be better for performance.
+
+type tenantDrainer interface {
+	run(ctx context.Context, wg *boundedwaitgroup.BoundedWaitGroup) <-chan *work.Job
+}
+
+var _ tenantDrainer = (*compactionInstance)(nil)
+
+// compactionInstance operates on a single tenant to push compaction jobs to the scheduler.
+type compactionInstance struct {
+	tenant   string
+	selector blockselector.CompactionBlockSelector
+	cfg      CompactionConfig
+	logger   log.Logger
+}
+
+func newInstance(
+	tenantID string,
+	selector blockselector.CompactionBlockSelector,
+	cfg CompactionConfig,
+	logger log.Logger,
+) *compactionInstance {
+	i := &compactionInstance{
+		tenant:   tenantID,
+		selector: selector,
+		cfg:      cfg,
+		logger:   log.With(logger, "tenant_id", tenantID),
+	}
+
+	return i
+}
+
+func (i *compactionInstance) run(ctx context.Context, wg *boundedwaitgroup.BoundedWaitGroup) <-chan *work.Job {
+	_, span := tracer.Start(ctx, "compactionInstance.run")
+	defer span.End()
+
+	instanceJobs := make(chan *work.Job)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(instanceJobs)
+
+		for {
+			select {
+			case <-ctx.Done():
+				level.Info(i.logger).Log("msg", "compaction instance stopping")
+				span.AddEvent("context done")
+				return
+			default:
+				job := i.createJob(ctx)
+				if job == nil {
+					span.AddEvent("tenant exhausted", trace.WithAttributes(
+						attribute.String("tenant_id", i.tenant),
+					))
+					return
+				}
+
+				select {
+				case <-ctx.Done():
+					level.Info(i.logger).Log("msg", "compaction instance stopping")
+					span.AddEvent("context done")
+					return
+				case instanceJobs <- job:
+					span.AddEvent("job created", trace.WithAttributes(
+						attribute.String("job_id", job.ID),
+						attribute.String("tenant_id", i.tenant),
+					))
+				}
+			}
+		}
+	}()
+
+	return instanceJobs
+}
+
+func (i *compactionInstance) createJob(ctx context.Context) *work.Job {
+	_, span := tracer.Start(ctx, "createJob")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("tenant_id", i.tenant))
+
+	input, ok := i.getNextBlockIDs(ctx)
+	if !ok {
+		span.AddEvent("not-enough-input-blocks", trace.WithAttributes(
+			attribute.Int("input_blocks", len(input)),
+		))
+
+		span.SetStatus(codes.Error, "not enough input blocks for compaction")
+		return nil
+	}
+
+	span.AddEvent("input blocks selected", trace.WithAttributes(
+		attribute.Int("input_blocks", len(input)),
+		attribute.StringSlice("input_block_ids", input),
+	))
+	span.SetStatus(codes.Ok, "compaction job created")
+	return &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:     i.tenant,
+			Compaction: &tempopb.CompactionDetail{Input: input},
+		},
+	}
+}
+
+func (i *compactionInstance) getNextBlockIDs(_ context.Context) ([]string, bool) {
+	ids := make([]string, 0, i.cfg.MaxInputBlocks)
+
+	toBeCompacted, _ := i.selector.BlocksToCompact()
+
+	if len(toBeCompacted) == 0 {
+		return nil, false
+	}
+
+	for _, b := range toBeCompacted {
+		ids = append(ids, b.BlockID.String())
+	}
+
+	return ids, len(ids) >= i.cfg.MinInputBlocks
 }
