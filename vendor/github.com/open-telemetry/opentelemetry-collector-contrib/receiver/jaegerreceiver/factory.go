@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/receiver"
@@ -20,12 +21,6 @@ import (
 )
 
 const (
-	// Protocol values.
-	protoGRPC          = "grpc"
-	protoThriftHTTP    = "thrift_http"
-	protoThriftBinary  = "thrift_binary"
-	protoThriftCompact = "thrift_compact"
-
 	// Default endpoints to bind to.
 	defaultGRPCEndpoint          = "localhost:14250"
 	defaultHTTPEndpoint          = "localhost:14268"
@@ -51,23 +46,23 @@ func NewFactory() receiver.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		Protocols: Protocols{
-			GRPC: &configgrpc.ServerConfig{
+			GRPC: configoptional.Default(configgrpc.ServerConfig{
 				NetAddr: confignet.AddrConfig{
 					Endpoint:  defaultGRPCEndpoint,
 					Transport: confignet.TransportTypeTCP,
 				},
-			},
-			ThriftHTTP: &confighttp.ServerConfig{
+			}),
+			ThriftHTTP: configoptional.Default(confighttp.ServerConfig{
 				Endpoint: defaultHTTPEndpoint,
-			},
-			ThriftBinaryUDP: &ProtocolUDP{
+			}),
+			ThriftBinaryUDP: configoptional.Default(ProtocolUDP{
 				Endpoint:        defaultThriftBinaryEndpoint,
 				ServerConfigUDP: defaultServerConfigUDP(),
-			},
-			ThriftCompactUDP: &ProtocolUDP{
+			}),
+			ThriftCompactUDP: configoptional.Default(ProtocolUDP{
 				Endpoint:        defaultThriftCompactEndpoint,
 				ServerConfigUDP: defaultServerConfigUDP(),
-			},
+			}),
 		},
 	}
 }

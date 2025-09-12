@@ -4,6 +4,7 @@ status:
   class: receiver
   stability:
     beta: [metrics, logs, traces]
+    development: [profiles]
   distributions:
   - core
   - contrib
@@ -199,6 +200,14 @@ telemetry:
     kafka_receiver_unmarshal_failed_spans:
       enabled: true
       description: Number of spans failed to be unmarshaled
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [topic, partition]
+    kafka_receiver_unmarshal_failed_profiles:
+      enabled: true
+      description: Number of profiles failed to be unmarshaled
       unit: "1"
       sum:
         value_type: int

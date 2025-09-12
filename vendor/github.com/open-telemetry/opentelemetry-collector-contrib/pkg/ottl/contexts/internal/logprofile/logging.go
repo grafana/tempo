@@ -21,13 +21,11 @@ func getMapping(dict pprofile.ProfilesDictionary, idx int32) (mapping, error) {
 	return newMapping(dict, mTable.At(int(idx)))
 }
 
-func getLocations(dict pprofile.ProfilesDictionary, locIdxs []int32,
-	start, length int32,
-) (locations, error) {
-	if start >= int32(len(locIdxs)) {
+func getLocations(dict pprofile.ProfilesDictionary, locIdxs pcommon.Int32Slice, start, length int32) (locations, error) {
+	if start >= int32(locIdxs.Len()) {
 		return locations{}, fmt.Errorf("location start index out of bounds: %d", start)
 	}
-	if start+length > int32(len(locIdxs)) {
+	if start+length > int32(locIdxs.Len()) {
 		return locations{}, fmt.Errorf("location end index out of bounds: %d", start+length)
 	}
 
@@ -35,7 +33,7 @@ func getLocations(dict pprofile.ProfilesDictionary, locIdxs []int32,
 	var joinedErr error
 	ls := make(locations, 0, length)
 	for i := range length {
-		locIdx := locIdxs[start+i]
+		locIdx := locIdxs.At(int(start + i))
 		l, err := newLocation(dict, locTable.At(int(locIdx)))
 		joinedErr = errors.Join(joinedErr, err)
 		ls = append(ls, l)
@@ -138,7 +136,7 @@ type ProfileSample struct {
 func (s ProfileSample) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	var joinedErr error
 
-	locs, err := getLocations(s.Dictionary, s.Profile.LocationIndices().AsRaw(), s.LocationsStartIndex(), s.LocationsLength())
+	locs, err := getLocations(s.Dictionary, s.Profile.LocationIndices(), s.LocationsStartIndex(), s.LocationsLength())
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("locations", locs))
 

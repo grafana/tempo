@@ -357,11 +357,11 @@ func getAttributeValue[K Context](tCtx K, key string) pcommon.Value {
 	// Find the index of the attribute in the profile's attribute indices
 	// and return the corresponding value from the attribute table.
 	table := tCtx.GetProfilesDictionary().AttributeTable()
-	indices := tCtx.GetProfile().AttributeIndices().AsRaw()
 
-	for _, tableIndex := range indices {
+	for _, tableIndex := range tCtx.GetProfile().AttributeIndices().All() {
 		attr := table.At(int(tableIndex))
 		if attr.Key() == key {
+			// Copy the value because OTTL expects to do inplace updates for the values.
 			v := pcommon.NewValueEmpty()
 			attr.Value().CopyTo(v)
 			return v
