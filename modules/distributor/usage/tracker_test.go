@@ -22,6 +22,7 @@ func testConfig() PerTrackerConfig {
 	}
 }
 
+// FIXME: add scope tests in this??
 func TestUsageTracker(t *testing.T) {
 	type testcase struct {
 		name       string
@@ -259,6 +260,10 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 						Key:   "k8s.namespace.name",
 						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "resource-namespace"}},
 					},
+					{
+						Key:   "team.name",
+						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "resource-team"}},
+					},
 				},
 			},
 			ScopeSpans: []*v1.ScopeSpans{
@@ -277,8 +282,9 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 		},
 	}
 
+	// should only get value from resource scope and not from the spans
 	t.Run("resource scoped attribute", func(t *testing.T) {
-		dimensions := map[string]string{"resource.service.name": "service"}
+		dimensions := map[string]string{"resource.service.name": "service.name"}
 
 		u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return dimensions }, func(_ string) uint64 { return 0 })
 		require.NoError(t, err)
@@ -286,8 +292,8 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 		u.Observe("test", data)
 		series := u.tenants["test"].series
 
-		// Should only use resource-level value
-		expectedHash := hash([]string{"service"}, []string{"resource-service"})
+		// Should only use resource-level value, not span level resource.
+		expectedHash := hash([]string{"service_name"}, []string{"resource-service"})
 		require.Contains(t, series, expectedHash)
 		require.Equal(t, []string{"resource-service"}, series[expectedHash].labels)
 	})
@@ -305,9 +311,35 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 		expectedHash := hash([]string{"database"}, []string{"postgresql"})
 		require.Contains(t, series, expectedHash)
 		require.Equal(t, []string{"postgresql"}, series[expectedHash].labels)
+
+		mapping := u.tenants["test"].mapping
+		require.Equal(t, mapping[0].from, "db.system")
+		require.Equal(t, mapping[0].scope, ScopeSpan)
 	})
 
-	t.Run("unscoped attribute maintains backward compatibility", func(t *testing.T) {
+	// only exists in resource, and should be from spans
+	t.Run("span scope config doesn't match resource attribute", func(t *testing.T) {
+
+		// team.name is only at resource level so this should be a missingLabel
+		dimensions := map[string]string{"span.team.name": "team_name"}
+
+		u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return dimensions }, func(_ string) uint64 { return 0 })
+		require.NoError(t, err)
+
+		u.Observe("test", data)
+		series := u.tenants["test"].series
+
+		// Should only use span-level value
+		expectedHash := hash([]string{"team_name"}, []string{"__missing__"})
+		require.Contains(t, series, expectedHash)
+		require.Equal(t, []string{"__missing__"}, series[expectedHash].labels)
+
+		mapping := u.tenants["test"].mapping
+		require.Equal(t, mapping[0].from, "team.name")
+		require.Equal(t, mapping[0].scope, ScopeSpan)
+	})
+
+	t.Run("unscoped attribute matches both with span overwriting resource values", func(t *testing.T) {
 		dimensions := map[string]string{"service.name": "service"}
 
 		u, err := NewTracker(testConfig(), "test", func(_ string) map[string]string { return dimensions }, func(_ string) uint64 { return 0 })
@@ -320,6 +352,10 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 		expectedHash := hash([]string{"service"}, []string{"span-service"})
 		require.Contains(t, series, expectedHash)
 		require.Equal(t, []string{"span-service"}, series[expectedHash].labels)
+
+		mapping := u.tenants["test"].mapping
+		require.Equal(t, mapping[0].from, "service.name")
+		require.Equal(t, mapping[0].scope, ScopeAll)
 	})
 
 	t.Run("multiple scoped attributes", func(t *testing.T) {
@@ -338,12 +374,18 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 		expectedHash := hash([]string{"database", "namespace"}, []string{"postgresql", "resource-namespace"})
 		require.Contains(t, series, expectedHash)
 		require.Equal(t, []string{"postgresql", "resource-namespace"}, series[expectedHash].labels)
+
+		mapping := u.tenants["test"].mapping
+		require.Equal(t, mapping[0].from, "k8s.namespace.name")
+		require.Equal(t, mapping[0].scope, ScopeResource)
+		require.Equal(t, mapping[1].from, "db.system")
+		require.Equal(t, mapping[1].scope, ScopeSpan)
 	})
 
 	t.Run("scoped attribute prevents overwrite", func(t *testing.T) {
-		// This is the key test - scoped attributes should not be overwritten
+		// scoped attributes should not be overwritten
 		dimensions := map[string]string{
-			"resource.k8s.namespace.name": "namespace",
+			"resource.k8s.namespace.name": "resource_namespace",
 			"k8s.namespace.name":          "unscoped_namespace",
 		}
 
@@ -354,9 +396,20 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 		series := u.tenants["test"].series
 
 		// Should have resource-namespace for the scoped dimension and span-namespace for unscoped
-		expectedHash := hash([]string{"namespace", "unscoped_namespace"}, []string{"resource-namespace", "span-namespace"})
+		expectedHash := hash([]string{"resource_namespace", "unscoped_namespace"}, []string{"resource-namespace", "span-namespace"})
 		require.Contains(t, series, expectedHash)
 		require.Equal(t, []string{"resource-namespace", "span-namespace"}, series[expectedHash].labels)
+
+		mapping := u.tenants["test"].mapping
+		for _, item := range mapping {
+			// resource mapping is first, because we sort them
+			require.Equal(t, item.from, "k8s.namespace.name")
+			if item.to == 0 {
+				require.Equal(t, item.scope, ScopeResource)
+			} else {
+				require.Equal(t, item.scope, ScopeAll)
+			}
+		}
 	})
 }
 
