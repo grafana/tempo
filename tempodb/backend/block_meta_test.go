@@ -114,11 +114,12 @@ func TestBlockMetaParsing(t *testing.T) {
 		FooterSize:      15775,
 		DedicatedColumns: DedicatedColumns{
 			{Scope: "resource", Name: "namespace", Type: "string"},
+			{Scope: "resource", Name: "net.host.port", Type: "int"},
 			{Scope: "span", Name: "http.method", Type: "string"},
 			{Scope: "span", Name: "namespace", Type: "string"},
+			{Scope: "span", Name: "http.response.body.size", Type: "int"},
 		},
 	}
-
 	expectedJSON := `{
     	"format": "vParquet3",
     	"blockID": "00000000-0000-0000-0000-000000000000",
@@ -136,8 +137,10 @@ func TestBlockMetaParsing(t *testing.T) {
 		"footerSize": 15775,
     	"dedicatedColumns": [
     		{"s": "resource", "n": "namespace"},
+    		{"s": "resource", "n": "net.host.port", "t": "int"},
     		{"n": "http.method"},
-    		{"n": "namespace"}
+    		{"n": "namespace"},
+    		{"n": "http.response.body.size", "t": "int"}
     	]
 	}`
 
@@ -164,11 +167,13 @@ func TestDedicatedColumnsFromTempopb(t *testing.T) {
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.1", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_RESOURCE, Name: "test.res.1", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.2", Type: tempopb.DedicatedColumn_STRING},
+				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.3", Type: tempopb.DedicatedColumn_INT},
 			},
 			expected: DedicatedColumns{
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt},
 			},
 		},
 		{
@@ -215,12 +220,16 @@ func TestDedicatedColumns_ToTempopb(t *testing.T) {
 			cols: DedicatedColumns{
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
+				{Scope: DedicatedColumnScopeResource, Name: "test.res.2", Type: DedicatedColumnTypeInt},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt},
 			},
 			expected: []*tempopb.DedicatedColumn{
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.1", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_RESOURCE, Name: "test.res.1", Type: tempopb.DedicatedColumn_STRING},
+				{Scope: tempopb.DedicatedColumn_RESOURCE, Name: "test.res.2", Type: tempopb.DedicatedColumn_INT},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.2", Type: tempopb.DedicatedColumn_STRING},
+				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.3", Type: tempopb.DedicatedColumn_INT},
 			},
 		},
 		{

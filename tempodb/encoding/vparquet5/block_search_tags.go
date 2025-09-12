@@ -84,14 +84,13 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 		}
 
 		// dedicated attributes
-		columnMapping.forEach(func(lbl string, c dedicatedColumn) {
-			idx, _, _ := pq.GetColumnIndexByPath(pf, c.ColumnPath)
+		for attr, col := range columnMapping.items() {
+			idx, _, _ := pq.GetColumnIndexByPath(pf, col.ColumnPath)
 			if idx == -1 {
-				return
+				continue
 			}
-
-			specialAttrIdxs[idx] = lbl
-		})
+			specialAttrIdxs[idx] = attr
+		}
 
 		// now search all row groups
 		var err error
