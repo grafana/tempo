@@ -292,6 +292,200 @@ func TestTraceToParquet(t *testing.T) {
 	}
 }
 
+func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
+	traceID := common.ID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+
+	tsc := []struct {
+		name             string
+		trace            *tempopb.Trace
+		expectedRootName string
+	}{
+		{
+			name: "root span with a child-of link",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:   "not-root-span",
+										SpanId: []byte{0x02},
+										Links: []*v1_trace.Span_Link{
+											{
+												Attributes: []*v1.KeyValue{
+													{
+														Key: "opentracing.ref_type",
+														Value: &v1.AnyValue{
+															Value: &v1.AnyValue_StringValue{StringValue: "child_of"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name:   "root-span",
+										SpanId: []byte{0x01},
+									},
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x03},
+										ParentSpanId: []byte{0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "root-span",
+		},
+		{
+			name: "root span without child-of link",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:   "root-span",
+										SpanId: []byte{0x01},
+									},
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x02},
+										ParentSpanId: []byte{0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "root-span",
+		},
+		{
+			name: "span link different trace id",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:    "not-root-span",
+										TraceId: traceID,
+										SpanId:  []byte{0x02},
+										Links: []*v1_trace.Span_Link{
+											{
+												TraceId: []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+												Attributes: []*v1.KeyValue{
+													{
+														Key: "opentracing.ref_type",
+														Value: &v1.AnyValue{
+															Value: &v1.AnyValue_StringValue{StringValue: "child_of"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name:    "root-span",
+										SpanId:  []byte{0x01},
+										TraceId: traceID,
+									},
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x03},
+										ParentSpanId: []byte{0x01},
+										TraceId:      traceID,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "root-span",
+		},
+		{
+			name: "no root span",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x02},
+										ParentSpanId: []byte{0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "",
+		},
+		{
+			name: "no spans",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource:   &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{},
+					},
+				},
+			},
+			expectedRootName: "",
+		},
+		{
+			name: "span with parent but no root",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x02},
+										ParentSpanId: []byte{0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "",
+		},
+	}
+
+	for _, tt := range tsc {
+		t.Run(tt.name, func(t *testing.T) {
+			parquetTrace := traceToParquet(traceID, tt.trace, nil)
+
+			assert.Equal(t, tt.expectedRootName, parquetTrace.RootSpanName)
+		})
+	}
+}
+
 func BenchmarkProtoToParquet(b *testing.B) {
 	batchCount := 100
 	spanCounts := []int{
