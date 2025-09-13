@@ -35,6 +35,7 @@ type Config struct {
 	InstanceCleanupPeriod time.Duration `yaml:"flush_op_timeout"`
 	MaxTraceLive          time.Duration `yaml:"max_trace_live"`
 	MaxTraceIdle          time.Duration `yaml:"max_trace_idle"`
+	MaxLiveTracesBytes    uint64        `yaml:"max_live_traces_bytes"`
 	MaxBlockDuration      time.Duration `yaml:"max_block_duration"`
 	MaxBlockBytes         uint64        `yaml:"max_block_bytes"`
 
@@ -70,6 +71,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.InstanceCleanupPeriod = 5 * time.Minute
 	cfg.MaxTraceLive = 30 * time.Second
 	cfg.MaxTraceIdle = 5 * time.Second
+	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
 	cfg.MaxBlockDuration = 30 * time.Minute
 	cfg.MaxBlockBytes = 500 * 1024 * 1024
 

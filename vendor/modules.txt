@@ -171,7 +171,6 @@ github.com/apache/thrift/lib/go/thrift
 # github.com/armon/go-metrics v0.4.1
 ## explicit; go 1.12
 github.com/armon/go-metrics
-github.com/armon/go-metrics/prometheus
 # github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 ## explicit; go 1.13
 github.com/asaskevich/govalidator
@@ -696,7 +695,7 @@ github.com/googleapis/gax-go/v2/iterator
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20250529170946-28928403e61e
+# github.com/grafana/dskit v0.0.0-20250828173137-de14cf923eeb
 ## explicit; go 1.23.0
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/cancellation
@@ -706,7 +705,6 @@ github.com/grafana/dskit/crypto/tls
 github.com/grafana/dskit/dns
 github.com/grafana/dskit/dns/godns
 github.com/grafana/dskit/dns/miekgdns
-github.com/grafana/dskit/dns/miekgdns2
 github.com/grafana/dskit/flagext
 github.com/grafana/dskit/grpcclient
 github.com/grafana/dskit/grpcencoding/snappy
@@ -735,7 +733,6 @@ github.com/grafana/dskit/server
 github.com/grafana/dskit/services
 github.com/grafana/dskit/signals
 github.com/grafana/dskit/spanlogger
-github.com/grafana/dskit/spanprofiler
 github.com/grafana/dskit/tenant
 github.com/grafana/dskit/test
 github.com/grafana/dskit/tracing
@@ -745,7 +742,7 @@ github.com/grafana/dskit/user
 github.com/grafana/e2e
 github.com/grafana/e2e/db
 github.com/grafana/e2e/images
-# github.com/grafana/gomemcache v0.0.0-20250318131618-74242eea118d
+# github.com/grafana/gomemcache v0.0.0-20250828162811-a96f6acee2fe
 ## explicit; go 1.21
 github.com/grafana/gomemcache/memcache
 # github.com/grafana/otel-profiling-go v0.5.1
@@ -783,6 +780,11 @@ github.com/hashicorp/go-hclog
 # github.com/hashicorp/go-immutable-radix v1.3.1
 ## explicit
 github.com/hashicorp/go-immutable-radix
+# github.com/hashicorp/go-metrics v0.5.4
+## explicit; go 1.12
+github.com/hashicorp/go-metrics
+github.com/hashicorp/go-metrics/compat
+github.com/hashicorp/go-metrics/prometheus
 # github.com/hashicorp/go-msgpack v0.5.5
 ## explicit
 github.com/hashicorp/go-msgpack/codec
@@ -810,11 +812,11 @@ github.com/hashicorp/golang-lru/simplelru
 github.com/hashicorp/golang-lru/v2
 github.com/hashicorp/golang-lru/v2/internal
 github.com/hashicorp/golang-lru/v2/simplelru
-# github.com/hashicorp/memberlist v0.5.1 => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
+# github.com/hashicorp/memberlist v0.5.2 => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
 ## explicit; go 1.12
 github.com/hashicorp/memberlist
-# github.com/hashicorp/serf v0.10.1
-## explicit; go 1.12
+# github.com/hashicorp/serf v0.10.2
+## explicit; go 1.19
 github.com/hashicorp/serf/coordinate
 # github.com/iancoleman/strcase v0.3.0
 ## explicit; go 1.16
@@ -1171,8 +1173,8 @@ github.com/opentracing/opentracing-go/log
 github.com/openzipkin/zipkin-go/model
 github.com/openzipkin/zipkin-go/proto/zipkin_proto3
 github.com/openzipkin/zipkin-go/reporter
-# github.com/parquet-go/parquet-go v0.25.1
-## explicit; go 1.22
+# github.com/parquet-go/parquet-go v0.25.2-0.20250911172247-41fe9a8fbd81
+## explicit; go 1.23
 github.com/parquet-go/parquet-go
 github.com/parquet-go/parquet-go/bloom
 github.com/parquet-go/parquet-go/bloom/xxhash
@@ -1587,9 +1589,6 @@ go.mongodb.org/mongo-driver/x/bsonx/bsoncore
 ## explicit; go 1.13
 go.opencensus.io
 go.opencensus.io/internal
-go.opencensus.io/metric/metricdata
-go.opencensus.io/metric/metricproducer
-go.opencensus.io/resource
 go.opencensus.io/resource/resourcekeys
 go.opencensus.io/trace
 go.opencensus.io/trace/internal
@@ -1925,17 +1924,6 @@ go.opentelemetry.io/otel/semconv/v1.37.0
 go.opentelemetry.io/otel/semconv/v1.37.0/otelconv
 go.opentelemetry.io/otel/semconv/v1.6.1
 go.opentelemetry.io/otel/semconv/v1.9.0
-# go.opentelemetry.io/otel/bridge/opencensus v1.38.0
-## explicit; go 1.23.0
-go.opentelemetry.io/otel/bridge/opencensus
-go.opentelemetry.io/otel/bridge/opencensus/internal
-go.opentelemetry.io/otel/bridge/opencensus/internal/oc2otel
-go.opentelemetry.io/otel/bridge/opencensus/internal/ocmetric
-go.opentelemetry.io/otel/bridge/opencensus/internal/otel2oc
-# go.opentelemetry.io/otel/bridge/opentracing v1.38.0
-## explicit; go 1.23.0
-go.opentelemetry.io/otel/bridge/opentracing
-go.opentelemetry.io/otel/bridge/opentracing/migration
 # go.opentelemetry.io/otel/exporters/jaeger v1.17.0
 ## explicit; go 1.19
 go.opentelemetry.io/otel/exporters/jaeger

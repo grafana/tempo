@@ -97,6 +97,7 @@
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
     statefulSet.mixin.spec.withReplicas($._config.live_store.replicas) +
     (if !std.isObject($._config.node_selector) then {} else statefulSet.mixin.spec.template.spec.withNodeSelectorMixin($._config.node_selector)) +
+    statefulSet.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
     self.liveStoreZoneAntiAffinity(name),
 
   newLiveStoreStatefulSet(name, container)::

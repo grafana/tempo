@@ -1,37 +1,25 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"reflect"
 	"runtime"
-	"time"
 
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
-	"github.com/grafana/dskit/spanprofiler"
-	ot "github.com/opentracing/opentracing-go"
+	"github.com/grafana/tempo/pkg/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
-	"go.opentelemetry.io/contrib/exporters/autoexport"
-	"go.opentelemetry.io/otel"
-	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
-	ot_bridge "go.opentelemetry.io/otel/bridge/opentracing"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	"google.golang.org/grpc/encoding"
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/cmd/tempo/build"
 	"github.com/grafana/tempo/pkg/gogocodec"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -49,6 +37,7 @@ func init() {
 	version.Version = Version
 	version.Branch = Branch
 	version.Revision = Revision
+
 	prometheus.MustRegister(ver.NewCollector(appName))
 
 	// Register the gogocodec as early as possible.
@@ -91,7 +80,7 @@ func main() {
 
 	// Init tracer if OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set
 	if os.Getenv("OTEL_TRACES_EXPORTER") != "" || os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
-		shutdownTracer, err := installOpenTelemetryTracer(config)
+		shutdownTracer, err := tracing.InstallOpenTelemetryTracer(appName, config.Target)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
 			os.Exit(1)
@@ -219,68 +208,6 @@ func loadConfig() (*app.Config, bool, error) {
 	}
 
 	return config, configVerify, nil
-}
-
-func installOpenTelemetryTracer(config *app.Config) (func(), error) {
-	level.Info(log.Logger).Log("msg", "initialising OpenTelemetry tracer")
-
-	exp, err := autoexport.NewSpanExporter(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OTEL exporter: %w", err)
-	}
-
-	resources, err := resource.New(context.Background(),
-		resource.WithAttributes(
-			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, config.Target)),
-			semconv.ServiceVersionKey.String(build.Version),
-		),
-		resource.WithHost(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialise trace resources: %w", err)
-	}
-
-	otel.SetErrorHandler(otelErrorHandlerFunc(func(err error) {
-		level.Error(log.Logger).Log("msg", "OpenTelemetry.ErrorHandler", "err", err)
-	}))
-
-	tp := tracesdk.NewTracerProvider(
-		tracesdk.WithBatcher(exp),
-		tracesdk.WithResource(resources),
-	)
-	otel.SetTracerProvider(tp)
-
-	shutdown := func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := tp.Shutdown(ctx); err != nil {
-			level.Error(log.Logger).Log("msg", "OpenTelemetry trace provider failed to shutdown", "err", err)
-			os.Exit(1)
-		}
-	}
-
-	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
-	otel.SetTextMapPropagator(propagator)
-
-	// Install the OpenTracing bridge
-	// TODO the bridge emits warnings because the Jaeger exporter does not defer context setup
-	bridgeTracer, _ := ot_bridge.NewTracerPair(tp.Tracer("OpenTracing"))
-	bridgeTracer.SetWarningHandler(func(msg string) {
-		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
-	})
-	ot.SetGlobalTracer(spanprofiler.NewTracer(bridgeTracer))
-
-	// Install the OpenCensus bridge
-	oc_bridge.InstallTraceBridge(oc_bridge.WithTracerProvider(tp))
-
-	return shutdown, nil
-}
-
-type otelErrorHandlerFunc func(error)
-
-// Handle implements otel.ErrorHandler
-func (f otelErrorHandlerFunc) Handle(err error) {
-	f(err)
 }
 
 func setMutexBlockProfiling(mutexFraction int, blockThreshold int) {

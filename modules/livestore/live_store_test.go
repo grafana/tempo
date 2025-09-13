@@ -344,6 +344,29 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 	}
 }
 
+func TestLiveStoreShutdownWithPendingCompletions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	liveStore, err := defaultLiveStore(t, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	liveStore.cfg.holdAllBackgroundProcesses = false
+	liveStore.startAllBackgroundProcesses()
+
+	inst, err := liveStore.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	// push data
+	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
+
+	// in live traces
+	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
+
+	require.NoError(t, liveStore.stopping(nil))
+}
+
 type instanceState struct {
 	liveTraces     int
 	walBlocks      int

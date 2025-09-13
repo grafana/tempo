@@ -24,7 +24,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/grafana/dskit v0.0.0-20250529170946-28928403e61e
+	github.com/grafana/dskit v0.0.0-20250828173137-de14cf923eeb
 	github.com/grafana/e2e v0.1.2-0.20250428181430-708d63bcc673
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.6.7
@@ -36,7 +36,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.132.0
 	github.com/opentracing-contrib/go-grpc v0.1.1 // indirect
-	github.com/opentracing/opentracing-go v1.2.0
+	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.0
@@ -59,8 +59,6 @@ require (
 	go.opentelemetry.io/collector/pdata v1.38.0
 	go.opentelemetry.io/collector/semconv v0.128.1-0.20250610090210-188191247685 // indirect
 	go.opentelemetry.io/otel v1.38.0
-	go.opentelemetry.io/otel/bridge/opencensus v1.38.0
-	go.opentelemetry.io/otel/bridge/opentracing v1.38.0
 	go.opentelemetry.io/otel/metric v1.38.0
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
@@ -84,7 +82,7 @@ require (
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	github.com/googleapis/gax-go/v2 v2.15.0
-	github.com/grafana/gomemcache v0.0.0-20250318131618-74242eea118d
+	github.com/grafana/gomemcache v0.0.0-20250828162811-a96f6acee2fe
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/mark3labs/mcp-go v0.37.0
@@ -95,7 +93,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.132.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.132.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.132.0
-	github.com/parquet-go/parquet-go v0.25.1
+	github.com/parquet-go/parquet-go v0.25.2-0.20250911172247-41fe9a8fbd81
 	github.com/twmb/franz-go v1.18.1
 	github.com/twmb/franz-go/pkg/kadm v1.16.0
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20250320172111-35ab5e5f5327
@@ -220,6 +218,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-metrics v0.5.4 // indirect
 	github.com/hashicorp/go-msgpack v0.5.5 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
@@ -228,8 +227,8 @@ require (
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/hashicorp/memberlist v0.5.1 // indirect
-	github.com/hashicorp/serf v0.10.1 // indirect
+	github.com/hashicorp/memberlist v0.5.2 // indirect
+	github.com/hashicorp/serf v0.10.2 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect

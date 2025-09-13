@@ -33,6 +33,9 @@ const (
 	ConsumerGroup           = "block-builder"
 	pollTimeout             = 2 * time.Second
 	cutTime                 = 10 * time.Second
+	emptyPartitionEndOffset = 0  // partition has no records
+	commitOffsetAtEnd       = -1 // offset is at the end of partition
+	commitOffsetAtStart     = -2 // offset is at the start of partition
 )
 
 var (
@@ -113,21 +116,35 @@ type BlockBuilder struct {
 type partitionState struct {
 	// Partition number
 	partition int32
-	// Start and end offset
-	commitOffset, endOffset int64
+	// commitOffset is the last committed consumer offset for this partition
+	// it is maintained per consumer group
+	commitOffset int64
+	// endOffset is the latest offset for this partition
+	// it represents the last message written by producers
+	endOffset int64
 	// Last committed record timestamp
 	lastRecordTs time.Time
 }
 
 func (p partitionState) getStartOffset() kgo.Offset {
-	if p.commitOffset >= 0 {
+	if p.commitOffset > commitOffsetAtEnd {
 		return kgo.NewOffset().At(p.commitOffset)
 	}
+	// If commit offset is AtEnd (-1), it nevertheless will consume from the start.
+	// This is a workaround for franz-go and default Kafka behaviour:
+	// in case consumer is new and has no committed offsets, it will start consuming from the end,
+	// while for block builder, it should consume from the earliest record.
+	// The workaround is dirty and can break the consumer if it starts returning AtEnd (-1) for
+	// already running consumer.
+	// TODO: replace the workaround with proper new consumer offset initialization
+	// if p.commitOffset == commitOffsetAtEnd {
+	// 	return kgo.NewOffset().AtEnd()
+	// }
 	return kgo.NewOffset().AtStart()
 }
 
 func (p partitionState) hasRecords() bool {
-	return p.endOffset >= -1
+	return p.endOffset > emptyPartitionEndOffset
 }
 
 func New(
@@ -182,26 +199,12 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to create kafka reader client: %w", err)
 	}
 
+	err = ingest.WaitForKafkaBroker(ctx, b.kafkaClient, b.logger)
+	if err != nil {
+		return fmt.Errorf("failed to start blockbuilder: %w", err)
+	}
+
 	b.partitionOffsetClient = ingest.NewPartitionOffsetClient(b.kafkaClient, topic)
-
-	boff := backoff.New(ctx, backoff.Config{
-		MinBackoff: 100 * time.Millisecond,
-		MaxBackoff: time.Minute, // If there is a network hiccup, we prefer to wait longer retrying, than fail the service.
-		MaxRetries: 10,
-	})
-
-	for boff.Ongoing() {
-		err := b.kafkaClient.Ping(ctx)
-		if err == nil {
-			break
-		}
-		level.Warn(b.logger).Log("msg", "ping kafka; will retry", "err", err)
-		boff.Wait()
-	}
-	if err := boff.ErrCause(); err != nil {
-		return fmt.Errorf("failed to ping kafka: %w", err)
-	}
-
 	b.kadm = kadm.NewClient(b.kafkaClient)
 
 	ingest.ExportPartitionLagMetrics(
@@ -265,7 +268,12 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 
 	// First iteration over all the assigned partitions to get their current lag in time
 	for i, p := range ps {
-		if !p.hasRecords() { // No records, we can skip the partition
+		if !p.hasRecords() { // No records, skip for the first iteration
+			// We treat the partition as updated through now,
+			// and will check it again after ConsumeCycleDuration has elapsed
+			ps[i].lastRecordTs = time.Now()
+			ps[i].commitOffset = 0 // always start at beginning
+			level.Info(b.logger).Log("msg", "partition has no records", "partition", p.partition)
 			continue
 		}
 		lastRecordTs, commitOffset, err := b.consumePartition(ctx, p)
@@ -359,7 +367,7 @@ outer:
 				break
 			}
 			metricFetchErrors.WithLabelValues(partLabel).Inc()
-			return time.Time{}, -1, err
+			return time.Time{}, commitOffsetAtEnd, err
 		}
 
 		if fetches.Empty() {
@@ -410,7 +418,7 @@ outer:
 
 			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
 			if err != nil {
-				return time.Time{}, -1, err
+				return time.Time{}, commitOffsetAtEnd, err
 			}
 
 			processedRecords++
@@ -443,7 +451,7 @@ outer:
 		span.AddEvent("no data")
 		// No data means we are caught up
 		ingest.SetPartitionLagSeconds(group, ps.partition, 0)
-		return time.Time{}, -1, nil
+		return time.Time{}, commitOffsetAtEnd, nil
 	}
 
 	// Record lag at the end of the consumption
@@ -451,13 +459,13 @@ outer:
 
 	err = writer.flush(ctx, b.reader, b.writer, b.compactor)
 	if err != nil {
-		return time.Time{}, -1, err
+		return time.Time{}, commitOffsetAtEnd, err
 	}
 
 	offset := kadm.NewOffsetFromRecord(lastRec)
 	err = b.commitOffset(ctx, offset, group, ps.partition)
 	if err != nil {
-		return time.Time{}, -1, err
+		return time.Time{}, commitOffsetAtEnd, err
 	}
 
 	level.Info(b.logger).Log(
@@ -575,7 +583,7 @@ func (b *BlockBuilder) getPartitionOffsets(ctx context.Context, partitionIDs []i
 func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetResponses, endsOffsets kadm.ListedOffsets) partitionState {
 	var (
 		topic = b.cfg.IngestStorageConfig.Kafka.Topic
-		ps    = partitionState{partition: partition, commitOffset: -1, endOffset: -2}
+		ps    = partitionState{partition: partition, commitOffset: commitOffsetAtEnd, endOffset: emptyPartitionEndOffset}
 	)
 
 	lastCommit, found := commits.Lookup(topic, partition)

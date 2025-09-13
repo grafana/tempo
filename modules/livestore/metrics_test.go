@@ -110,7 +110,7 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 	require.NoError(t, err)
 
 	// Push bytes
-	setup.instance.pushBytes(time.Now(), req)
+	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Verify bytes received metric increased by expected amount
 	finalBytesReceived, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
@@ -143,7 +143,7 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 		Traces: []tempopb.PreallocBytes{{Slice: traceData}},
 		Ids:    [][]byte{traceID},
 	}
-	setup.instance.pushBytes(time.Now(), req)
+	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Cut traces to head block
 	err = setup.instance.cutIdleTraces(true)
@@ -180,7 +180,7 @@ func TestMetrics_EmptyPushBytesRequest(t *testing.T) {
 		Traces: []tempopb.PreallocBytes{},
 		Ids:    [][]byte{},
 	}
-	setup.instance.pushBytes(time.Now(), req)
+	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Verify no bytes were recorded
 	finalBytesReceived, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")

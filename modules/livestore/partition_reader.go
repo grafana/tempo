@@ -195,7 +195,7 @@ func (r *PartitionReader) commitOffset(ctx context.Context, offset kadm.Offset) 
 		return
 	}
 
-	level.Info(r.logger).Log("msg", "committed kafka offset", "offset", offset.At, "topic", r.topic, "group", r.consumerGroup)
+	level.Debug(r.logger).Log("msg", "committed kafka offset", "offset", offset.At, "topic", r.topic, "group", r.consumerGroup)
 }
 
 type partitionReaderMetrics struct {

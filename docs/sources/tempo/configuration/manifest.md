@@ -26,6 +26,7 @@ server:
     grpc_listen_address: ""
     grpc_listen_port: 9095
     grpc_listen_conn_limit: 0
+    grpc_collect_max_streams_by_conn: true
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
@@ -75,6 +76,8 @@ server:
     log_request_headers: false
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
+    trace_request_headers: false
+    trace_request_exclude_headers_list: ""
     http_path_prefix: ""
     cluster_validation:
         label: ""
@@ -85,6 +88,7 @@ server:
             enabled: false
             soft_validation: false
             excluded_paths: ""
+            excluded_user_agents: ""
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -94,6 +98,7 @@ internal_server:
     grpc_listen_address: ""
     grpc_listen_port: 0
     grpc_listen_conn_limit: 0
+    grpc_collect_max_streams_by_conn: false
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
@@ -143,6 +148,8 @@ internal_server:
     log_request_headers: false
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
+    trace_request_headers: false
+    trace_request_exclude_headers_list: ""
     http_path_prefix: ""
     cluster_validation:
         label: ""
@@ -153,6 +160,7 @@ internal_server:
             enabled: false
             soft_validation: false
             excluded_paths: ""
+            excluded_user_agents: ""
     enable: false
 distributor:
     ring:
@@ -1227,6 +1235,7 @@ live_store:
     flush_op_timeout: 5m0s
     max_trace_live: 30s
     max_trace_idle: 5s
+    max_live_traces_bytes: 250000000
     max_block_duration: 30m0s
     max_block_bytes: 524288000
     block_config:
