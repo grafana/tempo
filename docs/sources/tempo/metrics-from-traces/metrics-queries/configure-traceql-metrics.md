@@ -24,14 +24,14 @@ This powerful feature creates metrics from traces, much in the same way that Log
 To use the metrics generated from traces, you need to:
 
 - Set the `local-blocks` processor to active in your `metrics-generator` configuration
-- Configure a Tempo data source in Grafana or Grafana Cloud (documentation)
-- Access Grafana Cloud or Grafana version 10.4 or later (documentation)
+- Configure a Tempo data source in Grafana or Grafana Cloud ([documentation](/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/))
+- Access Grafana Cloud or Grafana version 10.4 or later
 
 Refer to the [Metrics-generator configuration](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) documentation for more information about the `metrics-generator` configuration.
 
 ## Activate and configure the `local-blocks` processor
 
-The local-blocks processor must be enabled to start using metrics queries like `{ } | rate()`.
+You must enable the local-blocks processor to start using metrics queries like `{ } | rate()`.
 If not enabled, then the metrics queries fail with the error `localblocks processor not found`.
 Enabling the `local-blocks` processor can be done either per tenant or in all tenants.
 
@@ -40,7 +40,7 @@ To activate the `local-blocks` processor for all users, add it to the list of pr
 ```yaml
 # Global overrides configuration.
 overrides:
-  metrics_generator_processors: ['local-blocks']
+  metrics_generator_processors: ["local-blocks"]
 ```
 
 To configure the processor per tenant, use the `metrics_generator_processor` override.
@@ -49,7 +49,7 @@ Example for per-tenant in the per-tenant overrides:
 
 ```yaml
 overrides:
-  'tenantID':
+  "tenantID":
     metrics_generator_processors:
       - local-blocks
 ```
@@ -63,7 +63,7 @@ overrides:
       processors: [local-blocks]
 ```
 
-Add this configuration to run TraceQL metrics queries against all spans (and not just server spans):
+Add this configuration to run TraceQL metrics queries against all spans and not just server spans:
 
 ```yaml
 metrics_generator:

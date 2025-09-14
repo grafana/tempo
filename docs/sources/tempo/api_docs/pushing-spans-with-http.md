@@ -2,7 +2,7 @@
 title: Push spans with HTTP
 description: Learn a basic technique for pushing spans with HTTP and JSON
 aliases:
-- /docs/tempo/latest/guides/pushing-spans-with-http/
+  - /docs/tempo/latest/guides/pushing-spans-with-http/
 ---
 
 # Push spans with HTTP
@@ -23,66 +23,73 @@ Use the instructions in the [Quick start for Tempo documentation](https://grafan
 
 ## Push spans with OTLP
 
-Now that Tempo is running and listening on port 4318 for [OTLP spans](https://opentelemetry.io/docs/specs/otlp/#otlphttp), let’s push a span to it using `curl`.
+Now that Tempo is running and listening on port 4318 for [OTLP spans](https://opentelemetry.io/docs/specs/otlp/#otlphttp), you can push a span to Tempo using `curl`.
 
-Before you can use this example, you need to update the start and end time as instructed.
+{{< shared id="push-spans-http-otlp" >}}
 
-```bash
-curl -X POST -H 'Content-Type: application/json' http://localhost:4318/v1/traces -d '
-{
-	"resourceSpans": [{
-    	"resource": {
-        	"attributes": [{
-            	"key": "service.name",
-            	"value": {
-                	"stringValue": "my.service"
-            	}
-        	}]
-    	},
-    	"scopeSpans": [{
-        	"scope": {
-            	"name": "my.library",
-            	"version": "1.0.0",
-            	"attributes": [{
-                	"key": "my.scope.attribute",
-                	"value": {
-                    	"stringValue": "some scope attribute"
-                	}
-            	}]
-        	},
-        	"spans": [
-        	{
-            	"traceId": "5B8EFFF798038103D269B633813FC700",
-            	"spanId": "EEE19B7EC3C1B100",
-            	"name": "I am a span!",
-            	"startTimeUnixNano": 1689969302000000000,
-            	"endTimeUnixNano": 1689970000000000000,
-            	"kind": 2,
-            	"attributes": [
-            	{
-                	"key": "my.span.attr",
-                	"value": {
-                    	"stringValue": "some value"
-                	}
-            	}]
-        	}]
-    	}]
-	}]
-}'
-```
+Before you can use this example, you need to update the start and end time.
 
-Note that the `startTimeUnixNano` field is in nanoseconds and can be obtained by any tool that provides the epoch date in nanoseconds (for example, under Linux, `date +%s%N`). The `endTimeUnixNano` field is also in nanoseconds, where 100000000 nanoseconds is 100 milliseconds.
+The `startTimeUnixNano` and `endTimeUnixNano` fields are in nanoseconds, where 100000000 nanoseconds is 100 milliseconds. The nanosecond value can be obtained by any tool that provides the epoch date in nanoseconds.
+For example, under Linux, you can use `date +%s%N`.
+You can also use an online tool such as [Epoch Converter](https://www.epochconverter.com/) to get the current time in nanoseconds.
 
-1. Copy and paste the curl command into a text editor.
+1. Copy and paste the `curl` command into a text editor.
 
-1. Replace `startTimeUnixNano` and `endTimeUnixNano` with current values for the last 24 hours to allow you to search for them using a 24 hour relative time range. You can get this in seconds and milliseconds from the following link.
-Multiple the milliseconds value by 1,000,000 to turn it into nanoseconds. You can do this from a bash terminal with:
+   ```bash
+   curl -X POST -H 'Content-Type: application/json' http://localhost:4318/v1/traces -d '
+   {
+   	"resourceSpans": [{
+       	"resource": {
+           	"attributes": [{
+               	"key": "service.name",
+               	"value": {
+                   	"stringValue": "my.service"
+               	}
+           	}]
+       	},
+       	"scopeSpans": [{
+           	"scope": {
+               	"name": "my.library",
+               	"version": "1.0.0",
+               	"attributes": [{
+                   	"key": "my.scope.attribute",
+                   	"value": {
+                       	"stringValue": "some scope attribute"
+                   	}
+               	}]
+           	},
+           	"spans": [
+           	{
+               	"traceId": "5B8EFFF798038103D269B633813FC700",
+               	"spanId": "EEE19B7EC3C1B100",
+               	"name": "I am a span!",
+               	"startTimeUnixNano": 1689969302000000000,
+               	"endTimeUnixNano": 1689970000000000000,
+               	"kind": 2,
+               	"attributes": [
+               	{
+                   	"key": "my.span.attr",
+                   	"value": {
+                       	"stringValue": "some value"
+                   	}
+               	}]
+           	}]
+       	}]
+   	}]
+   }'
+   ```
+
+1. Replace `startTimeUnixNano` and `endTimeUnixNano` with current values for the last 24 hours to allow you to search for them using a 24 hour relative time range. You can get this in seconds and milliseconds from the [Unix Epoch Clock](https://www.epochconverter.com/).
+
+   Multiply the milliseconds value by 1,000,000 to turn it into nanoseconds. You can do this from a bash terminal with:
 
    ```bash
    echo $((<epochTimeMilliseconds> * 1000000))
    ```
 
 1. Copy the updated curl command to a terminal window and run it.
+
+{{< /shared >}}
 
 1. View the trace in Grafana:
    1. Open a browser window to http://localhost:3000.
@@ -99,11 +106,11 @@ The easiest way to get the trace is to execute a simple curl command to Tempo. T
 
 1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
 
-	```bash
-	curl http://localhost:3200/api/v2/traces/5b8efff798038103d269b633813fc700
+   ```bash
+   curl http://localhost:3200/api/v2/traces/5b8efff798038103d269b633813fc700
 
-	{"trace": {"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]},"scopeSpans":[{"scope":{"name":"my.library","version":"1.0.0"},"spans":[{"traceId":"W47/95gDgQPSabYzgT/HAA==","spanId":"7uGbfsPBsQA=","name":"I am a span!","kind":"SPAN_KIND_SERVER","startTimeUnixNano":"1689969302000000000","endTimeUnixNano":"1689970000000000000","attributes":[{"key":"my.span.attr","value":{"stringValue":"some value"}}],"status":{}}]}]}]}}
-	```
+   {"trace": {"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]},"scopeSpans":[{"scope":{"name":"my.library","version":"1.0.0"},"spans":[{"traceId":"W47/95gDgQPSabYzgT/HAA==","spanId":"7uGbfsPBsQA=","name":"I am a span!","kind":"SPAN_KIND_SERVER","startTimeUnixNano":"1689969302000000000","endTimeUnixNano":"1689970000000000000","attributes":[{"key":"my.span.attr","value":{"stringValue":"some value"}}],"status":{}}]}]}]}}
+   ```
 
 1. Copy and paste the updated `curl` command into a terminal window.
 
