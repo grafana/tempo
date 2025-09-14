@@ -80,8 +80,10 @@ You can also use an online tool such as [Epoch Converter](https://www.epochconve
    ```
 
 1. Replace `startTimeUnixNano` and `endTimeUnixNano` with current values for the last 24 hours to allow you to search for them using a 24 hour relative time range. You can get this in seconds and milliseconds from the [Unix Epoch Clock](https://www.epochconverter.com/).
+   For `startTimeUnixNano`, use the current time minus 24 hours. Use the link above to figure out the value.
+   For `endTimeUnixNano`, use the current time.
 
-   Multiply the milliseconds value by 1,000,000 to turn it into nanoseconds. You can do this from a bash terminal with:
+   Multiply the milliseconds value by 1,000,000 to turn it into nanoseconds. You can do this from a bash terminal with the following command. Replace `<epochTimeMilliseconds>` with the milliseconds value.
 
    ```bash
    echo $((<epochTimeMilliseconds> * 1000000))
