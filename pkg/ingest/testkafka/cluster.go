@@ -70,7 +70,7 @@ func (c *Cluster) ensureConsumerGroupExists(consumerGroup string) {
 	}
 	c.committedOffsets[consumerGroup] = make([]int64, c.numPartitions+1)
 
-	// Initialise the partition offsets with the special value -1 which means "no offset committed".
+	// Initialise the Partition offsets with the special value -1 which means "no offset committed".
 	for i := 0; i < len(c.committedOffsets[consumerGroup]); i++ {
 		c.committedOffsets[consumerGroup][i] = -1
 	}
@@ -93,7 +93,7 @@ func (c *Cluster) offsetCommit(request kmsg.Request) (kmsg.Response, error, bool
 	require.Len(c.t, commitR.Topics, 1, "test only has support for one topic per request")
 	topic := commitR.Topics[0]
 	require.Equal(c.t, c.topic, topic.Topic)
-	require.Len(c.t, topic.Partitions, 1, "test only has support for one partition per request")
+	require.Len(c.t, topic.Partitions, 1, "test only has support for one Partition per request")
 
 	partitionID := topic.Partitions[0].Partition
 	c.committedOffsets[consumerGroup][partitionID] = topic.Partitions[0].Offset
@@ -134,8 +134,8 @@ func (c *Cluster) offsetFetch(kreq kmsg.Request) (kmsg.Response, error, bool) {
 		partitionID = allPartitions
 	} else {
 		partitionID = req.Groups[0].Topics[0].Partitions[0]
-		assert.Len(c.t, req.Groups[0].Topics, 1, "test only has support for one partition per request")
-		assert.Len(c.t, req.Groups[0].Topics[0].Partitions, 1, "test only has support for one partition per request")
+		assert.Len(c.t, req.Groups[0].Topics, 1, "test only has support for one Partition per request")
+		assert.Len(c.t, req.Groups[0].Topics[0].Partitions, 1, "test only has support for one Partition per request")
 	}
 
 	// Prepare the list of partitions for which the offset has been committed.
