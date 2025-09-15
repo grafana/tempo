@@ -24,7 +24,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+
 
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -36,46 +36,6 @@ const (
 	reasonWaitingForWAL        = "waiting_for_wal"
 )
 
-var (
-	// Instance-level metrics (similar to ingester instance.go)
-	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "traces_created_total",
-		Help:      "The total number of traces created per tenant.",
-	}, []string{"tenant"})
-	metricLiveTraces = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo_live_store",
-		Name:      "live_traces",
-		Help:      "The current number of live traces per tenant.",
-	}, []string{"tenant"})
-	metricLiveTraceBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo_live_store",
-		Name:      "live_trace_bytes",
-		Help:      "The current number of bytes consumed by live traces per tenant.",
-	}, []string{"tenant"})
-	metricBytesReceivedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "bytes_received_total",
-		Help:      "The total bytes received per tenant.",
-	}, []string{"tenant", "data_type"})
-	metricBlocksClearedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "blocks_cleared_total",
-		Help:      "The total number of blocks cleared.",
-	}, []string{"block_type"})
-	metricCompletionSize = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo_live_store",
-		Name:      "completion_size_bytes",
-		Help:      "Size in bytes of blocks completed.",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
-	})
-	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Subsystem: "live_store",
-		Name:      "back_pressure_seconds_total",
-		Help:      "The total amount of time spent waiting to process data from queue",
-	}, []string{"reason"})
-)
 
 type instance struct {
 	tenantID string

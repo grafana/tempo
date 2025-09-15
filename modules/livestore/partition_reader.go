@@ -78,13 +78,18 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
 
+	partLabel := strconv.Itoa(int(r.partitionID))
 	for ctx.Err() == nil {
+		fetchStart := time.Now()
 		fetches := r.client.PollFetches(ctx)
+		metricFetchDuration.WithLabelValues(partLabel).Observe(time.Since(fetchStart).Seconds())
+		
 		if fetches.Err() != nil {
 			if errors.Is(fetches.Err(), context.Canceled) {
 				return nil
 			}
 			err := collectFetchErrs(fetches)
+			metricFetchErrors.WithLabelValues(partLabel).Inc()
 			level.Error(r.logger).Log("msg", "encountered error while fetching", "err", err)
 			continue
 		}
@@ -118,6 +123,12 @@ func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 
 func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) *kadm.Offset {
 	// Pass offset and byte information to the live-store
+	partLabel := strconv.Itoa(int(r.partitionID))
+	processStart := time.Now()
+	defer func() {
+		metricProcessPartitionDuration.WithLabelValues(partLabel).Observe(time.Since(processStart).Seconds())
+	}()
+	
 	offset, err := r.consume(ctx, fetches.RecordIter(), time.Now())
 	if err != nil {
 		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
@@ -132,14 +143,19 @@ func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
 	var (
 		now        = time.Now()
 		numRecords = 0
+		numBytes   = 0
 	)
 
+	partLabel := strconv.Itoa(int(r.partitionID))
 	fetches.EachRecord(func(record *kgo.Record) {
 		numRecords++
+		numBytes += len(record.Value)
 		r.metrics.receiveDelay.Observe(now.Sub(record.Timestamp).Seconds())
 	})
 
 	r.metrics.recordsPerFetch.Observe(float64(numRecords))
+	metricFetchBytesTotal.WithLabelValues(partLabel).Add(float64(numBytes))
+	metricFetchRecordsTotal.WithLabelValues(partLabel).Add(float64(numRecords))
 }
 
 func (r *PartitionReader) fetchLastCommittedOffsetWithRetries(ctx context.Context) (offset kgo.Offset, err error) {

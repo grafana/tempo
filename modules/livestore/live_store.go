@@ -3,6 +3,7 @@ package livestore
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -80,18 +81,6 @@ var (
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 
-	// Kafka/Ingest specific metrics
-	metricRecordsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "records_processed_total",
-		Help:      "The total number of kafka records processed per tenant.",
-	}, []string{"tenant"})
-
-	metricRecordsDropped = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "records_dropped_total",
-		Help:      "The total number of kafka records dropped per tenant.",
-	}, []string{"tenant", "reason"})
 )
 
 type LiveStore struct {
@@ -277,10 +266,19 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
+	
+	partLabel := strconv.Itoa(int(s.ingestPartitionID))
+	metricOwnedPartitions.WithLabelValues(partLabel, "starting").Set(1)
+	
 	err = services.StartAndAwaitRunning(ctx, s.reader)
 	if err != nil {
+		metricOwnedPartitions.WithLabelValues(partLabel, "failed").Set(1)
+		metricOwnedPartitions.WithLabelValues(partLabel, "starting").Set(0)
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
+	
+	metricOwnedPartitions.WithLabelValues(partLabel, "running").Set(1)
+	metricOwnedPartitions.WithLabelValues(partLabel, "starting").Set(0)
 
 	for i := range s.cfg.CompleteBlockConcurrency {
 		idx := i
@@ -306,11 +304,20 @@ func (s *LiveStore) running(ctx context.Context) error {
 
 func (s *LiveStore) stopping(error) error {
 	// Stop consuming
+	partLabel := strconv.Itoa(int(s.ingestPartitionID))
+	metricOwnedPartitions.WithLabelValues(partLabel, "stopping").Set(1)
+	metricOwnedPartitions.WithLabelValues(partLabel, "running").Set(0)
+	
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
+		metricOwnedPartitions.WithLabelValues(partLabel, "failed").Set(1)
+		metricOwnedPartitions.WithLabelValues(partLabel, "stopping").Set(0)
 		return err
 	}
+	
+	metricOwnedPartitions.WithLabelValues(partLabel, "stopped").Set(1)
+	metricOwnedPartitions.WithLabelValues(partLabel, "stopping").Set(0)
 
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
@@ -334,6 +341,11 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 	defer s.decoder.Reset()
 	_, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
+
+	consumeStart := time.Now()
+	defer func() {
+		metricConsumeCycleDuration.Observe(time.Since(consumeStart).Seconds())
+	}()
 
 	recordCount := 0
 	var lastRecord *kgo.Record
