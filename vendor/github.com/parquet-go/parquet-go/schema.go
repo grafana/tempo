@@ -52,18 +52,33 @@ func (v *onceValue[T]) load(f func() *T) *T {
 }
 
 type (
-	schemaOption      func(*SchemaConfig)
-	FieldTagsCallback func(parentStruct reflect.Type, f *reflect.StructField, tags *ParquetTags)
+	schemaOption func(*SchemaConfig)
+
+// FieldTagsCallback func(parentStruct reflect.Type, f *reflect.StructField, tags *ParquetTags)
 )
 
-func FieldTagsCallbackOption(cb FieldTagsCallback) schemaOption {
+/*func FieldTagsCallbackOption(cb FieldTagsCallback) schemaOption {
 	return func(cfg *SchemaConfig) {
 		cfg.fieldTagsCallback = cb
+	}
+}*/
+
+func FieldTags(typ reflect.Type, name string, tags ParquetTags) schemaOption {
+	return func(cfg *SchemaConfig) {
+		cfg.tagOverrides = append(cfg.tagOverrides, struct {
+			typ  reflect.Type
+			name string
+			tags ParquetTags
+		}{typ, name, tags})
 	}
 }
 
 type SchemaConfig struct {
-	fieldTagsCallback FieldTagsCallback
+	tagOverrides []struct {
+		typ  reflect.Type
+		name string
+		tags ParquetTags
+	}
 }
 
 type SchemaOption interface {
@@ -179,7 +194,7 @@ func schemaOf(model reflect.Type) *Schema {
 }
 
 func schemaOfWithConfig(model reflect.Type, cfg SchemaConfig) *Schema {
-	cacheable := cfg.fieldTagsCallback == nil
+	cacheable := len(cfg.tagOverrides) == 0
 
 	if cacheable {
 		cached, _ := cachedSchemas.Load(model)
@@ -461,8 +476,11 @@ func structNodeOf(t reflect.Type, cfg SchemaConfig) *structNode {
 		field := structField{name: fields[i].Name, index: fields[i].Index}
 		tags := fromStructTag(fields[i].Tag)
 
-		if cfg.fieldTagsCallback != nil {
-			cfg.fieldTagsCallback(t, &fields[i], &tags)
+		for _, override := range cfg.tagOverrides {
+			if override.typ == t && override.name == fields[i].Name {
+				tags = override.tags
+				break
+			}
 		}
 
 		field.Node = makeNodeOf(fields[i].Type, fields[i].Name, tags, cfg)
@@ -480,9 +498,15 @@ func structFieldsOf(t reflect.Type, cfg SchemaConfig) []reflect.StructField {
 		f := &fields[i]
 
 		tags := fromStructTag(f.Tag)
-		if cfg.fieldTagsCallback != nil {
-			cfg.fieldTagsCallback(t, f, &tags)
+
+		// Apply any tag overrides
+		for _, override := range cfg.tagOverrides {
+			if override.typ == t && override.name == f.Name {
+				tags = override.tags
+				break
+			}
 		}
+
 		if tags.Parquet != "" {
 			name, _ := split(tags.Parquet)
 			if name != "" {

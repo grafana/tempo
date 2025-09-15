@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -162,7 +160,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		eventMapping = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
 	)
 
-	fieldTagsCallback := func(typ reflect.Type, f *reflect.StructField, tags *parquet.ParquetTags) {
+	/*fieldTagsCallback := func(typ reflect.Type, f *reflect.StructField, tags *parquet.ParquetTags) {
 		// Determine scope based on parent type.
 		var dm *dedicatedColumnMapping
 		switch typ {
@@ -191,9 +189,10 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 			tags.Parquet = ",zstd,optional"
 			return
 		}
-	}
+	}*/
 
-	schema := parquet.SchemaOf(&Trace{}, parquet.FieldTagsCallbackOption(fieldTagsCallback))
+	// schema := parquet.SchemaOf(&Trace{}, parquet.FieldTagsCallbackOption(fieldTagsCallback))
+	schema := parquet.SchemaOf(&Trace{})
 
 	options := []parquet.WriterOption{
 		schema,
@@ -204,19 +203,34 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	for key, col := range spanMapping.mapping {
 		if col.Blob() {
 			fmt.Println("Blob column:", col.ColumnPath, key)
-			options = append(options, parquet.SkipPageBounds(strings.Split(col.ColumnPath, ".")...))
+			path := strings.Split(col.ColumnPath, ".")
+			options = append(options, parquet.SkipPageBounds(path...))
+			if node, ok := schema.Lookup(path...); ok {
+				node.Node = parquet.Encoded(node.Node, &parquet.Plain)
+				node.Node = parquet.Compressed(node.Node, &parquet.Zstd)
+			}
 		}
 	}
 	for key, col := range resMapping.mapping {
 		if col.Blob() {
 			fmt.Println("Blob column:", col.ColumnPath, key)
-			options = append(options, parquet.SkipPageBounds(strings.Split(col.ColumnPath, ".")...))
+			path := strings.Split(col.ColumnPath, ".")
+			options = append(options, parquet.SkipPageBounds(path...))
+			if node, ok := schema.Lookup(path...); ok {
+				node.Node = parquet.Encoded(node.Node, &parquet.Plain)
+				node.Node = parquet.Compressed(node.Node, &parquet.Zstd)
+			}
 		}
 	}
 	for key, col := range eventMapping.mapping {
 		if col.Blob() {
 			fmt.Println("Blob column:", col.ColumnPath, key)
-			options = append(options, parquet.SkipPageBounds(strings.Split(col.ColumnPath, ".")...))
+			path := strings.Split(col.ColumnPath, ".")
+			options = append(options, parquet.SkipPageBounds(path...))
+			if node, ok := schema.Lookup(path...); ok {
+				node.Node = parquet.Encoded(node.Node, &parquet.Plain)
+				node.Node = parquet.Compressed(node.Node, &parquet.Zstd)
+			}
 		}
 	}
 
