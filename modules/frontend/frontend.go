@@ -337,11 +337,6 @@ func cloneRequestforQueriers(parent pipeline.Request, tenant string, modHTTP fun
 		}
 	}
 
-	// Used to indicate whether to query ingesters or live stores for recent data
-	if v := req.Header.Get(api.HeaderRecentDataTarget); v != "" {
-		clonedHTTPReq.Header.Set(api.HeaderRecentDataTarget, v)
-	}
-
 	prepareRequestForQueriers(clonedHTTPReq, tenant)
 
 	return parent.CloneFromHTTPRequest(clonedHTTPReq), nil
