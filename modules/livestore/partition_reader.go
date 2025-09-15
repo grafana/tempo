@@ -83,7 +83,7 @@ func (r *PartitionReader) running(ctx context.Context) error {
 		fetchStart := time.Now()
 		fetches := r.client.PollFetches(ctx)
 		metricFetchDuration.WithLabelValues(partLabel).Observe(time.Since(fetchStart).Seconds())
-		
+
 		if fetches.Err() != nil {
 			if errors.Is(fetches.Err(), context.Canceled) {
 				return nil
@@ -128,7 +128,7 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 	defer func() {
 		metricProcessPartitionDuration.WithLabelValues(partLabel).Observe(time.Since(processStart).Seconds())
 	}()
-	
+
 	offset, err := r.consume(ctx, fetches.RecordIter(), time.Now())
 	if err != nil {
 		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
