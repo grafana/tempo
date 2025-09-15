@@ -43,13 +43,6 @@ If, for a given trace, this pipeline produces a spanset then it's included in th
 
 Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for examples of TraceQL metrics queries.
 
-<!-- WARNING: This file is loaded by /modules/frontend/mcp.go and served to LLMs through the MCP protocol. It -->
-<!-- should be kept terse and to the point. Links and videos and such are bad. Examples are good! The below "mcp-cutoff"
-<!-- is used to remove everything above. -->
-<!-- TODO: Anthropic suggests using xml tags to organize content delivered to an LLM. Can we tag this content with xml tags  -->
-<!-- that make both hugo and llms happy? -->
-<!-- mcp-cutoff -->
-
 ## Examples
 
 The following examples illustrate some commonly used queries.

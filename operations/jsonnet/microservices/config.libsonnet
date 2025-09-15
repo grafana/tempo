@@ -14,6 +14,7 @@
     tempo_query_frontend: self.tempo,
     tempo_metrics_generator: self.tempo,
     tempo_block_builder: self.tempo,
+    tempo_live_store: self.tempo,
     tempo_backend_scheduler: self.tempo,
     tempo_backend_worker: self.tempo,
   },
@@ -126,6 +127,23 @@
     },
     block_builder: {
       replicas: 0,
+      resources: {
+        requests: {
+          cpu: '500m',
+          memory: '1Gi',
+        },
+        limits: {
+          cpu: '1',
+          memory: '2Gi',
+        },
+      },
+    },
+    live_store: {
+      pvc_size: error 'Must specify a live-store pvc size',
+      pvc_storage_class: error 'Must specify a live-store pvc storage class',
+      replicas: 0,
+      max_unavailable: 25,
+      allow_multiple_replicas_on_same_node: false,
       resources: {
         requests: {
           cpu: '500m',

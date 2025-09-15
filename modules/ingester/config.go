@@ -2,15 +2,12 @@ package ingester
 
 import (
 	"flag"
-	"os"
 	"time"
 
-	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/pkg/ingest"
 
-	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -45,7 +42,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.LifecyclerConfig.RingConfig.ReplicationFactor = 1
 	cfg.LifecyclerConfig.RingConfig.HeartbeatTimeout = 5 * time.Minute
 
-	cfg.IngesterPartitionRing.RegisterFlags(f)
+	cfg.IngesterPartitionRing.RegisterFlags(prefix, f)
 
 	cfg.ConcurrentFlushes = 4
 	cfg.FlushCheckPeriod = 10 * time.Second
@@ -59,13 +56,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.Uint64Var(&cfg.MaxBlockBytes, prefix+".max-block-bytes", 500*1024*1024, "Maximum size of the head block before cutting it.")
 	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", 3*tempodb.DefaultBlocklistPoll, "Duration to keep blocks in the ingester after they have been flushed.")
 	f.StringVar(&cfg.LifecyclerConfig.Zone, prefix+".availability-zone", "", "Define Availability Zone in which this ingester is running.")
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to get hostname", "err", err)
-		os.Exit(1)
-	}
-	f.StringVar(&cfg.LifecyclerConfig.ID, prefix+".lifecycler.ID", hostname, "ID to register in the ring.")
 
 	cfg.OverrideRingKey = ingesterRingKey
 }

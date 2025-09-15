@@ -20,6 +20,7 @@ import (
 )
 
 func TestBackendBlockSearch(t *testing.T) {
+	t.Parallel()
 	// Helper functions to make pointers
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int64) *int64 { return &i }

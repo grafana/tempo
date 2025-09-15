@@ -42,6 +42,10 @@ func (rw *readerWriter) RetainWithConfig(ctx context.Context, compactorCfg *Comp
 	bg := boundedwaitgroup.New(compactorCfg.RetentionConcurrency)
 
 	for _, tenantID := range tenants {
+		if ctx.Err() != nil {
+			break
+		}
+
 		if compactorOverrides.CompactionDisabledForTenant(tenantID) {
 			continue
 		}

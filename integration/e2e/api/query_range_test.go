@@ -166,10 +166,6 @@ sendLoop:
 				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 				require.NotNil(t, queryRangeRes)
 				require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
-				if query == "{} | quantile_over_time(duration, .5, 0.9, 0.99)" {
-					// Bug: https://github.com/grafana/tempo/issues/5167
-					t.Skip("Bug in quantile_over_time in calculating exemplars")
-				}
 
 				exemplarCount := 0
 
@@ -395,6 +391,33 @@ sendLoop:
 		})
 	}
 
+	t.Run("avg_over_time instant query", func(t *testing.T) {
+		req := queryRangeRequest{
+			Query: "{} | avg_over_time(duration)",
+			Start: time.Now().Add(-5 * time.Minute),
+			End:   time.Now().Add(time.Minute),
+		}
+
+		countReq := req
+		countReq.Query = "{} | count_over_time()"
+		countRes := callInstantQuery(t, tempo.Endpoint(tempoPort), countReq)
+		require.NotNil(t, countRes)
+		require.Equal(t, 1, len(countRes.GetSeries()))
+		count := countRes.GetSeries()[0].Value
+
+		sumReq := req
+		sumReq.Query = "{} | sum_over_time(duration)"
+		sumRes := callInstantQuery(t, tempo.Endpoint(tempoPort), sumReq)
+		require.NotNil(t, sumRes)
+		require.Equal(t, 1, len(sumRes.GetSeries()))
+		sum := sumRes.GetSeries()[0].Value
+
+		res := callInstantQuery(t, tempo.Endpoint(tempoPort), req)
+		require.NotNil(t, res)
+		require.Equal(t, 1, len(res.GetSeries()))
+		require.InDelta(t, sum/count, res.GetSeries()[0].Value, 0.000001)
+	})
+
 	for _, testCase := range []struct {
 		name        string
 		query       string
@@ -545,7 +568,9 @@ func TestQueryRangeSingleTrace(t *testing.T) {
 }
 
 func TestQueryRangeMaxSeries(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series")
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -609,7 +634,9 @@ sendLoop:
 }
 
 func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series_disabled")
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -674,7 +701,9 @@ sendLoop:
 }
 
 func TestQueryRangeMaxSeriesDisabledQuerier(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	t.Parallel()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_max_series_disabled_querier")
 	require.NoError(t, err)
 	defer s.Close()
 

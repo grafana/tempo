@@ -245,7 +245,7 @@ func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 		// Live traces
 		// Doesn't assert trace size because that is done above using traceSizes
 		// which tracks it across flushes.
-		if !p.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, maxLen, 0) {
+		if err := p.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, maxLen, 0); err != nil {
 			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			continue
 		}

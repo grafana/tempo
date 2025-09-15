@@ -41,16 +41,11 @@ type Edge struct {
 // resetEdge resets the Edge to its zero state.
 // Useful for reusing an Edge without allocating a new one.
 func resetEdge(e *Edge) {
-	e.TraceID = ""
-	e.ConnectionType = Unknown
-	e.ServerService = ""
-	e.ClientService = ""
-	e.ServerLatencySec = 0
-	e.ClientLatencySec = 0
-	e.Failed = false
+	*e = Edge{
+		Dimensions:     e.Dimensions,
+		SpanMultiplier: 1,
+	}
 	clear(e.Dimensions)
-	e.PeerNode = ""
-	e.SpanMultiplier = 1
 }
 
 // isComplete returns true if the corresponding client and server

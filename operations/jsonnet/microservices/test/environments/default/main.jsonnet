@@ -8,10 +8,8 @@ tempo {
   _config+:: {
     cluster: 'k3d',
     namespace: 'default',
-    compactor+: {
-    },
-    querier+: {
-    },
+    compactor+: {},
+    querier+: {},
     ingester+: {
       pvc_size: '5Gi',
       pvc_storage_class: 'local-path',
@@ -34,6 +32,10 @@ tempo {
     },
     backend_scheduler+: {
       pvc_size: '200Mi',
+      pvc_storage_class: 'local-path',
+    },
+    live_store+: {
+      pvc_size: '5Gi',
       pvc_storage_class: 'local-path',
     },
     memcached+: {

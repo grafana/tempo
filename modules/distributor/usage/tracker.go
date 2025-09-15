@@ -6,6 +6,7 @@ import (
 	"math/bits"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,9 +45,19 @@ func (b *bucket) Inc(bytes uint64, unix int64) {
 	b.lastUpdated = unix
 }
 
+type Scope int8
+
+// keeping the same order as traceql.AttributeScope
+const (
+	ScopeAll Scope = iota
+	ScopeResource
+	ScopeSpan
+)
+
 type mapping struct {
-	from string
-	to   int // Index into the values buffer
+	from  string
+	to    int // Index into the values buffer
+	scope Scope
 }
 
 type tenantUsage struct {
@@ -66,63 +77,80 @@ type tenantUsage struct {
 // GetBuffersForDimensions takes advantage of the fact that the configuration for a tracker
 // changes slowly.  Reuses buffers from the previous call when the dimensions are the same.
 func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]mapping, []string, []string, []string) {
-	if !maps.Equal(dimensions, t.dimensions) {
-		// The configuration changed.
-
-		// Step 1
-		// Gather all configured dimensions and their sanitized output
-		t.dimensions = dimensions
-		sanitizedDimensions := make(map[string]string, len(dimensions))
-		for k, v := range dimensions {
-			// Get the final sanitized output label for this
-			// dimension.  Dimensions are key-value pairs with
-			// optional value.  If value is empty string, then
-			// we use the just the key.  Regardless the output
-			// is always the sanitized version.
-			// Example:
-			//    service.name="" 			=> "service_name"
-			//    service.name="foo.bar"	=> "foo_bar"
-			var sanitized string
-			if v == "" {
-				// The dimension is using default mapping
-				v = k
-			}
-			sanitized = strutil.SanitizeFullLabelName(v)
-			sanitizedDimensions[k] = sanitized
-		}
-
-		// Step 2
-		// Build the final list of sorted/distinct outputs
-		t.sortedKeys = t.sortedKeys[:0]
-		for _, v := range sanitizedDimensions {
-			if !slices.Contains(t.sortedKeys, v) {
-				t.sortedKeys = append(t.sortedKeys, v)
-			}
-		}
-		slices.Sort(t.sortedKeys)
-
-		// Step 3
-		// Prepare the mapping from raw attribute names to the final location of
-		// where it goes in the output buffers. This avoids another layer of indirection.
-		t.mapping = t.mapping[:0]
-		for k := range dimensions {
-			i := slices.Index(t.sortedKeys, sanitizedDimensions[k])
-			t.mapping = append(t.mapping, mapping{
-				from: k,
-				to:   i,
-			})
-		}
-
-		// Step 4
-		// Prepopulate the buffers and precompute the overflow bucket
-		t.buffer1 = make([]string, len(t.sortedKeys))
-		t.buffer2 = make([]string, len(t.sortedKeys))
-		t.buffer3 = make([]string, len(t.sortedKeys))
-		for i := range t.sortedKeys {
-			t.buffer1[i] = overflowLabel
-		}
-		t.overflow = hash(t.sortedKeys, t.buffer1)
+	if maps.Equal(dimensions, t.dimensions) {
+		// configuration has not changed, so return the mapping and buffers we already have.
+		return t.mapping, t.buffer1, t.buffer2, t.buffer3
 	}
+
+	// The configuration changed, recompute the mapping and buffers
+
+	// Step 1
+	// Gather all configured dimensions and their sanitized output, attribute
+	// and the scope of the configured dimensions
+	t.dimensions = dimensions
+	sanitizedDimensions := make(map[string]string, len(dimensions))
+	dimensionsScope := make(map[string]Scope, len(dimensions))
+	dimensionsAttr := make(map[string]string, len(dimensions))
+	for k, v := range dimensions {
+		// parse the dimensions key to get the attribute name and the scope
+		// and build the keys for the lookup
+		attr, scope := parseDimensionKey(k)
+		dimensionsScope[k] = scope
+		dimensionsAttr[k] = attr
+
+		// Get the final sanitized output label for this dimension.
+		// Dimensions are key-value pairs with optional value.
+		// If value is empty string, then we use just the key.
+		// Regardless the output is always the sanitized version.
+		// Example:
+		//    service.name=""	=> "service_name"
+		//    service.name="foo.bar" => "foo_bar"
+		//    service.name="service" => "service"
+		//    resource.service.name="" => "service_name"
+		//    span.attr="" => "attr"
+		var sanitized string
+		if v == "" {
+			// The dimension is using default mapping, map it to attribute (without scope prefix)
+			v = attr
+		}
+		sanitized = strutil.SanitizeFullLabelName(v)
+		sanitizedDimensions[k] = sanitized
+	}
+
+	// Step 2
+	// Build the final list of sorted/distinct outputs
+	t.sortedKeys = t.sortedKeys[:0]
+	for _, v := range sanitizedDimensions {
+		if !slices.Contains(t.sortedKeys, v) {
+			t.sortedKeys = append(t.sortedKeys, v)
+		}
+	}
+	slices.Sort(t.sortedKeys)
+
+	// Step 3
+	// Prepare the mapping from raw attribute names to the final location of
+	// where it goes in the output buffers. This avoids another layer of indirection.
+	t.mapping = t.mapping[:0]
+	for k := range dimensions {
+		i := slices.Index(t.sortedKeys, sanitizedDimensions[k])
+		t.mapping = append(t.mapping, mapping{
+			from:  dimensionsAttr[k],  // attribute to look up in the trace
+			to:    i,                  // index of the target label in the t.sortedKeys
+			scope: dimensionsScope[k], // scope for the attribute
+		})
+	}
+
+	// Step 4
+	// Prepopulate the buffers and precompute the overflow bucket
+	t.buffer1 = make([]string, len(t.sortedKeys))
+	t.buffer2 = make([]string, len(t.sortedKeys))
+	t.buffer3 = make([]string, len(t.sortedKeys))
+	for i := range t.sortedKeys {
+		t.buffer1[i] = overflowLabel
+	}
+	t.overflow = hash(t.sortedKeys, t.buffer1)
+
+	// return the updated mapping and buffers
 	return t.mapping, t.buffer1, t.buffer2, t.buffer3
 }
 
@@ -207,6 +235,9 @@ func (u *Tracker) getTenant(tenant string) *tenantUsage {
 	return data
 }
 
+// Observe processes trace batches for usage tracking in the hot path.
+// NOTE: this is performance sensitive code, because it is called on every ingested span.
+// you should consider the performance impact of a change made here.
 func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 	dimensions := u.labelsFn(tenant)
 	if len(dimensions) == 0 {
@@ -255,14 +286,17 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 
 		if batch.Resource != nil {
 			for _, m := range mapping {
-				for _, a := range batch.Resource.Attributes {
-					v := a.Value.GetStringValue()
-					if v == "" {
-						continue
-					}
-					if a.Key == m.from {
-						buffer1[m.to] = v
-						break
+				// Check ScopeAll first since most users use unscoped attributes (short-circuit optimization)
+				if m.scope == ScopeAll || m.scope == ScopeResource {
+					for _, a := range batch.Resource.Attributes {
+						v := a.Value.GetStringValue()
+						if v == "" {
+							continue
+						}
+						if a.Key == m.from {
+							buffer1[m.to] = v
+							break
+						}
 					}
 				}
 			}
@@ -283,14 +317,17 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				copy(buffer2, buffer1)
 
 				for _, m := range mapping {
-					for _, a := range s.Attributes {
-						v := a.Value.GetStringValue()
-						if v == "" {
-							continue
-						}
-						if a.Key == m.from {
-							buffer2[m.to] = v
-							break
+					// Check ScopeAll first since most users use unscoped attributes (short-circuit optimization)
+					if m.scope == ScopeAll || m.scope == ScopeSpan {
+						for _, a := range s.Attributes {
+							v := a.Value.GetStringValue()
+							if v == "" {
+								continue
+							}
+							if a.Key == m.from {
+								buffer2[m.to] = v
+								break
+							}
 						}
 					}
 				}
@@ -424,4 +461,21 @@ func nonSpanDataLength(batch *v1.ResourceSpans) (int, int) {
 // Copied from sovTrace in .pb.go
 func protoLengthMath(x int) (n int) {
 	return 1 + (bits.Len64(uint64(x)|1)+6)/7
+}
+
+// parseAttribute take the dimensions key, and gives the scope and the attribute with scope trimmed
+//
+// we are not using traceql.ParseIdentifier because it needs `.` for unscoped attributes
+// and errors out for string without `.` or the scope prefix, also it supports other scopes that we don't support
+// in cost attribution config
+func parseDimensionKey(key string) (attribute string, scope Scope) {
+	switch {
+	case strings.HasPrefix(key, "resource."):
+		return strings.TrimPrefix(key, "resource."), ScopeResource
+	case strings.HasPrefix(key, "span."):
+		return strings.TrimPrefix(key, "span."), ScopeSpan
+	default:
+		// it's not `resource.` or `span.` so it's ScopeAll, and the dimensions key is the attribute
+		return key, ScopeAll
+	}
 }

@@ -16,15 +16,16 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 	tenantID := ""
 
 	tests := []struct {
-		name           string
-		blocklist      []*backend.BlockMeta
-		minInputBlocks int    // optional, defaults to global const
-		maxInputBlocks int    // optional, defaults to global const
-		maxBlockBytes  uint64 // optional, defaults to ???
-		expected       []*backend.BlockMeta
-		expectedHash   string
-		expectedSecond []*backend.BlockMeta
-		expectedHash2  string
+		name               string
+		blocklist          []*backend.BlockMeta
+		minInputBlocks     int    // optional, defaults to global const
+		maxInputBlocks     int    // optional, defaults to global const
+		maxBlockBytes      uint64 // optional, defaults to ???
+		maxCompactionLevel int    // optional, default to global const
+		expected           []*backend.BlockMeta
+		expectedHash       string
+		expectedSecond     []*backend.BlockMeta
+		expectedHash2      string
 	}{
 		{
 			name:      "nil - nil",
@@ -835,6 +836,59 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedSecond: nil,
 			expectedHash2:  "",
 		},
+		{
+			name: "blocks above the max compaction level are not selected for compaction",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+					CompactionLevel:   uint32(10),
+				},
+				{
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+					CompactionLevel:   uint32(10),
+				},
+			},
+			maxCompactionLevel: 10,
+			expected:           nil,
+			expectedSecond:     nil,
+		},
+		{
+			name: "blocks under the max compaction level are selected for compaction",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+					CompactionLevel:   uint32(10),
+				},
+				{
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+					CompactionLevel:   uint32(10),
+				},
+			},
+			maxCompactionLevel: 11,
+			expected: []*backend.BlockMeta{
+				{
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+					CompactionLevel:   uint32(10),
+				},
+				{
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+					CompactionLevel:   uint32(10),
+				},
+			},
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 10, now.Unix(), 1),
+		},
 	}
 
 	for _, tt := range tests {
@@ -862,7 +916,20 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				}
 			}
 
-			selector := NewTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, minBlocks, maxBlocks)
+			// For testing, assign all data to valid encoding
+			// if not specified.
+			for _, b := range tt.blocklist {
+				if b.Version == "" {
+					b.Version = encoding.DefaultEncoding().Version()
+				}
+			}
+
+			maxLevel := DefaultMaxCompactionLevel
+			if tt.maxCompactionLevel > 0 {
+				maxLevel = tt.maxCompactionLevel
+			}
+
+			selector := NewTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, minBlocks, maxBlocks, maxLevel)
 
 			actual, hash := selector.BlocksToCompact()
 			assert.Equal(t, tt.expected, actual)

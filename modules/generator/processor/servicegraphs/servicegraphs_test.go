@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -32,6 +33,7 @@ func TestSemconvKeys(t *testing.T) {
 	require.Equal(t, string(semconv.NetworkPeerAddressKey), "network.peer.address")
 	require.Equal(t, string(semconv.NetworkPeerPortKey), "network.peer.port")
 	require.Equal(t, string(semconv.ServerAddressKey), "server.address")
+	require.Equal(t, string(semconvnew.DBNamespaceKey), "db.namespace")
 }
 
 func TestServiceGraphs(t *testing.T) {
@@ -442,6 +444,28 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			databaseLabels: labels.FromMap(map[string]string{
 				"client":          "mythical-server",
 				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "dbNamespaceAttribute",
+			fixturePath: "testdata/trace-with-db-namespace.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mydb",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "bothDbNameAndNamespace",
+			fixturePath: "testdata/trace-with-both-db-attributes.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "priority-db",
 				"connection_type": "database",
 			}),
 			total:  1.0,

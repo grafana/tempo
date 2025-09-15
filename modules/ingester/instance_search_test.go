@@ -455,9 +455,17 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	_, _, _, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
-	resp, err := i.SearchTagValues(userCtx, tagKey, 0, 0)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 12 byte limit above.
+	t.Run("SearchTagValues", func(t *testing.T) {
+		resp, err := i.SearchTagValues(userCtx, tagKey, 0, 0)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 12 byte limit above.
+	})
+
+	t.Run("SearchTagValuesV2", func(t *testing.T) {
+		resp, err := i.SearchTagValuesV2(userCtx, &tempopb.SearchTagValuesRequest{TagName: fmt.Sprintf(".%s", tagKey)})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(resp.TagValues))
+	})
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
@@ -633,18 +641,20 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	concurrent := func(f func()) {
 		wg.Add(1)
-		defer wg.Done()
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
 
-	go concurrent(func() {
+	concurrent(func() {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
@@ -658,17 +668,17 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err, "error cutting complete traces")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := i.FindTraceByID(context.Background(), []byte{0x01}, false)
 		assert.NoError(t, err, "error finding trace by id")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// Cut wal, complete, delete wal, then flush
 		blockID, _ := i.CutBlockIfReady(0, 0, true)
 		if blockID != uuid.Nil {
@@ -683,24 +693,24 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		}
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		err = i.ClearOldBlocks(ingester.cfg.FlushObjectStorage, 0)
 		require.NoError(t, err)
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := i.Search(context.Background(), req)
 		require.NoError(t, err, "error searching")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// SearchTags queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
 		_, err := i.SearchTags(ctx, "")
 		require.NoError(t, err, "error getting search tags")
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
 		_, err := i.SearchTagValues(ctx, tagKey, 0, 0)
@@ -722,16 +732,21 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	end := make(chan struct{})
+	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
 
 	for j := 0; j < 500; j++ {
@@ -753,7 +768,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	blockID, err := i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 
-	go concurrent(func() {
+	concurrent(func() {
 		_, err := i.Search(context.Background(), &tempopb.SearchRequest{
 			Query: `{ span.wuv = "xyz" }`,
 		})
@@ -769,7 +784,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
 	close(end)
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 }
 
 func TestInstanceSearchMetrics(t *testing.T) {
@@ -839,22 +854,27 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	end := make(chan struct{})
+	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-end:
+					return
+				default:
+					f()
+				}
 			}
-		}
+		}()
 	}
 
 	// Push data
 	var tracesPushed atomic.Int32
 	for j := 0; j < 2; j++ {
-		go concurrent(func() {
+		concurrent(func() {
 			id := test.ValidTraceID(nil)
 
 			trace := test.MakeTrace(10, id)
@@ -870,14 +890,14 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	}
 
 	cuts := 0
-	go concurrent(func() {
+	concurrent(func() {
 		time.Sleep(250 * time.Millisecond)
 		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(b, err, "error cutting complete traces")
 		cuts++
 	})
 
-	go concurrent(func() {
+	concurrent(func() {
 		// Slow this down to prevent "too many open files" error
 		time.Sleep(100 * time.Millisecond)
 		_, err := i.CutBlockIfReady(0, 0, true)
@@ -889,7 +909,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	var tracesInspected atomic.Uint32
 
 	for j := 0; j < 2; j++ {
-		go concurrent(func() {
+		concurrent(func() {
 			// time.Sleep(1 * time.Millisecond)
 			req := &tempopb.SearchRequest{}
 			resp, err := i.Search(ctx, req)
@@ -920,7 +940,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	close(end)
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
-	time.Sleep(1 * time.Second)
+	wg.Wait()
 }
 
 func TestIncludeBlock(t *testing.T) {
@@ -1034,15 +1054,58 @@ func Test_searchTagValuesV2CacheKey(t *testing.T) {
 			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
 		},
 		{
-			name:             "invalid query generates a valid cache key",
+			name:             "different spacing in query generates same cache key",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: `{name="foo"}`},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
+		},
+		{
+			name:             "incomplete query generates a valid cache key",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: `{ name = "foo" && span.env = }`},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
+		},
+		{
+			name:             "different incomplete part, same valid part",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: `{ name = "foo" && span.attr = }`},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
+		},
+		{
+			name:             "partially valid query generates a valid cache key",
 			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{span.env=dev}"},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
 			expectedCacheKey: "my_amazing_prefix_7849238702443650194.buf",
 		},
 		{
+			name:             "invalid query generates a valid cache key",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ invalid :() }"},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_10962052365504419966.buf",
+		},
+		{
 			name:             "different invalid query generates the same valid cache key",
-			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ <not valid traceql> && span.foo = \"bar\" }"},
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ definitely not valid traceql }"},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_10962052365504419966.buf",
+		},
+		// the key is different because after extracting matchers, the query is still invalid and we fallback to empty query
+		{
+			name:             "different invalid query generates the same valid cache key",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ < not valid traceql > }"},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_7849238702443650194.buf",
+		},
+		{
+			name:             "different invalid query generates the same valid cache key",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ < oh no, not valid traceql > }"},
 			limit:            500,
 			prefix:           "my_amazing_prefix",
 			expectedCacheKey: "my_amazing_prefix_7849238702443650194.buf",

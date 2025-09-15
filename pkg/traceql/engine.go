@@ -231,7 +231,9 @@ func (e *Engine) ExecuteTagNames(
 		Scope:      scope,
 	}
 
-	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
+	if rootExpr != nil {
+		span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
+	}
 	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
