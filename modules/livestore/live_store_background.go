@@ -19,7 +19,6 @@ const (
 	maxBackoff       = 120 * time.Second
 	initialBackoff   = 30 * time.Second
 	maxFlushAttempts = 10
-	flushJitter      = 10
 )
 
 type completeOp struct {
@@ -175,7 +174,7 @@ func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID, jitter
 }
 
 func (s *LiveStore) enqueueOpWithJitter(op *completeOp) error {
-	delay := time.Duration(rand.Float32() * float32(flushJitter)) //gosec:disable G404 — It doesn't require strong randomness
+	delay := time.Duration(rand.Int64N(1_000) * int64(time.Millisecond)) //gosec:disable G404 — It doesn't require strong randomness
 	go func() {
 		time.Sleep(delay)
 		if err := s.enqueueOp(op); err != nil {
