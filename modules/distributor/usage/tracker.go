@@ -45,12 +45,13 @@ func (b *bucket) Inc(bytes uint64, unix int64) {
 	b.lastUpdated = unix
 }
 
-type Scope string
+type Scope int8
 
+// keeping the same order as traceql.AttributeScope
 const (
-	ScopeAll      Scope = "all"
-	ScopeResource Scope = "resource"
-	ScopeSpan     Scope = "span"
+	ScopeAll Scope = iota
+	ScopeResource
+	ScopeSpan
 )
 
 type mapping struct {
@@ -234,6 +235,9 @@ func (u *Tracker) getTenant(tenant string) *tenantUsage {
 	return data
 }
 
+// Observe processes trace batches for usage tracking in the hot path.
+// NOTE: this is performance sensitive code, because it is called on every ingested span.
+// you should consider the performance impact of a change made here.
 func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 	dimensions := u.labelsFn(tenant)
 	if len(dimensions) == 0 {
@@ -282,7 +286,8 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 
 		if batch.Resource != nil {
 			for _, m := range mapping {
-				if m.scope == ScopeResource || m.scope == ScopeAll {
+				// Check ScopeAll first since most users use unscoped attributes (short-circuit optimization)
+				if m.scope == ScopeAll || m.scope == ScopeResource {
 					for _, a := range batch.Resource.Attributes {
 						v := a.Value.GetStringValue()
 						if v == "" {
@@ -312,7 +317,8 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				copy(buffer2, buffer1)
 
 				for _, m := range mapping {
-					if m.scope == ScopeSpan || m.scope == ScopeAll {
+					// Check ScopeAll first since most users use unscoped attributes (short-circuit optimization)
+					if m.scope == ScopeAll || m.scope == ScopeSpan {
 						for _, a := range s.Attributes {
 							v := a.Value.GetStringValue()
 							if v == "" {
