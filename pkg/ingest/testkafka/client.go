@@ -13,11 +13,11 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-func NewKafkaClient(t testing.TB, config ingest.KafkaConfig) *kgo.Client {
+func NewKafkaClient(t testing.TB, address, topic string) *kgo.Client {
 	writeClient, err := kgo.NewClient(
-		kgo.SeedBrokers(config.Address),
+		kgo.SeedBrokers(address),
 		kgo.AllowAutoTopicCreation(),
-		kgo.DefaultProduceTopic(config.Topic),
+		kgo.DefaultProduceTopic(topic),
 		// We will choose the Partition of each record.
 		kgo.RecordPartitioner(kgo.ManualPartitioner()),
 	)
