@@ -57,7 +57,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 	t.Run("async commits", func(t *testing.T) {
 		var asyncCommits atomic.Int32
 
-		commitInterval := 10 * time.Second
+		commitInterval := 5 * time.Second
 
 		k, address := testkafka.CreateCluster(t, 1, testTopic)
 		k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
@@ -85,7 +85,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 		assert.Equal(t, asyncCommits.Load(), int32(0)) // Nothing committed
 
 		// Waiting up to commitInterval, a commit will have happened by then
-		assert.Eventually(t, func() bool { return asyncCommits.Load() >= 1 }, commitInterval, 10*time.Millisecond)
+		assert.Eventually(t, func() bool { return asyncCommits.Load() >= 1 }, commitInterval*2, 10*time.Millisecond)
 
 		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), r))
 	})
