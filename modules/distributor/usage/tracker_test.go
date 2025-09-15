@@ -391,11 +391,13 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 				require.Contains(t, series, expectedHash)
 				require.Equal(t, []string{"postgresql", "resource-namespace"}, series[expectedHash].labels)
 			},
-			expectMapping: func(t *testing.T, mapping []mapping) {
-				require.Equal(t, "k8s.namespace.name", mapping[0].from)
-				require.Equal(t, ScopeResource, mapping[0].scope)
-				require.Equal(t, "db.system", mapping[1].from)
-				require.Equal(t, ScopeSpan, mapping[1].scope)
+			expectMapping: func(t *testing.T, actual []mapping) {
+				expected := []mapping{
+					{from: "k8s.namespace.name", scope: ScopeResource, to: 1}, // "namespace" is at index 1 after sorting ["database", "namespace"]
+					{from: "db.system", scope: ScopeSpan, to: 0},              // "database" is at index 0 after sorting
+				}
+				// to remove flake from the order in the actual mapping
+				require.ElementsMatch(t, expected, actual)
 			},
 		},
 		{
@@ -410,16 +412,13 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 				require.Contains(t, series, expectedHash)
 				require.Equal(t, []string{"resource-namespace", "span-namespace"}, series[expectedHash].labels)
 			},
-			expectMapping: func(t *testing.T, mapping []mapping) {
-				for _, item := range mapping {
-					// resource mapping is first, because we sort them
-					require.Equal(t, "k8s.namespace.name", item.from)
-					if item.to == 0 {
-						require.Equal(t, ScopeResource, item.scope)
-					} else {
-						require.Equal(t, ScopeAll, item.scope)
-					}
+			expectMapping: func(t *testing.T, actual []mapping) {
+				expected := []mapping{
+					{from: "k8s.namespace.name", scope: ScopeResource, to: 0}, // "resource_namespace" is at index 0 after sorting
+					{from: "k8s.namespace.name", scope: ScopeAll, to: 1},      // "unscoped_namespace" is at index 1 after sorting
 				}
+				// to remove flake from the order in the actual mapping
+				require.ElementsMatch(t, expected, actual)
 			},
 		},
 	}
