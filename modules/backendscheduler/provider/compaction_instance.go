@@ -14,13 +14,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// tenantDrainer represents a single tenant compaction drainer.
 type tenantDrainer interface {
 	run(ctx context.Context) <-chan *work.Job
 }
 
 var _ tenantDrainer = (*compactionInstance)(nil)
 
-// compactionInstance operates on a single tenant to push compaction jobs to the scheduler.
+// compactionInstance operates on a single tenant to push compaction jobs to the compaction provider.
 type compactionInstance struct {
 	tenant   string
 	selector blockselector.CompactionBlockSelector
@@ -29,7 +30,7 @@ type compactionInstance struct {
 	tracker  jobTracker
 }
 
-func newInstance(
+func newCompactionInstance(
 	tenantID string,
 	selector blockselector.CompactionBlockSelector,
 	cfg CompactionConfig,
@@ -120,7 +121,7 @@ func (i *compactionInstance) createJob(ctx context.Context) *work.Job {
 
 	span.SetAttributes(attribute.String("tenant_id", i.tenant))
 
-	input, ok := i.getNextBlockIDs(ctx)
+	input, ok := i.getNextBlockIDs()
 	if !ok {
 		span.AddEvent("not-enough-input-blocks", trace.WithAttributes(
 			attribute.Int("input_blocks", len(input)),
@@ -135,6 +136,7 @@ func (i *compactionInstance) createJob(ctx context.Context) *work.Job {
 		attribute.StringSlice("input_block_ids", input),
 	))
 	span.SetStatus(codes.Ok, "compaction job created")
+
 	return &work.Job{
 		ID:   uuid.New().String(),
 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
@@ -145,7 +147,7 @@ func (i *compactionInstance) createJob(ctx context.Context) *work.Job {
 	}
 }
 
-func (i *compactionInstance) getNextBlockIDs(_ context.Context) ([]string, bool) {
+func (i *compactionInstance) getNextBlockIDs() ([]string, bool) {
 	ids := make([]string, 0, i.cfg.MaxInputBlocks)
 
 	toBeCompacted, _ := i.selector.BlocksToCompact()

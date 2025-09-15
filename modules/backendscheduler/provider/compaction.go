@@ -114,7 +114,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 		tenantCh = make(chan *tenantselector.Item)
 	)
 
-	// Main job creation loop.
+	// Main job creation loop.  Jobs received from the instances are sent to the jobs channel.
 	go func() {
 		defer func() {
 			level.Info(p.logger).Log("msg", "compaction provider stopping")
@@ -156,7 +156,8 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 		}
 	}()
 
-	// Manage the instances which operate on a tenant
+	// Manage the instances which operate on a tenant.  Limits the number of
+	// concurrent tenants, while ensuring that each tenant only has one instance.
 	go func() {
 		var (
 			wg       = boundedwaitgroup.New(uint(p.cfg.MaxConcurrentTenants))
@@ -193,7 +194,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				p.activeTenants[tenantID] = struct{}{}
 				p.activeTenantsMtx.Unlock()
 
-				// Merge instance jobs into main jobs channel
+				// Merge instance jobs into instanceJobs channel.
 				wg.Add(1)
 				go func(tenantID string) {
 					defer func() {
@@ -209,7 +210,7 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 
 					var (
 						selector, _ = p.newBlockSelector(tenantID)
-						i           = newInstance(tenantID, selector, p.cfg, p.logger, p)
+						i           = newCompactionInstance(tenantID, selector, p.cfg, p.logger, p)
 						ch          = i.run(ctx)
 					)
 
@@ -290,6 +291,9 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 	return jobs
 }
 
+// getNextTenant returns the next tenant to process from the priority queue. If
+// the priority queue is empty, it will prioritize tenants and wait for a poll
+// notification if no tenants have work available.
 func (p *CompactionProvider) getNextTenant(ctx context.Context) *tenantselector.Item {
 	_, span := tracer.Start(ctx, "getNextTenant")
 	defer span.End()
