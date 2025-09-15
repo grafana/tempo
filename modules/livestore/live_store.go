@@ -267,18 +267,10 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
 	
-	partLabel := strconv.Itoa(int(s.ingestPartitionID))
-	metricOwnedPartitions.WithLabelValues(partLabel, "starting").Set(1)
-	
 	err = services.StartAndAwaitRunning(ctx, s.reader)
 	if err != nil {
-		metricOwnedPartitions.WithLabelValues(partLabel, "failed").Set(1)
-		metricOwnedPartitions.WithLabelValues(partLabel, "starting").Set(0)
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
-	
-	metricOwnedPartitions.WithLabelValues(partLabel, "running").Set(1)
-	metricOwnedPartitions.WithLabelValues(partLabel, "starting").Set(0)
 
 	for i := range s.cfg.CompleteBlockConcurrency {
 		idx := i
@@ -304,20 +296,12 @@ func (s *LiveStore) running(ctx context.Context) error {
 
 func (s *LiveStore) stopping(error) error {
 	// Stop consuming
-	partLabel := strconv.Itoa(int(s.ingestPartitionID))
-	metricOwnedPartitions.WithLabelValues(partLabel, "stopping").Set(1)
-	metricOwnedPartitions.WithLabelValues(partLabel, "running").Set(0)
-	
+
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
-		metricOwnedPartitions.WithLabelValues(partLabel, "failed").Set(1)
-		metricOwnedPartitions.WithLabelValues(partLabel, "stopping").Set(0)
 		return err
 	}
-	
-	metricOwnedPartitions.WithLabelValues(partLabel, "stopped").Set(1)
-	metricOwnedPartitions.WithLabelValues(partLabel, "stopping").Set(0)
 
 	// Flush all data to disk
 	s.cutAllInstancesToWal()

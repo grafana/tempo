@@ -84,12 +84,6 @@ var (
 		Name:      "fetch_errors_total",
 		Help:      "Total number of errors while fetching by the consumer.",
 	}, []string{"partition"})
-	metricOwnedPartitions = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Subsystem: "live_store",
-		Name:      "owned_partitions",
-		Help:      "Indicates partition ownership by this live store instance (1 = owned).",
-	}, []string{"partition", "state"})
 	metricRecordsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "live_store",
