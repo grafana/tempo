@@ -143,8 +143,9 @@ overrides:
     cost_attribution:
       dimensions:
         service.name: ""                    # Results in: service_name
-        resource.service.name: ""           # Results in: resource_service_name
-        span.db.system: ""                  # Results in: span_db_system
+        span.service.name: ""               # Results in: service_name
+        resource.service.name: ""           # Results in: service_name
+        span.db.system: ""                  # Results in: db_system
         span.db.system: "database.type"     # Results in: database_type
         k8s.namespace.name: "namespace"     # Results in: namespace
 ```

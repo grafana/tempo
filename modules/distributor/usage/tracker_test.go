@@ -219,7 +219,7 @@ func TestUsageTracker(t *testing.T) {
 	name = "resource_scoped"
 	dimensions = map[string]string{"resource.service.name": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"resource_service_name"}, []string{"svc"})] = &bucket{
+	expected[hash([]string{"service_name"}, []string{"svc"})] = &bucket{
 		labels: []string{"svc"},
 		bytes:  uint64(data[0].Size()), // Uses resource-level service.name value
 	}
@@ -235,11 +235,11 @@ func TestUsageTracker(t *testing.T) {
 	name = "span_scoped"
 	dimensions = map[string]string{"span.attr": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"span_attr"}, []string{"1"})] = &bucket{
+	expected[hash([]string{"attr"}, []string{"1"})] = &bucket{
 		labels: []string{"1"},
 		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3), // attr=1 in 75% of spans
 	}
-	expected[hash([]string{"span_attr"}, []string{"2"})] = &bucket{
+	expected[hash([]string{"attr"}, []string{"2"})] = &bucket{
 		labels: []string{"2"},
 		bytes:  nonSpanRatio(0.25) + spanSize(2), // attr=2 in 25% of spans
 	}
@@ -416,6 +416,50 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 				expected := []mapping{
 					{from: "k8s.namespace.name", scope: ScopeResource, to: 0}, // "resource_namespace" is at index 0 after sorting
 					{from: "k8s.namespace.name", scope: ScopeAll, to: 1},      // "unscoped_namespace" is at index 1 after sorting
+				}
+				// to remove flake from the order in the actual mapping
+				require.ElementsMatch(t, expected, actual)
+			},
+		},
+		{
+			// scoped attributes should not be overwritten if remapped
+			name: "scoped attribute prevents overwrite with remapping",
+			dimensions: map[string]string{
+				"resource.service.name": "service",
+				"span.service.name":     "span_service",
+			},
+			expectSeries: func(t *testing.T, series map[uint64]*bucket) {
+				expectedHash := hash([]string{"service", "span_service"}, []string{"resource-service", "span-service"})
+				require.Contains(t, series, expectedHash)
+				require.Equal(t, []string{"resource-service", "span-service"}, series[expectedHash].labels)
+			},
+			expectMapping: func(t *testing.T, actual []mapping) {
+				expected := []mapping{
+					{from: "service.name", scope: ScopeResource, to: 0}, // "service" is at index 0 after sorting
+					{from: "service.name", scope: ScopeSpan, to: 1},     // "span_service" is at index 1 after sorting
+				}
+				// to remove flake from the order in the actual mapping
+				require.ElementsMatch(t, expected, actual)
+			},
+		},
+		{
+			// same attribute at both scopes with no remapping
+			name: "same attribute in with scopes behaves as unscoped",
+			dimensions: map[string]string{
+				"resource.service.name": "",
+				"span.service.name":     "",
+			},
+			// behaves same as unscoped where span level value overwrites resource level values if it exists on both
+			// levels, you can avoid it by remapping it
+			expectSeries: func(t *testing.T, series map[uint64]*bucket) {
+				expectedHash := hash([]string{"service_name"}, []string{"span-service"})
+				require.Contains(t, series, expectedHash)
+				require.Equal(t, []string{"span-service"}, series[expectedHash].labels)
+			},
+			expectMapping: func(t *testing.T, actual []mapping) {
+				expected := []mapping{
+					{from: "service.name", scope: ScopeResource, to: 0}, // only one key so both are in same
+					{from: "service.name", scope: ScopeSpan, to: 0},
 				}
 				// to remove flake from the order in the actual mapping
 				require.ElementsMatch(t, expected, actual)

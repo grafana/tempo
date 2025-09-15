@@ -106,12 +106,12 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]m
 		//    service.name=""	=> "service_name"
 		//    service.name="foo.bar" => "foo_bar"
 		//    service.name="service" => "service"
-		//    resource.service.name="" => "resource_service_name"
-		//    span.attr="" => "span_attr"
+		//    resource.service.name="" => "service_name"
+		//    span.attr="" => "attr"
 		var sanitized string
 		if v == "" {
-			// The dimension is using default mapping
-			v = k
+			// The dimension is using default mapping, map it to attribute (without scope prefix)
+			v = attr
 		}
 		sanitized = strutil.SanitizeFullLabelName(v)
 		sanitizedDimensions[k] = sanitized
