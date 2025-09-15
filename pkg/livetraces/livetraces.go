@@ -4,12 +4,12 @@ import (
 	"errors"
 	"hash"
 	"hash/fnv"
+	"time"
 
 	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
-	"time"
 
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
