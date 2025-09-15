@@ -3,7 +3,6 @@ package livestore
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -80,7 +79,6 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
-
 )
 
 type LiveStore struct {
@@ -266,7 +264,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
-	
+
 	err = services.StartAndAwaitRunning(ctx, s.reader)
 	if err != nil {
 		return fmt.Errorf("failed to start partition reader: %w", err)
@@ -339,6 +337,10 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 	for !rs.Done() {
 		record := rs.Next()
 		tenant := string(record.Key)
+
+		// Track lag between kafka record timestamp and current processing time
+		lag := now.Sub(record.Timestamp)
+		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, s.ingestPartitionID, lag)
 
 		if record.Timestamp.Before(cutoff) {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()

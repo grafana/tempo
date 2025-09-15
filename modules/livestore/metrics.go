@@ -6,7 +6,6 @@ import (
 )
 
 var (
-	// Instance-level metrics (similar to ingester instance.go)
 	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo_live_store",
 		Name:      "traces_created_total",
