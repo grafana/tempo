@@ -22,6 +22,7 @@ service MetricsGenerator {
 
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {}
+  rpc TracesCheck(TracesCheckRequest) returns (TracesCheckResponse) {}
   rpc SearchRecent(SearchRequest) returns (SearchResponse) {}
   rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {}
   rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {}
@@ -491,4 +492,18 @@ message TimeSeries {
   // Exemplars are optional and can be empty.
   // Sorted by time, oldest exemplar first.
   repeated Exemplar exemplars = 4 [(gogoproto.nullable) = false];
+}
+
+message TracesCheckRequest {
+  repeated string traceIDs = 1; // hex strings
+  string blockStart = 2;
+  string blockEnd = 3;
+  string queryMode = 4;
+  uint32 timeStart = 5;
+  uint32 timeEnd = 6;
+}
+
+message TracesCheckResponse {
+  repeated string traceIDs = 1; // hex strings of traces that exist
+  TraceByIDMetrics metrics = 2;
 }

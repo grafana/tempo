@@ -516,6 +516,9 @@ func (t *App) initQuerier() (services.Service, error) {
 	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.QueryRangeHandler))
 	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
+	tracesCheckHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.TracesCheckHandler))
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTracesCheck)), tracesCheckHandler)
+
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPHandler())
 }
 
@@ -557,6 +560,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http trace by id endpoint
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTracesV2), base.Wrap(queryFrontend.TraceByIDHandlerV2))
+
+	// http traces check endpoint
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTracesCheck), base.Wrap(queryFrontend.TracesCheckHandler))
 
 	// http search endpoints
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), base.Wrap(queryFrontend.SearchHandler))

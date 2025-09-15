@@ -565,6 +565,29 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 	return response, nil
 }
 
+func (b *walBlock) TracesCheck(ctx context.Context, ids []common.ID, _ common.SearchOptions) (map[string]bool, uint64, error) {
+	results := make(map[string]bool, len(ids))
+
+	// Initialize all IDs as not found
+	for _, id := range ids {
+		results[string(id)] = false
+	}
+
+	// Check each page for all IDs - more efficient than checking each ID individually
+	for _, page := range b.flushed {
+		for _, id := range ids {
+			idStr := string(id)
+			if !results[idStr] { // Only check if not already found
+				if _, ok := page.ids.Get(id); ok {
+					results[idStr] = true
+				}
+			}
+		}
+	}
+
+	return results, 0, nil
+}
+
 func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ common.SearchOptions) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "walBlock.Search")
 	defer span.End()

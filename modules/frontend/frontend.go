@@ -50,6 +50,7 @@ type QueryFrontend struct {
 	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler, MetricsSummaryHandler                 http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
+	TracesCheckHandler                                                                         http.Handler
 	MCPHandler                                                                                 http.Handler
 	cacheProvider                                                                              cache.Provider
 	streamingSearch                                                                            streamingSearchHandler
@@ -69,6 +70,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
+		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
+	}
+
+	if cfg.TracesCheck.QueryShards < minQueryShards || cfg.TracesCheck.QueryShards > maxQueryShards {
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
 	}
 
@@ -103,6 +108,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	// Propagate RF1After to search and traceByID sharders
 	cfg.Search.Sharder.RF1After = cfg.RF1After
 	cfg.TraceByID.RF1After = cfg.RF1After
+	cfg.TracesCheck.RF1After = cfg.RF1After
 
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
@@ -119,6 +125,17 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
+		},
+		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
+		next)
+
+	tracesCheckPipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
+			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.TracesCheck, cfg.Weights),
+			multiTenantMiddleware(cfg, logger),
+			newAsyncTracesCheckSharder(&cfg.TracesCheck, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
 		next)
@@ -206,6 +223,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger)
+	tracesCheck := newTracesCheckHandler(cfg, tracesCheckPipeline, o, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)
@@ -219,6 +237,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		// http/discrete
 		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
 		TraceByIDHandlerV2:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger),
+		TracesCheckHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesCheck, logger),
 		SearchHandler:              newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
 		SearchTagsHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
 		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
