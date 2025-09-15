@@ -15,7 +15,7 @@
 * [CHANGE] Allow configuration of min/max input blocks for compaction provider. [#5373](https://github.com/grafana/tempo/pull/5373) (@zalegrala)
 * [CHANGE] **BREAKING CHANGE** Add require minimum time between tenant sorting in backend-scheduler. [#5410](https://github.com/grafana/tempo/pull/5410) (@zalegrala)
   The configuration for `backend_scheduler.provider.compaction.backoff` has been removed.
-  Additionally the `compaction_tenant_backoff_total` metric has been renamed to `compaction_empty_tenant_cycle_total` for clarity.
+  Additionally, the `compaction_tenant_backoff_total` metric has been renamed to `compaction_empty_tenant_cycle_total` for clarity.
 * [CHANGE] Shard backend-scheduler work files locally and modify backend work structure to accommodate sharding approach [#5412](https://github.com/grafana/tempo/pull/5412) (@zalegrala)
 * [CHANGE] Remove .005s and add a 1.5s bucket to all request duration histograms [#5492](https://github.com/grafana/tempo/pull/5492) (@joe-elliott)
 * [CHANGE] Improve tempo writes dashboard [#5500](https://github.com/grafana/tempo/pull/5500) (@javiermolinar)

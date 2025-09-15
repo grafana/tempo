@@ -83,7 +83,7 @@ Example:
 scrape_configs:
   - job_name: 'tempo-usage'
     static_configs:
-      - targets: ['<distributor-host>:3200']
+      - targets: ['<DISTRIBUTOR-HOST>:3200']
     metrics_path: '/usage_metrics'
 ```
 
@@ -107,10 +107,13 @@ overrides:
         k8s.namespace.name: "namespace"     # Unscoped, look at `k8s.namespace.name` in both resource and span attributes
 ```
 
-> NOTE: When using unscoped attributes (no prefix), span-level attributes will always overwrite resource-level attributes if both exist.
-> This can lead to mixed values from both scopes, use scope prefixes (`resource.` or `span.`) for predictable behavior when attributes exist at both and you only want values from one of them.
+{{< admonition type="note" >}}
+When using unscoped attributes (no prefix), span-level attributes will always overwrite resource-level attributes if both exist.
 
-See table below to better understand this behaviour:
+This can lead to mixed values from both scopes, use scope prefixes (`resource.` or `span.`) for predictable behavior when attributes exist at both and you only want values from one of them.
+{{< /admonition >}}
+
+This table provides more information about the behavior:
 
 | Configuration           | Resource has `service.name="api"` | Span has `service.name="worker"` | Result     |
 |-------------------------|-----------------------------------|----------------------------------|------------|
@@ -124,11 +127,13 @@ You can customize the label names that appear in the `/usage_metrics` metrics by
 
 ```yaml
 dimensions:
-  <attribute_key>: "<label_name>"
+  <ATTRIBUTE_NAME>: "<LABEL_NAME>"
 ```
 
-> NOTE: The `<label_name>` should be a [valid Prometheus label name](https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels).
-> If you provide an invalid label name, Tempo will sanitize it.
+{{< admonition type="note" >}}
+The `_<LABEL_NAME>_` should be a [valid Prometheus label name](https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels).
+If you provide an invalid label name, Tempo sanitizes it.
+{{< /admonition >}}
 
 Example:
 
