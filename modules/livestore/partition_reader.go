@@ -135,7 +135,7 @@ func (r *PartitionReader) commitLoop(ctx context.Context) {
 		return
 	}
 
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(r.commitInterval)
 	defer t.Stop()
 
 	for {
