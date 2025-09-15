@@ -14,3 +14,7 @@ status:
       migration: "use OTLP receiver (https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/36791)"
   codeowners:
     active: [open-telemetry/collector-approvers]
+
+tests:
+  config:
+    endpoint: localhost:0

@@ -2,11 +2,14 @@ package kfake
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"sort"
 	"strconv"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
@@ -34,6 +37,7 @@ type (
 		batches []partBatch
 		dir     string
 
+		p                int32 // partition number
 		highWatermark    int64
 		lastStableOffset int64
 		logStartOffset   int64
@@ -111,7 +115,8 @@ func (d *data) mkt(t string, nparts int, nreplicas int, configs map[string]*stri
 		d.tcfgs[t] = configs
 	}
 	for i := 0; i < nparts; i++ {
-		d.tps.mkp(t, int32(i), d.c.newPartData)
+		p := int32(i)
+		d.tps.mkp(t, p, d.c.newPartData(p))
 	}
 }
 
@@ -122,12 +127,15 @@ func (c *Cluster) noLeader() *broker {
 	}
 }
 
-func (c *Cluster) newPartData() *partData {
-	return &partData{
-		dir:       defLogDir,
-		leader:    c.bs[rand.Intn(len(c.bs))],
-		watch:     make(map[*watchFetch]struct{}),
-		createdAt: time.Now(),
+func (c *Cluster) newPartData(p int32) func() *partData {
+	return func() *partData {
+		return &partData{
+			p:         p,
+			dir:       defLogDir,
+			leader:    c.bs[rand.Intn(len(c.bs))],
+			watch:     make(map[*watchFetch]struct{}),
+			createdAt: time.Now(),
+		}
 	}
 }
 
@@ -357,4 +365,30 @@ func numberConfig(min int, hasMin bool, max int, hasMax bool) func(*string) bool
 		}
 		return true
 	}
+}
+
+func forEachBatchRecord(batch kmsg.RecordBatch, cb func(kmsg.Record) error) error {
+	records, err := kgo.DefaultDecompressor().Decompress(
+		batch.Records,
+		kgo.CompressionCodecType(batch.Attributes&0x0007),
+	)
+	if err != nil {
+		return err
+	}
+	for range batch.NumRecords {
+		rec := kmsg.NewRecord()
+		err := rec.ReadFrom(records)
+		if err != nil {
+			return fmt.Errorf("corrupt batch: %w", err)
+		}
+		if err := cb(rec); err != nil {
+			return err
+		}
+		length, amt := binary.Varint(records)
+		records = records[length+int64(amt):]
+	}
+	if len(records) > 0 {
+		return fmt.Errorf("corrupt batch, extra left over bytes after parsing batch: %v", len(records))
+	}
+	return nil
 }
