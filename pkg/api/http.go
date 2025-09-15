@@ -61,12 +61,11 @@ const (
 	urlParamGroupBy = "groupBy"
 	// urlParamMetric  = "metric"
 
-	HeaderAccept                    = "Accept"
-	HeaderContentType               = "Content-Type"
-	HeaderAcceptProtobuf            = "application/protobuf"
-	HeaderAcceptJSON                = "application/json"
-	HeaderRecentDataTarget          = "X-Recent-Data-Target"
-	HeaderRecentDataTargetLiveStore = "live-store"
+	HeaderAccept           = "Accept"
+	HeaderContentType      = "Content-Type"
+	HeaderAcceptProtobuf   = "application/protobuf"
+	HeaderAcceptJSON       = "application/json"
+	HeaderRecentDataTarget = "X-Recent-Data-Target"
 
 	PathPrefixQuerier   = "/querier"
 	PathPrefixGenerator = "/generator"
