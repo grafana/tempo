@@ -915,10 +915,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					b.Version = encoding.DefaultEncoding().Version()
 				}
 			}
-
-			// For testing, assign all data to valid encoding
-			// if not specified.
-			for _, b := range tt.blocklist {
+			for _, b := range tt.expected {
+				if b.Version == "" {
+					b.Version = encoding.DefaultEncoding().Version()
+				}
+			}
+			for _, b := range tt.expectedSecond {
 				if b.Version == "" {
 					b.Version = encoding.DefaultEncoding().Version()
 				}
