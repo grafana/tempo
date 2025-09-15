@@ -222,7 +222,7 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 		produceRecordsTotal: promauto.With(reg).NewCounter(prometheus.CounterOpts{
 			Namespace: "tempo",
 			Subsystem: "distributor",
-			Name:      "produce_records_total",
+			Name:      "produce_requests_total",
 			Help:      "Total number of produce records issued to Kafka.",
 		}),
 		produceRecordsFailuresTotal: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
