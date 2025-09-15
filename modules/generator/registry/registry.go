@@ -53,6 +53,11 @@ var (
 		Name:      "metrics_generator_registry_collections_failed_total",
 		Help:      "The total amount of failed metrics collections per tenant",
 	}, []string{"tenant"})
+	metricDemandSeries = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_demand_series",
+		Help:      "The total series demand (active + limited) per tenant",
+	}, []string{"tenant"})
 )
 
 type ManagedRegistry struct {
@@ -73,6 +78,7 @@ type ManagedRegistry struct {
 	limitLogger              *tempo_log.RateLimitedLogger
 	metricActiveSeries       prometheus.Gauge
 	metricMaxActiveSeries    prometheus.Gauge
+	metricDemandSeries       prometheus.Gauge
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
@@ -123,6 +129,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		limitLogger:              tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
 		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
 		metricMaxActiveSeries:    metricMaxActiveSeries.WithLabelValues(tenant),
+		metricDemandSeries:       metricDemandSeries.WithLabelValues(tenant),
 		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
 		metricTotalSeriesLimited: metricTotalSeriesLimited.WithLabelValues(tenant),
@@ -182,6 +189,8 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 }
 
 func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
+	r.metricDemandSeries.Add(float64(count))
+
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	if maxActiveSeries != 0 && r.activeSeries.Load()+count > maxActiveSeries {
 		r.metricTotalSeriesLimited.Inc()
@@ -201,6 +210,7 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 
 	r.metricTotalSeriesRemoved.Add(float64(count))
 	r.metricActiveSeries.Sub(float64(count))
+	r.metricDemandSeries.Sub(float64(count))
 }
 
 func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
