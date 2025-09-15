@@ -35,7 +35,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 		})
 
 		client := testkafka.NewKafkaClient(t, address, testTopic)
-		testkafka.SendReq(t.Context(), t, client, testTenantID)
+		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
 
 		consumeFn := func(_ context.Context, rs recordIter, _ time.Time) (*kadm.Offset, error) {
 			var lastRecord *kgo.Record
@@ -66,7 +66,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 		})
 
 		client := testkafka.NewKafkaClient(t, address, testTopic)
-		testkafka.SendReq(t.Context(), t, client, testTenantID)
+		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
 
 		consumed := make(chan struct{})
 		consumeFn := func(_ context.Context, rs recordIter, _ time.Time) (*kadm.Offset, error) {

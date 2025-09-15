@@ -64,7 +64,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	})
 
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
-	producedRecords := testkafka.SendReq(ctx, t, client, util.FakeTenantID)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
@@ -138,7 +138,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
-	producedRecords := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond) // Send for 5 seconds
+	producedRecords := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond, ingest.Encode) // Send for 5 seconds
 
 	commitedAt := len(producedRecords) / 2
 	// Commit half of the records
@@ -158,7 +158,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
 	})
 
-	records := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond) // Send for 5 seconds
+	records := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond, ingest.Encode) // Send for 5 seconds
 	producedRecords = append(producedRecords, records...)
 
 	// Wait for record to be consumed and committed.
@@ -200,7 +200,7 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
-	producedRecords := testkafka.SendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
+	producedRecords := testkafka.SendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond, ingest.Encode) // Send for 1 second, <1 consumption cycles
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -246,7 +246,7 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	})
 
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
-	producedRecords := testkafka.SendReq(ctx, t, client, util.FakeTenantID)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
@@ -327,7 +327,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
-	producedRecords := testkafka.SendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
+	producedRecords := testkafka.SendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond, ingest.Encode) // Send for 1 second, <1 consumption cycle
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -385,7 +385,7 @@ func TestBlockbuilder_retries_on_retriable_commit_error(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
-	producedRecords := testkafka.SendReq(ctx, t, client, util.FakeTenantID)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
@@ -443,7 +443,7 @@ func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
-	producedRecords := testkafka.SendReq(ctx, t, client, util.FakeTenantID)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
@@ -490,7 +490,7 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 
 	// Send a single record
-	producedRecords := testkafka.SendReq(ctx, t, client, util.FakeTenantID)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	// Create the block builder
@@ -510,7 +510,7 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 
 	// Send another record
-	newRecords := testkafka.SendReq(ctx, t, client, util.FakeTenantID)
+	newRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	newRecordOffset := newRecords[len(newRecords)-1].Offset
 
 	// Wait for the new record to be consumed and committed
@@ -587,8 +587,8 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 
 			client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 			// We send two records with a size less than 30KB
-			testkafka.SendReq(ctx, t, client, util.FakeTenantID)
-			producedRecords := testkafka.SendReq(ctx, t, client, util.FakeTenantID)
+			testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+			producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
 			require.Eventually(t, func() bool {
 				return kafkaCommits.Load() == tc.expectedCommits
@@ -731,8 +731,8 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 		badTenantID     = "2"
 		producedRecords []*kgo.Record
 	)
-	producedRecords = append(producedRecords, testkafka.SendReq(ctx, t, client, goodTenantID)...)
-	producedRecords = append(producedRecords, testkafka.SendReq(ctx, t, client, badTenantID)...)
+	producedRecords = append(producedRecords, testkafka.SendReq(ctx, t, client, ingest.Encode, goodTenantID)...)
+	producedRecords = append(producedRecords, testkafka.SendReq(ctx, t, client, ingest.Encode, badTenantID)...)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	// Simulate failures on the first cycle
@@ -826,11 +826,11 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 
 	// Send initial traces to ensure the partition has records
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
-	testkafka.SendReq(ctx, t, client, util.FakeTenantID)
+	testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
 	// Start sending traces in the background
 	go func() {
-		testkafka.SendTracesFor(t, ctx, client, 60*time.Second, time.Second)
+		testkafka.SendTracesFor(t, ctx, client, 60*time.Second, time.Second, ingest.Encode)
 	}()
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -1062,7 +1062,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		b.StopTimer()
 		size := 0
 		for i := 0; i < 1000; i++ {
-			for _, r := range testkafka.SendReq(ctx, b, client, util.FakeTenantID) {
+			for _, r := range testkafka.SendReq(ctx, b, client, ingest.Encode, util.FakeTenantID) {
 				size += len(r.Value)
 			}
 		}
@@ -1125,7 +1125,7 @@ func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
 
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 	// First, produce to partition 0
-	testkafka.SendReqWithOpts(ctx, t, client, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
+	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
 
 	// And only then create block builder
 	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, store)
@@ -1142,12 +1142,12 @@ func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
 
 	// after initial consumption, add more records
 	store.lock()
-	testkafka.SendReqWithOpts(ctx, t, client, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
+	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
 	store.unlock()
 
 	// after processing the first partition, add more records to the second partition
 	store.lock()
-	testkafka.SendReqWithOpts(ctx, t, client, testkafka.ReqOpts{Partition: 1, Time: reqTime, TenantID: util.FakeTenantID})
+	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 1, Time: reqTime, TenantID: util.FakeTenantID})
 	store.unlock()
 
 	// wait for the second partition to finish

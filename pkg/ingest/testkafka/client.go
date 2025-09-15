@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/require"
@@ -42,15 +42,17 @@ func (r *ReqOpts) applyDefaults() {
 	}
 }
 
+type encodingFn func(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, maxSize int) ([]*kgo.Record, error)
+
 // nolint: revive
-func SendReqWithOpts(ctx context.Context, t testing.TB, client *kgo.Client, opts ReqOpts) []*kgo.Record {
+func SendReqWithOpts(ctx context.Context, t testing.TB, client *kgo.Client, encode encodingFn, opts ReqOpts) []*kgo.Record {
 	traceID := generateTraceID(t)
 	opts.applyDefaults()
 
 	startTime := uint64(opts.Time.UnixNano())
 	endTime := uint64(opts.Time.Add(time.Second).UnixNano())
 	req := test.MakePushBytesRequest(t, 10, traceID, startTime, endTime)
-	records, err := ingest.Encode(opts.Partition, opts.TenantID, req, 1_000_000)
+	records, err := encode(opts.Partition, opts.TenantID, req, 1_000_000)
 	require.NoError(t, err)
 
 	res := client.ProduceSync(ctx, records...)
@@ -59,12 +61,12 @@ func SendReqWithOpts(ctx context.Context, t testing.TB, client *kgo.Client, opts
 	return records
 }
 
-func SendReq(ctx context.Context, t testing.TB, client *kgo.Client, tenantID string) []*kgo.Record {
-	return SendReqWithOpts(ctx, t, client, ReqOpts{Partition: 0, Time: time.Now(), TenantID: tenantID})
+func SendReq(ctx context.Context, t testing.TB, client *kgo.Client, encode encodingFn, tenantID string) []*kgo.Record {
+	return SendReqWithOpts(ctx, t, client, encode, ReqOpts{Partition: 0, Time: time.Now(), TenantID: tenantID})
 }
 
 // nolint: revive,unparam
-func SendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, interval time.Duration) []*kgo.Record {
+func SendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, interval time.Duration, encode encodingFn) []*kgo.Record {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -80,7 +82,7 @@ func SendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, i
 		case <-timer.C: // Exit the function when the timer is done
 			return producedRecords
 		case <-ticker.C:
-			records := SendReq(ctx, t, client, util.FakeTenantID)
+			records := SendReq(ctx, t, client, encode util.FakeTenantID)
 			producedRecords = append(producedRecords, records...)
 		}
 	}
