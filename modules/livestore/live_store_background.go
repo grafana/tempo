@@ -158,7 +158,7 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 	}
 }
 
-func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID) {
+func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID, jitter bool) error {
 	op := &completeOp{
 		tenantID: tenantID,
 		blockID:  blockID,
@@ -167,10 +167,14 @@ func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID) {
 		bo: initialBackoff,
 	}
 
-	s.enqueueOpWithJitter(op)
+	if jitter {
+		return s.enqueueOpWithJitter(op)
+	}
+
+	return s.enqueueOp(op)
 }
 
-func (s *LiveStore) enqueueOpWithJitter(op *completeOp) {
+func (s *LiveStore) enqueueOpWithJitter(op *completeOp) error {
 	delay := time.Duration(rand.Float32() * float32(flushJitter)) //gosec:disable G404 — It doesn't require strong randomness
 	go func() {
 		time.Sleep(delay)
@@ -178,6 +182,7 @@ func (s *LiveStore) enqueueOpWithJitter(op *completeOp) {
 			level.Error(s.logger).Log("msg", "failed to enqueue block", "tenant", op.tenantID, "block", op.blockID, "err", err)
 		}
 	}()
+	return nil
 }
 
 func (s *LiveStore) enqueueOp(op *completeOp) error {
@@ -222,7 +227,9 @@ func (s *LiveStore) reloadBlocks() error {
 			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
 
 			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
-			s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID))
+			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID), true); err != nil {
+				return fmt.Errorf("failed to enqueue wal block for completion for tenant %s: %w", meta.TenantID, err)
+			}
 
 			level.Info(s.logger).Log("msg", "reloaded wal blocks", "tenant", inst.tenantID, "count", len(inst.walBlocks))
 

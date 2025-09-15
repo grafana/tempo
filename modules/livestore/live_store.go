@@ -446,7 +446,11 @@ func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 
 	// If head block is cut, enqueue complete operation
 	if blockID != uuid.Nil {
-		s.enqueueCompleteOp(inst.tenantID, blockID)
+		err = s.enqueueCompleteOp(inst.tenantID, blockID, false)
+		if err != nil {
+			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
+			return
+		}
 	}
 }
 
