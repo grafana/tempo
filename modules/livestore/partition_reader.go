@@ -40,10 +40,9 @@ type PartitionReader struct {
 	client *kgo.Client
 	adm    *kadm.Client
 
-	commitInterval        time.Duration
-	wg                    sync.WaitGroup
-	hasUncommittedOffsets atomic.Bool
-	offsetWatermark       atomic.Pointer[kadm.Offset]
+	commitInterval  time.Duration
+	wg              sync.WaitGroup
+	offsetWatermark atomic.Pointer[kadm.Offset]
 
 	consume consumeFn
 	metrics partitionReaderMetrics
@@ -115,7 +114,6 @@ func (r *PartitionReader) storeOffsetForCommit(ctx context.Context, offset *kadm
 	}
 
 	r.offsetWatermark.Store(offset)
-	r.hasUncommittedOffsets.Store(true)
 }
 
 func (r *PartitionReader) stop(error) error {
@@ -138,6 +136,8 @@ func (r *PartitionReader) commitLoop(ctx context.Context) {
 	t := time.NewTicker(r.commitInterval)
 	defer t.Stop()
 
+	var lastCommittedOffset kadm.Offset
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -146,11 +146,11 @@ func (r *PartitionReader) commitLoop(ctx context.Context) {
 				// Detach context with a deadline
 				ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 				defer cancel()
-				r.commitHighWatermark(ctx)
+				r.commitHighWatermark(ctx, lastCommittedOffset)
 			}()
 			return
 		case <-t.C:
-			r.commitHighWatermark(ctx)
+			lastCommittedOffset = r.commitHighWatermark(ctx, lastCommittedOffset)
 		}
 	}
 }
@@ -233,33 +233,35 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 	return kgo.NewOffset().At(offset.At), nil
 }
 
-func (r *PartitionReader) commitHighWatermark(ctx context.Context) {
-	if !r.hasUncommittedOffsets.Load() {
-		level.Debug(r.logger).Log("msg", "nothing to commit")
-		return
-	}
+func (r *PartitionReader) commitHighWatermark(ctx context.Context, lastCommittedOffset kadm.Offset) kadm.Offset {
 	offset := r.offsetWatermark.Load()
 	if offset == nil {
 		level.Debug(r.logger).Log("msg", "no offset found for committing offset")
-		return
+		return lastCommittedOffset
 	}
 
-	r.commitOffset(ctx, *offset)
-	r.hasUncommittedOffsets.Store(false)
+	if lastCommittedOffset.At >= offset.At {
+		level.Debug(r.logger).Log("msg", "nothing to commit", "lastCommittedOffset", lastCommittedOffset.At, "offset", offset.At)
+		return lastCommittedOffset
+	}
+
+	if err := r.commitOffset(ctx, *offset); err != nil {
+		level.Error(r.logger).Log("msg", "failed to commit kafka offset", "offset", offset.At, "err", err)
+		return lastCommittedOffset
+	}
+
+	level.Debug(r.logger).Log("msg", "committed kafka offset", "offset", offset.At, "topic", r.topic, "group", r.consumerGroup)
+
+	return *offset
 }
 
-func (r *PartitionReader) commitOffset(ctx context.Context, offset kadm.Offset) {
+func (r *PartitionReader) commitOffset(ctx context.Context, offset kadm.Offset) error {
 	// Use the admin client to commit the offset
 	offsets := make(kadm.Offsets)
 	offsets.Add(offset)
 
 	_, err := r.adm.CommitOffsets(ctx, r.consumerGroup, offsets)
-	if err != nil {
-		level.Error(r.logger).Log("msg", "failed to commit kafka offset", "offset", offset.At, "topic", r.topic, "group", r.consumerGroup)
-		return
-	}
-
-	level.Debug(r.logger).Log("msg", "committed kafka offset", "offset", offset.At, "topic", r.topic, "group", r.consumerGroup)
+	return err
 }
 
 type partitionReaderMetrics struct {
