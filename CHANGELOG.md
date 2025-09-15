@@ -24,6 +24,7 @@
 * [CHANGE] Upgrade Tempo to go 1.25.0 [#5548](https://github.com/grafana/tempo/pull/5548) (@javiermolinar)
 * [CHANGE] Drop tracing bridges in favor of otel-only tracing [#5594](https://github.com/grafana/tempo/pull/5594) (@zalegrala)
 * [FEATURE] New block encoding vParquet5-preview1 with low-resolution timestamp columns for better TraceQL metrics performance. This format is in development and breaking changes are expected before final release. [#5495](https://github.com/grafana/tempo/pull/5495) (@mdisibio)
+* [FEATURE] New block encoding vParquet5-preview2 with dedicated attribute columns for integers. This format is in development and breaking changes are expected before final release. [#5639](https://github.com/grafana/tempo/pull/5639) (@stoewer)
 * [FEATURE] Add histograms `spans_distance_in_future_seconds` / `spans_distance_in_past_seconds` that count spans with end timestamp in the future / past. While spans in the future are accepted, they are invalid and may not be found using the Search API. [#4936](https://github.com/grafana/tempo/pull/4936) (@carles-grafana)
 * [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
 * [FEATURE] Add counter `query_frontend_bytes_inspected_total`, which shows the total number of bytes read from disk and object storage [#5310](https://github.com/grafana/tempo/pull/5310) (@carles-grafana)
