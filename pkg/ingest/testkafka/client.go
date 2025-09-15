@@ -82,7 +82,7 @@ func SendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, i
 		case <-timer.C: // Exit the function when the timer is done
 			return producedRecords
 		case <-ticker.C:
-			records := SendReq(ctx, t, client, encode util.FakeTenantID)
+			records := SendReq(ctx, t, client, encode, util.FakeTenantID)
 			producedRecords = append(producedRecords, records...)
 		}
 	}
