@@ -110,7 +110,9 @@ func (r *PartitionReader) running(ctx context.Context) error {
 
 func (r *PartitionReader) storeOffsetForCommit(ctx context.Context, offset *kadm.Offset) {
 	if r.commitInterval == 0 { // Sync commits
-		r.commitOffset(ctx, *offset)
+		if err := r.commitOffset(ctx, *offset); err != nil {
+			level.Error(r.logger).Log("msg", "failed to commit offset", "offset", offset, "err", err)
+		}
 	}
 
 	r.offsetWatermark.Store(offset)
