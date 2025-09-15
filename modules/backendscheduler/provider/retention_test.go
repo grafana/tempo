@@ -45,7 +45,6 @@ func TestRetentionProvider(t *testing.T) {
 			require.Error(t, err)
 			require.Equal(t, work.ErrJobNil, err)
 		} else {
-			// FIXME: there could be an error if the worker string is empty.  Looks like the mkdir is not working when we create a new Work instance.
 			require.NoError(t, err)
 
 			require.Equal(t, tempopb.JobType_JOB_TYPE_RETENTION, job.Type)

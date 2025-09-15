@@ -56,8 +56,6 @@ func New(cfg Config) (Interface, error) {
 		}
 	}
 
-	// TODO: create the LocatWorkDirectory if it doesn't exist
-
 	return sw, nil
 }
 
@@ -92,11 +90,6 @@ func (w *Work) AddJob(ctx context.Context, j *Job, workerID string) error {
 func (w *Work) FlushToLocal(ctx context.Context, affectedJobIDs []string) error {
 	_, span := tracer.Start(ctx, "FlushToLocal")
 	defer span.End()
-
-	err := os.MkdirAll(w.cfg.LocalWorkPath, 0o700)
-	if err != nil {
-		return err
-	}
 
 	if len(affectedJobIDs) == 0 {
 		// Flush all shards

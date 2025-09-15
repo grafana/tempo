@@ -38,7 +38,6 @@ func TestAtomicWriteFileStress(t *testing.T) {
 			defer wg.Done()
 
 			for range writesPerGoroutine {
-				// Use different temp prefixes to test CreateTemp uniqueness
 				err := atomicWriteFile(testData, targetFile)
 				require.NoError(t, err)
 
