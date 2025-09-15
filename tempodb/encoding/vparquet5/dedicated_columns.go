@@ -1,11 +1,13 @@
 package vparquet5
 
 import (
+	"iter"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// Column paths for spare dedicated attribute columns
+// DedicatedResourceColumnPaths makes paths for spare dedicated attribute columns available
 var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.DedicatedColumnType][]string{
 	backend.DedicatedColumnScopeResource: {
 		backend.DedicatedColumnTypeString: {
@@ -20,6 +22,13 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.Resource.DedicatedAttributes.String09",
 			"rs.list.element.Resource.DedicatedAttributes.String10",
 		},
+		backend.DedicatedColumnTypeInt: {
+			"rs.list.element.Resource.DedicatedAttributes.Int01",
+			"rs.list.element.Resource.DedicatedAttributes.Int02",
+			"rs.list.element.Resource.DedicatedAttributes.Int03",
+			"rs.list.element.Resource.DedicatedAttributes.Int04",
+			"rs.list.element.Resource.DedicatedAttributes.Int05",
+		},
 	},
 	backend.DedicatedColumnScopeSpan: {
 		backend.DedicatedColumnTypeString: {
@@ -33,6 +42,13 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
+		},
+		backend.DedicatedColumnTypeInt: {
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int01",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int02",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int03",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int04",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int05",
 		},
 	},
 }
@@ -73,6 +89,24 @@ func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
 			return nil
 		}
 		return &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: *strVal}}
+	case backend.DedicatedColumnTypeInt:
+		var intVal *int64
+		switch dc.ColumnIndex {
+		case 0:
+			intVal = attrs.Int01
+		case 1:
+			intVal = attrs.Int02
+		case 2:
+			intVal = attrs.Int03
+		case 3:
+			intVal = attrs.Int04
+		case 4:
+			intVal = attrs.Int05
+		}
+		if intVal == nil {
+			return nil
+		}
+		return &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: *intVal}}
 	default:
 		return nil
 	}
@@ -109,6 +143,23 @@ func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyV
 		default:
 			return false
 		}
+	case backend.DedicatedColumnTypeInt:
+		intVal, ok := value.Value.(*v1.AnyValue_IntValue)
+		if !ok {
+			return false
+		}
+		switch dc.ColumnIndex {
+		case 0:
+			attrs.Int01 = &intVal.IntValue
+		case 1:
+			attrs.Int02 = &intVal.IntValue
+		case 2:
+			attrs.Int03 = &intVal.IntValue
+		case 3:
+			attrs.Int04 = &intVal.IntValue
+		case 4:
+			attrs.Int05 = &intVal.IntValue
+		}
 	default:
 		return false
 	}
@@ -139,9 +190,13 @@ func (dm *dedicatedColumnMapping) get(attr string) (dedicatedColumn, bool) {
 	return col, ok
 }
 
-func (dm *dedicatedColumnMapping) forEach(callback func(attr string, column dedicatedColumn)) {
-	for _, k := range dm.keys {
-		callback(k, dm.mapping[k])
+func (dm *dedicatedColumnMapping) items() iter.Seq2[string, dedicatedColumn] {
+	return func(yield func(string, dedicatedColumn) bool) {
+		for _, k := range dm.keys {
+			if !yield(k, dm.mapping[k]) {
+				return
+			}
+		}
 	}
 }
 
