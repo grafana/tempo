@@ -216,9 +216,8 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		if err != nil {
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
 			return errResp, nil
 		}
 
@@ -264,9 +263,8 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		if err != nil {
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
 			return errResp, nil
 		}
 
@@ -319,9 +317,8 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		if err != nil {
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
 			return errResp, nil
 		}
 
@@ -355,9 +352,8 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		if err != nil {
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
 			return errResp, nil
 		}
 
@@ -388,19 +384,6 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 }
 
 // helpers
-func extractTenantWithErrorResp(req *http.Request, logger log.Logger) (string, *http.Response, error) {
-	tenant, err := user.ExtractOrgID(req.Context())
-	if err != nil {
-		level.Error(logger).Log("msg", "tags failed to extract orgid", "err", err)
-		return "", &http.Response{
-			StatusCode: http.StatusBadRequest,
-			Status:     http.StatusText(http.StatusBadRequest),
-			Body:       io.NopCloser(strings.NewReader(err.Error())),
-		}, err
-	}
-	return tenant, nil, err
-}
-
 func buildTagsRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTagsRequest, downstreamPath string, logger log.Logger) (*http.Request, string, error) {
 	headers := headersFromGrpcContext(ctx)
 

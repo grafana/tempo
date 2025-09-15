@@ -57,16 +57,43 @@ telemetry:
       attributes: [node_id]
     kafka_broker_throttling_duration:
       enabled: true
+      stability:
+        level: deprecated
       description: The throttling duration in ms imposed by the broker when receiving messages.
-      extended_documentation: Only produced when franz-go is enabled.
+      extended_documentation: Only produced when franz-go is enabled. Deprecated in favor of kafka_broker_throttling_latency.
       optional: true
       unit: ms
       histogram:
         value_type: int
       attributes: [node_id]
+      warnings:
+        if_enabled: This metric is deprecated in favor of kafka_broker_throttling_latency and will be removed soon.
+    kafka_broker_throttling_latency:
+      enabled: true
+      description: The throttling latency in seconds imposed by the broker when receiving records.
+      extended_documentation: Only produced when franz-go is enabled.
+      optional: true
+      unit: s
+      histogram:
+        value_type: double
+        bucket_boundaries: [0, 0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500, 0.750, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100]
+      attributes: [node_id]
     kafka_receiver_messages:
       enabled: true
+      stability:
+        level: deprecated
       description: The number of received messages.
+      extended_documentation: Deprecated in favor of kafka_receiver_records.
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [node_id, topic, partition, outcome]
+      warnings:
+        if_enabled: This metric is deprecated in favor of kafka_receiver_records and will be removed soon.
+    kafka_receiver_records:
+      enabled: true
+      description: The number of received records.
       unit: "1"
       sum:
         value_type: int
@@ -74,7 +101,7 @@ telemetry:
       attributes: [node_id, topic, partition, outcome]
     kafka_receiver_bytes:
       enabled: true
-      description: The size in bytes of received messages seen by the broker.
+      description: The size in bytes of received records seen by the broker.
       extended_documentation: Only produced when franz-go is enabled.
       optional: true
       unit: By
@@ -84,7 +111,7 @@ telemetry:
       attributes: [node_id, topic, partition, outcome]
     kafka_receiver_bytes_uncompressed:
       enabled: true
-      description: The uncompressed size in bytes of received messages seen by the client.
+      description: The uncompressed size in bytes of received records seen by the client.
       unit: By
       sum:
         value_type: int
@@ -92,11 +119,39 @@ telemetry:
       attributes: [node_id, topic, partition, outcome]
     kafka_receiver_latency:
       enabled: true
+      stability:
+        level: deprecated
       description: The time it took in ms to receive a batch of messages.
+      extended_documentation: Only produced when franz-go is enabled. Deprecated in favor of kafka_receiver_read_latency.
       unit: ms
       histogram:
         value_type: int
       attributes: [node_id, topic, partition, outcome]
+      warnings:
+        if_enabled: This metric is deprecated in favor of kafka_receiver_read_latency and will be removed soon.
+    kafka_receiver_read_latency:
+      enabled: true
+      description: The time it took in seconds to receive a batch of records.
+      extended_documentation: Only produced when franz-go is enabled.
+      unit: s
+      histogram:
+        value_type: double
+        bucket_boundaries: [0, 0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500, 0.750, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100]
+      attributes: [node_id, topic, partition, outcome]
+    kafka_receiver_records_delay:
+      enabled: true
+      optional: true
+      description: The time in seconds between producing and receiving a batch of records.
+      extended_documentation: |
+        Optional, only reported when enabled via config.
+        Note that this metric may slow down high-volume consuming.
+        Only produced when franz-go is enabled.
+        This metric is reported with an assumption that the exporter and the receiver clocks are synchronized.
+      unit: s
+      histogram:
+        value_type: double
+        bucket_boundaries: [0, 0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500, 0.750, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000]
+      attributes: [topic, partition]
     kafka_receiver_current_offset:
       enabled: true
       description: Current message offset

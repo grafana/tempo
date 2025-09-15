@@ -157,6 +157,17 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
+	searchTagValuesV2Pipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
+			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
+			multiTenantMiddleware(cfg, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, logger),
+		},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		next)
+
 	// metrics summary
 	metricsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -199,7 +210,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)
-	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesPipeline, o, logger)
+	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
 	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger) // Reuses the same pipeline
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
@@ -222,7 +233,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
-		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger),
 		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
 		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger), // Reuses the same pipeline
 
@@ -385,9 +396,12 @@ func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end time.Time, f
 		}
 	}
 
-	// search backwards in time
+	// search backwards in time with deterministic ordering
 	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].EndTime.After(blocks[j].EndTime)
+		if !blocks[i].EndTime.Equal(blocks[j].EndTime) {
+			return blocks[i].EndTime.After(blocks[j].EndTime)
+		}
+		return blocks[i].BlockID.String() < blocks[j].BlockID.String()
 	})
 
 	return blocks

@@ -33,6 +33,9 @@ type BlockConfig struct {
 
 	// vParquet3 fields
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns"`
+
+	// used internally. If true, the block will be created by default with the nocompact flag set.
+	CreateWithNoCompactFlag bool `yaml:"-"`
 }
 
 func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

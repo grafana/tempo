@@ -22,7 +22,7 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
       - name: Get Github App secrets from vault
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@9f37f656e063f0ad0b0bfc38d49894b57d363936 #get-vault-secrets 1.2.1
+        uses: grafana/shared-workflows/actions/get-vault-secrets@a37de51f3d713a30a9e4b21bcdfbd38170020593 #get-vault-secrets 1.3.0
         with:
           export_env: false
           repo_secrets: |
@@ -30,7 +30,7 @@ jobs:
             PRIVATE_KEY=tempo-ci-app:private-key
       - name: Generate GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        uses: actions/create-github-app-token@0f859bf9e69e887678d5bbfbee594437cb440ffe # v2.1.0
         with:
           app-id: ${{ fromJSON(steps.get-secrets.outputs.secrets).APP_ID }}
           private-key: ${{ fromJSON(steps.get-secrets.outputs.secrets).PRIVATE_KEY }}

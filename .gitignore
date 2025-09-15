@@ -2,6 +2,7 @@
 .envrc
 .idea
 .vscode
+.claude
 *.test
 *.out
 *.pprof

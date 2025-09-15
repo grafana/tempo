@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/grafana/tempo/pkg/collector"
@@ -75,6 +76,7 @@ type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
 	CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error)
 	CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
+	DeleteNoCompactFlag(ctx context.Context, tenantID string, blockID backend.UUID) error
 	WAL() *wal.WAL
 }
 
@@ -98,10 +100,15 @@ type Reader interface {
 	Tenants() []string
 
 	// EnablePolling in the background of the blocklists, with the given ownership of tenants.
-	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
+	EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool)
 
 	// PollNow does an immediate poll of the blocklist and is for testing purposes. Must have already called EnablePolling.
 	PollNow(ctx context.Context)
+
+	// PollNotification returns a channel that will be closed when the blocklist
+	// is updated.  The received context is used as the parent, to avoid
+	// deadlocks.
+	PollNotification(ctx context.Context) <-chan struct{}
 
 	Shutdown()
 }
@@ -154,6 +161,9 @@ type readerWriter struct {
 	compactorTenantOffset uint
 
 	pollerShutdownCh chan struct{}
+
+	pollerNotificationLock  sync.Mutex
+	pollerNotificationFuncs []func()
 }
 
 // New creates a new tempodb
@@ -208,13 +218,14 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:         c,
-		r:         r,
-		w:         w,
-		cfg:       cfg,
-		logger:    logger,
-		pool:      pool.NewPool(cfg.Pool),
-		blocklist: blocklist.New(),
+		c:                       c,
+		r:                       r,
+		w:                       w,
+		cfg:                     cfg,
+		logger:                  logger,
+		pool:                    pool.NewPool(cfg.Pool),
+		blocklist:               blocklist.New(),
+		pollerNotificationFuncs: make([]func(), 0),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -282,6 +293,10 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 	}
 
 	return backendBlock, nil
+}
+
+func (rw *readerWriter) DeleteNoCompactFlag(ctx context.Context, tenantID string, blockID backend.UUID) error {
+	return rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(blockID), tenantID)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {
@@ -591,7 +606,7 @@ func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
-func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
+func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
 	}
@@ -629,6 +644,7 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		TenantPollConcurrency:      rw.cfg.BlocklistPollTenantConcurrency,
 		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
 		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
+		SkipNoCompactBlocks:        skipNoCompactBlocks,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller
@@ -643,6 +659,20 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 
 func (rw *readerWriter) PollNow(ctx context.Context) {
 	rw.pollBlocklist(ctx)
+}
+
+// PollNotification returns a context.Done() channel, the closure of which indicates
+// that the blocklist has been updated.  The channel is never written to, but
+// allows waiting more precisely for updated information from the backend.
+func (rw *readerWriter) PollNotification(ctx context.Context) <-chan struct{} {
+	ctx, cancel := context.WithCancel(ctx)
+
+	rw.pollerNotificationLock.Lock()
+	defer rw.pollerNotificationLock.Unlock()
+
+	rw.pollerNotificationFuncs = append(rw.pollerNotificationFuncs, cancel)
+
+	return ctx.Done()
 }
 
 func (rw *readerWriter) pollingLoop(ctx context.Context) {
@@ -670,6 +700,15 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 	}
 
 	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
+
+	rw.pollerNotificationLock.Lock()
+	defer rw.pollerNotificationLock.Unlock()
+
+	for _, fn := range rw.pollerNotificationFuncs {
+		fn()
+	}
+
+	rw.pollerNotificationFuncs = rw.pollerNotificationFuncs[:0]
 }
 
 // includeBlock indicates whether a given block should be included in a backend search

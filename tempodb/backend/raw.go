@@ -29,13 +29,16 @@ const (
 
 	// File name for the work cache
 	WorkFileName = "work.json"
+
+	// File name for the nocompact flag
+	NoCompactFileName = "nocompact.flg"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written
 // from the backend
 type KeyPath []string
 
-// FundFunc is executed for each object in the backend.  The provided FindMatch
+// FindFunc is executed for each object in the backend.  The provided FindMatch
 // are used to determine how to handle the object.  Any collection of these
 // objects is the callers responsibility.
 type FindFunc func(FindMatch)
@@ -169,6 +172,16 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 // Delete implements backend.Writer
 func (w *writer) Delete(ctx context.Context, name string, keypath KeyPath) error {
 	return w.w.Delete(ctx, name, keypath, nil)
+}
+
+// WriteNoCompactFlag implements backend.Writer
+func (w *writer) WriteNoCompactFlag(ctx context.Context, blockID uuid.UUID, tenantID string) error {
+	return w.w.Write(ctx, NoCompactFileName, KeyPathForBlock(blockID, tenantID), bytes.NewReader([]byte{}), 0, nil)
+}
+
+// DeleteNoCompactFlag implements backend.Writer
+func (w *writer) DeleteNoCompactFlag(ctx context.Context, blockID uuid.UUID, tenantID string) error {
+	return w.w.Delete(ctx, NoCompactFileName, KeyPathForBlock(blockID, tenantID), nil)
 }
 
 type reader struct {
@@ -309,6 +322,19 @@ func (r *reader) Find(ctx context.Context, keypath KeyPath, f FindFunc) error {
 // Shutdown implements backend.Reader
 func (r *reader) Shutdown() {
 	r.r.Shutdown()
+}
+
+// HasNoCompactFlag implements backend.Reader
+func (r *reader) HasNoCompactFlag(ctx context.Context, blockID uuid.UUID, tenantID string) (bool, error) {
+	// TODO: can be optimized by not creating a descriptor and just checking file stat
+	_, _, err := r.r.Read(ctx, NoCompactFileName, KeyPathForBlock(blockID, tenantID), nil)
+	if err != nil {
+		if errors.Is(err, ErrDoesNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // KeyPathForBlock returns a correctly ordered keypath given a block id and tenantid

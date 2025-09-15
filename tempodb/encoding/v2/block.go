@@ -99,6 +99,16 @@ func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src ba
 		return err
 	}
 
+	// no-compact flag
+	if hasNoCompactFlag, err := src.HasNoCompactFlag(ctx, (uuid.UUID)(srcMeta.BlockID), srcMeta.TenantID); err != nil {
+		return err
+	} else if hasNoCompactFlag {
+		err = dest.WriteNoCompactFlag(ctx, (uuid.UUID)(destMeta.BlockID), destMeta.TenantID)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Meta
 	err = dest.WriteBlockMeta(ctx, destMeta)
 	return err

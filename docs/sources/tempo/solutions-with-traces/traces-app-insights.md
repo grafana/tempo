@@ -1,5 +1,5 @@
 ---
-description: "Learn how tracing data can help you understand application insights and performance as well as triaging issues in your services and applications."
+description: 'Learn how tracing data can help you understand application insights and performance as well as triaging issues in your services and applications.'
 keywords:
   - Grafana
   - traces
@@ -12,18 +12,18 @@ weight: 320
 refs:
   metrics-generator:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/
     - pattern: /docs/grafana-cloud/
       destination: https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/
   span-metrics:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/span_metrics/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/
     - pattern: /docs/enterprise-traces/
-      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/span_metrics/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/span-metrics/
     - pattern: /docs/grafana/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/span_metrics/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/
     - pattern: /docs/grafana-cloud/
       destination: https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/
 ---
@@ -73,4 +73,5 @@ SLO-based alerting also ensures that they don't suffer from noisy alerts.
 Alerts are only triggered when the value of the SLI is such that the team is in danger of missing their SLO.
 
 ![Latency SLO dashboard](/media/docs/tempo/intro/traces-metrics-gen-SLO.png)
+
 <!-- vale Grafana.Acronyms = YES-->

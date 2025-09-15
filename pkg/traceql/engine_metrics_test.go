@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,25 +45,27 @@ func TestStepRangeToIntervals(t *testing.T) {
 			start:    0,
 			end:      3,
 			step:     1,
-			expected: 4, // 0, 1, 2, 3
+			expected: 3, // 1, 2, 3
 		},
 		{
 			start:    0,
 			end:      10,
 			step:     3,
-			expected: 5, // 0, 3, 6, 9, 12
+			expected: 4, // 3, 6, 9, 12
 		},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, IntervalCount(c.start, c.end, c.step))
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		require.Equal(t, c.expected, mapper.IntervalCount())
 	}
 }
 
 func TestTimestampOf(t *testing.T) {
 	tc := []struct {
-		interval, start, end, step uint64
-		expected                   uint64
+		interval         int
+		start, end, step uint64
+		expected         uint64
 	}{
 		{
 			expected: 0,
@@ -71,12 +75,71 @@ func TestTimestampOf(t *testing.T) {
 			start:    10, // aligned to 9
 			step:     3,
 			end:      100,
-			expected: 15, // 9, 12, 15 <-- intervals
+			expected: 18, // 12, 15, 18 <-- intervals
+		},
+		// start <= step
+		{
+			interval: 0,
+			start:    1,
+			end:      10,
+			step:     1,
+			expected: 2,
+		},
+		{
+			interval: 1,
+			start:    1,
+			end:      5,
+			step:     1,
+			expected: 3,
+		},
+		{
+			interval: 4,
+			start:    1,
+			end:      5,
+			step:     1,
+			expected: 6,
+		},
+		// start > step
+		{
+			interval: 0,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 20,
+		},
+		{
+			interval: 2,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 40, // 3rd interval: (10;20] (20;30] (30;40]
+		},
+		{
+			interval: 3,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 50,
 		},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, TimestampOf(c.interval, c.start, c.end, c.step))
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		assert.Equal(t, c.expected, mapper.TimestampOf(c.interval), "interval: %d, start: %d, end: %d, step: %d", c.interval, c.start, c.end, c.step)
+	}
+}
+
+// TestTimestampOfIntervals checks that bucket timestamps are within the range.
+func TestTimestampOfIntervals(t *testing.T) {
+	start := uint64(10)
+	end := uint64(100)
+	step := uint64(10)
+
+	mapper := NewIntervalMapper(start, end, step)
+	intervals := mapper.IntervalCount()
+	for i := range intervals {
+		ts := mapper.TimestampOf(i)
+		assert.True(t, ts > start && ts <= end, "ts: %d, start: %d, end: %d", ts, start, end)
 	}
 }
 
@@ -85,22 +148,83 @@ func TestIntervalOf(t *testing.T) {
 		ts, start, end, step uint64
 		expected             int
 	}{
+		// start <= step
 		{expected: -1},
 		{
-			ts:   0,
-			end:  1,
-			step: 1,
+			ts:       0,
+			end:      1,
+			step:     1,
+			expected: 0, // corner case. TODO: should we return -1?
 		},
 		{
 			ts:       10,
+			start:    1,
 			end:      10,
 			step:     1,
-			expected: 10,
+			expected: 8, // 9th interval: (9;10]
+		},
+		{
+			ts:       1,
+			start:    1,
+			end:      5,
+			step:     1,
+			expected: -1, // should be excluded
+		},
+		{
+			ts:       2,
+			start:    1,
+			end:      5,
+			step:     1,
+			expected: 0, // 2nd interval: (1;2]
+		},
+		// start > step
+		{
+			ts:       15,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 0, // first interval: (10;20]
+		},
+		{
+			ts:       5,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: -1, // should be excluded
+		},
+		{
+			ts:       10,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: -1, // should be excluded
+		},
+		{
+			ts:       20,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 0, // first interval: (10;20]
+		},
+		{
+			ts:       25,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 1, // second interval: (20;30]
+		},
+		{
+			ts:       50,
+			start:    10,
+			end:      50,
+			step:     10,
+			expected: 3, // 4th interval: (40;50]
 		},
 	}
 
 	for _, c := range tc {
-		require.Equal(t, c.expected, IntervalOf(c.ts, c.start, c.end, c.step))
+		mapper := NewIntervalMapper(c.start, c.end, c.step)
+		assert.Equal(t, c.expected, mapper.Interval(c.ts), "ts: %d, start: %d, end: %d, step: %d", c.ts, c.start, c.end, c.step)
 	}
 }
 
@@ -113,32 +237,52 @@ func TestTrimToBlockOverlap(t *testing.T) {
 		expectedStep               time.Duration
 	}{
 		{
-			// Fully overlapping
-			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
-			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
-			"2024-01-01 01:33:00", "2024-01-01 01:38:01", 5 * time.Minute, // added 1 second to include the last second of the block
+			// Block fully within range
+			// Left border is extended to the next step.
+			// Right border is extended to the next step.
+			"2024-01-01T01:00:00Z", "2024-01-01T02:00:00Z", 5 * time.Minute,
+			"2024-01-01T01:33:00Z", "2024-01-01T01:38:00Z",
+			"2024-01-01T01:30:00Z", "2024-01-01T01:40:00Z", 5 * time.Minute,
 		},
 		{
-			// Partially Overlapping
-			"2024-01-01 01:01:00", "2024-01-01 02:01:00", 5 * time.Minute,
-			"2024-01-01 01:31:00", "2024-01-01 02:31:00",
-			"2024-01-01 01:31:00", "2024-01-01 02:01:00", 5 * time.Minute,
+			// Block overlapping right border.
+			// Left border is extended to the next step.
+			// Right border preserved.
+			"2024-01-01T01:01:00Z", "2024-01-01T02:01:00.123Z", 5 * time.Minute,
+			"2024-01-01T01:31:00Z", "2024-01-01T02:31:00Z",
+			"2024-01-01T01:30:00Z", "2024-01-01T02:01:00.123Z", 5 * time.Minute,
 		},
 		{
-			// Instant query
+			// Block overlapping left border.
+			// Left border preserved.
+			// Right border extended to the next step.
+			"2024-01-01T01:01:00.123Z", "2024-01-01T02:00:00Z", 5 * time.Minute,
+			"2024-01-01T00:31:00Z", "2024-01-01T01:31:00Z",
+			"2024-01-01T01:01:00.123Z", "2024-01-01T01:35:00Z", 5 * time.Minute,
+		},
+		{
+			// Block larger than range
+			// Neither border is extended. Nanoseconds preserved.
+			"2024-01-01T01:00:01.123Z", "2024-01-01T01:15:01.123Z", 5 * time.Minute,
+			"2024-01-01T00:00:00Z", "2024-01-01T02:00:00Z",
+			"2024-01-01T01:00:01.123Z", "2024-01-01T01:15:01.123Z", 5 * time.Minute,
+		},
+		{
+			// Instant query, block overlaps right border.
 			// Original range is 1h
-			// Inner overlap is only 30m and step is updated to match
-			"2024-01-01 01:00:00", "2024-01-01 02:00:00", time.Hour,
-			"2024-01-01 01:30:00", "2024-01-01 02:30:00",
-			"2024-01-01 01:30:00", "2024-01-01 02:00:00", 30 * time.Minute,
+			// Right border isn't extended past request range.
+			// Left border is able to be extended.
+			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
+			"2024-01-01T01:30:00.123Z", "2024-01-01T02:30:00.123Z",
+			"2024-01-01T01:00:00.123Z", "2024-01-01T02:00:00.123Z", time.Hour,
 		},
 	}
 
 	for _, c := range tc {
-		start1, _ := time.Parse(time.DateTime, c.start1)
-		end1, _ := time.Parse(time.DateTime, c.end1)
-		start2, _ := time.Parse(time.DateTime, c.start2)
-		end2, _ := time.Parse(time.DateTime, c.end2)
+		start1, _ := time.Parse(time.RFC3339Nano, c.start1)
+		end1, _ := time.Parse(time.RFC3339Nano, c.end1)
+		start2, _ := time.Parse(time.RFC3339Nano, c.start2)
+		end2, _ := time.Parse(time.RFC3339Nano, c.end2)
 
 		actualStart, actualEnd, actualStep := TrimToBlockOverlap(
 			uint64(start1.UnixNano()),
@@ -148,9 +292,9 @@ func TestTrimToBlockOverlap(t *testing.T) {
 			end2,
 		)
 
-		require.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
-		require.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
-		require.Equal(t, c.expectedStep, time.Duration(actualStep))
+		assert.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.RFC3339Nano))
+		assert.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.RFC3339Nano))
+		assert.Equal(t, c.expectedStep, time.Duration(actualStep))
 	}
 }
 
@@ -457,11 +601,12 @@ func TestOptimizeFetchSpansRequest(t *testing.T) {
 
 func TestQuantileOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | quantile_over_time(duration, 0, 0.5, 1) by (span.foo)",
 	}
+	// intervals: (0;1], (1;2], (2;3]
 
 	var (
 		_128ns = 0.000000128
@@ -471,15 +616,18 @@ func TestQuantileOverTime(t *testing.T) {
 
 	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
 	in := []Span{
+		// 1st interval: (0;1]
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(128),
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(512),
 
+		// 2nd interval: (1;2]
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
 
+		// 3rd interval: (2;3]
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
@@ -562,7 +710,7 @@ func percentileHelper(q float64, values ...float64) float64 {
 
 func TestCountOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | count_over_time() by (span.foo)",
@@ -645,6 +793,52 @@ func TestCountOverTimeInstantNs(t *testing.T) {
 				{Name: "__name__", Value: NewStaticString("count_over_time")},
 			},
 			Values:    []float64{4},
+			Exemplars: make([]Exemplar, 0),
+		},
+	}
+
+	result, seriesCount, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+	require.Equal(t, out, result)
+	require.Equal(t, len(result), seriesCount)
+}
+
+func TestAvgOverTimeInstantNs(t *testing.T) {
+	// not rounded values to simulate real world data
+	start := 1*time.Second - 9*time.Nanosecond
+	end := 3*time.Second + 9*time.Nanosecond
+	step := end - start // for instant queries step == end-start
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(step),
+		Query: "{ } | avg_over_time(span:duration)",
+	}
+
+	in := []Span{
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(start - 20*time.Nanosecond)).WithDuration(uint64(1 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start - time.Nanosecond)).WithDuration(uint64(2 * time.Second)),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(start)).WithDuration(uint64(3 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(start + time.Nanosecond)).WithDuration(uint64(4 * time.Second)),
+
+		// within the range
+		newMockSpan(nil).WithStartTime(uint64(end - time.Nanosecond)).WithDuration(uint64(5 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end)).WithDuration(uint64(6 * time.Second)),
+
+		// outside of the range but within the range for ms. Should be ignored.
+		newMockSpan(nil).WithStartTime(uint64(end + time.Nanosecond)).WithDuration(uint64(7 * time.Second)),
+		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(uint64(8 * time.Second)),
+	}
+
+	out := SeriesSet{
+		`{__name__="avg_over_time"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "__name__", Value: NewStaticString("avg_over_time")},
+			},
+			Values:    []float64{(3 + 4 + 5 + 6) / 4.},
 			Exemplars: make([]Exemplar, 0),
 		},
 	}
@@ -771,7 +965,7 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 
 func TestMinOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(duration) by (span.foo)",
@@ -814,7 +1008,7 @@ func TestMinOverTimeForDuration(t *testing.T) {
 
 func TestMinOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(span.buu)",
@@ -848,7 +1042,7 @@ func TestMinOverTimeWithNoMatch(t *testing.T) {
 
 func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | min_over_time(span.http.status_code) by (span.foo)",
@@ -920,7 +1114,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 
 func TestAvgOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo)",
@@ -961,7 +1155,7 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 
 func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(1)",
@@ -1002,7 +1196,7 @@ func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
 
 func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration)",
@@ -1037,7 +1231,7 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 
 func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
@@ -1108,7 +1302,7 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 
 func TestAvgOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.buu)",
@@ -1142,7 +1336,7 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 
 func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
@@ -1215,9 +1409,80 @@ func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 	assert.Equal(t, 100.0, fooBar.Values[2])
 }
 
-func TestMaxOverTimeForDuration(t *testing.T) {
+func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500),
+	}
+
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+	}
+
+	e := NewEngine()
+	layer1A, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer1B, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer2A, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+
+	for _, s := range in {
+		layer1A.metricsPipeline.observe(s)
+	}
+
+	layer2A.ObserveSeries(layer1A.Results().ToProto(req))
+
+	for _, s := range in2 {
+		layer1B.metricsPipeline.observe(s)
+	}
+
+	layer2B.ObserveSeries(layer1B.Results().ToProto(req))
+
+	layer3.ObserveSeries(layer2A.Results().ToProto(req))
+	layer2bResults := layer2B.Results().ToProto(req)
+	truncated2bResults := make([]*tempopb.TimeSeries, 0, len(layer2bResults)-1)
+	for _, ts := range layer2bResults {
+		if !strings.Contains(ts.PromLabels, internalLabelMetaType) {
+			// add all values series
+			truncated2bResults = append(truncated2bResults, ts)
+		} else if len(ts.Samples) != 3 {
+			// the panic appears when the count series with 3 samples is missing
+			truncated2bResults = append(truncated2bResults, ts)
+		}
+	}
+	assert.NotPanics(t, func() {
+		layer3.ObserveSeries(truncated2bResults)
+	}, "should not panic on truncation")
+}
+
+func TestMaxOverTimeForDuration(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(duration) by (span.foo)",
@@ -1260,7 +1525,7 @@ func TestMaxOverTimeForDuration(t *testing.T) {
 
 func TestMaxOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(span.buu)",
@@ -1294,7 +1559,7 @@ func TestMaxOverTimeWithNoMatch(t *testing.T) {
 
 func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | max_over_time(span.http.status_code) by (span.foo)",
@@ -1366,7 +1631,7 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 
 func TestSumOverTimeForDuration(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(duration) by (span.foo)",
@@ -1410,7 +1675,7 @@ func TestSumOverTimeForDuration(t *testing.T) {
 
 func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(span.kafka.lag) by (span.foo)",
@@ -1482,7 +1747,7 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 
 func TestSumOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | sum_over_time(span.buu)",
@@ -1515,7 +1780,7 @@ func TestSumOverTimeWithNoMatch(t *testing.T) {
 
 func TestHistogramOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | histogram_over_time(duration) by (span.foo)",
@@ -1588,7 +1853,7 @@ func TestHistogramOverTime(t *testing.T) {
 
 func TestSecondStageTopK(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | rate() by (span.foo) | topk(2)",
@@ -1639,7 +1904,7 @@ func TestSecondStageTopKInstant(t *testing.T) {
 
 func TestSecondStageTopKAverage(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | avg_over_time(duration) by (span.foo) | topk(2)",
@@ -1664,7 +1929,7 @@ func TestSecondStageTopKAverage(t *testing.T) {
 
 func TestSecondStageBottomK(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
+		Start: 1,
 		End:   uint64(8 * time.Second),
 		Step:  uint64(1 * time.Second),
 		Query: "{ } | rate() by (span.foo) | bottomk(2)",
@@ -2001,6 +2266,77 @@ func TestTiesInBottomK(t *testing.T) {
 	checkEqualForTies(t, result[`{label="c"}`].Values, []float64{10, 3, math.NaN()})
 }
 
+func TestHistogramAggregator(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
+		End:       uint64(time.Now().UnixNano()),
+		Step:      uint64(15 * time.Second.Nanoseconds()),
+		Exemplars: maxExemplars,
+	}
+	const seriesCount = 6
+
+	cases := []struct {
+		name          string
+		samplesCount  int
+		exemplarCount int
+	}{
+		{"Small", 10, 5},
+		{"Medium", 100, 20},
+		{"Large", 1000, 100},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			series := generateTestTimeSeries(seriesCount, tc.samplesCount, tc.exemplarCount, req.Start, req.End)
+			quantiles := []float64{0.5, 0.9, 0.99}
+
+			agg := NewHistogramAggregator(req, quantiles, uint32(tc.exemplarCount))
+			agg.Combine(series)
+			results := agg.Results()
+			require.NotNil(t, results, "Expected non-nil SeriesSet from HistogramAggregator")
+			require.Greater(t, len(results), 0, "Expected non-empty SeriesSet from HistogramAggregator")
+
+			// Check that exemplars are distributed across quantile series
+			totalExemplars := 0
+			for _, ts := range results {
+				totalExemplars += len(ts.Exemplars)
+			}
+			require.Greater(t, totalExemplars, 0, "Expected at least some exemplars across all quantile series")
+
+			for _, ts := range results {
+				// With aggregated semantic matching, total exemplars can be higher since
+				// we're more efficiently distributing exemplars across quantile series
+				require.LessOrEqual(t, len(ts.Exemplars), tc.exemplarCount*5, "Per-series exemplars should be reasonable")
+				// Note: With aggregated semantic matching, exemplars are distributed more efficiently
+				// across quantile series based on comprehensive quantile thresholds
+
+				// t.Logf("Series: %s", ts.Labels)
+				// t.Logf("Values: %v", ts.Values)
+				// t.Logf("Exemplars: %v", ts.Exemplars)
+
+				// check that the values are within the expected histogram buckets
+				require.Greater(t, len(ts.Values), 0, "Expected non-empty histogram values")
+				for _, value := range ts.Values {
+					require.GreaterOrEqual(t, value, 0.0, "Histogram values should be non-negative")
+				}
+				// check that the exemplars are within the expected histogram Buckets
+				for _, ex := range ts.Exemplars {
+					require.GreaterOrEqual(t, ex.Value, 0.0, "Exemplar values should be non-negative")
+					// Convert nanoseconds to milliseconds for comparison
+					startMs := req.Start / uint64(time.Millisecond)
+					endMs := req.End / uint64(time.Millisecond)
+					require.GreaterOrEqual(t, ex.TimestampMs, startMs)
+					require.LessOrEqual(t, ex.TimestampMs, endMs)
+				}
+
+				// With semantic matching, some quantile series may legitimately have zero exemplars
+				// if no exemplars fall within their quantile range - this is correct behavior
+
+			}
+		})
+	}
+}
+
 func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, int, error) {
 	res, err := processLayer1AndLayer2(req, inSpans...)
 	if err != nil {
@@ -2176,6 +2512,54 @@ func BenchmarkHistogramAggregator_Combine(b *testing.B) {
 	}
 }
 
+func BenchmarkHistogramAggregator_Results(b *testing.B) {
+	// nolint:gosec // G115
+	req := &tempopb.QueryRangeRequest{
+		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
+		End:       uint64(time.Now().UnixNano()),
+		Step:      uint64(15 * time.Second.Nanoseconds()),
+		Exemplars: maxExemplars,
+	}
+
+	benchmarks := []struct {
+		name          string
+		seriesCount   int
+		samplesCount  int
+		exemplarCount int
+		quantiles     []float64
+	}{
+		{"Small_3Quantiles", 6, 10, 5, []float64{0.5, 0.9, 0.99}},
+		{"Medium_3Quantiles", 10, 100, 20, []float64{0.5, 0.9, 0.99}},
+		{"Large_3Quantiles", 20, 1000, 100, []float64{0.5, 0.9, 0.99}},
+		// These test the bucket rescanning optimization specifically
+		{"Small_5Quantiles", 6, 10, 5, []float64{0.5, 0.75, 0.9, 0.95, 0.99}},
+		{"Medium_5Quantiles", 10, 100, 20, []float64{0.5, 0.75, 0.9, 0.95, 0.99}},
+		{"Large_5Quantiles", 20, 1000, 100, []float64{0.5, 0.75, 0.9, 0.95, 0.99}},
+		// High exemplar density to test caching benefits
+		{"High_Exemplars", 10, 100, 200, []float64{0.5, 0.9, 0.99}},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			// Generate test data
+			series := generateTestTimeSeries(bm.seriesCount, bm.samplesCount, bm.exemplarCount, req.Start, req.End)
+
+			// Create histogram aggregator
+			h := NewHistogramAggregator(req, bm.quantiles, req.Exemplars)
+
+			// Combine the series (this is setup, not benchmarked)
+			h.Combine(series)
+
+			// Benchmark the Results method
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				results := h.Results()
+				_ = results // Prevent optimization
+			}
+		})
+	}
+}
+
 // generateTestTimeSeries creates test time series data for benchmarking
 // nolint:gosec // G115
 func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start, end uint64) []*tempopb.TimeSeries {
@@ -2256,4 +2640,507 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 	}
 
 	return result
+}
+
+func TestHistogramAggregator_ExemplarBucketSelection(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start:     uint64(time.Now().Add(-1 * time.Hour).UnixNano()),
+		End:       uint64(time.Now().UnixNano()),
+		Step:      uint64(15 * time.Second.Nanoseconds()),
+		Exemplars: 10,
+	}
+
+	tests := []struct {
+		name                    string
+		quantiles               []float64
+		timeSeries              []*tempopb.TimeSeries
+		expectedExemplarBuckets map[string][]float64 // quantile label -> expected bucket values
+	}{
+		{
+			name:      "exemplars match correct quantile buckets",
+			quantiles: []float64{0.5, 0.9},
+			timeSeries: []*tempopb.TimeSeries{
+				{
+					PromLabels: `{service="test",__bucket="1"}`,
+					Labels: []commonv1proto.KeyValue{
+						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
+						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 1.0}}},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli(), Value: 5}, // 5 samples in 1s bucket (p50)
+					},
+					Exemplars: []tempopb.Exemplar{
+						{
+							Labels: []commonv1proto.KeyValue{
+								{Key: "trace_id", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "trace1"}}},
+							},
+							Value:       0.8, // Should go to p50 (< quantile threshold)
+							TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli(),
+						},
+					},
+				},
+				{
+					PromLabels: `{service="test",__bucket="4"}`,
+					Labels: []commonv1proto.KeyValue{
+						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
+						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 4.0}}},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli(), Value: 1}, // 1 sample in 4s bucket (p90)
+					},
+					Exemplars: []tempopb.Exemplar{
+						{
+							Labels: []commonv1proto.KeyValue{
+								{Key: "trace_id", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "trace2"}}},
+							},
+							Value:       3.5, // Should go to p90 (> quantile threshold)
+							TimestampMs: time.Unix(0, int64(req.Start)).UnixMilli(),
+						},
+					},
+				},
+			},
+			expectedExemplarBuckets: map[string][]float64{
+				`{p="0.5", service="test"}`: {1.0}, // p50 should get fast exemplars
+				`{p="0.9", service="test"}`: {4.0}, // p90 should get slow exemplars
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agg := NewHistogramAggregator(req, tt.quantiles, 10)
+			agg.Combine(tt.timeSeries)
+			results := agg.Results()
+
+			// Verify semantic matching behavior - exemplars should be assigned based on quantile ranges
+			p50Series, p50Exists := results[`{p="0.5", service="test"}`]
+			p90Series, p90Exists := results[`{p="0.9", service="test"}`]
+
+			require.True(t, p50Exists, "p50 series should exist")
+			require.True(t, p90Exists, "p90 series should exist")
+
+			// Check that we have exemplars distributed appropriately
+			totalExemplars := len(p50Series.Exemplars) + len(p90Series.Exemplars)
+			require.Greater(t, totalExemplars, 0, "Should have some exemplars")
+
+			// Verify exemplars are assigned correctly based on semantic matching
+			// Exemplars should be distributed across quantile ranges appropriately
+		})
+	}
+}
+
+func TestHistogramAggregator_ExemplarDistribution(t *testing.T) {
+	// Use fixed timestamps to ensure deterministic behavior
+	baseTime := time.Unix(1257894000, 0) // Fixed timestamp
+	req := &tempopb.QueryRangeRequest{
+		Start:     uint64(baseTime.UnixNano()),
+		End:       uint64(baseTime.Add(1 * time.Hour).UnixNano()),
+		Step:      uint64(15 * time.Second.Nanoseconds()),
+		Exemplars: 12, // Will be distributed: 12/3 = 4 per quantile
+	}
+
+	// Create test data with multiple exemplars
+	timeSeries := []*tempopb.TimeSeries{
+		{
+			PromLabels: `{service="test",__bucket="2"}`,
+			Labels: []commonv1proto.KeyValue{
+				{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
+				{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
+			},
+			Samples: []tempopb.Sample{
+				{TimestampMs: baseTime.UnixMilli(), Value: 10},
+			},
+			Exemplars: []tempopb.Exemplar{
+				{Value: 1.5, TimestampMs: baseTime.UnixMilli()},
+				{Value: 1.6, TimestampMs: baseTime.UnixMilli()},
+				{Value: 1.7, TimestampMs: baseTime.UnixMilli()},
+				{Value: 1.8, TimestampMs: baseTime.UnixMilli()},
+				{Value: 1.9, TimestampMs: baseTime.UnixMilli()},
+			},
+		},
+	}
+
+	quantiles := []float64{0.5, 0.9, 0.99}
+	agg := NewHistogramAggregator(req, quantiles, 12)
+	agg.Combine(timeSeries)
+	results := agg.Results()
+
+	totalExemplars := 0
+	for _, series := range results {
+		totalExemplars += len(series.Exemplars)
+	}
+
+	// Verify total exemplars doesn't exceed limit
+	require.LessOrEqual(t, totalExemplars, 12, "Total exemplars should not exceed limit")
+
+	// Verify each quantile gets roughly equal distribution (allowing for rounding)
+	expectedPerQuantile := 12 / len(quantiles)
+	for seriesLabel, series := range results {
+		require.LessOrEqual(t, len(series.Exemplars), expectedPerQuantile+1,
+			"Series %s has too many exemplars: %d", seriesLabel, len(series.Exemplars))
+	}
+}
+
+func TestLog2Quantile(t *testing.T) {
+	tests := []struct {
+		name          string
+		quantile      float64
+		buckets       []HistogramBucket
+		expectedValue float64
+	}{
+		{
+			name:     "p50 in middle bucket",
+			quantile: 0.5,
+			buckets: []HistogramBucket{
+				{Max: 1.0, Count: 2},
+				{Max: 2.0, Count: 4}, // p50 should land here
+				{Max: 4.0, Count: 2},
+			},
+		},
+		{
+			name:     "p90 in last bucket",
+			quantile: 0.9,
+			buckets: []HistogramBucket{
+				{Max: 1.0, Count: 1},
+				{Max: 2.0, Count: 1},
+				{Max: 4.0, Count: 8}, // p90 should land here
+			},
+		},
+		{
+			name:     "p100 exact match",
+			quantile: 1.0,
+			buckets: []HistogramBucket{
+				{Max: 1.0, Count: 5},
+				{Max: 2.0, Count: 5},
+			},
+			expectedValue: 2.0,
+		},
+		{
+			name:          "empty buckets",
+			quantile:      0.5,
+			buckets:       []HistogramBucket{},
+			expectedValue: 0.0,
+		},
+		{
+			name:     "single bucket",
+			quantile: 0.5,
+			buckets: []HistogramBucket{
+				{Max: 2.0, Count: 10},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value := Log2Quantile(tt.quantile, tt.buckets)
+
+			if tt.expectedValue != 0 {
+				require.Equal(t, tt.expectedValue, value, "Quantile value mismatch")
+			}
+
+			// Verify value is reasonable (non-negative)
+			require.GreaterOrEqual(t, value, 0.0, "Quantile values should be non-negative")
+		})
+	}
+}
+
+func TestHistogramAggregator_EdgeCases(t *testing.T) {
+	// Use fixed timestamps to ensure deterministic behavior
+	baseTime := time.Unix(1257894000, 0) // Fixed timestamp
+	req := &tempopb.QueryRangeRequest{
+		Start:     uint64(baseTime.UnixNano()),
+		End:       uint64(baseTime.Add(1 * time.Hour).UnixNano()),
+		Step:      uint64(15 * time.Second.Nanoseconds()),
+		Exemplars: 5,
+	}
+
+	tests := []struct {
+		name       string
+		timeSeries []*tempopb.TimeSeries
+		quantiles  []float64
+		expectFunc func(t *testing.T, results SeriesSet)
+	}{
+		{
+			name:      "no exemplars",
+			quantiles: []float64{0.5, 0.9},
+			timeSeries: []*tempopb.TimeSeries{
+				{
+					PromLabels: `{service="test",__bucket="2"}`,
+					Labels: []commonv1proto.KeyValue{
+						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
+						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: baseTime.UnixMilli(), Value: 5},
+					},
+					Exemplars: []tempopb.Exemplar{}, // No exemplars
+				},
+			},
+			expectFunc: func(t *testing.T, results SeriesSet) {
+				for _, series := range results {
+					require.Empty(t, series.Exemplars, "Should have no exemplars")
+				}
+			},
+		},
+		{
+			name:      "exemplars outside bucket ranges",
+			quantiles: []float64{0.5},
+			timeSeries: []*tempopb.TimeSeries{
+				{
+					PromLabels: `{service="test",__bucket="2"}`,
+					Labels: []commonv1proto.KeyValue{
+						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
+						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
+					},
+					Samples: []tempopb.Sample{
+						{TimestampMs: baseTime.UnixMilli(), Value: 5},
+					},
+					Exemplars: []tempopb.Exemplar{
+						{
+							Value:       10.0, // Much larger than bucket, should not match
+							TimestampMs: baseTime.UnixMilli(),
+						},
+					},
+				},
+			},
+			expectFunc: func(t *testing.T, results SeriesSet) {
+				for _, series := range results {
+					// May have no exemplars if the value doesn't match any bucket
+					// This is acceptable behavior
+					if len(series.Exemplars) > 0 {
+						// If exemplars exist, they should be reasonable
+						for _, ex := range series.Exemplars {
+							bucketValue := Log2Bucketize(uint64(ex.Value * float64(time.Second)))
+							require.True(t, bucketValue > 0, "Bucket value should be positive")
+						}
+					}
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agg := NewHistogramAggregator(req, tt.quantiles, 5)
+			agg.Combine(tt.timeSeries)
+			results := agg.Results()
+
+			require.NotNil(t, results, "Results should not be nil")
+			tt.expectFunc(t, results)
+		})
+	}
+}
+
+func createBucketSeries(bucketValue string, count int, timestampMs int64) *tempopb.TimeSeries {
+	bucketFloat, _ := strconv.ParseFloat(bucketValue, 64)
+	return &tempopb.TimeSeries{
+		PromLabels: fmt.Sprintf(`{service="test",__bucket="%s"}`, bucketValue),
+		Labels: []commonv1proto.KeyValue{
+			{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
+			{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: bucketFloat}}},
+		},
+		Samples: []tempopb.Sample{
+			{TimestampMs: timestampMs, Value: float64(count)},
+		},
+	}
+}
+
+// requireEqualSeriesSets is like require.Equal for SeriesSets and supports NaN.
+func requireEqualSeriesSets(t *testing.T, expected, actual SeriesSet) {
+	require.Equal(t, len(expected), len(actual))
+
+	for k, eTS := range expected {
+		aTS, ok := actual[k]
+		require.True(t, ok, "expected series %s to be in result", k)
+		require.Equal(t, eTS.Labels, aTS.Labels, "expected labels %v, got %v", eTS.Labels, aTS.Labels)
+
+		eSamples := eTS.Values
+		aSamples := aTS.Values
+
+		require.Equal(t, len(eSamples), len(aSamples), "expected %d samples for %s, got %d", len(eSamples), k, len(aSamples))
+		for i := range eSamples {
+			if math.IsNaN(eSamples[i]) {
+				require.True(t, math.IsNaN(aSamples[i]))
+			} else {
+				require.InDelta(t, eSamples[i], aSamples[i], 0.001, "expected %v, got %v, for %s[%d]", eSamples[i], aSamples[i], k, i)
+			}
+		}
+	}
+}
+
+func TestHistogramAggregator_LatencySpike(t *testing.T) {
+	// Simulate a latency spike: normal traffic, then a spike, then normal again
+	// Use fixed timestamps to ensure deterministic behavior
+	baseTime := time.Unix(1640995200, 0) // Fixed timestamp: 2022-01-01 00:00:00 UTC
+	start := baseTime
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(start.UnixNano()),
+		End:   uint64(start.Add(45 * time.Minute).UnixNano()),
+		Step:  uint64(15 * time.Minute), // 3 intervals: normal, spike, normal
+	}
+	quantiles := []float64{0.5, 0.9, 0.99}
+
+	agg := NewHistogramAggregator(req, quantiles, 20)
+
+	// Interval 1: Normal latency (0-15min) - p50=100ms, p90=200ms, p99=500ms
+	normal1Time := start.Add(7 * time.Minute)
+	normalSeries1 := []*tempopb.TimeSeries{
+		createBucketSeries("0.125", 70, normal1Time.UnixMilli()), // 70 fast requests
+		createBucketSeries("0.25", 20, normal1Time.UnixMilli()),  // 20 medium requests
+		createBucketSeries("0.5", 8, normal1Time.UnixMilli()),    // 8 slow requests
+		createBucketSeries("1.0", 2, normal1Time.UnixMilli()),    // 2 very slow requests
+	}
+
+	// Add exemplars for normal period
+	normalSeries1[0].Exemplars = []tempopb.Exemplar{
+		{Value: 0.08, TimestampMs: normal1Time.UnixMilli()}, // Fast - should go to p50
+		{Value: 0.12, TimestampMs: normal1Time.UnixMilli()}, // Fast - should go to p50
+	}
+	normalSeries1[1].Exemplars = []tempopb.Exemplar{
+		{Value: 0.18, TimestampMs: normal1Time.UnixMilli()}, // Medium - should go to p90
+	}
+	normalSeries1[2].Exemplars = []tempopb.Exemplar{
+		{Value: 0.35, TimestampMs: normal1Time.UnixMilli()}, // Slow - should go to p99
+	}
+
+	// Interval 2: Latency spike (15-30min) - p50=800ms, p90=2000ms, p99=4000ms
+	spikeTime := start.Add(22 * time.Minute)
+	spikeSeries := []*tempopb.TimeSeries{
+		createBucketSeries("1.0", 50, spikeTime.UnixMilli()), // 50 slow requests (now "fast" for spike)
+		createBucketSeries("2.0", 30, spikeTime.UnixMilli()), // 30 very slow requests
+		createBucketSeries("4.0", 15, spikeTime.UnixMilli()), // 15 extremely slow requests
+		createBucketSeries("8.0", 5, spikeTime.UnixMilli()),  // 5 timeout requests
+	}
+
+	// Add exemplars during spike - these should be assigned contextually
+	spikeSeries[0].Exemplars = []tempopb.Exemplar{
+		{Value: 0.9, TimestampMs: spikeTime.UnixMilli()}, // During spike, this is p50!
+		{Value: 1.1, TimestampMs: spikeTime.UnixMilli()}, // During spike, this is p50!
+	}
+	spikeSeries[1].Exemplars = []tempopb.Exemplar{
+		{Value: 1.8, TimestampMs: spikeTime.UnixMilli()}, // During spike, this is p90!
+	}
+	spikeSeries[2].Exemplars = []tempopb.Exemplar{
+		{Value: 3.5, TimestampMs: spikeTime.UnixMilli()}, // During spike, this is p99!
+	}
+
+	// Interval 3: Back to normal (30-45min) - p50=100ms, p90=200ms, p99=500ms
+	normal2Time := start.Add(37 * time.Minute)
+	normalSeries2 := []*tempopb.TimeSeries{
+		createBucketSeries("0.125", 75, normal2Time.UnixMilli()),
+		createBucketSeries("0.25", 20, normal2Time.UnixMilli()),
+		createBucketSeries("0.5", 4, normal2Time.UnixMilli()),
+		createBucketSeries("1.0", 1, normal2Time.UnixMilli()),
+	}
+
+	normalSeries2[0].Exemplars = []tempopb.Exemplar{
+		{Value: 0.09, TimestampMs: normal2Time.UnixMilli()}, // Fast - should go to p50
+	}
+	normalSeries2[1].Exemplars = []tempopb.Exemplar{
+		{Value: 0.19, TimestampMs: normal2Time.UnixMilli()}, // Medium - should go to p90
+	}
+
+	// Combine all time series in correct temporal order
+	allSeries := append([]*tempopb.TimeSeries(nil), normalSeries1...) // Copy normalSeries1
+	allSeries = append(allSeries, spikeSeries...)
+	allSeries = append(allSeries, normalSeries2...)
+
+	agg.Combine(allSeries)
+	results := agg.Results()
+
+	// Verify we have the expected quantile series
+	require.Len(t, results, 3, "Should have 3 quantile series")
+
+	var p50Series, p90Series, p99Series TimeSeries
+	var found50, found90, found99 bool
+
+	for _, series := range results {
+		for _, label := range series.Labels {
+			if label.Name == "p" {
+				switch label.Value.Float() {
+				case 0.5:
+					p50Series = series
+					found50 = true
+				case 0.9:
+					p90Series = series
+					found90 = true
+				case 0.99:
+					p99Series = series
+					found99 = true
+				}
+			}
+		}
+	}
+
+	require.True(t, found50, "Should find p50 series")
+	require.True(t, found90, "Should find p90 series")
+	require.True(t, found99, "Should find p99 series")
+
+	// Verify quantile values reflect the spike pattern
+	require.Greater(t, p50Series.Values[1], p50Series.Values[0], "P50 should spike in interval 1")
+	require.Greater(t, p50Series.Values[1], p50Series.Values[2], "P50 should be higher during spike than after")
+
+	// Verify exemplar distribution makes sense with per-interval context
+	totalExemplars := len(p50Series.Exemplars) + len(p90Series.Exemplars) + len(p99Series.Exemplars)
+	require.Greater(t, totalExemplars, 0, "Should have exemplars distributed")
+
+	t.Logf("Quantile values across intervals:")
+	t.Logf("P50: [%.3f, %.3f, %.3f]", p50Series.Values[0], p50Series.Values[1], p50Series.Values[2])
+	t.Logf("P90: [%.3f, %.3f, %.3f]", p90Series.Values[0], p90Series.Values[1], p90Series.Values[2])
+	t.Logf("P99: [%.3f, %.3f, %.3f]", p99Series.Values[0], p99Series.Values[1], p99Series.Values[2])
+
+	t.Logf("Exemplar distribution:")
+	t.Logf("P50 exemplars: %d", len(p50Series.Exemplars))
+	t.Logf("P90 exemplars: %d", len(p90Series.Exemplars))
+	t.Logf("P99 exemplars: %d", len(p99Series.Exemplars))
+
+	// Log individual exemplar values to see the assignment
+	for _, ex := range p50Series.Exemplars {
+		t.Logf("P50 exemplar: %.3f", ex.Value)
+	}
+	for _, ex := range p90Series.Exemplars {
+		t.Logf("P90 exemplar: %.3f", ex.Value)
+	}
+	for _, ex := range p99Series.Exemplars {
+		t.Logf("P99 exemplar: %.3f", ex.Value)
+	}
+}
+
+func TestLog2QuantileWithBucket(t *testing.T) {
+	buckets := []HistogramBucket{
+		{Max: 1.0, Count: 10}, // bucket 0
+		{Max: 2.0, Count: 20}, // bucket 1
+		{Max: 4.0, Count: 30}, // bucket 2
+		{Max: 8.0, Count: 40}, // bucket 3
+	}
+
+	tests := []struct {
+		name           string
+		quantile       float64
+		expectedBucket int
+	}{
+		{"p10", 0.1, 0},  // 10% of 100 = 10, should be in bucket 0
+		{"p30", 0.3, 1},  // 30% of 100 = 30, should be in bucket 1
+		{"p60", 0.6, 2},  // 60% of 100 = 60, should be in bucket 2
+		{"p90", 0.9, 3},  // 90% of 100 = 90, should be in bucket 3
+		{"p100", 1.0, 3}, // 100% should be in last bucket
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, bucketIdx := Log2QuantileWithBucket(tt.quantile, buckets)
+
+			// Verify we get a valid quantile value
+			require.Greater(t, value, 0.0, "Quantile value should be positive")
+
+			// Verify we get the expected bucket index
+			require.Equal(t, tt.expectedBucket, bucketIdx,
+				"Quantile %f should fall in bucket %d, got %d", tt.quantile, tt.expectedBucket, bucketIdx)
+
+			// Verify consistency with original Log2Quantile function
+			originalValue := Log2Quantile(tt.quantile, buckets)
+			require.Equal(t, originalValue, value,
+				"Log2QuantileWithBucket should return same value as Log2Quantile")
+		})
+	}
 }

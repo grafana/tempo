@@ -19,6 +19,8 @@ type StreamingBlock struct {
 	appendBuffer    *bytes.Buffer
 	appender        Appender
 
+	withNoCompactFlag bool
+
 	cfg *common.BlockConfig
 }
 
@@ -56,6 +58,8 @@ func NewStreamingBlock(cfg *common.BlockConfig, id uuid.UUID, tenantID string, m
 		meta:  newMeta,
 		bloom: common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(estimatedObjects)),
 		cfg:   cfg,
+
+		withNoCompactFlag: cfg.CreateWithNoCompactFlag,
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
@@ -145,6 +149,14 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	meta.TotalRecords = uint32(len(records)) // casting
 	meta.IndexPageSize = uint32(c.cfg.IndexPageSizeBytes)
 	meta.BloomShardCount = uint32(c.bloom.GetShardCount())
+
+	if c.withNoCompactFlag {
+		// write nocompact flag first to prevent compaction before completion
+		err := w.WriteNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+		if err != nil {
+			return 0, fmt.Errorf("unexpected error writing nocompact flag: %w", err)
+		}
+	}
 
 	return bytesFlushed, writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
 }

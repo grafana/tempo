@@ -1,6 +1,8 @@
 apiVersion: v1
 data:
   tempo.yaml: |
+    backend_worker:
+        backend_scheduler_addr: backend-scheduler.tracing.svc.cluster.local.:9095
     compactor: {}
     distributor: {}
     http_api_prefix: ""

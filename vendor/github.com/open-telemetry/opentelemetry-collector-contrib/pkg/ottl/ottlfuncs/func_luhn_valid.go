@@ -45,7 +45,7 @@ func isValidLuhnFunc[K any](target ottl.StringLikeGetter[K]) ottl.ExprFunc[K] {
 		trimmedNumber := strings.ReplaceAll(*value, " ", "")
 
 		// return false if the value is an empty string
-		if len(trimmedNumber) == 0 {
+		if trimmedNumber == "" {
 			return false, nil
 		}
 

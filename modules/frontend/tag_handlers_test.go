@@ -40,6 +40,7 @@ func TestFrontendTags(t *testing.T) {
 		runnerTagsV2BadRequestOnOrgID,
 		runnerTagValuesBadRequestOnOrgID,
 		runnerTagValuesV2BadRequestOnOrgID,
+		runnerTagValuesV2BadRequestOnInvalidTagName,
 		runnerTagsV2ClientCancelContext,
 		runnerTagValuesV2ClientCancelContext,
 	}
@@ -95,8 +96,8 @@ func runnerTagValuesBadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 
 func runnerTagValuesV2BadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	// http
-	httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/foo/values", nil)
-	httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "foo"})
+	httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/span.name/values", nil)
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "span.name"})
 	httpResp := httptest.NewRecorder()
 	f.SearchTagsValuesV2Handler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "no org id", httpResp.Body.String())
@@ -106,6 +107,23 @@ func runnerTagValuesV2BadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	grpcReq := &tempopb.SearchTagValuesRequest{}
 	err := f.streamingTagValuesV2(grpcReq, newMockStreamingServer[*tempopb.SearchTagValuesV2Response]("", nil))
 	require.Equal(t, status.Error(codes.InvalidArgument, "no org id"), err)
+}
+
+func runnerTagValuesV2BadRequestOnInvalidTagName(t *testing.T, f *QueryFrontend) {
+	// http
+	httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/app.user.id/values", nil)
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "app.user.id"})
+	httpReq = httpReq.WithContext(user.InjectOrgID(httpReq.Context(), "tenant"))
+	httpResp := httptest.NewRecorder()
+	f.SearchTagsValuesV2Handler.ServeHTTP(httpResp, httpReq)
+
+	require.Equal(t, http.StatusBadRequest, httpResp.Code)
+	require.Contains(t, httpResp.Body.String(), "tag name is not valid intrinsic or scoped attribute: app.user.id")
+
+	// grpc
+	grpcReq := &tempopb.SearchTagValuesRequest{TagName: "app.user.id"}
+	err := f.streamingTagValuesV2(grpcReq, newMockStreamingServer[*tempopb.SearchTagValuesV2Response]("tenant", nil))
+	require.Equal(t, status.Error(codes.InvalidArgument, "please provide a valid tagName: tag name is not valid intrinsic or scoped attribute: app.user.id"), err)
 }
 
 func runnerTagsV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
@@ -140,8 +158,8 @@ func runnerTagsV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 
 func runnerTagValuesV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 	// http
-	httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/foo/values", nil)
-	httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "foo"})
+	httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/span.name/values", nil)
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "span.name"})
 	httpResp := httptest.NewRecorder()
 
 	ctx, cancel := context.WithCancel(httpReq.Context())
@@ -165,7 +183,7 @@ func runnerTagValuesV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 		cancel()
 	}()
 	grpcReq := &tempopb.SearchTagValuesRequest{
-		TagName: "foo",
+		TagName: "span.name",
 	}
 	err := f.streamingTagValuesV2(grpcReq, srv)
 	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
@@ -478,8 +496,8 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 				},
 			}, nil)
 
-			httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/foo/values?start=1&end=10000", nil)
-			httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "foo"})
+			httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/span.name/values?start=1&end=10000", nil)
+			httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "span.name"})
 			httpResp := httptest.NewRecorder()
 
 			ctx := user.InjectOrgID(httpReq.Context(), "foo")
@@ -528,7 +546,7 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 			// grpc
 			srv := newMockStreamingServer[*tempopb.SearchTagValuesV2Response]("bar", nil)
 			grpcReq := &tempopb.SearchTagValuesRequest{
-				TagName: "foo",
+				TagName: "span.name",
 			}
 			err := f.streamingTagValuesV2(grpcReq, srv)
 			require.Equal(t, tc.expectedErr, err)
@@ -691,7 +709,7 @@ func TestTagValuesCachedMetrics(t *testing.T) {
 
 	// setup query
 	tenant := "foo"
-	tagName := "service.name"
+	tagName := "resource.service.name"
 	hash := fnv1a.HashString64(tagName)
 	start := uint32(10)
 	end := uint32(20)

@@ -21,7 +21,7 @@ func TestInterner_internBytes(t *testing.T) {
 		t.Errorf("expected 2, got %d", len(i.m))
 	}
 	interned1, interned2 := i.internBytes([]byte("hello")), i.internBytes([]byte("hello"))
-	if interned1[0] != interned2[0] {
+	if unsafe.SliceData(interned1) != unsafe.SliceData(interned2) {
 		// Values are interned, so the memory address should be the same
 		t.Error("expected same memory address")
 	}
@@ -37,20 +37,61 @@ func TestInterner_UnsafeClone(t *testing.T) {
 	clone1 := i.UnsafeClone(&value1)
 	clone2 := i.UnsafeClone(&value2)
 
-	if clone1.ByteArray()[0] != clone2.ByteArray()[0] {
-		// Values are interned, so the memory address should be the same
-		t.Error("expected same memory address")
+	clone1Addr := unsafe.SliceData(clone1.ByteArray())
+	clone2Addr := unsafe.SliceData(clone2.ByteArray())
+	if clone1Addr != clone2Addr {
+		t.Errorf("expected interned values to have same memory address, got %p and %p", clone1Addr, clone2Addr)
 	}
 
-	if value1.ByteArray()[0] != value2.ByteArray()[0] {
-		// Mutates the original value, so the memory address should be different as well
-		t.Error("expected same memory address")
+	value1Addr := unsafe.SliceData(value1.ByteArray())
+	value2Addr := unsafe.SliceData(value2.ByteArray())
+	if value1Addr == value2Addr {
+		t.Error("expected original values to have different memory addresses")
+	}
+
+	if string(clone1.ByteArray()) != string(clone2.ByteArray()) {
+		t.Error("expected same byte values")
+	}
+	if string(value1.ByteArray()) != string(value2.ByteArray()) {
+		t.Error("expected original values to have same content")
+	}
+
+	clone3 := i.UnsafeClone(&value1) // Clone the same value again
+	clone3Addr := unsafe.SliceData(clone3.ByteArray())
+	if clone1Addr != clone3Addr {
+		t.Errorf("expected repeated interning to return same memory, got %p and %p", clone1Addr, clone3Addr)
+	}
+
+	differentValue := pq.ByteArrayValue([]byte("bar"))
+	differentClone := i.UnsafeClone(&differentValue)
+	differentAddr := unsafe.SliceData(differentClone.ByteArray())
+	if clone1Addr == differentAddr {
+		t.Error("expected different strings to have different interned memory")
 	}
 }
 
-func Test_pqValue(t *testing.T) {
-	// Test that conversion from pq.Value to pqValue and back to pq.Value
-	// does not change the value.
+func TestPqValueMemoryLayout(t *testing.T) {
+	var pqVal pq.Value
+	var localVal pqValue
+
+	pqSize := unsafe.Sizeof(pqVal)
+	localSize := unsafe.Sizeof(localVal)
+
+	if pqSize != localSize {
+		t.Errorf("struct size mismatch: pq.Value=%d bytes, pqValue=%d bytes. "+
+			"parquet-go may have changed pq.Value internal structure", pqSize, localSize)
+	}
+
+	pqAlign := unsafe.Alignof(pqVal)
+	localAlign := unsafe.Alignof(localVal)
+
+	if pqAlign != localAlign {
+		t.Errorf("struct alignment mismatch: pq.Value=%d, pqValue=%d. "+
+			"Memory layout assumptions may be invalid", pqAlign, localAlign)
+	}
+}
+
+func TestPqValueConversion(t *testing.T) {
 	value := pq.ByteArrayValue([]byte("foo"))
 	pqValue := *(*pqValue)(unsafe.Pointer(&value))
 	back := *(*pq.Value)(unsafe.Pointer(&pqValue))

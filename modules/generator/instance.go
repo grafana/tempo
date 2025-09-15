@@ -548,7 +548,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	}
 
 	for _, p := range processors {
-		err = p.QueryRange(ctx, req, rawEval, jobEval)
+		err = p.QueryRange(ctx, *req, rawEval, jobEval)
 		if err != nil {
 			return nil, err
 		}

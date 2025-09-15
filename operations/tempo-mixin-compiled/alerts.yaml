@@ -247,7 +247,7 @@
       "message": "Tempo vulture error rate is {{ printf \"%0.2f\" $value }} for error type {{ $labels.error }} in {{ $labels.cluster }}/{{ $labels.namespace }}"
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoVultureHighErrorRate"
     "expr": |
-      sum(rate(tempo_vulture_trace_error_total{namespace=~".*"}[1m])) by (cluster, namespace, error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{namespace=~".*"}[1m])) by (cluster, namespace) > 0.200000
+      sum(rate(tempo_vulture_trace_error_total{namespace=~".*"}[1m])) by (cluster, namespace, error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{namespace=~".*"}[1m])) by (cluster, namespace) > 0.100000
     "for": "5m"
     "labels":
-      "severity": "warning"
+      "severity": "critical"

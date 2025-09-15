@@ -84,7 +84,7 @@ func initFlattenData(resolveConflict bool, maxDepth int64) *flattenData {
 }
 
 func (f *flattenData) flattenMap(m pcommon.Map, prefix string, currentDepth int64) {
-	if len(prefix) > 0 {
+	if prefix != "" {
 		prefix += "."
 	}
 	for k, v := range m.All() {

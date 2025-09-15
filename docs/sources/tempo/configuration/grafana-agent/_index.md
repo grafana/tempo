@@ -1,10 +1,10 @@
 ---
 title: Grafana Agent
+menuTitle: Grafana Agent (deprecated)
 description: Configure the Grafana Agent to work with Tempo
-weight: 600
+weight: 950
 aliases:
-  - /docs/tempo/grafana-agent
-  - ../../grafana-agent # /docs/tempo/latest/grafana-agent
+  - ../grafana-agent/ # /docs/tempo/next/grafana-agent/
 ---
 
 # Grafana Agent
@@ -36,8 +36,8 @@ leverages all the data that's processed in the pipeline.
 
 Grafana Agent is available in two different variants:
 
-* [Static mode](/docs/agent/<AGENT_VERSION>/static): The original Grafana Agent.
-* [Flow mode](/docs/agent/<AGENT_VERSION>/flow): The new, component-based Grafana Agent.
+- [Static mode](/docs/agent/<AGENT_VERSION>/static): The original Grafana Agent.
+- [Flow mode](/docs/agent/<AGENT_VERSION>/flow): The new, component-based Grafana Agent.
 
 Grafana Agent Flow configuration files are [written in River](/docs/agent/<AGENT_VERSION>/flow/concepts/config-language/).
 Static configuration files are [written in YAML](/docs/agent/<AGENT_VERSION>/static/configuration/).
@@ -60,9 +60,12 @@ pipelines, each of which collects separate spans and sends them to different
 backends.
 
 ### Receiving traces
+
 <!-- vale Grafana.Parentheses = NO -->
+
 The Grafana Agent supports multiple ingestion receivers:
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus, and Kafka.
+
 <!-- vale Grafana.Parentheses = YES -->
 
 Each tracing pipeline can be configured to receive traces in all these formats.

@@ -85,6 +85,7 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 const (
 	DefaultReplicationFactor          = 0 // Replication factor for blocks from the ingester. This is the default value to indicate RF3.
 	MetricsGeneratorReplicationFactor = 1
+	LiveStoreReplicationFactor        = MetricsGeneratorReplicationFactor
 )
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should

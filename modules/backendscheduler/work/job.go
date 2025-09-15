@@ -12,7 +12,7 @@ type Job struct {
 	Type        tempopb.JobType   `json:"type"`
 	JobDetail   tempopb.JobDetail `json:"job_detail"`
 	Status      tempopb.JobStatus `json:"status"`
-	mtx         sync.RWMutex
+	mtx         sync.Mutex
 	CreatedTime time.Time `json:"created_time"`
 	StartTime   time.Time `json:"start_time"`
 	EndTime     time.Time `json:"end_time"`
@@ -45,62 +45,62 @@ func (j *Job) Fail() {
 }
 
 func (j *Job) IsComplete() bool {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.Status == tempopb.JobStatus_JOB_STATUS_SUCCEEDED
 }
 
 func (j *Job) IsFailed() bool {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.Status == tempopb.JobStatus_JOB_STATUS_FAILED
 }
 
 func (j *Job) IsPending() bool {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.Status == tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
 }
 
 func (j *Job) IsRunning() bool {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.Status == tempopb.JobStatus_JOB_STATUS_RUNNING
 }
 
 func (j *Job) GetID() string {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.ID
 }
 
 func (j *Job) GetStatus() tempopb.JobStatus {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.Status
 }
 
 func (j *Job) GetCreatedTime() time.Time {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.CreatedTime
 }
 
 func (j *Job) GetStartTime() time.Time {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.StartTime
 }
 
 func (j *Job) GetEndTime() time.Time {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.EndTime
 }
 
 func (j *Job) GetType() tempopb.JobType {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.Type
 }
 
@@ -111,21 +111,21 @@ func (j *Job) SetWorkerID(id string) {
 }
 
 func (j *Job) GetWorkerID() string {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 	return j.WorkerID
 }
 
 func (j *Job) Tenant() string {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 
 	return j.JobDetail.Tenant
 }
 
 func (j *Job) GetCompactionInput() []string {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 
 	switch j.Type {
 	case tempopb.JobType_JOB_TYPE_COMPACTION:
@@ -136,8 +136,8 @@ func (j *Job) GetCompactionInput() []string {
 }
 
 func (j *Job) GetCompactionOutput() []string {
-	j.mtx.RLock()
-	defer j.mtx.RUnlock()
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
 
 	switch j.Type {
 	case tempopb.JobType_JOB_TYPE_COMPACTION:

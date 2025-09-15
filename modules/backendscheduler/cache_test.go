@@ -39,15 +39,15 @@ func TestCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// No file should exist yet
-	err = s.loadWorkCache(ctx)
-	require.ErrorIs(t, backend.ErrDoesNotExist, err)
+	err = s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
+	require.NoError(t, err)
 
 	// Flush the empty work cache
-	err = s.flushWorkCache(ctx)
+	err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil)
 	require.NoError(t, err)
 
 	// No error loading the empty work cache
-	err = s.loadWorkCache(ctx)
+	err = s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
 	require.NoError(t, err)
 
 	u := uuid.NewString()
@@ -63,8 +63,8 @@ func TestCache(t *testing.T) {
 
 	os.Remove(s.cfg.LocalWorkPath + "/" + backend.WorkFileName)
 
-	// Now the work cache should load from the backend and not be empty.
-	err = s.loadWorkCache(ctx)
+	// Test backend fallback
+	err = s.loadWorkCacheFromBackend(ctx)
 	require.NoError(t, err)
 
 	job := s.work.GetJob(u)
@@ -79,7 +79,8 @@ func TestCache(t *testing.T) {
 	s, err = New(cfg, store, limits, rr, ww)
 	require.NoError(t, err)
 
-	err = s.loadWorkCache(ctx)
+	// Test loading from backend when no local cache exists
+	err = s.loadWorkCacheFromBackend(ctx)
 	require.NoError(t, err)
 
 	job = s.work.GetJob(u)

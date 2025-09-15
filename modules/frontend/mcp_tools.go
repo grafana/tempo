@@ -372,11 +372,11 @@ func (s *MCPServer) buildPath(p string) string {
 
 func toolResult(body string, contentType string, encoding string, version string) *mcp.CallToolResult {
 	res := mcp.NewToolResultText(body)
-	res.Meta = map[string]any{
+	res.Meta = &mcp.Meta{AdditionalFields: map[string]any{
 		"type":     contentType,
 		"encoding": encoding,
 		"version":  version,
-	}
+	}}
 
 	return res
 }

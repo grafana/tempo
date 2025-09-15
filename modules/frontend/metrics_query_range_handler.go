@@ -2,6 +2,8 @@ package frontend
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -34,6 +36,10 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
+		if err := validateQueryRangeReq(cfg, req); err != nil {
+			return err
+		}
+		traceql.AlignRequest(req)
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -75,31 +81,30 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, _ := user.ExtractOrgID(req.Context())
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
+			return errResp, nil
+		}
 		start := time.Now()
 
 		// parse request
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: parse search request failed", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
-
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
+
+		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		traceql.AlignRequest(queryRangeReq)
 
 		// build and use roundtripper
 		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
 
@@ -171,4 +176,27 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
 		"step", req.Step)
+}
+
+func httpInvalidRequest(err error) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Status:     http.StatusText(http.StatusBadRequest),
+		Body:       io.NopCloser(strings.NewReader(err.Error())),
+	}
+}
+
+func validateQueryRangeReq(cfg Config, req *tempopb.QueryRangeRequest) error {
+	if req.Start > req.End {
+		return errors.New("end must be greater than start")
+	}
+	if cfg.Metrics.MaxIntervals != 0 && (req.Step == 0 || (req.End-req.Start)/req.Step > cfg.Metrics.MaxIntervals) {
+		minimumStep := (req.End - req.Start) / cfg.Metrics.MaxIntervals
+		return fmt.Errorf(
+			"step of %s is too small, minimum step for given range is %s",
+			time.Duration(req.Step).String(),
+			time.Duration(minimumStep).String(),
+		)
+	}
+	return nil
 }

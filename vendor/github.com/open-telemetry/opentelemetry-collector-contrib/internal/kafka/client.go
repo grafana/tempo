@@ -77,7 +77,7 @@ func NewSaramaConsumerGroup(
 	if rebalanceStrategy != nil {
 		saramaConfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{rebalanceStrategy}
 	}
-	if len(consumerConfig.GroupInstanceID) > 0 {
+	if consumerConfig.GroupInstanceID != "" {
 		saramaConfig.Consumer.Group.InstanceId = consumerConfig.GroupInstanceID
 	}
 	return sarama.NewConsumerGroup(clientConfig.Brokers, consumerConfig.GroupID, saramaConfig)

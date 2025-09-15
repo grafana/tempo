@@ -20,6 +20,8 @@ import (
 // - renaming of the ingester rings using override_ring_key to avoid collisions
 // - using a common kv store by gossiping across both clusters
 func TestCrossClusterReads(t *testing.T) {
+	t.Parallel()
+
 	// start minio
 	s, err := e2e.NewScenario("tempo_active_active")
 	require.NoError(t, err)

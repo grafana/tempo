@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: live-store-zone-a
+  name: live-store-zone-a
+  namespace: tracing
+spec:
+  clusterIP: None
+  ports:
+  - name: live-store-prom-metrics
+    port: 3200
+    targetPort: 3200
+  selector:
+    name: live-store-zone-a
+    rollout-group: live-store

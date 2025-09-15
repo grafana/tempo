@@ -37,8 +37,6 @@ const (
 	ringNumTokens = 512
 
 	backendWorkerRingKey = "backend-worker"
-
-	reasonCompactorDiscardedSpans = "trace_too_large_to_compact"
 )
 
 var ringOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
@@ -179,7 +177,7 @@ func (w *BackendWorker) starting(ctx context.Context) (err error) {
 	}
 
 	if w.cfg.Poll {
-		w.store.EnablePolling(ctx, w)
+		w.store.EnablePolling(ctx, w, false)
 	}
 
 	return nil
@@ -190,6 +188,13 @@ func (w *BackendWorker) running(ctx context.Context) error {
 
 	b := backoff.New(ctx, w.cfg.Backoff)
 
+	jobCtx := ctx
+	if w.cfg.FinishOnShutdownTimeout > 0 {
+		var jobsCancel context.CancelFunc
+		jobCtx, jobsCancel = createShutdownContext(ctx, w.cfg.FinishOnShutdownTimeout)
+		defer jobsCancel()
+	}
+
 	if w.subservices != nil {
 		for {
 			select {
@@ -198,8 +203,8 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			case err := <-w.subservicesWatcher.Chan():
 				return fmt.Errorf("worker subservices failed: %w", err)
 			default:
-				if err := w.processJobs(ctx); err != nil {
-					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
+				if err := w.processJobs(jobCtx); err != nil {
+					level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
 				}
@@ -213,8 +218,8 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			case <-ctx.Done():
 				return nil
 			default:
-				if err := w.processJobs(ctx); err != nil {
-					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
+				if err := w.processJobs(jobCtx); err != nil {
+					level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
 				}
@@ -226,26 +231,32 @@ func (w *BackendWorker) running(ctx context.Context) error {
 }
 
 func (w *BackendWorker) processJobs(ctx context.Context) error {
-	var resp *tempopb.NextJobResponse
-	var err error
+	var (
+		resp *tempopb.NextJobResponse
+		err  error
+	)
 
 	// Request next job
 	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		resp, err = w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
+		var funcErr error
+		resp, funcErr = w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: w.workerID,
 		})
-		if err != nil {
-			if errStatus, ok := status.FromError(err); ok {
+		if funcErr != nil {
+			if errStatus, ok := status.FromError(funcErr); ok {
 				if errStatus.Code() == codes.NotFound {
 					return errStatus.Err()
 				}
 			}
 
-			return fmt.Errorf("error getting next job: %w", err)
+			return fmt.Errorf("error getting next job: %w", funcErr)
 		}
 
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("failed processing jobs: %w", err)
+	}
 
 	if resp == nil || resp.JobId == "" {
 		return fmt.Errorf("no jobs available")
@@ -343,7 +354,8 @@ func (w *BackendWorker) stopping(_ error) error {
 		return services.StopManagerAndAwaitStopped(context.Background(), w.subservices)
 	}
 
-	// TODO: consider waiting for any jobs to finish
+	level.Info(log.Logger).Log("msg", "backend worker stopped")
+
 	return nil
 }
 
@@ -395,7 +407,7 @@ func (w *BackendWorker) Combine(dataEncoding string, tenantID string, objs ...[]
 	}
 
 	totalDiscarded := countSpans(dataEncoding, objs[1:]...)
-	overrides.RecordDiscardedSpans(totalDiscarded, reasonCompactorDiscardedSpans, tenantID)
+	overrides.RecordDiscardedSpans(totalDiscarded, overrides.ReasonCompactorDiscardedSpans, tenantID)
 	return objs[0], wasCombined, nil
 }
 
@@ -460,7 +472,7 @@ func (w *BackendWorker) Owns(hash string) bool {
 func (w *BackendWorker) RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string, rootServiceName string) {
 	level.Warn(log.Logger).Log("msg", "max size of trace exceeded", "tenant", tenantID, "traceId", traceID,
 		"rootSpanName", rootSpanName, "rootServiceName", rootServiceName, "discarded_span_count", count)
-	overrides.RecordDiscardedSpans(count, reasonCompactorDiscardedSpans, tenantID)
+	overrides.RecordDiscardedSpans(count, overrides.ReasonCompactorDiscardedSpans, tenantID)
 }
 
 // BlockRetentionForTenant implements CompactorOverrides
@@ -493,6 +505,11 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 			return nil
 		default:
 			if err = f(ctx); err != nil {
+				if ctx.Err() != nil {
+					// Parent was canceled while executing, return
+					return nil
+				}
+
 				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
 				metricWorkerCallRetries.WithLabelValues().Inc()
 				// Add jitter so all workers don't all retry at once and cause a thundering herd.
@@ -540,7 +557,7 @@ func (w *BackendWorker) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc
 func (w *BackendWorker) OnRingInstanceTokens(*ring.BasicLifecycler, ring.Tokens) {}
 
 // OnRingInstanceStopping is called while the lifecycler is stopping. The lifecycler
-// will continue to hearbeat the ring the this function is executing and will proceed
+// will continue to heartbeat the ring the this function is executing and will proceed
 // to unregister the instance from the ring only after this function has returned.
 func (w *BackendWorker) OnRingInstanceStopping(*ring.BasicLifecycler) {}
 
@@ -565,4 +582,29 @@ func (s ownsEverythingSharder) RecordDiscardedSpans(count int, tenantID string, 
 
 func (s ownsEverythingSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
 	return s.w.Combine(dataEncoding, tenantID, objs...)
+}
+
+// createShutdownContext creates a context that starts a timeout only after parentCtx is cancelled
+func createShutdownContext(parentCtx context.Context, shutdownTimeout time.Duration) (context.Context, context.CancelFunc) {
+	jobsCtx, jobsCancel := context.WithCancel(context.Background())
+
+	go func() {
+		<-parentCtx.Done() // Wait for parent cancellation
+
+		// Now start the shutdown timeout
+		timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer timeoutCancel()
+
+		select {
+		case <-timeoutCtx.Done():
+			// Timeout expired, force cancel jobs
+			level.Warn(log.Logger).Log("msg", "job timeout expired")
+			jobsCancel()
+		case <-jobsCtx.Done():
+			// Jobs completed gracefully before timeout
+			return
+		}
+	}()
+
+	return jobsCtx, jobsCancel
 }

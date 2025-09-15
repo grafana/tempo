@@ -388,6 +388,112 @@ func TestPollBlock(t *testing.T) {
 	}
 }
 
+func TestPollBlockWithNoCompactFlag(t *testing.T) {
+	blockID := backend.MustParse("00000000-0000-0000-0000-000000000001")
+	blockUUID := uuid.MustParse(blockID.String())
+	tenantID := "test"
+
+	tests := []struct {
+		name                   string
+		hasNoCompactFlag       bool
+		noCompactFlagError     error
+		skipNoCompactBlocks    bool
+		expectedMeta           *backend.BlockMeta
+		expectedNoCompactCalls int
+		expectedBlockMetaCalls int
+		wantErr                bool
+	}{
+		{
+			name:                   "block without nocompact flag is included",
+			hasNoCompactFlag:       false,
+			skipNoCompactBlocks:    true,
+			expectedMeta:           &backend.BlockMeta{BlockID: blockID, TenantID: tenantID},
+			expectedNoCompactCalls: 1,
+			expectedBlockMetaCalls: 1,
+			wantErr:                false,
+		},
+		{
+			name:                   "block with nocompact flag is excluded",
+			hasNoCompactFlag:       true,
+			skipNoCompactBlocks:    true,
+			expectedMeta:           nil,
+			expectedNoCompactCalls: 1,
+			expectedBlockMetaCalls: 0, // no calls for excluded block
+			wantErr:                false,
+		},
+		{
+			name:                   "block with nocompact flag is included if skipNoCompactBlocks is false",
+			hasNoCompactFlag:       true,
+			skipNoCompactBlocks:    false,
+			expectedMeta:           &backend.BlockMeta{BlockID: blockID, TenantID: tenantID},
+			expectedNoCompactCalls: 0, // no compact check calls
+			expectedBlockMetaCalls: 1,
+			wantErr:                false,
+		},
+		{
+			name:                   "block with nocompact flag check error is excluded",
+			hasNoCompactFlag:       false,
+			skipNoCompactBlocks:    true,
+			noCompactFlagError:     errors.New("flag check error"),
+			expectedMeta:           nil,
+			expectedNoCompactCalls: 1,
+			expectedBlockMetaCalls: 0, // no calls for errored block
+			wantErr:                true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &backend.MockReader{
+				T: []string{tenantID},
+				BlockMetaFn: func(_ context.Context, blockID uuid.UUID, tID string) (*backend.BlockMeta, error) {
+					if blockID == blockUUID && tID == tenantID {
+						return &backend.BlockMeta{BlockID: backend.UUID(blockID), TenantID: tID}, nil
+					}
+					return nil, backend.ErrDoesNotExist
+				},
+				HasNoCompactFlagFn: func(_ context.Context, _ uuid.UUID, _ string) (bool, error) {
+					if tc.noCompactFlagError != nil {
+						return false, tc.noCompactFlagError
+					}
+					return tc.hasNoCompactFlag, nil
+				},
+			}
+
+			c := &backend.MockCompactor{
+				BlockMetaFn: func(_ uuid.UUID, _ string) (*backend.CompactedBlockMeta, error) {
+					return nil, backend.ErrDoesNotExist
+				},
+			}
+
+			w := &backend.MockWriter{}
+
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency:       testPollConcurrency,
+				TenantPollConcurrency: testTenantPollConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
+				SkipNoCompactBlocks:   tc.skipNoCompactBlocks,
+			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
+
+			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tenantID, blockUUID, false)
+			if tc.wantErr {
+				assert.Error(t, err, "expected error for block with nocompact flag or error checking the flag")
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Nil(t, actualCompactedMeta)
+
+			assert.Equal(t, tc.expectedMeta, actualMeta, "block without nocompact flag should be included")
+
+			// Verify the methods were called the expected number of times
+			assert.Equal(t, tc.expectedBlockMetaCalls, r.BlockMetaCalls[tenantID][blockUUID], "BlockMeta should be called expected number of times")
+			assert.Equal(t, tc.expectedNoCompactCalls, r.HasNoCompactFlagCalls[tenantID][blockUUID], "HasNoCompactFlag should be called expected number of times")
+		})
+	}
+}
+
 func TestTenantIndexPollError(t *testing.T) {
 	p := NewPoller(&PollerConfig{
 		StaleTenantIndex: time.Minute,

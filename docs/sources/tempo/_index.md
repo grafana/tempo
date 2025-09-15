@@ -17,19 +17,22 @@ cards:
   title_class: pt-0 lh-1
   items:
     - title: Learn about tracing
-      href: /docs/tempo/latest/getting-started/
+      href: ./introduction/
       description: What is distributed tracing? Learn about traces and how you can use them, how you can instrument your app for tracing, and how you can visualize tracing data in Grafana.
-    - title: Set up Tempo
-      href: /docs/tempo/latest/setup/
-      description: Plan your deployment to meet your needs, deploy Tempo, test your installation, and configure Tempo services.
+    - title: Solutions and use cases
+      href: ./solutions-with-traces/
+      description: Learn how tracing data can help you understand application insights and performance as well as help triage issues in your services and applications.
+    - title: Set up for tracing
+      href: ./set-up-for-tracing/
+      description: Plan your deployment to meet your needs, deploy Tempo, test your installation, and instrument your app or services for traces.
     - title: Manage Tempo
-      href: /docs/tempo/latest/operations/
-      description: Learn about Tempo architecture, best practices, Parquet backend, dedicated attribute columns, metrics from traces, and more.
+      href: ./operations/
+      description: Learn about Tempo architecture, best practices, Parquet backend, dedicated attribute columns, and more.
     - title: Metrics and tracing
-      href: /docs/tempo/latest/metrics-generator/
-      description: Use metrics-generator to derive metrics from ingested traces. The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
+      href: ./metrics-from-traces/
+      description: Learn about metrics created from traces, including the metrics-generator processor and TraceQL metrics.
     - title: Query with TraceQL
-      href: /docs/tempo/latest/traceql/
+      href: ./traceql/
       description: Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. This query language lets you precisely and easily select spans and jump directly to the spans fulfilling the specified conditions.
 ---
 
@@ -45,12 +48,12 @@ Tempo is cost-efficient and only requires an object storage to operate.
 Tempo is deeply integrated with Grafana, Mimir, Prometheus, and Loki.
 You can use Tempo with open source tracing protocols, including Jaeger, Zipkin, or OpenTelemetry.
 
-{{< figure src="getting-started/assets/trace_custom_metrics_dash.png" alt="Trace visualization in Grafana" class="w-100p" link-class="w-fit mx-auto d-flex flex-direction-column" >}}
+{{< figure src="/media/docs/tempo/intro/trace_custom_metrics_dash.png" alt="Trace visualization in Grafana" class="w-100p" link-class="w-fit mx-auto d-flex flex-direction-column" >}}
 
 Tempo integrates well with a number of open source tools:
 
-- **Grafana** ships with native support using the built-in [Tempo data source](/docs/grafana/latest/datasources/tempo/).
-- **Grafana Loki**, with its powerful query language LogQL v2 lets you filter requests that you care about, and jump to traces using the [Derived fields support in Grafana](/docs/grafana/latest/datasources/loki/#derived-fields).
+- **Grafana** ships with native support using the built-in [Tempo data source](/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/).
+- **Grafana Loki**, with its powerful query language LogQL v2 lets you filter requests that you care about, and jump to traces using the [Derived fields support in Grafana](/docs/grafana/<GRAFANA_VERSION>/datasources/loki/#derived-fields).
 - **Prometheus exemplars** let you jump from Prometheus metrics to Tempo traces by clicking on recorded exemplars.
 
 ## Explore

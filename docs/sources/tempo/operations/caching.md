@@ -18,7 +18,7 @@ For information about search performance, refer to [Tune search performance](htt
 
 Memcached is one of the cache implementations supported by Tempo.
 It's used by default in the Tanka and Helm examples.
-Refer to [Deploying Tempo](../../setup/deployment/).
+Refer to [Deploying Tempo](../../set-up-for-tracing/setup-tempo/deploy/).
 
 ### Connection limit
 

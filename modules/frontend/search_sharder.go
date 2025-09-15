@@ -154,6 +154,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	// calculate metrics to return to the caller
 	resp.TotalBlocks = len(blocks)
 
+	firstShardIdx := len(resp.Shards)
 	blockIter := backendJobsFunc(blocks, s.cfg.TargetBytesPerRequest, s.cfg.MostRecentShards, searchReq.End)
 	blockIter(func(jobs int, sz uint64, completedThroughTime uint32) {
 		resp.TotalJobs += jobs
@@ -166,7 +167,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	}, nil)
 
 	go func() {
-		buildBackendRequests(ctx, tenantID, parent, searchReq, blockIter, reqCh, errFn)
+		buildBackendRequests(ctx, tenantID, parent, searchReq, firstShardIdx, blockIter, reqCh, errFn)
 	}()
 }
 
@@ -292,7 +293,7 @@ func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, u
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request, errFn func(error)) {
+func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, firstShardIdx int, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request, errFn func(error)) {
 	defer close(reqCh)
 
 	queryHash := hashForSearchRequest(searchReq)
@@ -333,7 +334,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 		endTime := time.Unix(int64(searchReq.End), 0)
 		key := searchJobCacheKey(tenantID, queryHash, startTime, endTime, m, startPage, pages)
 		pipelineR.SetCacheKey(key)
-		pipelineR.SetResponseData(shard)
+		pipelineR.SetResponseData(firstShardIdx + shard)
 
 		select {
 		case reqCh <- pipelineR:

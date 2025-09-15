@@ -562,6 +562,29 @@ func TestExamplesInEngine(t *testing.T) {
 	}
 }
 
+func TestExecuteTagNames_InvalidQuery(t *testing.T) {
+	e := NewEngine()
+
+	invalidQuery := "{ invalid syntax }"
+	err := e.ExecuteTagNames(
+		context.Background(),
+		AttributeScopeSpan,
+		invalidQuery,
+		func(string, AttributeScope) bool {
+			return false
+		},
+		&MockTagNamesFetcher{},
+	)
+
+	require.NoError(t, err)
+}
+
+type MockTagNamesFetcher struct{}
+
+func (m *MockTagNamesFetcher) Fetch(context.Context, FetchTagsRequest, FetchTagsCallback) error {
+	return nil
+}
+
 func TestExecuteTagValues(t *testing.T) {
 	// TODO: This test is stupid, it's using the traceql engine to execute the query
 	//  and doesn't actually test the ExecuteTagValues function

@@ -205,7 +205,7 @@ func TestProcessor(t *testing.T) {
 			jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
 			require.NoError(t, err)
 
-			err = processor.QueryRange(t.Context(), req, rawEval, jobEval)
+			err = processor.QueryRange(t.Context(), *req, rawEval, jobEval)
 			require.NoError(t, err)
 			results := jobEval.Results()
 

@@ -8,10 +8,10 @@ type grammarPathVisitor struct {
 	paths []path
 }
 
-func (v *grammarPathVisitor) visitEditor(_ *editor)                   {}
-func (v *grammarPathVisitor) visitConverter(_ *converter)             {}
-func (v *grammarPathVisitor) visitValue(_ *value)                     {}
-func (v *grammarPathVisitor) visitMathExprLiteral(_ *mathExprLiteral) {}
+func (*grammarPathVisitor) visitEditor(*editor)                   {}
+func (*grammarPathVisitor) visitConverter(*converter)             {}
+func (*grammarPathVisitor) visitValue(*value)                     {}
+func (*grammarPathVisitor) visitMathExprLiteral(*mathExprLiteral) {}
 
 func (v *grammarPathVisitor) visitPath(value *path) {
 	v.paths = append(v.paths, *value)

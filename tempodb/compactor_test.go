@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"path"
 	"testing"
@@ -119,13 +120,13 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	wal := w.WAL()
 	require.NoError(t, err)
 
 	blockCount := 4
-	recordCount := 100
+	recordCount := 50
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
@@ -163,7 +164,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, 2)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, 2, 0)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
@@ -194,29 +195,33 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	// now see if we can find our ids
 	for i, id := range allIds {
-		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
-		require.NoError(t, err)
-		require.Nil(t, failedBlocks)
-		require.NotNil(t, trs)
-
-		c := trace.NewCombiner(0, false)
-		for _, tr := range trs {
-			require.NotNil(t, tr)
-			require.NotNil(t, tr.Trace)
-			_, err = c.Consume(tr.Trace)
+		t.Run(fmt.Sprintf("trace-%d", i), func(t *testing.T) {
+			trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 			require.NoError(t, err)
-		}
-		tr, _ := c.Result()
+			require.Nil(t, failedBlocks)
+			require.NotNil(t, trs)
 
-		// Sort all traces to check equality consistently.
-		trace.SortTrace(allReqs[i])
-		trace.SortTrace(tr)
+			t.Parallel()
 
-		if !proto.Equal(allReqs[i], tr) {
-			wantJSON, _ := json.MarshalIndent(allReqs[i], "", "  ")
-			gotJSON, _ := json.MarshalIndent(tr, "", "  ")
-			require.Equal(t, wantJSON, gotJSON)
-		}
+			c := trace.NewCombiner(0, false)
+			for _, tr := range trs {
+				require.NotNil(t, tr)
+				require.NotNil(t, tr.Trace)
+				_, err = c.Consume(tr.Trace)
+				require.NoError(t, err)
+			}
+			tr, _ := c.Result()
+
+			// Sort all traces to check equality consistently.
+			trace.SortTrace(allReqs[i])
+			trace.SortTrace(tr)
+
+			if !proto.Equal(allReqs[i], tr) {
+				wantJSON, _ := json.MarshalIndent(allReqs[i], "", "  ")
+				gotJSON, _ := json.MarshalIndent(tr, "", "  ")
+				require.Equal(t, wantJSON, gotJSON)
+			}
+		})
 	}
 }
 
@@ -269,7 +274,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	wal := w.WAL()
 	require.NoError(t, err)
@@ -333,7 +338,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
-	blockSelector := blockselector.NewTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount, 0)
 	blocks, _ = blockSelector.BlocksToCompact()
 	require.Len(t, blocks, blockCount)
 
@@ -413,7 +418,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -484,7 +489,7 @@ func TestCompactionMetrics(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -560,7 +565,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	// Cut blocks for multiple tenants
 	cutTestBlocks(t, w, testTenantID, 2, 2)
@@ -588,6 +593,7 @@ func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactionHonorsBlockStartEndTimes(t, version)
 		})
 	}
@@ -632,7 +638,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{}, true)
 
 	cutTestBlockWithTraces(t, w, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
@@ -664,6 +670,7 @@ func TestCompactionDropsTraces(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactionDropsTraces(t, version)
 		})
 	}
@@ -809,6 +816,7 @@ func TestCompactWithConfig(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactWithConfig(t, version)
 		})
 	}

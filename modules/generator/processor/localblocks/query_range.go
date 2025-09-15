@@ -1,3 +1,6 @@
+/*
+ * livestore/query_range.go is based on this file and any changes should be kepy in sync.
+ */
 package localblocks
 
 import (
@@ -22,7 +25,7 @@ import (
 )
 
 // QueryRange returns metrics.
-func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest, rawEval *traceql.MetricsEvaluator, jobEval *traceql.MetricsFrontendEvaluator) error {
+func (p *Processor) QueryRange(ctx context.Context, req tempopb.QueryRangeRequest, rawEval *traceql.MetricsEvaluator, jobEval *traceql.MetricsFrontendEvaluator) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -118,7 +121,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 			wg.Add(1)
 			go func(b *ingester.LocalBlock) {
 				defer wg.Done()
-				resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
+				resp, err := p.queryRangeCompleteBlock(ctx, b, req, timeOverlapCutoff, unsafe, int(req.Exemplars))
 				if err != nil {
 					jobErr.Store(err)
 					return

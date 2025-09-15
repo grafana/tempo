@@ -19,6 +19,8 @@ import (
 )
 
 func TestSearchUsingJaegerPlugin(t *testing.T) {
+	t.Parallel()
+
 	s, err := e2e.NewScenario("tempo_query_plugin_e2e")
 	require.NoError(t, err)
 	defer s.Close()
@@ -76,6 +78,8 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 }
 
 func TestSearchUsingBackendTagsService(t *testing.T) {
+	t.Parallel()
+
 	s, err := e2e.NewScenario("tempo_query_plugin_backend_e2e")
 	require.NoError(t, err)
 	defer s.Close()
@@ -135,7 +139,7 @@ func callJaegerQuerySearchServicesAssert(t *testing.T, tempo, svc *e2e.HTTPServi
 		slices.Sort(expected.Data)
 		slices.Sort(response.Data)
 
-		return assert.Equal(t, expected, response)
+		return assert.ObjectsAreEqual(expected, response)
 	}, 1*time.Minute, 5*time.Second)
 }
 

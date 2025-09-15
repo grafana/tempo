@@ -1,12 +1,11 @@
 ---
-title: Write TraceQL queries in Grafana
-menuTitle: Write TraceQL queries in Grafana
+title: TraceQL queries in Grafana
 description: Learn how to create TraceQL queries in Grafana using the query editor and search.
 aliases:
   - ./construct-query # /docs/tempo/<TEMPO_VERSION>/traceql/construct-query
   - ./query-editor/traceql-editor # /docs/tempo/<TEMPO_VERSION>/traceql/query-editor/traceql-editor
   - ./query-editor/traceql-search # /docs/tempo/<TEMPO_VERSION>/traceql/query-editor/traceql-search
-weight: 400
+weight: 500
 keywords:
   - Tempo query language
   - query editor
@@ -24,7 +23,9 @@ refs:
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/service-graph-view/
 ---
 
-# Write TraceQL queries in Grafana
+# TraceQL queries in Grafana
+
+You can compose TraceQL queries in Grafana and Grafana Cloud using **Explore** and a Tempo data source.
 
 The Tempo data source's query editor helps you query and display traces from Tempo in [Explore](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/).
 The queries use [TraceQL](ref:traceql), the query language designed specifically for tracing.
@@ -35,9 +36,10 @@ Query results can stream to the client, which lets you look at traces matching y
 To use streaming in Grafana, you must have `stream_over_http_enabled: true` enabled in Tempo.
 For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#tempo-grpc-api).
 
-## Before you begin
-
-You can compose TraceQL queries in Grafana and Grafana Cloud using **Explore** and a Tempo data source.
+{{< admonition type="note" >}}
+You can also use Traces Drilldown to explore your tracing data without writing queries.
+For more information, refer to the [Traces Drilldown documentation](/docs/grafana/<TEMPO_VERSION>/explore/simplified-exploration/traces/).
+{{< /admonition >}}
 
 ## Choose a query editing mode
 
@@ -51,6 +53,17 @@ The three **Query types** are:
 - The **Search** query builder provides a user interface for building a TraceQL query.
 - The **TraceQL** query editor lets you write your own TraceQL query with assistance from autocomplete.
 - The **Service Graph** view displays a visual relationship between services. Refer to the [Service graph view](ref:service-graph-view) documentation for more information.
+
+### Stream query results
+
+Query results can stream to the client, which lets you look at traces matching your query before the entire query completes.
+
+The GRPC streaming API endpoint in the query frontend allows a client to stream search results from Tempo.
+The `tempo-cli` also uses this streaming endpoint.
+For more information, refer to the [Tempo CLI documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#query-api-command).
+
+To use streaming in Grafana, you must have `stream_over_http_enabled: true` enabled in Tempo.
+For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#tempo-grpc-api).
 
 ### Search query builder
 

@@ -48,15 +48,6 @@ import (
 )
 
 const (
-	// reasonRateLimited indicates that the tenants spans/second exceeded their limits
-	reasonRateLimited = "rate_limited"
-	// reasonTraceTooLarge indicates that a single trace has too many spans
-	reasonTraceTooLarge = "trace_too_large"
-	// reasonLiveTracesExceeded indicates that tempo is already tracking too many live traces in the ingesters for this user
-	reasonLiveTracesExceeded = "live_traces_exceeded"
-	// reasonUnknown indicates a pushByte error at the ingester level not related to GRPC
-	reasonUnknown = "unknown_error"
-
 	distributorRingKey = "distributor"
 )
 
@@ -94,7 +85,12 @@ var (
 	metricBytesIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_bytes_received_total",
-		Help:      "The total number of proto bytes received per tenant",
+		Help:      "The total number of proto bytes received per tenant, after limits",
+	}, []string{"tenant"})
+	metricIngressBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_ingress_bytes_total",
+		Help:      "The total number of bytes received per tenant, before limits",
 	}, []string{"tenant"})
 	metricTracesPerBatch = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
@@ -377,7 +373,7 @@ func (d *Distributor) stopping(_ error) error {
 func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID string) error {
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
-		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
+		overrides.RecordDiscardedSpans(spanCount, overrides.ReasonRateLimited, userID)
 		// limit: number of bytes per second allowed for the user, as per ingestion rate strategy
 		limit := int(d.ingestionRateLimiter.Limit(now, userID))
 		burst := d.ingestionRateLimiter.Burst(now, userID)
@@ -427,6 +423,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 	defer d.padWithArtificialDelay(reqStart, userID)
+	metricIngressBytes.WithLabelValues(userID).Add(float64(size))
 
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
@@ -484,9 +481,11 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, ringTokens)
-	if err != nil {
-		return nil, err
+	if d.cfg.IngesterWritePathEnabled {
+		err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, ringTokens)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
@@ -496,14 +495,11 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	if d.kafkaProducer != nil {
 		err := d.sendToKafka(ctx, userID, ringTokens, rebatchedTraces)
 		if err != nil {
-			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err)
+			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err, "tenant", userID)
 			return nil, err
 		}
-	} else {
-		// See if we need to send to the generators
-		if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
-			d.generatorForwarder.SendTraces(ctx, userID, ringTokens, rebatchedTraces)
-		}
+	} else if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 { // See if we need to send to the generators
+		d.generatorForwarder.SendTraces(ctx, userID, ringTokens, rebatchedTraces)
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
@@ -683,7 +679,7 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		sizeBytes := 0
 		for _, result := range produceResults {
 			if result.Err != nil {
-				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
+				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err, "tenant", userID)
 				metricKafkaAppends.WithLabelValues(partitionLabel, "fail").Inc()
 			} else {
 				count++
@@ -745,6 +741,10 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
 					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
+				}
+
+				if !validation.ValidSpanID(span.SpanId) {
+					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
 				}
 
 				traceKey := util.HashForTraceID(traceID)
@@ -933,9 +933,9 @@ func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceiv
 
 func recordDiscardedSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, writeRing ring.ReadRing, userID string) {
 	maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount := countDiscardedSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, writeRing.ReplicationFactor())
-	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
-	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
-	overrides.RecordDiscardedSpans(unknownErrorCount, reasonUnknown, userID)
+	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, overrides.ReasonLiveTracesExceeded, userID)
+	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, overrides.ReasonTraceTooLarge, userID)
+	overrides.RecordDiscardedSpans(unknownErrorCount, overrides.ReasonUnknown, userID)
 }
 
 func logDiscardedSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, writeRing ring.ReadRing, userID string, cfg *LogSpansConfig, logger log.Logger) {

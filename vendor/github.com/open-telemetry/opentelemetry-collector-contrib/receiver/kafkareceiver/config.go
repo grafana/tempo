@@ -54,6 +54,9 @@ type Config struct {
 	// ErrorBackoff controls backoff/retry behavior when the next consumer
 	// returns an error.
 	ErrorBackOff configretry.BackOffConfig `mapstructure:"error_backoff"`
+
+	// Telemetry controls optional telemetry configuration.
+	Telemetry TelemetryConfig `mapstructure:"telemetry"`
 }
 
 func (c *Config) Unmarshal(conf *confmap.Conf) error {
@@ -123,4 +126,25 @@ type MessageMarking struct {
 type HeaderExtraction struct {
 	ExtractHeaders bool     `mapstructure:"extract_headers"`
 	Headers        []string `mapstructure:"headers"`
+}
+
+type TelemetryConfig struct {
+	Metrics MetricsConfig `mapstructure:"metrics"`
+	_       struct{}      // avoids unkeyed_literal_initialization
+}
+
+// MetricsConfig provides config for optional receiver metrics.
+type MetricsConfig struct {
+	// KafkaReceiverRecordsDelay controls whether the metric kafka_receiver_records_delay
+	// that measures the time in seconds between producing and receiving a batch of records
+	// will be reported or not. This metric is not reported by default because
+	// it may slow down high-volume consuming.
+	KafkaReceiverRecordsDelay MetricConfig `mapstructure:"kafka_receiver_records_delay"`
+	_                         struct{}     // avoids unkeyed_literal_initialization
+}
+
+// MetricConfig provides common config for a particular metric.
+type MetricConfig struct {
+	Enabled bool     `mapstructure:"enabled"`
+	_       struct{} // avoids unkeyed_literal_initialization
 }

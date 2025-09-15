@@ -79,7 +79,10 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, _ := user.ExtractOrgID(req.Context())
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
+			return errResp, nil
+		}
 		start := time.Now()
 
 		// parse request

@@ -46,7 +46,7 @@ services:
       - --server.http.listen-addr=0.0.0.0:12345
     ports:
       - "12345:12345"
-      - "4319:4319"
+      - "4319:4317"
     depends_on:
       - tempo
 

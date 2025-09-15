@@ -39,3 +39,11 @@ func GetCounterVecValue(metric *prometheus.CounterVec, label string) (float64, e
 	}
 	return m.Counter.GetValue(), nil
 }
+
+func MustGetCounterValue(metric prometheus.Counter) float64 {
+	value, err := GetCounterValue(metric)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}

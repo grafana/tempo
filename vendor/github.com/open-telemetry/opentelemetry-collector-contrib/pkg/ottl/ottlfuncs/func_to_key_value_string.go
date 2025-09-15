@@ -36,7 +36,7 @@ func createToKeyValueStringFunction[K any](_ ottl.FunctionContext, oArgs ottl.Ar
 	return toKeyValueString[K](args.Target, args.Delimiter, args.PairDelimiter, args.SortOutput)
 }
 
-func toKeyValueString[K any](target ottl.PMapGetter[K], d ottl.Optional[string], p ottl.Optional[string], s ottl.Optional[bool]) (ottl.ExprFunc[K], error) {
+func toKeyValueString[K any](target ottl.PMapGetter[K], d, p ottl.Optional[string], s ottl.Optional[bool]) (ottl.ExprFunc[K], error) {
 	delimiter := "="
 	if !d.IsEmpty() {
 		if d.Get() == "" {
@@ -73,7 +73,7 @@ func toKeyValueString[K any](target ottl.PMapGetter[K], d ottl.Optional[string],
 }
 
 // convertMapToKV converts a pcommon.Map to a key value string
-func convertMapToKV(target pcommon.Map, delimiter string, pairDelimiter string, sortOutput bool) string {
+func convertMapToKV(target pcommon.Map, delimiter, pairDelimiter string, sortOutput bool) string {
 	var kvStrings []string
 	if sortOutput {
 		var keyValues []struct {
@@ -105,13 +105,13 @@ func convertMapToKV(target pcommon.Map, delimiter string, pairDelimiter string, 
 	return strings.Join(kvStrings, pairDelimiter)
 }
 
-func buildKVString(k string, v pcommon.Value, delimiter string, pairDelimiter string) string {
+func buildKVString(k string, v pcommon.Value, delimiter, pairDelimiter string) string {
 	key := escapeAndQuoteKV(k, delimiter, pairDelimiter)
 	value := escapeAndQuoteKV(v.AsString(), delimiter, pairDelimiter)
 	return key + delimiter + value
 }
 
-func escapeAndQuoteKV(s string, delimiter string, pairDelimiter string) string {
+func escapeAndQuoteKV(s, delimiter, pairDelimiter string) string {
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	if strings.Contains(s, pairDelimiter) || strings.Contains(s, delimiter) {
 		s = `"` + s + `"`

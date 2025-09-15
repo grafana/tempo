@@ -24,11 +24,13 @@ The query returns a set of spans, also called a spanset.
 
 A TraceQL query can select traces based on:
 
-- span attributes, timing and duration
+- span attributes, timing, and duration
 - structural relationships between spans
 - aggregated data from the spans in a trace
 
-As with PromQL and LogQL, the query is structured as a pipeline of operations (filters and aggregators).
+Refer to [Trace Structure](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/trace-structure/) for information about trace structure, intrinsics, and span resources and attributes.
+
+A query is structured as a pipeline of operations (filters and aggregators).
 The query expression is evaluated on one trace at a time, selecting or discarding spans from the result.
 At each stage of the query pipeline, the selected spans for a trace are grouped in a spanset (set of spans).
 The associated trace is also returned. The result of the query is the spansets (and their associated traces) for all the traces evaluated.

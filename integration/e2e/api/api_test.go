@@ -103,6 +103,24 @@ func TestSearchTagsV2(t *testing.T) {
 			},
 		},
 		{
+			name:  "invalid query",
+			query: ` { a="test" } `,
+			scope: "none",
+			// same results as no filtering
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
+					{
+						Name: "span",
+						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
+					},
+					{
+						Name: "resource",
+						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
+					},
+				},
+			},
+		},
+		{
 			name:  "first batch - resource",
 			query: fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
 			scope: "resource",
@@ -558,6 +576,49 @@ func TestStreamingSearch_badRequest(t *testing.T) {
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+func TestSearchTagValuesV2_badRequest(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	// Test HTTP endpoint returns 400 for invalid tagName
+	invalidTagName := "app.user.id" // not a valid scoped attribute
+	req, err := http.NewRequest(http.MethodGet,
+		fmt.Sprintf("http://%s/api/v2/search/tag/%s/values", tempo.Endpoint(tempoPort), invalidTagName), nil)
+	require.NoError(t, err)
+
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	require.Contains(t, string(body), "tag name is not valid intrinsic or scoped attribute")
+
+	// Test gRPC endpoint returns InvalidArgument for invalid tagName
+	grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(tempoPort))
+	require.NoError(t, err)
+
+	stream, err := grpcClient.SearchTagValuesV2(context.Background(), &tempopb.SearchTagValuesRequest{
+		TagName: invalidTagName,
+	})
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.InvalidArgument, st.Code())
+	require.Contains(t, st.Message(), "tag name is not valid intrinsic or scoped attribute")
 }
 
 func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName, query string, expected searchTagValuesV2Response, start, end int64) {

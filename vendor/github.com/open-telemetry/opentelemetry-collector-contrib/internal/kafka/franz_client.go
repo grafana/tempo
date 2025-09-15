@@ -65,12 +65,10 @@ func NewFranzSyncProducer(ctx context.Context, clientCfg configkafka.ClientConfi
 		opts = append(opts, kgo.RequiredAcks(kgo.AllISRAcks()))
 	case configkafka.NoResponse:
 		// NOTE(marclop) only disable if acks != all.
-		opts = append(opts, kgo.DisableIdempotentWrite())
-		opts = append(opts, kgo.RequiredAcks(kgo.NoAck()))
+		opts = append(opts, kgo.DisableIdempotentWrite(), kgo.RequiredAcks(kgo.NoAck()))
 	default: // WaitForLocal
 		// NOTE(marclop) only disable if acks != all.
-		opts = append(opts, kgo.DisableIdempotentWrite())
-		opts = append(opts, kgo.RequiredAcks(kgo.LeaderAck()))
+		opts = append(opts, kgo.DisableIdempotentWrite(), kgo.RequiredAcks(kgo.LeaderAck()))
 	}
 
 	// Configure max message size
@@ -218,6 +216,10 @@ func commonOpts(ctx context.Context, clientCfg configkafka.ClientConfig,
 	// Configure client ID
 	if clientCfg.ClientID != "" {
 		opts = append(opts, kgo.ClientID(clientCfg.ClientID))
+	}
+	// Reuse existing metadata refresh interval for franz-go metadataMaxAge
+	if clientCfg.Metadata.RefreshInterval > 0 {
+		opts = append(opts, kgo.MetadataMaxAge(clientCfg.Metadata.RefreshInterval))
 	}
 	return opts, nil
 }

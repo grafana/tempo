@@ -31,7 +31,7 @@ func createSubstringFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	return substring(args.Target, args.Start, args.Length), nil
 }
 
-func substring[K any](target ottl.StringGetter[K], startGetter ottl.IntGetter[K], lengthGetter ottl.IntGetter[K]) ottl.ExprFunc[K] {
+func substring[K any](target ottl.StringGetter[K], startGetter, lengthGetter ottl.IntGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		start, err := startGetter.Get(ctx, tCtx)
 		if err != nil {
