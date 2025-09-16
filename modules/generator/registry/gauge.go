@@ -109,12 +109,12 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	defer g.seriesMtx.Unlock()
 
 	s, ok = g.series[hash]
+	delete(g.rejectedSeries, hash)
 	if ok {
 		g.updateSeriesValue(s, value, operation)
 		return
 	}
 	g.series[hash] = newSeries
-	delete(g.rejectedSeries, hash)
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {

@@ -25,8 +25,9 @@ type histogram struct {
 	bucketLabels   []string
 	externalLabels map[string]string
 
-	seriesMtx sync.Mutex
-	series    map[uint64]*histogramSeries
+	seriesMtx      sync.Mutex
+	series         map[uint64]*histogramSeries
+	rejectedSeries map[uint64]int64
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -97,6 +98,7 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 		buckets:          buckets,
 		bucketLabels:     bucketLabels,
 		series:           make(map[uint64]*histogramSeries),
+		rejectedSeries:   make(map[uint64]int64),
 		onAddSerie:       onAddSeries,
 		onRemoveSerie:    onRemoveSeries,
 		traceIDLabelName: traceIDLabelName,
@@ -117,11 +119,12 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 	}
 
 	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+		h.rejectedSeries[hash] = time.Now().UnixMilli()
 		return
 	}
 
+	delete(h.rejectedSeries, hash)
 	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
-	// remove from the over_the_limit map map[uint64]struct{} (or maybe with timestamp)
 }
 
 func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {
@@ -264,6 +267,13 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 	return
 }
 
+func (h *histogram) countTotalSeries() int {
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
+
+	return (len(h.series) + len(h.rejectedSeries)) * int(h.activeSeriesPerHistogramSerie())
+}
+
 func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -274,17 +284,18 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
 		}
 	}
+	for hash, lastUpdated := range h.rejectedSeries {
+		if lastUpdated < staleTimeMs {
+			delete(h.rejectedSeries, hash)
+		}
+	}
 }
 
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
-	// sum + count + #buckets
+	// sum + count + #buckets (including +Inf)
 	return uint32(2 + len(h.buckets))
 }
 
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
-}
-
-func (h *histogram) countTotalSeries() int {
-	return 0
 }

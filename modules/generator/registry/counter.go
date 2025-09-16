@@ -15,8 +15,9 @@ type counter struct {
 	metricName string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
-	seriesMtx sync.RWMutex
-	series    map[uint64]*counterSeries
+	seriesMtx      sync.RWMutex
+	series         map[uint64]*counterSeries
+	rejectedSeries map[uint64]int64
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -61,6 +62,7 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 	return &counter{
 		metricName:     name,
 		series:         make(map[uint64]*counterSeries),
+		rejectedSeries: make(map[uint64]int64),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
 		externalLabels: externalLabels,
@@ -84,6 +86,11 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	}
 
 	if !c.onAddSeries(1) {
+		c.seriesMtx.Lock()
+		defer c.seriesMtx.Unlock()
+		if _, ok = c.series[hash]; !ok {
+			c.rejectedSeries[hash] = time.Now().UnixMilli()
+		}
 		return
 	}
 
@@ -93,6 +100,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	defer c.seriesMtx.Unlock()
 
 	s, ok = c.series[hash]
+	delete(c.rejectedSeries, hash)
 	if ok {
 		c.updateSeries(s, value)
 		return
@@ -163,6 +171,13 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activ
 	return
 }
 
+func (c *counter) countTotalSeries() int {
+	c.seriesMtx.RLock()
+	defer c.seriesMtx.RUnlock()
+
+	return len(c.series) + len(c.rejectedSeries)
+}
+
 func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
@@ -173,8 +188,9 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 			c.onRemoveSeries(1)
 		}
 	}
-}
-
-func (c *counter) countTotalSeries() int {
-	return 0
+	for hash, lastUpdated := range c.rejectedSeries {
+		if lastUpdated < staleTimeMs {
+			delete(c.rejectedSeries, hash)
+		}
+	}
 }
