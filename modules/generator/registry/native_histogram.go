@@ -271,7 +271,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			if nativeErr != nil {
 				return activeSeries, nativeErr
 			}
-			activeSeries += 1
+			activeSeries++
 		}
 	}
 
@@ -331,8 +331,10 @@ func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duratio
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 	total := uint32(0)
 	if hasClassicHistograms(h.histogramOverride) {
-		// sum + count + #buckets (including +Inf)
-		total += 2 + uint32(len(h.buckets))
+		// sum + count + Inf + #buckets
+		// we might be double counting the +Inf bucket
+		// but checking for it adds complexity and this is just an estimate
+		total += 3 + uint32(len(h.buckets))
 	}
 	if hasNativeHistograms(h.histogramOverride) {
 		total += 1
