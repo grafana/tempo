@@ -54,6 +54,7 @@ The current team members are:
 - Kim Nylander - [knylander-grafana](https://github.com/knylander-grafana) ([Grafana Labs](https://grafana.com/))
 - Yuna Verheyden - [yvhrdn](https://github.com/yvhrdn) ([Grafana Labs](https://grafana.com/))
 - Mario Rodriguez - [mapno](https://github.com/mapno) ([Grafana Labs](https://grafana.com/))
+- Matt Durham - [mattdurham](https://github.com/mattdurham) ([Grafana Labs](https://grafana.com/))
 - Marty Disibio - [mdisibio](https://github.com/mdisibio) ([Grafana Labs](https://grafana.com/))
 - Ruslan Mikhailov - [ruslan-mikhailov](https://github.com/ruslan-mikhailov) ([Grafana Labs](https://grafana.com/))
 - Adrian Stoewer - [stoewer](https://github.com/stoewer) ([Grafana Labs](https://grafana.com/))
