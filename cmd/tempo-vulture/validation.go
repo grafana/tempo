@@ -9,6 +9,7 @@ import (
 
 	utilpkg "github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"go.uber.org/zap"
 )
@@ -58,6 +59,7 @@ func RunValidationMode(
 	}
 
 	service := NewValidationService(validationConfig, RealClock{}, logger)
+
 	result := service.RunValidation(ctx, authJaegerClient, httpClient, httpClient)
 
 	// Log detailed results before exiting
@@ -91,8 +93,9 @@ func constructAuthToken(orgID, accessToken string) string {
 }
 
 type traceInfo struct {
-	id        string
-	timestamp time.Time
+	id          string
+	timestamp   time.Time
+	actualTrace *tempopb.Trace
 }
 
 type Clock interface {
@@ -158,17 +161,18 @@ func (vs *ValidationService) RunValidation(
 ) ValidationResult {
 	start := vs.clock.Now()
 
-	// This ValidationResult will be passed to each validation method
 	result := ValidationResult{
 		TotalTraces: vs.config.Cycles,
 		Failures:    make([]ValidationFailure, 0),
 	}
 
-	// for each cycle: write, read, search
+	traces := []traceInfo{}
+
+	// for each cycle: do the reads and writes right away, but wait a bit for the
+	// traces to be available to search
 	for i := 0; i < vs.config.Cycles; i++ {
 		// Write the traces
-		vs.logger.Info("Starting write/read/search cycle", zap.Int("cycle", i+1))
-		traceInfo, err := vs.writeValidationTrace(ctx, writer)
+		trace, actual, err := vs.writeValidationTrace(ctx, writer)
 		if err != nil {
 			result.Failures = append(result.Failures, ValidationFailure{
 				Phase:     "write",
@@ -176,26 +180,23 @@ func (vs *ValidationService) RunValidation(
 				Timestamp: vs.clock.Now(),
 			})
 			result.Duration = vs.clock.Now().Sub(start)
+			result.SuccessCount = (result.TotalTraces) - len(result.Failures)
 			return result
 		}
-		vs.logger.Info("wrote trace", zap.String("id", traceInfo.HexID()))
+		vs.logger.Info("Wrote trace", zap.String("id", trace.HexID()))
+
+		traces = append(traces, traceInfo{
+			id:          trace.HexID(),
+			timestamp:   trace.Timestamp(),
+			actualTrace: actual,
+		})
 
 		// Validate that we can retrieve them by trace ID
-		readErr := vs.validateTraceRetrieval(ctx, traceInfo, querier, &result)
+		readErr := vs.validateTraceRetrieval(ctx, trace, querier)
 		if readErr != nil {
 			result.Failures = append(result.Failures, ValidationFailure{
 				Phase:     "read",
 				Error:     readErr,
-				Timestamp: vs.clock.Now(),
-			})
-		}
-
-		// validate we can query them by a random attribute
-		searchErr := vs.validateTraceSearch(ctx, traceInfo, searcher, &result)
-		if searchErr != nil {
-			result.Failures = append(result.Failures, ValidationFailure{
-				Phase:     "search",
-				Error:     searchErr,
 				Timestamp: vs.clock.Now(),
 			})
 		}
@@ -212,8 +213,32 @@ func (vs *ValidationService) RunValidation(
 		}
 	}
 
+	if vs.config.SearchBackoffDuration > 0 {
+		// give them time to be ready for search
+		if err := vs.sleepWithContext(ctx, 60*time.Second); err != nil {
+			result.Failures = append(result.Failures, ValidationFailure{
+				Phase:     "timeout",
+				Error:     err,
+				Timestamp: vs.clock.Now(),
+			})
+		}
+
+		for _, trace := range traces {
+			traceInfo := util.NewTraceInfo(trace.timestamp, vs.config.TempoOrgID)
+			// validate we can query them by a random attribute
+			searchErr := vs.validateTraceSearch(ctx, traceInfo, trace.actualTrace, searcher, &result)
+			if searchErr != nil {
+				result.Failures = append(result.Failures, ValidationFailure{
+					Phase:     "search",
+					Error:     searchErr,
+					Timestamp: vs.clock.Now(),
+				})
+			}
+		}
+	}
+
 	result.Duration = vs.clock.Now().Sub(start)
-	result.SuccessCount = (result.TotalTraces * 2) - len(result.Failures) // 2 validations per trace
+	result.SuccessCount = (result.TotalTraces) - len(result.Failures) // update this to 2 validations per trace when we enable search
 	return result
 }
 
@@ -236,23 +261,31 @@ func (vs *ValidationService) sleepWithContext(ctx context.Context, duration time
 func (vs *ValidationService) writeValidationTrace(
 	ctx context.Context,
 	writer TraceWriter,
-) (*util.TraceInfo, error) {
-	timestamp := vs.clock.Now()
-	info := util.NewTraceInfo(timestamp, vs.config.TempoOrgID)
+) (*util.TraceInfo, *tempopb.Trace, error) {
+	traceInfo := util.NewTraceInfoWithMaxLongWrites(
+		vs.clock.Now(),
+		0,
+		vs.config.TempoOrgID,
+	)
 
-	err := info.EmitBatchesWithContext(ctx, writer)
+	// Construct the trace structure BEFORE writing
+	traceStructure, err := traceInfo.ConstructTraceFromEpoch()
 	if err != nil {
-		return nil, fmt.Errorf("failed to write trace, error: %w", err) // Any write failure is critical
+		return nil, nil, err
 	}
 
-	return info, nil
+	writeErr := traceInfo.EmitAllBatches(writer)
+	if writeErr != nil {
+		return nil, nil, fmt.Errorf("failed to write trace, error: %w", err) // Any write failure is critical
+	}
+
+	return traceInfo, traceStructure, nil
 }
 
 func (vs *ValidationService) validateTraceRetrieval(
 	_ context.Context,
 	trace *util.TraceInfo,
 	httpClient httpclient.TempoHTTPClient,
-	result *ValidationResult,
 ) error {
 
 	start := trace.Timestamp().Add(-10 * time.Minute).Unix()
@@ -268,116 +301,34 @@ func (vs *ValidationService) validateTraceRetrieval(
 		return fmt.Errorf("retrieved trace has no spans")
 	}
 
-	vs.logger.Info("Validated trace retrieval", zap.String("traceID", trace.HexID()))
+	retrievedTraceID := extractTraceID(retrievedTrace)
+
+	equal, err := util.EqualHexStringTraceIDs(trace.HexID(), retrievedTraceID)
+	if err != nil {
+		return fmt.Errorf("error comparing trace IDs: %w", err)
+	}
+
+	if !equal {
+		return fmt.Errorf("trace IDs do not match")
+	}
+
+	vs.logger.Info("Retrieved trace", zap.String("traceID", retrievedTraceID))
+
 	return nil
 }
-
-// func (vs *ValidationService) validateTraceSearch(
-// 	ctx context.Context,
-// 	traces []traceInfo,
-// 	httpClient httpclient.TempoHTTPClient,
-// 	result *ValidationResult,
-// ) {
-// 	vs.logger.Info("Waiting for search indexing to complete...")
-
-// 	vs.logger.Info("writtenTraces", zap.Int("count", len(traces)))
-// 	vs.logger.Info("Testing search functionality - looking for each written trace...")
-
-// 	for i, traceInfo := range traces {
-// 		cycle := i + 1
-
-// 		// Create a fresh TraceInfo to get the expected attributes
-// 		info := util.NewTraceInfoWithMaxLongWrites(traceInfo.timestamp, 0, vs.config.TempoOrgID)
-// 		expected, err := info.ConstructTraceFromEpoch()
-// 		if err != nil {
-// 			logger.Error("failed to construct expected trace for search", zap.Int("cycle", cycle), zap.Error(err))
-// 			result.Failures = append(result.Failures, ValidationFailure{
-// 				TraceID:   traceInfo.id,
-// 				Cycle:     cycle,
-// 				Phase:     "search",
-// 				Error:     err,
-// 				Timestamp: traceInfo.timestamp,
-// 			})
-// 			continue
-// 		}
-
-// 		// Get a random attribute from the expected trace (same as original vulture)
-// 		attr := util.RandomAttrFromTrace(expected)
-// 		if attr == nil {
-// 			logger.Warn("No searchable attribute found in trace", zap.Int("cycle", cycle))
-// 			continue // Skip this search, don't count as failure
-// 		}
-
-// 		searchQuery := fmt.Sprintf("{.%s=\"%s\"}", attr.Key, util.StringifyAnyValue(attr.Value))
-// 		logger.Info("Searching for trace",
-// 			zap.Int("cycle", cycle),
-// 			zap.String("traceID", traceInfo.id),
-// 			zap.String("searchQuery", searchQuery),
-// 		)
-
-// 		start := traceInfo.timestamp.Add(-30 * time.Minute).Unix()
-// 		end := traceInfo.timestamp.Add(30 * time.Minute).Unix()
-
-// 		searchResp, err := httpClient.SearchTraceQLWithRange(searchQuery, start, end)
-// 		if err != nil {
-// 			logger.Error("search API failed", zap.Int("cycle", cycle), zap.Error(err))
-// 			result.Failures = append(result.Failures, ValidationFailure{
-// 				TraceID:   traceInfo.id,
-// 				Cycle:     cycle,
-// 				Phase:     "search",
-// 				Error:     err,
-// 				Timestamp: traceInfo.timestamp,
-// 			})
-// 			continue
-// 		}
-
-// 		// Check if our trace ID is in the search results
-// 		found := false
-// 		logger.Info("found traces", zap.Int("count", len(searchResp.Traces)))
-// 		for _, trace := range searchResp.Traces {
-// 			logger.Info("Comparing found trace",
-// 				zap.String("trace ID", trace.TraceID),
-// 			)
-// 			if trace.TraceID == traceInfo.id {
-// 				found = true
-// 				break
-// 			}
-// 		}
-
-// 		if found {
-// 			logger.Info("Found trace via search", zap.Int("cycle", cycle))
-// 		} else {
-// 			logger.Error("trace not found in search results",
-// 				zap.Int("cycle", cycle),
-// 				zap.String("traceID", traceInfo.id),
-// 				zap.Int("foundTraces", len(searchResp.Traces)),
-// 			)
-// 			result.Failures = append(result.Failures, ValidationFailure{
-// 				TraceID:   traceInfo.id,
-// 				Cycle:     cycle,
-// 				Phase:     "search",
-// 				Error:     err,
-// 				Timestamp: traceInfo.timestamp,
-// 			})
-// 		}
-// 	}
-// }
 
 func (vs *ValidationService) validateTraceSearch(
 	ctx context.Context,
 	writtenTrace *util.TraceInfo,
+	actualTrace *tempopb.Trace,
 	httpClient httpclient.TempoHTTPClient,
 	result *ValidationResult,
 ) error {
 
-	info := util.NewTraceInfo(writtenTrace.Timestamp(), vs.config.TempoOrgID)
-	//hexID := info.HexID()
-
-	// Create a fresh TraceInfo to get the expected attributes
-	expected, err := info.ConstructTraceFromEpoch()
+	vs.logTraceAttributes(actualTrace, writtenTrace.HexID())
 
 	// Get a random attribute from the expected trace
-	attr := util.RandomAttrFromTrace(expected)
+	attr := util.RandomAttrFromTrace(actualTrace)
 	if attr == nil {
 		return fmt.Errorf("No searchable attribute found in trace")
 	}
@@ -391,32 +342,30 @@ func (vs *ValidationService) validateTraceSearch(
 	start := writtenTrace.Timestamp().Add(-30 * time.Minute).Unix()
 	end := writtenTrace.Timestamp().Add(30 * time.Minute).Unix()
 
-	vs.logger.Info("About to execute search",
-		zap.String("query", searchQuery),
-		zap.Int64("start", start),
-		zap.Int64("end", end),
-		zap.String("orgID", vs.config.TempoOrgID),
-	)
-
 	searchResp, searchErr := httpClient.SearchTraceQLWithRange(searchQuery, start, end)
 	if searchErr != nil {
-		return fmt.Errorf("search API failed: %w", err)
+		return fmt.Errorf("search API failed: %w", searchErr)
 	}
 
 	vs.logger.Info("Search response received",
-		zap.Int("totalTraces", len(searchResp.Traces)),
-		zap.Any("traces", searchResp.Traces), // Log all trace IDs returned
+		zap.Int("traces_found", len(searchResp.Traces)),
 	)
 
 	// Check if our trace ID is in the search results
 	found := false
-	logger.Info("found traces", zap.Int("count", len(searchResp.Traces)))
 	for _, trace := range searchResp.Traces {
-		vs.logger.Info("Comparing found trace",
-			zap.String("trace ID", trace.TraceID),
-		)
-		vs.logger.Info("written", zap.String("hexID", writtenTrace.HexID()))
-		if writtenTrace.HexID() == trace.TraceID {
+		vs.logger.Info("written trace", zap.String("trace_id", writtenTrace.HexID()))
+		vs.logger.Info("found trace", zap.String("trace_id", trace.TraceID))
+
+		equal, err := util.EqualHexStringTraceIDs(writtenTrace.HexID(), trace.TraceID)
+		if err != nil {
+			return fmt.Errorf("error comparing trace IDs: %w", err)
+		}
+		if !equal {
+			return fmt.Errorf("trace IDs do not match")
+		}
+
+		if equal {
 			found = true
 			break
 		}
@@ -428,4 +377,54 @@ func (vs *ValidationService) validateTraceSearch(
 		return fmt.Errorf("Trace not found in search results")
 	}
 	return nil
+}
+
+func extractTraceID(trace *tempopb.Trace) string {
+	if len(trace.ResourceSpans) == 0 {
+		return ""
+	}
+
+	for _, resourceSpan := range trace.ResourceSpans {
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, span := range scopeSpan.Spans {
+				if len(span.TraceId) > 0 {
+					return fmt.Sprintf("%x", span.TraceId)
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func (vs *ValidationService) logTraceAttributes(trace *tempopb.Trace, traceID string) {
+	vs.logger.Info("=== TRACE ATTRIBUTES DEBUG ===", zap.String("traceID", traceID))
+
+	for i, resourceSpan := range trace.ResourceSpans {
+		vs.logger.Info("Resource attributes", zap.Int("resourceSpan", i))
+		if resourceSpan.Resource != nil {
+			for _, attr := range resourceSpan.Resource.Attributes {
+				vs.logger.Info("  Resource attr",
+					zap.String("key", attr.Key),
+					zap.String("value", util.StringifyAnyValue(attr.Value)),
+				)
+			}
+		}
+
+		for j, scopeSpan := range resourceSpan.ScopeSpans {
+			vs.logger.Info("Scope spans", zap.Int("scopeSpan", j))
+			for k, span := range scopeSpan.Spans {
+				vs.logger.Info("  Span",
+					zap.Int("spanIndex", k),
+					zap.String("name", span.Name),
+				)
+				for _, attr := range span.Attributes {
+					vs.logger.Info("    Span attr",
+						zap.String("key", attr.Key),
+						zap.String("value", util.StringifyAnyValue(attr.Value)),
+					)
+				}
+			}
+		}
+	}
+	vs.logger.Info("=== END TRACE DEBUG ===")
 }

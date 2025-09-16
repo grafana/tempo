@@ -420,7 +420,7 @@ func TestDoReadForAnErroredRead(t *testing.T) {
 	// Assert a read with errors
 	mockHTTPClient := MockHTTPClient{err: errors.New("an error"), traceResp: trace}
 	doRead(&mockHTTPClient, config, traceInfo, logger)
-	assert.Equal(t, 0, mockHTTPClient.GetRequestsCount())
+	assert.Equal(t, 1, mockHTTPClient.GetRequestsCount())
 }
 
 func TestSearchTraceql(t *testing.T) {
