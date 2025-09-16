@@ -217,7 +217,8 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 
 	var demandSeries int
 	for _, m := range r.metrics {
-		demandSeries += m.countTotalSeries()
+		c := m.countTotalSeries()
+		demandSeries += c
 	}
 	r.metricDemandSeries.Set(float64(demandSeries))
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
@@ -265,7 +266,6 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 		return
 	}
 
-	level.Info(r.logger).Log("msg", "collecting metrics", "active_series", activeSeries)
 }
 
 func (r *ManagedRegistry) collectionInterval() time.Duration {
