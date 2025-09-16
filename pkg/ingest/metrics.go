@@ -56,93 +56,99 @@ type Metrics struct {
 	RecordsDropped             *prometheus.CounterVec
 }
 
-func NewMetrics(namespace string) *Metrics {
+func NewMetrics(subsystem string) *Metrics {
 	return &Metrics{
 		TracesCreatedTotal: promauto.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "tempo_" + namespace,
+			Namespace: "tempo",
+			Subsystem: subsystem,
 			Name:      "traces_created_total",
 			Help:      "The total number of traces created per tenant.",
 		}, []string{"tenant"}),
 		LiveTraces: promauto.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "tempo_" + namespace,
+			Namespace: "tempo",
+			Subsystem: subsystem,
 			Name:      "live_traces",
 			Help:      "The current number of live traces per tenant.",
 		}, []string{"tenant"}),
 		LiveTraceBytes: promauto.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "tempo_" + namespace,
+			Namespace: "tempo",
+			Subsystem: subsystem,
 			Name:      "live_trace_bytes",
 			Help:      "The current number of bytes consumed by live traces per tenant.",
 		}, []string{"tenant"}),
 		BytesReceivedTotal: promauto.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "tempo_" + namespace,
+			Namespace: "tempo",
+			Subsystem: subsystem,
 			Name:      "bytes_received_total",
 			Help:      "The total bytes received per tenant.",
 		}, []string{"tenant", "data_type"}),
 		BlocksClearedTotal: promauto.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "tempo_" + namespace,
+			Namespace: "tempo",
+			Subsystem: subsystem,
 			Name:      "blocks_cleared_total",
 			Help:      "The total number of blocks cleared.",
 		}, []string{"block_type"}),
 		CompletionSize: promauto.NewHistogram(prometheus.HistogramOpts{
-			Namespace: "tempo_" + namespace,
+			Namespace: "tempo",
+			Subsystem: subsystem,
 			Name:      "completion_size_bytes",
 			Help:      "Size in bytes of blocks completed.",
 			Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
 		}),
 		BackPressure: promauto.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
-			Subsystem: namespace,
+			Subsystem: subsystem,
 			Name:      "back_pressure_seconds_total",
 			Help:      "The total amount of time spent waiting to process data from queue",
 		}, []string{"reason"}),
 		FetchDuration: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace:                   "tempo",
-			Subsystem:                   namespace,
+			Subsystem:                   subsystem,
 			Name:                        "fetch_duration_seconds",
 			Help:                        "Time spent fetching from Kafka.",
 			NativeHistogramBucketFactor: 1.1,
 		}, []string{"partition"}),
 		FetchBytesTotal: promauto.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "tempo",
-			Subsystem: namespace,
+			Subsystem: subsystem,
 			Name:      "fetch_bytes_total",
 			Help:      "Total number of bytes fetched from Kafka",
 		}, []string{"partition"}),
 		FetchRecordsTotal: promauto.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "tempo",
-			Subsystem: namespace,
+			Subsystem: subsystem,
 			Name:      "fetch_records_total",
 			Help:      "Total number of records fetched from Kafka",
 		}, []string{"partition"}),
 		ConsumeCycleDuration: promauto.NewHistogram(prometheus.HistogramOpts{
 			Namespace:                   "tempo",
-			Subsystem:                   namespace,
+			Subsystem:                   subsystem,
 			Name:                        "consume_cycle_duration_seconds",
 			Help:                        "Time spent consuming a full cycle.",
 			NativeHistogramBucketFactor: 1.1,
 		}),
 		ProcessPartitionDuration: promauto.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace:                   "tempo",
-			Subsystem:                   namespace,
+			Subsystem:                   subsystem,
 			Name:                        "process_partition_duration_seconds",
 			Help:                        "Time spent processing partition data.",
 			NativeHistogramBucketFactor: 1.1,
 		}, []string{"partition"}),
 		FetchErrors: promauto.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
-			Subsystem: namespace,
+			Subsystem: subsystem,
 			Name:      "fetch_errors_total",
 			Help:      "Total number of errors while fetching by the consumer.",
 		}, []string{"partition"}),
 		RecordsProcessed: promauto.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
-			Subsystem: namespace,
+			Subsystem: subsystem,
 			Name:      "kafka_records_processed_total",
 			Help:      "The total number of kafka records processed per tenant.",
 		}, []string{"tenant"}),
 		RecordsDropped: promauto.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
-			Subsystem: namespace,
+			Subsystem: subsystem,
 			Name:      "kafka_records_dropped_total",
 			Help:      "The total number of kafka records dropped per tenant.",
 		}, []string{"tenant", "reason"}),
