@@ -174,3 +174,7 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 		}
 	}
 }
+
+func (c *counter) countTotalSeries() int {
+	return 0
+}

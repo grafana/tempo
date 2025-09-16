@@ -117,6 +117,10 @@ func (t *testCounter) removeStaleSeries(int64) {
 	panic("implement me")
 }
 
+func (t *testCounter) countTotalSeries() int {
+	panic("implement me")
+}
+
 type testGauge struct {
 	n        string
 	registry *TestRegistry
@@ -161,6 +165,10 @@ func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) (activeSeries in
 }
 
 func (t *testGauge) removeStaleSeries(int64) {
+	panic("implement me")
+}
+
+func (t *testGauge) countTotalSeries() int {
 	panic("implement me")
 }
 
@@ -211,5 +219,9 @@ func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) (activeSerie
 }
 
 func (t *testHistogram) removeStaleSeries(int64) {
+	panic("implement me")
+}
+
+func (t *testHistogram) countTotalSeries() int {
 	panic("implement me")
 }
