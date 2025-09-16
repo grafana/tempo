@@ -105,7 +105,7 @@ func (m *MockHTTPClient) QueryTraceWithRange(id string, start int64, end int64) 
 	return m.QueryTraceWithRangeContext(context.Background(), id, start, end)
 }
 
-func (m *MockHTTPClient) QueryTraceWithRangeContext(_ context.Context, _ string, start int64, end int64) (*tempopb.Trace, error) {
+func (m *MockHTTPClient) QueryTraceWithRangeContext(_ context.Context, _ string, _ int64, _ int64) (*tempopb.Trace, error) {
 	m.requestsCount++
 	if m.err != nil {
 		return nil, m.err
@@ -191,7 +191,7 @@ func (m *MockHTTPClient) SearchWithRange(tags string, start int64, end int64) (*
 	return m.SearchWithRangeContext(context.Background(), tags, start, end)
 }
 
-func (m *MockHTTPClient) SearchWithRangeContext(_ context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
+func (m *MockHTTPClient) SearchWithRangeContext(_ context.Context, _ string, _ int64, _ int64) (*tempopb.SearchResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

@@ -226,7 +226,7 @@ func (vs *ValidationService) RunValidation(
 		for _, trace := range traces {
 			traceInfo := util.NewTraceInfo(trace.timestamp, vs.config.TempoOrgID)
 			// validate we can query them by a random attribute
-			searchErr := vs.validateTraceSearch(ctx, traceInfo, trace.actualTrace, searcher, &result)
+			searchErr := vs.validateTraceSearch(ctx, traceInfo, trace.actualTrace, searcher)
 			if searchErr != nil {
 				result.Failures = append(result.Failures, ValidationFailure{
 					Phase:     "search",
@@ -259,7 +259,7 @@ func (vs *ValidationService) sleepWithContext(ctx context.Context, duration time
 }
 
 func (vs *ValidationService) writeValidationTrace(
-	ctx context.Context,
+	_ context.Context,
 	writer TraceWriter,
 ) (*util.TraceInfo, *tempopb.Trace, error) {
 	traceInfo := util.NewTraceInfoWithMaxLongWrites(
@@ -316,18 +316,17 @@ func (vs *ValidationService) validateTraceRetrieval(
 }
 
 func (vs *ValidationService) validateTraceSearch(
-	ctx context.Context,
+	_ context.Context,
 	writtenTrace *util.TraceInfo,
 	actualTrace *tempopb.Trace,
 	httpClient httpclient.TempoHTTPClient,
-	result *ValidationResult,
 ) error {
 	vs.logTraceAttributes(actualTrace, writtenTrace.HexID())
 
 	// Get a random attribute from the expected trace
 	attr := util.RandomAttrFromTrace(actualTrace)
 	if attr == nil {
-		return fmt.Errorf("No searchable attribute found in trace")
+		return fmt.Errorf("no searchable attribute found in trace")
 	}
 
 	searchQuery := fmt.Sprintf(`{.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value))
@@ -371,7 +370,7 @@ func (vs *ValidationService) validateTraceSearch(
 	if found {
 		vs.logger.Info("Found trace via search")
 	} else {
-		return fmt.Errorf("Trace not found in search results")
+		return fmt.Errorf("trace not found in search results")
 	}
 	return nil
 }
