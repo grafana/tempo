@@ -1428,11 +1428,11 @@ func (col *byteArrayColumnBuffer) cloneLengths() []uint32 {
 }
 
 func (col *byteArrayColumnBuffer) ColumnIndex() (ColumnIndex, error) {
-	return byteArrayColumnIndex{&col.byteArrayPage}, nil
+	return byteArrayColumnIndex{col.page()}, nil
 }
 
 func (col *byteArrayColumnBuffer) OffsetIndex() (OffsetIndex, error) {
-	return byteArrayOffsetIndex{&col.byteArrayPage}, nil
+	return byteArrayOffsetIndex{col.page()}, nil
 }
 
 func (col *byteArrayColumnBuffer) BloomFilter() BloomFilter { return nil }
@@ -1441,7 +1441,7 @@ func (col *byteArrayColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *byteArrayColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *byteArrayColumnBuffer) Page() Page {
+func (col *byteArrayColumnBuffer) page() *byteArrayPage {
 	if len(col.lengths) > 0 && orderOfUint32(col.offsets) < 1 { // unordered?
 		if cap(col.scratch) < len(col.values) {
 			col.scratch = make([]byte, 0, cap(col.values))
@@ -1457,11 +1457,12 @@ func (col *byteArrayColumnBuffer) Page() Page {
 
 		col.values, col.scratch = col.scratch, col.values
 	}
-	// The offsets have the total length as the last item. Since we are about to
-	// expose the column buffer's internal state as a Page value we ensure that
-	// the last offset is the total length of all values.
 	col.offsets = append(col.offsets[:len(col.lengths)], uint32(len(col.values)))
 	return &col.byteArrayPage
+}
+
+func (col *byteArrayColumnBuffer) Page() Page {
+	return col.page()
 }
 
 func (col *byteArrayColumnBuffer) Reset() {
@@ -2051,6 +2052,9 @@ func writeRowsFuncOf(t reflect.Type, schema *Schema, path columnPath) writeRowsF
 func writeRowsFuncOfRequired(t reflect.Type, schema *Schema, path columnPath) writeRowsFunc {
 	column := schema.lazyLoadState().mapping.lookup(path)
 	columnIndex := column.columnIndex
+	if columnIndex < 0 {
+		panic("parquet: column not found: " + path.String())
+	}
 	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
 		columns[columnIndex].writeValues(rows, levels)
 		return nil

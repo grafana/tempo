@@ -10,6 +10,7 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -87,7 +88,7 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 }
 
 func (i *rawIterator) peekNextID(context.Context) (common.ID, error) { // nolint:unused // this is required to satisfy the bookmarkIterator interface
-	return nil, common.ErrUnsupported
+	return nil, util.ErrUnsupported
 }
 
 func (i *rawIterator) Close() {

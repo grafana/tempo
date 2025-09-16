@@ -53,7 +53,7 @@ services:
       - --enable-feature=exemplar-storage
       - --enable-feature=native-histograms
     volumes:
-      - ../shared/prometheus.yaml:/etc/prometheus.yaml
+      - ./prometheus.yaml:/etc/prometheus.yaml
     ports:
       - "9090:9090"
 

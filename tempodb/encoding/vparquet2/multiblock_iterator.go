@@ -9,6 +9,7 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -126,7 +127,7 @@ func newBookmark[T iteratable](iter bookmarkIterator[T]) *bookmark[T] {
 
 func (b *bookmark[T]) peekID(ctx context.Context) (common.ID, error) {
 	nextID, err := b.iter.peekNextID(ctx)
-	if !errors.Is(err, common.ErrUnsupported) {
+	if !errors.Is(err, util.ErrUnsupported) {
 		return nextID, err
 	}
 
@@ -149,7 +150,7 @@ func (b *bookmark[T]) current(ctx context.Context) (common.ID, T, error) {
 
 func (b *bookmark[T]) done(ctx context.Context) bool {
 	nextID, err := b.iter.peekNextID(ctx)
-	if !errors.Is(err, common.ErrUnsupported) {
+	if !errors.Is(err, util.ErrUnsupported) {
 		return nextID == nil || err != nil
 	}
 

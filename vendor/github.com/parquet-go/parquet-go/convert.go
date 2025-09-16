@@ -76,6 +76,7 @@ type conversionBuffer struct {
 type conversionColumn struct {
 	sourceIndex   int
 	convertValues conversionFunc
+	targetKind    Kind // Target column kind for creating proper null values
 }
 
 type conversionFunc func([]Value) error
@@ -193,12 +194,15 @@ func (c *conversion) Convert(rows []Row) (int, error) {
 				// placeholder in the column. This is a condition where the
 				// target contained a column which did not exist at had not
 				// other columns existing at that same level.
-				row = append(row, Value{})
+				// Create a properly typed null value for the target column
+				nullValue := ZeroValue(conv.targetKind)
+				row = append(row, nullValue)
 			} else {
+				sourceValues := source.columns[conv.sourceIndex]
 				// We must copy to the output row first and not mutate the
 				// source columns because multiple target columns may map to
 				// the same source column.
-				row = append(row, source.columns[conv.sourceIndex]...)
+				row = append(row, sourceValues...)
 			}
 			columnValues := row[columnOffset:]
 
@@ -210,6 +214,11 @@ func (c *conversion) Convert(rows []Row) (int, error) {
 			// taget columns we ensure that the right value is always written
 			// to the output row.
 			for i := range columnValues {
+				// Fix: If we have a zero Value{}, convert it to a properly typed null value
+				if columnValues[i].Kind() == Kind(0) {
+					columnValues[i] = ZeroValue(conv.targetKind)
+				}
+
 				columnValues[i].columnIndex = ^int16(columnIndex)
 			}
 		}
@@ -255,6 +264,7 @@ func Convert(to, from Node) (conv Conversion, err error) {
 
 	targetMapping, targetColumns := columnMappingOf(to)
 	sourceMapping, sourceColumns := columnMappingOf(from)
+
 	columns := make([]conversionColumn, len(targetColumns))
 
 	for i, path := range targetColumns {
@@ -265,7 +275,7 @@ func Convert(to, from Node) (conv Conversion, err error) {
 		if sourceColumn.node != nil {
 			targetType := targetColumn.node.Type()
 			sourceType := sourceColumn.node.Type()
-			if !typesAreEqual(targetType, sourceType) {
+			if !EqualTypes(targetType, sourceType) {
 				conversions = append(conversions,
 					convertToType(targetType, sourceType),
 				)
@@ -323,9 +333,13 @@ func Convert(to, from Node) (conv Conversion, err error) {
 			}
 		}
 
+		// Store target column type for creating proper null values
+		targetType := targetColumn.node.Type()
+
 		columns[i] = conversionColumn{
 			sourceIndex:   int(sourceColumn.columnIndex),
 			convertValues: multiConversionFunc(conversions),
+			targetKind:    targetType.Kind(), // Store target kind for null value creation
 		}
 	}
 

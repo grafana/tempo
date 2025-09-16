@@ -213,6 +213,30 @@ type Type interface {
 	ConvertValue(val Value, typ Type) (Value, error)
 }
 
+// EqualTypes returns true if type1 and type2 are equal.
+//
+// Types are considered equal if they have the same Kind, Length, and LogicalType.
+// The comparison uses reflect.DeepEqual for LogicalType comparison.
+//
+// Note: This function is designed for leaf types. For complex group types like
+// MAP and LIST, use EqualNodes instead, as those types require structural comparison
+// of their nested fields.
+func EqualTypes(type1, type2 Type) bool {
+	return equalKind(type1, type2) && equalLength(type1, type2) && equalLogicalTypes(type1, type2)
+}
+
+func equalKind(type1, type2 Type) bool {
+	return type1.Kind() == type2.Kind()
+}
+
+func equalLength(type1, type2 Type) bool {
+	return type1.Length() == type2.Length()
+}
+
+func equalLogicalTypes(type1, type2 Type) bool {
+	return reflect.DeepEqual(type1.LogicalType(), type2.LogicalType())
+}
+
 var (
 	BooleanType   Type = booleanType{}
 	Int32Type     Type = int32Type{}
@@ -2248,8 +2272,8 @@ func (t *nullType) NewColumnIndexer(int) ColumnIndexer {
 	panic("create create column indexer from parquet NULL type")
 }
 
-func (t *nullType) NewDictionary(int, int, encoding.Values) Dictionary {
-	panic("cannot create dictionary from parquet NULL type")
+func (t *nullType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
+	return newNullDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *nullType) NewColumnBuffer(int, int) ColumnBuffer {

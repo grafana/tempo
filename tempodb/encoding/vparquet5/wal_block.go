@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -371,7 +372,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 
 // TODO: potentially add validation to wal blocks and use in the wal replay code in the ingester.
 func (b *walBlock) Validate(context.Context) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *walBlock) filepathOf(page int) string {

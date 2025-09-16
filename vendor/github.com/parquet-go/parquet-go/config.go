@@ -2,12 +2,12 @@ package parquet
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
-
-	"slices"
 
 	"github.com/parquet-go/parquet-go/compress"
 	"github.com/parquet-go/parquet-go/encoding"
@@ -268,9 +268,7 @@ func (c *WriterConfig) ConfigureWriter(config *WriterConfig) {
 		if keyValueMetadata == nil {
 			keyValueMetadata = make(map[string]string, len(c.KeyValueMetadata))
 		}
-		for k, v := range c.KeyValueMetadata {
-			keyValueMetadata[k] = v
-		}
+		maps.Copy(keyValueMetadata, c.KeyValueMetadata)
 	}
 
 	encodings := config.Encodings
@@ -278,9 +276,7 @@ func (c *WriterConfig) ConfigureWriter(config *WriterConfig) {
 		if encodings == nil {
 			encodings = make(map[Kind]encoding.Encoding, len(c.Encodings))
 		}
-		for k, v := range c.Encodings {
-			encodings[k] = v
-		}
+		maps.Copy(encodings, c.Encodings)
 	}
 
 	*config = WriterConfig{
