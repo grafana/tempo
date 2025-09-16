@@ -21,6 +21,8 @@ type gauge struct {
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx sync.RWMutex
 	series    map[uint64]*gaugeSeries
+	// rejectedSeries maps rejected series has to the lastUpdated time.
+	rejectedSeries map[uint64]int64
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -57,6 +59,7 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 	return &gauge{
 		metricName:     name,
 		series:         make(map[uint64]*gaugeSeries),
+		rejectedSeries: make(map[uint64]int64),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
 		externalLabels: externalLabels,
@@ -92,6 +95,11 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	}
 
 	if !g.onAddSeries(1) {
+		g.seriesMtx.Lock()
+		defer g.seriesMtx.Unlock()
+		if _, ok = g.series[hash]; !ok {
+			g.rejectedSeries[hash] = time.Now().UnixMilli()
+		}
 		return
 	}
 
@@ -106,6 +114,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		return
 	}
 	g.series[hash] = newSeries
+	delete(g.rejectedSeries, hash)
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
@@ -133,7 +142,7 @@ func (g *gauge) updateSeriesValue(s *gaugeSeries, value float64, operation strin
 	if operation == add {
 		s.value.Add(value)
 	} else {
-		s.value = atomic.NewFloat64(value)
+		s.value.Store(value)
 	}
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
@@ -160,6 +169,13 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 	return
 }
 
+func (g *gauge) countTotalSeries() int {
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
+
+	return len(g.series) + len(g.rejectedSeries)
+}
+
 func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
@@ -168,6 +184,11 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(g.series, hash)
 			g.onRemoveSeries(1)
+		}
+	}
+	for hash, lastUpdated := range g.rejectedSeries {
+		if lastUpdated < staleTimeMs {
+			delete(g.rejectedSeries, hash)
 		}
 	}
 }

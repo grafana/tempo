@@ -28,6 +28,11 @@ var (
 		Name:      "metrics_generator_registry_max_active_series",
 		Help:      "The maximum active series per tenant",
 	}, []string{"tenant"})
+	metricDemandSeries = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_demand_series",
+		Help:      "The current demand (active + rejected series) per tenant",
+	}, []string{"tenant"})
 	metricTotalSeriesAdded = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_series_added_total",
@@ -73,6 +78,7 @@ type ManagedRegistry struct {
 	limitLogger              *tempo_log.RateLimitedLogger
 	metricActiveSeries       prometheus.Gauge
 	metricMaxActiveSeries    prometheus.Gauge
+	metricDemandSeries       prometheus.Gauge
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
@@ -84,6 +90,7 @@ type ManagedRegistry struct {
 type metric interface {
 	name() string
 	collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error)
+	countTotalSeries() int
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -122,6 +129,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		logger:                   logger,
 		limitLogger:              tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
 		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
+		metricDemandSeries:       metricDemandSeries.WithLabelValues(tenant),
 		metricMaxActiveSeries:    metricMaxActiveSeries.WithLabelValues(tenant),
 		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
@@ -204,12 +212,17 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 }
 
 func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
+	r.metricsMtx.RLock()
+	defer r.metricsMtx.RUnlock()
+
+	var demandSeries int
+	for _, m := range r.metrics {
+		demandSeries += m.countTotalSeries()
+	}
+	r.metricDemandSeries.Set(float64(demandSeries))
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
 		return
 	}
-
-	r.metricsMtx.RLock()
-	defer r.metricsMtx.RUnlock()
 
 	var err error
 	defer func() {
