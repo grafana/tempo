@@ -36,7 +36,7 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 	intervalMapper := NewIntervalMapperFromReq(q)
 
 	a.seriesAgg = &averageOverTimeSeriesAggregator{
-		weightedAverageSeries: make(map[string]*averageSeries),
+		weightedAverageSeries: make(map[SeriesMapKey]*averageSeries),
 		len:                   intervalMapper.IntervalCount(),
 		intervalMapper:        intervalMapper,
 		exemplarBuckets:       newExemplarBucketSet(maxExemplars, q.Start, q.End, q.Step),
@@ -95,9 +95,15 @@ func (a *averageOverTimeAggregator) result(multiplier float64) SeriesSet {
 	ss := a.seriesAgg.Results()
 	if a.mode == AggregateModeFinal {
 		for i := range ss {
-			if strings.Contains(i, internalLabelMetaType) {
-				delete(ss, i)
+			for _, l := range i {
+				if l.Name == internalLabelMetaType {
+					delete(ss, i)
+					break
+				}
 			}
+			/*if strings.Contains(i, internalLabelMetaType) {
+				delete(ss, i)
+			}*/
 		}
 	}
 	return ss
@@ -159,7 +165,7 @@ func (a *averageOverTimeAggregator) String() string {
 }
 
 type averageOverTimeSeriesAggregator struct {
-	weightedAverageSeries map[string]*averageSeries
+	weightedAverageSeries map[SeriesMapKey]*averageSeries
 	len                   int
 	intervalMapper        IntervalMapper
 	exemplarBuckets       bucketSet
@@ -275,41 +281,56 @@ var (
 
 func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 	// We traverse the TimeSeries to initialize new TimeSeries and map the counter series with the position in the `in` array
-	countPosMapper := make(map[string]int, len(in)/2)
+	countPosMapper := make(map[SeriesMapKey]int, len(in)/2)
 	for i, ts := range in {
-		_, ok := b.weightedAverageSeries[ts.PromLabels]
-		if strings.Contains(ts.PromLabels, internalLabelMetaType) {
+		labels := getLabels(ts.Labels, "")
+		key := labels.MapKey()
+
+		_, ok := b.weightedAverageSeries[key]
+
+		hasMetaType := false
+		for _, l := range ts.Labels {
+			if l.Key == internalLabelMetaType {
+				hasMetaType = true
+				break
+			}
+		}
+
+		if hasMetaType {
 			// Label series without the count metatype, this will match with its average series
-			avgSeriesPromLabel := getLabels(ts.Labels, internalLabelMetaType).String()
+			key := getLabels(ts.Labels, internalLabelMetaType).MapKey()
 			// mapping of the position of the count series in the time series array
-			countPosMapper[avgSeriesPromLabel] = i
+			countPosMapper[key] = i
 		} else if !ok {
 			promLabels := getLabels(ts.Labels, "")
 			s := newAverageSeries(b.len, len(ts.Exemplars), promLabels)
-			b.weightedAverageSeries[ts.PromLabels] = &s
+			b.weightedAverageSeries[key] = &s
 		}
 	}
 	for _, ts := range in {
-		existing, ok := b.weightedAverageSeries[ts.PromLabels]
+		labels := getLabels(ts.Labels, "")
+		key := labels.MapKey()
+
+		existing, ok := b.weightedAverageSeries[key]
 		if !ok {
 			// This is a counter series, we can skip it
 			continue
 		}
-		countIndex, ok := countPosMapper[ts.PromLabels]
+		countIndex, ok := countPosMapper[key]
 		if !ok {
 			// The count series might have been truncated, skip this value
 			continue
 		}
 		for i, sample := range ts.Samples {
 			pos := b.intervalMapper.IntervalMs(sample.TimestampMs)
-			if pos < 0 || pos >= len(b.weightedAverageSeries[ts.PromLabels].values) {
+			if pos < 0 || pos >= len(b.weightedAverageSeries[key].values) {
 				continue
 			}
 
 			incomingMean := sample.Value
 			incomingWeight := in[countIndex].Samples[i].Value
 			existing.addWeigthedMean(pos, incomingMean, incomingWeight)
-			b.aggregateExemplars(ts, b.weightedAverageSeries[ts.PromLabels])
+			b.aggregateExemplars(ts, b.weightedAverageSeries[key])
 		}
 	}
 }
@@ -360,7 +381,7 @@ func (b *averageOverTimeSeriesAggregator) Results() SeriesSet {
 	for k, v := range b.weightedAverageSeries {
 		ss[k] = v.getAvgSeries()
 		countSeries := v.getCountSeries()
-		ss[countSeries.Labels.String()] = countSeries
+		ss[countSeries.Labels.MapKey()] = countSeries
 	}
 	return ss
 }
@@ -499,11 +520,11 @@ func (g *avgOverTimeSpanAggregator[F, S]) Length() int {
 	return len(g.series)
 }
 
-func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S) (Labels, string) {
+func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S) (Labels, SeriesMapKey) {
 	if g.by == nil {
 		serieLabel := make(Labels, 1, 2)
 		serieLabel[0] = Label{labels.MetricName, NewStaticString(metricsAggregateAvgOverTime.String())}
-		return serieLabel, serieLabel.String()
+		return serieLabel, serieLabel.MapKey()
 	}
 	labels := make(Labels, 0, len(g.by)+1)
 	for i := range g.by {
@@ -518,7 +539,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 		labels = append(labels, Label{g.by[0].String(), NewStaticNil()})
 	}
 
-	return labels, labels.String()
+	return labels, labels.MapKey()
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
@@ -534,7 +555,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 		countSeries := s.average.getCountSeries()
 
 		ss[promLabelsAvg] = averageSeries
-		ss[countSeries.Labels.String()] = countSeries
+		ss[countSeries.Labels.MapKey()] = countSeries
 	}
 
 	return ss

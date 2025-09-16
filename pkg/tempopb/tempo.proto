@@ -428,7 +428,7 @@ message InstantSeries {
 
   // prom_labels are a flattened string-only version of the typed labels.
   // They are used internally and may differ from official prometheus conventions.
-  string prom_labels = 3;
+  //string prom_labels = 3;
 }
 
 message QueryRangeRequest {
@@ -487,7 +487,7 @@ message TimeSeries {
 
   // prom_labels are a flattened string-only version of the typed labels.
   // They are used internally and may differ from official prometheus conventions.
-  string prom_labels = 3;
+  //string prom_labels = 3;
 
   // Exemplars are optional and can be empty.
   // Sorted by time, oldest exemplar first.
