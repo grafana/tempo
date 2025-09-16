@@ -258,10 +258,8 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			if nativeErr != nil {
 				return activeSeries, nativeErr
 			}
+			activeSeries += 1
 		}
-
-		// TODO: impact on active series from appending a histogram?
-		activeSeries += 0
 	}
 
 	return
@@ -271,7 +269,7 @@ func (h *nativeHistogram) countTotalSeries() int {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
-	return len(h.series) + len(h.rejectedSeries)
+	return (len(h.series) + len(h.rejectedSeries)) * int(h.activeSeriesPerHistogramSerie())
 }
 
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
