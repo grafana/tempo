@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/collector"
+	"github.com/grafana/tempo/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
 
 	gkLog "github.com/go-kit/log"
@@ -388,6 +389,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 		foundObject, err := block.FindTraceByID(ctx, id, opts)
 		if err != nil {
+			if errors.Is(err, util.ErrUnsupported) {
+				return nil, nil
+			}
 			return nil, fmt.Errorf("error finding trace by id, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 

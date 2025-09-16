@@ -116,6 +116,7 @@ message DedicatedColumn {
   }
   enum Type {
     STRING = 0;
+    INT = 1;
   }
   Scope scope = 3;
   string name = 2;

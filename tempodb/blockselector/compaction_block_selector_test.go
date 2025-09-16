@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -817,6 +818,25 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 3),
 		},
 		{
+			name: "unsupported blocks are ignored",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+					Version: "preview1",
+				},
+				{
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+					Version: "preview1",
+				},
+			},
+			expected:       nil,
+			expectedHash:   "",
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
 			name: "blocks above the max compaction level are not selected for compaction",
 			blocklist: []*backend.BlockMeta{
 				{
@@ -886,6 +906,24 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			maxSize := uint64(1024 * 1024)
 			if tt.maxBlockBytes > 0 {
 				maxSize = tt.maxBlockBytes
+			}
+
+			// For testing, assign all data to valid encoding
+			// if not specified.
+			for _, b := range tt.blocklist {
+				if b.Version == "" {
+					b.Version = encoding.DefaultEncoding().Version()
+				}
+			}
+			for _, b := range tt.expected {
+				if b.Version == "" {
+					b.Version = encoding.DefaultEncoding().Version()
+				}
+			}
+			for _, b := range tt.expectedSecond {
+				if b.Version == "" {
+					b.Version = encoding.DefaultEncoding().Version()
+				}
 			}
 
 			maxLevel := DefaultMaxCompactionLevel

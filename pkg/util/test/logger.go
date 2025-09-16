@@ -35,8 +35,8 @@ func (l *TestingLogger) Log(keyvals ...interface{}) error {
 	keyvals = append([]interface{}{time.Now().String()}, keyvals...)
 
 	l.mtx.Lock()
+	defer l.mtx.Unlock()
 	l.t.Log(keyvals...)
-	l.mtx.Unlock()
 
 	return nil
 }

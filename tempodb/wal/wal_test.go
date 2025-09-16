@@ -235,7 +235,7 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 				},
 				Limit: 10,
 			}, common.DefaultSearchOptions())
-			if errors.Is(err, common.ErrUnsupported) {
+			if errors.Is(err, util.ErrUnsupported) {
 				return
 			}
 			require.NoError(t, err)
@@ -270,7 +270,7 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			query := fmt.Sprintf("{ .%s = \"%s\" }", k, v)
 			resp, err := block.Fetch(ctx, traceql.MustExtractFetchSpansRequestWithMetadata(query), common.DefaultSearchOptions())
 			// not all blocks support fetch
-			if errors.Is(err, common.ErrUnsupported) {
+			if errors.Is(err, util.ErrUnsupported) {
 				return
 			}
 			require.NoError(t, err)
@@ -500,7 +500,7 @@ func BenchmarkSearch(b *testing.B) {
 						},
 						Limit: 10,
 					}, common.DefaultSearchOptions())
-					if errors.Is(err, common.ErrUnsupported) {
+					if errors.Is(err, util.ErrUnsupported) {
 						return
 					}
 					require.NoError(b, err)

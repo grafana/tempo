@@ -22,6 +22,7 @@ type DedicatedColumnScope string
 
 const (
 	DedicatedColumnTypeString DedicatedColumnType = "string"
+	DedicatedColumnTypeInt    DedicatedColumnType = "int"
 
 	DedicatedColumnScopeResource DedicatedColumnScope = "resource"
 	DedicatedColumnScopeSpan     DedicatedColumnScope = "span"
@@ -37,6 +38,8 @@ func DedicatedColumnTypeFromTempopb(t tempopb.DedicatedColumn_Type) (DedicatedCo
 	switch t {
 	case tempopb.DedicatedColumn_STRING:
 		return DedicatedColumnTypeString, nil
+	case tempopb.DedicatedColumn_INT:
+		return DedicatedColumnTypeInt, nil
 	default:
 		return "", fmt.Errorf("invalid value for tempopb.DedicatedColumn_Type '%v'", t)
 	}
@@ -46,6 +49,8 @@ func (t DedicatedColumnType) ToTempopb() (tempopb.DedicatedColumn_Type, error) {
 	switch t {
 	case DedicatedColumnTypeString:
 		return tempopb.DedicatedColumn_STRING, nil
+	case DedicatedColumnTypeInt:
+		return tempopb.DedicatedColumn_INT, nil
 	default:
 		return 0, fmt.Errorf("invalid value for dedicated column type '%v'", t)
 	}
@@ -55,6 +60,8 @@ func (t DedicatedColumnType) ToStaticType() (traceql.StaticType, error) {
 	switch t {
 	case DedicatedColumnTypeString:
 		return traceql.TypeString, nil
+	case DedicatedColumnTypeInt:
+		return traceql.TypeInt, nil
 	default:
 		return traceql.TypeNil, fmt.Errorf("unsupported dedicated column type '%s'", t)
 	}

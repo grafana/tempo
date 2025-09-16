@@ -456,6 +456,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	for _, c := range i.completingBlocks {
 		tr, err = c.FindTraceByID(ctx, id, searchOpts)
 		if err != nil {
+			if errors.Is(err, util.ErrUnsupported) {
+				continue
+			}
 			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
 		if tr == nil {
@@ -474,6 +477,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	for _, c := range i.completeBlocks {
 		found, err := c.FindTraceByID(ctx, id, searchOpts)
 		if err != nil {
+			if errors.Is(err, util.ErrUnsupported) {
+				continue
+			}
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
 		if found == nil {
@@ -650,7 +656,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		// validate the block before adding it to the list. if we drop a block here and its not in the wal this is data loss, but there is no way to recover. this is likely due to disk
 		// level corruption
 		err = b.Validate(ctx)
-		if err != nil && !errors.Is(err, common.ErrUnsupported) {
+		if err != nil && !errors.Is(err, util.ErrUnsupported) {
 			level.Error(i.logger).Log("msg", "local block failed validation, dropping", "block", id.String(), "error", err)
 			metricReplayErrorsTotal.WithLabelValues(i.instanceID).Inc()
 
