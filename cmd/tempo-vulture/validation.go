@@ -287,12 +287,10 @@ func (vs *ValidationService) validateTraceRetrieval(
 	trace *util.TraceInfo,
 	httpClient httpclient.TempoHTTPClient,
 ) error {
-
 	start := trace.Timestamp().Add(-10 * time.Minute).Unix()
 	end := trace.Timestamp().Add(10 * time.Minute).Unix()
 
 	retrievedTrace, err := httpClient.QueryTraceWithRange(trace.HexID(), start, end)
-
 	if err != nil {
 		return fmt.Errorf("failed to read trace: %w", err)
 	}
@@ -324,7 +322,6 @@ func (vs *ValidationService) validateTraceSearch(
 	httpClient httpclient.TempoHTTPClient,
 	result *ValidationResult,
 ) error {
-
 	vs.logTraceAttributes(actualTrace, writtenTrace.HexID())
 
 	// Get a random attribute from the expected trace
