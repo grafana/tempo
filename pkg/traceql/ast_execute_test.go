@@ -1766,6 +1766,39 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 	}
 }
 
+func TestBinOp(t *testing.T) {
+	testCases := []struct {
+		op       Operator
+		lhs      Static
+		rhs      Static
+		expected Static
+	}{
+		{
+			op:       OpGreater,
+			lhs:      NewStaticString("foo"),
+			rhs:      NewStaticString(""),
+			expected: StaticTrue,
+		},
+		{
+			// Comparison of strings starting with a number were previously broken.
+			op:       OpGreater,
+			lhs:      NewStaticString("123"),
+			rhs:      NewStaticString(""),
+			expected: StaticTrue,
+		},
+	}
+	for _, tc := range testCases {
+		b := newBinaryOperation(tc.op, tc.lhs, tc.rhs)
+
+		// Static operations are already "compiled" away so recreate via string here.
+		text := tc.lhs.String() + " " + tc.op.String() + " " + tc.rhs.String()
+
+		actual, err := b.execute(nil)
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, actual, text)
+	}
+}
+
 func TestArithmetic(t *testing.T) {
 	testCases := []evalTC{
 		// static arithmetic works
