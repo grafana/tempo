@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/unsupported"
 )
 
 const (
@@ -83,7 +84,10 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 		return nil, err
 	}
 
-	encodings := encoding.AllEncodings()
+	// For wal ownership, add Unsupported to the list at the end.
+	// It will catch any removed preview encodings.
+	encodings := append(encoding.AllEncodings(), unsupported.Encoding{})
+
 	blocks := make([]common.WALBlock, 0, len(files))
 	for _, f := range files {
 		// find owner

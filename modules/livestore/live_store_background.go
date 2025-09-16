@@ -9,9 +9,9 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const (
@@ -275,7 +275,7 @@ func (s *LiveStore) reloadBlocks() error {
 			}
 
 			err = blk.Validate(ctx)
-			if err != nil && !errors.Is(err, common.ErrUnsupported) {
+			if err != nil && !errors.Is(err, util.ErrUnsupported) {
 				level.Error(s.logger).Log("msg", "local block failed validation, dropping", "block", id.String(), "error", err)
 
 				err = l.ClearBlock(id, tenant)
