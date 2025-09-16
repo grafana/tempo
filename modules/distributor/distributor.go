@@ -134,12 +134,6 @@ var (
 		Name:      "kafka_write_bytes_total",
 		Help:      "The total number of bytes written to kafka",
 	}, []string{"partition"})
-	metricKafkaAppends = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "kafka_appends_total",
-		Help:      "The total number of appends sent to kafka",
-	}, []string{"partition", "status"})
 
 	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
 	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
@@ -680,7 +674,6 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		for _, result := range produceResults {
 			if result.Err != nil {
 				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err, "tenant", userID)
-				metricKafkaAppends.WithLabelValues(partitionLabel, "fail").Inc()
 			} else {
 				count++
 				sizeBytes += len(result.Record.Value)
@@ -689,7 +682,6 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		if count > 0 {
 			metricKafkaWriteBytesTotal.WithLabelValues(partitionLabel).Add(float64(sizeBytes))
-			metricKafkaAppends.WithLabelValues(partitionLabel, "success").Add(float64(count))
 		}
 
 		_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)

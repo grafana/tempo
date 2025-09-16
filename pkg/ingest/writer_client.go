@@ -256,7 +256,7 @@ func (c *Producer) updateMetricsLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			c.bufferedProduceBytes.Observe(float64(c.Client.BufferedProduceBytes()))
+			c.bufferedProduceBytes.Observe(float64(c.BufferedProduceBytes()))
 
 		case <-c.closed:
 			return
