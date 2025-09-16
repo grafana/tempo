@@ -787,7 +787,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				}
 
 				// increase span count for trace
-				existingTrace.spanCount = existingTrace.spanCount + 1
+				existingTrace.spanCount++
 
 				// Count spans with timestamps in the future
 				if end > currentTime {
