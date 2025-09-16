@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"go.opentelemetry.io/otel"
@@ -36,5 +37,5 @@ func (b *backendBlock) BlockMeta() *backend.BlockMeta {
 }
 
 func (b *backendBlock) Validate(context.Context) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }

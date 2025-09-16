@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"go.opentelemetry.io/otel"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -38,13 +39,13 @@ func (b *backendBlock) BlockMeta() *backend.BlockMeta {
 }
 
 func (b *backendBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *backendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *backendBlock) Validate(context.Context) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }

@@ -937,10 +937,10 @@ func checkConditions(conditions []traceql.Condition) error {
 			cond.Attribute.Intrinsic == traceql.IntrinsicInstrumentationName ||
 			cond.Attribute.Intrinsic == traceql.IntrinsicInstrumentationVersion {
 
-			return fmt.Errorf("intrinsic '%s' not supported in vParquet3: %w", cond.Attribute.Intrinsic, common.ErrUnsupported)
+			return fmt.Errorf("intrinsic '%s' not supported in vParquet3: %w", cond.Attribute.Intrinsic, util.ErrUnsupported)
 		}
 		if cond.Attribute.Scope == traceql.AttributeScopeEvent || cond.Attribute.Scope == traceql.AttributeScopeLink || cond.Attribute.Scope == traceql.AttributeScopeInstrumentation {
-			return fmt.Errorf("scope '%s' not supported in vParquet3: %w", cond.Attribute.Scope, common.ErrUnsupported)
+			return fmt.Errorf("scope '%s' not supported in vParquet3: %w", cond.Attribute.Scope, util.ErrUnsupported)
 		}
 
 		// Verify all operands are of the same type
