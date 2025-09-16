@@ -548,7 +548,7 @@ func TestInstanceMetrics(t *testing.T) {
 		err := i.CutCompleteTraces(0, 0, true)
 		require.NoError(t, err)
 
-		liveTraces, err := test.GetGaugeVecValue(globalMetrics.LiveTraces, testTenantID)
+		liveTraces, err := test.GetGaugeVecValue(metricLiveTraces, testTenantID)
 		require.NoError(t, err)
 		require.Equal(t, v, int(liveTraces))
 	}

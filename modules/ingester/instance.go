@@ -19,7 +19,6 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -45,8 +44,31 @@ const (
 )
 
 var (
-	// Keep a global instance metrics for testing purposes
-	globalMetrics = ingest.NewMetrics("ingester")
+	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_traces_created_total",
+		Help:      "The total number of traces created per tenant.",
+	}, []string{"tenant"})
+	metricLiveTraces = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "ingester_live_traces",
+		Help:      "The current number of lives traces per tenant.",
+	}, []string{"tenant"})
+	metricLiveTraceBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "ingester_live_trace_bytes",
+		Help:      "The current number of bytes consumed by lives traces per tenant.",
+	}, []string{"tenant"})
+	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_blocks_cleared_total",
+		Help:      "The total number of blocks cleared.",
+	})
+	metricBytesReceivedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_bytes_received_total",
+		Help:      "The total bytes received per tenant.",
+	}, []string{"tenant", "data_type"})
 	metricReplayErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "ingester_replay_errors_total",
@@ -69,10 +91,11 @@ type instance struct {
 
 	lastBlockCut time.Time
 
-	instanceID string
-	metrics    *ingest.Metrics
-	limiter    Limiter
-	writer     tempodb.Writer
+	instanceID         string
+	tracesCreatedTotal prometheus.Counter
+	bytesReceivedTotal *prometheus.CounterVec
+	limiter            Limiter
+	writer             tempodb.Writer
 
 	dedicatedColumns backend.DedicatedColumns
 	overrides        ingesterOverrides
@@ -91,8 +114,9 @@ func newInstance(instanceID string, limiter Limiter, overrides ingesterOverrides
 		traces:     map[uint64]*liveTrace{},
 		traceSizes: tracesizes.New(),
 
-		instanceID: instanceID,
-		metrics:    globalMetrics,
+		instanceID:         instanceID,
+		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal: metricBytesReceivedTotal,
 		limiter:            limiter,
 		writer:             writer,
 
@@ -201,7 +225,7 @@ func (i *instance) measureReceivedBytes(traceBytes []byte) {
 	// measure received bytes as sum of slice lengths
 	// type byte is guaranteed to be 1 byte in size
 	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
-	i.metrics.BytesReceivedTotal.WithLabelValues(i.instanceID, traceDataType).Add(float64(len(traceBytes)))
+	i.bytesReceivedTotal.WithLabelValues(i.instanceID, traceDataType).Add(float64(len(traceBytes)))
 }
 
 // CutCompleteTraces moves any complete traces out of the map to complete traces.
@@ -373,7 +397,7 @@ func (i *instance) ClearOldBlocks(flushObjectStorage bool, completeBlockTimeout 
 		i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
 		idx--
 		numBlocks--
-		globalMetrics.BlocksClearedTotal.WithLabelValues("complete").Inc()
+		metricBlocksClearedTotal.Inc()
 	}
 
 	return nil
@@ -541,8 +565,8 @@ func (i *instance) tracesToCut(now time.Time, idleCutoff time.Duration, liveCuto
 	defer i.tracesMtx.Unlock()
 
 	// Set this before cutting to give a more accurate number.
-	i.metrics.LiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
-	i.metrics.LiveTraceBytes.WithLabelValues(i.instanceID).Set(float64(i.traceSizeBytes))
+	metricLiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
+	metricLiveTraceBytes.WithLabelValues(i.instanceID).Set(float64(i.traceSizeBytes))
 
 	idleCutoffTime := now.Add(-idleCutoff)
 	liveCutoffTime := now.Add(-liveCutoff)
@@ -569,7 +593,7 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, start, end uint
 	i.headBlockMtx.Lock()
 	defer i.headBlockMtx.Unlock()
 
-	i.metrics.TracesCreatedTotal.WithLabelValues(i.instanceID).Inc()
+	i.tracesCreatedTotal.Inc()
 	err := i.headBlock.Append(id, b, start, end, true)
 	if err != nil {
 		return err
