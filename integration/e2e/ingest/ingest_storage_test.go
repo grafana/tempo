@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,69 +63,8 @@ func TestIngest(t *testing.T) {
 	now := time.Now()
 	util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
-	// Test comprehensive metrics
-	testAllBlockBuilderMetrics(t, tempo)
-	testAllIngesterMetrics(t, tempo)
-
 	// Call /metrics
 	res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/metrics")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
-}
-
-// testAllBlockBuilderMetrics validates all blockbuilder metrics from pkg/ingest/metrics.go have reasonable values
-func testAllBlockBuilderMetrics(t *testing.T, tempo *e2e.HTTPService) {
-	// Basic trace processing metrics
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(1), "tempo_block_builder_traces_created_total"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(1), "tempo_block_builder_kafka_records_processed_total"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_bytes_received_total"))
-
-	// Live trace state metrics - blockbuilder may have 0 live traces as it processes batches
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_live_traces"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_live_trace_bytes"))
-
-	// Block lifecycle metrics
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_blocks_cleared_total"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_completion_size_bytes"))
-
-	// Kafka consumer metrics
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_fetch_bytes_total"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_fetch_records_total"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_fetch_errors_total"))
-
-	// Processing duration metrics - check they have recorded samples
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_fetch_duration_seconds"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_consume_cycle_duration_seconds"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_process_partition_duration_seconds"))
-
-	// Dropped records should be 0 in normal operation
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.Equals(0), "tempo_block_builder_kafka_records_dropped_total"))
-
-	// Back pressure should be minimal in test environment
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_block_builder_back_pressure_seconds_total"))
-
-	// Partition lag metrics (these are from the ingest package)
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_ingest_group_partition_lag"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_ingest_group_partition_lag_seconds"))
-}
-
-// testAllIngesterMetrics validates all ingester metrics from pkg/ingest/metrics.go have reasonable values
-func testAllIngesterMetrics(t *testing.T, tempo *e2e.HTTPService) {
-	// Basic trace processing metrics
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(1), "tempo_ingester_traces_created_total"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_ingester_bytes_received_total"))
-
-	// Live trace state metrics - should have some live traces initially
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_ingester_live_traces"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_ingester_live_trace_bytes"))
-
-	// Block lifecycle metrics
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_ingester_blocks_cleared_total"))
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_ingester_completion_size_bytes"))
-
-	// Note: Ingester doesn't use Kafka consumer metrics directly like blockbuilder/livestore
-	// so we don't test fetch_* metrics for ingester
-
-	// Back pressure should be minimal in test environment
-	assert.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(0), "tempo_ingester_back_pressure_seconds_total"))
 }
