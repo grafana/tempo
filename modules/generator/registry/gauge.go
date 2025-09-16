@@ -158,8 +158,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 	activeSeries = len(g.series)
 
 	for _, s := range g.series {
-		t := time.UnixMilli(timeMs)
-		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
+		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
 			return
 		}
