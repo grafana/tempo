@@ -973,17 +973,17 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 			rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
 		}
 
-		dcm.forEach(func(attr string, column dedicatedColumn) {
-			if strings.Contains(column.ColumnPath, "Resource") {
-				v := column.readValue(&rs.Resource.DedicatedAttributes)
+		for attr, col := range dcm.items() {
+			if strings.Contains(col.ColumnPath, "Resource") {
+				v := col.readValue(&rs.Resource.DedicatedAttributes)
 				if v == nil {
-					return
+					continue
 				}
 				a := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr)
 				s := traceql.StaticFromAnyValue(v)
 				rsAttrs = append(rsAttrs, attrVal{a, s})
 			}
-		})
+		}
 
 		sortAttrs(rsAttrs)
 
@@ -1027,17 +1027,17 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl), traceql.NewStaticString(*s.HttpUrl))
 				}
 
-				dcm.forEach(func(attr string, column dedicatedColumn) {
-					if strings.Contains(column.ColumnPath, "Span") {
-						v := column.readValue(&s.DedicatedAttributes)
+				for attr, col := range dcm.items() {
+					if strings.Contains(col.ColumnPath, "Span") {
+						v := col.readValue(&s.DedicatedAttributes)
 						if v == nil {
-							return
+							continue
 						}
 						a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr)
 						s := traceql.StaticFromAnyValue(v)
 						newS.addSpanAttr(a, s)
 					}
-				})
+				}
 
 				for _, a := range parquetToProtoAttrs(s.Attrs) {
 					if arr := a.Value.GetArrayValue(); arr != nil {

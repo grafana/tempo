@@ -215,7 +215,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			resp, err = b.Search(ctx, req, opts)
 		}
 
-		if errors.Is(err, common.ErrUnsupported) {
+		if errors.Is(err, util.ErrUnsupported) {
 			level.Warn(i.logger).Log("msg", "block does not support search", "blockID", blockMeta.BlockID)
 			return nil
 		}
@@ -324,7 +324,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 				distinctValues.Collect(scope.String(), t)
 			}, mc.Add, common.DefaultSearchOptions())
 
-			if err != nil && !errors.Is(err, common.ErrUnsupported) {
+			if err != nil && !errors.Is(err, util.ErrUnsupported) {
 				return err
 			}
 
@@ -402,7 +402,7 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 
 		inspectedBlocks++
 		err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, mc.Add, common.DefaultSearchOptions())
-		if err != nil && !errors.Is(err, common.ErrUnsupported) {
+		if err != nil && !errors.Is(err, util.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
 		}
 

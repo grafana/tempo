@@ -232,6 +232,8 @@ var (
 		{Scope: "resource", Name: "dedicated.resource.3", Type: "string"},
 		{Scope: "resource", Name: "dedicated.resource.4", Type: "string"},
 		{Scope: "resource", Name: "dedicated.resource.5", Type: "string"},
+		{Scope: "resource", Name: "dedicated.resource.6", Type: "int"},
+		{Scope: "resource", Name: "dedicated.resource.7", Type: "int"},
 	}
 	dedicatedColumnsSpan = backend.DedicatedColumns{
 		{Scope: "span", Name: "dedicated.span.1", Type: "string"},
@@ -239,32 +241,41 @@ var (
 		{Scope: "span", Name: "dedicated.span.3", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.4", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.5", Type: "string"},
+		{Scope: "span", Name: "dedicated.span.6", Type: "int"},
+		{Scope: "span", Name: "dedicated.span.7", Type: "int"},
 	}
 )
 
 // AddDedicatedAttributes adds resource and span attributes to a trace that are stored in dedicated
 // columns when a backend.BlockMeta is created with the column assignments from MakeDedicatedColumns.
 func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
+	makeVal := func(typ backend.DedicatedColumnType, scope backend.DedicatedColumnScope, i int) *v1_common.AnyValue {
+		if typ == backend.DedicatedColumnTypeInt {
+			return &v1_common.AnyValue{
+				Value: &v1_common.AnyValue_IntValue{
+					IntValue: int64(i + 1),
+				},
+			}
+		}
+		return &v1_common.AnyValue{
+			Value: &v1_common.AnyValue_StringValue{
+				StringValue: fmt.Sprintf("dedicated-%s-attr-value-%d", scope, i+1),
+			},
+		}
+	}
+
 	spanAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsSpan))
 	for i, c := range dedicatedColumnsSpan {
 		spanAttrs = append(spanAttrs, &v1_common.KeyValue{
-			Key: c.Name,
-			Value: &v1_common.AnyValue{
-				Value: &v1_common.AnyValue_StringValue{
-					StringValue: fmt.Sprintf("dedicated-span-attr-value-%d", i+1),
-				},
-			},
+			Key:   c.Name,
+			Value: makeVal(c.Type, c.Scope, i),
 		})
 	}
 	resourceAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsResource))
 	for i, c := range dedicatedColumnsResource {
 		resourceAttrs = append(resourceAttrs, &v1_common.KeyValue{
-			Key: c.Name,
-			Value: &v1_common.AnyValue{
-				Value: &v1_common.AnyValue_StringValue{
-					StringValue: fmt.Sprintf("dedicated-resource-attr-value-%d", i+1),
-				},
-			},
+			Key:   c.Name,
+			Value: makeVal(c.Type, c.Scope, i),
 		})
 	}
 
