@@ -538,7 +538,6 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		},
 		Series: []*tempopb.TimeSeries{
 			{
-				PromLabels: "foo",
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -550,7 +549,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 				},
 			},
 			{
-				PromLabels: "boo",
+				// PromLabels: "boo",
 				Labels: []v1.KeyValue{
 					{Key: "boo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -562,7 +561,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 				},
 			},
 			{
-				PromLabels: "moo",
+				// PromLabels: "moo",
 				Labels: []v1.KeyValue{
 					{Key: "moo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -588,7 +587,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		},
 		Series: []*tempopb.TimeSeries{
 			{
-				PromLabels: "goo",
+				// PromLabels: "goo",
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -600,7 +599,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 				},
 			},
 			{
-				PromLabels: "poo",
+				// PromLabels: "poo",
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -693,7 +692,7 @@ func ts(samples []tempopb.Sample, exemplars []tempopb.Exemplar, kvs ...string) *
 			},
 		})
 	}
-	ts.PromLabels = traceql.LabelsFromProto(ts.Labels).String()
+	// ts.PromLabels = traceql.LabelsFromProto(ts.Labels).String()
 	if samples == nil {
 		ts.Samples = []tempopb.Sample{}
 	}

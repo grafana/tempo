@@ -186,9 +186,9 @@ func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.Quer
 		}
 		// Use first value
 		output.Series = append(output.Series, &tempopb.InstantSeries{
-			Labels:     series.Labels,
-			PromLabels: series.PromLabels,
-			Value:      series.Samples[0].Value,
+			Labels: series.Labels,
+			// PromLabels: series.PromLabels,
+			Value: series.Samples[0].Value,
 		})
 	}
 	return output
