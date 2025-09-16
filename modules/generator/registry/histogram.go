@@ -121,6 +121,7 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 	}
 
 	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
+	// remove from the over_the_limit map map[uint64]struct{} (or maybe with timestamp)
 }
 
 func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {
@@ -282,4 +283,8 @@ func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
 
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func (h *histogram) countTotalSeries() int {
+	return 0
 }

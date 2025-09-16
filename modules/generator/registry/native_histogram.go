@@ -516,3 +516,7 @@ func getIfGreaterThenZeroOr(v1 float64, v2 uint64) float64 {
 	}
 	return float64(v2)
 }
+
+func (h *nativeHistogram) countTotalSeries() int {
+	return 0
+}
