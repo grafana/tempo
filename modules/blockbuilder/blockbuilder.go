@@ -39,45 +39,6 @@ const (
 )
 
 var (
-	metricFetchDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace:                   "tempo",
-		Subsystem:                   "block_builder",
-		Name:                        "fetch_duration_seconds",
-		Help:                        "Time spent fetching from Kafka.",
-		NativeHistogramBucketFactor: 1.1,
-	}, []string{"partition"})
-	metricFetchBytesTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Subsystem: "block_builder",
-		Name:      "fetch_bytes_total",
-		Help:      "Total number of bytes fetched from Kafka",
-	}, []string{"partition"})
-	metricFetchRecordsTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Subsystem: "block_builder",
-		Name:      "fetch_records_total",
-		Help:      "Total number of records fetched from Kafka",
-	}, []string{"partition"})
-	metricConsumeCycleDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace:                   "tempo",
-		Subsystem:                   "block_builder",
-		Name:                        "consume_cycle_duration_seconds",
-		Help:                        "Time spent consuming a full cycle.",
-		NativeHistogramBucketFactor: 1.1,
-	})
-	metricProcessPartitionSectionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace:                   "tempo",
-		Subsystem:                   "block_builder",
-		Name:                        "process_partition_section_duration_seconds",
-		Help:                        "Time spent processing one partition section.",
-		NativeHistogramBucketFactor: 1.1,
-	}, []string{"partition"})
-	metricFetchErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Subsystem: "block_builder",
-		Name:      "fetch_errors_total",
-		Help:      "Total number of errors while fetching by the consumer.",
-	}, []string{"partition"})
 	metricOwnedPartitions = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
@@ -101,6 +62,7 @@ type BlockBuilder struct {
 	kadm                  *kadm.Client
 	decoder               *ingest.Decoder
 	partitionRing         ring.PartitionRingReader
+	metrics               *ingest.Metrics
 
 	overrides Overrides
 	enc       encoding.VersionedEncoding
@@ -168,6 +130,7 @@ func New(
 		writer:         store,
 		compactor:      store,
 		consumeStopped: make(chan struct{}),
+		metrics:        ingest.NewMetrics("block_builder"),
 	}
 
 	b.Service = services.NewBasicService(b.starting, b.running, b.stopping)
@@ -267,7 +230,7 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	}
 
 	level.Info(b.logger).Log("msg", "starting consume cycle", "active_partitions", formatActivePartitions(partitions))
-	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
+	defer func(t time.Time) { b.metrics.ConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 
 	// Clear all previous remnants
 	err := b.wal.Clear()
@@ -328,7 +291,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, ps partitionState) 
 			attribute.String("last_record_ts", ps.lastRecordTs.String())))
 
 	defer func(t time.Time) {
-		metricProcessPartitionSectionDuration.WithLabelValues(strconv.Itoa(int(ps.partition))).Observe(time.Since(t).Seconds())
+		b.metrics.ProcessPartitionDuration.WithLabelValues(strconv.Itoa(int(ps.partition))).Observe(time.Since(t).Seconds())
 		span.End()
 	}(time.Now())
 
@@ -369,7 +332,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, ps partitionState) 
 outer:
 	for {
 		fetches := func() kgo.Fetches {
-			defer func(t time.Time) { metricFetchDuration.WithLabelValues(partLabel).Observe(time.Since(t).Seconds()) }(time.Now())
+			defer func(t time.Time) { b.metrics.FetchDuration.WithLabelValues(partLabel).Observe(time.Since(t).Seconds()) }(time.Now())
 			ctx2, cancel := context.WithTimeout(ctx, pollTimeout)
 			defer cancel()
 			return b.kafkaClient.PollFetches(ctx2)
@@ -380,7 +343,7 @@ outer:
 				// No more data
 				break
 			}
-			metricFetchErrors.WithLabelValues(partLabel).Inc()
+			b.metrics.FetchErrors.WithLabelValues(partLabel).Inc()
 			return time.Time{}, commitOffsetAtEnd, err
 		}
 
@@ -390,8 +353,8 @@ outer:
 
 		for iter := fetches.RecordIter(); !iter.Done(); {
 			rec := iter.Next()
-			metricFetchBytesTotal.WithLabelValues(partLabel).Add(float64(len(rec.Value)))
-			metricFetchRecordsTotal.WithLabelValues(partLabel).Inc()
+			b.metrics.FetchBytesTotal.WithLabelValues(partLabel).Add(float64(len(rec.Value)))
+			b.metrics.FetchRecordsTotal.WithLabelValues(partLabel).Inc()
 			recordSizeBytes := uint64(len(rec.Value))
 
 			level.Debug(b.logger).Log(
