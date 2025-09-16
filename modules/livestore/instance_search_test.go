@@ -29,6 +29,7 @@ import (
 
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ingest/testkafka"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -1009,7 +1010,8 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	mover, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	// Create instance
-	inst, err := newInstance(tenant, cfg, w, mover, log.NewNopLogger())
+	metrics := ingest.NewMetrics("live_store")
+	inst, err := newInstance(tenant, cfg, w, mover, log.NewNopLogger(), metrics)
 	require.NoError(t, err)
 
 	// Create test spans

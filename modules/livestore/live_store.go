@@ -99,6 +99,9 @@ type LiveStore struct {
 
 	reader *PartitionReader
 
+	// Metrics
+	metrics *ingest.Metrics
+
 	// Multi-tenant instances
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
@@ -127,6 +130,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		overrides:       overridesService,
 		completeQueues:  flushqueues.New(cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete: make(chan struct{}),
+		metrics:         ingest.NewMetrics("live_store"),
 	}
 
 	var err error
@@ -260,7 +264,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to ping kafka: %w", err)
 	}
 
-	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.consume, s.logger, s.reg)
+	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.consume, s.logger, s.reg, s.metrics)
 	if err != nil {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
@@ -326,7 +330,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 	consumeStart := time.Now()
 	defer func() {
-		metricConsumeCycleDuration.Observe(time.Since(consumeStart).Seconds())
+		s.metrics.ConsumeCycleDuration.Observe(time.Since(consumeStart).Seconds())
 	}()
 
 	recordCount := 0
@@ -343,14 +347,14 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, s.ingestPartitionID, lag)
 
 		if record.Timestamp.Before(cutoff) {
-			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
+			s.metrics.RecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
 			continue
 		}
 
 		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.Value)
 		if err != nil {
-			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
+			s.metrics.RecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
 			level.Error(s.logger).Log("msg", "failed to decoded record", "tenant", tenant, "err", err)
 			span.RecordError(err)
 			continue
@@ -359,7 +363,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		// Get or create tenant instance
 		inst, err := s.getOrCreateInstance(tenant)
 		if err != nil {
-			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
+			s.metrics.RecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
 			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
 			span.RecordError(err)
 			continue
@@ -368,7 +372,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
 
-		metricRecordsProcessed.WithLabelValues(tenant).Inc()
+		s.metrics.RecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
 		lastRecord = record
 	}
@@ -401,7 +405,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, s.cfg, s.wal, s.overrides, s.logger)
+	inst, err := newInstance(tenantID, s.cfg, s.wal, s.overrides, s.logger, s.metrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}

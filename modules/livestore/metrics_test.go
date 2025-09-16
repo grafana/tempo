@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -52,7 +53,8 @@ func setupTest(t *testing.T) *testSetup {
 	// Create instance
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	instance, err := newInstance(testTenant, cfg, w, o, log.NewNopLogger())
+	metrics := ingest.NewMetrics("live_store")
+	instance, err := newInstance(testTenant, cfg, w, o, log.NewNopLogger(), metrics)
 	require.NoError(t, err)
 
 	return &testSetup{
@@ -73,15 +75,15 @@ func TestMetrics_InitialValues(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0.0, tracesCreatedValue, "traces created should start at 0")
 
-	liveTracesValue, err := test.GetGaugeVecValue(metricLiveTraces, testTenant)
+	liveTracesValue, err := test.GetGaugeVecValue(setup.instance.metrics.LiveTraces, testTenant)
 	require.NoError(t, err)
 	assert.Equal(t, 0.0, liveTracesValue, "live traces should start at 0")
 
-	liveTraceBytesValue, err := test.GetGaugeVecValue(metricLiveTraceBytes, testTenant)
+	liveTraceBytesValue, err := test.GetGaugeVecValue(setup.instance.metrics.LiveTraceBytes, testTenant)
 	require.NoError(t, err)
 	assert.Equal(t, 0.0, liveTraceBytesValue, "live trace bytes should start at 0")
 
-	bytesReceivedValue, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
+	bytesReceivedValue, err := getCounterVecValue(setup.instance.metrics.BytesReceivedTotal, testTenant, "trace")
 	require.NoError(t, err)
 	assert.Equal(t, 0.0, bytesReceivedValue, "bytes received should start at 0")
 }
@@ -104,7 +106,7 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 	expectedBytes := float64(len(traceData))
 
 	// Record initial values to ensure we're measuring the delta correctly
-	initialBytesReceived, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
+	initialBytesReceived, err := getCounterVecValue(setup.instance.metrics.BytesReceivedTotal, testTenant, "trace")
 	require.NoError(t, err)
 	initialTracesCreated, err := test.GetCounterValue(setup.instance.tracesCreatedTotal)
 	require.NoError(t, err)
@@ -113,7 +115,7 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Verify bytes received metric increased by expected amount
-	finalBytesReceived, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
+	finalBytesReceived, err := getCounterVecValue(setup.instance.metrics.BytesReceivedTotal, testTenant, "trace")
 	require.NoError(t, err)
 	assert.Equal(t, initialBytesReceived+expectedBytes, finalBytesReceived,
 		"bytes received should increase by trace data size")
@@ -155,14 +157,14 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	assert.NotEqual(t, uuid.Nil, blockID, "should generate a valid block ID")
 
 	// Record initial completion size histogram count
-	initialCompletionSize := getHistogramCount(t, metricCompletionSize)
+	initialCompletionSize := getHistogramCount(t, setup.instance.metrics.CompletionSize)
 
 	// Complete the block
 	err = setup.instance.completeBlock(context.Background(), blockID)
 	require.NoError(t, err)
 
 	// Verify completion size metric was updated
-	finalCompletionSize := getHistogramCount(t, metricCompletionSize)
+	finalCompletionSize := getHistogramCount(t, setup.instance.metrics.CompletionSize)
 	assert.Equal(t, initialCompletionSize+1, finalCompletionSize,
 		"completion size histogram should record one additional sample")
 }
@@ -172,7 +174,7 @@ func TestMetrics_EmptyPushBytesRequest(t *testing.T) {
 	defer setup.cleanup()
 
 	// Record initial values
-	initialBytesReceived, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
+	initialBytesReceived, err := getCounterVecValue(setup.instance.metrics.BytesReceivedTotal, testTenant, "trace")
 	require.NoError(t, err)
 
 	// Push empty request
@@ -183,7 +185,7 @@ func TestMetrics_EmptyPushBytesRequest(t *testing.T) {
 	setup.instance.pushBytes(t.Context(), time.Now(), req)
 
 	// Verify no bytes were recorded
-	finalBytesReceived, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
+	finalBytesReceived, err := getCounterVecValue(setup.instance.metrics.BytesReceivedTotal, testTenant, "trace")
 	require.NoError(t, err)
 	assert.Equal(t, initialBytesReceived, finalBytesReceived,
 		"empty request should not increment bytes received")

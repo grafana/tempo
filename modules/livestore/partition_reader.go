@@ -38,18 +38,19 @@ type PartitionReader struct {
 	client *kgo.Client
 	adm    *kadm.Client
 
-	consume consumeFn
-	metrics partitionReaderMetrics
+	consume      consumeFn
+	metrics      partitionReaderMetrics
+	ingestMetrics *ingest.Metrics
 
 	logger log.Logger
 }
 
-func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, reg prometheus.Registerer, ingestMetrics *ingest.Metrics) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
-	return newPartitionReader(client, partitionID, cfg, consume, logger, metrics)
+	return newPartitionReader(client, partitionID, cfg, consume, logger, metrics, ingestMetrics)
 }
 
-func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics, ingestMetrics *ingest.Metrics) (*PartitionReader, error) {
 	r := &PartitionReader{
 		partitionID:   partitionID,
 		consumerGroup: cfg.ConsumerGroup,
@@ -58,6 +59,7 @@ func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaC
 		adm:           kadm.NewClient(client),
 		consume:       consume,
 		metrics:       metrics,
+		ingestMetrics: ingestMetrics,
 		logger:        log.With(logger, "partition", partitionID),
 	}
 
@@ -82,14 +84,14 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	for ctx.Err() == nil {
 		fetchStart := time.Now()
 		fetches := r.client.PollFetches(ctx)
-		metricFetchDuration.WithLabelValues(partLabel).Observe(time.Since(fetchStart).Seconds())
+		r.ingestMetrics.FetchDuration.WithLabelValues(partLabel).Observe(time.Since(fetchStart).Seconds())
 
 		if fetches.Err() != nil {
 			if errors.Is(fetches.Err(), context.Canceled) {
 				return nil
 			}
 			err := collectFetchErrs(fetches)
-			metricFetchErrors.WithLabelValues(partLabel).Inc()
+			r.ingestMetrics.FetchErrors.WithLabelValues(partLabel).Inc()
 			level.Error(r.logger).Log("msg", "encountered error while fetching", "err", err)
 			continue
 		}
@@ -126,7 +128,7 @@ func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetche
 	partLabel := strconv.Itoa(int(r.partitionID))
 	processStart := time.Now()
 	defer func() {
-		metricProcessPartitionDuration.WithLabelValues(partLabel).Observe(time.Since(processStart).Seconds())
+		r.ingestMetrics.ProcessPartitionDuration.WithLabelValues(partLabel).Observe(time.Since(processStart).Seconds())
 	}()
 
 	offset, err := r.consume(ctx, fetches.RecordIter(), time.Now())
@@ -154,8 +156,8 @@ func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
 	})
 
 	r.metrics.recordsPerFetch.Observe(float64(numRecords))
-	metricFetchBytesTotal.WithLabelValues(partLabel).Add(float64(numBytes))
-	metricFetchRecordsTotal.WithLabelValues(partLabel).Add(float64(numRecords))
+	r.ingestMetrics.FetchBytesTotal.WithLabelValues(partLabel).Add(float64(numBytes))
+	r.ingestMetrics.FetchRecordsTotal.WithLabelValues(partLabel).Add(float64(numRecords))
 }
 
 func (r *PartitionReader) fetchLastCommittedOffsetWithRetries(ctx context.Context) (offset kgo.Offset, err error) {
