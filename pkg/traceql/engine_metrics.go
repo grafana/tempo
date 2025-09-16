@@ -194,6 +194,43 @@ func LabelsFromProto(ls []v1.KeyValue) Labels {
 	return out
 }
 
+func LabelsFromArgs(args ...any) Labels {
+	if len(args)%2 != 0 {
+		panic("LabelsFromArgs must be called with an even number of arguments")
+	}
+
+	out := make(Labels, 0, len(args)/2)
+
+	for i := 0; i < len(args); i += 2 {
+		name := args[i].(string)
+		var val Static
+		switch arg := args[i+1].(type) {
+		case string:
+			val = NewStaticString(arg)
+		case int:
+			val = NewStaticInt(arg)
+		case float64:
+			val = NewStaticFloat(arg)
+		default:
+			panic(fmt.Sprintf("LabelsFromArgs type not yet supported: %T", arg))
+
+		}
+
+		out = append(out, Label{Name: name, Value: val})
+	}
+
+	return out
+}
+
+func (ls Labels) Has(name string) bool {
+	for _, l := range ls {
+		if l.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // String returns the prometheus-formatted version of the labels. Which is downcasting
 // the typed TraceQL values to strings, with some special casing.
 func (ls Labels) String() string {
