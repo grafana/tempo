@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -304,9 +305,13 @@ func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duratio
 		minResetDur  = h.overrides.MetricsGeneratorNativeHistogramMinResetDuration(h.tenant)
 	)
 
-	s := fmt.Sprintf("%s%f%d%s", h.tenant, bucketFactor, maxBucketNum, minResetDur)
 	hsh := fnv.New64a()
-	hsh.Write([]byte(s))
+	hsh.Write([]byte(h.tenant))
+
+	_ = binary.Write(hsh, binary.LittleEndian, bucketFactor)
+	_ = binary.Write(hsh, binary.LittleEndian, maxBucketNum)
+	_ = binary.Write(hsh, binary.LittleEndian, minResetDur)
+
 	return hsh.Sum64(), bucketFactor, maxBucketNum, minResetDur
 }
 
