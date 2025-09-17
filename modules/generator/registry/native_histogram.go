@@ -306,7 +306,6 @@ func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duratio
 	)
 
 	hsh := fnv.New64a()
-	hsh.Write([]byte(h.tenant))
 
 	_ = binary.Write(hsh, binary.LittleEndian, bucketFactor)
 	_ = binary.Write(hsh, binary.LittleEndian, maxBucketNum)
