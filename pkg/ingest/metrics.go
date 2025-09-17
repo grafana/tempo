@@ -39,21 +39,21 @@ var (
 )
 
 type Metrics struct {
-	TracesCreatedTotal         *prometheus.CounterVec
-	LiveTraces                 *prometheus.GaugeVec
-	LiveTraceBytes             *prometheus.GaugeVec
-	BytesReceivedTotal         *prometheus.CounterVec
-	BlocksClearedTotal         *prometheus.CounterVec
-	CompletionSize             prometheus.Histogram
-	BackPressure               *prometheus.CounterVec
-	FetchDuration              *prometheus.HistogramVec
-	FetchBytesTotal            *prometheus.GaugeVec
-	FetchRecordsTotal          *prometheus.GaugeVec
-	ConsumeCycleDuration       prometheus.Histogram
-	ProcessPartitionDuration   *prometheus.HistogramVec
-	FetchErrors                *prometheus.CounterVec
-	RecordsProcessed           *prometheus.CounterVec
-	RecordsDropped             *prometheus.CounterVec
+	TracesCreatedTotal       *prometheus.CounterVec
+	LiveTraces               *prometheus.GaugeVec
+	LiveTraceBytes           *prometheus.GaugeVec
+	BytesReceivedTotal       *prometheus.CounterVec
+	BlocksClearedTotal       *prometheus.CounterVec
+	CompletionSize           prometheus.Histogram
+	BackPressure             *prometheus.CounterVec
+	FetchDuration            *prometheus.HistogramVec
+	FetchBytesTotal          *prometheus.GaugeVec
+	FetchRecordsTotal        *prometheus.GaugeVec
+	ConsumeCycleDuration     prometheus.Histogram
+	ProcessPartitionDuration *prometheus.HistogramVec
+	FetchErrors              *prometheus.CounterVec
+	RecordsProcessed         *prometheus.CounterVec
+	RecordsDropped           *prometheus.CounterVec
 }
 
 func NewMetrics(subsystem string) *Metrics {

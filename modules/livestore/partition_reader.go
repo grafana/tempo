@@ -38,8 +38,8 @@ type PartitionReader struct {
 	client *kgo.Client
 	adm    *kadm.Client
 
-	consume      consumeFn
-	metrics      partitionReaderMetrics
+	consume       consumeFn
+	metrics       partitionReaderMetrics
 	ingestMetrics *ingest.Metrics
 
 	logger log.Logger
