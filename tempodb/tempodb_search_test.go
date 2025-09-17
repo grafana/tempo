@@ -256,6 +256,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		{Query: "{} | select(resource.missing) | { !(resource.missing != nil)}"},
 		// search by traceID
 		{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)},
+		{Query: "{ .numericString > ``}"}, // String comparison that was previously broken
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		// conditions
@@ -1599,7 +1600,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			scope: "none",
 			query: "{ resource.cluster = `MyCluster` }",
 			expected: map[string][]string{
-				"span":     {"child", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"span":     {"child", "foo", "http.method", "http.status_code", "http.url", "numericString", "span-dedicated.01", "span-dedicated.02"},
 				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
 			},
 		},
@@ -1608,7 +1609,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			scope: "none",
 			query: "{ span.foo = `Bar` }",
 			expected: map[string][]string{
-				"span":     {"child", "parent", "{ } ( ) = ~ ! < > & | ^", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"span":     {"child", "parent", "{ } ( ) = ~ ! < > & | ^", "foo", "http.method", "http.status_code", "http.url", "numericString", "span-dedicated.01", "span-dedicated.02"},
 				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
 			},
 		},
@@ -2206,6 +2207,7 @@ func makeExpectedTrace(traceID []byte) (
 									boolKV("child"),
 									stringKV("span-dedicated.01", "span-1a"),
 									stringKV("span-dedicated.02", "span-2a"),
+									stringKV("numericString", "123"),
 								},
 								Events: []*v1.Span_Event{
 									{

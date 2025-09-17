@@ -259,7 +259,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start livestore: %w", err)
 	}
 
-	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.consume, s.logger, s.reg)
+	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, s.consume, s.logger, s.reg)
 	if err != nil {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
@@ -439,7 +439,7 @@ func (s *LiveStore) cutOneInstanceToWal(inst *instance, immediate bool) {
 
 	// If head block is cut, enqueue complete operation
 	if blockID != uuid.Nil {
-		err = s.enqueueCompleteOp(inst.tenantID, blockID)
+		err = s.enqueueCompleteOp(inst.tenantID, blockID, false)
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to enqueue complete operation", "tenant", inst.tenantID, "err", err)
 			return

@@ -419,34 +419,38 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	if lhsT == TypeString && rhsT == TypeString {
+		// All operations are done on raw unquoted values.
+		lhsS := lhs.EncodeToString(false)
+		rhsS := rhs.EncodeToString(false)
+
 		switch o.Op {
 		case OpGreater:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) > 0), nil
+			return NewStaticBool(strings.Compare(lhsS, rhsS) > 0), nil
 		case OpGreaterEqual:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) >= 0), nil
+			return NewStaticBool(strings.Compare(lhsS, rhsS) >= 0), nil
 		case OpLess:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) < 0), nil
+			return NewStaticBool(strings.Compare(lhsS, rhsS) < 0), nil
 		case OpLessEqual:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) <= 0), nil
+			return NewStaticBool(strings.Compare(lhsS, rhsS) <= 0), nil
 		case OpRegex:
 			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhs.EncodeToString(false)}, true)
+				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, true)
 				if err != nil {
 					return NewStaticNil(), err
 				}
 			}
 
-			matched := o.compiledExpression.MatchString(lhs.EncodeToString(false))
+			matched := o.compiledExpression.MatchString(lhsS)
 			return NewStaticBool(matched), err
 		case OpNotRegex:
 			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhs.EncodeToString(false)}, false)
+				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, false)
 				if err != nil {
 					return NewStaticNil(), err
 				}
 			}
 
-			matched := o.compiledExpression.MatchString(lhs.EncodeToString(false))
+			matched := o.compiledExpression.MatchString(lhsS)
 			return NewStaticBool(matched), err
 		default:
 		}
