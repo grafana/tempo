@@ -302,8 +302,8 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			// mapping of the position of the count series in the time series array
 			countPosMapper[key] = i
 		} else if !ok {
-			promLabels := getLabels(ts.Labels, "")
-			s := newAverageSeries(b.len, len(ts.Exemplars), promLabels)
+			lbls := getLabels(ts.Labels, "")
+			s := newAverageSeries(b.len, len(ts.Exemplars), lbls)
 			b.weightedAverageSeries[key] = &s
 		}
 	}
@@ -546,7 +546,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 	ss := SeriesSet{}
 
 	for _, s := range g.series {
-		labels, promLabelsAvg := g.labelsFor(s.vals)
+		labels, key := g.labelsFor(s.vals)
 		s.average.labels = labels
 		// Average series
 		averageSeries := s.average.getAvgSeries()
@@ -554,7 +554,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 		// Count series
 		countSeries := s.average.getCountSeries()
 
-		ss[promLabelsAvg] = averageSeries
+		ss[key] = averageSeries
 		ss[countSeries.Labels.MapKey()] = countSeries
 	}
 

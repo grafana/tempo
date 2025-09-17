@@ -156,11 +156,8 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 			continue
 		}
 
-		// promlabels are the same, have to check individual samples
-		// just copy forward labels and exemplars
 		diffSeries := &tempopb.TimeSeries{
-			Labels: s.Labels,
-			// PromLabels: s.PromLabels,
+			Labels:    s.Labels,
 			Exemplars: make([]tempopb.Exemplar, 0, len(s.Exemplars)/10), // prealloc 10% of exemplars. untuned
 			Samples:   make([]tempopb.Sample, 0, len(s.Samples)/10),     // prealloc 10% of samples. untuned
 		}

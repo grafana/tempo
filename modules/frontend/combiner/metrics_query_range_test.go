@@ -689,7 +689,7 @@ func ts(samples []tempopb.Sample, exemplars []tempopb.Exemplar, kvs ...string) *
 			},
 		})
 	}
-	// ts.PromLabels = traceql.LabelsFromProto(ts.Labels).String()
+
 	if samples == nil {
 		ts.Samples = []tempopb.Sample{}
 	}

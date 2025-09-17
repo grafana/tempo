@@ -2629,7 +2629,6 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 		}
 
 		result[i] = &tempopb.TimeSeries{
-			// PromLabels: fmt.Sprintf("{service=\"service-%d\",bucket=\"%d\"}", i, i%20),
 			Labels:    labels,
 			Samples:   samples,
 			Exemplars: exemplars,
@@ -2658,7 +2657,6 @@ func TestHistogramAggregator_ExemplarBucketSelection(t *testing.T) {
 			quantiles: []float64{0.5, 0.9},
 			timeSeries: []*tempopb.TimeSeries{
 				{
-					// PromLabels: `{service="test",__bucket="1"}`,
 					Labels: []commonv1proto.KeyValue{
 						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 1.0}}},
@@ -2677,7 +2675,6 @@ func TestHistogramAggregator_ExemplarBucketSelection(t *testing.T) {
 					},
 				},
 				{
-					// PromLabels: `{service="test",__bucket="4"}`,
 					Labels: []commonv1proto.KeyValue{
 						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 4.0}}},
@@ -2739,7 +2736,6 @@ func TestHistogramAggregator_ExemplarDistribution(t *testing.T) {
 	// Create test data with multiple exemplars
 	timeSeries := []*tempopb.TimeSeries{
 		{
-			// PromLabels: `{service="test",__bucket="2"}`,
 			Labels: []commonv1proto.KeyValue{
 				{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 				{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
@@ -2862,7 +2858,6 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 			quantiles: []float64{0.5, 0.9},
 			timeSeries: []*tempopb.TimeSeries{
 				{
-					// PromLabels: `{service="test",__bucket="2"}`,
 					Labels: []commonv1proto.KeyValue{
 						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
@@ -2884,7 +2879,6 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 			quantiles: []float64{0.5},
 			timeSeries: []*tempopb.TimeSeries{
 				{
-					// PromLabels: `{service="test",__bucket="2"}`,
 					Labels: []commonv1proto.KeyValue{
 						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
@@ -2931,7 +2925,6 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 func createBucketSeries(bucketValue string, count int, timestampMs int64) *tempopb.TimeSeries {
 	bucketFloat, _ := strconv.ParseFloat(bucketValue, 64)
 	return &tempopb.TimeSeries{
-		// PromLabels: fmt.Sprintf(`{service="test",__bucket="%s"}`, bucketValue),
 		Labels: []commonv1proto.KeyValue{
 			{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 			{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: bucketFloat}}},

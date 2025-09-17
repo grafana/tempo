@@ -355,7 +355,6 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 		}
 
 		ss := &tempopb.TimeSeries{
-			// PromLabels: promLabels,
 			Labels:    labels,
 			Samples:   samples,
 			Exemplars: exemplars,
