@@ -518,6 +518,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 	start := uint64(1100 * time.Second)
 	end := uint64(1300 * time.Second)
 	step := traceql.DefaultQueryRangeStep(start, end)
+	bar := &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}
 
 	req := &tempopb.QueryRangeRequest{
 		Query:     "{} | rate()",
@@ -539,7 +540,7 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		Series: []*tempopb.TimeSeries{
 			{
 				Labels: []v1.KeyValue{
-					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "foo", Value: bar},
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -549,9 +550,8 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 				},
 			},
 			{
-				// PromLabels: "boo",
 				Labels: []v1.KeyValue{
-					{Key: "boo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "boo", Value: bar},
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -561,9 +561,8 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 				},
 			},
 			{
-				// PromLabels: "moo",
 				Labels: []v1.KeyValue{
-					{Key: "moo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "moo", Value: bar},
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -587,9 +586,8 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		},
 		Series: []*tempopb.TimeSeries{
 			{
-				// PromLabels: "goo",
 				Labels: []v1.KeyValue{
-					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "woo", Value: bar},
 				},
 				Samples: []tempopb.Sample{
 					{
@@ -599,9 +597,8 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 				},
 			},
 			{
-				// PromLabels: "poo",
 				Labels: []v1.KeyValue{
-					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+					{Key: "zoo", Value: bar},
 				},
 				Samples: []tempopb.Sample{
 					{
