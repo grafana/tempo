@@ -5,6 +5,7 @@
 * @joe-elliott
 * @knylander-grafana
 * @yvrhdn
+* @mattdurham
 * @mapno
 * @mdisibio
 * @ruslan-mikhailov
