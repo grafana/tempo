@@ -64,6 +64,7 @@
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
+* [BUGFIX] Fix incorrect TraceQL string comparison of strings starting with numbers [#5658](https://github.com/grafana/tempo/pull/5658) (@mdisibio)
 * [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
 * [BUGFIX] Fix cache collision for incomplete query in SearchTagValuesV2 [#5549](https://github.com/grafana/tempo/pull/5549) (@ruslan-mikhailov)
 * [BUGFIX] Fix for structural operator with empty left-hand spanset [#5578](https://github.com/grafana/tempo/pull/5578) (@ruslan-mikhailov)

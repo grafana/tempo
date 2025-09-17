@@ -212,7 +212,16 @@ func (o *BinaryOperation) validate() error {
 
 	// if this is a regex operator confirm the RHS is a valid regex
 	if o.Op == OpRegex || o.Op == OpNotRegex {
-		_, err := regexp.Compile(o.RHS.String())
+		// Ensure that we validate against the raw/unquoted string when possible.
+		// When RHS is a hardcoded string in the query which is compiled to a Static.
+		var text string
+		if static, ok := o.RHS.(Static); ok {
+			text = static.EncodeToString(false)
+		} else {
+			text = o.RHS.String()
+		}
+
+		_, err := regexp.Compile(text)
 		if err != nil {
 			return fmt.Errorf("invalid regex: %s", o.RHS.String())
 		}
