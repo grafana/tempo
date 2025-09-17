@@ -185,7 +185,6 @@ type Producer struct {
 	// Custom metrics.
 	bufferedProduceBytes        prometheus.Summary
 	bufferedProduceBytesLimit   prometheus.Gauge
-	produceRecordsTotal         prometheus.Counter
 	produceRecordsFailuresTotal *prometheus.CounterVec
 }
 
@@ -219,12 +218,7 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 				Name:      "buffered_produce_bytes_limit",
 				Help:      "The bytes limit on buffered produce records. Produce requests fail once this limit is reached.",
 			}),
-		produceRecordsTotal: promauto.With(reg).NewCounter(prometheus.CounterOpts{
-			Namespace: "tempo",
-			Subsystem: "distributor",
-			Name:      "produce_requests_total",
-			Help:      "Total number of produce records issued to Kafka.",
-		}),
+
 		produceRecordsFailuresTotal: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
 			Subsystem: "distributor",
@@ -256,7 +250,7 @@ func (c *Producer) updateMetricsLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			c.bufferedProduceBytes.Observe(float64(c.Client.BufferedProduceBytes()))
+			c.bufferedProduceBytes.Observe(float64(c.BufferedProduceBytes()))
 
 		case <-c.closed:
 			return
@@ -276,8 +270,6 @@ func (c *Producer) ProduceSync(ctx context.Context, records []*kgo.Record) kgo.P
 		resMx     sync.Mutex
 		res       = make(kgo.ProduceResults, 0, len(records))
 	)
-
-	c.produceRecordsTotal.Add(float64(len(records)))
 
 	// As a safety mechanism, we want to make sure that the context is not already canceled or its deadline exceeded.
 	// The reason is that once we buffer records to the Kafka client (later in this function), these records will be
