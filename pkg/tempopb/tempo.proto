@@ -485,9 +485,8 @@ message TimeSeries {
   // Sorted by time, oldest sample first.
   repeated Sample samples = 2 [(gogoproto.nullable) = false];
 
-  // prom_labels are a flattened string-only version of the typed labels.
-  // They are used internally and may differ from official prometheus conventions.
-  //string prom_labels = 3;
+  // prom_labels is obsolete, but left here to ensure field ID isn't reused.
+  // string prom_labels = 3;
 
   // Exemplars are optional and can be empty.
   // Sorted by time, oldest exemplar first.

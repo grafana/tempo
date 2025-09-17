@@ -866,11 +866,11 @@ func (u *UngroupedAggregator) Length() int {
 // fill in a placeholder metric name with the name of the aggregation.
 // rate() => {__name__=rate}
 func (u *UngroupedAggregator) Series() SeriesSet {
-	key := SeriesMapKey{SeriesMapLabel{Name: labels.MetricName, Value: NewStaticString(u.name).MapKey()}}
+	labels := LabelsFromArgs(labels.MetricName, u.name)
 
 	return SeriesSet{
-		key: {
-			Labels:    []Label{{labels.MetricName, NewStaticString(u.name)}},
+		labels.MapKey(): {
+			Labels:    labels,
 			Values:    u.innerAgg.Samples(),
 			Exemplars: u.innerAgg.Exemplars(),
 		},

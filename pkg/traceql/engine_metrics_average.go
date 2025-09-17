@@ -101,9 +101,6 @@ func (a *averageOverTimeAggregator) result(multiplier float64) SeriesSet {
 					break
 				}
 			}
-			/*if strings.Contains(i, internalLabelMetaType) {
-				delete(ss, i)
-			}*/
 		}
 	}
 	return ss
