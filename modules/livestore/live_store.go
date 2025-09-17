@@ -129,7 +129,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		overrides:       overridesService,
 		completeQueues:  flushqueues.New(cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete: make(chan struct{}),
-		metrics:         ingest.NewMetrics("live_store"),
+		metrics:         ingest.NewMetrics("live_store", reg),
 	}
 
 	var err error

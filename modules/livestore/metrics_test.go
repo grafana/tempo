@@ -53,7 +53,7 @@ func setupTest(t *testing.T) *testSetup {
 	// Create instance
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	metrics := ingest.NewMetrics("live_store")
+	metrics := ingest.NewMetrics("live_store", registry)
 	instance, err := newInstance(testTenant, cfg, w, o, log.NewNopLogger(), metrics)
 	require.NoError(t, err)
 
