@@ -8,6 +8,11 @@
     server: {
       http_listen_port: $._config.port,
     },
+    live_store: {
+      partition_ring: {
+        delete_inactive_partition_after: $._config.live_store.downscale_delay,
+      },
+    },
     distributor: {},
     ingester: {
       lifecycler: {
