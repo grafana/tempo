@@ -20,7 +20,7 @@ func TestCache(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	cfg.ProviderConfig.Retention.Interval = 100 * time.Millisecond
-	cfg.LocalWorkPath = tmpDir + "/work"
+	cfg.Work.LocalWorkPath = tmpDir + "/work"
 
 	var (
 		ctx, cancel   = context.WithCancel(context.Background())
@@ -39,29 +39,27 @@ func TestCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// No file should exist yet
-	err = s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
+	err = s.work.LoadFromLocal(ctx)
 	require.NoError(t, err)
 
 	// Flush the empty work cache
-	err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil)
+	err = s.work.FlushToLocal(ctx, nil)
 	require.NoError(t, err)
 
 	// No error loading the empty work cache
-	err = s.work.LoadFromLocal(ctx, s.cfg.LocalWorkPath)
+	err = s.work.LoadFromLocal(ctx)
 	require.NoError(t, err)
 
 	u := uuid.NewString()
 	// Add a job to the work TestCache
-	err = s.work.AddJob(&work.Job{
-		ID: u,
-	})
+	err = s.work.AddJob(ctx, &work.Job{ID: u}, uuid.NewString())
 	require.NoError(t, err)
 
 	// Flush the work cache to the backend
 	err = s.flushWorkCacheToBackend(ctx)
 	require.NoError(t, err)
 
-	os.Remove(s.cfg.LocalWorkPath + "/" + backend.WorkFileName)
+	os.Remove(s.cfg.Work.LocalWorkPath + "/" + backend.WorkFileName)
 
 	// Test backend fallback
 	err = s.loadWorkCacheFromBackend(ctx)
@@ -75,7 +73,7 @@ func TestCache(t *testing.T) {
 	require.Equal(t, u, jobs[0].ID, "Job ID should match the one added")
 
 	// Create a new scheduler with a different local work path
-	cfg.LocalWorkPath = tmpDir + "/work2"
+	cfg.Work.LocalWorkPath = tmpDir + "/work2"
 	s, err = New(cfg, store, limits, rr, ww)
 	require.NoError(t, err)
 

@@ -32,20 +32,18 @@ func TestAtomicWriteFileStress(t *testing.T) {
 	numGoroutines := 100
 	writesPerGoroutine := 5
 
-	for i := range numGoroutines {
+	for range numGoroutines {
 		wg.Add(1)
-		go func(goroutineID int) {
+		go func() {
 			defer wg.Done()
 
-			for j := range writesPerGoroutine {
-				// Use different temp prefixes to test CreateTemp uniqueness
-				prefix := fmt.Sprintf("stress_%d_%d.json", goroutineID, j)
-				err := atomicWriteFile(testData, targetFile, prefix)
+			for range writesPerGoroutine {
+				err := atomicWriteFile(testData, targetFile)
 				require.NoError(t, err)
 
 				// No sleep - maximum pressure
 			}
-		}(i)
+		}()
 	}
 
 	wg.Wait()
