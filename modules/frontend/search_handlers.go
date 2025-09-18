@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -24,12 +23,20 @@ import (
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingSearchHandler {
+func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingSearchHandler {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 		ctx := srv.Context()
+
+		if dataAccessController != nil {
+			err := dataAccessController.HandleGRPCSearchReq(ctx, req)
+			if err != nil {
+				level.Error(logger).Log("msg", "search streaming: access control handling failed", "err", err)
+				return err
+			}
+		}
 
 		headers := headersFromGrpcContext(ctx)
 
@@ -75,7 +82,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 }
 
 // newSearchHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
+func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -85,25 +92,24 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		}
 		start := time.Now()
 
+		if dataAccessController != nil {
+			if err := dataAccessController.HandleHTTPSearchReq(req); err != nil {
+				level.Error(logger).Log("msg", "http search: access control handling failed", "err", err)
+				return httpInvalidRequest(err), nil
+			}
+		}
+
 		// parse request
 		searchReq, err := api.ParseSearchRequest(req)
 		if err != nil {
 			level.Error(logger).Log("msg", "search: parse search request failed", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 
 		comb, err := newCombiner(searchReq, cfg.Search.Sharder)
 		if err != nil {
 			level.Error(logger).Log("msg", "search: could not create combiner", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 
 		logRequest(logger, tenant, searchReq)
