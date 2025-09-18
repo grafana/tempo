@@ -51,42 +51,6 @@ func (v *onceValue[T]) load(f func() *T) *T {
 	return v.value
 }
 
-type (
-	schemaOption func(*SchemaConfig)
-
-// FieldTagsCallback func(parentStruct reflect.Type, f *reflect.StructField, tags *ParquetTags)
-)
-
-/*func FieldTagsCallbackOption(cb FieldTagsCallback) schemaOption {
-	return func(cfg *SchemaConfig) {
-		cfg.fieldTagsCallback = cb
-	}
-}*/
-
-func FieldTags(typ reflect.Type, name string, tags ParquetTags) schemaOption {
-	return func(cfg *SchemaConfig) {
-		cfg.tagOverrides = append(cfg.tagOverrides, struct {
-			typ  reflect.Type
-			name string
-			tags ParquetTags
-		}{typ, name, tags})
-	}
-}
-
-type SchemaConfig struct {
-	tagOverrides []struct {
-		typ  reflect.Type
-		name string
-		tags ParquetTags
-	}
-}
-
-type SchemaOption interface {
-	ConfigureSchema(cfg *SchemaConfig)
-}
-
-func (opt schemaOption) ConfigureSchema(config *SchemaConfig) { opt(config) }
-
 // SchemaOf constructs a parquet schema from a Go value.
 //
 // The function can construct parquet schemas from struct or pointer-to-struct
@@ -181,9 +145,10 @@ func (opt schemaOption) ConfigureSchema(config *SchemaConfig) { opt(config) }
 func SchemaOf(model any, opts ...SchemaOption) *Schema {
 	cfg := SchemaConfig{}
 	for _, opt := range opts {
-		opt.ConfigureSchema(&cfg)
+		if opt != nil {
+			opt.ConfigureSchema(&cfg)
+		}
 	}
-
 	return schemaOfWithConfig(dereference(reflect.TypeOf(model)), cfg)
 }
 
@@ -195,7 +160,6 @@ func schemaOf(model reflect.Type) *Schema {
 
 func schemaOfWithConfig(model reflect.Type, cfg SchemaConfig) *Schema {
 	cacheable := len(cfg.tagOverrides) == 0
-
 	if cacheable {
 		cached, _ := cachedSchemas.Load(model)
 		schema, _ := cached.(*Schema)
@@ -474,8 +438,8 @@ func structNodeOf(t reflect.Type, cfg SchemaConfig) *structNode {
 
 	for i := range fields {
 		field := structField{name: fields[i].Name, index: fields[i].Index}
-		tags := fromStructTag(fields[i].Tag)
 
+		tags := fromStructTag(fields[i].Tag)
 		for _, override := range cfg.tagOverrides {
 			if override.typ == t && override.name == fields[i].Name {
 				tags = override.tags
@@ -492,14 +456,12 @@ func structNodeOf(t reflect.Type, cfg SchemaConfig) *structNode {
 }
 
 func structFieldsOf(t reflect.Type, cfg SchemaConfig) []reflect.StructField {
-	fields := appendStructFields(t, nil, nil, 0)
+	fields := appendStructFields(t, nil, nil, 0, cfg)
 
 	for i := range fields {
 		f := &fields[i]
 
 		tags := fromStructTag(f.Tag)
-
-		// Apply any tag overrides
 		for _, override := range cfg.tagOverrides {
 			if override.typ == t && override.name == f.Name {
 				tags = override.tags
@@ -507,8 +469,8 @@ func structFieldsOf(t reflect.Type, cfg SchemaConfig) []reflect.StructField {
 			}
 		}
 
-		if tags.Parquet != "" {
-			name, _ := split(tags.Parquet)
+		if tag := tags.Parquet; tag != "" {
+			name, _ := split(tag)
 			if name != "" {
 				f.Name = name
 			}
@@ -518,13 +480,21 @@ func structFieldsOf(t reflect.Type, cfg SchemaConfig) []reflect.StructField {
 	return fields
 }
 
-func appendStructFields(t reflect.Type, fields []reflect.StructField, index []int, offset uintptr) []reflect.StructField {
+func appendStructFields(t reflect.Type, fields []reflect.StructField, index []int, offset uintptr, cfg SchemaConfig) []reflect.StructField {
 	for i, n := 0, t.NumField(); i < n; i++ {
 		f := t.Field(i)
+
 		tags := fromStructTag(f.Tag)
-		if tags.Parquet != "" {
-			name, _ := split(tags.Parquet)
-			if tags.Parquet != "-," && name == "-" {
+		for _, override := range cfg.tagOverrides {
+			if override.typ == t && override.name == f.Name {
+				tags = override.tags
+				break
+			}
+		}
+
+		if tag := tags.Parquet; tag != "" {
+			name, _ := split(tag)
+			if tag != "-," && name == "-" {
 				continue
 			}
 		}
@@ -535,7 +505,7 @@ func appendStructFields(t reflect.Type, fields []reflect.StructField, index []in
 		f.Offset += offset
 
 		if f.Anonymous {
-			fields = appendStructFields(f.Type, fields, fieldIndex, f.Offset)
+			fields = appendStructFields(f.Type, fields, fieldIndex, f.Offset, cfg)
 		} else if f.IsExported() {
 			f.Index = fieldIndex
 			fields = append(fields, f)
@@ -1180,4 +1150,175 @@ func forEachTagOption(tags []string, do func(option, args string)) {
 			do(option, args)
 		}
 	}
+}
+
+func RewriteSchema(schema *Schema, replace func(path []string, node Node) Node) *Schema {
+	sch := NewSchema(schema.name, rewriteSchema(nil, schema.root, replace))
+	sch.cfg = schema.cfg
+	return sch
+}
+
+/*type GroupWithGoType struct {
+	Group
+	// fields   []Field
+	// gotype reflect.Type
+	// required bool
+	// repeated bool
+	// ptional bool
+	// typ Type
+}*/
+
+/*func (g GroupWithGoType) Fields() []Field {
+	return g.fields
+}*/
+
+// var _ Node = (*GroupWithGoType)(nil)
+
+/*func (g *GroupWithGoType) GoType() reflect.Type {
+	return g.gotype
+}*/
+
+/*func (g *GroupWithGoType) Repeated() bool {
+	return g.repeated
+}*/
+
+/*func (g *GroupWithGoType) Optional() bool {
+	return g.optional
+}
+
+func (g *GroupWithGoType) Required() bool {
+	return g.required
+}*/
+
+/*func (g *GroupWithGoType) Type() Type {
+	return g.typ
+}*/
+
+type OrderedGroup struct {
+	Node
+	fields []groupField
+	gotype reflect.Type
+}
+
+var _ Node = (*OrderedGroup)(nil)
+
+func (g *OrderedGroup) Fields() []Field {
+	fields := make([]Field, 0, len(g.fields))
+	for _, field := range g.fields {
+		fields = append(fields, &field)
+	}
+	return fields
+}
+
+func (g *OrderedGroup) GoType() reflect.Type {
+	return g.gotype
+}
+
+func rewriteSchema(path []string, node Node, replace func(path []string, node Node) Node) Node {
+	if node.Leaf() {
+		return replace(path, node)
+	}
+
+	switch n := node.(type) {
+	case listNode:
+		g := rewriteSchema(path, n.Group, replace).(*Group)
+		return &listNode{
+			Group: *g,
+		}
+	case mapNode:
+		g := rewriteSchema(path, n.Group, replace).(*Group)
+		return &mapNode{
+			Group: *g,
+		}
+	case *structNode:
+		fields := make([]structField, 0, len(n.fields))
+		for _, field := range n.fields {
+			fields = append(fields, structField{
+				Node:  rewriteSchema(append(path, field.name), field.Node, replace),
+				name:  field.name,
+				index: field.index,
+			})
+		}
+		return &structNode{
+			gotype: n.gotype,
+			fields: fields,
+		}
+	case *goNode:
+		return &goNode{
+			Node:   rewriteSchema(path, n.Node, replace),
+			gotype: n.gotype,
+		}
+	case *structField:
+		return &structField{
+			Node:  rewriteSchema(append(path, n.name), n.Node, replace),
+			name:  n.name,
+			index: n.index,
+		}
+	case *groupField:
+		return &groupField{
+			Node: rewriteSchema(path, n.Node, replace),
+			name: n.name,
+		}
+	}
+
+	g := Group{}
+	for _, field := range node.Fields() {
+		n := rewriteSchema(append(path, field.Name()), field, replace)
+
+		// Nil returns allow to drop a field.
+		if n == nil {
+			continue
+		}
+		g[field.Name()] = n
+	}
+
+	out := (Node)(&g)
+
+	if node.Optional() {
+		out = Optional(out)
+	}
+
+	if node.Repeated() {
+		out = Repeated(out)
+	}
+
+	return out
+}
+
+func rewriteSchemaSimple(path []string, node Node, replace func(path []string, node Node) Node) Node {
+	if node.Leaf() {
+		return replace(path, node)
+	}
+
+	g := Group{}
+	for _, field := range node.Fields() {
+		g[field.Name()] = rewriteSchemaSimple(append(path, field.Name()), field, replace)
+	}
+
+	out := (Node)(&g)
+
+	if node.Type().String() == "LIST" {
+		out = &listNode{Group: g}
+	}
+
+	if node.Type().String() == "MAP" {
+		out = &mapNode{Group: g}
+	}
+
+	if node.GoType() != nil {
+		out = &goNode{
+			Node:   out,
+			gotype: node.GoType(),
+		}
+	}
+
+	if node.Optional() {
+		out = Optional(out)
+	}
+
+	if node.Repeated() {
+		out = Repeated(out)
+	}
+
+	return out
 }

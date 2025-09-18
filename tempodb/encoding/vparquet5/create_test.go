@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -114,4 +115,13 @@ func (i *testIterator) Next(context.Context) (common.ID, *tempopb.Trace, error) 
 }
 
 func (i *testIterator) Close() {
+}
+
+func TestIdenticalSchema(t *testing.T) {
+	expected := parquet.SchemaOf(&Trace{})
+
+	got, _ := SchemaWithDyanmicChanges(backend.DedicatedColumns{})
+	if !parquet.IdenticalNodes(expected, got) {
+		t.Fatal("schemas are not identical", expected, got)
+	}
 }

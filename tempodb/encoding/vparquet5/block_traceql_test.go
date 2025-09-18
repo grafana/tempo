@@ -1316,11 +1316,11 @@ func BenchmarkReadTraces(b *testing.B) {
 	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20")
 	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20-dyn")
 
-	// os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
-	// os.Setenv("VP5_BENCH_TENANTID", "328776")
+	os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
+	os.Setenv("VP5_BENCH_TENANTID", "328776")
 
-	os.Setenv("VP5_BENCH_BLOCKID", "26142bda-e8f4-4886-a669-e47829e6aa90")
-	os.Setenv("VP5_BENCH_TENANTID", "797642")
+	// os.Setenv("VP5_BENCH_BLOCKID", "26142bda-e8f4-4886-a669-e47829e6aa90")
+	// os.Setenv("VP5_BENCH_TENANTID", "797642")
 
 	// os.Setenv("VP5_BENCH_BLOCKID", "d1240180-7d43-49b3-b691-06ddcc4e53b3")
 	// os.Setenv("VP5_BENCH_TENANTID", "1")

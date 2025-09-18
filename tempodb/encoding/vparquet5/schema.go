@@ -2,6 +2,9 @@ package vparquet5
 
 import (
 	"bytes"
+	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/parquet-go/parquet-go"
@@ -985,4 +988,108 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 	// append until we're large enough
 	in = in[:cap(in)]
 	return append(in, make([]T, sz-len(in))...)
+}
+
+func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption) {
+	var (
+		resMapping   = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
+		spanMapping  = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
+		eventMapping = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeEvent)
+	)
+
+	/*fieldTagsCallback := func(typ reflect.Type, f *reflect.StructField, tags *parquet.ParquetTags) {
+		// Determine scope based on parent type.
+		var dm *dedicatedColumnMapping
+		switch typ {
+		case reflect.TypeOf(DedicatedAttributesSpan{}):
+			dm = &spanMapping
+		case reflect.TypeOf(DedicatedAttributes20{}):
+			dm = &resMapping
+		case reflect.TypeOf(DedicatedAttributesEvent{}):
+			dm = &eventMapping
+		default:
+			return
+		}
+
+		// Parse dedicated column index out of the name.
+		// String01 is index 0 below.
+		indexStr, ok := strings.CutPrefix(f.Name, "String")
+		if !ok {
+			return
+		}
+		index, err := strconv.Atoi(indexStr)
+		if err != nil {
+			return
+		}
+
+		if dm.Blob(index - 1) {
+			tags.Parquet = ",zstd,optional"
+			return
+		}
+	}*/
+
+	// schema := parquet.SchemaOf(&Trace{}, parquet.FieldTagsCallbackOption(fieldTagsCallback))
+
+	type rewritePath struct {
+		path    []string
+		rewrite func(parquet.Node) parquet.Node
+	}
+
+	options := []parquet.WriterOption{}
+	rewrites := make([]rewritePath, 0)
+
+	// Minor optimization: skip page bounds for blob columns. The min/max values are not
+	// selective, and this saves a little bit of storage and overhead.
+	for key, col := range spanMapping.mapping {
+		if col.Blob() {
+			fmt.Println("Blob column:", col.ColumnPath, key)
+			path := strings.Split(col.ColumnPath, ".")
+			options = append(options, parquet.SkipPageBounds(path...))
+			rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
+				node = parquet.Encoded(node, &parquet.Plain)
+				node = parquet.Compressed(node, &parquet.Zstd)
+				return node
+			}})
+		}
+	}
+	for key, col := range resMapping.mapping {
+		if col.Blob() {
+			fmt.Println("Blob column:", col.ColumnPath, key)
+			path := strings.Split(col.ColumnPath, ".")
+			options = append(options, parquet.SkipPageBounds(path...))
+			rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
+				node = parquet.Encoded(node, &parquet.Plain)
+				node = parquet.Compressed(node, &parquet.Zstd)
+				return node
+			}})
+		}
+	}
+	for key, col := range eventMapping.mapping {
+		if col.Blob() {
+			fmt.Println("Blob column:", col.ColumnPath, key)
+			path := strings.Split(col.ColumnPath, ".")
+			options = append(options, parquet.SkipPageBounds(path...))
+			rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
+				node = parquet.Encoded(node, &parquet.Plain)
+				node = parquet.Compressed(node, &parquet.Zstd)
+				return node
+			}})
+		}
+	}
+
+	schema := parquet.SchemaOf(&Trace{})
+
+	schema = parquet.RewriteSchema(schema, func(path []string, node parquet.Node) parquet.Node {
+		for _, rewrite := range rewrites {
+			if slices.Equal(path, rewrite.path) {
+				return rewrite.rewrite(node)
+			}
+		}
+
+		return node
+	})
+
+	options = append(options, schema)
+
+	return schema, options
 }

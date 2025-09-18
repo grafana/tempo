@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"runtime"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/dataquality"
@@ -154,85 +153,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	w := &backendWriter{ctx, to, DataFileName, (uuid.UUID)(meta.BlockID), meta.TenantID, nil}
 	bw := createBufferedWriter(w)
 
-	var (
-		resMapping   = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
-		spanMapping  = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
-		eventMapping = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
-	)
-
-	/*fieldTagsCallback := func(typ reflect.Type, f *reflect.StructField, tags *parquet.ParquetTags) {
-		// Determine scope based on parent type.
-		var dm *dedicatedColumnMapping
-		switch typ {
-		case reflect.TypeOf(DedicatedAttributesSpan{}):
-			dm = &spanMapping
-		case reflect.TypeOf(DedicatedAttributes20{}):
-			dm = &resMapping
-		case reflect.TypeOf(DedicatedAttributesEvent{}):
-			dm = &eventMapping
-		default:
-			return
-		}
-
-		// Parse dedicated column index out of the name.
-		// String01 is index 0 below.
-		indexStr, ok := strings.CutPrefix(f.Name, "String")
-		if !ok {
-			return
-		}
-		index, err := strconv.Atoi(indexStr)
-		if err != nil {
-			return
-		}
-
-		if dm.Blob(index - 1) {
-			tags.Parquet = ",zstd,optional"
-			return
-		}
-	}*/
-
-	// schema := parquet.SchemaOf(&Trace{}, parquet.FieldTagsCallbackOption(fieldTagsCallback))
-	schema := parquet.SchemaOf(&Trace{})
-
-	options := []parquet.WriterOption{
-		schema,
-	}
-
-	// Minor optimization: skip page bounds for blob columns. The min/max values are not
-	// selective, and this saves a little bit of storage and overhead.
-	for key, col := range spanMapping.mapping {
-		if col.Blob() {
-			fmt.Println("Blob column:", col.ColumnPath, key)
-			path := strings.Split(col.ColumnPath, ".")
-			options = append(options, parquet.SkipPageBounds(path...))
-			if node, ok := schema.Lookup(path...); ok {
-				node.Node = parquet.Encoded(node.Node, &parquet.Plain)
-				node.Node = parquet.Compressed(node.Node, &parquet.Zstd)
-			}
-		}
-	}
-	for key, col := range resMapping.mapping {
-		if col.Blob() {
-			fmt.Println("Blob column:", col.ColumnPath, key)
-			path := strings.Split(col.ColumnPath, ".")
-			options = append(options, parquet.SkipPageBounds(path...))
-			if node, ok := schema.Lookup(path...); ok {
-				node.Node = parquet.Encoded(node.Node, &parquet.Plain)
-				node.Node = parquet.Compressed(node.Node, &parquet.Zstd)
-			}
-		}
-	}
-	for key, col := range eventMapping.mapping {
-		if col.Blob() {
-			fmt.Println("Blob column:", col.ColumnPath, key)
-			path := strings.Split(col.ColumnPath, ".")
-			options = append(options, parquet.SkipPageBounds(path...))
-			if node, ok := schema.Lookup(path...); ok {
-				node.Node = parquet.Encoded(node.Node, &parquet.Plain)
-				node.Node = parquet.Compressed(node.Node, &parquet.Zstd)
-			}
-		}
-	}
+	_, options := SchemaWithDyanmicChanges(meta.DedicatedColumns)
 
 	pw := parquet.NewGenericWriter[*Trace](bw, options...)
 
