@@ -111,7 +111,7 @@
         [$._config.gossip_member_label]: 'true',
       },
     )
-    + statefulSet.mixin.spec.withServiceName(target_name)
+    + statefulSet.mixin.spec.withServiceName(name)
     + statefulSet.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_live_store_configmap.data['tempo.yaml'])),
     })
