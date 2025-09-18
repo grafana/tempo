@@ -1153,7 +1153,7 @@ func forEachTagOption(tags []string, do func(option, args string)) {
 }
 
 func RewriteSchema(schema *Schema, replace func(path []string, node Node) Node) *Schema {
-	sch := NewSchema(schema.name, rewriteSchema(nil, schema.root, replace))
+	sch := NewSchema(schema.name, rewriteSchemaSimple(nil, schema.root, replace))
 	sch.cfg = schema.cfg
 	return sch
 }
@@ -1214,7 +1214,7 @@ func (g *OrderedGroup) GoType() reflect.Type {
 	return g.gotype
 }
 
-func rewriteSchema(path []string, node Node, replace func(path []string, node Node) Node) Node {
+/*func rewriteSchema(path []string, node Node, replace func(path []string, node Node) Node) Node {
 	if node.Leaf() {
 		return replace(path, node)
 	}
@@ -1283,11 +1283,32 @@ func rewriteSchema(path []string, node Node, replace func(path []string, node No
 	}
 
 	return out
-}
+}*/
 
 func rewriteSchemaSimple(path []string, node Node, replace func(path []string, node Node) Node) Node {
 	if node.Leaf() {
 		return replace(path, node)
+	}
+
+	switch n := node.(type) {
+	case *structNode:
+		fields := make([]structField, 0, len(n.fields))
+		for _, field := range n.fields {
+			fields = append(fields, structField{
+				Node:  rewriteSchemaSimple(append(path, field.name), field.Node, replace),
+				name:  field.name,
+				index: field.index,
+			})
+		}
+		return &structNode{
+			gotype: n.gotype,
+			fields: fields,
+		}
+	case *groupField:
+		return &groupField{
+			Node: rewriteSchemaSimple(path, n.Node, replace),
+			name: n.name,
+		}
 	}
 
 	g := Group{}
@@ -1305,19 +1326,20 @@ func rewriteSchemaSimple(path []string, node Node, replace func(path []string, n
 		out = &mapNode{Group: g}
 	}
 
-	if node.GoType() != nil {
-		out = &goNode{
-			Node:   out,
-			gotype: node.GoType(),
-		}
-	}
-
 	if node.Optional() {
 		out = Optional(out)
 	}
 
 	if node.Repeated() {
 		out = Repeated(out)
+	}
+
+	// This must be last to take precedence over Repeated().
+	if node.GoType() != nil {
+		out = &goNode{
+			Node:   out,
+			gotype: node.GoType(),
+		}
 	}
 
 	return out
