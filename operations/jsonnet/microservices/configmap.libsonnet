@@ -109,7 +109,13 @@
 
   tempo_query_frontend_config:: $.tempo_config {},
   tempo_block_builder_config:: $.tempo_config {},
-  tempo_live_store_config:: $.tempo_config {},
+  tempo_live_store_config:: $.tempo_config {
+    live_store: {
+      partition_ring: {
+        delete_inactive_partition_after: $._config.live_store.downscale_delay,
+      },
+    },
+  },
   tempo_backend_scheduler_config:: $.tempo_config {},
   tempo_backend_worker_config:: $.tempo_config {
     backend_worker+: {
