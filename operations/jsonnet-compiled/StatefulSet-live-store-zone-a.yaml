@@ -14,7 +14,7 @@ spec:
     matchLabels:
       name: live-store-zone-a
       rollout-group: live-store
-  serviceName: live-store
+  serviceName: live-store-zone-a
   template:
     metadata:
       annotations:
