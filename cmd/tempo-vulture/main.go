@@ -228,8 +228,8 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func createHTTPClient(queryUrl string, orgID string, queryLiveStores bool) *httpclient.Client {
-	httpClient := httpclient.New(queryUrl, orgID)
+func createHTTPClient(queryURL string, orgID string, queryLiveStores bool) *httpclient.Client {
+	httpClient := httpclient.New(queryURL, orgID)
 	httpClient.QueryLiveStores = queryLiveStores
 	return httpClient
 }
