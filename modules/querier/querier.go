@@ -44,6 +44,21 @@ import (
 
 var tracer = otel.Tracer("modules/querier")
 
+type contextKey string
+
+const recentDataTargetContextKey contextKey = "recent-data-target"
+
+func extractRecentDataTarget(ctx context.Context) string {
+	if val := ctx.Value(recentDataTargetContextKey); val != nil {
+		return val.(string)
+	}
+	return ""
+}
+
+func injectRecentDataTarget(ctx context.Context, target string) context.Context {
+	return context.WithValue(ctx, recentDataTargetContextKey, target)
+}
+
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -363,7 +378,9 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 		return nil, ctx.Err()
 	}
 
-	if q.queryPartitionRing {
+	recentDataTarget := extractRecentDataTarget(ctx)
+
+	if q.queryPartitionRing || recentDataTarget == "live-store" {
 		// todo: note that on this path we ignore getReplicationSet. can we integrate it into the partition ring query
 		// or should we remove the QueryRelevantIngesters config option that only applied to find trace by id
 		rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)

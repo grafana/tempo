@@ -38,7 +38,7 @@ type Config struct {
 	MaxQueryExpressionSizeBytes int `yaml:"max_query_expression_size_bytes,omitempty"`
 
 	// A list of headers allowed through the HTTP pipeline. Everything else will be stripped.
-	AllowedHeaders []string `yaml:"-"`
+	AllowedHeaders []string `yaml:"allowed_headers,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied.
 	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
