@@ -30,6 +30,7 @@
 * [FEATURE] Add counter `query_frontend_bytes_inspected_total`, which shows the total number of bytes read from disk and object storage [#5310](https://github.com/grafana/tempo/pull/5310) (@carles-grafana)
 * [FEATURE] Add query hints sample=true and sample=0.xx which can speed up TraceQL metrics queries by sampling a subset of the data to provide an approximate result. [#5469](https://github.com/grafana/tempo/pull/5469) (@mdisibio)
 * [FEATURE] Add support for scope in cost-attribution usage tracker [#5646](https://github.com/grafana/tempo/pull/5646) (@electron0zero)
+* [FEATURE] Add new header to vulture requests to query live stores [#5663](https://github.com/grafana/tempo/pull/5663) (@javiermolinar)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [BUGFIX] fix tempo configuration options that are always overrided with config overrides section [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
 * [ENHANCEMENT] Add endpoint for partition downscaling [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
