@@ -57,7 +57,7 @@ func TestLiveStore(t *testing.T) {
 	}
 
 	// the number of processed records should be reasonable
-	assert.NoError(t, liveStoreProcessedRecords.WaitSumMetrics(e2e.Between(1, 25), "tempo_live_store_records_processed_total"))
+	assert.NoError(t, liveStoreProcessedRecords.WaitSumMetrics(e2e.Between(1, 25), "tempo_live_store_kafka_records_processed_total"))
 }
 
 // TestLiveStoreAPISmoke tests the API endpoints that will hit live store.

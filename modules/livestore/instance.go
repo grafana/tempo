@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -24,7 +25,6 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -34,47 +34,6 @@ const (
 	traceDataType              = "trace"
 	reasonWaitingForLiveTraces = "waiting_for_live_traces"
 	reasonWaitingForWAL        = "waiting_for_wal"
-)
-
-var (
-	// Instance-level metrics (similar to ingester instance.go)
-	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "traces_created_total",
-		Help:      "The total number of traces created per tenant.",
-	}, []string{"tenant"})
-	metricLiveTraces = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo_live_store",
-		Name:      "live_traces",
-		Help:      "The current number of live traces per tenant.",
-	}, []string{"tenant"})
-	metricLiveTraceBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo_live_store",
-		Name:      "live_trace_bytes",
-		Help:      "The current number of bytes consumed by live traces per tenant.",
-	}, []string{"tenant"})
-	metricBytesReceivedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "bytes_received_total",
-		Help:      "The total bytes received per tenant.",
-	}, []string{"tenant", "data_type"})
-	metricBlocksClearedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "blocks_cleared_total",
-		Help:      "The total number of blocks cleared.",
-	}, []string{"block_type"})
-	metricCompletionSize = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo_live_store",
-		Name:      "completion_size_bytes",
-		Help:      "Size in bytes of blocks completed.",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
-	})
-	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Subsystem: "live_store",
-		Name:      "back_pressure_seconds_total",
-		Help:      "The total amount of time spent waiting to process data from queue",
-	}, []string{"reason"})
 )
 
 type instance struct {
@@ -101,13 +60,14 @@ type instance struct {
 	traceSizes    *tracesizes.Tracker
 
 	// Metrics
+	metrics            *ingest.Metrics
 	tracesCreatedTotal prometheus.Counter
 	bytesReceivedTotal *prometheus.CounterVec
 
 	overrides overrides.Interface
 }
 
-func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides overrides.Interface, logger log.Logger) (*instance, error) {
+func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides overrides.Interface, logger log.Logger, metrics *ingest.Metrics) (*instance, error) {
 	enc := encoding.DefaultEncoding()
 	logger = log.With(logger, "tenant", instanceID)
 
@@ -122,8 +82,9 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceLive, cfg.MaxTraceIdle),
 		traceSizes:         tracesizes.New(),
 		overrides:          overrides,
-		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
-		bytesReceivedTotal: metricBytesReceivedTotal,
+		metrics:            metrics,
+		tracesCreatedTotal: metrics.TracesCreatedTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal: metrics.BytesReceivedTotal,
 		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
 	}
 
@@ -151,7 +112,7 @@ func (i *instance) backpressure(ctx context.Context) bool {
 			case <-time.After(1 * time.Second):
 			}
 
-			metricBackPressure.WithLabelValues(reasonWaitingForLiveTraces).Inc()
+			i.metrics.BackPressure.WithLabelValues(reasonWaitingForLiveTraces).Inc()
 			return true
 		}
 	}
@@ -170,7 +131,7 @@ func (i *instance) backpressure(ctx context.Context) bool {
 		case <-time.After(1 * time.Second):
 		}
 
-		metricBackPressure.WithLabelValues(reasonWaitingForWAL).Inc()
+		i.metrics.BackPressure.WithLabelValues(reasonWaitingForWAL).Inc()
 		return true
 	}
 
@@ -251,8 +212,8 @@ func countSpans(trace *tempopb.Trace) int {
 func (i *instance) cutIdleTraces(immediate bool) error {
 	i.liveTracesMtx.Lock()
 	// Set metrics before cutting (similar to ingester)
-	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
-	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
+	i.metrics.LiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
+	i.metrics.LiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
 
 	tracesToCut := i.liveTraces.CutIdle(time.Now(), immediate)
 	i.liveTracesMtx.Unlock()
@@ -406,7 +367,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 	}
 
 	blockSize := walBlock.DataLength()
-	metricCompletionSize.Observe(float64(blockSize))
+	i.metrics.CompletionSize.Observe(float64(blockSize))
 	span.SetAttributes(attribute.Int64("block_size", int64(blockSize)))
 
 	// Create completed block
@@ -479,7 +440,7 @@ func (i *instance) deleteOldBlocks() error {
 				return err
 			}
 			delete(i.walBlocks, id)
-			metricBlocksClearedTotal.WithLabelValues("wal").Inc()
+			i.metrics.BlocksClearedTotal.WithLabelValues("wal").Inc()
 		}
 	}
 
@@ -492,7 +453,7 @@ func (i *instance) deleteOldBlocks() error {
 				return err
 			}
 			delete(i.completeBlocks, id)
-			metricBlocksClearedTotal.WithLabelValues("complete").Inc()
+			i.metrics.BlocksClearedTotal.WithLabelValues("complete").Inc()
 		}
 	}
 

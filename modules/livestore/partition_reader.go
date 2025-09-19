@@ -40,6 +40,7 @@ type PartitionReader struct {
 	client *kgo.Client
 	adm    *kadm.Client
 
+	ingestMetrics   *ingest.Metrics
 	commitInterval  time.Duration
 	wg              sync.WaitGroup
 	offsetWatermark atomic.Pointer[kadm.Offset]
@@ -50,12 +51,12 @@ type PartitionReader struct {
 	logger log.Logger
 }
 
-func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, consume consumeFn, logger log.Logger, reg prometheus.Registerer, ingestMetrics *ingest.Metrics) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
-	return newPartitionReader(client, partitionID, cfg, commitInterval, consume, logger, metrics)
+	return newPartitionReader(client, partitionID, cfg, commitInterval, consume, logger, metrics, ingestMetrics)
 }
 
-func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics, ingestMetrics *ingest.Metrics) (*PartitionReader, error) {
 	r := &PartitionReader{
 		partitionID:    partitionID,
 		consumerGroup:  cfg.ConsumerGroup,
@@ -65,6 +66,7 @@ func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaC
 		commitInterval: commitInterval,
 		consume:        consume,
 		metrics:        metrics,
+		ingestMetrics:  ingestMetrics,
 		logger:         log.With(logger, "partition", partitionID),
 	}
 
@@ -88,13 +90,18 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
 
+	partLabel := strconv.Itoa(int(r.partitionID))
 	for ctx.Err() == nil {
+		fetchStart := time.Now()
 		fetches := r.client.PollFetches(ctx)
+		r.ingestMetrics.FetchDuration.WithLabelValues(partLabel).Observe(time.Since(fetchStart).Seconds())
+
 		if fetches.Err() != nil {
 			if errors.Is(fetches.Err(), context.Canceled) {
 				return nil
 			}
 			err := collectFetchErrs(fetches)
+			r.ingestMetrics.FetchErrors.WithLabelValues(partLabel).Inc()
 			level.Error(r.logger).Log("msg", "encountered error while fetching", "err", err)
 			continue
 		}
@@ -169,6 +176,12 @@ func collectFetchErrs(fetches kgo.Fetches) (_ error) {
 
 func (r *PartitionReader) consumeFetches(ctx context.Context, fetches kgo.Fetches) *kadm.Offset {
 	// Pass offset and byte information to the live-store
+	partLabel := strconv.Itoa(int(r.partitionID))
+	processStart := time.Now()
+	defer func() {
+		r.ingestMetrics.ProcessPartitionDuration.WithLabelValues(partLabel).Observe(time.Since(processStart).Seconds())
+	}()
+
 	offset, err := r.consume(ctx, fetches.RecordIter(), time.Now())
 	if err != nil {
 		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
@@ -183,14 +196,19 @@ func (r *PartitionReader) recordFetchesMetrics(fetches kgo.Fetches) {
 	var (
 		now        = time.Now()
 		numRecords = 0
+		numBytes   = 0
 	)
 
+	partLabel := strconv.Itoa(int(r.partitionID))
 	fetches.EachRecord(func(record *kgo.Record) {
 		numRecords++
+		numBytes += len(record.Value)
 		r.metrics.receiveDelay.Observe(now.Sub(record.Timestamp).Seconds())
 	})
 
 	r.metrics.recordsPerFetch.Observe(float64(numRecords))
+	r.ingestMetrics.FetchBytesTotal.WithLabelValues(partLabel).Add(float64(numBytes))
+	r.ingestMetrics.FetchRecordsTotal.WithLabelValues(partLabel).Add(float64(numRecords))
 }
 
 func (r *PartitionReader) fetchLastCommittedOffsetWithRetries(ctx context.Context) (offset kgo.Offset, err error) {

@@ -208,8 +208,8 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	ls, _ := defaultLiveStore(t, t.TempDir())
 
 	// Reset metrics
-	metricRecordsProcessed.Reset()
-	metricRecordsDropped.Reset()
+	ls.metrics.RecordsProcessed.Reset()
+	ls.metrics.RecordsDropped.Reset()
 
 	now := time.Now()
 	older := now.Add(-1 * (defaultCompleteBlockTimeout + time.Second))
@@ -245,12 +245,12 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 
 	// Verify metrics
 	// Should have processed 2 valid records (1 per tenant)
-	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsProcessed.WithLabelValues("tenant1")))
-	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsProcessed.WithLabelValues("tenant2")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(ls.metrics.RecordsProcessed.WithLabelValues("tenant1")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(ls.metrics.RecordsProcessed.WithLabelValues("tenant2")))
 
 	// Should have dropped 2 old records (1 per tenant)
-	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant1", "too_old")))
-	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant2", "too_old")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(ls.metrics.RecordsDropped.WithLabelValues("tenant1", "too_old")))
+	require.Equal(t, float64(1), test.MustGetCounterValue(ls.metrics.RecordsDropped.WithLabelValues("tenant2", "too_old")))
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)

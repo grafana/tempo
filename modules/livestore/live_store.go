@@ -78,19 +78,6 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
-
-	// Kafka/Ingest specific metrics
-	metricRecordsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "records_processed_total",
-		Help:      "The total number of kafka records processed per tenant.",
-	}, []string{"tenant"})
-
-	metricRecordsDropped = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo_live_store",
-		Name:      "records_dropped_total",
-		Help:      "The total number of kafka records dropped per tenant.",
-	}, []string{"tenant", "reason"})
 )
 
 type LiveStore struct {
@@ -110,6 +97,9 @@ type LiveStore struct {
 	decoder *ingest.Decoder
 
 	reader *PartitionReader
+
+	// Metrics
+	metrics *ingest.Metrics
 
 	// Multi-tenant instances
 	instancesMtx sync.RWMutex
@@ -139,6 +129,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		overrides:       overridesService,
 		completeQueues:  flushqueues.New(cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete: make(chan struct{}),
+		metrics:         ingest.NewMetrics("live_store", reg),
 	}
 
 	var err error
@@ -259,10 +250,11 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start livestore: %w", err)
 	}
 
-	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, s.consume, s.logger, s.reg)
+	s.reader, err = NewPartitionReaderForPusher(s.client, s.ingestPartitionID, s.cfg.IngestConfig.Kafka, s.cfg.CommitInterval, s.consume, s.logger, s.reg, s.metrics)
 	if err != nil {
 		return fmt.Errorf("failed to create partition reader: %w", err)
 	}
+
 	err = services.StartAndAwaitRunning(ctx, s.reader)
 	if err != nil {
 		return fmt.Errorf("failed to start partition reader: %w", err)
@@ -292,6 +284,7 @@ func (s *LiveStore) running(ctx context.Context) error {
 
 func (s *LiveStore) stopping(error) error {
 	// Stop consuming
+
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
@@ -321,6 +314,11 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 	_, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
+	consumeStart := time.Now()
+	defer func() {
+		s.metrics.ConsumeCycleDuration.Observe(time.Since(consumeStart).Seconds())
+	}()
+
 	recordCount := 0
 	var lastRecord *kgo.Record
 
@@ -330,15 +328,19 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		record := rs.Next()
 		tenant := string(record.Key)
 
+		// Track lag between kafka record timestamp and current processing time
+		lag := now.Sub(record.Timestamp)
+		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, s.ingestPartitionID, lag)
+
 		if record.Timestamp.Before(cutoff) {
-			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
+			s.metrics.RecordsDropped.WithLabelValues(tenant, droppedRecordReasonTooOld).Inc()
 			continue
 		}
 
 		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.Value)
 		if err != nil {
-			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
+			s.metrics.RecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
 			level.Error(s.logger).Log("msg", "failed to decoded record", "tenant", tenant, "err", err)
 			span.RecordError(err)
 			continue
@@ -347,7 +349,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		// Get or create tenant instance
 		inst, err := s.getOrCreateInstance(tenant)
 		if err != nil {
-			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
+			s.metrics.RecordsDropped.WithLabelValues(tenant, droppedRecordReasonInstanceNotFound).Inc()
 			level.Error(s.logger).Log("msg", "failed to get instance for tenant", "tenant", tenant, "err", err)
 			span.RecordError(err)
 			continue
@@ -356,7 +358,7 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
 
-		metricRecordsProcessed.WithLabelValues(tenant).Inc()
+		s.metrics.RecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
 		lastRecord = record
 	}
@@ -389,7 +391,7 @@ func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	}
 
 	// Create new instance
-	inst, err := newInstance(tenantID, s.cfg, s.wal, s.overrides, s.logger)
+	inst, err := newInstance(tenantID, s.cfg, s.wal, s.overrides, s.logger, s.metrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create instance for tenant %s: %w", tenantID, err)
 	}
