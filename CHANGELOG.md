@@ -63,6 +63,7 @@
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
+* [BUGFIX] Fix panic in query_range http handling that could be triggered by cancellations or other errors [#5667](https://github.com/grafana/tempo/pull/5667) (@mdisibio)
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
 * [BUGFIX] Fix incorrect TraceQL string comparison of strings starting with numbers [#5658](https://github.com/grafana/tempo/pull/5658) (@mdisibio)
 * [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
