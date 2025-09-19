@@ -29,7 +29,9 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 
 	h.ObserveWithExemplar(lv, 1.0, "trace-1", 1.0)
 	h.ObserveWithExemplar(lv, 1.1, "trace-1", 1.0)
-	assert.Equal(t, 1, seriesAdded)
+	// In BOTH mode, a single histogram series contributes classic (sum+count+buckets including +Inf)
+	// plus one native series.
+	assert.Equal(t, int(h.activeSeriesPerHistogramSerie()), seriesAdded)
 }
 
 func Test_Histograms(t *testing.T) {
@@ -475,7 +477,14 @@ func Test_Histograms(t *testing.T) {
 				h.ObserveWithExemplar(obs.labelValueCombo, obs.value, obs.traceID, obs.multiplier)
 			}
 
-			collectMetricsAndAssertSeries(t, h, collectionTimeMs, expectedSeriesLen(c.expectedSamples), appender)
+			expected := expectedSeriesLen(c.expectedSamples)
+			// If we're testing the native histogram in BOTH or NATIVE mode, the active
+			// series includes an additional native series per base labelset.
+			if _, ok := h.(*nativeHistogram); ok {
+				expected += expectedBaseSeriesCount(c.expectedSamples)
+			}
+
+			collectMetricsAndAssertSeries(t, h, collectionTimeMs, expected, appender)
 			if len(c.expectedSamples) > 0 {
 				assertAppenderSamples(t, appender, c.expectedSamples)
 			}
@@ -588,6 +597,22 @@ func expectedSeriesLen(samples []sample) int {
 		series[s.l.String()] = struct{}{}
 	}
 	return len(series)
+}
+
+// expectedBaseSeriesCount returns the number of distinct base labelsets in the
+// expected classic samples by collapsing away metric name and bucket labels.
+// This approximates the number of native histogram series emitted in addition
+// to the classic series when using BOTH or NATIVE modes.
+func expectedBaseSeriesCount(samples []sample) int {
+	base := make(map[string]struct{})
+	for _, s := range samples {
+		lb := labels.NewBuilder(s.l)
+		lb.Del(labels.MetricName)
+		lb.Del(labels.BucketLabel)
+		key := lb.Labels().String()
+		base[key] = struct{}{}
+	}
+	return len(base)
 }
 
 // Test specifically for native-only mode to ensure exemplars work
