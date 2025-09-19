@@ -48,6 +48,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Shutdown](#shutdown)                                                                 | Ingester                                  | HTTP | `GET,POST /shutdown`                                    |
 | [Prepare partition downscale](#prepare-partition-downscale)                           | Ingester                                  | HTTP | `GET,POST,DELETE /ingester/prepare-partition-downscale` |
 | [Prepare live store partition downscale](#prepare-live-store-partition-downscale)     | Live store                                | HTTP | `GET,POST,DELETE /live-store/prepare-partition-downscale` |
+| [Prepare live store downscale](#prepare-live-store-downscale)                         | Live store                                | HTTP | `POST,DELETE /live-store/prepare-downscale`             |
 | [Usage Metrics](#usage-metrics)                                                       | Distributor                               | HTTP | `GET /usage_metrics`                                    |
 | [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                 |
 | [Ingesters ring status](#ingesters-ring-status)                                       | Distributor, Querier                      | HTTP | `GET /ingester/ring`                                    |
@@ -760,7 +761,19 @@ A `POST` call switches this ingester's partition to the `INACTIVE` state, if it 
 
 A `DELETE` call sets the partition back from the `INACTIVE` to the `ACTIVE` state.
 
-If the ingester is not configured to use ingest-storage, any call to this endpoint fails.
+### Prepare live store downscale
+
+```
+POST,DELETE /live-store/prepare-downscale
+```
+
+This endpoint prepares the live store for downscaling by configuring whether it should remove itself from the ring on shutdown.
+
+A `GET` call returns set if the live-store is prepared for downscale, unset otherwise.
+
+A `POST` call enables prepare downscale mode (remove the live store from the ring owners on shutdown). The partition must be in `INACTIVE` state.
+
+A `DELETE` call disables prepare downscale mode (do not remove the live store from the ring owners on shutdown).
 
 ### Prepare live store partition downscale
 
