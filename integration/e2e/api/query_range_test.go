@@ -617,10 +617,9 @@ sendLoop:
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	// Read body and print it
+	// Read body
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	fmt.Println(string(body))
 
 	queryRangeRes := &tempopb.QueryRangeResponse{}
 	readBody := strings.NewReader(string(body))
@@ -685,10 +684,9 @@ sendLoop:
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	// Read body and print it
+	// Read body
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	fmt.Println(string(body))
 
 	queryRangeRes := &tempopb.QueryRangeResponse{}
 	readBody := strings.NewReader(string(body))
@@ -761,10 +759,9 @@ sendLoop:
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	// Read body and print it
+	// Read body
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	fmt.Println(string(body))
 
 	queryRangeRes := &tempopb.QueryRangeResponse{}
 	readBody := strings.NewReader(string(body))
@@ -835,10 +832,9 @@ func TestQueryRangeTypeHandling(t *testing.T) {
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	// Read body and print it
+	// Read body
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	fmt.Println(string(body))
 
 	queryRangeRes := &tempopb.QueryRangeResponse{}
 	readBody := strings.NewReader(string(body))
