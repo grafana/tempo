@@ -343,6 +343,87 @@ func TestLiveStorePartitionDownscale(t *testing.T) {
 	})
 }
 
+func TestLiveStoreDownscaleHappyPath(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, "config-live-store.yaml", "config.yaml"))
+
+	// Start dependencies
+	kafka := e2edb.NewKafka()
+	require.NoError(t, s.StartAndWaitReady(kafka))
+
+	liveStoreActive := util.NewTempoLiveStore(0)
+	liveStoreInactive := util.NewTempoLiveStore(1)
+	require.NoError(t, s.StartAndWaitReady(liveStoreActive, liveStoreInactive))
+	waitUntilJoinedToPartitionRing(t, liveStoreActive, 2) // wait for both to join
+
+	distributor := util.NewTempoDistributor()
+	require.NoError(t, s.StartAndWaitReady(distributor))
+
+	// Wait until both live-stores are active in the ring
+	isServiceActiveMatcher := func(service, state string) []*labels.Matcher {
+		return []*labels.Matcher{
+			labels.MustNewMatcher(labels.MatchEqual, "name", service),
+			labels.MustNewMatcher(labels.MatchEqual, "state", state),
+		}
+	}
+	require.NoError(t, distributor.WaitSumMetricsWithOptions(
+		e2e.Equals(2),
+		[]string{`tempo_ring_members`},
+		e2e.WithLabelMatchers(isServiceActiveMatcher("live-store", "ACTIVE")...),
+		e2e.WaitMissingMetrics,
+	))
+
+	// Change partition state to INACTIVE
+	preparePartitionDownscale(t, http.MethodPost, liveStoreInactive)
+
+	// Prepare downscale, right before shutdown
+	req, err := http.NewRequest("POST", "http://"+liveStoreInactive.Endpoint(3200)+"/live-store/prepare-downscale", nil)
+	require.NoError(t, err)
+	httpResp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, 204, httpResp.StatusCode) // PrepareDownscaleHandler returns StatusNoContent (204)
+
+	// Shutdown inactive live-store
+	require.NoError(t, liveStoreInactive.Stop())
+	time.Sleep(5 * time.Second)
+
+	// Only one ACTIVE live-store remains
+	partitions := getRingStatus(t, distributor).Partitions
+	require.Equal(t, 1, len(partitions), "only one ACTIVE live-store should remain, actual result: %v", partitions)
+	partition := partitions[0]
+
+	require.Equal(t, partitionData{ID: 0, Corrupted: false, State: 2, OwnerIDs: []string{"live-store-0"}}, partition)
+}
+
+func TestLiveStoreRestart(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, "config-live-store.yaml", "config.yaml"))
+
+	// Start dependencies
+	kafka := e2edb.NewKafka()
+	require.NoError(t, s.StartAndWaitReady(kafka))
+
+	liveStore := util.NewTempoLiveStore(0)
+	distributor := util.NewTempoDistributor()
+	require.NoError(t, s.StartAndWaitReady(liveStore, distributor))
+	waitUntilJoinedToPartitionRing(t, liveStore, 1)
+
+	// Change partition state to INACTIVE
+	preparePartitionDownscale(t, http.MethodPost, liveStore)
+
+	// Check that after stop (restart), it is not removed from the ring
+	require.NoError(t, liveStore.Stop())
+	time.Sleep(5 * time.Second)
+	rs := getRingStatus(t, distributor)
+	require.Equal(t, 1, len(rs.Partitions))
+}
+
 type tracePool struct {
 	pool map[string]*tempoUtil.TraceInfo
 	ts   time.Time
@@ -414,6 +495,33 @@ func verifyPartitionState(t *testing.T, liveStore *e2e.HTTPService, expectedStat
 type preparePartitionDownscaleResponse struct {
 	Timestamp int64  `json:"timestamp"`
 	State     string `json:"state"`
+}
+
+type ringStatus struct {
+	Partitions []partitionData `json:"partitions"`
+}
+
+type partitionData struct {
+	ID        int32    `json:"id"`
+	Corrupted bool     `json:"corrupted"`
+	State     int      `json:"state"`
+	OwnerIDs  []string `json:"owner_ids"`
+	// skip the fields below
+	// StateTimestamp string   `json:"state_timestamp"`
+	// Tokens         []uint32  `json:"tokens"`
+}
+
+func getRingStatus(t *testing.T, service *e2e.HTTPService) ringStatus {
+	req, err := http.NewRequest("GET", "http://"+service.Endpoint(3200)+"/partition-ring", nil)
+	req.Header.Set("Accept", "application/json")
+	require.NoError(t, err)
+	httpResp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, httpResp.StatusCode)
+
+	var result ringStatus
+	require.NoError(t, json.NewDecoder(httpResp.Body).Decode(&result))
+	return result
 }
 
 func preparePartitionDownscale(t *testing.T, method string, liveStore *e2e.HTTPService) preparePartitionDownscaleResponse {
