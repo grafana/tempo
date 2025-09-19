@@ -168,9 +168,11 @@ func (p *Processor) DeterministicPush(ts time.Time, req *tempopb.PushSpansReques
 func (p *Processor) backpressure() bool {
 	if p.Cfg.MaxLiveTracesBytes > 0 {
 		// Check live traces
-		p.liveTracesMtx.Lock()
-		liveTracesSize := p.liveTraces.Size()
-		p.liveTracesMtx.Unlock()
+		liveTracesSize := func() uint64 {
+			p.liveTracesMtx.Lock()
+			defer p.liveTracesMtx.Unlock()
+			return p.liveTraces.Size()
+		}()
 
 		if liveTracesSize >= p.Cfg.MaxLiveTracesBytes {
 			// Live traces exceeds the expected amount of data in
@@ -350,13 +352,15 @@ func (p *Processor) flushLoop() {
 			_ = level.Error(p.logger).Log("msg", "failed to flush block after max attempts", "tenant", p.tenant, "block", op.blockID, "attempts", op.attempts)
 
 			// attempt to delete the block
-			p.blocksMtx.Lock()
-			err := p.wal.LocalBackend().ClearBlock(op.blockID, p.tenant)
-			if err != nil {
-				_ = level.Error(p.logger).Log("msg", "failed to clear corrupt block", "tenant", p.tenant, "block", op.blockID, "err", err)
-			}
-			delete(p.completeBlocks, op.blockID)
-			p.blocksMtx.Unlock()
+			func() {
+				p.blocksMtx.Lock()
+				defer p.blocksMtx.Unlock()
+				err := p.wal.LocalBackend().ClearBlock(op.blockID, p.tenant)
+				if err != nil {
+					_ = level.Error(p.logger).Log("msg", "failed to clear corrupt block", "tenant", p.tenant, "block", op.blockID, "err", err)
+				}
+				delete(p.completeBlocks, op.blockID)
+			}()
 
 			continue
 		}
@@ -667,15 +671,17 @@ func (p *Processor) deleteOldBlocks() (err error) {
 }
 
 func (p *Processor) cutIdleTraces(immediate bool) error {
-	p.liveTracesMtx.Lock()
+	var tracesToCut []*livetraces.LiveTrace[*v1.ResourceSpans]
+	func() {
+		p.liveTracesMtx.Lock()
+		defer p.liveTracesMtx.Unlock()
 
-	// Record live traces before flushing so we know the high water mark
-	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Len()))
-	metricLiveTraceBytes.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Size()))
+		// Record live traces before flushing so we know the high water mark
+		metricLiveTraces.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Len()))
+		metricLiveTraceBytes.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Size()))
 
-	tracesToCut := p.liveTraces.CutIdle(time.Now(), immediate)
-
-	p.liveTracesMtx.Unlock()
+		tracesToCut = p.liveTraces.CutIdle(time.Now(), immediate)
+	}()
 
 	if len(tracesToCut) == 0 {
 		return nil
