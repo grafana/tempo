@@ -223,7 +223,7 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 	)
 
 	add := func(ls Labels, counts []float64) {
-		ss[ls.String()] = TimeSeries{
+		ss[ls.MapKey()] = TimeSeries{
 			Labels: ls,
 			Values: counts,
 		}
@@ -280,9 +280,10 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 				prefix,
 				{Name: l.Name},
 			}
-			if ts, ok := ss[seriesLabels.String()]; ok {
+			key := seriesLabels.MapKey()
+			if ts, ok := ss[key]; ok {
 				ts.Exemplars = append(ts.Exemplars, e)
-				ss[seriesLabels.String()] = ts
+				ss[key] = ts
 			}
 		}
 	}
@@ -477,7 +478,7 @@ func (b *BaselineAggregator) Results() SeriesSet {
 			prefix,
 			{Name: name, Value: value},
 		}
-		output[ls.String()] = TimeSeries{
+		output[ls.MapKey()] = TimeSeries{
 			Labels:    ls,
 			Values:    samples,
 			Exemplars: exemplars,
