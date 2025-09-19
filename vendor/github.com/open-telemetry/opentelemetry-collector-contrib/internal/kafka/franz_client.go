@@ -81,6 +81,10 @@ func NewFranzSyncProducer(ctx context.Context, clientCfg configkafka.ClientConfi
 	if cfg.FlushMaxMessages > 0 {
 		opts = append(opts, kgo.MaxBufferedRecords(cfg.FlushMaxMessages))
 	}
+	// Configure auto topic creation
+	if cfg.AllowAutoTopicCreation {
+		opts = append(opts, kgo.AllowAutoTopicCreation())
+	}
 
 	return kgo.NewClient(opts...)
 }
@@ -216,6 +220,10 @@ func commonOpts(ctx context.Context, clientCfg configkafka.ClientConfig,
 	// Configure client ID
 	if clientCfg.ClientID != "" {
 		opts = append(opts, kgo.ClientID(clientCfg.ClientID))
+	}
+	// Configure client rack if provided
+	if clientCfg.RackID != "" {
+		opts = append(opts, kgo.Rack(clientCfg.RackID))
 	}
 	// Reuse existing metadata refresh interval for franz-go metadataMaxAge
 	if clientCfg.Metadata.RefreshInterval > 0 {

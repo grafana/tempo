@@ -18,7 +18,7 @@ import (
 // * Out of range fetch causes early return
 // * Raw bytes of batch counts against wait bytes
 
-func init() { regKey(1, 4, 16) }
+func init() { regKey(1, 4, 17) }
 
 func (c *Cluster) handleFetch(creq *clientReq, w *watchFetch) (kmsg.Response, error) {
 	var (
@@ -183,10 +183,10 @@ full:
 			}
 			var pbytes int
 			for _, b := range pd.batches[i:] {
-				if nbytes = nbytes + b.nbytes; nbytes > int(req.MaxBytes) && batchesAdded > 1 {
+				if nbytes = nbytes + b.nbytes; nbytes > int(req.MaxBytes) && batchesAdded > 0 {
 					break full
 				}
-				if pbytes = pbytes + b.nbytes; pbytes > int(rp.PartitionMaxBytes) && batchesAdded > 1 {
+				if pbytes = pbytes + b.nbytes; pbytes > int(rp.PartitionMaxBytes) && batchesAdded > 0 {
 					break
 				}
 				batchesAdded++

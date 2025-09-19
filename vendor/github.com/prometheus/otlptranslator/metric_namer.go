@@ -20,12 +20,12 @@
 package otlptranslator
 
 import (
-	"regexp"
+	"fmt"
 	"slices"
 	"strings"
 	"unicode"
 
-	"go.opentelemetry.io/collector/pdata/pmetric"
+	"github.com/grafana/regexp"
 )
 
 // The map to translate OTLP units to Prometheus units
@@ -69,8 +69,8 @@ var unitMap = map[string]string{
 	"%":   "percent",
 }
 
-// The map that translates the "per" unit
-// Example: s => per second (singular)
+// The map that translates the "per" unit.
+// Example: s => per second (singular).
 var perUnitMap = map[string]string{
 	"s":  "second",
 	"m":  "minute",
@@ -81,29 +81,121 @@ var perUnitMap = map[string]string{
 	"y":  "year",
 }
 
-// BuildCompliantMetricName builds a Prometheus-compliant metric name for the specified metric.
+// MetricNamer is a helper struct to build metric names.
+// It converts OpenTelemetry Protocol (OTLP) metric names to Prometheus-compliant metric names.
 //
-// Metric name is prefixed with specified namespace and underscore (if any).
-// Namespace is not cleaned up. Make sure specified namespace follows Prometheus
-// naming convention.
+// Example usage:
 //
-// See rules at https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels,
-// https://prometheus.io/docs/practices/naming/#metric-and-label-naming
-// and https://github.com/open-telemetry/opentelemetry-specification/blob/v1.38.0/specification/compatibility/prometheus_and_openmetrics.md#otlp-metric-points-to-prometheus.
-func BuildCompliantMetricName(metric pmetric.Metric, namespace string, addMetricSuffixes bool) string {
+//	namer := MetricNamer{
+//		WithMetricSuffixes: true,
+//		UTF8Allowed:        false,
+//	}
+//
+//	metric := Metric{
+//		Name: "http.server.duration",
+//		Unit: "s",
+//		Type: MetricTypeHistogram,
+//	}
+//
+//	result := namer.Build(metric) // "http_server_duration_seconds"
+type MetricNamer struct {
+	Namespace          string
+	WithMetricSuffixes bool
+	UTF8Allowed        bool
+}
+
+// NewMetricNamer creates a MetricNamer with the specified namespace (can be
+// blank) and the requested Translation Strategy.
+func NewMetricNamer(namespace string, strategy TranslationStrategyOption) MetricNamer {
+	return MetricNamer{
+		Namespace:          namespace,
+		WithMetricSuffixes: strategy.ShouldAddSuffixes(),
+		UTF8Allowed:        !strategy.ShouldEscape(),
+	}
+}
+
+// Metric is a helper struct that holds information about a metric.
+// It represents an OpenTelemetry metric with its name, unit, and type.
+//
+// Example:
+//
+//	metric := Metric{
+//		Name: "http.server.request.duration",
+//		Unit: "s",
+//		Type: MetricTypeHistogram,
+//	}
+type Metric struct {
+	Name string
+	Unit string
+	Type MetricType
+}
+
+// Build builds a metric name for the specified metric.
+//
+// The method applies different transformations based on the MetricNamer configuration:
+//   - If UTF8Allowed is true, doesn't translate names - all characters must be valid UTF-8, however.
+//   - If UTF8Allowed is false, translates metric names to comply with legacy Prometheus name scheme by escaping invalid characters to `_`.
+//   - If WithMetricSuffixes is true, adds appropriate suffixes based on type and unit.
+//
+// See rules at https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels
+//
+// Examples:
+//
+//	namer := MetricNamer{WithMetricSuffixes: true, UTF8Allowed: false}
+//
+//	// Counter gets _total suffix
+//	counter := Metric{Name: "requests.count", Unit: "1", Type: MetricTypeMonotonicCounter}
+//	result := namer.Build(counter) // "requests_count_total"
+//
+//	// Gauge with unit suffix
+//	gauge := Metric{Name: "memory.usage", Unit: "By", Type: MetricTypeGauge}
+//	result = namer.Build(gauge) // "memory_usage_bytes"
+func (mn *MetricNamer) Build(metric Metric) (string, error) {
+	if mn.UTF8Allowed {
+		return mn.buildMetricName(metric.Name, metric.Unit, metric.Type)
+	}
+	return mn.buildCompliantMetricName(metric.Name, metric.Unit, metric.Type)
+}
+
+func (mn *MetricNamer) buildCompliantMetricName(name, unit string, metricType MetricType) (normalizedName string, err error) {
+	defer func() {
+		if len(normalizedName) == 0 {
+			err = fmt.Errorf("normalization for metric %q resulted in empty name", name)
+			return
+		}
+
+		if normalizedName == name {
+			return
+		}
+
+		// Check that the resulting normalized name contains at least one non-underscore character
+		for _, c := range normalizedName {
+			if c != '_' {
+				return
+			}
+		}
+		err = fmt.Errorf("normalization for metric %q resulted in invalid name %q", name, normalizedName)
+		normalizedName = ""
+	}()
+
 	// Full normalization following standard Prometheus naming conventions
-	if addMetricSuffixes {
-		return normalizeName(metric, namespace)
+	if mn.WithMetricSuffixes {
+		normalizedName = normalizeName(name, unit, metricType, mn.Namespace)
+		return
 	}
 
 	// Simple case (no full normalization, no units, etc.).
-	metricName := strings.Join(strings.FieldsFunc(metric.Name(), func(r rune) bool {
-		return invalidMetricCharRE.MatchString(string(r))
+	metricName := strings.Join(strings.FieldsFunc(name, func(r rune) bool {
+		return !isValidCompliantMetricChar(r) && r != '_'
 	}), "_")
 
 	// Namespace?
-	if namespace != "" {
-		return namespace + "_" + metricName
+	if mn.Namespace != "" {
+		namespace := strings.Join(strings.FieldsFunc(mn.Namespace, func(r rune) bool {
+			return !isValidCompliantMetricChar(r) && r != '_'
+		}), "_")
+		normalizedName = namespace + "_" + metricName
+		return
 	}
 
 	// Metric name starts with a digit? Prefix it with an underscore.
@@ -111,31 +203,43 @@ func BuildCompliantMetricName(metric pmetric.Metric, namespace string, addMetric
 		metricName = "_" + metricName
 	}
 
-	return metricName
+	normalizedName = metricName
+	return
 }
 
-var (
-	nonMetricNameCharRE = regexp.MustCompile(`[^a-zA-Z0-9:]`)
-	// Regexp for metric name characters that should be replaced with _.
-	invalidMetricCharRE   = regexp.MustCompile(`[^a-zA-Z0-9:_]`)
-	multipleUnderscoresRE = regexp.MustCompile(`__+`)
-)
+var multipleUnderscoresRE = regexp.MustCompile(`__+`)
+
+// isValidCompliantMetricChar checks if a rune is a valid metric name character (a-z, A-Z, 0-9, :).
+func isValidCompliantMetricChar(r rune) bool {
+	return (r >= 'a' && r <= 'z') ||
+		(r >= 'A' && r <= 'Z') ||
+		(r >= '0' && r <= '9') ||
+		r == ':'
+}
+
+// replaceInvalidMetricChar replaces invalid metric name characters with underscore.
+func replaceInvalidMetricChar(r rune) rune {
+	if isValidCompliantMetricChar(r) {
+		return r
+	}
+	return '_'
+}
 
 // Build a normalized name for the specified metric.
-func normalizeName(metric pmetric.Metric, namespace string) string {
+func normalizeName(name, unit string, metricType MetricType, namespace string) string {
 	// Split metric name into "tokens" (of supported metric name runes).
 	// Note that this has the side effect of replacing multiple consecutive underscores with a single underscore.
 	// This is part of the OTel to Prometheus specification: https://github.com/open-telemetry/opentelemetry-specification/blob/v1.38.0/specification/compatibility/prometheus_and_openmetrics.md#otlp-metric-points-to-prometheus.
 	nameTokens := strings.FieldsFunc(
-		metric.Name(),
-		func(r rune) bool { return nonMetricNameCharRE.MatchString(string(r)) },
+		name,
+		func(r rune) bool { return !isValidCompliantMetricChar(r) },
 	)
 
-	mainUnitSuffix, perUnitSuffix := buildUnitSuffixes(metric.Unit())
+	mainUnitSuffix, perUnitSuffix := buildUnitSuffixes(unit)
 	nameTokens = addUnitTokens(nameTokens, cleanUpUnit(mainUnitSuffix), cleanUpUnit(perUnitSuffix))
 
 	// Append _total for Counters
-	if metric.Type() == pmetric.MetricTypeSum && metric.Sum().IsMonotonic() {
+	if metricType == MetricTypeMonotonicCounter {
 		nameTokens = append(removeItem(nameTokens, "total"), "total")
 	}
 
@@ -144,7 +248,7 @@ func normalizeName(metric pmetric.Metric, namespace string) string {
 	// See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aissue+some+metric+units+don%27t+follow+otel+semantic+conventions
 	// Until these issues have been fixed, we're appending `_ratio` for gauges ONLY
 	// Theoretically, counters could be ratios as well, but it's absurd (for mathematical reasons)
-	if metric.Unit() == "1" && metric.Type() == pmetric.MetricTypeGauge {
+	if unit == "1" && metricType == MetricTypeGauge {
 		nameTokens = append(removeItem(nameTokens, "ratio"), "ratio")
 	}
 
@@ -197,35 +301,7 @@ func addUnitTokens(nameTokens []string, mainUnitSuffix, perUnitSuffix string) []
 	return nameTokens
 }
 
-// cleanUpUnit cleans up unit so it matches model.LabelNameRE.
-func cleanUpUnit(unit string) string {
-	// Multiple consecutive underscores are replaced with a single underscore.
-	// This is part of the OTel to Prometheus specification: https://github.com/open-telemetry/opentelemetry-specification/blob/v1.38.0/specification/compatibility/prometheus_and_openmetrics.md#otlp-metric-points-to-prometheus.
-	return strings.TrimPrefix(multipleUnderscoresRE.ReplaceAllString(
-		nonMetricNameCharRE.ReplaceAllString(unit, "_"),
-		"_",
-	), "_")
-}
-
-// Retrieve the Prometheus "basic" unit corresponding to the specified "basic" unit
-// Returns the specified unit if not found in unitMap
-func unitMapGetOrDefault(unit string) string {
-	if promUnit, ok := unitMap[unit]; ok {
-		return promUnit
-	}
-	return unit
-}
-
-// Retrieve the Prometheus "per" unit corresponding to the specified "per" unit
-// Returns the specified unit if not found in perUnitMap
-func perUnitMapGetOrDefault(perUnit string) string {
-	if promPerUnit, ok := perUnitMap[perUnit]; ok {
-		return promPerUnit
-	}
-	return perUnit
-}
-
-// Remove the specified value from the slice
+// Remove the specified value from the slice.
 func removeItem(slice []string, value string) []string {
 	newSlice := make([]string, 0, len(slice))
 	for _, sliceEntry := range slice {
@@ -236,74 +312,54 @@ func removeItem(slice []string, value string) []string {
 	return newSlice
 }
 
-// BuildMetricName builds a valid metric name but without following Prometheus naming conventions.
-// It doesn't do any character transformation, it only prefixes the metric name with the namespace, if any,
-// and adds metric type suffixes, e.g. "_total" for counters and unit suffixes.
-//
-// Differently from BuildCompliantMetricName, it doesn't check for the presence of unit and type suffixes.
-// If "addMetricSuffixes" is true, it will add them anyway.
-//
-// Please use BuildCompliantMetricName for a metric name that follows Prometheus naming conventions.
-func BuildMetricName(metric pmetric.Metric, namespace string, addMetricSuffixes bool) string {
-	metricName := metric.Name()
-
-	if namespace != "" {
-		metricName = namespace + "_" + metricName
+func (mn *MetricNamer) buildMetricName(inputName, unit string, metricType MetricType) (name string, err error) {
+	name = inputName
+	if mn.Namespace != "" {
+		name = mn.Namespace + "_" + name
 	}
 
-	if addMetricSuffixes {
-		mainUnitSuffix, perUnitSuffix := buildUnitSuffixes(metric.Unit())
-		if mainUnitSuffix != "" {
-			metricName = metricName + "_" + mainUnitSuffix
-		}
-		if perUnitSuffix != "" {
-			metricName = metricName + "_" + perUnitSuffix
-		}
-
-		// Append _total for Counters
-		if metric.Type() == pmetric.MetricTypeSum && metric.Sum().IsMonotonic() {
-			metricName = metricName + "_total"
-		}
-
+	if mn.WithMetricSuffixes {
 		// Append _ratio for metrics with unit "1"
 		// Some OTel receivers improperly use unit "1" for counters of objects
 		// See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aissue+some+metric+units+don%27t+follow+otel+semantic+conventions
 		// Until these issues have been fixed, we're appending `_ratio` for gauges ONLY
 		// Theoretically, counters could be ratios as well, but it's absurd (for mathematical reasons)
-		if metric.Unit() == "1" && metric.Type() == pmetric.MetricTypeGauge {
-			metricName = metricName + "_ratio"
+		if unit == "1" && metricType == MetricTypeGauge {
+			name = trimSuffixAndDelimiter(name, "ratio")
+			defer func() {
+				name += "_ratio"
+			}()
+		}
+
+		// Append _total for Counters.
+		if metricType == MetricTypeMonotonicCounter {
+			name = trimSuffixAndDelimiter(name, "total")
+			defer func() {
+				name += "_total"
+			}()
+		}
+
+		mainUnitSuffix, perUnitSuffix := buildUnitSuffixes(unit)
+		if perUnitSuffix != "" {
+			name = trimSuffixAndDelimiter(name, perUnitSuffix)
+			defer func() {
+				name = name + "_" + perUnitSuffix
+			}()
+		}
+		// We don't need to trim and re-append the suffix here because this is
+		// the inner-most suffix.
+		if mainUnitSuffix != "" && !strings.HasSuffix(name, mainUnitSuffix) {
+			name = name + "_" + mainUnitSuffix
 		}
 	}
-	return metricName
+	return
 }
 
-// buildUnitSuffixes builds the main and per unit suffixes for the specified unit
-// but doesn't do any special character transformation to accommodate Prometheus naming conventions.
-// Removing trailing underscores or appending suffixes is done in the caller.
-func buildUnitSuffixes(unit string) (mainUnitSuffix, perUnitSuffix string) {
-	// Split unit at the '/' if any
-	unitTokens := strings.SplitN(unit, "/", 2)
-
-	if len(unitTokens) > 0 {
-		// Main unit
-		// Update if not blank and doesn't contain '{}'
-		mainUnitOTel := strings.TrimSpace(unitTokens[0])
-		if mainUnitOTel != "" && !strings.ContainsAny(mainUnitOTel, "{}") {
-			mainUnitSuffix = unitMapGetOrDefault(mainUnitOTel)
-		}
-
-		// Per unit
-		// Update if not blank and doesn't contain '{}'
-		if len(unitTokens) > 1 && unitTokens[1] != "" {
-			perUnitOTel := strings.TrimSpace(unitTokens[1])
-			if perUnitOTel != "" && !strings.ContainsAny(perUnitOTel, "{}") {
-				perUnitSuffix = perUnitMapGetOrDefault(perUnitOTel)
-			}
-			if perUnitSuffix != "" {
-				perUnitSuffix = "per_" + perUnitSuffix
-			}
-		}
+// trimSuffixAndDelimiter trims a suffix, plus one extra character which is
+// assumed to be a delimiter.
+func trimSuffixAndDelimiter(name, suffix string) string {
+	if strings.HasSuffix(name, suffix) && len(name) > len(suffix)+1 {
+		return name[:len(name)-(len(suffix)+1)]
 	}
-
-	return mainUnitSuffix, perUnitSuffix
+	return name
 }

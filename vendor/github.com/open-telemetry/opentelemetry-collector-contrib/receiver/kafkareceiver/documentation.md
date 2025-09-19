@@ -278,6 +278,21 @@ Number of metric points failed to be unmarshaled
 | topic | The Kafka topic. | Any Str |
 | partition | The Kafka topic partition. | Any Int |
 
+### otelcol_kafka_receiver_unmarshal_failed_profiles
+
+Number of profiles failed to be unmarshaled
+
+| Unit | Metric Type | Value Type | Monotonic |
+| ---- | ----------- | ---------- | --------- |
+| 1 | Sum | Int | true |
+
+#### Attributes
+
+| Name | Description | Values |
+| ---- | ----------- | ------ |
+| topic | The Kafka topic. | Any Str |
+| partition | The Kafka topic partition. | Any Int |
+
 ### otelcol_kafka_receiver_unmarshal_failed_spans
 
 Number of spans failed to be unmarshaled
