@@ -265,7 +265,6 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	if err != nil {
 		return
 	}
-
 }
 
 func (r *ManagedRegistry) collectionInterval() time.Duration {

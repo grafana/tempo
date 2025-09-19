@@ -29,7 +29,7 @@ type nativeHistogram struct {
 
 	seriesMtx      sync.Mutex
 	series         map[uint64]*nativeHistogramSeries
-	rejectedSeries map[uint64]int64
+	rejectedSeries map[uint64]int64 // should it be lastUpdated or firstRejected? otherwise it will never be stale
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -337,7 +337,7 @@ func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 		total += 3 + uint32(len(h.buckets))
 	}
 	if hasNativeHistograms(h.histogramOverride) {
-		total += 1
+		total++
 	}
 	return total
 }
