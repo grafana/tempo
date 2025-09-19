@@ -49,10 +49,13 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		traceRedactor, err := dataAccessController.TraceByIDResponseRedactor(req)
-		if err != nil {
-			level.Error(logger).Log("msg", "trace id: failed to get trace redactor", "err", err)
-			return httpInvalidRequest(err), nil
+		var traceRedactor combiner.TraceRedactor
+		if dataAccessController != nil {
+			traceRedactor, err = dataAccessController.TraceByIDResponseRedactor(req)
+			if err != nil {
+				level.Error(logger).Log("msg", "trace id: failed to get trace redactor", "err", err)
+				return httpInvalidRequest(err), nil
+			}
 		}
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
@@ -117,10 +120,13 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		traceRedactor, err := dataAccessController.TraceByIDResponseRedactor(req)
-		if err != nil {
-			level.Error(logger).Log("msg", "trace id: failed to get trace redactor", "err", err)
-			return httpInvalidRequest(err), nil
+		var traceRedactor combiner.TraceRedactor
+		if dataAccessController != nil {
+			traceRedactor, err = dataAccessController.TraceByIDResponseRedactor(req)
+			if err != nil {
+				level.Error(logger).Log("msg", "trace id v2: failed to get trace redactor", "err", err)
+				return httpInvalidRequest(err), nil
+			}
 		}
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
