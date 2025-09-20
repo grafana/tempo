@@ -49,8 +49,8 @@ const (
 	maxTraceLogLinesPerSecond = 10
 )
 
-func New[T LiveTraceBatchT](sizeFunc func(T) uint64, maxIdleTime, maxLiveTime time.Duration, tenantId string) *LiveTraces[T] {
-	logger := kitlog.With(log.Logger, "tenant", tenantId)
+func New[T LiveTraceBatchT](sizeFunc func(T) uint64, maxIdleTime, maxLiveTime time.Duration, tenantID string) *LiveTraces[T] {
+	logger := kitlog.With(log.Logger, "tenant", tenantID)
 
 	return &LiveTraces[T]{
 		hash:                fnv.New64(),

@@ -39,7 +39,7 @@ func (s *Tracker) token(traceID []byte) uint64 {
 // Allow returns true if the historical total plus incoming size is less than
 // or equal to the max.  The historical total is kept alive and incremented even
 // if not allowed, so that long-running traces are cutoff as expected.
-func (s *Tracker) Allow(traceID []byte, sz, max int) AllowResult {
+func (s *Tracker) Allow(traceID []byte, sz, maxSize int) AllowResult {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -56,7 +56,7 @@ func (s *Tracker) Allow(traceID []byte, sz, max int) AllowResult {
 	tr.size += sz
 
 	return AllowResult{
-		tr.size <= max,
+		tr.size <= maxSize,
 		tr.size,
 	}
 }

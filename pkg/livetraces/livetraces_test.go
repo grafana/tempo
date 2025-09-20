@@ -126,7 +126,7 @@ func TestMaxTraceSizeExceededWithAccumulation(t *testing.T) {
 		maxTraceSize = uint64(500)
 	)
 
-	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return batchSize }, time.Hour, time.Hour, testTenantID)
+	lt := New[*v1.ResourceSpans](func(_ *v1.ResourceSpans) uint64 { return batchSize }, time.Hour, time.Hour, testTenantID)
 
 	id := test.ValidTraceID(nil)
 	tr := test.MakeTrace(1, id)
