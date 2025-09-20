@@ -60,7 +60,7 @@ func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime 
 		overrides:     o,
 		wal:           wal,
 		enc:           enc,
-		liveTraces:    livetraces.New(func(b []byte) uint64 { return uint64(len(b)) }, 0, 0), // passing 0s for max idle and live time b/c block builder doesn't cut idle traces
+		liveTraces:    livetraces.New(func(b []byte) uint64 { return uint64(len(b)) }, 0, 0, tenantID), // passing 0s for max idle and live time b/c block builder doesn't cut idle traces
 	}
 
 	return s, nil

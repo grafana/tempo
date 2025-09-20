@@ -18,6 +18,11 @@ type traceSize struct {
 	timestamp time.Time
 }
 
+type AllowResult struct {
+	IsAllowed        bool
+	CurrentTotalSize int
+}
+
 func New() *Tracker {
 	return &Tracker{
 		hash:  fnv.New64(),
@@ -34,7 +39,7 @@ func (s *Tracker) token(traceID []byte) uint64 {
 // Allow returns true if the historical total plus incoming size is less than
 // or equal to the max.  The historical total is kept alive and incremented even
 // if not allowed, so that long-running traces are cutoff as expected.
-func (s *Tracker) Allow(traceID []byte, sz, max int) bool {
+func (s *Tracker) Allow(traceID []byte, sz, maxSize int) AllowResult {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -50,7 +55,10 @@ func (s *Tracker) Allow(traceID []byte, sz, max int) bool {
 	tr.timestamp = time.Now()
 	tr.size += sz
 
-	return tr.size <= max
+	return AllowResult{
+		tr.size <= maxSize,
+		tr.size,
+	}
 }
 
 func (s *Tracker) ClearIdle(idleSince time.Time) {
