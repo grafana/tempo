@@ -140,10 +140,12 @@ type streamingBlock struct {
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
-	newMeta := backend.NewBlockMetaWithDedicatedColumns(meta.TenantID, (uuid.UUID)(meta.BlockID), VersionString, backend.EncNone, "", meta.DedicatedColumns)
+	newMeta := backend.NewBlockMeta(meta.TenantID, (uuid.UUID)(meta.BlockID), VersionString, backend.EncNone, "")
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
+	// remove ignored attributes from dedicated columns
+	newMeta.DedicatedColumns = filterIgnoredDedicatedAttributes(meta.DedicatedColumns)
 
 	// TotalObjects is used here an an estimated count for the bloom filter.
 	// The real number of objects is tracked below.

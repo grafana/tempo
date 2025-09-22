@@ -220,3 +220,88 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterIgnoredDedicatedAttributes(t *testing.T) {
+	tests := []struct {
+		name     string
+		columns  backend.DedicatedColumns
+		expected backend.DedicatedColumns
+	}{
+		{
+			name:    "empty columns",
+			columns: backend.DedicatedColumns{},
+		},
+		{
+			name: "empty result span",
+			columns: backend.DedicatedColumns{
+				{Scope: "span", Name: "http.url", Type: "string"},
+			},
+		},
+		{
+			name: "empty result resource",
+			columns: backend.DedicatedColumns{
+				{Scope: "resource", Name: "cluster", Type: "string"},
+				{Scope: "resource", Name: "k8s.namespace.name", Type: "string"},
+				{Scope: "resource", Name: "service.name", Type: "string"},
+			},
+		},
+		{
+			name: "filtered result",
+			columns: backend.DedicatedColumns{
+				{Scope: "span", Name: "span-one", Type: "string"},
+				{Scope: "span", Name: "http.method", Type: "string"},
+				{Scope: "span", Name: "span-two", Type: "string"},
+				{Scope: "resource", Name: "k8s.cluster.name", Type: "string"},
+				{Scope: "resource", Name: "res-one", Type: "string"},
+				{Scope: "resource", Name: "res-two", Type: "string"},
+			},
+			expected: backend.DedicatedColumns{
+				{Scope: "span", Name: "span-one", Type: "string"},
+				{Scope: "span", Name: "span-two", Type: "string"},
+				{Scope: "resource", Name: "res-one", Type: "string"},
+				{Scope: "resource", Name: "res-two", Type: "string"},
+			},
+		},
+		{
+			name: "non-filtered result",
+			columns: backend.DedicatedColumns{
+				{Scope: "span", Name: "span-one", Type: "string"},
+				{Scope: "span", Name: "span-two", Type: "string"},
+				{Scope: "resource", Name: "res-one", Type: "string"},
+				{Scope: "resource", Name: "res-two", Type: "string"},
+			},
+			expected: backend.DedicatedColumns{
+				{Scope: "span", Name: "span-one", Type: "string"},
+				{Scope: "span", Name: "span-two", Type: "string"},
+				{Scope: "resource", Name: "res-one", Type: "string"},
+				{Scope: "resource", Name: "res-two", Type: "string"},
+			},
+		},
+		{
+			name: "non-filtered wrong-scope",
+			columns: backend.DedicatedColumns{
+				{Scope: "span", Name: "span-one", Type: "string"},
+				{Scope: "span", Name: "k8s.cluster.name", Type: "string"},
+				{Scope: "span", Name: "span-two", Type: "string"},
+				{Scope: "resource", Name: "http.method", Type: "string"},
+				{Scope: "resource", Name: "res-one", Type: "string"},
+				{Scope: "resource", Name: "res-two", Type: "string"},
+			},
+			expected: backend.DedicatedColumns{
+				{Scope: "span", Name: "span-one", Type: "string"},
+				{Scope: "span", Name: "k8s.cluster.name", Type: "string"},
+				{Scope: "span", Name: "span-two", Type: "string"},
+				{Scope: "resource", Name: "http.method", Type: "string"},
+				{Scope: "resource", Name: "res-one", Type: "string"},
+				{Scope: "resource", Name: "res-two", Type: "string"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterIgnoredDedicatedAttributes(tt.columns)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
