@@ -48,6 +48,7 @@ func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.Fla
 	cfg.SearchEncoding = backend.EncSnappy
 	cfg.SearchPageSizeBytes = 1024 * 1024 // 1 MB
 	cfg.RowGroupSizeBytes = 100_000_000   // 100 MB
+	cfg.DedicatedColumns = backend.DefaultDedicatedColumns()
 }
 
 // ValidateConfig returns true if the config is valid
