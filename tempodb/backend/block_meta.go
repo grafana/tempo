@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -94,6 +95,30 @@ const (
 	MetricsGeneratorReplicationFactor = 1
 	LiveStoreReplicationFactor        = MetricsGeneratorReplicationFactor
 )
+
+var defaultDedicatedColumns = DedicatedColumns{
+	// resource
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.cluster.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.namespace.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.pod.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.container.name"},
+	// span
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.request.method"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "http.response.status_code"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "url.path"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "url.route"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "server.address"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "server.port"},
+	// legacy
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.method"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.url"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.route"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "http.status_code"},
+}
+
+func DefaultDedicatedColumns() DedicatedColumns {
+	return slices.Clone(defaultDedicatedColumns)
+}
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
 // be stored in a dedicated column instead of the generic attribute column.
