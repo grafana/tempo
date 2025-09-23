@@ -189,6 +189,7 @@
 * [BUGFIX] Fix flaky test [#4787](https://github.com/grafana/tempo/pull/4787) [#4995](https://github.com/grafana/tempo/pull/4995) (@javiermolinar)
 * [BUGFIX] Fix flaky ingester test [#4846](https://github.com/grafana/tempo/pull/4846) (@javiermolinar)
 * [BUGFIX] Include cost attribution when converting from default config to legacy one [#4787](https://github.com/grafana/tempo/pull/4937) (@javiermolinar)
+* [BUGFIX] Stop early when a partial trace is reached  [#5094](https://github.com/grafana/tempo/pull/5094) (@javiermolinar)
 * [BUGFIX] Fix memcached settings for docker compose example [#4346](https://github.com/grafana/tempo/pull/4695) (@ruslan-mikhailov)
 * [BUGFIX] Update memcached to respect cancelled context to prevent panic [#5041](https://github.com/grafana/tempo/pull/5041) (@joe-elliott)
 * [BUGFIX] Fix frontend cache key generation for TraceQL Metrics queries to prevent collisions. [#5017](https://github.com/grafana/tempo/pull/5017) (@joe-elliott)
