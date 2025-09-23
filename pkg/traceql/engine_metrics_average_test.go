@@ -48,8 +48,8 @@ func TestAvgOverTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, len(result))
 
-	actualServiceA := result[`{"span.service"="a"}`]
-	actualServiceB := result[`{"span.service"="b"}`]
+	actualServiceA := result[LabelsFromArgs("span.service", "a").MapKey()]
+	actualServiceB := result[LabelsFromArgs("span.service", "b").MapKey()]
 
 	expectedServiceA := []struct {
 		interval int
@@ -131,29 +131,29 @@ func TestAvgOverTimeScalesResults(t *testing.T) {
 	}
 
 	ss := a.result(1.0)
-	expected := SeriesSet{
-		`{".service"="a"}`: {
+	expected := []TimeSeries{
+		{
 			Labels: Labels{
 				Label{Name: ".service", Value: NewStaticString("a")},
 			},
 			Values:    []float64{150.0, 1000.0, 456.0},
 			Exemplars: []Exemplar{},
 		},
-		`{".service"="a", __meta_type="__count"}`: {
+		{
 			Labels: Labels{
 				Label{Name: ".service", Value: NewStaticString("a")},
 				Label{internalLabelMetaType, NewStaticString(internalMetaTypeCount)},
 			},
 			Values: []float64{2, 4, 3},
 		},
-		`{".service"="b"}`: {
+		{
 			Labels: Labels{
 				Label{Name: ".service", Value: NewStaticString("b")},
 			},
 			Values:    []float64{600.0, 2000.0, math.NaN()},
 			Exemplars: []Exemplar{},
 		},
-		`{".service"="b", __meta_type="__count"}`: {
+		{
 			Labels: Labels{
 				Label{Name: ".service", Value: NewStaticString("b")},
 				Label{internalLabelMetaType, NewStaticString(internalMetaTypeCount)},
@@ -165,29 +165,29 @@ func TestAvgOverTimeScalesResults(t *testing.T) {
 
 	// Now check that scaling only effects the counts.
 	ss2 := a.result(2.0)
-	expected2 := SeriesSet{
-		`{".service"="a"}`: {
+	expected2 := []TimeSeries{
+		{
 			Labels: Labels{
 				Label{Name: ".service", Value: NewStaticString("a")},
 			},
 			Values:    []float64{150.0, 1000.0, 456.0},
 			Exemplars: []Exemplar{},
 		},
-		`{".service"="a", __meta_type="__count"}`: {
+		{
 			Labels: Labels{
 				Label{Name: ".service", Value: NewStaticString("a")},
 				Label{internalLabelMetaType, NewStaticString(internalMetaTypeCount)},
 			},
 			Values: []float64{4, 8, 6},
 		},
-		`{".service"="b"}`: {
+		{
 			Labels: Labels{
 				Label{Name: ".service", Value: NewStaticString("b")},
 			},
 			Values:    []float64{600.0, 2000.0, math.NaN()},
 			Exemplars: []Exemplar{},
 		},
-		`{".service"="b", __meta_type="__count"}`: {
+		{
 			Labels: Labels{
 				Label{Name: ".service", Value: NewStaticString("b")},
 				Label{internalLabelMetaType, NewStaticString(internalMetaTypeCount)},
