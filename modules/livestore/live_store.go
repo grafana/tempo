@@ -109,7 +109,8 @@ type LiveStore struct {
 	client  *kgo.Client
 	decoder *ingest.Decoder
 
-	reader *PartitionReader
+	reader  *PartitionReader
+	metrics *ingest.Metrics
 
 	// Multi-tenant instances
 	instancesMtx sync.RWMutex
@@ -139,6 +140,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		overrides:       overridesService,
 		completeQueues:  flushqueues.New(cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete: make(chan struct{}),
+		metrics:         ingest.NewMetrics("livestore", reg),
 	}
 
 	var err error
@@ -268,6 +270,16 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
+	// Start exporting partition lag metrics
+	s.metrics.ExportPartitionLagMetrics(
+		s.ctx,
+		s.client,
+		s.logger,
+		s.cfg.IngestConfig,
+		func() []int32 { return []int32{s.ingestPartitionID} },
+		func() { /* no-op for force metadata refresh */ },
+	)
+
 	for i := range s.cfg.CompleteBlockConcurrency {
 		idx := i
 		s.runInBackground(func() {
@@ -297,6 +309,9 @@ func (s *LiveStore) stopping(error) error {
 		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
 		return err
 	}
+
+	// Reset lag metrics for our partition when stopping
+	s.metrics.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
 
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
@@ -355,6 +370,10 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
+
+		// Track partition lag in seconds
+		lag := now.Sub(record.Timestamp)
+		s.metrics.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++

@@ -36,7 +36,7 @@ func (g *Generator) startKafka() {
 	g.kafkaWG.Add(1)
 	go g.listenKafka(ctx)
 
-	ingest.ExportPartitionLagMetrics(ctx, g.kafkaClient.Client, g.logger, g.cfg.Ingest, g.getAssignedActivePartitions, g.kafkaClient.ForceMetadataRefresh)
+	g.ingestMetrics.ExportPartitionLagMetrics(ctx, g.kafkaClient.Client, g.logger, g.cfg.Ingest, g.getAssignedActivePartitions, g.kafkaClient.ForceMetadataRefresh)
 }
 
 func (g *Generator) stopKafka() {
@@ -83,7 +83,7 @@ func (g *Generator) readKafka(ctx context.Context) error {
 	fetches.EachPartition(func(p kgo.FetchTopicPartition) {
 		if len(p.Records) > 0 {
 			lag := time.Since(p.Records[0].Timestamp)
-			ingest.SetPartitionLagSeconds(g.cfg.Ingest.Kafka.ConsumerGroup, p.Partition, lag)
+			g.ingestMetrics.SetPartitionLagSeconds(g.cfg.Ingest.Kafka.ConsumerGroup, p.Partition, lag)
 		}
 	})
 
@@ -175,7 +175,7 @@ func (g *Generator) handlePartitionsRevoked(partitions map[string][]int32) {
 	// Remove revoked partitions
 	g.assignedPartitions = revokePartitions(g.assignedPartitions, revoked)
 
-	ingest.ResetLagMetricsForRevokedPartitions(g.cfg.Ingest.Kafka.ConsumerGroup, revoked)
+	g.ingestMetrics.ResetLagMetricsForRevokedPartitions(g.cfg.Ingest.Kafka.ConsumerGroup, revoked)
 }
 
 // Helper function to format []int32 slice

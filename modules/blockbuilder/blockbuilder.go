@@ -111,6 +111,7 @@ type BlockBuilder struct {
 	compactor tempodb.Compactor
 
 	consumeStopped chan struct{}
+	ingestMetrics  *ingest.Metrics
 }
 
 type partitionState struct {
@@ -168,6 +169,7 @@ func New(
 		writer:         store,
 		compactor:      store,
 		consumeStopped: make(chan struct{}),
+		ingestMetrics:  ingest.NewMetrics("blockbuilder", prometheus.DefaultRegisterer),
 	}
 
 	b.Service = services.NewBasicService(b.starting, b.running, b.stopping)
@@ -207,7 +209,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	b.partitionOffsetClient = ingest.NewPartitionOffsetClient(b.kafkaClient, topic)
 	b.kadm = kadm.NewClient(b.kafkaClient)
 
-	ingest.ExportPartitionLagMetrics(
+	b.ingestMetrics.ExportPartitionLagMetrics(
 		ctx,
 		b.kafkaClient,
 		b.logger,
@@ -392,7 +394,7 @@ outer:
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
 				// Record lag at the start of the consumption
-				ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))
+				b.ingestMetrics.SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))
 				writer = newPartitionSectionWriter(
 					b.logger,
 					uint64(ps.partition),
@@ -450,12 +452,12 @@ outer:
 		)
 		span.AddEvent("no data")
 		// No data means we are caught up
-		ingest.SetPartitionLagSeconds(group, ps.partition, 0)
+		b.ingestMetrics.SetPartitionLagSeconds(group, ps.partition, 0)
 		return time.Time{}, commitOffsetAtEnd, nil
 	}
 
 	// Record lag at the end of the consumption
-	ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(lastRec.Timestamp))
+	b.ingestMetrics.SetPartitionLagSeconds(group, ps.partition, time.Since(lastRec.Timestamp))
 
 	err = writer.flush(ctx, b.reader, b.writer, b.compactor)
 	if err != nil {
