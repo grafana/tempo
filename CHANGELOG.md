@@ -31,6 +31,7 @@
 * [FEATURE] Add counter `query_frontend_bytes_inspected_total`, which shows the total number of bytes read from disk and object storage [#5310](https://github.com/grafana/tempo/pull/5310) (@carles-grafana)
 * [FEATURE] Add query hints sample=true and sample=0.xx which can speed up TraceQL metrics queries by sampling a subset of the data to provide an approximate result. [#5469](https://github.com/grafana/tempo/pull/5469) (@mdisibio)
 * [FEATURE] Add support for scope in cost-attribution usage tracker [#5646](https://github.com/grafana/tempo/pull/5646) (@electron0zero)
+* [FEATURE] Add new header to vulture requests to query live stores [#5663](https://github.com/grafana/tempo/pull/5663) (@javiermolinar)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [BUGFIX] fix tempo configuration options that are always overrided with config overrides section [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
 * [ENHANCEMENT] Add endpoint for partition downscaling [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
@@ -63,13 +64,16 @@
 * [ENHANCEMENT] Don't enqueue records to kafka when the context has been cancelled [#5499](https://github.com/grafana/tempo/pull/5499) (@javiermolinar)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from /status/runtime_config endpoint by adding document separator. [#5146](https://github.com/grafana/tempo/issues/5146)
+* [ENHANCEMENT] Make block ordering deterministic [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
+* [BUGFIX] Fix panic in query_range http handling that could be triggered by cancellations or other errors [#5667](https://github.com/grafana/tempo/pull/5667) (@mdisibio)
 * [BUGFIX] Do not allow very small steps [#5441](https://github.com/grafana/tempo/pull/5441) (@ruslan-mikhailov)
 * [BUGFIX] Fix incorrect TraceQL string comparison of strings starting with numbers [#5658](https://github.com/grafana/tempo/pull/5658) (@mdisibio)
 * [BUGFIX] Fix incorrect results in TraceQL compare() for spans with array attributes [#5519](https://github.com/grafana/tempo/pull/5519) (@ruslan-mikhailov)
 * [BUGFIX] Fix cache collision for incomplete query in SearchTagValuesV2 [#5549](https://github.com/grafana/tempo/pull/5549) (@ruslan-mikhailov)
 * [BUGFIX] Fix for structural operator with empty left-hand spanset [#5578](https://github.com/grafana/tempo/pull/5578) (@ruslan-mikhailov)
 * [BUGFIX] Deadlock on invalid query to api/v2/search/tags (SearchTagsV2) [#5607](https://github.com/grafana/tempo/pull/5607) (@ruslan-mikhailov)
+* [BUGFIX] Fixed incorrect root span detection when spans have a child_of link but no parent. [#3634](https://github.com/mexirica/tempo/pull/5557) (@mexirica)
 
 # v2.8.2
 

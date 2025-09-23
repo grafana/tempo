@@ -12,6 +12,9 @@ type Overrides interface {
 	MetricsGeneratorDisableCollection(userID string) bool
 	MetricsGeneratorGenerateNativeHistograms(userID string) overrides.HistogramMethod
 	MetricsGenerationTraceIDLabelName(userID string) string
+	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
+	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
+	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration
 }
 
 var _ Overrides = (overrides.Interface)(nil)

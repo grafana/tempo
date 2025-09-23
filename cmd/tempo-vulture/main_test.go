@@ -941,3 +941,63 @@ func TestRunCheckerSuccess(t *testing.T) {
 	require.NotNil(t, checkedInfo)
 	assert.Equal(t, seed.Unix(), checkedInfo.Timestamp().Unix())
 }
+
+func TestCreateHttpClient(t *testing.T) {
+	testCases := []struct {
+		name             string
+		queryURL         string
+		orgID            string
+		queryLiveStores  bool
+		expectedURL      string
+		expectedOrgID    string
+		expectedQLStores bool
+	}{
+		{
+			name:             "QueryLiveStores set to true",
+			queryURL:         "http://localhost:3200",
+			orgID:            "test-org",
+			queryLiveStores:  true,
+			expectedURL:      "http://localhost:3200",
+			expectedOrgID:    "test-org",
+			expectedQLStores: true,
+		},
+		{
+			name:             "QueryLiveStores set to false",
+			queryURL:         "http://localhost:3200",
+			orgID:            "test-org",
+			queryLiveStores:  false,
+			expectedURL:      "http://localhost:3200",
+			expectedOrgID:    "test-org",
+			expectedQLStores: false,
+		},
+		{
+			name:             "QueryLiveStores true with empty orgID",
+			queryURL:         "https://tempo.example.com",
+			orgID:            "",
+			queryLiveStores:  true,
+			expectedURL:      "https://tempo.example.com",
+			expectedOrgID:    "",
+			expectedQLStores: true,
+		},
+		{
+			name:             "QueryLiveStores false with different URL",
+			queryURL:         "https://grafana.com/tempo",
+			orgID:            "prod-org",
+			queryLiveStores:  false,
+			expectedURL:      "https://grafana.com/tempo",
+			expectedOrgID:    "prod-org",
+			expectedQLStores: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := createHTTPClient(tc.queryURL, tc.orgID, tc.queryLiveStores)
+
+			assert.NotNil(t, client, "createHttpClient should return a non-nil client")
+			assert.Equal(t, tc.expectedURL, client.BaseURL, "BaseURL should match expected value")
+			assert.Equal(t, tc.expectedOrgID, client.OrgID, "OrgID should match expected value")
+			assert.Equal(t, tc.expectedQLStores, client.QueryLiveStores, "QueryLiveStores should match expected value")
+		})
+	}
+}
