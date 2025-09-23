@@ -57,8 +57,7 @@
 * [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464)
 * [BUGFIX] Return Bad Request from frontend if the provided tag is invalid in SearchTagValuesV2 endpoint [#5493](https://github.com/grafana/tempo/pull/5493/) (@carles-grafana)
 
-
-## v2.9-rc.0 Tempo Rearchitecture
+### v2.9-rc.0 Tempo Rearchitecture [EXPERIMENTAL]
 
 * [CHANGE] **BREAKING CHANGE** Drop unused `backend_scheduler.tenant_measurement_interval`, use `backend_scheduler.compaction.measure_interval` instead. [#5328](https://github.com/grafana/tempo/pull/5328) (@zalegrala)
 * [CHANGE] Allow configuration of min/max input blocks for compaction provider. [#5373](https://github.com/grafana/tempo/pull/5373) (@zalegrala)
