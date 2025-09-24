@@ -86,7 +86,6 @@ type Generator struct {
 	partitionRing      ring.PartitionRingReader
 	partitionMtx       sync.RWMutex
 	assignedPartitions []int32
-	ingestMetrics      *ingest.Metrics
 }
 
 // New makes a new Generator.
@@ -114,7 +113,6 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		partitionRing: partitionRing,
 		reg:           reg,
 		logger:        logger,
-		ingestMetrics: ingest.NewMetrics("generator", prometheus.DefaultRegisterer),
 	}
 
 	if !cfg.DisableGRPC {

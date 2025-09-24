@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/backoff"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -21,34 +22,20 @@ const (
 	labelPartition = "partition"
 )
 
-type Metrics struct {
-	metricPartitionLag        *prometheus.GaugeVec
-	metricPartitionLagSeconds *prometheus.GaugeVec
-}
-
-func NewMetrics(subsystem string, registerer prometheus.Registerer) *Metrics {
-	m := &Metrics{
-		metricPartitionLag: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "tempo",
-			Subsystem: subsystem,
-			Name:      "group_partition_lag",
-			Help:      "Lag of a partition.",
-		}, []string{labelGroup, labelPartition}),
-		metricPartitionLagSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "tempo",
-			Subsystem: subsystem,
-			Name:      "group_partition_lag_seconds",
-			Help:      "Lag of a partition in seconds.",
-		}, []string{labelGroup, labelPartition}),
-	}
-
-	if registerer != nil {
-		_ = registerer.Register(m.metricPartitionLag)
-		_ = registerer.Register(m.metricPartitionLagSeconds)
-	}
-
-	return m
-}
+var (
+	metricPartitionLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "ingest",
+		Name:      "group_partition_lag",
+		Help:      "Lag of a partition.",
+	}, []string{labelGroup, labelPartition})
+	metricPartitionLagSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "ingest",
+		Name:      "group_partition_lag_seconds",
+		Help:      "Lag of a partition in seconds.",
+	}, []string{labelGroup, labelPartition})
+)
 
 // ExportPartitionLagMetrics in a background goroutine by periodically querying Kafka state
 // for the assigned and active partitions.  This exports the lag metric in number of records
@@ -56,7 +43,7 @@ func NewMetrics(subsystem string, registerer prometheus.Registerer) *Metrics {
 // Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting
 // stale data. For efficiency this is not detected automatically from changes inthe assigned
 // partition callback.
-func (m *Metrics) ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
+func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
 	go func() {
 		var (
 			waitTime = cfg.Kafka.ConsumerGroupLagMetricUpdateInterval
@@ -96,7 +83,7 @@ func (m *Metrics) ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Cl
 				for _, p := range assignedPartitions {
 					l, ok := lag.Lookup(topic, p)
 					if ok {
-						m.metricPartitionLag.WithLabelValues(group, strconv.Itoa(int(p))).Set(float64(l.Lag))
+						metricPartitionLag.WithLabelValues(group, strconv.Itoa(int(p))).Set(float64(l.Lag))
 					}
 				}
 			case <-ctx.Done():
@@ -109,17 +96,17 @@ func (m *Metrics) ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Cl
 // SetPartitionLagSeconds is similar to the auto exported lag, except it is in real clock seconds
 // which can only be known after the record is read from the queue, therefore it is set by the caller.
 // Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting stale data.
-func (m *Metrics) SetPartitionLagSeconds(group string, partition int32, lag time.Duration) {
-	m.metricPartitionLagSeconds.WithLabelValues(group, strconv.Itoa(int(partition))).Set(lag.Seconds())
+func SetPartitionLagSeconds(group string, partition int32, lag time.Duration) {
+	metricPartitionLagSeconds.WithLabelValues(group, strconv.Itoa(int(partition))).Set(lag.Seconds())
 }
 
 // ResetLagMetricsForRevokedPartitions should be called when a partition is revoked to prevent
 // exporting stale metrics for partitions that the application no longer owns.
-func (m *Metrics) ResetLagMetricsForRevokedPartitions(group string, partitions []int32) {
+func ResetLagMetricsForRevokedPartitions(group string, partitions []int32) {
 	for _, p := range partitions {
 		l := strconv.Itoa(int(p))
-		m.metricPartitionLag.DeletePartialMatch(prometheus.Labels{labelGroup: group, labelPartition: l})
-		m.metricPartitionLagSeconds.DeletePartialMatch(prometheus.Labels{labelGroup: group, labelPartition: l})
+		metricPartitionLag.DeletePartialMatch(prometheus.Labels{labelGroup: group, labelPartition: l})
+		metricPartitionLagSeconds.DeletePartialMatch(prometheus.Labels{labelGroup: group, labelPartition: l})
 	}
 }
 
