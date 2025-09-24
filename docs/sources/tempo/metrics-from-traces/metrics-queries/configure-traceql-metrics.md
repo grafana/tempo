@@ -40,7 +40,7 @@ To activate the `local-blocks` processor for all users, add it to the list of pr
 ```yaml
 # Global overrides configuration.
 overrides:
-  metrics_generator_processors: ["local-blocks"]
+  metrics_generator_processors: ['local-blocks']
 ```
 
 To configure the processor per tenant, use the `metrics_generator_processor` override.

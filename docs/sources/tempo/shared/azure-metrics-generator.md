@@ -32,9 +32,9 @@ generator:
   extraArgs:
     - "-config.expand-env=true"
   extraEnv:
-    - name: STORAGE_ACCOUNT_ACCESS_KEY
+    - name: <STORAGE_ACCOUNT_ACCESS_KEY>
       valueFrom:
         secretKeyRef:
-          name: TEMPO-TRACES-STG-KEY
-          key: TEMPO-TRACES-KEY
+          name: <TEMPO-TRACES-STG-KEY>
+          key: <TEMPO-TRACES-KEY>
 ```
