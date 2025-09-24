@@ -17,7 +17,7 @@
       backend_scheduler: 'backend-scheduler',
       backend_worker: 'backend-worker',
       memcached: 'memcached',
-      live_store_zone: 'live-store-zone',
+      live_store: 'live-store',
     },
     alerts: {
       compactions_per_hour_failed: 2,

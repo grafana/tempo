@@ -109,7 +109,7 @@ type LiveStore struct {
 	client  *kgo.Client
 	decoder *ingest.Decoder
 
-	reader  *PartitionReader
+	reader *PartitionReader
 
 	// Multi-tenant instances
 	instancesMtx sync.RWMutex
