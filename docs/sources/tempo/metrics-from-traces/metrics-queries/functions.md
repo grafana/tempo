@@ -380,9 +380,3 @@ Samples a fixed percentage of traces for trace-level aggregations.
 { } | count() by (resource.service.name) with(trace_sample=0.05)
 ```
 
-### When to use sampling
-
-- **Heavy aggregation queries** with large datasets
-- **Exploratory analysis** where approximate results are acceptable
-- **Dashboard queries** that need faster refresh times
-- **Avoid sampling** for precise metrics or rare event detection

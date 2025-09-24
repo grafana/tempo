@@ -25,7 +25,9 @@ TraceQL metrics sampling addresses the challenge of balancing query performance 
 - Resource-constrained environments with limited compute capacity
 - Large-scale deployments processing terabytes of trace data daily
 
-## Prerequisites
+Refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) to learn more. 
+
+## Before you begin
 
 TraceQL metrics sampling requires:
 
@@ -44,19 +46,19 @@ Adaptive sampling automatically determines the optimal sampling strategy based o
 { status=error } | count_over_time() by (resource.service.name) with(sample=true)
 ```
 
-**Best for:** Heavy aggregation queries, dashboard queries, and multi-service analysis with unpredictable data volumes.
+**Best for:** Most queries.  Specifically, all queries returning a single series, and cases where the dynamic sampling rate is important ,such as when the traffic has large variations across time or is not known in advance.
 
-**Limitations:** May over-sample rare events and results vary across blocks as new data arrives.
+**Limitations:** May under-sample rare events depending on the query, if it returns time series with a large difference between the most common and rarest events.
 
 ### Fixed span sampling: `with(span_sample=0.xx)`
 
-Fixed span sampling selects a specified percentage of spans using consistent hashing of span IDs. Provides predictable performance improvements and deterministic results.
+Fixed span sampling selects the specified percentage of spans.
 
 ```traceql
 { status=error } | rate() by (resource.service.name) with(span_sample=0.1)
 ```
 
-**Best for:** Consistent approximation, large-scale monitoring, and cost optimization scenarios.
+**Best for:** Exact control over accuracy and speed when the data characteristics are known in advance.
 
 **Limitations:** May miss important events during low-volume periods and not optimal for naturally selective queries.
 
@@ -73,36 +75,6 @@ Fixed trace sampling selects complete traces for analysis, preserving trace cont
 **Limitations:** May provide poor accuracy for span-level metrics and can introduce bias if trace volumes vary significantly across services.
 
 ## Implement sampling
-
-### Get started
-
-1. **Verify prerequisites:** Check Tempo version and ensure local-blocks processor is enabled
-2. **Start with adaptive sampling:** Apply `with(sample=true)` to non-critical queries first
-3. **Measure performance:** Compare execution times before and after sampling
-4. **Validate accuracy:** Test sampled results against exact results for critical queries
-
-### Grafana integration
-
-Use sampling in dashboard panels:
-
-```json
-{
-  "expr": "{ resource.service.name=\"frontend\" } | rate() with(sample=true)"
-}
-```
-
-For alerts, avoid sampling for critical alerts that trigger operational responses. Adaptive sampling is acceptable for warning alerts and trend monitoring.
-
-### Configuration optimization
-
-Increase query concurrency since sampling reduces per-job processing:
-
-```yaml
-query_frontend:
-  metrics:
-    concurrent_jobs: 1500
-    target_bytes_per_job: 1.5e+08
-```
 
 ## Best practices
 

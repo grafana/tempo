@@ -150,12 +150,6 @@ When using sampling in your TraceQL metrics queries, consider:
 
 Example configuration optimized for sampling:
 
-```yaml
-query_frontend:
-  metrics:
-    concurrent_jobs: 1500 # Higher concurrency with sampling
-    target_bytes_per_job: 1.5e+08 # Smaller jobs with sampling
-```
 
 ### Sampling best practices
 
