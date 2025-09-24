@@ -22,7 +22,6 @@ const (
 	internalLabelMetaType = "__meta_type"
 	internalMetaTypeCount = "__count"
 	internalLabelBucket   = "__bucket"
-	maxExemplars          = 100
 	maxExemplarsPerBucket = 2
 	// NormalNaN is a quiet NaN. This is also math.NaN().
 	normalNaN uint64 = 0x7ff8000000000001
@@ -483,7 +482,7 @@ type StepAggregator struct {
 
 var _ RangeAggregator = (*StepAggregator)(nil)
 
-func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator) *StepAggregator {
+func NewStepAggregator(start, end, step uint64, exemplars uint32, innerAgg func() VectorAggregator) *StepAggregator {
 	mapper := NewIntervalMapper(start, end, step)
 	intervals := mapper.IntervalCount()
 	vectors := make([]VectorAggregator, intervals)
@@ -494,8 +493,8 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 	return &StepAggregator{
 		intervalMapper:  mapper,
 		vectors:         vectors,
-		exemplars:       make([]Exemplar, 0, maxExemplars),
-		exemplarBuckets: newExemplarBucketSet(maxExemplars, start, end, step),
+		exemplars:       make([]Exemplar, 0, exemplars),
+		exemplarBuckets: newExemplarBucketSet(exemplars, start, end, step),
 	}
 }
 
@@ -920,7 +919,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // Dedupe spans parameter is an indicator of whether to expected duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -943,6 +942,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
+	exemplars := int(req.GetExemplars())
 	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
 		exemplars = v
 	}

@@ -134,9 +134,14 @@ sendLoop:
 			expectedExemplars: 25,
 		},
 		{
+			name:              "100 exemplars",
+			exemplars:         100,
+			expectedExemplars: 100,
+		},
+		{
 			name:              "capped exemplars",
 			exemplars:         1000,
-			expectedExemplars: 100, // capped to 100
+			expectedExemplars: 250, // capped to 250
 		},
 	} {
 		for _, query := range []string{

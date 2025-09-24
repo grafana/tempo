@@ -40,6 +40,7 @@ type MetricsCompare struct {
 	baselineExemplars  []Exemplar
 	selectionExemplars []Exemplar
 	seriesAgg          SeriesAggregator
+	maxExemplars       int
 
 	// Runtime fields to avoid allocating closures
 	// and escaping to the heap when we call span.AllAttributesFunc.
@@ -75,6 +76,7 @@ func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 }
 
 func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+	m.maxExemplars = int(q.GetExemplars())
 	switch mode {
 	case AggregateModeRaw:
 		m.intervalMapper = NewIntervalMapperFromReq(q)
@@ -84,7 +86,7 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		m.selectionTotals = make(map[Attribute][]float64)
 
 	case AggregateModeSum:
-		m.seriesAgg = NewSimpleCombiner(q, sumAggregation, maxExemplars)
+		m.seriesAgg = NewSimpleCombiner(q, sumAggregation, q.Exemplars)
 		return
 
 	case AggregateModeFinal:
@@ -185,7 +187,7 @@ func (m *MetricsCompare) observeExemplar(span Span) {
 	isSelection := m.isSelection(span, st)
 
 	// Exemplars
-	if len(m.baselineExemplars) >= maxExemplars || len(m.selectionExemplars) >= maxExemplars {
+	if len(m.baselineExemplars) >= m.maxExemplars || len(m.selectionExemplars) >= m.maxExemplars {
 		return
 	}
 
