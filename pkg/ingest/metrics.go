@@ -29,6 +29,7 @@ var (
 		Name:      "group_partition_lag",
 		Help:      "Lag of a partition.",
 	}, []string{labelGroup, labelPartition})
+
 	metricPartitionLagSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "ingest",

@@ -17,6 +17,7 @@
       backend_scheduler: 'backend-scheduler',
       backend_worker: 'backend-worker',
       memcached: 'memcached',
+      live_store_zone: 'live-store-zone',
     },
     alerts: {
       compactions_per_hour_failed: 2,
@@ -40,6 +41,9 @@
       backend_scheduler_bad_jobs_count_per_minute: 0,  // alert if there are any bad jobs
       backend_worker_call_retries_count_per_minute: 5,  // 5 retries per minute
       vulture_error_rate_threshold: 0.1,  // 10% error rate
+      // Livestore partition lag thresholds in seconds
+      live_store_partition_lag_warning_seconds: 200,  // 3.3 minutes
+      live_store_partition_lag_critical_seconds: 300,  // 5 minutes
     },
 
     per_cluster_label: 'cluster',
