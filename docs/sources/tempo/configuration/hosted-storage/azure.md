@@ -185,8 +185,8 @@ storage:
     azure:
       container_name: container-name # how to store data in azure
       endpoint_suffix: azurite-host.svc.cluster.local:10000 # Azurite emulator host:port
-      STORAGE_ACCOUNT_NAME: "STORAGE-ACCOUNT-NAME"
-      storage_account_key: "STORAGE_ACCOUNT_ACCESS_KEY"
+      storage_account_name: "<STORAGE-ACCOUNT-NAME>"
+      storage_account_key: "<STORAGE_ACCOUNT_ACCESS_KEY>"
 ```
 
 ### Azure blocklist polling

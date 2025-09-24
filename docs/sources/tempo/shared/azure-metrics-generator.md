@@ -25,7 +25,7 @@ When this configuration is set, the metrics-generator produces blocks and flushe
 In this case, list the generator in the `env var` expansion configuration so the `STORAGE_ACCOUNT_ACCESS_KEY` has the secret value.
 
 You can use this configuration example with Helm charts, like `tempo-distributed`.
-Replace any values in all caps with the values for your deployment.
+Replace any values in all caps with the values for your Helm deployment.
 
 ```yaml
 generator:
