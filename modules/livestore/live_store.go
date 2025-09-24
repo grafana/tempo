@@ -275,7 +275,7 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		s.logger,
 		s.cfg.IngestConfig,
 		func() []int32 { return []int32{s.ingestPartitionID} },
-		func() { /* no-op for force metadata refresh */ },
+		s.client.ForceMetadataRefresh,
 	)
 
 	for i := range s.cfg.CompleteBlockConcurrency {
