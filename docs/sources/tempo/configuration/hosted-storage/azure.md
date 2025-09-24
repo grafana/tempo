@@ -20,8 +20,8 @@ Some of the supported features include:
 Tempo supports the following authentication methods:
 
 - Shared key
-- Managed Identity (system/user-assigned) [use `use_managed_identity`, `user_assigned_id`]
-- Azure Workload Identity (federated token) [use `use_federated_token`]
+- Managed Identity (system/user-assigned): use `use_managed_identity`, `user_assigned_id`
+- Azure Workload Identity (federated token): use `use_federated_token`
 
 ## Before you begin
 
@@ -31,12 +31,10 @@ Tempo requires the following configuration to authenticate to and access Azure b
 - Credentials for accessing the Storage Account that are one of the following:
 
   - Storage Account access key specified in the configuration file as `storage_account_key` or in the environment variable `AZURE_STORAGE_KEY`.
-  - An Azure Managed Identity that is either system or user assigned. To use Azure Managed Identities, you need to set `use_managed_identity` to `true` in the configuration file or set `user_assigned_id` to the client ID for the managed identity you'd like to use.
-    - For a system-assigned managed identity, no additional configuration is required.
-    - For a user-assigned managed identity, you need to set `user_assigned_id` to the client ID for the managed identity in the configuration file.
+  - An Azure Managed Identity that's either system or user assigned. To use Azure Managed Identities, you need to set `use_managed_identity` to `true` in the configuration file or set `user_assigned_id` to the client ID for the managed identity you'd like to use.
+    - System-assigned managed identity don't require additional configuration.
+    - User-assigned managed identity require you to set `user_assigned_id` to the client ID for the managed identity in the configuration file.
   - Via Azure Workload Identity. To use Azure Workload Identity, you need to enable Azure Workload Identity on your cluster, add the required label and annotation to the service account and the required Pod label. Additionally, you need to set `use_federated_token` to `true` to utilize Azure Workload Identity.
-
-- If you are using Azure sovereign or regional clouds (for example, Azure US Government or Azure Germany), set the `endpoint_suffix` under the Azure storage configuration to the appropriate domain. See examples below.
 
 ## Sample configuration for Tempo monolithic mode
 
@@ -177,7 +175,7 @@ Tempo handles the Azurite URL format automatically.
 If you encounter any issues, try using the fully qualified domain name (FQDN) for the Azurite emulator.
 For example, `azurite-host.azure.local:10000`.
 
-In this example, replace the example values with your Azure configuration values.
+In this example, replace the example values with your Azure configuration values and then update your Helm deployment.
 
 ```yaml
 storage:
@@ -190,20 +188,6 @@ storage:
       STORAGE_ACCOUNT_NAME: "STORAGE-ACCOUNT-NAME"
       storage_account_key: "STORAGE_ACCOUNT_ACCESS_KEY"
 ```
-
-### Endpoints for regional and sovereign clouds
-
-By default, Tempo connects to `blob.core.windows.net`. For Azure sovereign clouds, you must specify `endpoint_suffix` to match the correct environment. For example:
-
-- Azure US Government: `blob.core.usgovcloudapi.net`
-- Azure Germany: `blob.core.cloudapi.de`
-
-Set this value under `storage.trace.azure.endpoint_suffix` in your configuration.
-
-#### Troubleshoot Azure sovereign clouds
-
-If you are using Azure US Government or Azure Germany and see connectivity or authentication errors against `blob.core.windows.net`, set `storage.trace.azure.endpoint_suffix` to the correct domain for your environment.
-For example, `blob.core.usgovcloudapi.net` for Azure US Government or `blob.core.cloudapi.de` for Azure Germany.
 
 ### Azure blocklist polling
 
