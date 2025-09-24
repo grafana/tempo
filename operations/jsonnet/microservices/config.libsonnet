@@ -185,22 +185,22 @@
       },
     },
     memcached: {
-      replicas: 3,
+      cache_max_size_mbs: 5,
       connection_limit: 4096,
       memory_limit_mb: 1024,
-      cache_max_size_mbs: 5,
+      replicas: 3,
     },
     memcached_frontend_search+: {
+      cache_max_size_mbs: 1,
       connection_limit: 4096,
       memory_limit_mb: 1024,
       replicas: 3,
-      cache_max_size_mbs: 1,
     },
     memcached_parquet_page+: {
+      cache_max_size_mbs: 2,
       connection_limit: 4096,
       memory_limit_mb: 1024,
       replicas: 3,
-      cache_max_size_mbs: 2,
     },
     jaeger_ui: {
       base_path: '/',
