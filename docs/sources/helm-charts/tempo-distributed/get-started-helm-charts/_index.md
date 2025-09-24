@@ -630,3 +630,108 @@ For example:
 
 Enterprise users may need to [install the Enterprise Traces plugin](/docs/enterprise-traces/latest/setup/setup-get-plugin-grafana/) in their Grafana Enterprise instance to allow configuration of tenants, tokens, and access policies.
 After creating a user and access policy using the plugin, you can configure a data source to point at `http://tempo-enterprise-gateway.tempo-test.svc.cluster.local:3100`.
+
+## Set up metamonitoring
+
+Metamonitoring provides observability for your Tempo deployment by collecting metrics and logs from the Tempo components themselves. This helps you monitor the health and performance of your tracing infrastructure.
+Setting up metamonitoring for Tempo and GET uses the `k8s-monitoring` Helm chart.
+For more information about this Helm chart, refer to [k8s-monitoring README](https://github.com/grafana/k8s-monitoring-helm/blob/main/charts/k8s-monitoring/README.md).
+### Configure metamonitoring
+
+To configure metamonitoring, you need to create a `metamonitoring-values.yaml` file and use the Kubernetes Monitoring Helm chart.
+1. Create a `metamonitoring-values.yaml` file for the Kubernetes Monitoring Helm chart configuration.
+
+   Replace the following values with your monitoring backend details:
+   - `tempo`: A descriptive name for your cluster and namespace
+   - `<url>`: Your Prometheus and Loki endpoint URLs
+   - `<username>`: Your username/instance ID
+   - `<password>`: Your password/API key
+
+   ```yaml
+   cluster:
+     name: tempo # Name of the cluster, this will populate the cluster label
+
+   integrations:
+     tempo:
+       instances:
+         - name: "tempo" # This is the name for the instance label that will be reported.
+           namespaces:
+             - tempo # This is the namespace that will be searched for tempo instances, change this accordingly
+           metrics:
+             enabled: true
+             portName: prom-metrics
+           logs:
+             enabled: true
+           labelSelectors:
+             app.kubernetes.io/name: tempo
+
+     alloy:
+       name: "alloy-tempo"
+
+   destinations:
+     - name: "tempo-metrics"
+       type: prometheus
+       url: "<url>" # Enter Prometheus URL
+       auth:
+         type: basic
+         username: "<username>" # Enter username
+         password: "<password>" # Enter password
+
+     - name: "tempo-logs"
+       type: loki
+       url: "<url>" # Enter Loki URL
+       auth:
+         type: basic
+         username: "<username>" # Enter username
+         password: "<password>" # Enter password
+
+   alloy-metrics:
+     enabled: true
+
+   podLogs:
+     enabled: true
+     gatherMethod: kubernetesApi
+     namespaces: [tempo] # Set to namespace
+     collector: alloy-singleton
+
+   alloy-singleton:
+     enabled: true
+
+   alloy-metrics:
+     enabled: true # This will send Grafana Alloy metrics to ensure the monitoring is working properly.
+   ```
+
+
+1. Install the k8s-monitoring Helm chart:
+
+   ```bash
+   helm install k8s-monitoring grafana/k8s-monitoring \
+     --namespace monitoring \
+     --create-namespace \
+     -f metamonitoring-values.yaml
+   ```
+
+1. Verify the installation:
+
+   ```bash
+   kubectl -n monitoring get pods
+   ```
+
+   You should see pods for the k8s-monitoring components running.
+
+### Verify metamonitoring in Grafana
+
+1. Navigate to your Grafana instance (Grafana Cloud or self-hosted).
+
+1. Check that metrics are being collected:
+   - Go to **Explore** > **Prometheus**.
+   - Query for Tempo metrics like `tempo_build_info` or `tempo_distributor_spans_received_total`.
+
+1. Check that logs are being collected:
+   - Go to **Explore** > **Loki**
+   - Filter logs by your cluster name and look for Tempo component logs
+
+1. Set up Tempo monitoring dashboards:
+   - For pre-built dashboards and alerts, refer to the [Tempo mixin documentation](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin)
+
+Your Tempo deployment now includes comprehensive metamonitoring, giving you visibility into the health and performance of your tracing infrastructure.
