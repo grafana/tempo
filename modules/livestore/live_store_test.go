@@ -133,13 +133,13 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
 	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
+	cncl()
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
-	cncl()
 }
 
 func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
