@@ -542,8 +542,9 @@ func defaultInstance(t testing.TB) (*instance, *LiveStore) {
 func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore) {
 	tmpDir := t.TempDir()
 
-	liveStore, _, err := defaultLiveStore(t, tmpDir)
+	liveStore, _, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
+	t.Cleanup(cncl)
 	liveStore.cfg.QueryBlockConcurrency = 1
 
 	// Create a fake instance for testing
@@ -553,7 +554,7 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore) {
 	return instance, liveStore
 }
 
-func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, context.Context, error) {
+func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, context.Context, func(), error) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	cfg.WAL.Filepath = tmpDir
@@ -591,7 +592,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, context.Context,
 	// Create overrides
 	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, func() {}, err
 	}
 
 	// Create metrics
@@ -602,12 +603,11 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, context.Context,
 	// Use fake Kafka cluster for testing
 	liveStore, err := New(cfg, limits, logger, reg, true) // singlePartition = true for testing
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, func() {}, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	return liveStore, ctx, services.StartAndAwaitRunning(ctx, liveStore)
+	return liveStore, ctx, cancel, services.StartAndAwaitRunning(ctx, liveStore)
 }
 
 var _ log.Logger = (*testLogger)(nil)
