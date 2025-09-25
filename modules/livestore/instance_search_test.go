@@ -869,7 +869,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.Greater(t, len(ids), 0, "writeTracesForSearch should create traces")
 
 	// Test 1: Find traces after being cut to WAL
-	resp, err := i.FindByTraceID(context.Background(), ids[0])
+	resp, err := i.FindByTraceID(context.Background(), ids[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Trace)
@@ -881,7 +881,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NotEqual(t, blockID, uuid.Nil)
 
 	// Verify we can still find traces from walBlocks
-	resp, err = i.FindByTraceID(context.Background(), ids[0])
+	resp, err = i.FindByTraceID(context.Background(), ids[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace)
 
@@ -890,7 +890,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify we can find traces from completed blocks
-	resp, err = i.FindByTraceID(context.Background(), ids[0])
+	resp, err = i.FindByTraceID(context.Background(), ids[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace)
 
@@ -899,11 +899,11 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.Greater(t, len(moreIDs), 0, "should create more traces")
 
 	// Verify we can find both old and new traces
-	resp1, err := i.FindByTraceID(context.Background(), ids[0])
+	resp1, err := i.FindByTraceID(context.Background(), ids[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp1.Trace, "Should find trace from completed blocks")
 
-	resp2, err := i.FindByTraceID(context.Background(), moreIDs[0])
+	resp2, err := i.FindByTraceID(context.Background(), moreIDs[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp2.Trace, "Should find trace from head block")
 

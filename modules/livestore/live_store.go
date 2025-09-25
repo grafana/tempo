@@ -475,7 +475,7 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 	if err != nil {
 		return nil, err
 	}
-	return inst.FindByTraceID(ctx, req.TraceID)
+	return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
 }
 
 // SearchRecent implements tempopb.Querier
