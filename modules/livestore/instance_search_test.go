@@ -62,7 +62,7 @@ func TestInstanceSearch(t *testing.T) {
 	req.Limit = uint32(len(ids)) + 1
 
 	// Test after appending to WAL. writeTracesforSearch() makes sure all traces are in the wal
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sr, err := i.Search(ctx, req)
 	assert.NoError(t, err)
@@ -110,7 +110,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 			// Test live traces, these are cut roughly every 5 seconds so these should
 			// not exist yet.
-			ctx, cancel := context.WithCancel(t.Context())
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sr, err := i.Search(ctx, req)
 			assert.NoError(t, err)
@@ -156,7 +156,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	tagValue := bar
 	ids, _, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false, false)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
@@ -232,7 +232,7 @@ func TestInstanceSearchTags(t *testing.T) {
 
 	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	userCtx := user.InjectOrgID(ctx, "fake")
 
@@ -296,12 +296,13 @@ func TestInstanceSearchNoData(t *testing.T) {
 		Query: "{}",
 	}
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+
 	sr, err := i.Search(ctx, req)
 	assert.NoError(t, err)
 	require.Len(t, sr.Traces, 0)
 
+	cancel()
 	err = services.StopAndAwaitTerminated(ctx, ls)
 	if errors.Is(err, context.Canceled) {
 		return
@@ -330,7 +331,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	// create multiple distinct values like bar0, bar1, ...
 	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, tagValue, true, false)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	userCtx := user.InjectOrgID(ctx, testTenantID)
 
@@ -385,7 +386,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	// Second block worth of traces
 	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, "another-"+bar, true, false)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	userCtx := user.InjectOrgID(ctx, testTenantID)
 
@@ -424,10 +425,6 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 }
 
 func TestSearchTagsV2Limits(t *testing.T) {
-	ctx, cncl := context.WithCancel(t.Context())
-	ctx = user.InjectOrgID(ctx, "test")
-	defer cncl()
-
 	for _, testCase := range []struct {
 		MaxBytesPerTagValuesQuery int
 	}{
@@ -451,6 +448,10 @@ func TestSearchTagsV2Limits(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("MaxBytesPerTagValuesQuery=%d", testCase.MaxBytesPerTagValuesQuery), func(t *testing.T) {
+			ctx, cncl := context.WithCancel(context.Background())
+			ctx = user.InjectOrgID(ctx, "test")
+			defer cncl()
+
 			instance, ls := defaultInstance(t)
 			limits, err := overrides.NewOverrides(overrides.Config{
 				Defaults: overrides.Overrides{
@@ -604,7 +605,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	return liveStore, services.StartAndAwaitRunning(ctx, liveStore)
 }
@@ -624,7 +625,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 	var ids [][]byte
 	var traces []*tempopb.Trace
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	for j := 0; j < numTraces; j++ {
@@ -661,7 +662,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	expectedEventTagValues := make([]string, 0, numTraces)
 	expectedLinkTagValues := make([]string, 0, numTraces)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	now := time.Now()
@@ -742,7 +743,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	end := make(chan struct{})
 	wg := sync.WaitGroup{}
-	ctx, cncl := context.WithCancel(t.Context())
+	ctx, cncl := context.WithCancel(context.Background())
 
 	concurrent := func(f func()) {
 		wg.Add(1)
@@ -849,12 +850,12 @@ func TestInstanceSearchMetrics(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		ctx, cancel := context.WithCancel(t.Context())
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		i.pushBytes(ctx, time.Now(), req)
 	}
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	search := func() *tempopb.SearchMetrics {
 		sr, err := i.Search(ctx, &tempopb.SearchRequest{
@@ -900,7 +901,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.Greater(t, len(ids), 0, "writeTracesForSearch should create traces")
 
 	// Test 1: Find traces after being cut to WAL
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	resp, err := i.FindByTraceID(ctx, ids[0])
 	require.NoError(t, err)
@@ -1117,7 +1118,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	require.NotEqual(t, uuid.Nil, blockID)
 
 	// Complete the block
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	err = inst.completeBlock(ctx, blockID)
 	require.NoError(t, err)

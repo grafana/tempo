@@ -60,7 +60,7 @@ func TestInstanceLimits(t *testing.T) {
 		// two different traces with different ids
 		id1 := test.ValidTraceID(nil)
 		id2 := test.ValidTraceID(nil)
-		ctx, cancel := context.WithCancel(t.Context())
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		pushTrace(ctx, t, instance, test.MakeTrace(5, id1), id1)
 		pushTrace(ctx, t, instance, test.MakeTrace(5, id2), id2)
@@ -75,7 +75,7 @@ func TestInstanceLimits(t *testing.T) {
 		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 
 		id := test.ValidTraceID(nil)
-		ctx, cancel := context.WithCancel(t.Context())
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		// First push fits
 		pushTrace(ctx, t, instance, test.MakeTrace(5, id), id)
@@ -93,7 +93,7 @@ func TestInstanceLimits(t *testing.T) {
 	t.Run("max traces - too many", func(t *testing.T) {
 		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 
-		ctx, cancel := context.WithCancel(t.Context())
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		for range 10 {
@@ -110,7 +110,7 @@ func TestInstanceLimits(t *testing.T) {
 func TestInstanceNoLimits(t *testing.T) {
 	instance, ls := instanceWithPushLimits(t, 0, 0) // no limits by default
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	for range 100 {
@@ -128,7 +128,7 @@ func TestInstanceNoLimits(t *testing.T) {
 func TestInstanceBackpressure(t *testing.T) {
 	instance, ls := defaultInstance(t)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	id1 := test.ValidTraceID(nil)
