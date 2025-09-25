@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -577,12 +576,18 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	return resp, nil
 }
 
-func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.TraceByIDResponse, error) {
+func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowPartialTrace bool) (*tempopb.TraceByIDResponse, error) {
 	var (
 		metricsMtx sync.Mutex
 		metrics    = tempopb.TraceByIDMetrics{}
-		combiner   = trace.NewCombiner(math.MaxInt64, true)
+		maxBytes   = i.overrides.MaxBytesPerTrace(i.tenantID)
+		searchOpts = common.DefaultSearchOptions()
+		combiner   = trace.NewCombiner(maxBytes, allowPartialTrace)
 	)
+
+	if !allowPartialTrace {
+		searchOpts = common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+	}
 
 	// Check live traces first
 	i.liveTracesMtx.Lock()
@@ -600,7 +605,7 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	i.liveTracesMtx.Unlock()
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
-		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+		trace, err := b.FindTraceByID(ctx, traceID, searchOpts)
 		if err != nil {
 			return err
 		}

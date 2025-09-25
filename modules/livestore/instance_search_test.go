@@ -869,7 +869,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.Greater(t, len(ids), 0, "writeTracesForSearch should create traces")
 
 	// Test 1: Find traces after being cut to WAL
-	resp, err := i.FindByTraceID(context.Background(), ids[0])
+	resp, err := i.FindByTraceID(context.Background(), ids[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Trace)
@@ -881,7 +881,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NotEqual(t, blockID, uuid.Nil)
 
 	// Verify we can still find traces from walBlocks
-	resp, err = i.FindByTraceID(context.Background(), ids[0])
+	resp, err = i.FindByTraceID(context.Background(), ids[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace)
 
@@ -890,7 +890,7 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify we can find traces from completed blocks
-	resp, err = i.FindByTraceID(context.Background(), ids[0])
+	resp, err = i.FindByTraceID(context.Background(), ids[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace)
 
@@ -899,16 +899,84 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.Greater(t, len(moreIDs), 0, "should create more traces")
 
 	// Verify we can find both old and new traces
-	resp1, err := i.FindByTraceID(context.Background(), ids[0])
+	resp1, err := i.FindByTraceID(context.Background(), ids[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp1.Trace, "Should find trace from completed blocks")
 
-	resp2, err := i.FindByTraceID(context.Background(), moreIDs[0])
+	resp2, err := i.FindByTraceID(context.Background(), moreIDs[0], true)
 	require.NoError(t, err)
 	require.NotNil(t, resp2.Trace, "Should find trace from head block")
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
+}
+
+func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
+	// Test that the maxBytesPerTrace limit is being passed to the combiner correctly
+	i, ls := defaultInstance(t)
+	defer func() {
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		require.NoError(t, err)
+	}()
+
+	// Set generous ingestion limits initially so the trace can be fully ingested
+	generousLimits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
+				MaxBytesPerTrace: 10 * 1024 * 1024, // 10MB - very generous
+			},
+		},
+	}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	i.overrides = generousLimits
+
+	// Create a large trace
+	traceID := test.ValidTraceID(nil)
+	expectedTrace := test.MakeTraceWithSpanCount(10, 100, traceID)
+
+	// Push the large trace with generous limits
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+	traceBytes, err := expectedTrace.Marshal()
+	require.NoError(t, err)
+
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{traceID},
+	}
+	i.pushBytes(ctx, time.Now(), req)
+
+	// Cut to ensure we can find it
+	err = i.cutIdleTraces(true)
+	require.NoError(t, err)
+
+	// and request it back
+	resp, err := i.FindByTraceID(context.Background(), traceID, false)
+	require.NoError(t, err)
+	test.TracesEqual(t, expectedTrace, resp.Trace)
+
+	// Now change the overrides to make the trace "too large"
+	newLimit := resp.Trace.Size() / 3 // Much smaller than the ingested trace
+	strictLimits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
+				MaxBytesPerTrace: newLimit,
+			},
+		},
+	}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	i.overrides = strictLimits
+
+	// Test with allowPartialTrace=false - should return an error since trace exceeds the new limit
+	resp1, err := i.FindByTraceID(context.Background(), traceID, false)
+
+	require.Contains(t, err.Error(), "trace exceeds max size")
+	// When there's an error, the response is nil - this is the current behavior
+	require.Nil(t, resp1, "Response should be nil when there's an error")
+
+	// Test with allowPartialTrace=true - should return partial trace without error
+	resp, err = i.FindByTraceID(context.Background(), traceID, true)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Trace) // can't validate the trace b/c its a subset of the original trace. as long as its non-nil, we're good
 }
 
 func TestIncludeBlock(t *testing.T) {

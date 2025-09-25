@@ -139,14 +139,14 @@ func TestInstanceBackpressure(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// First trace is found
-	res, err := instance.FindByTraceID(t.Context(), id1)
+	res, err := instance.FindByTraceID(t.Context(), id1, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Trace)
 	require.Greater(t, res.Trace.Size(), 0)
 
 	// Second is not (should be blocked)
-	res, err = instance.FindByTraceID(t.Context(), id2)
+	res, err = instance.FindByTraceID(t.Context(), id2, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Nil(t, res.Trace)
@@ -163,7 +163,7 @@ func TestInstanceBackpressure(t *testing.T) {
 	}
 
 	// After cut, second trace is pushed to instance and can be found
-	res, err = instance.FindByTraceID(t.Context(), id2)
+	res, err = instance.FindByTraceID(t.Context(), id2, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Trace)
