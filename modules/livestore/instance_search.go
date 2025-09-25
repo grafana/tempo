@@ -580,14 +580,13 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 	var (
 		metricsMtx sync.Mutex
 		metrics    = tempopb.TraceByIDMetrics{}
+		maxBytes   = i.overrides.MaxBytesPerTrace(i.tenantID)
+		searchOpts = common.DefaultSearchOptions()
+		combiner   = trace.NewCombiner(maxBytes, allowPartialTrace)
 	)
 
-	maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
-	searchOpts := common.DefaultSearchOptions()
-	combiner := trace.NewCombiner(maxBytes, allowPartialTrace)
-
 	if !allowPartialTrace {
-		searchOpts.MaxBytes = maxBytes
+		searchOpts = common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 	}
 
 	// Check live traces first
