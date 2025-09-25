@@ -199,7 +199,6 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cncl := context.WithCancel(context.Background())
-	defer cncl()
 
 	// complete the wal blocks
 	err = inst.completeBlock(ctx, walUUID)
@@ -207,6 +206,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
 	err = services.StopAndAwaitTerminated(ctx, liveStore)
+	cncl()
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
