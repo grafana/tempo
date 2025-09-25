@@ -159,8 +159,10 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	_, err = inst.cutBlocks(true)
 	require.NoError(t, err)
 
+	ctx, cncl := context.WithCancel(t.Context())
+	defer cncl()
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
@@ -191,12 +193,15 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	walUUID, err := inst.cutBlocks(true)
 	require.NoError(t, err)
 
+	ctx, cncl := context.WithCancel(t.Context())
+	defer cncl()
+
 	// complete the wal blocks
-	err = inst.completeBlock(t.Context(), walUUID)
+	err = inst.completeBlock(ctx, walUUID)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
@@ -242,8 +247,11 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 		},
 	}
 
+	ctx, cncl := context.WithCancel(t.Context())
+	defer cncl()
+
 	// Call consume
-	_, err := ls.consume(context.Background(), createRecordIter(records), now)
+	_, err := ls.consume(ctx, createRecordIter(records), now)
 	require.NoError(t, err)
 
 	// Verify metrics
@@ -255,7 +263,7 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant1", "too_old")))
 	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant2", "too_old")))
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -314,11 +322,14 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		},
 	}
 
+	ctx, cncl := context.WithCancel(t.Context())
+	defer cncl()
+
 	for _, tc := range tcs {
 		ls, err := defaultLiveStore(t, t.TempDir())
 		require.NoError(t, err)
 
-		_, err = ls.consume(t.Context(), createRecordIter(tc.records), now)
+		_, err = ls.consume(ctx, createRecordIter(tc.records), now)
 		require.NoError(t, err)
 
 		inst, err := ls.getOrCreateInstance(testTenantID)
@@ -335,14 +346,14 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		// cut to complete block and test again
 		uuid, err := inst.cutBlocks(true)
 		require.NoError(t, err)
-		err = inst.completeBlock(t.Context(), uuid)
+		err = inst.completeBlock(ctx, uuid)
 		require.NoError(t, err)
 
 		meta = inst.completeBlocks[uuid].BlockMeta()
 		require.Equal(t, tc.expectedStart, meta.StartTime)
 		require.Equal(t, tc.expectedEnd, meta.EndTime)
 
-		err = services.StopAndAwaitTerminated(t.Context(), ls)
+		err = services.StopAndAwaitTerminated(ctx, ls)
 		require.NoError(t, err)
 	}
 }
