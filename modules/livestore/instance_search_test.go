@@ -409,7 +409,9 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 }
 
 func TestSearchTagsV2Limits(t *testing.T) {
-	ctx := user.InjectOrgID(t.Context(), "test")
+	ctx, cncl := context.WithCancel(t.Context())
+	ctx = user.InjectOrgID(t.Context(), "test")
+	defer cncl()
 
 	for _, testCase := range []struct {
 		MaxBytesPerTagValuesQuery int
