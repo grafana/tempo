@@ -21,7 +21,7 @@ import (
 func TestLiveStoreBasicConsume(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, _, _, err := defaultLiveStore(t, tmpDir)
+	liveStore, _, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -43,7 +43,7 @@ func TestLiveStoreBasicConsume(t *testing.T) {
 func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, ctx, _, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -89,7 +89,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, ctx, _, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -100,7 +100,7 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 
-	liveStore, ctx, _, err = defaultLiveStore(t, tmpDir)
+	liveStore, _, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -110,7 +110,7 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, ctx, _, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -128,7 +128,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 
-	liveStore, ctx, _, err = defaultLiveStore(t, tmpDir)
+	liveStore, _, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -138,7 +138,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, ctx, _, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -160,7 +160,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 
-	liveStore, ctx, _, err = defaultLiveStore(t, tmpDir)
+	liveStore, _, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -170,7 +170,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, ctx, _, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -196,7 +196,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 
-	liveStore, ctx, _, err = defaultLiveStore(t, tmpDir)
+	liveStore, _, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -205,7 +205,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 
 func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	// default live store uses the default complete block timeout
-	ls, ctx, _, _ := defaultLiveStore(t, t.TempDir())
+	ls, ctx, _ := defaultLiveStore(t, t.TempDir())
 
 	// Reset metrics
 	metricRecordsProcessed.Reset()
@@ -312,7 +312,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		ls, ctx, _, err := defaultLiveStore(t, t.TempDir())
+		ls, ctx, err := defaultLiveStore(t, t.TempDir())
 		require.NoError(t, err)
 
 		_, err = ls.consume(ctx, createRecordIter(tc.records), now)
@@ -347,7 +347,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 func TestLiveStoreShutdownWithPendingCompletions(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, _, _, err := defaultLiveStore(t, tmpDir)
+	liveStore, _, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
