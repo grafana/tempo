@@ -1,18 +1,26 @@
 package livetraces
 
 import (
+	"bytes"
+	"fmt"
 	"math/rand/v2"
 	"testing"
 	"time"
 
+	kitlog "github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testTenantID = "fake"
+)
+
 func TestLiveTracesSizesAndLen(t *testing.T) {
-	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, time.Millisecond, time.Second)
+	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, time.Millisecond, time.Second, testTenantID)
 
 	expectedSz := uint64(0)
 	expectedLen := uint64(0)
@@ -48,7 +56,7 @@ func TestLiveTracesSizesAndLen(t *testing.T) {
 }
 
 func TestCutIdleDueToIdleTime(t *testing.T) {
-	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, time.Second, time.Hour)
+	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, time.Second, time.Hour, testTenantID)
 
 	id := test.ValidTraceID(nil)
 	tr := test.MakeTrace(1, id)
@@ -77,7 +85,7 @@ func TestCutIdleDueToIdleTime(t *testing.T) {
 }
 
 func TestCutIdleDueToLiveTime(t *testing.T) {
-	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, time.Hour, time.Second)
+	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, time.Hour, time.Second, testTenantID)
 
 	id := test.ValidTraceID(nil)
 	tr := test.MakeTrace(1, id)
@@ -105,8 +113,41 @@ func TestCutIdleDueToLiveTime(t *testing.T) {
 	require.Equal(t, 0, len(lt.Traces))
 }
 
+func TestMaxTraceSizeExceededWithAccumulation(t *testing.T) {
+	var buf bytes.Buffer
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(&buf))
+
+	originalLogger := log.Logger
+	log.Logger = logger
+	defer func() { log.Logger = originalLogger }()
+
+	const (
+		batchSize    = uint64(300)
+		maxTraceSize = uint64(500)
+	)
+
+	lt := New[*v1.ResourceSpans](func(_ *v1.ResourceSpans) uint64 { return batchSize }, time.Hour, time.Hour, testTenantID)
+
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(1, id)
+
+	// First push should succeed
+	lt.Push(id, tr.ResourceSpans[0], 0)
+
+	// Second push should fail: batchSize + batchSize > maxTraceSize
+	err := lt.PushWithTimestampAndLimits(time.Now(), id, tr.ResourceSpans[0], 0, maxTraceSize)
+
+	require.Equal(t, ErrMaxTraceSizeExceeded, err)
+
+	logOutput := buf.String()
+	require.Contains(t, logOutput, "max trace size exceeded")
+	require.Contains(t, logOutput, fmt.Sprintf(`"max":%d`, maxTraceSize))
+	require.Contains(t, logOutput, fmt.Sprintf(`"reqSize":%d`, batchSize))
+	require.Contains(t, logOutput, fmt.Sprintf(`"totalSize":%d`, batchSize))
+}
+
 func BenchmarkLiveTracesWrite(b *testing.B) {
-	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0)
+	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0, testTenantID)
 
 	var traces []*tempopb.Trace
 	for i := 0; i < 100_000; i++ {
@@ -123,7 +164,7 @@ func BenchmarkLiveTracesWrite(b *testing.B) {
 }
 
 func BenchmarkLiveTracesRead(b *testing.B) {
-	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0)
+	lt := New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, 0, 0, testTenantID)
 
 	for i := 0; i < 100_000; i++ {
 		tr := test.MakeTrace(1, nil)
