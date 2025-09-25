@@ -583,8 +583,12 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 	)
 
 	maxBytes := i.overrides.MaxBytesPerTrace(i.tenantID)
-	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+	searchOpts := common.DefaultSearchOptions()
 	combiner := trace.NewCombiner(maxBytes, allowPartialTrace)
+
+	if !allowPartialTrace {
+		searchOpts.MaxBytes = maxBytes
+	}
 
 	// Check live traces first
 	i.liveTracesMtx.Lock()
