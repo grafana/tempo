@@ -124,8 +124,10 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	err = inst.cutIdleTraces(true)
 	require.NoError(t, err)
 
+	ctx, cncl := context.WithCancel(context.Background())
+
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
@@ -133,6 +135,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
+	cncl()
 }
 
 func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {

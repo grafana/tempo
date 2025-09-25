@@ -717,6 +717,8 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	end := make(chan struct{})
 	wg := sync.WaitGroup{}
+	ctx := context.Background()
+	ctx, cncl := context.WithCancel(ctx)
 
 	concurrent := func(f func()) {
 		wg.Add(1)
@@ -747,7 +749,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(t.Context(), time.Now(), req)
+		i.pushBytes(ctx, time.Now(), req)
 	})
 
 	concurrent(func() {
@@ -759,7 +761,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		// Cut wal, complete
 		blockID, _ := i.cutBlocks(true)
 		if blockID != uuid.Nil {
-			err := i.completeBlock(context.Background(), blockID)
+			err := i.completeBlock(ctx, blockID)
 			require.NoError(t, err)
 		}
 	})
@@ -770,20 +772,20 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	concurrent(func() {
-		_, err := i.Search(context.Background(), req)
+		_, err := i.Search(ctx, req)
 		require.NoError(t, err, "error searching")
 	})
 
 	concurrent(func() {
 		// SearchTags queries now require userID in ctx
-		ctx := user.InjectOrgID(context.Background(), "test")
+		ctx := user.InjectOrgID(ctx, "test")
 		_, err := i.SearchTags(ctx, "")
 		require.NoError(t, err, "error getting search tags")
 	})
 
 	concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
-		ctx := user.InjectOrgID(context.Background(), "test")
+		ctx := user.InjectOrgID(ctx, "test")
 		_, err := i.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
 			TagName:             tagKey,
 			MaxTagValues:        0,
@@ -798,7 +800,8 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	// exiting and cleaning up
 	wg.Wait()
 
-	err := services.StopAndAwaitTerminated(t.Context(), ls)
+	err := services.StopAndAwaitTerminated(ctx, ls)
+	cncl()
 	require.NoError(t, err)
 }
 
