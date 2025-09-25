@@ -5,7 +5,6 @@
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now pushes traces to the Tempo OTLP GRCP endpoint. [#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes. [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
-* [CHANGE] Assert max live traces limits in the local-blocks processor. [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [CHANGE] Adjust the definition of `tempo_metrics_generator_processor_service_graphs_expired_edges` to exclude edges that are counted in the service graph. [#5319](https://github.com/grafana/tempo/pull/5319) (@joe-elliott)
 * [CHANGE] Command `tempo-cli analyse block`(s) excludes attributes with array values. [#5380](https://github.com/grafana/tempo/pull/5380) (@stoewer)
 * [CHANGE] Remove .005s and add a 1.5s bucket to all request duration histograms. [#5492](https://github.com/grafana/tempo/pull/5492) (@joe-elliott)
@@ -38,7 +37,6 @@
 * [ENHANCEMENT] Upgrade Azurite and Fake-gcs-server to latest version. [#5512](https://github.com/grafana/tempo/pull/5512) (@javiermolinar)
 * [ENHANCEMENT] Make block ordering deterministic. [#5411](https://github.com/grafana/tempo/pull/5411) (@rajiv-singh)
 * [ENHANCEMENT] Improve exemplar selection in `quantile_over_time()`. [#5278](https://github.com/grafana/tempo/pull/5278) (@zalegrala)
-* [ENHANCEMENT] Add live store to `jsonnet` lib. [#5591](https://github.com/grafana/tempo/pull/5591) [#5606](https://github.com/grafana/tempo/pull/5606) [#5609](https://github.com/grafana/tempo/pull/5609) (@mapno)
 * [ENHANCEMENT] Measure bytes received before limits and publish it as `tempo_distributor_ingress_bytes_total`. [#5601](https://github.com/grafana/tempo/pull/5601) (@mapno)
 * [ENHANCEMENT] Add total size logging functionality to track trace [#5625](https://github.com/grafana/tempo/pull/5628)(@sienna011022)
 * [BUGFIX] Fix Tempo configuration options that are always overrided with config overrides section. [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
@@ -66,6 +64,7 @@
   Additionally, the `compaction_tenant_backoff_total` metric has been renamed to `compaction_empty_tenant_cycle_total` for clarity.
 * [CHANGE] Shard backend-scheduler work files locally and modify backend work structure to accommodate sharding approach. [#5412](https://github.com/grafana/tempo/pull/5412) (@zalegrala)
 * [CHANGE] Change worker to shutdown after the current job, waiting `30s` by default. [#5460](https://github.com/grafana/tempo/pull/5460) (@zalegrala)
+* [CHANGE] Assert max live traces limits in the local-blocks processor. [#5170](https://github.com/grafana/tempo/pull/5170) (@mapno)
 * [ENHANCEMENT] Add new header to vulture requests to query live stores. [#5663](https://github.com/grafana/tempo/pull/5663) (@javiermolinar)
 * [ENHANCEMENT] Add endpoint for partition downscaling. [#4913](https://github.com/grafana/tempo/pull/4913) (@mapno)
 * [ENHANCEMENT] Add backend scheduler and worker to the resources dashboard. [#5206](https://github.com/grafana/tempo/pull/5241) (@javiermolinar)
@@ -77,6 +76,7 @@
 * [ENHANCEMENT] Remove duplicated metric to count the number of processed records. [#5654](https://github.com/grafana/tempo/pull/5654) (@javiermolinar)
 * [ENHANCEMENT] Don't enqueue records to kafka when the context has been cancelled. [#5499](https://github.com/grafana/tempo/pull/5499) (@javiermolinar)
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert. [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
+* [ENHANCEMENT] Add live store to `jsonnet` lib. [#5591](https://github.com/grafana/tempo/pull/5591) [#5606](https://github.com/grafana/tempo/pull/5606) [#5609](https://github.com/grafana/tempo/pull/5609) (@mapno)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler. [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
 
 # v2.8.2
