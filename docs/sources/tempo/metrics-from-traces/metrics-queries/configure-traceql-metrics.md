@@ -49,7 +49,7 @@ Example for per-tenant in the per-tenant overrides:
 
 ```yaml
 overrides:
-  "tenantID":
+  'tenantID':
     metrics_generator_processors:
       - local-blocks
 ```
