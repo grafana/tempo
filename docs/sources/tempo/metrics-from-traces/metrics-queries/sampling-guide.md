@@ -74,43 +74,11 @@ Fixed span sampling selects the specified percentage of spans.
 Fixed trace sampling selects complete traces for analysis, preserving trace context and relationships between spans within the same request flow.
 
 ```traceql
-{ } | count() by (resource.service.name) with(trace_sample=0.1)
+{ } >> { status=error }  | rate() by (resource.service.name) with(trace_sample=0.1)
 ```
 
 **Best for:** Trace-level aggregations, service dependency mapping, and error correlation analysis.
 
 **Limitations:** May provide poor accuracy for span-level metrics and can introduce bias if trace volumes vary significantly across services.
 
-## Implement sampling
 
-## Best practices
-
-### Query design
-
-- **Use broad queries:** Sampling works best with queries that match many spans
-- **Align sampling with aggregation scope:** Use span sampling for span-level aggregations, trace sampling for trace-level aggregations
-- **Consider temporal patterns:** Adjust sampling rates based on data age and query frequency
-
-### Select sampling rates by use case
-
-- **Real-time monitoring (0-1h):** Adaptive sampling or 10%+ fixed rates
-- **Recent analysis (1h-1d):** 5-10% sampling
-- **Historical trends (1d+):** 1-5% sampling
-- **Long-term analysis (30d+):** 0.1-1% sampling
-
-### Decision framework
-
-1. **Critical measurement needed?** → No sampling
-2. **Dashboard or trend analysis?** → Adaptive sampling
-3. **Historical analysis or capacity planning?** → Fixed sampling (1-5%)
-4. **Cost optimization or exploration?** → Low fixed sampling (0.1-1%)
-
-### Migration approach
-
-1. Test all sampling configurations in development first
-2. Migrate dashboard queries before alerting queries
-3. Document sampling rationale and accuracy requirements
-4. Configure monitoring for sampling effectiveness
-5. Plan rollback procedures for accuracy issues
-
-By following these practices, you can successfully integrate TraceQL metrics sampling into your observability workflows, achieving significant performance improvements while maintaining data quality for effective monitoring and analysis.
