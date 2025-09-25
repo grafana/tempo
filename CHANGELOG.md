@@ -78,6 +78,7 @@
 * [ENHANCEMENT] Include backendwork dashboard and include additional alert. [#5159](https://github.com/grafana/tempo/pull/5159) (@zalegrala)
 * [ENHANCEMENT] Add live store to `jsonnet` lib. [#5591](https://github.com/grafana/tempo/pull/5591) [#5606](https://github.com/grafana/tempo/pull/5606) [#5609](https://github.com/grafana/tempo/pull/5609) (@mapno)
 * [BUGFIX] Fix race condition between compaction provider and backend-scheduler. [#5409](https://github.com/grafana/tempo/pull/5409) (@zalegrala)
+* [BUGFIX] Correctly support req.AllowPartialTrace and tenant limits in the live store when requesting trace by id. [#5680](https://github.com/grafana/tempo/pull/5680) (@joe-elliott)
 
 # v2.8.2
 
