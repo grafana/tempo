@@ -74,7 +74,9 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 
 	// force complete the wal block
-	err = inst.completeBlock(t.Context(), walUUID)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	err = inst.completeBlock(ctx, walUUID)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -82,7 +84,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	// stop gracefully
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 }
 
@@ -97,7 +99,9 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 
 	liveStore, err = defaultLiveStore(t, tmpDir)
@@ -124,7 +128,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	err = inst.cutIdleTraces(true)
 	require.NoError(t, err)
 
-	ctx, cncl := context.WithCancel(context.Background())
+	ctx, cncl := context.WithCancel(t.Context())
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
 	err = services.StopAndAwaitTerminated(ctx, liveStore)
@@ -421,7 +425,9 @@ func requireInstanceState(t *testing.T, inst *instance, state instanceState) {
 }
 
 func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte, expectedTrace *tempopb.Trace) {
-	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ctx = user.InjectOrgID(ctx, testTenantID)
 	resp, err := liveStore.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: traceID,
 	})
@@ -431,7 +437,9 @@ func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte,
 }
 
 func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte, expectedTrace *tempopb.Trace) {
-	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ctx = user.InjectOrgID(ctx, testTenantID)
 	actualTrace, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotNil(t, actualTrace)
@@ -510,7 +518,9 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 		kgoRec.Timestamp = now
 	}
 
-	_, err = liveStore.consume(t.Context(), createRecordIter(requestRecords), now)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	_, err = liveStore.consume(ctx, createRecordIter(requestRecords), now)
 	require.NoError(t, err)
 
 	return id, expectedTrace

@@ -62,7 +62,9 @@ func TestInstanceSearch(t *testing.T) {
 	req.Limit = uint32(len(ids)) + 1
 
 	// Test after appending to WAL. writeTracesforSearch() makes sure all traces are in the wal
-	sr, err := i.Search(context.Background(), req)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	sr, err := i.Search(ctx, req)
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
@@ -72,21 +74,21 @@ func TestInstanceSearch(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	sr, err = i.Search(context.Background(), req)
+	sr, err = i.Search(ctx, req)
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
 
 	// Test after completing a block
-	err = i.completeBlock(context.Background(), blockID)
+	err = i.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 
-	sr, err = i.Search(context.Background(), req)
+	sr, err = i.Search(ctx, req)
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -108,14 +110,16 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 			// Test live traces, these are cut roughly every 5 seconds so these should
 			// not exist yet.
-			sr, err := i.Search(context.Background(), req)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			sr, err := i.Search(ctx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, 0)
 
 			// Test after appending to WAL
 			require.NoError(t, i.cutIdleTraces(true))
 
-			sr, err = i.Search(context.Background(), req)
+			sr, err = i.Search(ctx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
@@ -125,21 +129,21 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotEqual(t, blockID, uuid.Nil)
 
-			sr, err = i.Search(context.Background(), req)
+			sr, err = i.Search(ctx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
 
 			// Test after completing a block
-			err = i.completeBlock(context.Background(), blockID)
+			err = i.completeBlock(ctx, blockID)
 			require.NoError(t, err)
 
-			sr, err = i.Search(context.Background(), req)
+			sr, err = i.Search(ctx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
 
-			err = services.StopAndAwaitTerminated(t.Context(), ls)
+			err = services.StopAndAwaitTerminated(ctx, ls)
 			require.NoError(t, err)
 		})
 	}
@@ -152,10 +156,13 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	tagValue := bar
 	ids, _, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false, false)
 
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
 	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
 		req.Start = start
 		req.End = end
-		sr, err := i.Search(context.Background(), req)
+		sr, err := i.Search(ctx, req)
 		assert.NoError(t, err)
 		return sr
 	}
@@ -193,11 +200,11 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	searchAndAssert(req)
 
 	// Test after completing a block
-	err = i.completeBlock(context.Background(), blockID)
+	err = i.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 	searchAndAssert(req)
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -225,7 +232,9 @@ func TestInstanceSearchTags(t *testing.T) {
 
 	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
-	userCtx := user.InjectOrgID(context.Background(), "fake")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	userCtx := user.InjectOrgID(ctx, "fake")
 
 	// Test after appending to WAL
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
@@ -238,12 +247,12 @@ func TestInstanceSearchTags(t *testing.T) {
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
 	// Test after completing a block
-	err = i.completeBlock(context.Background(), blockID)
+	err = i.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -287,11 +296,13 @@ func TestInstanceSearchNoData(t *testing.T) {
 		Query: "{}",
 	}
 
-	sr, err := i.Search(context.Background(), req)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	sr, err := i.Search(ctx, req)
 	assert.NoError(t, err)
 	require.Len(t, sr.Traces, 0)
 
-	err = services.StopAndAwaitTerminated(context.Background(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	if errors.Is(err, context.Canceled) {
 		return
 	}
@@ -319,7 +330,9 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	// create multiple distinct values like bar0, bar1, ...
 	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, tagValue, true, false)
 
-	userCtx := user.InjectOrgID(context.Background(), testTenantID)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	userCtx := user.InjectOrgID(ctx, testTenantID)
 
 	t.Run("SearchTagValues", func(t *testing.T) {
 		resp, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
@@ -339,7 +352,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 		require.Equal(t, 1, len(resp.TagValues))
 	})
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -372,7 +385,9 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	// Second block worth of traces
 	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, "another-"+bar, true, false)
 
-	userCtx := user.InjectOrgID(context.Background(), testTenantID)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	userCtx := user.InjectOrgID(ctx, testTenantID)
 
 	respV1, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
 		TagName:             tagKey,
@@ -404,7 +419,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 10, len(respV2.TagValues))
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -447,7 +462,7 @@ func TestSearchTagsV2Limits(t *testing.T) {
 			require.NoError(t, err)
 
 			defer func() {
-				err := services.StopAndAwaitTerminated(t.Context(), ls)
+				err := services.StopAndAwaitTerminated(ctx, ls)
 				require.NoError(t, err)
 			}()
 
@@ -478,7 +493,7 @@ func TestSearchTagsV2Limits(t *testing.T) {
 					Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 					Ids:    [][]byte{id},
 				}
-				instance.pushBytes(t.Context(), time.Now(), req)
+				instance.pushBytes(ctx, time.Now(), req)
 				err = instance.cutIdleTraces(true)
 				require.NoError(t, err)
 				blockID, err := instance.cutBlocks(true)
@@ -589,7 +604,9 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 		return nil, err
 	}
 
-	return liveStore, services.StartAndAwaitRunning(t.Context(), liveStore)
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	return liveStore, services.StartAndAwaitRunning(ctx, liveStore)
 }
 
 var _ log.Logger = (*testLogger)(nil)
@@ -607,6 +624,9 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 	var ids [][]byte
 	var traces []*tempopb.Trace
 
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
 	for j := 0; j < numTraces; j++ {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
@@ -622,7 +642,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(t.Context(), time.Now(), req)
+		i.pushBytes(ctx, time.Now(), req)
 
 		ids = append(ids, id)
 		traces = append(traces, testTrace)
@@ -640,6 +660,9 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	expectedTagValues := make([]string, 0, numTraces)
 	expectedEventTagValues := make([]string, 0, numTraces)
 	expectedLinkTagValues := make([]string, 0, numTraces)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 
 	now := time.Now()
 	for j := 0; j < numTraces; j++ {
@@ -696,7 +719,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(t.Context(), now, req)
+		i.pushBytes(ctx, now, req)
 	}
 
 	// traces have to be cut to show up in searches
@@ -719,8 +742,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	end := make(chan struct{})
 	wg := sync.WaitGroup{}
-	ctx := context.Background()
-	ctx, cncl := context.WithCancel(ctx)
+	ctx, cncl := context.WithCancel(t.Context())
 
 	concurrent := func(f func()) {
 		wg.Add(1)
@@ -827,11 +849,15 @@ func TestInstanceSearchMetrics(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(t.Context(), time.Now(), req)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		i.pushBytes(ctx, time.Now(), req)
 	}
 
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	search := func() *tempopb.SearchMetrics {
-		sr, err := i.Search(context.Background(), &tempopb.SearchRequest{
+		sr, err := i.Search(ctx, &tempopb.SearchRequest{
 			Query: fmt.Sprintf(`{ span.%s = "%s" }`, "foo", "bar"),
 		})
 		require.NoError(t, err)
@@ -856,12 +882,12 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.Less(t, numBytes, m.InspectedBytes)
 
 	// Test after completing a block
-	err = i.completeBlock(context.Background(), blockID)
+	err = i.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 	m = search()
 	require.Less(t, numBytes, m.InspectedBytes)
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -874,7 +900,9 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.Greater(t, len(ids), 0, "writeTracesForSearch should create traces")
 
 	// Test 1: Find traces after being cut to WAL
-	resp, err := i.FindByTraceID(context.Background(), ids[0])
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	resp, err := i.FindByTraceID(ctx, ids[0])
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Trace)
@@ -886,16 +914,16 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.NotEqual(t, blockID, uuid.Nil)
 
 	// Verify we can still find traces from walBlocks
-	resp, err = i.FindByTraceID(context.Background(), ids[0])
+	resp, err = i.FindByTraceID(ctx, ids[0])
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace)
 
 	// Test 3: Complete block (moves to completeBlocks)
-	err = i.completeBlock(context.Background(), blockID)
+	err = i.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 
 	// Verify we can find traces from completed blocks
-	resp, err = i.FindByTraceID(context.Background(), ids[0])
+	resp, err = i.FindByTraceID(ctx, ids[0])
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace)
 
@@ -904,15 +932,15 @@ func TestInstanceFindByTraceID(t *testing.T) {
 	require.Greater(t, len(moreIDs), 0, "should create more traces")
 
 	// Verify we can find both old and new traces
-	resp1, err := i.FindByTraceID(context.Background(), ids[0])
+	resp1, err := i.FindByTraceID(ctx, ids[0])
 	require.NoError(t, err)
 	require.NotNil(t, resp1.Trace, "Should find trace from completed blocks")
 
-	resp2, err := i.FindByTraceID(context.Background(), moreIDs[0])
+	resp2, err := i.FindByTraceID(ctx, moreIDs[0])
 	require.NoError(t, err)
 	require.NotNil(t, resp2.Trace, "Should find trace from head block")
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -1089,7 +1117,8 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	require.NotEqual(t, uuid.Nil, blockID)
 
 	// Complete the block
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	err = inst.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 
