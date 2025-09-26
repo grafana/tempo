@@ -327,7 +327,6 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 	for _, tc := range tcs {
 		ls, ctx, cncl, err := defaultLiveStore(t, t.TempDir())
 		require.NoError(t, err)
-		defer cncl()
 
 		_, err = ls.consume(ctx, createRecordIter(tc.records), now)
 		require.NoError(t, err)
@@ -355,6 +354,7 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 
 		err = services.StopAndAwaitTerminated(ctx, ls)
 		require.NoError(t, err)
+		cncl()
 	}
 }
 

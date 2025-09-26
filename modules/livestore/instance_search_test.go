@@ -50,7 +50,8 @@ const (
 )
 
 func TestInstanceSearch(t *testing.T) {
-	i, ls := defaultInstanceAndTmpDir(t)
+	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
 
 	tagKey := foo
 	tagValue := bar
@@ -62,8 +63,6 @@ func TestInstanceSearch(t *testing.T) {
 	req.Limit = uint32(len(ids)) + 1
 
 	// Test after appending to WAL. writeTracesforSearch() makes sure all traces are in the wal
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	sr, err := i.Search(ctx, req)
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
@@ -102,7 +101,8 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 	for _, query := range queries {
 		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
-			i, ls := defaultInstanceAndTmpDir(t)
+			i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+			defer cncl()
 
 			_, ids := pushTracesToInstance(t, i, 10)
 
@@ -110,8 +110,6 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 			// Test live traces, these are cut roughly every 5 seconds so these should
 			// not exist yet.
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 			sr, err := i.Search(ctx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, 0)
@@ -150,14 +148,12 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 }
 
 func TestInstanceSearchWithStartAndEnd(t *testing.T) {
-	i, ls := defaultInstanceAndTmpDir(t)
+	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
 
 	tagKey := foo
 	tagValue := bar
 	ids, _, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false, false)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
 		req.Start = start
@@ -535,23 +531,23 @@ func TestSearchTagsV2Limits(t *testing.T) {
 
 // Helper functions adapted from ingester module
 func defaultInstance(t testing.TB) (*instance, *LiveStore) {
-	instance, liveStore := defaultInstanceAndTmpDir(t)
+	instance, liveStore, _, cncl := defaultInstanceAndTmpDir(t)
+	t.Cleanup(cncl)
 	return instance, liveStore
 }
 
-func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore) {
+func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore, context.Context, context.CancelFunc) {
 	tmpDir := t.TempDir()
 
-	liveStore, _, cncl, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
-	t.Cleanup(cncl)
 	liveStore.cfg.QueryBlockConcurrency = 1
 
 	// Create a fake instance for testing
 	instance, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err, "unexpected error creating new instance")
 
-	return instance, liveStore
+	return instance, liveStore, ctx, cncl
 }
 
 func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, context.Context, func(), error) {
@@ -731,7 +727,8 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 }
 
 func TestInstanceSearchDoesNotRace(t *testing.T) {
-	i, ls := defaultInstanceAndTmpDir(t)
+	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
 
 	// add dummy search data
 	tagKey := foo
@@ -743,7 +740,6 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	end := make(chan struct{})
 	wg := sync.WaitGroup{}
-	ctx, cncl := context.WithCancel(context.Background())
 
 	concurrent := func(f func()) {
 		wg.Add(1)
@@ -826,7 +822,6 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	wg.Wait()
 
 	err := services.StopAndAwaitTerminated(ctx, ls)
-	cncl()
 	require.NoError(t, err)
 }
 
@@ -893,7 +888,8 @@ func TestInstanceSearchMetrics(t *testing.T) {
 }
 
 func TestInstanceFindByTraceID(t *testing.T) {
-	i, ls := defaultInstanceAndTmpDir(t)
+	i, ls, _, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
 
 	tagKey := foo
 	tagValue := bar
