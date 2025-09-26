@@ -135,3 +135,25 @@ query_frontend:
     concurrent_jobs: 8
     target_bytes_per_job: 1.25e+09 # ~1.25GB
 ```
+
+## Sampling and performance optimization
+
+TraceQL metrics queries support sampling hints to improve performance on large datasets.
+
+### Sampling configuration considerations
+
+When using sampling in your TraceQL metrics queries, consider:
+
+- **Timeout settings:** Sampled queries run faster but may still benefit from adequate timeouts
+- **Concurrent jobs:** Sampling reduces per-job processing time, allowing higher concurrency
+- **Job sizing:** With sampling, smaller job sizes may be more efficient
+
+Example configuration optimized for sampling:
+
+
+### Sampling best practices
+
+- Use `sample=true` for dashboard queries requiring fast refresh
+- Apply fixed sampling rates for consistent approximation levels
+- Avoid sampling for alerts or precise measurements
+- Test sampling accuracy against your specific data patterns
