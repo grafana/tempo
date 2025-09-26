@@ -171,7 +171,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 
 	liveStore, _, cncl, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
-	defer cncl()
+	cncl()
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})

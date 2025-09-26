@@ -328,7 +328,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	// create multiple distinct values like bar0, bar1, ...
 	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, tagValue, true, false)
 
-	userCtx := user.InjectOrgID(ctx, testTenantID)
+	userCtx := user.InjectOrgID(context.Background(), testTenantID)
 
 	t.Run("SearchTagValues", func(t *testing.T) {
 		resp, err := instance.SearchTagValues(userCtx, &tempopb.SearchTagValuesRequest{
