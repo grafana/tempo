@@ -1,9 +1,8 @@
 ## main / unreleased
 
-* [CHANGE] Upgrade Tempo to go 1.25.0 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
-
 # v2.9.0-rc.0
 
+* [CHANGE] Upgrade Tempo to go 1.25.0 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** We are no longer publishing rpm and deb packages due to an internal change to the handling of signing keys. [#5684](https://github.com/grafana/tempo/pull/5684) (@joe-elliott)
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now pushes traces to the Tempo OTLP GRCP endpoint. [#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
