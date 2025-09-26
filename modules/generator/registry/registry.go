@@ -192,7 +192,7 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	if maxActiveSeries != 0 && r.activeSeries.Load()+count > maxActiveSeries {
-		r.metricTotalSeriesLimited.Inc()
+		r.metricTotalSeriesLimited.Add(float64(count))
 		r.limitLogger.Log("msg", "reached max active series", "active_series", r.activeSeries.Load(), "max_active_series", maxActiveSeries)
 		return false
 	}
@@ -200,7 +200,6 @@ func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
 	r.activeSeries.Add(count)
 
 	r.metricTotalSeriesAdded.Add(float64(count))
-	r.metricActiveSeries.Add(float64(count))
 	return true
 }
 
@@ -208,7 +207,6 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 	r.activeSeries.Sub(count)
 
 	r.metricTotalSeriesRemoved.Add(float64(count))
-	r.metricActiveSeries.Sub(float64(count))
 }
 
 func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
