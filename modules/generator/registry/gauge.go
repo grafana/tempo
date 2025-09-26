@@ -21,6 +21,8 @@ type gauge struct {
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx sync.RWMutex
 	series    map[uint64]*gaugeSeries
+	// rejectedSeries maps rejected series has to the lastUpdated time.
+	rejectedSeries map[uint64]int64
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -57,6 +59,7 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 	return &gauge{
 		metricName:     name,
 		series:         make(map[uint64]*gaugeSeries),
+		rejectedSeries: make(map[uint64]int64),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
 		externalLabels: externalLabels,
@@ -92,6 +95,11 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	}
 
 	if !g.onAddSeries(1) {
+		g.seriesMtx.Lock()
+		defer g.seriesMtx.Unlock()
+		if _, ok = g.series[hash]; !ok {
+			g.rejectedSeries[hash] = time.Now().UnixMilli()
+		}
 		return
 	}
 
@@ -101,6 +109,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	defer g.seriesMtx.Unlock()
 
 	s, ok = g.series[hash]
+	delete(g.rejectedSeries, hash)
 	if ok {
 		g.updateSeriesValue(s, value, operation)
 		return
@@ -133,7 +142,7 @@ func (g *gauge) updateSeriesValue(s *gaugeSeries, value float64, operation strin
 	if operation == add {
 		s.value.Add(value)
 	} else {
-		s.value = atomic.NewFloat64(value)
+		s.value.Store(value)
 	}
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
@@ -149,8 +158,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 	activeSeries = len(g.series)
 
 	for _, s := range g.series {
-		t := time.UnixMilli(timeMs)
-		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
+		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
 			return
 		}
@@ -158,6 +166,13 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 	}
 
 	return
+}
+
+func (g *gauge) countTotalSeries() int {
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
+
+	return len(g.series) + len(g.rejectedSeries)
 }
 
 func (g *gauge) removeStaleSeries(staleTimeMs int64) {
@@ -168,6 +183,11 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(g.series, hash)
 			g.onRemoveSeries(1)
+		}
+	}
+	for hash, lastUpdated := range g.rejectedSeries {
+		if lastUpdated < staleTimeMs {
+			delete(g.rejectedSeries, hash)
 		}
 	}
 }

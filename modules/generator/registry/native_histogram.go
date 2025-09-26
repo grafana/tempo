@@ -27,8 +27,9 @@ type nativeHistogram struct {
 	//  Might break processors that have variable amount of labels...
 	//  promHistogram prometheus.HistogramVec
 
-	seriesMtx sync.Mutex
-	series    map[uint64]*nativeHistogramSeries
+	seriesMtx      sync.Mutex
+	series         map[uint64]*nativeHistogramSeries
+	rejectedSeries map[uint64]int64 // should it be lastUpdated or firstRejected? otherwise it will never be stale
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -107,6 +108,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 	return &nativeHistogram{
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
+		rejectedSeries:    make(map[uint64]int64),
 		onAddSerie:        onAddSeries,
 		onRemoveSerie:     onRemoveSeries,
 		traceIDLabelName:  traceIDLabelName,
@@ -136,9 +138,11 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 	}
 
 	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+		h.rejectedSeries[hash] = time.Now().UnixMilli()
 		return
 	}
 
+	delete(h.rejectedSeries, hash)
 	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
 }
 
@@ -267,13 +271,18 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			if nativeErr != nil {
 				return activeSeries, nativeErr
 			}
+			activeSeries++
 		}
-
-		// TODO: impact on active series from appending a histogram?
-		activeSeries += 0
 	}
 
 	return activeSeries, err
+}
+
+func (h *nativeHistogram) countTotalSeries() int {
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
+
+	return (len(h.series) + len(h.rejectedSeries)) * int(h.activeSeriesPerHistogramSerie())
 }
 
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
@@ -296,6 +305,11 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
 		}
 	}
+	for hash, lastUpdated := range h.rejectedSeries {
+		if lastUpdated < staleTimeMs {
+			delete(h.rejectedSeries, hash)
+		}
+	}
 }
 
 func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {
@@ -315,8 +329,17 @@ func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duratio
 }
 
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
-	// TODO: can we estimate this?
-	return 1
+	total := uint32(0)
+	if hasClassicHistograms(h.histogramOverride) {
+		// sum + count + Inf + #buckets
+		// we might be double counting the +Inf bucket
+		// but checking for it adds complexity and this is just an estimate
+		total += 3 + uint32(len(h.buckets))
+	}
+	if hasNativeHistograms(h.histogramOverride) {
+		total++
+	}
+	return total
 }
 
 func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls labels.Labels, timeMs int64, s *nativeHistogramSeries) (err error) {
