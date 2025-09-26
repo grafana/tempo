@@ -111,35 +111,3 @@ release:
   prerelease: auto
 snapshot:
   name_template: '{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}'
-# RPM (yum) and deb (apt) packages
-nfpms:
-  - builds:
-      - tempo
-      - tempo-cli
-      - tempo-query
-    vendor: Grafana Labs Inc
-    homepage: https://grafana.com/oss/tempo/
-    maintainer: Grafana Labs <support@grafana.com>
-    description: |-
-      Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. 
-      Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki.
-    license: AGPL-3.0
-    formats:
-      - deb
-      - rpm
-    contents:
-      - src: ./tools/packaging/tempo.yaml
-        dst: /etc/tempo/config.yml
-        type: 'config|noreplace'
-      - src: ./tools/packaging/tempo.service
-        dst: /etc/systemd/system/tempo.service
-    scripts:
-      postinstall: ./tools/packaging/tempo-postinstall.sh
-    rpm:
-      signature:
-        # Also set ${NFPM_DEFAULT_PASSPHRASE}
-        key_file: '{{ .Env.NFPM_SIGNING_KEY_FILE }}'
-    deb:
-      signature:
-        # Also set ${NFPM_DEFAULT_PASSPHRASE}
-        key_file: '{{ .Env.NFPM_SIGNING_KEY_FILE }}'
