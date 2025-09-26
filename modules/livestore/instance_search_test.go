@@ -220,7 +220,8 @@ func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
 }
 
 func TestInstanceSearchTags(t *testing.T) {
-	i, ls := defaultInstance(t)
+	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
 
 	// add dummy search data
 	tagKey := foo
@@ -228,8 +229,6 @@ func TestInstanceSearchTags(t *testing.T) {
 
 	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	userCtx := user.InjectOrgID(ctx, "fake")
 
 	// Test after appending to WAL
@@ -286,8 +285,8 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 }
 
 func TestInstanceSearchNoData(t *testing.T) {
-	i, ls := defaultInstance(t)
-
+	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
 	req := &tempopb.SearchRequest{
 		Query: "{}",
 	}
@@ -318,7 +317,9 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
-	instance, ls := defaultInstance(t)
+	instance, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
+
 	instance.overrides = limits
 
 	tagKey := foo
@@ -327,8 +328,6 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	// create multiple distinct values like bar0, bar1, ...
 	_, _, _, _ = writeTracesForSearch(t, instance, "", tagKey, tagValue, true, false)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	userCtx := user.InjectOrgID(ctx, testTenantID)
 
 	t.Run("SearchTagValues", func(t *testing.T) {
@@ -365,7 +364,9 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
-	instance, ls := defaultInstance(t)
+	instance, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
+
 	instance.overrides = limits
 
 	tagKey := foo
@@ -444,11 +445,10 @@ func TestSearchTagsV2Limits(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("MaxBytesPerTagValuesQuery=%d", testCase.MaxBytesPerTagValuesQuery), func(t *testing.T) {
-			ctx, cncl := context.WithCancel(context.Background())
-			ctx = user.InjectOrgID(ctx, "test")
+			instance, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
 			defer cncl()
 
-			instance, ls := defaultInstance(t)
+			ctx = user.InjectOrgID(ctx, "test")
 			limits, err := overrides.NewOverrides(overrides.Config{
 				Defaults: overrides.Overrides{
 					Read: overrides.ReadOverrides{
@@ -527,13 +527,6 @@ func TestSearchTagsV2Limits(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-// Helper functions adapted from ingester module
-func defaultInstance(t testing.TB) (*instance, *LiveStore) {
-	instance, liveStore, _, cncl := defaultInstanceAndTmpDir(t)
-	t.Cleanup(cncl)
-	return instance, liveStore
 }
 
 func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore, context.Context, context.CancelFunc) {
@@ -827,7 +820,8 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 func TestInstanceSearchMetrics(t *testing.T) {
 	t.Parallel()
-	i, ls := defaultInstance(t)
+	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	defer cncl()
 
 	numTraces := uint32(500)
 	numBytes := uint64(0)
@@ -845,13 +839,9 @@ func TestInstanceSearchMetrics(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		i.pushBytes(ctx, time.Now(), req)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	search := func() *tempopb.SearchMetrics {
 		sr, err := i.Search(ctx, &tempopb.SearchRequest{
 			Query: fmt.Sprintf(`{ span.%s = "%s" }`, "foo", "bar"),
@@ -943,10 +933,11 @@ func TestInstanceFindByTraceID(t *testing.T) {
 
 func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	// Test that the maxBytesPerTrace limit is being passed to the combiner correctly
-	i, ls := defaultInstance(t)
+	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
 	defer func() {
 		err := services.StopAndAwaitTerminated(t.Context(), ls)
 		require.NoError(t, err)
+		cncl()
 	}()
 
 	// Set generous ingestion limits initially so the trace can be fully ingested
@@ -965,7 +956,7 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	expectedTrace := test.MakeTraceWithSpanCount(10, 100, traceID)
 
 	// Push the large trace with generous limits
-	ctx := user.InjectOrgID(context.Background(), testTenantID)
+	ctx = user.InjectOrgID(ctx, testTenantID)
 	traceBytes, err := expectedTrace.Marshal()
 	require.NoError(t, err)
 
