@@ -104,8 +104,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	cfg.Search.Sharder.RF1After = cfg.RF1After
 	cfg.TraceByID.RF1After = cfg.RF1After
 
-	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(30*time.Second, 15*time.Minute, false) // jpe - these should not be hardcoded but based on config: max live traces + flush cycle for the first? QueryBackendAfter for the second?
-	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(30*time.Second, 15*time.Minute, true)
+	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, 30*time.Second, false) // jpe - these should not be hardcoded but based on config: max live traces + flush cycle for the endbuffer and QueryBackendAfter for the defStart?
+	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(cfg.Metrics.Sharder.QueryBackendAfter, 30*time.Second, true)   // metrics queries work in nanoseconds
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
