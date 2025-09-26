@@ -143,6 +143,7 @@
       pvc_storage_class: error 'Must specify a live-store pvc storage class',
       replicas: 0,
       max_unavailable: 25,
+      downscale_delay: '35m',
       allow_multiple_replicas_on_same_node: false,
       resources: {
         requests: {
