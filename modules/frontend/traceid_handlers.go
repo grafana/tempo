@@ -51,7 +51,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 
 		var traceRedactor combiner.TraceRedactor
 		if dataAccessController != nil {
-			traceRedactor, err = dataAccessController.TraceByIDResponseRedactor(req)
+			traceRedactor, err = dataAccessController.HandleHTTPTraceByIDReq(req)
 			if err != nil {
 				level.Error(logger).Log("msg", "trace id: failed to get trace redactor", "err", err)
 				return httpInvalidRequest(err), nil
@@ -122,7 +122,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 
 		var traceRedactor combiner.TraceRedactor
 		if dataAccessController != nil {
-			traceRedactor, err = dataAccessController.TraceByIDResponseRedactor(req)
+			traceRedactor, err = dataAccessController.HandleHTTPTraceByIDReq(req)
 			if err != nil {
 				level.Error(logger).Log("msg", "trace id v2: failed to get trace redactor", "err", err)
 				return httpInvalidRequest(err), nil

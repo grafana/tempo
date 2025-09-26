@@ -44,7 +44,7 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
 		if dataAccessController != nil {
-			err := dataAccessController.HandleGRPCUnsupportedEndpoint(srv.Context())
+			err := dataAccessController.HandleGRPCTagsReq(srv.Context(), req)
 			if err != nil {
 				level.Error(logger).Log("msg", "SearchTags streaming: access control handling failed", "err", err)
 				return err
@@ -99,7 +99,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		ctx := srv.Context()
 
 		if dataAccessController != nil {
-			err := dataAccessController.HandleGRPCTagsReq(ctx, req)
+			err := dataAccessController.HandleGRPCTagsV2Req(ctx, req)
 			if err != nil {
 				level.Error(logger).Log("msg", "SearchTagsV2 streaming: access control handling failed", "err", err)
 				return err
@@ -161,7 +161,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		var err error
 
 		if dataAccessController != nil {
-			err = dataAccessController.HandleGRPCUnsupportedEndpoint(ctx)
+			err = dataAccessController.HandleGRPCTagValuesReq(ctx, req)
 			if err != nil {
 				level.Error(logger).Log("msg", "SearchTagValues streaming: access control handling failed", "err", err)
 				return err
@@ -208,7 +208,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		ctx := srv.Context()
 
 		if dataAccessController != nil {
-			err := dataAccessController.HandleGRPCTagValuesReq(ctx, req)
+			err := dataAccessController.HandleGRPCTagValuesV2Req(ctx, req)
 			if err != nil {
 				level.Error(logger).Log("msg", "SearchTagValues streaming: access control handling failed", "err", err)
 				return err
@@ -258,7 +258,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		}
 
 		if dataAccessController != nil {
-			if err := dataAccessController.HandleHTTPUnsupportedEndpoint(req); err != nil {
+			if err := dataAccessController.HandleHTTPTagsReq(req); err != nil {
 				level.Error(logger).Log("msg", "SearchTags http: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
@@ -312,7 +312,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		}
 
 		if dataAccessController != nil {
-			if err := dataAccessController.HandleHTTPTagsReq(req); err != nil {
+			if err := dataAccessController.HandleHTTPTagsV2Req(req); err != nil {
 				level.Error(logger).Log("msg", "SearchTagsV2 http: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
@@ -373,7 +373,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 		}
 
 		if dataAccessController != nil {
-			if err := dataAccessController.HandleHTTPUnsupportedEndpoint(req); err != nil {
+			if err := dataAccessController.HandleHTTPTagValuesReq(req); err != nil {
 				level.Error(logger).Log("msg", "SearchTagValues http: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
@@ -415,7 +415,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		}
 
 		if dataAccessController != nil {
-			if err := dataAccessController.HandleHTTPTagValuesReq(req); err != nil {
+			if err := dataAccessController.HandleHTTPTagValuesV2Req(req); err != nil {
 				level.Error(logger).Log("msg", "SearchTagValuesV2 http: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}

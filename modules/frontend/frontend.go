@@ -66,20 +66,21 @@ type QueryFrontend struct {
 type DataAccessController interface {
 	HandleHTTPSearchReq(r *http.Request) error
 	HandleHTTPTagsReq(r *http.Request) error
+	HandleHTTPTagsV2Req(r *http.Request) error
 	HandleHTTPTagValuesReq(r *http.Request) error
+	HandleHTTPTagValuesV2Req(r *http.Request) error
 	HandleHTTPQueryRangeReq(r *http.Request) error
 	HandleHTTPQueryInstantReq(r *http.Request) error
+	HandleHTTPMetricsSummaryReq(r *http.Request) error
+	HandleHTTPTraceByIDReq(r *http.Request) (combiner.TraceRedactor, error)
 
 	HandleGRPCSearchReq(c context.Context, r *tempopb.SearchRequest) error
 	HandleGRPCTagsReq(c context.Context, r *tempopb.SearchTagsRequest) error
+	HandleGRPCTagsV2Req(c context.Context, r *tempopb.SearchTagsRequest) error
 	HandleGRPCTagValuesReq(c context.Context, r *tempopb.SearchTagValuesRequest) error
+	HandleGRPCTagValuesV2Req(c context.Context, r *tempopb.SearchTagValuesRequest) error
 	HandleGRPCQueryRangeReq(c context.Context, r *tempopb.QueryRangeRequest) error
 	HandleGRPCQueryInstantReq(c context.Context, r *tempopb.QueryInstantRequest) error
-
-	HandleHTTPUnsupportedEndpoint(r *http.Request) error
-	HandleGRPCUnsupportedEndpoint(c context.Context) error
-
-	TraceByIDResponseRedactor(r *http.Request) (combiner.TraceRedactor, error)
 }
 
 var tracer = otel.Tracer("modules/frontend")
@@ -316,7 +317,7 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 			}, nil
 		}
 		if dataAccessController != nil {
-			if err := dataAccessController.HandleHTTPUnsupportedEndpoint(req); err != nil {
+			if err := dataAccessController.HandleHTTPMetricsSummaryReq(req); err != nil {
 				level.Error(logger).Log("msg", "metrics summary: add filter failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
