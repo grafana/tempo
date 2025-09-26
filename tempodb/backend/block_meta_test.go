@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,7 +91,7 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 	}
 }
 
-func TestBlockMetaParsing(t *testing.T) {
+func TestBlockMetaJSONRoundTrip(t *testing.T) {
 	timeParse := func(s string) time.Time {
 		date, err := time.Parse(time.RFC3339Nano, s)
 		require.NoError(t, err)
@@ -262,4 +263,70 @@ func TestDedicatedColumns_ToTempopb(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
+	var roundTripTestCases = []struct {
+		name      string
+		skipProto bool
+		cols      DedicatedColumns
+	}{
+		{
+			name: "null",
+		},
+		{
+			name:      "empty",
+			cols:      DedicatedColumns{},
+			skipProto: true,
+		},
+		{
+			name: "single",
+			cols: DedicatedColumns{
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
+			},
+		},
+		{
+			name: "multiple",
+			cols: DedicatedColumns{
+				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
+				{Scope: DedicatedColumnScopeSpan, Name: "test.span.3", Type: DedicatedColumnTypeInt},
+			},
+		},
+	}
+
+	t.Run("json", func(t *testing.T) {
+		for _, tc := range roundTripTestCases {
+			t.Run(tc.name, func(t *testing.T) {
+				data, err := json.Marshal(tc.cols)
+				require.NoError(t, err)
+
+				var cols DedicatedColumns
+				err = json.Unmarshal(data, &cols)
+				require.NoError(t, err)
+				assert.Equal(t, tc.cols, cols)
+			})
+		}
+	})
+
+	t.Run("proto", func(t *testing.T) {
+		for _, tc := range roundTripTestCases {
+			if tc.skipProto {
+				continue
+			}
+			t.Run(tc.name, func(t *testing.T) {
+				// DedicatedColumns does not implement proto.Message, needs to be wrapped in BlockMeta
+				bm1 := BlockMeta{DedicatedColumns: tc.cols}
+
+				data, err := proto.Marshal(&bm1)
+				require.NoError(t, err)
+
+				var bm2 BlockMeta
+				err = proto.Unmarshal(data, &bm2)
+				require.NoError(t, err)
+				assert.Equal(t, tc.cols, bm2.DedicatedColumns)
+			})
+		}
+	})
 }

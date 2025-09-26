@@ -164,10 +164,10 @@ func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 type DedicatedColumns []DedicatedColumn
 
 func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
-	// Get the pre-unmarshalled data if available.
-	v := getDedicatedColumns(string(b))
-	if v != nil {
-		*dcs = *v
+	// get the pre-unmarshalled data if available
+	v, ok := getDedicatedColumnsFromCache(b)
+	if ok && v != nil {
+		*dcs = v
 		return nil
 	}
 
@@ -177,8 +177,7 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	putDedicatedColumns(string(b), dcs)
-
+	putDedicatedColumnsToCache(b, *dcs)
 	return nil
 }
 
