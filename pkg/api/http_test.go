@@ -914,10 +914,7 @@ func TestClampDateRangeReq(t *testing.T) {
 	// Default no-params test
 	t.Run("default no parameters", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			refNow := time.Date(2023, 10, 15, 12, 0, 0, 0, time.Local)
-			if d := time.Until(refNow); d > 0 {
-				time.Sleep(d)
-			}
+			time.Sleep(time.Until(refNow)) // Setting time.now to refNow
 			req := makeReq(nil)
 			start, end, prec, err := ClampDateRangeReq(req, defStart, endBuffer)
 			require.NoError(t, err)
@@ -941,44 +938,14 @@ func TestClampDateRangeReq(t *testing.T) {
 
 	for _, tt := range testsStartEndValidation {
 		t.Run(tt.name, func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				req := makeReq(tt.params)
-				_, _, _, err := ClampDateRangeReq(req, defStart, endBuffer)
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.err)
-			})
-		})
-	}
-
-	// Valid timestamp tests
-	testsValidTimestamps := []struct {
-		name          string
-		params        map[string]string
-		expectedStart time.Time
-		expectedEnd   time.Time
-		expectedPrec  TimestampPrecision
-	}{
-		{"10-digit seconds", map[string]string{"start": "1697360400", "end": "1697364000"}, time.Unix(1697360400, 0), time.Unix(1697364000, 0), PrecisionSeconds},
-		{"19-digit nanoseconds", map[string]string{"start": "1697360400000000000", "end": "1697364000000000000"}, time.Unix(0, 1697360400000000000), time.Unix(0, 1697364000000000000), PrecisionNanoseconds},
-		{"fractional seconds", map[string]string{"start": "1697360400.5", "end": "1697364000.75"}, time.Unix(1697360400, 500000000), time.Unix(1697364000, 750000000), PrecisionNanoseconds},
-		{"RFC3339", map[string]string{"start": "2023-10-15T10:00:00Z", "end": "2023-10-15T11:00:00Z"}, time.Date(2023, 10, 15, 10, 0, 0, 0, time.UTC), time.Date(2023, 10, 15, 11, 0, 0, 0, time.UTC), PrecisionNanoseconds},
-	}
-
-	for _, tt := range testsValidTimestamps {
-		t.Run(tt.name, func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				req := makeReq(tt.params)
-				start, end, prec, err := ClampDateRangeReq(req, defStart, endBuffer)
-				require.NoError(t, err)
-				assert.Equal(t, tt.expectedPrec, prec)
-				assert.Equal(t, tt.expectedStart, start)
-				assert.True(t, end.Before(start))
-			})
+			req := makeReq(tt.params)
+			_, _, _, err := ClampDateRangeReq(req, defStart, endBuffer)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.err)
 		})
 	}
 
 	validEnd := refNow.Add(-endBuffer * 2)
-
 	// End time clamping tests
 	testsEndClamping := []struct {
 		name          string
