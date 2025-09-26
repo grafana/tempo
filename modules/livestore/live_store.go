@@ -3,6 +3,7 @@ package livestore
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -221,6 +222,14 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 func (s *LiveStore) starting(ctx context.Context) error {
 	// First of all we have to check if the shutdown marker is set. This needs to be done
 	// as first thing because, if found, it may change the behaviour of the live-store startup.
+
+	if _, err := os.Stat(s.cfg.ShutdownMarkerDir); os.IsNotExist(err) {
+		err := os.MkdirAll(s.cfg.ShutdownMarkerDir, 0o700)
+		if err != nil {
+			return fmt.Errorf("failed to create shutdown marker directory: %w", err)
+		}
+	}
+
 	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
 	if exists, err := shutdownmarker.Exists(shutdownMarkerPath); err != nil {
 		return fmt.Errorf("failed to check live-store shutdown marker: %w", err)
