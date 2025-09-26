@@ -81,6 +81,10 @@ func NewFranzSyncProducer(ctx context.Context, clientCfg configkafka.ClientConfi
 	if cfg.FlushMaxMessages > 0 {
 		opts = append(opts, kgo.MaxBufferedRecords(cfg.FlushMaxMessages))
 	}
+	// Configure auto topic creation
+	if cfg.AllowAutoTopicCreation {
+		opts = append(opts, kgo.AllowAutoTopicCreation())
+	}
 
 	return kgo.NewClient(opts...)
 }
@@ -180,10 +184,18 @@ func commonOpts(ctx context.Context, clientCfg configkafka.ClientConfig,
 	opts = append(opts,
 		kgo.WithLogger(kzap.New(logger.Named("franz"))),
 		kgo.SeedBrokers(clientCfg.Brokers...),
+		// Disable client metrics, since some brokers may falsely indicate
+		// that they support them when they don't, causing errors to be
+		// logged. We may want to make this configurable in the future.
+		kgo.DisableClientMetrics(),
 	)
+	tlsConfig := clientCfg.TLS
+	if tlsConfig == nil {
+		tlsConfig = clientCfg.Authentication.TLS
+	}
 	// Configure TLS if needed
-	if clientCfg.TLS != nil {
-		tlsCfg, err := clientCfg.TLS.LoadTLSConfig(ctx)
+	if tlsConfig != nil {
+		tlsCfg, err := tlsConfig.LoadTLSConfig(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load TLS config: %w", err)
 		}
@@ -216,6 +228,10 @@ func commonOpts(ctx context.Context, clientCfg configkafka.ClientConfig,
 	// Configure client ID
 	if clientCfg.ClientID != "" {
 		opts = append(opts, kgo.ClientID(clientCfg.ClientID))
+	}
+	// Configure client rack if provided
+	if clientCfg.RackID != "" {
+		opts = append(opts, kgo.Rack(clientCfg.RackID))
 	}
 	// Reuse existing metadata refresh interval for franz-go metadataMaxAge
 	if clientCfg.Metadata.RefreshInterval > 0 {
