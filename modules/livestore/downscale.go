@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/shutdownmarker"
 )
 
 type PreparePartitionDownscaleResponse struct {
@@ -131,6 +132,9 @@ func (s *LiveStore) PreparePartitionDownscaleHandler(w http.ResponseWriter, r *h
 //
 // Following methods are supported:
 //
+//   - GET
+//     Returns set if the live-store is prepared for downscale, unset otherwise.
+//
 //   - POST
 //     Enables prepare downscale mode (remove the live-store from the ring on shutdown).
 //
@@ -148,8 +152,28 @@ func (s *LiveStore) PrepareDownscaleHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
 	switch r.Method {
+	case http.MethodGet:
+		exists, err := shutdownmarker.Exists(shutdownMarkerPath)
+		if err != nil {
+			level.Error(s.logger).Log("msg", "unable to check for prepare-shutdown marker file", "path", shutdownMarkerPath, "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if exists {
+			util.WriteTextResponse(w, "set\n")
+		} else {
+			util.WriteTextResponse(w, "unset\n")
+		}
 	case http.MethodPost:
+		if err := shutdownmarker.Create(shutdownMarkerPath); err != nil {
+			level.Error(s.logger).Log("msg", "unable to create prepare-shutdown marker file", "path", shutdownMarkerPath, "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		state, _, err := s.ingestPartitionLifecycler.GetPartitionState(r.Context())
 		if err != nil {
 			level.Error(s.logger).Log("msg", "failed to get partition state", "err", err)
@@ -161,18 +185,34 @@ func (s *LiveStore) PrepareDownscaleHandler(w http.ResponseWriter, r *http.Reque
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
-		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
+		s.setPrepareShutdown()
 		level.Info(s.logger).Log("msg", "live-store prepared for shutdown")
 
 	case http.MethodDelete:
-		s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(false)
-		level.Info(s.logger).Log("msg", "live-store shutdown preparation cancelled")
+		if err := shutdownmarker.Remove(shutdownMarkerPath); err != nil {
+			level.Error(s.logger).Log("msg", "unable to remove prepare-shutdown marker file", "path", shutdownMarkerPath, "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-	case http.MethodGet:
+		s.unsetPrepareShutdown()
+		level.Info(s.logger).Log("msg", "live-store shutdown preparation cancelled")
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// setPrepareShutdown configures the live-store for shutdown preparation
+func (s *LiveStore) setPrepareShutdown() {
+	s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(true)
+	s.ingestPartitionLifecycler.SetCreatePartitionOnStartup(false)
+}
+
+// unsetPrepareShutdown reverts the shutdown preparation configuration
+func (s *LiveStore) unsetPrepareShutdown() {
+	s.ingestPartitionLifecycler.SetRemoveOwnerOnShutdown(false)
+	s.ingestPartitionLifecycler.SetCreatePartitionOnStartup(true)
 }
