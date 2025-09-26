@@ -110,7 +110,9 @@ func TestMetrics_PushBytesTracking(t *testing.T) {
 	require.NoError(t, err)
 
 	// Push bytes
-	setup.instance.pushBytes(t.Context(), time.Now(), req)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	setup.instance.pushBytes(ctx, time.Now(), req)
 
 	// Verify bytes received metric increased by expected amount
 	finalBytesReceived, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")
@@ -143,7 +145,9 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 		Traces: []tempopb.PreallocBytes{{Slice: traceData}},
 		Ids:    [][]byte{traceID},
 	}
-	setup.instance.pushBytes(t.Context(), time.Now(), req)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	setup.instance.pushBytes(ctx, time.Now(), req)
 
 	// Cut traces to head block
 	err = setup.instance.cutIdleTraces(true)
@@ -158,7 +162,7 @@ func TestMetrics_CompletionFlow(t *testing.T) {
 	initialCompletionSize := getHistogramCount(t, metricCompletionSize)
 
 	// Complete the block
-	err = setup.instance.completeBlock(context.Background(), blockID)
+	err = setup.instance.completeBlock(ctx, blockID)
 	require.NoError(t, err)
 
 	// Verify completion size metric was updated
@@ -180,7 +184,9 @@ func TestMetrics_EmptyPushBytesRequest(t *testing.T) {
 		Traces: []tempopb.PreallocBytes{},
 		Ids:    [][]byte{},
 	}
-	setup.instance.pushBytes(t.Context(), time.Now(), req)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	setup.instance.pushBytes(ctx, time.Now(), req)
 
 	// Verify no bytes were recorded
 	finalBytesReceived, err := getCounterVecValue(metricBytesReceivedTotal, testTenant, "trace")

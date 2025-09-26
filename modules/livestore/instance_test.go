@@ -15,8 +15,8 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
-func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore) {
-	instance, ls := defaultInstance(t)
+func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore, context.Context, context.CancelFunc) {
+	instance, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
 	limits, err := overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
 			Global: overrides.GlobalOverrides{
@@ -30,7 +30,7 @@ func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces in
 	require.NoError(t, err)
 	instance.overrides = limits
 
-	return instance, ls
+	return instance, ls, ctx, cncl
 }
 
 func pushTrace(ctx context.Context, t *testing.T, instance *instance, tr *tempopb.Trace, id []byte) {
@@ -56,72 +56,77 @@ func TestInstanceLimits(t *testing.T) {
 
 	// bytes - succeeds: push two different traces under size limit
 	t.Run("bytes - succeeds", func(t *testing.T) {
-		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
+		instance, ls, ctx, cncl := instanceWithPushLimits(t, maxBytes, maxTraces)
+		defer cncl()
 		// two different traces with different ids
 		id1 := test.ValidTraceID(nil)
 		id2 := test.ValidTraceID(nil)
-		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id1), id1)
-		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id2), id2)
+		pushTrace(ctx, t, instance, test.MakeTrace(5, id1), id1)
+		pushTrace(ctx, t, instance, test.MakeTrace(5, id2), id2)
 		require.Equal(t, uint64(2), instance.liveTraces.Len())
 
-		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		err := services.StopAndAwaitTerminated(ctx, ls)
 		require.NoError(t, err)
 	})
 
 	// bytes - one fails: second push of the same trace exceeds MaxBytesPerTrace
 	t.Run("bytes - one fails", func(t *testing.T) {
-		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
+		instance, ls, ctx, cncl := instanceWithPushLimits(t, maxBytes, maxTraces)
+		defer cncl()
 
 		id := test.ValidTraceID(nil)
+
 		// First push fits
-		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
+		pushTrace(ctx, t, instance, test.MakeTrace(5, id), id)
 		// Second push with same id will exceed combined size (> maxBytes)
-		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
+		pushTrace(ctx, t, instance, test.MakeTrace(5, id), id)
 		// Only one live trace stored, and accumulated size should be <= maxBytes
 		require.Equal(t, uint64(1), instance.liveTraces.Len())
 		require.LessOrEqual(t, instance.liveTraces.Size(), uint64(maxBytes))
 
-		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		err := services.StopAndAwaitTerminated(ctx, ls)
 		require.NoError(t, err)
 	})
 
 	// max traces - too many: only first 4 unique traces are accepted
 	t.Run("max traces - too many", func(t *testing.T) {
-		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
+		instance, ls, ctx, cncl := instanceWithPushLimits(t, maxBytes, maxTraces)
+		defer cncl()
 
 		for range 10 {
 			id := test.ValidTraceID(nil)
-			ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(1*time.Second)) // Time out after 1s, push should be immediate
-			t.Cleanup(cancel)
 			pushTrace(ctx, t, instance, test.MakeTrace(1, id), id)
 		}
 		require.Equal(t, uint64(4), instance.liveTraces.Len())
 
-		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		err := services.StopAndAwaitTerminated(ctx, ls)
 		require.NoError(t, err)
 	})
 }
 
 func TestInstanceNoLimits(t *testing.T) {
-	instance, ls := instanceWithPushLimits(t, 0, 0) // no limits by default
+	instance, ls, ctx, cncl := instanceWithPushLimits(t, 0, 0)
+	defer cncl()
 
 	for range 100 {
 		id := test.ValidTraceID(nil)
-		pushTrace(t.Context(), t, instance, test.MakeTrace(1, id), id)
+		pushTrace(ctx, t, instance, test.MakeTrace(1, id), id)
 	}
 
 	assert.Equal(t, uint64(100), instance.liveTraces.Len())
 	assert.GreaterOrEqual(t, instance.liveTraces.Size(), uint64(1000))
 
-	err := services.StopAndAwaitTerminated(t.Context(), ls)
+	err := services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
 func TestInstanceBackpressure(t *testing.T) {
-	instance, ls := defaultInstance(t)
+	instance, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+
+	defer cncl()
 
 	id1 := test.ValidTraceID(nil)
-	pushTrace(t.Context(), t, instance, test.MakeTrace(1, id1), id1)
+	pushTrace(ctx, t, instance, test.MakeTrace(1, id1), id1)
 
 	instance.Cfg.MaxLiveTracesBytes = instance.liveTraces.Size() // Set max size to current live-traces size
 
@@ -132,21 +137,21 @@ func TestInstanceBackpressure(t *testing.T) {
 	go func() {
 		defer close(pushComplete)
 		// Second write will block waiting for the live traces to have room
-		pushTrace(t.Context(), t, instance, test.MakeTrace(1, id2), id2)
+		pushTrace(ctx, t, instance, test.MakeTrace(1, id2), id2)
 	}()
 
 	// Give goroutine time to start and block
 	time.Sleep(10 * time.Millisecond)
 
 	// First trace is found
-	res, err := instance.FindByTraceID(t.Context(), id1, true)
+	res, err := instance.FindByTraceID(ctx, id1, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Trace)
 	require.Greater(t, res.Trace.Size(), 0)
 
 	// Second is not (should be blocked)
-	res, err = instance.FindByTraceID(t.Context(), id2, true)
+	res, err = instance.FindByTraceID(ctx, id2, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Nil(t, res.Trace)
@@ -163,11 +168,11 @@ func TestInstanceBackpressure(t *testing.T) {
 	}
 
 	// After cut, second trace is pushed to instance and can be found
-	res, err = instance.FindByTraceID(t.Context(), id2, true)
+	res, err = instance.FindByTraceID(ctx, id2, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Trace)
 	require.Greater(t, res.Trace.Size(), 0)
 
-	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+	require.NoError(t, services.StopAndAwaitTerminated(ctx, ls))
 }

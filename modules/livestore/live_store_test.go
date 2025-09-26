@@ -21,9 +21,10 @@ import (
 func TestLiveStoreBasicConsume(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, err := defaultLiveStore(t, tmpDir)
+	liveStore, _, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
+	defer cncl()
 
 	// Push 10 traces and store their IDs and expected traces
 	expectedTraces := make(map[string]*tempopb.Trace)
@@ -43,9 +44,10 @@ func TestLiveStoreBasicConsume(t *testing.T) {
 func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
+	defer cncl()
 
 	inst, err := liveStore.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
@@ -74,7 +76,7 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 
 	// force complete the wal block
-	err = inst.completeBlock(t.Context(), walUUID)
+	err = inst.completeBlock(ctx, walUUID)
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
@@ -82,14 +84,14 @@ func TestLiveStoreFullBlockLifecycleCheating(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 
 	// stop gracefully
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
 }
 
 func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -97,11 +99,15 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	expectedID, expectedTrace := pushToLiveStore(t, liveStore)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
+	cncl()
+	// Internally we have to wait for the partition lag detector to stop.
+	time.Sleep(100 * time.Millisecond)
 
-	liveStore, err = defaultLiveStore(t, tmpDir)
+	liveStore, _, cncl, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
+	defer cncl()
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
@@ -110,7 +116,7 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -125,11 +131,13 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
+	cncl()
 
-	liveStore, err = defaultLiveStore(t, tmpDir)
+	liveStore, _, cncl, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
+	defer cncl()
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
@@ -138,7 +146,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -157,11 +165,13 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
+	cncl()
 
-	liveStore, err = defaultLiveStore(t, tmpDir)
+	liveStore, _, cncl, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
+	cncl()
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
@@ -170,7 +180,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, err := defaultLiveStore(t, tmpDir)
+	liveStore, ctx, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
 
@@ -189,15 +199,17 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	// complete the wal blocks
-	err = inst.completeBlock(t.Context(), walUUID)
+	err = inst.completeBlock(ctx, walUUID)
 	require.NoError(t, err)
 
 	// stop the live store and then create a new one to simulate a restart and replay the data on disk
-	err = services.StopAndAwaitTerminated(t.Context(), liveStore)
+	err = services.StopAndAwaitTerminated(ctx, liveStore)
 	require.NoError(t, err)
+	cncl()
 
-	liveStore, err = defaultLiveStore(t, tmpDir)
+	liveStore, _, cncl, err = defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
+	defer cncl()
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
@@ -205,7 +217,8 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 
 func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	// default live store uses the default complete block timeout
-	ls, _ := defaultLiveStore(t, t.TempDir())
+	ls, ctx, cncl, _ := defaultLiveStore(t, t.TempDir())
+	defer cncl()
 
 	// Reset metrics
 	metricRecordsProcessed.Reset()
@@ -240,7 +253,7 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	}
 
 	// Call consume
-	_, err := ls.consume(context.Background(), createRecordIter(records), now)
+	_, err := ls.consume(ctx, createRecordIter(records), now)
 	require.NoError(t, err)
 
 	// Verify metrics
@@ -252,7 +265,7 @@ func TestLiveStoreConsumeDropsOldRecords(t *testing.T) {
 	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant1", "too_old")))
 	require.Equal(t, float64(1), test.MustGetCounterValue(metricRecordsDropped.WithLabelValues("tenant2", "too_old")))
 
-	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
 }
 
@@ -312,10 +325,10 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		ls, err := defaultLiveStore(t, t.TempDir())
+		ls, ctx, cncl, err := defaultLiveStore(t, t.TempDir())
 		require.NoError(t, err)
 
-		_, err = ls.consume(t.Context(), createRecordIter(tc.records), now)
+		_, err = ls.consume(ctx, createRecordIter(tc.records), now)
 		require.NoError(t, err)
 
 		inst, err := ls.getOrCreateInstance(testTenantID)
@@ -332,24 +345,26 @@ func TestLiveStoreUsesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 		// cut to complete block and test again
 		uuid, err := inst.cutBlocks(true)
 		require.NoError(t, err)
-		err = inst.completeBlock(t.Context(), uuid)
+		err = inst.completeBlock(ctx, uuid)
 		require.NoError(t, err)
 
 		meta = inst.completeBlocks[uuid].BlockMeta()
 		require.Equal(t, tc.expectedStart, meta.StartTime)
 		require.Equal(t, tc.expectedEnd, meta.EndTime)
 
-		err = services.StopAndAwaitTerminated(t.Context(), ls)
+		err = services.StopAndAwaitTerminated(ctx, ls)
 		require.NoError(t, err)
+		cncl()
 	}
 }
 
 func TestLiveStoreShutdownWithPendingCompletions(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	liveStore, err := defaultLiveStore(t, tmpDir)
+	liveStore, _, cncl, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
+	defer cncl()
 
 	liveStore.cfg.holdAllBackgroundProcesses = false
 	liveStore.startAllBackgroundProcesses()
@@ -407,7 +422,9 @@ func requireInstanceState(t *testing.T, inst *instance, state instanceState) {
 }
 
 func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte, expectedTrace *tempopb.Trace) {
-	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx = user.InjectOrgID(ctx, testTenantID)
 	resp, err := liveStore.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: traceID,
 	})
@@ -417,7 +434,9 @@ func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte,
 }
 
 func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte, expectedTrace *tempopb.Trace) {
-	ctx := user.InjectOrgID(t.Context(), testTenantID)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx = user.InjectOrgID(ctx, testTenantID)
 	actualTrace, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotNil(t, actualTrace)
@@ -496,7 +515,9 @@ func pushToLiveStore(t *testing.T, liveStore *LiveStore) ([]byte, *tempopb.Trace
 		kgoRec.Timestamp = now
 	}
 
-	_, err = liveStore.consume(t.Context(), createRecordIter(requestRecords), now)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, err = liveStore.consume(ctx, createRecordIter(requestRecords), now)
 	require.NoError(t, err)
 
 	return id, expectedTrace
