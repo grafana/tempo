@@ -285,7 +285,7 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 }
 
 func TestInstanceSearchNoData(t *testing.T) {
-	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	i, ls, _, cncl := defaultInstanceAndTmpDir(t)
 	defer cncl()
 	req := &tempopb.SearchRequest{
 		Query: "{}",
@@ -364,7 +364,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
-	instance, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+	instance, ls, _, cncl := defaultInstanceAndTmpDir(t)
 	defer cncl()
 
 	instance.overrides = limits
