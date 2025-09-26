@@ -2,6 +2,7 @@
 
 # v2.9.0-rc.0
 
+* [CHANGE] **BREAKING CHANGE** We are no longer publishing rpm and deb packages due to an internal change to the handling of signing keys. [#5684](https://github.com/grafana/tempo/pull/5684) (@joe-elliott)
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now pushes traces to the Tempo OTLP GRCP endpoint. [#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes. [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
