@@ -23,14 +23,22 @@ import (
 )
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryRangeHandler {
+func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
 	return func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
 		ctx := srv.Context()
+		var err error
 
 		headers := headersFromGrpcContext(ctx)
+		if dataAccessController != nil {
+			err = dataAccessController.HandleGRPCQueryRangeReq(ctx, req)
+			if err != nil {
+				level.Error(logger).Log("msg", "query range streaming: access control handling failed", "err", err)
+				return err
+			}
+		}
 
 		// default step if not set
 		if req.Step == 0 {
@@ -77,7 +85,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 }
 
 // newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
+func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -86,6 +94,13 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 			return errResp, nil
 		}
 		start := time.Now()
+
+		if dataAccessController != nil {
+			if err := dataAccessController.HandleHTTPQueryRangeReq(req); err != nil {
+				level.Error(logger).Log("msg", "http query range: access control handling failed", "err", err)
+				return httpInvalidRequest(err), nil
+			}
+		}
 
 		// parse request
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)

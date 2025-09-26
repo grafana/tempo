@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryInstantHandler {
+func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -33,6 +33,13 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 
 		headers := headersFromGrpcContext(ctx)
+		if dataAccessController != nil {
+			err = dataAccessController.HandleGRPCQueryInstantReq(ctx, req)
+			if err != nil {
+				level.Error(logger).Log("msg", "instant query streaming: access control handling failed", "err", err)
+				return err
+			}
+		}
 
 		// --------------------------------------------------
 		// Rewrite into a query_range request.
@@ -80,7 +87,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 
 // newMetricsQueryInstantHTTPHandler handles instant queries.  Internally these are rewritten as query_range with single step
 // to make use of the existing pipeline.
-func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
+func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -90,15 +97,18 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		start := time.Now()
 
+		if dataAccessController != nil {
+			if err := dataAccessController.HandleHTTPQueryInstantReq(req); err != nil {
+				level.Error(logger).Log("msg", "http instant query: access control handling failed", "err", err)
+				return httpInvalidRequest(err), nil
+			}
+		}
+
 		// Parse request
 		i, err := api.ParseQueryInstantRequest(req)
 		if err != nil {
 			level.Error(logger).Log("msg", "query instant: parse search request failed", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 
 		logQueryInstantRequest(logger, tenant, i)
@@ -121,11 +131,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
 			level.Error(logger).Log("msg", "query instant: query range combiner failed", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
 

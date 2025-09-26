@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -288,4 +289,8 @@ func (c *genericCombiner[R]) shouldQuit() bool {
 
 	// 2xx
 	return false
+}
+
+type TraceRedactor interface {
+	RedactTraceAttributes(t *tempopb.Trace)
 }

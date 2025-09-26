@@ -154,31 +154,31 @@ func (f SpansetFilter) validate() error {
 }
 
 func (f ScalarFilter) validate() error {
-	if err := f.lhs.validate(); err != nil {
+	if err := f.LHS.validate(); err != nil {
 		return err
 	}
-	if err := f.rhs.validate(); err != nil {
+	if err := f.RHS.validate(); err != nil {
 		return err
 	}
 
-	lhsT := f.lhs.impliedType()
-	rhsT := f.rhs.impliedType()
+	lhsT := f.LHS.impliedType()
+	rhsT := f.RHS.impliedType()
 	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", f.String())
 	}
 
-	if !f.op.binaryTypesValid(lhsT, rhsT) {
+	if !f.Op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", f.String())
 	}
 
 	// Only supported expression types
-	switch f.lhs.(type) {
+	switch f.LHS.(type) {
 	case Aggregate:
 	default:
 		return newUnsupportedError("scalar filter lhs of type (%v)")
 	}
 
-	switch f.rhs.(type) {
+	switch f.RHS.(type) {
 	case Static:
 	default:
 		return newUnsupportedError("scalar filter rhs of type (%v)")
