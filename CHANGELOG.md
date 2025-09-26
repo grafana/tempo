@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [CHANGE] Upgrade Tempo to go 1.25.0 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
+
 # v2.9.0-rc.0
 
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
@@ -12,7 +14,9 @@
 * [CHANGE] **BREAKING CHANGE** TraceQL Metrics buckets are calculated based on data in past. [#5366](https://github.com/grafana/tempo/pull/5366) (@ruslan-mikhailov)
 * [CHANGE] Upgrade Tempo to go 1.25.0. [#5548](https://github.com/grafana/tempo/pull/5548) (@javiermolinar)
 * [CHANGE] Drop tracing bridges in favor of OTEL only tracing. [#5594](https://github.com/grafana/tempo/pull/5594) (@zalegrala)
-* [CHANGE] **BREAKING CHANGE** Fix incorrect TraceQL metrics results when series labels include strings and integers with same textural representation. This also changes the TraceQL metrics responses of `/api/metrics/query_range` and `/api/metrics/query` to remove the redundant `prom_labels` field which was the error source. There may be an interruption to TraceQL metrics queries during rollout while components are running the previous version. [#5659](https://github.com/grafana/tempo/pull/5659) (@mdisibio)
+* [CHANGE] **BREAKING CHANGE** Fix incorrect TraceQL metrics results when series labels include strings and integers with same textural representation.
+  This also changes the TraceQL metrics responses of `/api/metrics/query_range` and `/api/metrics/query` to remove the redundant
+  `prom_labels` field which was the error source. There may be an interruption to TraceQL metrics queries during rollout while components are running the previous version. [#5659](https://github.com/grafana/tempo/pull/5659) (@mdisibio)
 * [CHANGE] Enable HTTP writes in the multi-tenant example. [#5297](https://github.com/grafana/tempo/pull/5297) (@carles-grafana)
 * [FEATURE] Add MCP Server support. [#5212](https://github.com/grafana/tempo/pull/5212) (@joe-elliott)
 * [FEATURE] Add query hints `sample=true` and `sample=0.xx` which can speed up TraceQL metrics queries by sampling a subset of the data to provide an approximate result. [#5469](https://github.com/grafana/tempo/pull/5469) (@mdisibio)
