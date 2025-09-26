@@ -31,7 +31,7 @@ func Remove(p string) error {
 		return err
 	}
 
-	dir, err := os.OpenFile(path.Dir(p), os.O_RDONLY, 0600) // mode doesn't matter since we're not passing os.O_CREATE
+	dir, err := os.OpenFile(path.Dir(p), os.O_RDONLY, 0o600) // mode doesn't matter since we're not passing os.O_CREATE
 	if err != nil {
 		return err
 	}
