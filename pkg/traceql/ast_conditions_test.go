@@ -119,6 +119,13 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			},
 			allConditions: true,
 		},
+		{
+			query: `{ span.foo = nil }`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "foo"), OpNotExists),
+			},
+			allConditions: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
