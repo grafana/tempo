@@ -119,7 +119,7 @@ The time interval that the count is computed over is set by the `step` parameter
 
 ### The `step` parameter
 
-Ths `step` parameter defines the granularity of the returned time-series.
+The `step` parameter defines the granularity of the returned time-series.
 For example, `step=15s` returns a data point every 15s within the time range.
 By default, `step` automatically chooses a dynamic value based on the query start time and end time.
 
