@@ -571,7 +571,7 @@ func (c *Column) DecodeDataPageV1(header DataPageHeaderV1, page []byte, dict Dic
 }
 
 func (c *Column) decodeDataPageV1(header DataPageHeaderV1, page *buffer, dict Dictionary, size int32) (Page, error) {
-	var pageData = page.data
+	pageData := page.data
 	var err error
 
 	if isCompressed(c.compression) {
@@ -582,7 +582,7 @@ func (c *Column) decodeDataPageV1(header DataPageHeaderV1, page *buffer, dict Di
 		pageData = page.data
 	}
 
-	var numValues = int(header.NumValues())
+	numValues := int(header.NumValues())
 	var repetitionLevels *buffer
 	var definitionLevels *buffer
 
@@ -618,8 +618,8 @@ func (c *Column) DecodeDataPageV2(header DataPageHeaderV2, page []byte, dict Dic
 }
 
 func (c *Column) decodeDataPageV2(header DataPageHeaderV2, page *buffer, dict Dictionary, size int32) (Page, error) {
-	var numValues = int(header.NumValues())
-	var pageData = page.data
+	numValues := int(header.NumValues())
+	pageData := page.data
 	var err error
 	var repetitionLevels *buffer
 	var definitionLevels *buffer
@@ -813,6 +813,4 @@ func (c *Column) decodeDictionary(header DictionaryPageHeader, page *buffer, siz
 	return pageType.NewDictionary(int(c.index), numValues, values), nil
 }
 
-var (
-	_ Node = (*Column)(nil)
-)
+var _ Node = (*Column)(nil)

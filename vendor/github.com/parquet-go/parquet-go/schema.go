@@ -1153,84 +1153,20 @@ func forEachTagOption(tags []string, do func(option, args string)) {
 }
 
 func RewriteSchema(schema *Schema, replace func(path []string, node Node) Node) *Schema {
-	sch := NewSchema(schema.name, rewriteSchemaSimple(nil, schema.root, replace))
+	sch := NewSchema(schema.name, rewriteSchema(nil, schema.root, replace))
 	sch.cfg = schema.cfg
 	return sch
 }
 
-/*type GroupWithGoType struct {
-	Group
-	// fields   []Field
-	// gotype reflect.Type
-	// required bool
-	// repeated bool
-	// ptional bool
-	// typ Type
-}*/
-
-/*func (g GroupWithGoType) Fields() []Field {
-	return g.fields
-}*/
-
-// var _ Node = (*GroupWithGoType)(nil)
-
-/*func (g *GroupWithGoType) GoType() reflect.Type {
-	return g.gotype
-}*/
-
-/*func (g *GroupWithGoType) Repeated() bool {
-	return g.repeated
-}*/
-
-/*func (g *GroupWithGoType) Optional() bool {
-	return g.optional
-}
-
-func (g *GroupWithGoType) Required() bool {
-	return g.required
-}*/
-
-/*func (g *GroupWithGoType) Type() Type {
-	return g.typ
-}*/
-
-type OrderedGroup struct {
-	Node
-	fields []groupField
-	gotype reflect.Type
-}
-
-var _ Node = (*OrderedGroup)(nil)
-
-func (g *OrderedGroup) Fields() []Field {
-	fields := make([]Field, 0, len(g.fields))
-	for _, field := range g.fields {
-		fields = append(fields, &field)
-	}
-	return fields
-}
-
-func (g *OrderedGroup) GoType() reflect.Type {
-	return g.gotype
-}
-
-/*func rewriteSchema(path []string, node Node, replace func(path []string, node Node) Node) Node {
+func rewriteSchema(path []string, node Node, replace func(path []string, node Node) Node) Node {
 	if node.Leaf() {
 		return replace(path, node)
 	}
 
+	// Types requiring special handling.
 	switch n := node.(type) {
-	case listNode:
-		g := rewriteSchema(path, n.Group, replace).(*Group)
-		return &listNode{
-			Group: *g,
-		}
-	case mapNode:
-		g := rewriteSchema(path, n.Group, replace).(*Group)
-		return &mapNode{
-			Group: *g,
-		}
 	case *structNode:
+		// Maintain struct information including field order and index.
 		fields := make([]structField, 0, len(n.fields))
 		for _, field := range n.fields {
 			fields = append(fields, structField{
@@ -1243,99 +1179,47 @@ func (g *OrderedGroup) GoType() reflect.Type {
 			gotype: n.gotype,
 			fields: fields,
 		}
-	case *goNode:
-		return &goNode{
-			Node:   rewriteSchema(path, n.Node, replace),
-			gotype: n.gotype,
-		}
-	case *structField:
-		return &structField{
-			Node:  rewriteSchema(append(path, n.name), n.Node, replace),
-			name:  n.name,
-			index: n.index,
-		}
 	case *groupField:
-		return &groupField{
-			Node: rewriteSchema(path, n.Node, replace),
-			name: n.name,
-		}
+		// Rewrite innner node only, groupField accounted for in parent Group below.
+		return rewriteSchema(path, n.Node, replace)
 	}
 
 	g := Group{}
 	for _, field := range node.Fields() {
-		n := rewriteSchema(append(path, field.Name()), field, replace)
-
-		// Nil returns allow to drop a field.
-		if n == nil {
-			continue
+		n := field.Name()
+		g[n] = &groupField{
+			Node: rewriteSchema(append(path, n), field, replace),
+			name: n,
 		}
-		g[field.Name()] = n
 	}
 
 	out := (Node)(&g)
 
-	if node.Optional() {
+	if logicalType := node.Type().LogicalType(); logicalType != nil {
+		switch {
+		case logicalType.List != nil:
+			out = &listNode{Group: g}
+		case logicalType.Map != nil:
+			out = &mapNode{Group: g}
+		}
+	}
+
+	// Reapply options as needed.
+
+	if node.Optional() && !out.Optional() {
 		out = Optional(out)
 	}
 
-	if node.Repeated() {
+	if node.Repeated() && !out.Repeated() {
 		out = Repeated(out)
 	}
 
-	return out
-}*/
-
-func rewriteSchemaSimple(path []string, node Node, replace func(path []string, node Node) Node) Node {
-	if node.Leaf() {
-		return replace(path, node)
+	if node.Required() && !out.Required() {
+		out = Required(out)
 	}
 
-	switch n := node.(type) {
-	case *structNode:
-		fields := make([]structField, 0, len(n.fields))
-		for _, field := range n.fields {
-			fields = append(fields, structField{
-				Node:  rewriteSchemaSimple(append(path, field.name), field.Node, replace),
-				name:  field.name,
-				index: field.index,
-			})
-		}
-		return &structNode{
-			gotype: n.gotype,
-			fields: fields,
-		}
-	case *groupField:
-		return &groupField{
-			Node: rewriteSchemaSimple(path, n.Node, replace),
-			name: n.name,
-		}
-	}
-
-	g := Group{}
-	for _, field := range node.Fields() {
-		g[field.Name()] = rewriteSchemaSimple(append(path, field.Name()), field, replace)
-	}
-
-	out := (Node)(&g)
-
-	if node.Type().String() == "LIST" {
-		out = &listNode{Group: g}
-	}
-
-	if node.Type().String() == "MAP" {
-		out = &mapNode{Group: g}
-	}
-
-	if node.Optional() {
-		out = Optional(out)
-	}
-
-	if node.Repeated() {
-		out = Repeated(out)
-	}
-
-	// This must be last to take precedence over Repeated().
-	if node.GoType() != nil {
+	// This must be last.
+	if node.GoType() != out.GoType() {
 		out = &goNode{
 			Node:   out,
 			gotype: node.GoType(),

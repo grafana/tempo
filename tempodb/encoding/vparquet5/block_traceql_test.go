@@ -1357,6 +1357,39 @@ func BenchmarkReadTraces(b *testing.B) {
 	}
 }
 
+func BenchmarkReadSingleTrace(b *testing.B) {
+	// For sampler debugging
+	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
+
+	ctx := b.Context()
+	opts := common.DefaultSearchOptions()
+
+	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-10")
+	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20")
+	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20-dyn")
+
+	os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
+	os.Setenv("VP5_BENCH_TENANTID", "328776")
+
+	// os.Setenv("VP5_BENCH_BLOCKID", "26142bda-e8f4-4886-a669-e47829e6aa90")
+	// os.Setenv("VP5_BENCH_TENANTID", "797642")
+
+	// os.Setenv("VP5_BENCH_BLOCKID", "d1240180-7d43-49b3-b691-06ddcc4e53b3")
+	// os.Setenv("VP5_BENCH_TENANTID", "1")
+
+	block := blockForBenchmarks(b)
+
+	id, err := util.HexStringToTraceID("84dbab961d9b7c10dcf4aa8b929fe6a7")
+	require.NoError(b, err)
+
+	for b.Loop() {
+
+		tr, err := block.FindTraceByID(ctx, id, opts)
+		require.NoError(b, err)
+		require.NotNil(b, tr)
+	}
+}
+
 func TestSamplingError(t *testing.T) {
 	// Comment this out to run tests when developing.
 	t.Skip("Skipping sampling error test")
