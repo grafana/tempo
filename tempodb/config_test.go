@@ -1,8 +1,8 @@
 package tempodb
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
