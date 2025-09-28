@@ -1413,7 +1413,7 @@ Defines re-used configuration blocks.
 ### Block config
 
 ```yaml
-# block format version. options: v2, vParquet2, vParquet3, vParquet4
+# block format version. options: v2, vParquet3, vParquet4
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
@@ -1614,7 +1614,7 @@ The storage WAL configuration block.
 [ingestion_time_range_slack: <duration> | default = unset]
 
 # WAL file format version
-# Options: v2, vParquet, vParquet2, vParquet3
+# Options: v2, vParquet, vParquet3
 [version: <string> | default = "vParquet3"]
 ```
 
