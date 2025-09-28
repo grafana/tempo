@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [CHANGE] **BREAKING CHANGE** Deprecating vParquet2 block format [#5688](https://github.com/grafana/tempo/pull/5688) (@ie-pham)
+
 # v2.9.0-rc.0
 
 * [CHANGE] Upgrade Tempo to go 1.25.1 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
