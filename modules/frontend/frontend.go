@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -62,10 +63,30 @@ type QueryFrontend struct {
 	logger                                                                                     log.Logger
 }
 
+type DataAccessController interface {
+	HandleHTTPSearchReq(r *http.Request) error
+	HandleHTTPTagsReq(r *http.Request) error
+	HandleHTTPTagsV2Req(r *http.Request) error
+	HandleHTTPTagValuesReq(r *http.Request) error
+	HandleHTTPTagValuesV2Req(r *http.Request) error
+	HandleHTTPQueryRangeReq(r *http.Request) error
+	HandleHTTPQueryInstantReq(r *http.Request) error
+	HandleHTTPMetricsSummaryReq(r *http.Request) error
+	HandleHTTPTraceByIDReq(r *http.Request) (combiner.TraceRedactor, error)
+
+	HandleGRPCSearchReq(c context.Context, r *tempopb.SearchRequest) error
+	HandleGRPCTagsReq(c context.Context, r *tempopb.SearchTagsRequest) error
+	HandleGRPCTagsV2Req(c context.Context, r *tempopb.SearchTagsRequest) error
+	HandleGRPCTagValuesReq(c context.Context, r *tempopb.SearchTagValuesRequest) error
+	HandleGRPCTagValuesV2Req(c context.Context, r *tempopb.SearchTagValuesRequest) error
+	HandleGRPCQueryRangeReq(c context.Context, r *tempopb.QueryRangeRequest) error
+	HandleGRPCQueryInstantReq(c context.Context, r *tempopb.QueryInstantRequest) error
+}
+
 var tracer = otel.Tracer("modules/frontend")
 
 // New returns a new QueryFrontend
-func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, authMiddleware middleware.Interface, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, authMiddleware middleware.Interface, dataAccessController DataAccessController, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
@@ -204,16 +225,16 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
-	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger)
-	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger)
-	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
-	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
-	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)
-	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)
-	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger)
-	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
+	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
+	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
+	search := newSearchHTTPHandler(cfg, searchPipeline, logger, dataAccessController)
+	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
+	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
+	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
+	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, dataAccessController)
+	metrics := newMetricsSummaryHandler(metricsPipeline, logger, dataAccessController)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger, dataAccessController) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger, dataAccessController)
 
 	f := &QueryFrontend{
 		// http/discrete
@@ -229,13 +250,13 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
 
 		// grpc/streaming
-		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
-		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger), // Reuses the same pipeline
+		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger, dataAccessController),
+		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
+		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
+		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),
+		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger, dataAccessController),
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, dataAccessController),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
@@ -284,7 +305,7 @@ func (q *QueryFrontend) MetricsQueryInstant(req *tempopb.QueryInstantRequest, sr
 }
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
-func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
+func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
@@ -294,6 +315,12 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 				Status:     http.StatusText(http.StatusBadRequest),
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
+		}
+		if dataAccessController != nil {
+			if err := dataAccessController.HandleHTTPMetricsSummaryReq(req); err != nil {
+				level.Error(logger).Log("msg", "metrics summary: add filter failed", "err", err)
+				return httpInvalidRequest(err), nil
+			}
 		}
 		prepareRequestForQueriers(req, tenant)
 		// This API is always json because it only ever has 1 job and this

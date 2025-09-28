@@ -211,9 +211,9 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 	// TODO we solve this gap where pipeline elements and scalar binary
 	// operations meet in a generic way. For now we only support well-defined
 	// case: aggregate binop static
-	switch l := f.lhs.(type) {
+	switch l := f.LHS.(type) {
 	case Aggregate:
-		switch r := f.rhs.(type) {
+		switch r := f.RHS.(type) {
 		case Static:
 			input, err = l.evaluate(input)
 			if err != nil {
@@ -221,7 +221,7 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 			}
 
 			for _, ss := range input {
-				res, err := binOp(f.op, ss.Scalar, r)
+				res, err := binOp(f.Op, ss.Scalar, r)
 				if err != nil {
 					return nil, fmt.Errorf("scalar filter (%v) failed: %v", f, err)
 				}
@@ -231,11 +231,11 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 			}
 
 		default:
-			return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.lhs)
+			return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.LHS)
 		}
 
 	default:
-		return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.lhs)
+		return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.LHS)
 	}
 
 	return output, nil
