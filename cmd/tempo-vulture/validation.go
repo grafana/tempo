@@ -14,13 +14,15 @@ import (
 	"go.uber.org/zap"
 )
 
+const TempoAccessPolicyToken = "TEMPO_ACCESS_POLICY_TOKEN"
+
 func RunValidationMode(
 	ctx context.Context,
 	vultureConfig vultureConfiguration,
 	pushEndpoint string,
 	logger *zap.Logger,
 ) int {
-	accessPolicyToken := os.Getenv("TEMPO_ACCESS_POLICY_TOKEN")
+	accessPolicyToken := os.Getenv(TempoAccessPolicyToken)
 	if accessPolicyToken == "" {
 		logger.Error("TEMPO_ACCESS_POLICY_TOKEN environment variable is required in validation mode")
 		return 1
