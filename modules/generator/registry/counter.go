@@ -206,5 +206,5 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 }
 
 func (c *counter) updateEstimatedSeries() {
-	c.estimatedSeries.MinuteTick()
+	c.estimatedSeries.Advance()
 }

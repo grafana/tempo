@@ -552,5 +552,5 @@ func getIfGreaterThenZeroOr(v1 float64, v2 uint64) float64 {
 }
 
 func (h *nativeHistogram) updateEstimatedSeries() {
-	h.estimatedSeries.MinuteTick()
+	h.estimatedSeries.Advance()
 }

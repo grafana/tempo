@@ -150,7 +150,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
 	go job(instanceCtx, r.removeStaleSeries, constantInterval(5*time.Minute))
-	go job(instanceCtx, r.updateHLL, constantInterval(1*time.Minute))
+	go job(instanceCtx, r.updateHLL, constantInterval(hllBucketDuration))
 
 	return r
 }
@@ -302,6 +302,9 @@ func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
 }
 
 func (r *ManagedRegistry) updateHLL(_ context.Context) {
+	r.metricsMtx.RLock()
+	defer r.metricsMtx.RUnlock()
+
 	for _, m := range r.metrics {
 		m.updateEstimatedSeries()
 	}

@@ -310,5 +310,5 @@ func formatFloat(value float64) string {
 }
 
 func (h *histogram) updateEstimatedSeries() {
-	h.estimatedSeries.MinuteTick()
+	h.estimatedSeries.Advance()
 }
