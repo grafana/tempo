@@ -75,13 +75,15 @@ func (f *Forwarder) ForwardTraces(ctx context.Context, traces ptrace.Traces) err
 	req := ptraceotlp.NewExportRequestFromTraces(traces)
 
 	var errs []error
-	f.mu.RLock()
-	for endpoint, client := range f.clients {
-		if _, err := client.Export(ctx, req); err != nil {
-			errs = append(errs, fmt.Errorf("failed to export trace to endpoint=%s: %w", endpoint, err))
+	func() {
+		f.mu.RLock()
+		defer f.mu.RUnlock()
+		for endpoint, client := range f.clients {
+			if _, err := client.Export(ctx, req); err != nil {
+				errs = append(errs, fmt.Errorf("failed to export trace to endpoint=%s: %w", endpoint, err))
+			}
 		}
-	}
-	f.mu.RUnlock()
+	}()
 
 	return multierr.Combine(errs...)
 }
