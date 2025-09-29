@@ -9,7 +9,6 @@
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now pushes traces to the Tempo OTLP GRCP endpoint. [#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes. [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
->>>>>>> origin/main
 * [CHANGE] Adjust the definition of `tempo_metrics_generator_processor_service_graphs_expired_edges` to exclude edges that are counted in the service graph. [#5319](https://github.com/grafana/tempo/pull/5319) (@joe-elliott)
 * [CHANGE] Command `tempo-cli analyse block`(s) excludes attributes with array values. [#5380](https://github.com/grafana/tempo/pull/5380) (@stoewer)
 * [CHANGE] Remove .005s and add a 1.5s bucket to all request duration histograms. [#5492](https://github.com/grafana/tempo/pull/5492) (@joe-elliott)
