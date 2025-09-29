@@ -646,6 +646,9 @@ func testCompleteBlock(t *testing.T, from, to string) {
 func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
+		if version == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(version, func(t *testing.T) {
 			testCompleteBlockHonorsStartStopTimes(t, version)
 		})
