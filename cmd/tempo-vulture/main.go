@@ -210,8 +210,8 @@ func main() {
 		return newStart, ts, skip
 	}
 
-	if os.Getenv("TEMPO_ACCESS_POLICY_TOKEN") != "" && !validationMode {
-		logger.Warn("TEMPO_ACCESS_POLICY_TOKEN is set but validationMode is false. This variable should only be necessary in validationMode.")
+	if os.Getenv(TempoAccessPolicyToken) != "" && !validationMode {
+		logger.Warn(fmt.Sprintf("%s is set but validationMode is false. This variable should only be necessary in validationMode.", TempoAccessPolicyToken))
 	}
 
 	// Check if we're running in validation mode
