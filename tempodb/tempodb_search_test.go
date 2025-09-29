@@ -2660,6 +2660,10 @@ func TestSearchByShortTraceID(t *testing.T) {
 			continue
 		}
 
+		if v.Version() == vparquet2.VersionString { // vparquet2 is deprecated
+			continue
+		}
+
 		blockVersion := v.Version()
 
 		tempDir := t.TempDir()
