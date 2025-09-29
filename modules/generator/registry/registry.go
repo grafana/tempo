@@ -33,6 +33,11 @@ var (
 		Name:      "metrics_generator_registry_demand_series",
 		Help:      "The current demand (active + rejected series) per tenant",
 	}, []string{"tenant"})
+	metricDemandSeriesEstimate = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_demand_series_estimate",
+		Help:      "The estimated current demand (active + estimated rejected series) per tenant",
+	}, []string{"tenant"})
 	metricTotalSeriesAdded = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_series_added_total",
@@ -74,11 +79,13 @@ type ManagedRegistry struct {
 
 	appendable storage.Appendable
 
-	logger                   log.Logger
-	limitLogger              *tempo_log.RateLimitedLogger
-	metricActiveSeries       prometheus.Gauge
-	metricMaxActiveSeries    prometheus.Gauge
-	metricDemandSeries       prometheus.Gauge
+	logger                     log.Logger
+	limitLogger                *tempo_log.RateLimitedLogger
+	metricActiveSeries         prometheus.Gauge
+	metricMaxActiveSeries      prometheus.Gauge
+	metricDemandSeries         prometheus.Gauge
+	metricDemandSeriesEstimate prometheus.Gauge
+
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
@@ -91,6 +98,7 @@ type metric interface {
 	name() string
 	collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error)
 	countTotalSeries() int
+	countTotalSeriesEstimate() int
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -126,16 +134,17 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 		appendable: appendable,
 
-		logger:                   logger,
-		limitLogger:              tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
-		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
-		metricDemandSeries:       metricDemandSeries.WithLabelValues(tenant),
-		metricMaxActiveSeries:    metricMaxActiveSeries.WithLabelValues(tenant),
-		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
-		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
-		metricTotalSeriesLimited: metricTotalSeriesLimited.WithLabelValues(tenant),
-		metricTotalCollections:   metricTotalCollections.WithLabelValues(tenant),
-		metricFailedCollections:  metricFailedCollections.WithLabelValues(tenant),
+		logger:                     logger,
+		limitLogger:                tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
+		metricActiveSeries:         metricActiveSeries.WithLabelValues(tenant),
+		metricDemandSeries:         metricDemandSeries.WithLabelValues(tenant),
+		metricDemandSeriesEstimate: metricDemandSeriesEstimate.WithLabelValues(tenant),
+		metricMaxActiveSeries:      metricMaxActiveSeries.WithLabelValues(tenant),
+		metricTotalSeriesAdded:     metricTotalSeriesAdded.WithLabelValues(tenant),
+		metricTotalSeriesRemoved:   metricTotalSeriesRemoved.WithLabelValues(tenant),
+		metricTotalSeriesLimited:   metricTotalSeriesLimited.WithLabelValues(tenant),
+		metricTotalCollections:     metricTotalCollections.WithLabelValues(tenant),
+		metricFailedCollections:    metricFailedCollections.WithLabelValues(tenant),
 	}
 
 	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
@@ -214,11 +223,15 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	defer r.metricsMtx.RUnlock()
 
 	var demandSeries int
+	var demandSeriesEstimate int
+
 	for _, m := range r.metrics {
 		c := m.countTotalSeries()
 		demandSeries += c
+		demandSeriesEstimate += m.countTotalSeriesEstimate()
 	}
 	r.metricDemandSeries.Set(float64(demandSeries))
+	r.metricDemandSeriesEstimate.Set(float64(max(demandSeriesEstimate, int(r.activeSeries.Load()))))
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
 		return
 	}

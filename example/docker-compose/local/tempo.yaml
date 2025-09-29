@@ -64,6 +64,8 @@ compactor:
 
 metrics_generator:
   registry:
+    collection_interval: 15s
+    stale_duration: 1m0s
     external_labels:
       source: tempo
       cluster: docker-compose
@@ -96,3 +98,4 @@ overrides:
     metrics_generator:
       processors: [service-graphs, span-metrics, local-blocks] # enables metrics generator
       generate_native_histograms: both
+      max_active_series: 100

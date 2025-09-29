@@ -27,9 +27,10 @@ type nativeHistogram struct {
 	//  Might break processors that have variable amount of labels...
 	//  promHistogram prometheus.HistogramVec
 
-	seriesMtx      sync.Mutex
-	series         map[uint64]*nativeHistogramSeries
-	rejectedSeries map[uint64]int64 // should it be lastUpdated or firstRejected? otherwise it will never be stale
+	seriesMtx       sync.Mutex
+	series          map[uint64]*nativeHistogramSeries
+	rejectedSeries  map[uint64]int64 // should it be lastUpdated or firstRejected? otherwise it will never be stale
+	estimatedSeries *HLLCounter
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -109,6 +110,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
 		rejectedSeries:    make(map[uint64]int64),
+		estimatedSeries:   NewHLLCounter(),
 		onAddSerie:        onAddSeries,
 		onRemoveSerie:     onRemoveSeries,
 		traceIDLabelName:  traceIDLabelName,
@@ -127,6 +129,8 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 
 func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
 	hash := labelValueCombo.getHash()
+
+	h.estimatedSeries.Touch(hash)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -285,6 +289,11 @@ func (h *nativeHistogram) countTotalSeries() int {
 	return (len(h.series) + len(h.rejectedSeries)) * int(h.activeSeriesPerHistogramSerie())
 }
 
+func (h *nativeHistogram) countTotalSeriesEstimate() int {
+	est := h.estimatedSeries.Estimate()
+	return int(est) * int(h.activeSeriesPerHistogramSerie())
+}
+
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 	overridesHash, _, _, _ := h.hashOverrides()
 
@@ -309,6 +318,9 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 		if lastUpdated < staleTimeMs {
 			delete(h.rejectedSeries, hash)
 		}
+	}
+	if h.estimatedSeries.lastReset < staleTimeMs {
+		h.estimatedSeries.Advance()
 	}
 }
 

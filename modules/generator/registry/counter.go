@@ -15,9 +15,10 @@ type counter struct {
 	metricName string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
-	seriesMtx      sync.RWMutex
-	series         map[uint64]*counterSeries
-	rejectedSeries map[uint64]int64
+	seriesMtx       sync.RWMutex
+	series          map[uint64]*counterSeries
+	rejectedSeries  map[uint64]int64
+	estimatedSeries *HLLCounter
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -60,12 +61,13 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 	}
 
 	return &counter{
-		metricName:     name,
-		series:         make(map[uint64]*counterSeries),
-		rejectedSeries: make(map[uint64]int64),
-		onAddSeries:    onAddSeries,
-		onRemoveSeries: onRemoveSeries,
-		externalLabels: externalLabels,
+		metricName:      name,
+		series:          make(map[uint64]*counterSeries),
+		rejectedSeries:  make(map[uint64]int64),
+		estimatedSeries: NewHLLCounter(),
+		onAddSeries:     onAddSeries,
+		onRemoveSeries:  onRemoveSeries,
+		externalLabels:  externalLabels,
 	}
 }
 
@@ -80,6 +82,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	s, ok := c.series[hash]
 	c.seriesMtx.RUnlock()
 
+	c.estimatedSeries.Touch(hash)
 	if ok {
 		c.updateSeries(s, value)
 		return
@@ -178,6 +181,13 @@ func (c *counter) countTotalSeries() int {
 	return len(c.series) + len(c.rejectedSeries)
 }
 
+func (c *counter) countTotalSeriesEstimate() int {
+	c.seriesMtx.RLock()
+	defer c.seriesMtx.RUnlock()
+
+	return int(c.estimatedSeries.Estimate())
+}
+
 func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
@@ -192,5 +202,8 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 		if lastUpdated < staleTimeMs {
 			delete(c.rejectedSeries, hash)
 		}
+	}
+	if c.estimatedSeries.lastReset < staleTimeMs {
+		c.estimatedSeries.Advance()
 	}
 }
