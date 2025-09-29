@@ -144,28 +144,51 @@ func TestSmokeLiveStoreAPI(t *testing.T) {
 
 func TestLiveStoreLookback(t *testing.T) {
 	for _, testCase := range []struct {
-		name           string
-		argument       string
-		expectedTraces float64
+		name              string
+		argument          string
+		startNewLiveStore bool
+		expectedTraces    float64
 	}{
 		{
-			name:           "1s",
-			argument:       "-live-store.max-lookback=1s",
-			expectedTraces: 2, // fresh and after start
+			name:              "restart_1s",
+			argument:          "-live-store.max-lookback=1s",
+			startNewLiveStore: false,
+			expectedTraces:    2, // fresh and after start
 		},
 		{
-			name:           "All time",
-			argument:       "", // default is 1h
-			expectedTraces: 4,  // all traces
+			name:              "restart_all_time",
+			argument:          "", // default is 1h
+			startNewLiveStore: false,
+			expectedTraces:    3, // old, fresh and after start, but not already committed
 		},
 		{
-			name:           "No param defined",
-			argument:       "-live-store.max-lookback=0s",
-			expectedTraces: 1, // only after start, because it starts from end offset
+			name:              "restart_time_now",
+			argument:          "-live-store.max-lookback=0s",
+			startNewLiveStore: false,
+			expectedTraces:    1, // only after start
+		},
+		{
+			name:              "start_1s",
+			argument:          "-live-store.max-lookback=1s",
+			startNewLiveStore: true,
+			expectedTraces:    2, // fresh and after start
+		},
+		{
+			name:              "start_all_time",
+			argument:          "", // default is 1h
+			startNewLiveStore: true,
+			expectedTraces:    4, // all traces
+		},
+		{
+			name:              "start_time_now",
+			argument:          "-live-store.max-lookback=0s",
+			startNewLiveStore: true,
+			expectedTraces:    1, // only after start, because it starts from end offset
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			s, err := e2e.NewScenario("tempo_e2e")
+			s, err := e2e.NewScenario("tempo_e2e_TestLiveStoreLookback_" + testCase.name)
+			t.Parallel()
 			require.NoError(t, err)
 			defer s.Close()
 
@@ -188,26 +211,26 @@ func TestLiveStoreLookback(t *testing.T) {
 			require.NotNil(t, c)
 
 			info := tempoUtil.NewTraceInfo(time.Now(), "")
-			require.NoError(t, info.EmitAllBatches(c))
+			require.NoError(t, info.EmitAllBatches(c)) // committed by the first live store before shutdown
 
 			expected, err := info.ConstructTraceFromEpoch()
 			require.NoError(t, err)
 
 			// should process the trace
 			require.NoError(t, distributor.WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
+			require.NoError(t, liveStore.WaitSumMetrics(e2e.Equals(1), "tempo_live_store_traces_created_total"))
 
-			s.Stop(liveStore)
+			require.NoError(t, s.Stop(liveStore))
 			require.NoError(t, tempoUtil.NewTraceInfo(time.Now(), "").EmitAllBatches(c)) // old trace
-			time.Sleep(1*time.Second + 100*time.Millisecond)
+			time.Sleep(2 * time.Second)
 			require.NoError(t, tempoUtil.NewTraceInfo(time.Now(), "").EmitAllBatches(c)) // fresh trace
 
-			// new live store without committed offset
-			liveStore = util.NewNamedTempoLiveStore("live-store-zone-b", 0, testCase.argument)
-			s.StartAndWaitReady(liveStore)
+			if testCase.startNewLiveStore { // new live store without committed offset
+				liveStore = util.NewNamedTempoLiveStore("live-store-zone-b", 0, testCase.argument)
+			}
+			require.NoError(t, s.StartAndWaitReady(liveStore))
 
 			require.NoError(t, tempoUtil.NewTraceInfo(time.Now(), "").EmitAllBatches(c)) // after start
-
-			time.Sleep(1 * time.Second)
 			require.NoError(t, liveStore.WaitSumMetrics(e2e.Equals(testCase.expectedTraces), "tempo_live_store_traces_created_total"))
 		})
 	}

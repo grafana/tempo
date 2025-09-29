@@ -236,7 +236,19 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 		}
 		return kgo.NewOffset().AfterMilli(time.Now().Add(-r.lookbackPeriod).UnixMilli()), nil
 	}
-	return kgo.NewOffset().At(offset.At), nil
+	return r.cutoffOffset(ctx, offset)
+}
+
+func (r *PartitionReader) cutoffOffset(ctx context.Context, offset kadm.OffsetResponse) (kgo.Offset, error) {
+	offsets, err := r.adm.ListOffsetsAfterMilli(ctx, time.Now().Add(-r.lookbackPeriod).UnixMilli(), r.topic)
+	if err != nil {
+		return kgo.NewOffset(), err
+	}
+	cutoffOffset, found := offsets.Lookup(r.topic, r.partitionID)
+	if !found || cutoffOffset.Offset < offset.At {
+		return kgo.NewOffset().At(offset.At), nil
+	}
+	return kgo.NewOffset().At(cutoffOffset.Offset), nil
 }
 
 func (r *PartitionReader) commitHighWatermark(ctx context.Context, lastCommittedOffset kadm.Offset) kadm.Offset {
