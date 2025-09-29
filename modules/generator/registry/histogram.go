@@ -298,9 +298,6 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 			delete(h.rejectedSeries, hash)
 		}
 	}
-	if h.estimatedSeries.lastReset < staleTimeMs {
-		h.estimatedSeries.Advance()
-	}
 }
 
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
@@ -310,4 +307,8 @@ func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
 
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func (h *histogram) updateEstimatedSeries() {
+	h.estimatedSeries.MinuteTick()
 }

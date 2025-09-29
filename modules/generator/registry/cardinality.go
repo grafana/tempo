@@ -1,117 +1,107 @@
 package registry
 
 import (
-	"encoding/binary"
 	"sync"
 	"time"
 
 	hll "github.com/axiomhq/hyperloglog"
 )
 
-// HLLCounter maintains a sliding distinct counter using 1-minute buckets.
-// - Touch() adds to the current minute bucket.
-// - Advance() rotates buckets if time has moved forward (safe to call anytime).
-// - Estimate() returns the union of the last 'staleTime' worth of minutes.
+// HLLCounter: sliding distincts using 1-minute buckets.
+// - Touch(hash): insert into current minute bucket (cheap).
+// - MinuteTick(now): called by an external 1-minute ticker; flips buckets and recomputes cached union.
+// - Estimate(): 1 merge (cached union + current) → fast, suitable for ~15s cadence.
 type HLLCounter struct {
-	mu           sync.RWMutex
-	lastReset    int64         // start of current bucket in unix millis (aligned to minute)
-	sk           *hll.Sketch   // alias to buckets[cur] (current minute)
-	prevEst      uint64        // kept for compatibility; unused in sliding logic
-	minuteMillis int64         // constant = 60_000
-	windowMin    int           // number of 1-minute buckets in the window (>=1)
-	cur          int           // current bucket index in the ring
-	buckets      []*hll.Sketch // ring of 1-minute HLL buckets
+	mu          sync.RWMutex
+	windowMin   int           // number of 1-minute buckets in the window (>=1)
+	cur         int           // current bucket index
+	buckets     []*hll.Sketch // ring of minute buckets
+	cachedUnion *hll.Sketch   // union of all NON-current buckets (rebuilt on tick)
+	lastFlipMs  int64         // last time we flipped (unix ms), used to catch up if ticks were delayed
 }
 
-// NewHLLCounter creates a sliding counter with 1-minute buckets covering 'staleTime'.
-// For example, staleTime=15m -> 15 buckets. Values <1m are rounded up to 1 bucket.
 func NewHLLCounter(staleTime time.Duration) *HLLCounter {
 	if staleTime <= 0 {
 		staleTime = time.Minute
 	}
-	windowMin := int((staleTime + time.Minute - 1) / time.Minute) // ceil to whole minutes
+	windowMin := int((staleTime + time.Minute - 1) / time.Minute) // ceil
 	if windowMin < 1 {
 		windowMin = 1
 	}
 
-	aligned := time.Now().Truncate(time.Minute)
-	lastReset := aligned.UnixMilli()
-
 	buckets := make([]*hll.Sketch, windowMin)
 	for i := range buckets {
-		buckets[i] = hll.New() // p=14 by default; sparse enabled
+		buckets[i] = hll.New() // default p=14 (~16 KB dense), sparse enabled
+	}
+	u := hll.New() // initial union of non-current buckets (all empty)
+	for i := 1; i < windowMin; i++ {
+		_ = u.Merge(buckets[i])
 	}
 
-	c := &HLLCounter{
-		lastReset:    lastReset,
-		sk:           buckets[0],
-		minuteMillis: int64(time.Minute / time.Millisecond),
-		windowMin:    windowMin,
-		cur:          0,
-		buckets:      buckets,
+	return &HLLCounter{
+		windowMin:   windowMin,
+		cur:         0,
+		buckets:     buckets,
+		cachedUnion: u,
+		lastFlipMs:  time.Now().UnixMilli(),
 	}
-	return c
 }
 
-// Touch inserts a key (64-bit hash) into the current minute bucket.
+// Touch inserts a pre-hashed 64-bit key into the current minute bucket.
 func (c *HLLCounter) Touch(hash uint64) {
-	var buf [8]byte
-	binary.LittleEndian.PutUint64(buf[:], hash)
-
-	nowMs := time.Now().UnixMilli()
 	c.mu.Lock()
-	c.advanceTo(nowMs)
-	c.sk.Insert(buf[:]) // axiomhq/hyperloglog hashes internally for []byte
+	c.buckets[c.cur].InsertHash(hash)
 	c.mu.Unlock()
 }
 
-// Estimate returns the estimated distinct count over the last 'staleTime'.
-// It unions the last 'windowMin' 1-minute buckets.
+// Estimate returns the estimated distincts over the last staleTime window.
+// Cheap: merge cachedUnion (static during the minute) with a Clone of the current bucket.
 func (c *HLLCounter) Estimate() uint64 {
-	nowMs := time.Now().UnixMilli()
+	c.mu.RLock()
+	u := c.cachedUnion // stable pointer between ticks
+	curClone := c.buckets[c.cur].Clone()
+	c.mu.RUnlock()
 
-	c.mu.Lock()
-	c.advanceTo(nowMs)
-
-	// Accumulate into a fresh sketch to avoid mutating buckets.
-	acc := hll.New()
-	for i := 0; i < c.windowMin; i++ {
-		idx := c.cur - i
-		if idx < 0 {
-			idx += c.windowMin
-		}
-		_ = acc.Merge(c.buckets[idx])
-	}
-	c.mu.Unlock()
-
+	acc := u.Clone() // no lock needed beyond this point
+	_ = acc.Merge(curClone)
 	return acc.Estimate()
 }
 
-// Advance rotates minute buckets if time has moved forward.
-// You can call this from a 1-minute ticker, but Touch/Estimate also call it.
-func (c *HLLCounter) Advance() {
+// MinuteTick should be called by an external 1-minute ticker.
+// Not guaranteed to align to wall-clock minutes; we catch up for missed minutes.
+func (c *HLLCounter) MinuteTick() {
+	const minuteMs = int64(time.Minute / time.Millisecond)
 	nowMs := time.Now().UnixMilli()
+
 	c.mu.Lock()
-	c.advanceTo(nowMs)
-	c.mu.Unlock()
-}
+	steps := int((nowMs - c.lastFlipMs) / minuteMs)
+	if steps < 1 {
+		steps = 1 // at least one flip per scheduled tick
+	}
+	// Cap steps so we don't loop excessively after very long pauses.
+	if steps > c.windowMin {
+		steps = c.windowMin
+	}
 
-// --- internals ---
-
-// advanceTo rotates one-minute buckets for each full minute elapsed since lastReset.
-// For each step: move to the next slot and replace it with a fresh empty sketch.
-func (c *HLLCounter) advanceTo(nowMs int64) {
-	for nowMs >= c.lastReset+c.minuteMillis {
-		// Move to next bucket
+	for i := 0; i < steps; i++ {
+		// advance ring
 		c.cur++
 		if c.cur >= c.windowMin {
 			c.cur = 0
 		}
-		// Reset the new current bucket
+		// reset new current bucket
 		c.buckets[c.cur] = hll.New()
-		c.sk = c.buckets[c.cur]
-
-		// Advance the aligned time by exactly one minute
-		c.lastReset += c.minuteMillis
+		c.lastFlipMs += minuteMs
 	}
+
+	// Recompute cached union of all non-current buckets (O(windowMin) merges).
+	u := hll.New()
+	for i := 0; i < c.windowMin; i++ {
+		if i == c.cur {
+			continue
+		}
+		_ = u.Merge(c.buckets[i])
+	}
+	c.cachedUnion = u
+	c.mu.Unlock()
 }

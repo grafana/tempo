@@ -203,7 +203,8 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 			delete(c.rejectedSeries, hash)
 		}
 	}
-	if c.estimatedSeries.lastReset < staleTimeMs {
-		c.estimatedSeries.Advance()
-	}
+}
+
+func (c *counter) updateEstimatedSeries() {
+	c.estimatedSeries.MinuteTick()
 }

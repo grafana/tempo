@@ -100,6 +100,7 @@ type metric interface {
 	countTotalSeries() int
 	countTotalSeriesEstimate() int
 	removeStaleSeries(staleTimeMs int64)
+	updateEstimatedSeries()
 }
 
 const highestAggregationInterval = 1 * time.Minute
@@ -149,6 +150,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
 	go job(instanceCtx, r.removeStaleSeries, constantInterval(5*time.Minute))
+	go job(instanceCtx, r.updateHLL, constantInterval(1*time.Minute))
 
 	return r
 }
@@ -297,6 +299,12 @@ func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())
+}
+
+func (r *ManagedRegistry) updateHLL(_ context.Context) {
+	for _, m := range r.metrics {
+		m.updateEstimatedSeries()
+	}
 }
 
 func (r *ManagedRegistry) Close() {
