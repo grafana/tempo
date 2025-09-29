@@ -1242,6 +1242,7 @@ live_store:
     max_live_traces_bytes: 250000000
     max_block_duration: 30m0s
     max_block_bytes: 524288000
+    max_lookback: 1h0m0s
     block_config:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
