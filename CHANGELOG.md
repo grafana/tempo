@@ -235,6 +235,7 @@
 
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
   If you would like to re-enable it, we recommend 'snappy'. Use the following settings:
+
 ```
 ingester_client:
     grpc_client_config:
@@ -247,6 +248,7 @@ querier:
         grpc_client_config:
             grpc_compression: "snappy"
 ```
+
 * [CHANGE] slo: include request cancellations within SLO [#4355] (https://github.com/grafana/tempo/pull/4355) (@electron0zero)
   request cancellations are exposed under `result` label in `tempo_query_frontend_queries_total` and `tempo_query_frontend_queries_within_slo_total` with `completed` or `canceled` values to differentiate between completed and canceled requests.
 * [CHANGE] update default config values to better align with production workloads [#4340](https://github.com/grafana/tempo/pull/4340) (@electron0zero)
@@ -437,13 +439,13 @@ querier:
 * [CHANGE] Change the UID and GID of the `tempo` user to avoid root [#2265](https://github.com/grafana/tempo/pull/2265) (@zalegrala)
   **BREAKING CHANGE** Ownership of /var/tempo is changing. Historically, this
   has been owned by root:root. With this change, it will now be owned by
-  tempo:tempo with the UID/GID of 10001.  The `ingester` and
+  tempo:tempo with the UID/GID of 10001. The `ingester` and
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
-  properly.  A jsonnet example of an init container is included with the PR.
+  properly. A jsonnet example of an init container is included with the PR.
   This impacts all users of the `grafana/tempo` Docker image.
 * [CHANGE] Remove vParquet encoding [#3663](https://github.com/grafana/tempo/pull/3663) (@mdisibio)
   **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now, it's
-  removed entirely.  It will no longer be recognized as a valid encoding and cannot read any remaining vParquet blocks. Installations
+  removed entirely. It will no longer be recognized as a valid encoding and cannot read any remaining vParquet blocks. Installations
   running with historical defaults should not require any changes as the default has been migrated for several releases. Installations
   with storage settings pinned to vParquet must run a previous release configured for vParquet2 or higher until all existing vParquet (1) blocks
   have expired and been deleted from the backend, or else will encounter read errors after upgrading to this release.
