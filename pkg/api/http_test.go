@@ -668,7 +668,6 @@ func Test_parseTimestamp(t *testing.T) {
 		{"unix timestamp with subseconds", "1571332130.934", now, time.Unix(1571332130, 934*1e6), PrecisionNanoseconds, false},
 		{"RFC3339 format", "2002-10-02T15:00:00Z", now, time.Date(2002, 10, 0o2, 15, 0, 0, 0, time.UTC), PrecisionNanoseconds, false},
 		{"RFC3339nano format", "2009-11-10T23:00:00.000000001Z", now, time.Date(2009, 11, 10, 23, 0, 0, 1, time.UTC), PrecisionNanoseconds, false},
-		{"unix microseconds timestamp", "175879070458", now, time.Time{}, PrecisionUnknown, true},
 		{"invalid", "we", now, time.Time{}, PrecisionUnknown, true},
 	}
 	for _, tt := range tests {

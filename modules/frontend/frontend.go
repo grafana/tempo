@@ -178,7 +178,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	metricsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
-			adjustEndWareSeconds,
+			adjustEndWareNanos,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantUnsupportedMiddleware(cfg, logger),

@@ -168,11 +168,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	ctx, span := tracer.Start(ctx, "instance.Search")
 	defer span.End()
 
-	maxAllowedEnd := time.Now().Add(-30 * time.Second)
-	if req.End > uint32(maxAllowedEnd.Unix()) {
-		req.End = uint32(maxAllowedEnd.Unix())
-	}
-
 	maxResults := int(req.Limit)
 	// if limit is not set, use a safe default
 	if maxResults == 0 {
@@ -645,11 +640,6 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	maxAllowedEnd := time.Now().Add(-30 * time.Second)
-	if req.End > uint64(maxAllowedEnd.UnixNano()) {
-		req.End = uint64(maxAllowedEnd.UnixNano())
-	}
 
 	e := traceql.NewEngine()
 
