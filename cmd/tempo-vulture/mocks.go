@@ -106,12 +106,12 @@ func (m *MockHTTPClient) QueryTraceWithRange(id string, start int64, end int64) 
 }
 
 func (m *MockHTTPClient) QueryTraceWithRangeContext(_ context.Context, _ string, _ int64, _ int64) (*tempopb.Trace, error) {
+	m.m.Lock()
+	defer m.m.Unlock()
 	m.requestsCount++
 	if m.err != nil {
 		return nil, m.err
 	}
-	m.m.Lock()
-	defer m.m.Unlock()
 	return m.traceResp, nil
 }
 
