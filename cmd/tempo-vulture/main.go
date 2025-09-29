@@ -324,7 +324,7 @@ func doWrite(jaegerClient util.JaegerClient, tickerWrite *time.Ticker, interval 
 
 			logger.Info("sending trace")
 
-			err := info.EmitBatches(jaegerClient)
+			err := info.EmitBatches(context.Background(), jaegerClient)
 			if err != nil {
 				metricErrorTotal.Inc()
 			}
@@ -359,7 +359,7 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 		)
 		logger.Info("sending trace")
 
-		err := info.EmitBatches(client)
+		err := info.EmitBatches(context.Background(), client)
 		if err != nil {
 			logger.Error("failed to queue batches",
 				zap.Error(err),
@@ -537,7 +537,7 @@ func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vulture
 	//  around the seed.
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
-	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	resp, err := client.SearchWithRange(context.Background(), fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -616,7 +616,7 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 	logger.Info("querying Tempo trace")
 
 	// We want to define a time range to reduce the number of lookups
-	trace, err := client.QueryTraceWithRange(hexID, start, end)
+	trace, err := client.QueryTraceWithRange(context.Background(), hexID, start, end)
 	if err != nil {
 		if errors.Is(err, util.ErrTraceNotFound) {
 			tm.notFoundByID++

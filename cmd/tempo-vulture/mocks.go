@@ -101,11 +101,7 @@ func (m *MockHTTPClient) QueryTrace(id string) (*tempopb.Trace, error) {
 }
 
 //nolint:all
-func (m *MockHTTPClient) QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error) {
-	return m.QueryTraceWithRangeContext(context.Background(), id, start, end)
-}
-
-func (m *MockHTTPClient) QueryTraceWithRangeContext(_ context.Context, _ string, _ int64, _ int64) (*tempopb.Trace, error) {
+func (m *MockHTTPClient) QueryTraceWithRange(_ context.Context, _ string, _ int64, _ int64) (*tempopb.Trace, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.requestsCount++
@@ -187,11 +183,7 @@ func (m *MockHTTPClient) SearchTraceQLWithRange(query string, start int64, end i
 }
 
 //nolint:all
-func (m *MockHTTPClient) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
-	return m.SearchWithRangeContext(context.Background(), tags, start, end)
-}
-
-func (m *MockHTTPClient) SearchWithRangeContext(_ context.Context, _ string, _ int64, _ int64) (*tempopb.SearchResponse, error) {
+func (m *MockHTTPClient) SearchWithRange(_ context.Context, _ string, _ int64, _ int64) (*tempopb.SearchResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

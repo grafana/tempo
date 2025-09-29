@@ -47,11 +47,9 @@ type TempoHTTPClient interface {
 	SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error)
 	SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error)
 	Search(tags string) (*tempopb.SearchResponse, error)
-	SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error)
-	SearchWithRangeContext(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error)
+	SearchWithRange(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error)
 	QueryTrace(id string) (*tempopb.Trace, error)
-	QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error)
-	QueryTraceWithRangeContext(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error)
+	QueryTraceWithRange(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error)
 	SearchTraceQL(query string) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error)
@@ -271,11 +269,7 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 
 // SearchWithRange calls the /api/search endpoint. tags is expected to be in logfmt format and start/end are unix
 // epoch timestamps in seconds.
-func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
-	return c.SearchWithRangeContext(context.Background(), tags, start, end)
-}
-
-func (c *Client) SearchWithRangeContext(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
+func (c *Client) SearchWithRange(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
 	_, err := c.getForWithContext(ctx, c.buildSearchQueryURL("tags", tags, start, end, 0, 0, c.queryParams), m)
 	if err != nil {
@@ -309,11 +303,7 @@ func (c *Client) QueryTraceV2(id string) (*tempopb.TraceByIDResponse, error) {
 	return m, nil
 }
 
-func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error) {
-	return c.QueryTraceWithRangeContext(context.Background(), id, start, end)
-}
-
-func (c *Client) QueryTraceWithRangeContext(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error) {
+func (c *Client) QueryTraceWithRange(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
 	if start > end {
 		return nil, errors.New("start time can not be greater than end time")

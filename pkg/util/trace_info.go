@@ -104,11 +104,7 @@ func (t *TraceInfo) Done() {
 	t.longWritesRemaining--
 }
 
-func (t *TraceInfo) EmitBatches(c JaegerClient) error {
-	return t.EmitBatchesWithContext(context.Background(), c)
-}
-
-func (t *TraceInfo) EmitBatchesWithContext(ctx context.Context, c JaegerClient) error {
+func (t *TraceInfo) EmitBatches(ctx context.Context, c JaegerClient) error {
 	for i := int64(0); i < t.generateRandomInt(1, maxBatchesPerWrite); i++ {
 		ctx := user.InjectOrgID(ctx, t.tempoOrgID)
 		ctx, err := user.InjectIntoGRPCRequest(ctx)
@@ -128,7 +124,7 @@ func (t *TraceInfo) EmitBatchesWithContext(ctx context.Context, c JaegerClient) 
 // EmitAllBatches sends all the batches that would normally be sent at some
 // interval when using EmitBatches.
 func (t *TraceInfo) EmitAllBatches(c JaegerClient) error {
-	err := t.EmitBatches(c)
+	err := t.EmitBatches(context.Background(), c)
 	if err != nil {
 		return err
 	}
@@ -136,7 +132,7 @@ func (t *TraceInfo) EmitAllBatches(c JaegerClient) error {
 	for t.LongWritesRemaining() > 0 {
 		t.Done()
 
-		err := t.EmitBatches(c)
+		err := t.EmitBatches(context.Background(), c)
 		if err != nil {
 			return err
 		}

@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -79,7 +80,7 @@ func TestQueryTraceWithRange(t *testing.T) {
 	trace := &tempopb.Trace{}
 	t.Run("returns an error if start time is greater than end time", func(t *testing.T) {
 		client := New("www.tempo.com", "1000")
-		response, err := client.QueryTraceWithRange("notfound", 3000, 2000)
+		response, err := client.QueryTraceWithRange(context.Background(), "notfound", 3000, 2000)
 
 		assert.Error(t, err)
 		assert.Nil(t, response)
@@ -98,7 +99,7 @@ func TestQueryTraceWithRange(t *testing.T) {
 
 		client := New("www.tempo.com", "1000")
 		client.WithTransport(mockTransport)
-		response, err := client.QueryTraceWithRange("100", 1000, 2000)
+		response, err := client.QueryTraceWithRange(context.Background(), "100", 1000, 2000)
 
 		assert.NoError(t, err)
 		assert.True(t, proto.Equal(trace, response))
@@ -114,7 +115,7 @@ func TestQueryTraceWithRange(t *testing.T) {
 
 		client := New("www.tempo.com", "1000")
 		client.WithTransport(mockTransport)
-		response, err := client.QueryTraceWithRange("notfound", 1000, 2000)
+		response, err := client.QueryTraceWithRange(context.Background(), "notfound", 1000, 2000)
 
 		assert.Error(t, err)
 		assert.Nil(t, response)

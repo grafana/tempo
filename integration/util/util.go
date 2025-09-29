@@ -550,7 +550,7 @@ func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 
 	// verify trace can be found using attribute and time range
-	resp, err := client.SearchWithRange(attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
+	resp, err := client.SearchWithRange(context.Background(), attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
 	require.NoError(t, err)
 
 	require.True(t, traceIDInResults(t, info.HexID(), resp))

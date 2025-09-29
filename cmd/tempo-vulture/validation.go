@@ -286,14 +286,14 @@ func (vs *ValidationService) writeValidationTrace(
 }
 
 func (vs *ValidationService) validateTraceRetrieval(
-	_ context.Context,
+	ctx context.Context,
 	trace *util.TraceInfo,
 	httpClient httpclient.TempoHTTPClient,
 ) error {
 	start := trace.Timestamp().Add(-10 * time.Minute).Unix()
 	end := trace.Timestamp().Add(10 * time.Minute).Unix()
 
-	retrievedTrace, err := httpClient.QueryTraceWithRange(trace.HexID(), start, end)
+	retrievedTrace, err := httpClient.QueryTraceWithRange(ctx, trace.HexID(), start, end)
 	if err != nil {
 		return fmt.Errorf("failed to read trace: %w", err)
 	}
