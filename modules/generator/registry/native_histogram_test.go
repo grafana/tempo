@@ -23,7 +23,7 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 		return true
 	}
 
-	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{})
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, time.Duration(15*time.Minute))
 
 	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
 
@@ -499,7 +499,7 @@ func Test_Histograms(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
 				onAdd := func(uint32) bool { return true }
-				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil)
+				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil, time.Duration(15*time.Minute))
 				testHistogram(t, h, tc.collections)
 			})
 			t.Run("native", func(t *testing.T) {
@@ -508,7 +508,7 @@ func Test_Histograms(t *testing.T) {
 				}
 
 				onAdd := func(uint32) bool { return true }
-				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{})
+				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, time.Duration(15*time.Minute))
 				testHistogram(t, h, tc.collections)
 			})
 		})
@@ -629,7 +629,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 
 		onAdd := func(uint32) bool { return true }
 		// Use HistogramModeNative to test native-only behavior
-		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides)
+		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, time.Duration(15*time.Minute))
 
 		// Add some observations with exemplars
 		lvc := newLabelValueCombo([]string{"service"}, []string{"test-service"})
@@ -678,7 +678,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 		}
 
 		// Create a native histogram with empty buckets to force native-only mode
-		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides)
+		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, time.Duration(15*time.Minute))
 
 		// Add some observations with exemplars
 		lvc := newLabelValueCombo([]string{"service"}, []string{"native-only-xyz"})

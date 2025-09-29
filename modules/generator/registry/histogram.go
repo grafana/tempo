@@ -69,7 +69,7 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string) *histogram {
+func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -100,7 +100,7 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 		bucketLabels:     bucketLabels,
 		series:           make(map[uint64]*histogramSeries),
 		rejectedSeries:   make(map[uint64]int64),
-		estimatedSeries:  NewHLLCounter(),
+		estimatedSeries:  NewHLLCounter(staleDuration),
 		onAddSerie:       onAddSeries,
 		onRemoveSerie:    onRemoveSeries,
 		traceIDLabelName: traceIDLabelName,

@@ -92,7 +92,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -110,7 +110,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
 		rejectedSeries:    make(map[uint64]int64),
-		estimatedSeries:   NewHLLCounter(),
+		estimatedSeries:   NewHLLCounter(staleDuration),
 		onAddSerie:        onAddSeries,
 		onRemoveSerie:     onRemoveSeries,
 		traceIDLabelName:  traceIDLabelName,

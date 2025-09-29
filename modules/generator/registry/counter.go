@@ -50,7 +50,7 @@ func (co *counterSeries) registerSeenSeries() {
 	co.firstSeries.Store(false)
 }
 
-func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *counter {
+func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *counter {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -64,7 +64,7 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 		metricName:      name,
 		series:          make(map[uint64]*counterSeries),
 		rejectedSeries:  make(map[uint64]int64),
-		estimatedSeries: NewHLLCounter(),
+		estimatedSeries: NewHLLCounter(staleDuration),
 		onAddSeries:     onAddSeries,
 		onRemoveSeries:  onRemoveSeries,
 		externalLabels:  externalLabels,

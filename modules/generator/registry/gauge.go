@@ -47,7 +47,7 @@ const (
 	set = "set"
 )
 
-func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *gauge {
+func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *gauge {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -61,7 +61,7 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 		metricName:      name,
 		series:          make(map[uint64]*gaugeSeries),
 		rejectedSeries:  make(map[uint64]int64),
-		estimatedSeries: NewHLLCounter(),
+		estimatedSeries: NewHLLCounter(staleDuration),
 		onAddSeries:     onAddSeries,
 		onRemoveSeries:  onRemoveSeries,
 		externalLabels:  externalLabels,
