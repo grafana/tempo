@@ -45,7 +45,7 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 		},
 		Body: io.NopCloser(bytes.NewReader(resBytes)),
 	}
-	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON)
+	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil)
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
@@ -73,7 +73,7 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 		},
 		Body: io.NopCloser(bytes.NewReader(resBytes)),
 	}
-	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON)
+	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil)
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 	}
 
 	t.Run("returns a combined trace response as JSON", func(t *testing.T) {
-		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptJSON)
+		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, nil)
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 
@@ -115,7 +115,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("returns a combined trace response as protobuff", func(t *testing.T) {
-		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf)
+		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil)
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 

@@ -110,7 +110,7 @@ func (t *testCounter) name() string {
 }
 
 func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
-	return
+	return activeSeries, err
 }
 
 func (t *testCounter) removeStaleSeries(int64) {

@@ -6,6 +6,11 @@ import (
 	"hash/fnv"
 	"time"
 
+	kitlog "github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
@@ -36,15 +41,24 @@ type LiveTraces[T LiveTraceBatchT] struct {
 
 	sz     uint64
 	szFunc func(T) uint64
+
+	maxTraceErrorLogger *log.RateLimitedLogger
 }
 
-func New[T LiveTraceBatchT](sizeFunc func(T) uint64, maxIdleTime, maxLiveTime time.Duration) *LiveTraces[T] {
+const (
+	maxTraceLogLinesPerSecond = 10
+)
+
+func New[T LiveTraceBatchT](sizeFunc func(T) uint64, maxIdleTime, maxLiveTime time.Duration, tenantID string) *LiveTraces[T] {
+	logger := kitlog.With(log.Logger, "tenant", tenantID)
+
 	return &LiveTraces[T]{
-		hash:        fnv.New64(),
-		Traces:      make(map[uint64]*LiveTrace[T]),
-		szFunc:      sizeFunc,
-		maxIdleTime: maxIdleTime,
-		maxLiveTime: maxLiveTime,
+		hash:                fnv.New64(),
+		Traces:              make(map[uint64]*LiveTrace[T]),
+		szFunc:              sizeFunc,
+		maxIdleTime:         maxIdleTime,
+		maxLiveTime:         maxLiveTime,
+		maxTraceErrorLogger: log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Error(logger)),
 	}
 }
 
@@ -89,6 +103,7 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 
 	// Before adding check against max trace size
 	if maxTraceSize > 0 && (tr.sz+sz > maxTraceSize) {
+		l.maxTraceErrorLogger.Log("msg", "max trace size exceeded", "max", maxTraceSize, "reqSize", sz, "totalSize", tr.sz, "trace", util.TraceIDToHexString(traceID))
 		return ErrMaxTraceSizeExceeded
 	}
 

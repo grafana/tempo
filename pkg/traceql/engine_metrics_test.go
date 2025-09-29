@@ -5,7 +5,6 @@ import (
 	"math"
 	"math/rand/v2"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -635,8 +634,8 @@ func TestQuantileOverTime(t *testing.T) {
 
 	// Output series with quantiles per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
-	out := SeriesSet{
-		`{p="0.0", "span.foo"="bar"}`: TimeSeries{
+	out := []TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(0)},
@@ -647,7 +646,7 @@ func TestQuantileOverTime(t *testing.T) {
 				0,
 			},
 		},
-		`{p="0.5", "span.foo"="bar"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(0.5)},
@@ -658,14 +657,14 @@ func TestQuantileOverTime(t *testing.T) {
 				0,
 			},
 		},
-		`{p="1.0", "span.foo"="bar"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(1)},
 			},
 			Values: []float64{_512ns, _256ns, 0},
 		},
-		`{p="0.0", "span.foo"="baz"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(0)},
@@ -675,7 +674,7 @@ func TestQuantileOverTime(t *testing.T) {
 				percentileHelper(0, _512ns, _512ns, _512ns),
 			},
 		},
-		`{p="0.5", "span.foo"="baz"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(0.5)},
@@ -685,7 +684,7 @@ func TestQuantileOverTime(t *testing.T) {
 				percentileHelper(0.5, _512ns, _512ns, _512ns),
 			},
 		},
-		`{p="1.0", "span.foo"="baz"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(1)},
@@ -696,7 +695,7 @@ func TestQuantileOverTime(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	require.Equal(t, out, result)
+	requireEqualSeriesSets(t, out, result)
 	require.Equal(t, len(result), seriesCount)
 }
 
@@ -734,15 +733,15 @@ func TestCountOverTime(t *testing.T) {
 
 	// Output series with quantiles per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
-	out := SeriesSet{
-		`{"span.foo"="baz"}`: TimeSeries{
+	out := []TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 			},
 			Values:    []float64{0, 0, 3},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{"span.foo"="bar"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 			},
@@ -753,8 +752,8 @@ func TestCountOverTime(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	require.Equal(t, out, result)
 	require.Equal(t, len(result), seriesCount)
+	requireEqualSeriesSets(t, out, result)
 }
 
 func TestCountOverTimeInstantNs(t *testing.T) {
@@ -787,8 +786,8 @@ func TestCountOverTimeInstantNs(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
 	}
 
-	out := SeriesSet{
-		`{__name__="count_over_time"}`: TimeSeries{
+	out := []TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "__name__", Value: NewStaticString("count_over_time")},
 			},
@@ -799,8 +798,8 @@ func TestCountOverTimeInstantNs(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	require.Equal(t, out, result)
 	require.Equal(t, len(result), seriesCount)
+	requireEqualSeriesSets(t, out, result)
 }
 
 func TestAvgOverTimeInstantNs(t *testing.T) {
@@ -833,8 +832,8 @@ func TestAvgOverTimeInstantNs(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(uint64(8 * time.Second)),
 	}
 
-	out := SeriesSet{
-		`{__name__="avg_over_time"}`: TimeSeries{
+	out := []TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "__name__", Value: NewStaticString("avg_over_time")},
 			},
@@ -845,8 +844,8 @@ func TestAvgOverTimeInstantNs(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	require.Equal(t, out, result)
 	require.Equal(t, len(result), seriesCount)
+	requireEqualSeriesSets(t, out, result)
 }
 
 // TestCountOverTimeInstantNsWithCutoff simulates merge behavior in L2 and L3.
@@ -901,8 +900,8 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(end + 20*time.Nanosecond)).WithDuration(1),
 	}
 
-	out := SeriesSet{
-		`{__name__="count_over_time"}`: TimeSeries{
+	out := []TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "__name__", Value: NewStaticString("count_over_time")},
 			},
@@ -938,7 +937,7 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 
 		result, seriesCount, err := processLayer3(req, layer2.Results())
 		require.NoError(t, err)
-		require.Equal(t, out, result)
+		requireEqualSeriesSets(t, out, result)
 		require.Equal(t, len(result), seriesCount)
 	})
 
@@ -958,7 +957,7 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		layer3.ObserveSeries(res2.ToProto(req))
 
 		require.NoError(t, err)
-		require.Equal(t, out, layer3.Results())
+		requireEqualSeriesSets(t, out, layer3.Results())
 		require.Equal(t, len(layer3.Results()), layer3.Length())
 	})
 }
@@ -990,8 +989,8 @@ func TestMinOverTimeForDuration(t *testing.T) {
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 0.000000512)
@@ -1083,8 +1082,8 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	result, seriesCount, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (204, NaN, 200)
@@ -1104,7 +1103,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 3000, Value: 200}}
 
 	for _, s := range ts {
-		if s.PromLabels == "{\"span.foo\"=\"bar\"}" {
+		if LabelsFromProto(s.Labels).String() == "{\"span.foo\"=\"bar\"}" {
 			assert.Equal(t, fooBarSamples, s.Samples)
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
@@ -1140,8 +1139,8 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	assert.True(t, math.IsNaN(fooBaz.Values[0]))
@@ -1181,8 +1180,8 @@ func TestAvgOverTimeForDurationWithSecondStage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	assert.True(t, math.IsNaN(fooBaz.Values[0]))
@@ -1222,7 +1221,7 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 
-	avg := result[`{__name__="avg_over_time"}`]
+	avg := result[LabelsFromArgs("__name__", "avg_over_time").MapKey()]
 
 	assert.Equal(t, 100., avg.Values[0]*float64(time.Second))
 	assert.Equal(t, 200., avg.Values[1]*float64(time.Second))
@@ -1272,8 +1271,8 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 250)
@@ -1292,7 +1291,7 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 3000, Value: 250}}
 
 	for _, s := range ts {
-		if s.PromLabels == "{\"span.foo\"=\"bar\"}" {
+		if LabelsFromProto(s.Labels).String() == "{\"span.foo\"=\"bar\"}" {
 			assert.Equal(t, fooBarSamples, s.Samples)
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
@@ -1393,8 +1392,8 @@ func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 
 	result := layer3.Results()
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 300)
@@ -1467,7 +1466,7 @@ func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T
 	layer2bResults := layer2B.Results().ToProto(req)
 	truncated2bResults := make([]*tempopb.TimeSeries, 0, len(layer2bResults)-1)
 	for _, ts := range layer2bResults {
-		if !strings.Contains(ts.PromLabels, internalLabelMetaType) {
+		if !LabelsFromProto(ts.Labels).Has(internalLabelMetaType) {
 			// add all values series
 			truncated2bResults = append(truncated2bResults, ts)
 		} else if len(ts.Samples) != 3 {
@@ -1508,8 +1507,8 @@ func TestMaxOverTimeForDuration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 0.000000512)
@@ -1601,8 +1600,8 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (204, NaN, 500)
@@ -1621,7 +1620,7 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 3000, Value: 500}}
 
 	for _, s := range ts {
-		if s.PromLabels == "{\"span.foo\"=\"bar\"}" {
+		if LabelsFromProto(s.Labels).String() == "{\"span.foo\"=\"bar\"}" {
 			assert.Equal(t, fooBarSamples, s.Samples)
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
@@ -1657,8 +1656,8 @@ func TestSumOverTimeForDuration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 0.00000027)
@@ -1717,8 +1716,8 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(result), seriesCount)
 
-	fooBaz := result[`{"span.foo"="baz"}`]
-	fooBar := result[`{"span.foo"="bar"}`]
+	fooBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
+	fooBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (200, NaN, 1700)
@@ -1737,7 +1736,7 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 200}, {TimestampMs: 3000, Value: 1700}}
 
 	for _, s := range ts {
-		if s.PromLabels == "{\"span.foo\"=\"bar\"}" {
+		if LabelsFromProto(s.Labels).String() == "{\"span.foo\"=\"bar\"}" {
 			assert.Equal(t, fooBarSamples, s.Samples)
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
@@ -1810,8 +1809,8 @@ func TestHistogramOverTime(t *testing.T) {
 
 	// Output series with buckets per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
-	out := SeriesSet{
-		`{` + internalLabelBucket + `="` + _128ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
+	out := []TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _128ns},
@@ -1819,7 +1818,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 0, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _256ns},
@@ -1827,7 +1826,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 4, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _512ns},
@@ -1835,7 +1834,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 0, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", "span.foo"="baz"}`: TimeSeries{
+		{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: internalLabelBucket, Value: _512ns},
@@ -1847,8 +1846,8 @@ func TestHistogramOverTime(t *testing.T) {
 
 	result, seriesCount, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
-	require.Equal(t, out, result)
 	require.Equal(t, len(result), seriesCount)
+	requireEqualSeriesSets(t, out, result)
 }
 
 func TestSecondStageTopK(t *testing.T) {
@@ -1869,9 +1868,9 @@ func TestSecondStageTopK(t *testing.T) {
 	require.NoError(t, err)
 
 	// bar and baz have more spans so they should be the top 2
-	resultBar := result[`{"span.foo"="bar"}`]
+	resultBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 	require.Equal(t, []float64{7, 7, 7, 7, 7, 7, 7, 7}, resultBar.Values)
-	resultBaz := result[`{"span.foo"="baz"}`]
+	resultBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
 }
 
@@ -1898,8 +1897,8 @@ func TestSecondStageTopKInstant(t *testing.T) {
 	require.Equal(t, 2, len(result))
 
 	// bar and baz have more spans so they should be the top 2
-	require.Equal(t, 1, len(result[`{"span.foo"="bar"}`].Values))
-	require.Equal(t, 1, len(result[`{"span.foo"="baz"}`].Values))
+	require.Equal(t, 1, len(result[LabelsFromArgs("span.foo", "bar").MapKey()].Values))
+	require.Equal(t, 1, len(result[LabelsFromArgs("span.foo", "baz").MapKey()].Values))
 }
 
 func TestSecondStageTopKAverage(t *testing.T) {
@@ -1919,10 +1918,10 @@ func TestSecondStageTopKAverage(t *testing.T) {
 	result, _, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 
-	resultBar := result[`{"span.foo"="bar"}`]
+	resultBar := result[LabelsFromArgs("span.foo", "bar").MapKey()]
 	val1 := 0.000000512
 	require.Equal(t, []float64{val1, val1, val1, val1, val1, val1, val1, val1}, resultBar.Values)
-	resultBaz := result[`{"span.foo"="baz"}`]
+	resultBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
 	val2 := 0.00000038400000000000005
 	require.Equal(t, []float64{val2, val2, val2, val2, val2, val2, val2, val2}, resultBaz.Values)
 }
@@ -1945,9 +1944,9 @@ func TestSecondStageBottomK(t *testing.T) {
 	require.NoError(t, err)
 
 	// quax and baz have the lowest spans so they should be the bottom 2
-	resultQuax := result[`{"span.foo"="quax"}`]
+	resultQuax := result[LabelsFromArgs("span.foo", "quax").MapKey()]
 	require.Equal(t, []float64{3, 3, 3, 3, 3, 3, 3, 3}, resultQuax.Values)
-	resultBaz := result[`{"span.foo"="baz"}`]
+	resultBaz := result[LabelsFromArgs("span.foo", "baz").MapKey()]
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
 }
 
@@ -1976,8 +1975,8 @@ func TestSecondStageBottomKInstant(t *testing.T) {
 	require.Equal(t, 2, len(result))
 
 	// quax and baz have the lowest spans so they should be the bottom 2
-	require.Equal(t, 1, len(result[`{"span.foo"="quax"}`].Values))
-	require.Equal(t, 1, len(result[`{"span.foo"="baz"}`].Values))
+	require.Equal(t, 1, len(result[LabelsFromArgs("span.foo", "quax").MapKey()].Values))
+	require.Equal(t, 1, len(result[LabelsFromArgs("span.foo", "baz").MapKey()].Values))
 }
 
 func TestProcessTopK(t *testing.T) {
@@ -2223,9 +2222,7 @@ func TestProcessBottomK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fmt.Printf("input: %v\n", tt.input)
 			result := processBottomK(tt.input, 3, tt.limit)
-			fmt.Printf("result: %v\n", result)
 			expectSeriesSet(t, tt.expected, result)
 		})
 	}
@@ -2238,15 +2235,14 @@ func TestTiesInTopK(t *testing.T) {
 		"c": {10, 3, 3},
 	})
 	result := processTopK(input, 3, 2)
-	fmt.Printf("result: %v\n", result)
 
 	// because of ties, we can have different result at index 0
 	// "a" can be [10, 5, NaN] OR [NaN, 5, NaN]
 	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
 	// "c" can be [10, NaN, 3] OR [NaN, NaN, 3]
-	checkEqualForTies(t, result[`{label="a"}`].Values, []float64{10, 5, math.NaN()})
-	checkEqualForTies(t, result[`{label="b"}`].Values, []float64{10, 4, 2})
-	checkEqualForTies(t, result[`{label="c"}`].Values, []float64{10, math.NaN(), 3})
+	checkEqualForTies(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, 5, math.NaN()})
+	checkEqualForTies(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
+	checkEqualForTies(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, math.NaN(), 3})
 }
 
 func TestTiesInBottomK(t *testing.T) {
@@ -2261,9 +2257,9 @@ func TestTiesInBottomK(t *testing.T) {
 	// "a" can be [10, NaN, 1] OR [NaN, NaN, 1]
 	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
 	// "c" can be [10, 3, NaN] OR [NaN, 3, NaN]
-	checkEqualForTies(t, result[`{label="a"}`].Values, []float64{10, math.NaN(), 1})
-	checkEqualForTies(t, result[`{label="b"}`].Values, []float64{10, 4, 2})
-	checkEqualForTies(t, result[`{label="c"}`].Values, []float64{10, 3, math.NaN()})
+	checkEqualForTies(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, math.NaN(), 1})
+	checkEqualForTies(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
+	checkEqualForTies(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, 3, math.NaN()})
 }
 
 func TestHistogramAggregator(t *testing.T) {
@@ -2409,9 +2405,10 @@ func createSeriesSet(data map[string][]float64) SeriesSet {
 	seriesSet := SeriesSet{}
 	labelName := "label"
 	for key, values := range data {
-		seriesSet[fmt.Sprintf(`{%s="%s"}`, labelName, key)] = TimeSeries{
+		labels := Labels{Label{Name: labelName, Value: NewStaticString(key)}}
+		seriesSet[labels.MapKey()] = TimeSeries{
 			Values: values,
-			Labels: Labels{Label{Name: labelName, Value: NewStaticString(key)}},
+			Labels: labels,
 		}
 	}
 	return seriesSet
@@ -2632,10 +2629,9 @@ func generateTestTimeSeries(seriesCount, samplesCount, exemplarCount int, start,
 		}
 
 		result[i] = &tempopb.TimeSeries{
-			PromLabels: fmt.Sprintf("{service=\"service-%d\",bucket=\"%d\"}", i, i%20),
-			Labels:     labels,
-			Samples:    samples,
-			Exemplars:  exemplars,
+			Labels:    labels,
+			Samples:   samples,
+			Exemplars: exemplars,
 		}
 	}
 
@@ -2661,7 +2657,6 @@ func TestHistogramAggregator_ExemplarBucketSelection(t *testing.T) {
 			quantiles: []float64{0.5, 0.9},
 			timeSeries: []*tempopb.TimeSeries{
 				{
-					PromLabels: `{service="test",__bucket="1"}`,
 					Labels: []commonv1proto.KeyValue{
 						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 1.0}}},
@@ -2680,7 +2675,6 @@ func TestHistogramAggregator_ExemplarBucketSelection(t *testing.T) {
 					},
 				},
 				{
-					PromLabels: `{service="test",__bucket="4"}`,
 					Labels: []commonv1proto.KeyValue{
 						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 4.0}}},
@@ -2713,8 +2707,8 @@ func TestHistogramAggregator_ExemplarBucketSelection(t *testing.T) {
 			results := agg.Results()
 
 			// Verify semantic matching behavior - exemplars should be assigned based on quantile ranges
-			p50Series, p50Exists := results[`{p="0.5", service="test"}`]
-			p90Series, p90Exists := results[`{p="0.9", service="test"}`]
+			p50Series, p50Exists := results[LabelsFromArgs("service", "test", "p", 0.5).MapKey()]
+			p90Series, p90Exists := results[LabelsFromArgs("service", "test", "p", 0.9).MapKey()]
 
 			require.True(t, p50Exists, "p50 series should exist")
 			require.True(t, p90Exists, "p90 series should exist")
@@ -2742,7 +2736,6 @@ func TestHistogramAggregator_ExemplarDistribution(t *testing.T) {
 	// Create test data with multiple exemplars
 	timeSeries := []*tempopb.TimeSeries{
 		{
-			PromLabels: `{service="test",__bucket="2"}`,
 			Labels: []commonv1proto.KeyValue{
 				{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 				{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
@@ -2865,7 +2858,6 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 			quantiles: []float64{0.5, 0.9},
 			timeSeries: []*tempopb.TimeSeries{
 				{
-					PromLabels: `{service="test",__bucket="2"}`,
 					Labels: []commonv1proto.KeyValue{
 						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
@@ -2887,7 +2879,6 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 			quantiles: []float64{0.5},
 			timeSeries: []*tempopb.TimeSeries{
 				{
-					PromLabels: `{service="test",__bucket="2"}`,
 					Labels: []commonv1proto.KeyValue{
 						{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 						{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: 2.0}}},
@@ -2934,7 +2925,6 @@ func TestHistogramAggregator_EdgeCases(t *testing.T) {
 func createBucketSeries(bucketValue string, count int, timestampMs int64) *tempopb.TimeSeries {
 	bucketFloat, _ := strconv.ParseFloat(bucketValue, 64)
 	return &tempopb.TimeSeries{
-		PromLabels: fmt.Sprintf(`{service="test",__bucket="%s"}`, bucketValue),
 		Labels: []commonv1proto.KeyValue{
 			{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}},
 			{Key: internalLabelBucket, Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_DoubleValue{DoubleValue: bucketFloat}}},
@@ -2946,10 +2936,11 @@ func createBucketSeries(bucketValue string, count int, timestampMs int64) *tempo
 }
 
 // requireEqualSeriesSets is like require.Equal for SeriesSets and supports NaN.
-func requireEqualSeriesSets(t *testing.T, expected, actual SeriesSet) {
+func requireEqualSeriesSets(t *testing.T, expected []TimeSeries, actual SeriesSet) {
 	require.Equal(t, len(expected), len(actual))
 
-	for k, eTS := range expected {
+	for _, eTS := range expected {
+		k := eTS.Labels.MapKey()
 		aTS, ok := actual[k]
 		require.True(t, ok, "expected series %s to be in result", k)
 		require.Equal(t, eTS.Labels, aTS.Labels, "expected labels %v, got %v", eTS.Labels, aTS.Labels)
