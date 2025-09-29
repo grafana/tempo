@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Add secure connection support to tempo-cli [#5692](https://github.com/grafana/tempo/pull/5692) (@TheoBrigitte)
 * [BUGFIX] Prevent metrics-generator WAL deletion when tenant is empty [#5586](https://github.com/grafana/tempo/pull/5586) (@sienna011022)
 * [BUGFIX] Fix docker-compose port configuration for Alloy gRPC (4319 → 4317) [#5536](https://github.com/grafana/tempo/pull/5536)
 * [BUGFIX] Fix panic error from empty span id. [#5464](https://github.com/grafana/tempo/pull/5464)
