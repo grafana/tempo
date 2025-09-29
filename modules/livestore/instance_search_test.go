@@ -51,7 +51,6 @@ const (
 
 func TestInstanceSearch(t *testing.T) {
 	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
-	defer cncl()
 
 	tagKey := foo
 	tagValue := bar
@@ -89,6 +88,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(ctx, ls)
 	require.NoError(t, err)
+	cncl()
 }
 
 // TestInstanceSearchTraceQL is duplicate of TestInstanceSearch for now
@@ -102,22 +102,22 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 	for _, query := range queries {
 		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
 			i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
-			defer cncl()
 
 			_, ids := pushTracesToInstance(t, i, 10)
 
 			req := &tempopb.SearchRequest{Query: query, Limit: 20, SpansPerSpanSet: 10}
 
+			searchCtx := context.Background()
 			// Test live traces, these are cut roughly every 5 seconds so these should
 			// not exist yet.
-			sr, err := i.Search(ctx, req)
+			sr, err := i.Search(searchCtx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, 0)
 
 			// Test after appending to WAL
 			require.NoError(t, i.cutIdleTraces(true))
 
-			sr, err = i.Search(ctx, req)
+			sr, err = i.Search(searchCtx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
@@ -127,22 +127,23 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotEqual(t, blockID, uuid.Nil)
 
-			sr, err = i.Search(ctx, req)
+			sr, err = i.Search(searchCtx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
 
 			// Test after completing a block
-			err = i.completeBlock(ctx, blockID)
+			err = i.completeBlock(searchCtx, blockID)
 			require.NoError(t, err)
 
-			sr, err = i.Search(ctx, req)
+			sr, err = i.Search(searchCtx, req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
 
 			err = services.StopAndAwaitTerminated(ctx, ls)
 			require.NoError(t, err)
+			cncl()
 		})
 	}
 }
@@ -445,10 +446,10 @@ func TestSearchTagsV2Limits(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("MaxBytesPerTagValuesQuery=%d", testCase.MaxBytesPerTagValuesQuery), func(t *testing.T) {
-			instance, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+			instance, ls, _, cncl := defaultInstanceAndTmpDir(t)
 			defer cncl()
 
-			ctx = user.InjectOrgID(ctx, "test")
+			ctx := user.InjectOrgID(context.Background(), "test")
 			limits, err := overrides.NewOverrides(overrides.Config{
 				Defaults: overrides.Overrides{
 					Read: overrides.ReadOverrides{
@@ -457,11 +458,6 @@ func TestSearchTagsV2Limits(t *testing.T) {
 				},
 			}, nil, prometheus.DefaultRegisterer)
 			require.NoError(t, err)
-
-			defer func() {
-				err := services.StopAndAwaitTerminated(ctx, ls)
-				require.NoError(t, err)
-			}()
 
 			instance.overrides = limits
 
@@ -525,6 +521,7 @@ func TestSearchTagsV2Limits(t *testing.T) {
 
 			err = services.StopAndAwaitTerminated(ctx, ls)
 			require.NoError(t, err)
+			time.Sleep(200 * time.Millisecond)
 		})
 	}
 }
@@ -543,7 +540,7 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *LiveStore, context.Cont
 	return instance, liveStore, ctx, cncl
 }
 
-func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, context.Context, func(), error) {
+func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, context.Context, context.CancelFunc, error) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	cfg.WAL.Filepath = tmpDir
@@ -763,7 +760,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(ctx, time.Now(), req)
+		i.pushBytes(context.Background(), time.Now(), req)
 	})
 
 	concurrent(func() {
@@ -775,7 +772,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		// Cut wal, complete
 		blockID, _ := i.cutBlocks(true)
 		if blockID != uuid.Nil {
-			err := i.completeBlock(ctx, blockID)
+			err := i.completeBlock(context.Background(), blockID)
 			require.NoError(t, err)
 		}
 	})
@@ -786,21 +783,21 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	concurrent(func() {
-		_, err := i.Search(ctx, req)
+		_, err := i.Search(context.Background(), req)
 		require.NoError(t, err, "error searching")
 	})
 
 	concurrent(func() {
 		// SearchTags queries now require userID in ctx
-		ctx := user.InjectOrgID(ctx, "test")
-		_, err := i.SearchTags(ctx, "")
+		searchCtx := user.InjectOrgID(context.Background(), "test")
+		_, err := i.SearchTags(searchCtx, "")
 		require.NoError(t, err, "error getting search tags")
 	})
 
 	concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
-		ctx := user.InjectOrgID(ctx, "test")
-		_, err := i.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+		searchCtx := user.InjectOrgID(context.Background(), "test")
+		_, err := i.SearchTagValues(searchCtx, &tempopb.SearchTagValuesRequest{
 			TagName:             tagKey,
 			MaxTagValues:        0,
 			StaleValueThreshold: 0,
@@ -934,11 +931,6 @@ func TestInstanceFindByTraceID(t *testing.T) {
 func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	// Test that the maxBytesPerTrace limit is being passed to the combiner correctly
 	i, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
-	defer func() {
-		err := services.StopAndAwaitTerminated(t.Context(), ls)
-		require.NoError(t, err)
-		cncl()
-	}()
 
 	// Set generous ingestion limits initially so the trace can be fully ingested
 	generousLimits, err := overrides.NewOverrides(overrides.Config{
@@ -998,6 +990,10 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 	resp, err = i.FindByTraceID(context.Background(), traceID, true)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace) // can't validate the trace b/c its a subset of the original trace. as long as its non-nil, we're good
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+	cncl()
 }
 
 func TestIncludeBlock(t *testing.T) {
