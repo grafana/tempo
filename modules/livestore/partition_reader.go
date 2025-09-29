@@ -40,6 +40,7 @@ type PartitionReader struct {
 	client *kgo.Client
 	adm    *kadm.Client
 
+	lookbackPeriod  time.Duration
 	commitInterval  time.Duration
 	wg              sync.WaitGroup
 	offsetWatermark atomic.Pointer[kadm.Offset]
@@ -228,9 +229,11 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 		return kgo.NewOffset(), errors.Wrap(err, "unable to fetch group offsets")
 	}
 	offset, found := offsets.Lookup(r.topic, r.partitionID)
-	if !found {
-		// No committed offset found for this partition, start from the end
-		return kgo.NewOffset().AtStart(), nil
+	if !found { // No committed offset found for this partition
+		if r.lookbackPeriod == 0 {
+			return kgo.NewOffset().AtEnd(), nil
+		}
+		return kgo.NewOffset().AfterMilli(time.Now().Add(-r.lookbackPeriod).UnixMilli()), nil
 	}
 	return kgo.NewOffset().At(offset.At), nil
 }
