@@ -42,6 +42,7 @@ type Config struct {
 	MaxLiveTracesBytes    uint64        `yaml:"max_live_traces_bytes"`
 	MaxBlockDuration      time.Duration `yaml:"max_block_duration"`
 	MaxBlockBytes         uint64        `yaml:"max_block_bytes"`
+	MaxLookback           time.Duration `yaml:"max_lookback"`
 
 	// Block configuration
 	BlockConfig common.BlockConfig `yaml:"block_config"`
@@ -78,6 +79,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
 	cfg.MaxBlockDuration = 30 * time.Minute
 	cfg.MaxBlockBytes = 500 * 1024 * 1024
+	cfg.MaxLookback = time.Hour
 
 	cfg.CommitInterval = 5 * time.Second
 
@@ -88,6 +90,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", cfg.CompleteBlockTimeout, "Duration to keep blocks in the live store after they have been flushed.")
 	f.UintVar(&cfg.QueryBlockConcurrency, prefix+".concurrent-blocks", cfg.QueryBlockConcurrency, "Number of concurrent blocks to query for metrics.")
 	f.Float64Var(&cfg.Metrics.TimeOverlapCutoff, prefix+".metrics.time-overlap-cutoff", cfg.Metrics.TimeOverlapCutoff, "Time overlap cutoff ratio for metrics queries (0.0-1.0).")
+	f.DurationVar(&cfg.MaxLookback, prefix+".max-lookback", cfg.MaxLookback, "Maximum time to look back when consuming from Kafka if no committed offset is found.")
 
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
 	cfg.WAL.Version = encoding.DefaultEncoding().Version()
@@ -133,6 +136,10 @@ func (cfg *Config) Validate() error {
 
 	if cfg.MaxTraceIdle > cfg.MaxTraceLive {
 		return fmt.Errorf("max_trace_idle (%s) cannot be greater than max_trace_live (%s)", cfg.MaxTraceIdle, cfg.MaxTraceLive)
+	}
+
+	if cfg.MaxLookback < 0 {
+		return fmt.Errorf("max_lookback must be greater than or equal to 0, got %s", cfg.MaxLookback)
 	}
 
 	if err := common.ValidateConfig(&cfg.BlockConfig); err != nil {
