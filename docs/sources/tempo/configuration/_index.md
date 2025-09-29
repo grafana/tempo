@@ -1614,7 +1614,7 @@ The storage WAL configuration block.
 [ingestion_time_range_slack: <duration> | default = unset]
 
 # WAL file format version
-# Options: v2, vParquet, vParquet3
+# Options: v2, vParquet3, vParquet4
 [version: <string> | default = "vParquet3"]
 ```
 
