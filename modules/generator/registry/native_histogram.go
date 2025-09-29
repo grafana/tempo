@@ -319,9 +319,6 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 			delete(h.rejectedSeries, hash)
 		}
 	}
-	if h.estimatedSeries.lastReset < staleTimeMs {
-		h.estimatedSeries.Advance()
-	}
 }
 
 func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {
@@ -343,10 +340,12 @@ func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duratio
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 	total := uint32(0)
 	if hasClassicHistograms(h.histogramOverride) {
-		// sum + count + Inf + #buckets
-		// we might be double counting the +Inf bucket
-		// but checking for it adds complexity and this is just an estimate
-		total += 3 + uint32(len(h.buckets))
+		// sum + count + #buckets
+		total += 2 + uint32(len(h.buckets))
+		// check for +Inf bucket
+		if len(h.buckets) > 0 && !math.IsInf(h.buckets[len(h.buckets)-1], 1) {
+			total++ // +Inf bucket
+		}
 	}
 	if hasNativeHistograms(h.histogramOverride) {
 		total++
@@ -550,4 +549,8 @@ func getIfGreaterThenZeroOr(v1 float64, v2 uint64) float64 {
 		return v1
 	}
 	return float64(v2)
+}
+
+func (h *nativeHistogram) updateEstimatedSeries() {
+	h.estimatedSeries.MinuteTick()
 }

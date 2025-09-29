@@ -201,7 +201,8 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 			delete(g.rejectedSeries, hash)
 		}
 	}
-	if g.estimatedSeries.lastReset < staleTimeMs {
-		g.estimatedSeries.Advance()
-	}
+}
+
+func (g *gauge) updateEstimatedSeries() {
+	g.estimatedSeries.MinuteTick()
 }

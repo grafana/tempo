@@ -125,6 +125,10 @@ func (t *testCounter) countTotalSeriesEstimate() int {
 	panic("implement me")
 }
 
+func (t *testCounter) updateEstimatedSeries() {
+	panic("implement me")
+}
+
 type testGauge struct {
 	n        string
 	registry *TestRegistry
@@ -177,6 +181,10 @@ func (t *testGauge) countTotalSeries() int {
 }
 
 func (t *testGauge) countTotalSeriesEstimate() int {
+	panic("implement me")
+}
+
+func (t *testGauge) updateEstimatedSeries() {
 	panic("implement me")
 }
 
@@ -235,5 +243,9 @@ func (t *testHistogram) countTotalSeries() int {
 }
 
 func (t *testHistogram) countTotalSeriesEstimate() int {
+	panic("implement me")
+}
+
+func (t *testHistogram) updateEstimatedSeries() {
 	panic("implement me")
 }
