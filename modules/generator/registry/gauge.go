@@ -204,5 +204,5 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 }
 
 func (g *gauge) updateEstimatedSeries() {
-	g.estimatedSeries.MinuteTick()
+	g.estimatedSeries.Advance()
 }
