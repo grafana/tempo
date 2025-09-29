@@ -208,7 +208,7 @@ func (vs *ValidationService) RunValidation(
 			// Context cancelled - add failure and return early
 			result.Failures = append(result.Failures, ValidationFailure{
 				Phase:     "timeout",
-				Error:     ctx.Err(),
+				Error:     err,
 				Timestamp: vs.clock.Now(),
 			})
 			break
@@ -255,7 +255,8 @@ func (vs *ValidationService) sleepWithContext(ctx context.Context, duration time
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(duration):
+	default:
+		vs.clock.Sleep(duration)
 		return nil
 	}
 }
@@ -395,7 +396,7 @@ func extractTraceID(trace *tempopb.Trace) string {
 }
 
 func (vs *ValidationService) logTraceAttributes(trace *tempopb.Trace, traceID string) {
-	vs.logger.Info("=== TRACE ATTRIBUTES DEBUG ===", zap.String("traceID", traceID))
+	vs.logger.Debug("=== TRACE ATTRIBUTES DEBUG ===", zap.String("traceID", traceID))
 
 	for i, resourceSpan := range trace.ResourceSpans {
 		vs.logger.Info("Resource attributes", zap.Int("resourceSpan", i))
