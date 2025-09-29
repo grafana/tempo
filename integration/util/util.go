@@ -47,13 +47,13 @@ import (
 )
 
 const (
-	image            = "tempo:latest"
-	debugImage       = "tempo-debug:latest"
-	queryImage       = "tempo-query:latest"
-	jaegerImage      = "jaegertracing/jaeger-query:1.64.0"
-	prometheusImage  = "prom/prometheus:latest"
-	hdrXScopeOrgID   = "x-scope-orgid"
-	hdrAuthorization = "authorization"
+	image               = "tempo:latest"
+	debugImage          = "tempo-debug:latest"
+	queryImage          = "tempo-query:latest"
+	jaegerImage         = "jaegertracing/jaeger-query:1.64.0"
+	prometheusImage     = "prom/prometheus:latest"
+	xScopeOrgIDHeader   = "x-scope-orgid"
+	authorizationHeader = "authorization"
 )
 
 // GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
@@ -413,10 +413,10 @@ func NewOtelGRPCExporterWithAuth(endpoint, orgID, basicAuthToken string, useTLS 
 	// Configure headers for authentication (gRPC metadata format)
 	headers := make(map[string]configopaque.String)
 	if orgID != "" {
-		headers[hdrXScopeOrgID] = configopaque.String(orgID)
+		headers[xScopeOrgIDHeader] = configopaque.String(orgID)
 	}
 	if basicAuthToken != "" {
-		headers[hdrAuthorization] = configopaque.String("Basic " + basicAuthToken)
+		headers[authorizationHeader] = configopaque.String("Basic " + basicAuthToken)
 	}
 
 	otlpCfg.ClientConfig = configgrpc.ClientConfig{
