@@ -10,29 +10,34 @@ import (
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
-const hllBucketDuration = 5 * time.Minute
-
-// HLLCounter: sliding distincts using 5-minute buckets.
-// - Touch(hash): insert into current bucket (cheap).
-// - MinuteTick(now): called by an external 5-minute ticker; flips buckets and recomputes cached union.
+// HLLCounter: sliding HyperLoglog counter with fixed-width time window.
+// - Insert(hash): insert into current bucket (cheap).
+// - Advance(): called by an external ticker; flips buckets and recomputes cached union.
 // - Estimate(): 1 merge (cached union + current) → fast, suitable for ~15s cadence.
 type HLLCounter struct {
-	mu          sync.RWMutex
-	windowMin   int           // number of hllBucketDuration buckets in the window (>=1)
-	cur         int           // current bucket index
-	buckets     []*hll.Sketch // ring of bucket sketches
-	cachedUnion *hll.Sketch   // union of all NON-current buckets (rebuilt on tick)
-	lastFlipMs  int64         // last time we flipped (unix ms), used to catch up if ticks were delayed
+	mu             sync.RWMutex
+	bucketDuration time.Duration
+	windowMin      int           // ring length (>=2) including one extra bucket to avoid early drops
+	cur            int           // current bucket index
+	buckets        []*hll.Sketch // ring of bucket sketches
+	cachedUnion    *hll.Sketch   // union of all NON-current buckets (rebuilt on tick)
+	lastFlipMs     int64         // last time we flipped (unix ms), used to catch up if ticks were delayed
 }
 
-func NewHLLCounter(staleTime time.Duration) *HLLCounter {
-	if staleTime <= 0 {
-		staleTime = hllBucketDuration
+func NewHLLCounter(staleTime, bucketDuration time.Duration) *HLLCounter {
+	if bucketDuration <= 0 {
+		bucketDuration = staleTime
 	}
-	windowMin := int((staleTime + hllBucketDuration - 1) / hllBucketDuration) // ceil
+	if staleTime <= 0 {
+		staleTime = bucketDuration
+	}
+	windowMin := int((staleTime + bucketDuration - 1) / bucketDuration) // ceil
 	if windowMin < 1 {
 		windowMin = 1
 	}
+	// Overprovision the ring with one extra bucket so items stay resident for at
+	// least staleTime before being recycled.
+	windowMin++
 
 	buckets := make([]*hll.Sketch, windowMin)
 	for i := range buckets {
@@ -44,16 +49,16 @@ func NewHLLCounter(staleTime time.Duration) *HLLCounter {
 	}
 
 	return &HLLCounter{
-		windowMin:   windowMin,
-		cur:         0,
-		buckets:     buckets,
-		cachedUnion: u,
-		lastFlipMs:  time.Now().UnixMilli(),
+		bucketDuration: bucketDuration,
+		windowMin:      windowMin,
+		cur:            0,
+		buckets:        buckets,
+		cachedUnion:    u,
+		lastFlipMs:     time.Now().UnixMilli(),
 	}
 }
 
-// Touch inserts a pre-hashed 64-bit key into the current bucket.
-func (c *HLLCounter) Touch(hash uint64) {
+func (c *HLLCounter) Insert(hash uint64) {
 	c.mu.Lock()
 	c.buckets[c.cur].InsertHash(hash)
 	c.mu.Unlock()
@@ -72,10 +77,10 @@ func (c *HLLCounter) Estimate() uint64 {
 	return acc.Estimate()
 }
 
-// Advance should be called by an external ticker running every hllBucketDuration (5 min).
+// Advance should be called by an external ticker.
 // Not guaranteed to align to wall-clock minutes; we catch up for missed minutes.
 func (c *HLLCounter) Advance() {
-	const bucketMs = int64(hllBucketDuration / time.Millisecond)
+	bucketMs := int64(c.bucketDuration / time.Millisecond)
 	nowMs := time.Now().UnixMilli()
 
 	c.mu.Lock()

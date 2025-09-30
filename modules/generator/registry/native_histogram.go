@@ -110,7 +110,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
 		rejectedSeries:    make(map[uint64]int64),
-		estimatedSeries:   NewHLLCounter(staleDuration),
+		estimatedSeries:   NewHLLCounter(staleDuration, removeStaleSeriesInterval),
 		onAddSerie:        onAddSeries,
 		onRemoveSerie:     onRemoveSeries,
 		traceIDLabelName:  traceIDLabelName,
@@ -130,7 +130,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
 	hash := labelValueCombo.getHash()
 
-	h.estimatedSeries.Touch(hash)
+	h.estimatedSeries.Insert(hash)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -319,6 +319,7 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 			delete(h.rejectedSeries, hash)
 		}
 	}
+	h.estimatedSeries.Advance()
 }
 
 func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {
@@ -549,8 +550,4 @@ func getIfGreaterThenZeroOr(v1 float64, v2 uint64) float64 {
 		return v1
 	}
 	return float64(v2)
-}
-
-func (h *nativeHistogram) updateEstimatedSeries() {
-	h.estimatedSeries.Advance()
 }
