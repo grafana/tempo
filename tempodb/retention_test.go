@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -282,6 +283,9 @@ func TestBlockRetentionOverrideDisabled(t *testing.T) {
 func TestRetainWithConfig(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
+		if version == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(version, func(t *testing.T) {
 			testRetainWithConfig(t, version)
 		})

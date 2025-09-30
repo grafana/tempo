@@ -48,6 +48,9 @@ func TestSearchCompleteBlock(t *testing.T) {
 	t.Parallel()
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
+		if vers == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(vers, func(t *testing.T) {
 			t.Parallel()
 			runCompleteBlockSearchTest(t, vers,
@@ -2654,6 +2657,10 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 func TestSearchByShortTraceID(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
 		if v.Version() == v2.VersionString { // no support of the feature in v2
+			continue
+		}
+
+		if v.Version() == vparquet2.VersionString { // vparquet2 is deprecated
 			continue
 		}
 
