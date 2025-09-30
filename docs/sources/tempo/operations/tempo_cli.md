@@ -96,6 +96,7 @@ Options:
 - `--spss <value>`        Number of spans to return for each spanset
 - `--limit <value>`       Number of results to return
 - `--path-prefix <value>` String to prefix search paths with
+- `--secure`              Use https or grpc with TLS
 
 {{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation](../../api_docs/).
@@ -116,6 +117,7 @@ Options:
 - `--org-id <value>`      Organization ID (for use in multi-tenant setup).
 - `--use-grpc`            Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
+- `--secure`              Use https or grpc with TLS
 
 {{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation](../../api_docs/).
@@ -137,6 +139,7 @@ Options:
 - `--org-id <value>`      Organization ID (for use in multi-tenant setup).
 - `--use-grpc`            Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
+- `--secure`              Use https or grpc with TLS
 
 {{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation](../../api_docs/).
@@ -158,6 +161,7 @@ Options:
 - `--org-id <value>`      Organization ID (for use in multi-tenant setup).
 - `--use-grpc`            Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
+- `--secure`              Use https or grpc with TLS
 
 {{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation](../../api_docs/).

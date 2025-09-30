@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
+
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -29,6 +29,7 @@ type querySearchCmd struct {
 	SPSS       int    `help:"spans per spanset" default:"0"`
 	Limit      int    `help:"limit number of results" default:"0"`
 	PathPrefix string `help:"string to prefix all http paths with"`
+	Secure     bool   `help:"use https or grpc with TLS"`
 }
 
 func (cmd *querySearchCmd) Run(_ *globalOptions) error {
@@ -66,7 +67,12 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 		return err
 	}
 
-	clientConn, err := grpc.DialContext(ctx, cmd.HostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds, err := grpcTransportCredentials(cmd.Secure)
+	if err != nil {
+		return err
+	}
+
+	clientConn, err := grpc.NewClient(cmd.HostPort, creds)
 	if err != nil {
 		return err
 	}
@@ -97,7 +103,7 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 
 // nolint: goconst // goconst wants us to make http:// a const
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
-	httpReq, err := http.NewRequest("GET", "http://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathSearch), nil)
+	httpReq, err := http.NewRequest("GET", httpScheme(cmd.Secure)+"://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathSearch), nil)
 	if err != nil {
 		return err
 	}
