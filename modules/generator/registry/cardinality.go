@@ -10,10 +10,24 @@ import (
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
-// HLLCounter: sliding HyperLoglog counter with fixed-width time window.
-// - Insert(hash): insert into current bucket (cheap).
+// HLLCounter: sliding HyperLogLog counter with fixed-width time window.
+// - Touch(hash): insert into current bucket (cheap).
 // - Advance(): called by an external ticker; flips buckets and recomputes cached union.
 // - Estimate(): 1 merge (cached union + current) → fast, suitable for ~15s cadence.
+//
+// Example (staleTime = 15m, bucketDuration = 5m): windowMin = ceil(15/5) + 1 = 4 buckets
+//
+//	          cachedUnion = B0 + B1 + B2
+//	                   ┌─────────────┐
+//	                   ▼             │
+//	┌─────┬─────┬─────┬─────┐
+//	│ B0  │ B1  │ B2  │ B3  │  ring buffer of HyperLogLog sketches
+//	└─▲───┴─▲───┴─▲───┴─▲───┘
+//	  │     │     │     │
+//	 oldest              current (cur)
+//
+// On Advance(): move cur → next slot (wrapping), reset that sketch, then rebuild cachedUnion
+// from the remaining windows. The extra bucket guarantees data survive for at least staleTime.
 type HLLCounter struct {
 	mu             sync.RWMutex
 	bucketDuration time.Duration
