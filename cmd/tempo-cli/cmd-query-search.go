@@ -72,7 +72,7 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 		return err
 	}
 
-	clientConn, err := grpc.DialContext(ctx, cmd.HostPort, creds)
+	clientConn, err := grpc.NewClient(cmd.HostPort, creds)
 	if err != nil {
 		return err
 	}

@@ -84,7 +84,7 @@ func (cmd *querySearchTagsCmd) searchGRPC(start, end int64) error {
 		return err
 	}
 
-	clientConn, err := grpc.DialContext(ctx, cmd.HostPort, creds)
+	clientConn, err := grpc.NewClient(cmd.HostPort, creds)
 	if err != nil {
 		return err
 	}
