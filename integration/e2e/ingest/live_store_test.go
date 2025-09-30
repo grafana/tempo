@@ -145,13 +145,13 @@ func TestSmokeLiveStoreAPI(t *testing.T) {
 func TestLiveStoreLookback(t *testing.T) {
 	for _, testCase := range []struct {
 		name              string
-		argument          string
+		argument          string // if test becomes unstable, increase sleeps and argument value
 		startNewLiveStore bool
 		expectedTraces    float64
 	}{
 		{
-			name:              "restart_1s",
-			argument:          "-live-store.complete-block-timeout=1s",
+			name:              "restart_2s",
+			argument:          "-live-store.complete-block-timeout=1s", // lookback period twice greater
 			startNewLiveStore: false,
 			expectedTraces:    2, // fresh and after start
 		},
@@ -162,8 +162,8 @@ func TestLiveStoreLookback(t *testing.T) {
 			expectedTraces:    3, // old, fresh and after start, but not already committed
 		},
 		{
-			name:              "start_1s",
-			argument:          "-live-store.complete-block-timeout=1s",
+			name:              "start_2s",
+			argument:          "-live-store.complete-block-timeout=1s", // lookback period twice greater
 			startNewLiveStore: true,
 			expectedTraces:    2, // fresh and after start
 		},
@@ -210,7 +210,7 @@ func TestLiveStoreLookback(t *testing.T) {
 
 			require.NoError(t, s.Stop(liveStore))
 			require.NoError(t, tempoUtil.NewTraceInfo(time.Now(), "").EmitAllBatches(c)) // old trace
-			time.Sleep(2 * time.Second)
+			time.Sleep(3 * time.Second)
 			require.NoError(t, tempoUtil.NewTraceInfo(time.Now(), "").EmitAllBatches(c)) // fresh trace
 
 			if testCase.startNewLiveStore { // new live store without committed offset
