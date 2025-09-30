@@ -64,7 +64,7 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 		metricName:      name,
 		series:          make(map[uint64]*counterSeries),
 		rejectedSeries:  make(map[uint64]int64),
-		estimatedSeries: NewHLLCounter(staleDuration),
+		estimatedSeries: NewHLLCounter(staleDuration, removeStaleSeriesInterval),
 		onAddSeries:     onAddSeries,
 		onRemoveSeries:  onRemoveSeries,
 		externalLabels:  externalLabels,
@@ -82,7 +82,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	s, ok := c.series[hash]
 	c.seriesMtx.RUnlock()
 
-	c.estimatedSeries.Touch(hash)
+	c.estimatedSeries.Insert(hash)
 	if ok {
 		c.updateSeries(s, value)
 		return
@@ -91,9 +91,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	if !c.onAddSeries(1) {
 		c.seriesMtx.Lock()
 		defer c.seriesMtx.Unlock()
-		if _, ok = c.series[hash]; !ok {
-			c.rejectedSeries[hash] = time.Now().UnixMilli()
-		}
+		c.rejectedSeries[hash] = time.Now().UnixMilli()
 		return
 	}
 
@@ -203,8 +201,5 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 			delete(c.rejectedSeries, hash)
 		}
 	}
-}
-
-func (c *counter) updateEstimatedSeries() {
 	c.estimatedSeries.Advance()
 }

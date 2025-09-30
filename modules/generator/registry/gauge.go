@@ -61,7 +61,7 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 		metricName:      name,
 		series:          make(map[uint64]*gaugeSeries),
 		rejectedSeries:  make(map[uint64]int64),
-		estimatedSeries: NewHLLCounter(staleDuration),
+		estimatedSeries: NewHLLCounter(staleDuration, removeStaleSeriesInterval),
 		onAddSeries:     onAddSeries,
 		onRemoveSeries:  onRemoveSeries,
 		externalLabels:  externalLabels,
@@ -87,7 +87,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	s, ok := g.series[hash]
 	g.seriesMtx.RUnlock()
 
-	g.estimatedSeries.Touch(hash)
+	g.estimatedSeries.Insert(hash)
 
 	if ok {
 		// target_info will always be 1 so if the series exists, we don't need to go through this loop
@@ -101,9 +101,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	if !g.onAddSeries(1) {
 		g.seriesMtx.Lock()
 		defer g.seriesMtx.Unlock()
-		if _, ok = g.series[hash]; !ok {
-			g.rejectedSeries[hash] = time.Now().UnixMilli()
-		}
+		g.rejectedSeries[hash] = time.Now().UnixMilli()
 		return
 	}
 
@@ -201,8 +199,5 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 			delete(g.rejectedSeries, hash)
 		}
 	}
-}
-
-func (g *gauge) updateEstimatedSeries() {
 	g.estimatedSeries.Advance()
 }

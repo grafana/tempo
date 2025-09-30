@@ -100,7 +100,7 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 		bucketLabels:     bucketLabels,
 		series:           make(map[uint64]*histogramSeries),
 		rejectedSeries:   make(map[uint64]int64),
-		estimatedSeries:  NewHLLCounter(staleDuration),
+		estimatedSeries:  NewHLLCounter(staleDuration, removeStaleSeriesInterval),
 		onAddSerie:       onAddSeries,
 		onRemoveSerie:    onRemoveSeries,
 		traceIDLabelName: traceIDLabelName,
@@ -111,7 +111,7 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
 	hash := labelValueCombo.getHash()
 
-	h.estimatedSeries.Touch(hash)
+	h.estimatedSeries.Insert(hash)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -298,6 +298,7 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 			delete(h.rejectedSeries, hash)
 		}
 	}
+	h.estimatedSeries.Advance()
 }
 
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
@@ -307,8 +308,4 @@ func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
 
 func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
-}
-
-func (h *histogram) updateEstimatedSeries() {
-	h.estimatedSeries.Advance()
 }
