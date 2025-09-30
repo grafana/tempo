@@ -107,7 +107,7 @@ func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, comm
 	)
 	require.NoError(t, err)
 
-	r, err := newPartitionReader(client, 0, cfg, commitInterval, consume, l, newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
+	r, err := newPartitionReader(client, 0, cfg, commitInterval, time.Hour, consume, l, newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
 	require.NoError(t, err)
 
 	err = services.StartAndAwaitRunning(t.Context(), r)
