@@ -15,8 +15,9 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
-func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore, context.Context, context.CancelFunc) {
-	instance, ls, ctx, cncl := defaultInstanceAndTmpDir(t)
+func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore) {
+	instance, ls, _, cncl := defaultInstanceAndTmpDir(t)
+	t.Cleanup(cncl)
 	limits, err := overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
 			Global: overrides.GlobalOverrides{
@@ -30,7 +31,7 @@ func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces in
 	require.NoError(t, err)
 	instance.overrides = limits
 
-	return instance, ls, ctx, cncl
+	return instance, ls
 }
 
 func pushTrace(ctx context.Context, t *testing.T, instance *instance, tr *tempopb.Trace, id []byte) {
@@ -56,8 +57,7 @@ func TestInstanceLimits(t *testing.T) {
 
 	// bytes - succeeds: push two different traces under size limit
 	t.Run("bytes - succeeds", func(t *testing.T) {
-		instance, ls, _, cncl := instanceWithPushLimits(t, maxBytes, maxTraces)
-		defer cncl()
+		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 		// two different traces with different ids
 		id1 := test.ValidTraceID(nil)
 		id2 := test.ValidTraceID(nil)
@@ -71,8 +71,7 @@ func TestInstanceLimits(t *testing.T) {
 
 	// bytes - one fails: second push of the same trace exceeds MaxBytesPerTrace
 	t.Run("bytes - one fails", func(t *testing.T) {
-		instance, ls, _, cncl := instanceWithPushLimits(t, maxBytes, maxTraces)
-		defer cncl()
+		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 
 		id := test.ValidTraceID(nil)
 
@@ -90,8 +89,7 @@ func TestInstanceLimits(t *testing.T) {
 
 	// max traces - too many: only first 4 unique traces are accepted
 	t.Run("max traces - too many", func(t *testing.T) {
-		instance, ls, _, cncl := instanceWithPushLimits(t, maxBytes, maxTraces)
-		defer cncl()
+		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 		for range 10 {
 			id := test.ValidTraceID(nil)
 			pushTrace(context.Background(), t, instance, test.MakeTrace(1, id), id)
@@ -104,18 +102,17 @@ func TestInstanceLimits(t *testing.T) {
 }
 
 func TestInstanceNoLimits(t *testing.T) {
-	instance, ls, ctx, cncl := instanceWithPushLimits(t, 0, 0)
-	defer cncl()
+	instance, ls := instanceWithPushLimits(t, 0, 0)
 
 	for range 100 {
 		id := test.ValidTraceID(nil)
-		pushTrace(ctx, t, instance, test.MakeTrace(1, id), id)
+		pushTrace(context.Background(), t, instance, test.MakeTrace(1, id), id)
 	}
 
 	assert.Equal(t, uint64(100), instance.liveTraces.Len())
 	assert.GreaterOrEqual(t, instance.liveTraces.Size(), uint64(1000))
 
-	err := services.StopAndAwaitTerminated(ctx, ls)
+	err := services.StopAndAwaitTerminated(context.Background(), ls)
 	require.NoError(t, err)
 }
 
