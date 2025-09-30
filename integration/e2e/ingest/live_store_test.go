@@ -151,39 +151,27 @@ func TestLiveStoreLookback(t *testing.T) {
 	}{
 		{
 			name:              "restart_1s",
-			argument:          "-live-store.max-lookback=1s",
+			argument:          "-live-store.complete-block-timeout=1s",
 			startNewLiveStore: false,
 			expectedTraces:    2, // fresh and after start
 		},
 		{
-			name:              "restart_all_time",
+			name:              "restart_default",
 			argument:          "", // default is 1h
 			startNewLiveStore: false,
 			expectedTraces:    3, // old, fresh and after start, but not already committed
 		},
 		{
-			name:              "restart_time_now",
-			argument:          "-live-store.max-lookback=0s",
-			startNewLiveStore: false,
-			expectedTraces:    1, // only after start
-		},
-		{
 			name:              "start_1s",
-			argument:          "-live-store.max-lookback=1s",
+			argument:          "-live-store.complete-block-timeout=1s",
 			startNewLiveStore: true,
 			expectedTraces:    2, // fresh and after start
 		},
 		{
-			name:              "start_all_time",
+			name:              "start_default",
 			argument:          "", // default is 1h
 			startNewLiveStore: true,
 			expectedTraces:    4, // all traces
-		},
-		{
-			name:              "start_time_now",
-			argument:          "-live-store.max-lookback=0s",
-			startNewLiveStore: true,
-			expectedTraces:    1, // only after start, because it starts from end offset
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
