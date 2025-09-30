@@ -30,6 +30,7 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -454,12 +455,12 @@ func TestSearchTagsV2Limits(t *testing.T) {
 			// push traces
 			uniqueKeys := map[string]struct{}{}
 			numTraces := 10
+			now := time.Now()
+			segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 			for i := 0; i < numTraces; i++ {
 				id := test.ValidTraceID(nil)
 				trace := test.MakeTrace(1, id)
-
-				traceBytes, err := trace.Marshal()
-				require.NoError(t, err)
 
 				for _, rs := range trace.ResourceSpans {
 					for _, ss := range rs.ScopeSpans {
@@ -471,12 +472,16 @@ func TestSearchTagsV2Limits(t *testing.T) {
 					}
 				}
 
+				// Use segment decoder to properly format the trace with start/end timestamps
+				traceBytes, err := segmentDecoder.PrepareForWrite(trace, uint32(now.Unix()), uint32(now.Unix()))
+				require.NoError(t, err)
+
 				// Create a push request for livestore
 				req := &tempopb.PushBytesRequest{
 					Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 					Ids:    [][]byte{id},
 				}
-				instance.pushBytes(t.Context(), time.Now(), req)
+				instance.pushBytes(t.Context(), now, req)
 				err = instance.cutIdleTraces(true)
 				require.NoError(t, err)
 				blockID, err := instance.cutBlocks(true)
@@ -605,6 +610,9 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 	var ids [][]byte
 	var traces []*tempopb.Trace
 
+	now := time.Now()
+	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	for j := 0; j < numTraces; j++ {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
@@ -612,7 +620,9 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 
 		testTrace := test.MakeTrace(10, id)
 		trace.SortTrace(testTrace)
-		traceBytes, err := testTrace.Marshal()
+
+		// Use segment decoder to properly format the trace with start/end timestamps
+		traceBytes, err := segmentDecoder.PrepareForWrite(testTrace, uint32(now.Unix()), uint32(now.Unix()))
 		require.NoError(t, err)
 
 		// Create a push request for livestore
@@ -620,7 +630,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(t.Context(), time.Now(), req)
+		i.pushBytes(t.Context(), now, req)
 
 		ids = append(ids, id)
 		traces = append(traces, testTrace)
@@ -686,7 +696,9 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 
 		trace.SortTrace(testTrace)
 
-		traceBytes, err := testTrace.Marshal()
+		// Use segment decoder to properly format the trace with start/end timestamps
+		segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+		traceBytes, err := segmentDecoder.PrepareForWrite(testTrace, uint32(now.Unix()), uint32(now.Unix()))
 		require.NoError(t, err)
 
 		// Create a push request for livestore
@@ -733,13 +745,18 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		}()
 	}
 
+	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	concurrent(func() {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
 		require.NoError(t, err)
 
 		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
+		now := time.Now()
+
+		// Use segment decoder to properly format the trace with start/end timestamps
+		traceBytes, err := segmentDecoder.PrepareForWrite(trace, uint32(now.Unix()), uint32(now.Unix()))
 		require.NoError(t, err)
 
 		// Create a push request for livestore
@@ -747,7 +764,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(t.Context(), time.Now(), req)
+		i.pushBytes(t.Context(), now, req)
 	})
 
 	concurrent(func() {
@@ -808,13 +825,16 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	numTraces := uint32(500)
 	numBytes := uint64(0)
+	now := time.Now()
+	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	for j := uint32(0); j < numTraces; j++ {
 		id := test.ValidTraceID(nil)
 
-		// Trace bytes have to be pushed as raw tempopb.Trace bytes
 		trace := test.MakeTrace(10, id)
 
-		traceBytes, err := trace.Marshal()
+		// Use segment decoder to properly format the trace with start/end timestamps
+		traceBytes, err := segmentDecoder.PrepareForWrite(trace, uint32(now.Unix()), uint32(now.Unix()))
 		require.NoError(t, err)
 
 		// Create a push request for livestore
@@ -822,7 +842,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 			Ids:    [][]byte{id},
 		}
-		i.pushBytes(t.Context(), time.Now(), req)
+		i.pushBytes(t.Context(), now, req)
 	}
 
 	search := func() *tempopb.SearchMetrics {
@@ -936,14 +956,18 @@ func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
 
 	// Push the large trace with generous limits
 	ctx := user.InjectOrgID(context.Background(), testTenantID)
-	traceBytes, err := expectedTrace.Marshal()
+	now := time.Now()
+
+	// Use segment decoder to properly format the trace with start/end timestamps
+	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	traceBytes, err := segmentDecoder.PrepareForWrite(expectedTrace, uint32(now.Unix()), uint32(now.Unix()))
 	require.NoError(t, err)
 
 	req := &tempopb.PushBytesRequest{
 		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
 		Ids:    [][]byte{traceID},
 	}
-	i.pushBytes(ctx, time.Now(), req)
+	i.pushBytes(ctx, now, req)
 
 	// Cut to ensure we can find it
 	err = i.cutIdleTraces(true)
@@ -1121,16 +1145,17 @@ func TestLiveStoreQueryRange(t *testing.T) {
 		},
 	}
 
-	// Marshal traces to bytes
-	trace1Bytes, err := trace1.Marshal()
-	require.NoError(t, err)
-
-	trace2Bytes, err := trace2.Marshal()
-	require.NoError(t, err)
-
 	// Create trace IDs
 	traceID1 := test.ValidTraceID(nil)
 	traceID2 := test.ValidTraceID(nil)
+
+	// Use segment decoder to properly format the traces with start/end timestamps
+	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	trace1Bytes, err := segmentDecoder.PrepareForWrite(trace1, uint32(now.Unix()), uint32(now.Unix()))
+	require.NoError(t, err)
+
+	trace2Bytes, err := segmentDecoder.PrepareForWrite(trace2, uint32(now.Unix()), uint32(now.Unix()))
+	require.NoError(t, err)
 
 	// Push traces using pushBytes
 	pushReq := &tempopb.PushBytesRequest{
