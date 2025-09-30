@@ -98,25 +98,24 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		return
 	}
 
+	g.seriesMtx.Lock()
+	defer g.seriesMtx.Unlock()
+
+	if existing, ok := g.series[hash]; ok {
+		if !updateIfAlreadyExist {
+			return
+		}
+		g.updateSeriesValue(existing, value, operation)
+		return
+	}
+
 	if !g.onAddSeries(1) {
-		g.seriesMtx.Lock()
-		defer g.seriesMtx.Unlock()
 		g.rejectedSeries[hash] = time.Now().UnixMilli()
 		return
 	}
 
-	newSeries := g.newSeries(labelValueCombo, value)
-
-	g.seriesMtx.Lock()
-	defer g.seriesMtx.Unlock()
-
-	s, ok = g.series[hash]
 	delete(g.rejectedSeries, hash)
-	if ok {
-		g.updateSeriesValue(s, value, operation)
-		return
-	}
-	g.series[hash] = newSeries
+	g.series[hash] = g.newSeries(labelValueCombo, value)
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
