@@ -871,7 +871,11 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
+					QueryBackendAfter:     30 * time.Minute,
+					QueryIngestersUntil:   30 * time.Minute,
+					IngesterShards:        1,
 				},
+
 				SLO: testSLOcfg,
 			},
 			Metrics: MetricsConfig{
@@ -879,6 +883,7 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              1 * time.Second,
+					QueryBackendAfter:     30 * time.Minute,
 				},
 				SLO: testSLOcfg,
 			},
