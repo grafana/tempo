@@ -35,7 +35,7 @@ You can still use the previous format `vParquet3`.
 To enable it, set the block version option to `vParquet3` in the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file.
 
 ```yaml
-# block format version. options: v2, vParquet2, vParquet3, vParquet4
+# block format version. options: v2, vParquet3, vParquet4
 [version: vParquet4]
 ```
 
@@ -44,7 +44,7 @@ Using the `v2` block format disables all forms of search, but also reduces resou
 To make this change, set the block version option to `v2` in the Storage section of the configuration file.
 
 ```yaml
-# block format version. options: v2, vParquet2, vParquet3, vParquet4
+# block format version. options: v2, vParquet3, vParquet4
 [version: v2]
 ```
 

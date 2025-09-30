@@ -30,6 +30,8 @@ type TraceByIDCombiner struct {
 	statusMessage string
 
 	MetricsCombiner *TraceByIDMetricsCombiner
+
+	traceRedactor TraceRedactor
 }
 
 // NewTraceByID returns a trace id combiner. The trace by id combiner has a few different behaviors then the others
@@ -37,17 +39,18 @@ type TraceByIDCombiner struct {
 // - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
 // - runs the zipkin dedupe logic on the fully combined trace
 // - encode the returned trace as either json or proto depending on the request
-func NewTraceByID(maxBytes int, contentType string) Combiner {
+func NewTraceByID(maxBytes int, contentType string, traceRedactor TraceRedactor) Combiner {
 	return &TraceByIDCombiner{
 		c:               trace.NewCombiner(maxBytes, false),
 		code:            http.StatusNotFound,
 		contentType:     contentType,
 		MetricsCombiner: NewTraceByIDMetricsCombiner(),
+		traceRedactor:   traceRedactor,
 	}
 }
 
-func NewTypedTraceByID(maxBytes int, contentType string) *TraceByIDCombiner {
-	return NewTraceByID(maxBytes, contentType).(*TraceByIDCombiner)
+func NewTypedTraceByID(maxBytes int, contentType string, traceRedactor TraceRedactor) *TraceByIDCombiner {
+	return NewTraceByID(maxBytes, contentType, traceRedactor).(*TraceByIDCombiner)
 }
 
 func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
@@ -125,6 +128,9 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	// dedupe duplicate span ids
 	deduper := newDeduper()
 	traceResult = deduper.dedupe(traceResult)
+	if c.traceRedactor != nil {
+		c.traceRedactor.RedactTraceAttributes(traceResult)
+	}
 
 	// marshal in the requested format
 	var buff []byte

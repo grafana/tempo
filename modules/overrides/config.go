@@ -2,6 +2,8 @@ package overrides
 
 import (
 	"flag"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/common/config"
@@ -154,6 +156,10 @@ type MetricsGeneratorOverrides struct {
 	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
 	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack"`
+
+	NativeHistogramBucketFactor     float64       `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
+	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
+	NativeHistogramMinResetDuration time.Duration `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 }
 
 type ReadOverrides struct {
@@ -280,6 +286,12 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 10e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&c.Defaults.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
 
+	// Generator - NativeHistograms config
+	f.Float64Var(&c.Defaults.MetricsGenerator.NativeHistogramBucketFactor, "metrics-generator.native-histogram-bucket-factor", 1.1, "The growth factor between buckets for native histograms.")
+	_ = (*Uint32Value)(&c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber).Set("100")
+	f.Var((*Uint32Value)(&c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber), "metrics-generator.native-histogram-max-bucket-number", "The maximum number of buckets for native histograms.")
+	f.DurationVar(&c.Defaults.MetricsGenerator.NativeHistogramMinResetDuration, "metrics-generator.native-histogram-min-reset-duration", 15*time.Minute, "The minimum duration before a native histogram can be reset.")
+
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
 	f.Var(&c.PerTenantOverridePeriod, "config.per-user-override-period", "Period with this to reload the Overrides.")
@@ -305,4 +317,16 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 
 func HasNativeHistograms(s HistogramMethod) bool {
 	return s == HistogramMethodNative || s == HistogramMethodBoth
+}
+
+type Uint32Value uint32
+
+func (u *Uint32Value) String() string { return fmt.Sprintf("%d", *u) }
+func (u *Uint32Value) Set(s string) error {
+	v, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return err
+	}
+	*u = Uint32Value(v)
+	return nil
 }

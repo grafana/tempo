@@ -44,9 +44,9 @@ var (
 	tempoRecentTracesCutoffDuration time.Duration
 	tempoPushTLS                    bool
 
-	rf1After time.Time
-
-	logger *zap.Logger
+	rf1After             time.Time
+	tempoQueryLiveStores bool
+	logger               *zap.Logger
 )
 
 type traceMetrics struct {
@@ -79,6 +79,7 @@ type vultureConfiguration struct {
 	tempoRetentionDuration          time.Duration
 	tempoRecentTracesCutoffDuration time.Duration
 	tempoPushTLS                    bool
+	tempoQueryLiveStores            bool
 }
 
 var _ flag.Value = (*timeVar)(nil)
@@ -90,7 +91,7 @@ type timeVar struct {
 func newTimeVar(t *time.Time) *timeVar { return &timeVar{t: t} }
 
 func (v timeVar) String() string {
-	return (*v.t).Format(time.RFC3339)
+	return v.t.Format(time.RFC3339)
 }
 
 func (v timeVar) Set(s string) error {
@@ -124,6 +125,7 @@ func init() {
 	flag.DurationVar(&tempoRecentTracesCutoffDuration, "tempo-recent-traces-backoff-duration", 14*time.Minute, "Cutoff between recent and old traces query checks")
 
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
+	flag.BoolVar(&tempoQueryLiveStores, "tempo-query-livestore", false, "When to query live stores")
 }
 
 func main() {
@@ -148,6 +150,7 @@ func main() {
 		tempoRetentionDuration:          tempoRetentionDuration,
 		tempoRecentTracesCutoffDuration: tempoRecentTracesCutoffDuration,
 		tempoPushTLS:                    tempoPushTLS,
+		tempoQueryLiveStores:            tempoQueryLiveStores,
 	}
 	pushEndpoint, err := getGRPCEndpoint(vultureConfig.tempoPushURL)
 	if err != nil {
@@ -155,13 +158,11 @@ func main() {
 	}
 
 	logger.Info("Tempo Vulture starting", zap.String("tempoQueryURL", vultureConfig.tempoQueryURL), zap.String("tempoPushURL", pushEndpoint))
-
 	jaegerClient, err := utilpkg.NewJaegerToOTLPExporter(pushEndpoint)
+	httpClient := createHTTPClient(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID, vultureConfig.tempoQueryLiveStores)
 	if err != nil {
 		panic(err)
 	}
-
-	httpClient := httpclient.New(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID)
 
 	if !rf1After.IsZero() {
 		httpClient.SetQueryParam(api.URLParamRF1After, rf1After.Format(time.RFC3339))
@@ -225,6 +226,12 @@ func main() {
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+}
+
+func createHTTPClient(queryURL string, orgID string, queryLiveStores bool) *httpclient.Client {
+	httpClient := httpclient.New(queryURL, orgID)
+	httpClient.QueryLiveStores = queryLiveStores
+	return httpClient
 }
 
 func getGRPCEndpoint(endpoint string) (string, error) {
@@ -446,15 +453,15 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 	return newStart.Round(interval), ts.Round(interval)
 }
 
-func generateRandomInt(min, max int64, r *rand.Rand) int64 {
-	min++
+func generateRandomInt(minVal, maxVal int64, r *rand.Rand) int64 {
+	minVal++
 	var duration int64
 	duration = 1
 	// This is to prevent a panic when min == max since subtracting them will end in a negative number
-	if min < max {
-		duration = max - min
+	if minVal < maxVal {
+		duration = maxVal - minVal
 	}
-	number := min + r.Int63n(duration)
+	number := minVal + r.Int63n(duration)
 	return number
 }
 

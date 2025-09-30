@@ -28,9 +28,11 @@ const (
 	QueryTraceEndpoint   = "/api/traces"
 	QueryTraceV2Endpoint = "/api/v2/traces"
 
-	acceptHeader        = "Accept"
-	applicationProtobuf = "application/protobuf"
-	applicationJSON     = "application/json"
+	acceptHeader           = "Accept"
+	applicationProtobuf    = "application/protobuf"
+	applicationJSON        = "application/json"
+	recentDataTargetHeader = "Recent-Data-Target"
+	liveStoreHeaderValue   = "live-store"
 )
 
 type TempoHTTPClient interface {
@@ -58,15 +60,19 @@ type TempoHTTPClient interface {
 	DeleteOverrides(version string) error
 }
 
-var ErrNotFound = errors.New("resource not found")
+var (
+	_           TempoHTTPClient = (*Client)(nil)
+	ErrNotFound                 = errors.New("resource not found")
+)
 
 // Client is client to the Tempo API.
 type Client struct {
-	BaseURL     string
-	OrgID       string
-	client      *http.Client
-	headers     map[string]string
-	queryParams map[string]string
+	BaseURL         string
+	OrgID           string
+	client          *http.Client
+	headers         map[string]string
+	queryParams     map[string]string
+	QueryLiveStores bool
 }
 
 func New(baseURL, orgID string) *Client {
@@ -151,7 +157,9 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
 			req.Header.Set(k, v)
 		}
 	}
-
+	if c.QueryLiveStores {
+		req.Header.Set(recentDataTargetHeader, liveStoreHeaderValue) // Query live-stores
+	}
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error querying Tempo %v", err)

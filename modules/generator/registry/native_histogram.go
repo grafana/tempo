@@ -1,7 +1,9 @@
 package registry
 
 import (
+	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"sync"
 	"time"
@@ -13,7 +15,6 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type nativeHistogram struct {
@@ -41,6 +42,10 @@ type nativeHistogram struct {
 	// reload of the process, and a new instance of the histogram to be created.
 	histogramOverride HistogramMode
 
+	overrides Overrides
+	// The tenant for this registry instance is received at create time and does not change.
+	tenant string
+
 	externalLabels map[string]string
 
 	// classic
@@ -67,6 +72,9 @@ type nativeHistogramSeries struct {
 	countLabels labels.Labels
 	sumLabels   labels.Labels
 	// bucketLabels []labels.Labels
+
+	// Overrides tracking to determine if we need to recreate the series
+	overridesHash uint64
 }
 
 func (hs *nativeHistogramSeries) isNew() bool {
@@ -82,7 +90,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -105,6 +113,8 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		buckets:           buckets,
 		histogramOverride: histogramOverride,
 		externalLabels:    externalLabels,
+		overrides:         overrides,
+		tenant:            tenant,
 
 		// classic
 		nameCount:  fmt.Sprintf("%s_count", name),
@@ -147,15 +157,17 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		buckets = h.buckets
 	}
 
+	hsh, bucketFactor, maxBucketNum, minResetDur := h.hashOverrides()
+
 	// Configure native histogram options based on mode
 	nativeOpts := prometheus.HistogramOpts{
 		Name:    h.name(),
 		Help:    "Native histogram for metric " + h.name(),
 		Buckets: buckets, // nil for pure native, h.buckets for hybrid
 		// Native histogram parameters
-		NativeHistogramBucketFactor:     1.1,
-		NativeHistogramMaxBucketNumber:  100,
-		NativeHistogramMinResetDuration: 15 * time.Minute,
+		NativeHistogramBucketFactor:     bucketFactor,
+		NativeHistogramMaxBucketNumber:  maxBucketNum,
+		NativeHistogramMinResetDuration: minResetDur,
 	}
 
 	if hasClassic {
@@ -167,6 +179,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		promHistogram: prometheus.NewHistogram(nativeOpts),
 		lastUpdated:   0,
 		firstSeries:   atomic.NewBool(true),
+		overridesHash: hsh,
 	}
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
@@ -260,18 +273,45 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		activeSeries += 0
 	}
 
-	return
+	return activeSeries, err
 }
 
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
+	overridesHash, _, _, _ := h.hashOverrides()
+
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
+
 	for hash, s := range h.series {
+
+		if s.overridesHash != overridesHash {
+			// The overrides have changed, so we need to recreate the series.
+			delete(h.series, hash)
+			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			continue
+		}
+
 		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
 			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
 		}
 	}
+}
+
+func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {
+	var (
+		bucketFactor = h.overrides.MetricsGeneratorNativeHistogramBucketFactor(h.tenant)
+		maxBucketNum = h.overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(h.tenant)
+		minResetDur  = h.overrides.MetricsGeneratorNativeHistogramMinResetDuration(h.tenant)
+	)
+
+	hsh := fnv.New64a()
+
+	_ = binary.Write(hsh, binary.LittleEndian, bucketFactor)
+	_ = binary.Write(hsh, binary.LittleEndian, maxBucketNum)
+	_ = binary.Write(hsh, binary.LittleEndian, minResetDur)
+
+	return hsh.Sum64(), bucketFactor, maxBucketNum, minResetDur
 }
 
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
@@ -363,7 +403,7 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 		}
 	}
 
-	return
+	return err
 }
 
 func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
@@ -455,7 +495,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		s.registerSeenSeries()
 	}
 
-	return
+	return activeSeries, err
 }
 
 func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {
@@ -467,13 +507,6 @@ func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {
 		}
 	}
 	return lbs
-}
-
-func convertTimestampToMs(ts *timestamppb.Timestamp) int64 {
-	if ts == nil {
-		return 0
-	}
-	return ts.GetSeconds()*1000 + int64(ts.GetNanos()/1_000_000)
 }
 
 // getIfGreaterThenZeroOr returns v1 is if it's greater than zero, otherwise it returns v2.
