@@ -88,25 +88,21 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		return
 	}
 
+	c.seriesMtx.Lock()
+	defer c.seriesMtx.Unlock()
+
+	if existing, ok := c.series[hash]; ok {
+		c.updateSeries(existing, value)
+		return
+	}
+
 	if !c.onAddSeries(1) {
-		c.seriesMtx.Lock()
-		defer c.seriesMtx.Unlock()
 		c.rejectedSeries[hash] = time.Now().UnixMilli()
 		return
 	}
 
-	newSeries := c.newSeries(labelValueCombo, value)
-
-	c.seriesMtx.Lock()
-	defer c.seriesMtx.Unlock()
-
-	s, ok = c.series[hash]
 	delete(c.rejectedSeries, hash)
-	if ok {
-		c.updateSeries(s, value)
-		return
-	}
-	c.series[hash] = newSeries
+	c.series[hash] = c.newSeries(labelValueCombo, value)
 }
 
 func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {

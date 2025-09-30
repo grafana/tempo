@@ -11,7 +11,7 @@ import (
 )
 
 // HLLCounter: sliding HyperLogLog counter with fixed-width time window.
-// - Touch(hash): insert into current bucket (cheap).
+// - Insert(hash): insert into current bucket (cheap).
 // - Advance(): called by an external ticker; flips buckets and recomputes cached union.
 // - Estimate(): 1 merge (cached union + current) → fast, suitable for ~15s cadence.
 //
