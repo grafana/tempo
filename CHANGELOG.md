@@ -1,7 +1,7 @@
 ## main / unreleased
 
 * [CHANGE] **BREAKING CHANGE** Deprecating vParquet2 block format [#5688](https://github.com/grafana/tempo/pull/5688) (@ie-pham)
-* [ENHANCEMENT] If no commits, first record for live store to consume is not older than max_lookback [#5693](https://github.com/grafana/tempo/pull/5693) (@ruslan-mikhailov)
+* [ENHANCEMENT] On startup, first record for live store to consume is not older than two complete block timeouts [#5693](https://github.com/grafana/tempo/pull/5693) (@ruslan-mikhailov)
 
 # v2.9.0-rc.0
 
