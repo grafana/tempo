@@ -1256,7 +1256,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 			req: &tempopb.QueryRangeRequest{
 				Query:     "{} | count_over_time()",
 				Start:     uint64(block.BlockMeta().EndTime.UnixNano()),
-				End:       uint64(now.UnixNano()),
+				End:       uint64(now.Add(1 * time.Minute).UnixNano()),
 				Step:      uint64(time.Second),
 				Exemplars: 2,
 			},
@@ -1266,6 +1266,7 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := tc.req
+			println(block.BlockMeta().EndTime.Unix())
 			req.MaxSeries = 10
 			req.Start, req.End, req.Step = traceql.TrimToBlockOverlap(req.Start, req.End, req.Step, block.BlockMeta().StartTime, block.BlockMeta().EndTime)
 

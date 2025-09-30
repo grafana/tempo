@@ -261,6 +261,9 @@ func (i *instance) cutIdleTraces(immediate bool) error {
 			return err
 		}
 
+		// return trace byte slices to be reused by proto marshalling
+		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
+		tempopb.ReuseByteSlices(t.Batches)
 		i.tracesCreatedTotal.Inc()
 	}
 
@@ -303,18 +306,6 @@ func (i *instance) writeHeadBlock(id []byte, t *livetraces.LiveTrace[[]byte]) er
 	// sort batches before cutting to reduce combinations during compaction
 	sortByteSlices(t.Batches)
 
-	out, err := segmentDecoder.ToObject(t.Batches)
-	if err != nil {
-		return err
-	}
-
-	// constrain start/end with ingestion slack calculated off of liveTrace.createdAt and lastAppend
-	// createdAt and lastAppend are set via the record.Timestamp from kafka so they are "time.Now()" for the
-	// ingestion of this trace
-	slackDuration := i.Cfg.WAL.IngestionSlack
-	minStart := uint32(t.CreatedAt.Add(-slackDuration).Unix())
-	maxEnd := uint32(t.LastAppend.Add(slackDuration).Unix())
-
 	var start, end uint32
 	for _, b := range t.Batches {
 		s, e, err := segmentDecoder.FastRange(b)
@@ -329,11 +320,9 @@ func (i *instance) writeHeadBlock(id []byte, t *livetraces.LiveTrace[[]byte]) er
 		}
 	}
 
-	if start < minStart {
-		start = minStart
-	}
-	if end > maxEnd {
-		end = maxEnd
+	out, err := segmentDecoder.ToObject(t.Batches)
+	if err != nil {
+		return err
 	}
 
 	return i.headBlock.Append(id, out, start, end, false)
