@@ -233,9 +233,13 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 		demandSeriesEstimate += m.countTotalSeriesEstimate()
 	}
 
+	// to remove in prod:
+	r.metricDemandSeries.Set(float64(demandSeries))
+	r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
+
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
-		r.metricDemandSeries.Set(float64(demandSeries))
-		r.metricDemandSeriesEstimate.Set(float64(max(demandSeriesEstimate, int(r.activeSeries.Load()))))
+		//r.metricDemandSeries.Set(float64(demandSeries))
+		//r.metricDemandSeriesEstimate.Set(float64(max(demandSeriesEstimate, int(r.activeSeries.Load()))))
 		return
 	}
 
@@ -268,13 +272,13 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 
-	if demandSeries > int(maxActiveSeries) || demandSeriesEstimate > int(maxActiveSeries) {
-		r.metricDemandSeries.Set(float64(demandSeries))
-		r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
-	} else {
-		r.metricDemandSeries.Set(float64(activeSeries))
-		r.metricDemandSeriesEstimate.Set(float64(activeSeries))
-	}
+	// if demandSeries > int(maxActiveSeries) || demandSeriesEstimate > int(maxActiveSeries) {
+	// 	r.metricDemandSeries.Set(float64(demandSeries))
+	// 	r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
+	// } else {
+	// 	r.metricDemandSeries.Set(float64(activeSeries))
+	// 	r.metricDemandSeriesEstimate.Set(float64(activeSeries))
+	// }
 
 	// Try to avoid committing after we have started the shutdown process.
 	if ctx.Err() != nil { // shutdown
