@@ -2,9 +2,13 @@ package tempodb
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,19 +77,19 @@ func TestValidateConfig(t *testing.T) {
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              "v2",
+					Version:              v2.VersionString,
 				},
 			},
 			expectedConfig: &Config{
 				WAL: &wal.Config{
-					Version: "v2",
+					Version: v2.VersionString,
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              "v2",
+					Version:              v2.VersionString,
 				},
 			},
 		},
@@ -93,26 +97,26 @@ func TestValidateConfig(t *testing.T) {
 		{
 			cfg: &Config{
 				WAL: &wal.Config{
-					Version: "vParquet2",
+					Version: vparquet3.VersionString,
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              "v2",
+					Version:              v2.VersionString,
 				},
 			},
 			expectedConfig: &Config{
 				WAL: &wal.Config{
-					Version: "vParquet2",
+					Version: vparquet3.VersionString,
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              "v2",
+					Version:              v2.VersionString,
 				},
 			},
 		},
@@ -138,7 +142,7 @@ func TestDeprecatedVersions(t *testing.T) {
 		{
 			cfg: &Config{
 				WAL: &wal.Config{
-					Version: "vParquet2",
+					Version: vparquet2.VersionString,
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
@@ -150,7 +154,7 @@ func TestDeprecatedVersions(t *testing.T) {
 			},
 			expectedConfig: &Config{
 				WAL: &wal.Config{
-					Version: "vParquet2",
+					Version: vparquet2.VersionString,
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
@@ -158,6 +162,63 @@ func TestDeprecatedVersions(t *testing.T) {
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
 					Version:              "vParquet4",
+				},
+			},
+		},
+		// block version is deprecaded and Wal is empty
+		{
+			cfg: &Config{
+				WAL: &wal.Config{},
+				Block: &common.BlockConfig{
+					IndexDownsampleBytes: 1,
+					IndexPageSizeBytes:   1,
+					BloomFP:              0.01,
+					BloomShardSizeBytes:  1,
+					Version:              vparquet2.VersionString,
+				},
+			},
+			err: fmt.Errorf(common.DeprecatedError, "vParquet2", "vParquet3").Error(),
+		},
+		// block version is deprecated version of encoding
+		{
+			cfg: &Config{
+				WAL: &wal.Config{
+					Version: vparquet3.VersionString,
+				},
+				Block: &common.BlockConfig{
+					IndexDownsampleBytes: 1,
+					IndexPageSizeBytes:   1,
+					BloomFP:              0.01,
+					BloomShardSizeBytes:  1,
+					Version:              vparquet2.VersionString,
+				},
+			},
+			err: fmt.Errorf(common.DeprecatedError, "vParquet2", "vParquet3").Error(),
+		},
+		// block version does not have deprecated version value but WAL does
+		{
+			cfg: &Config{
+				WAL: &wal.Config{
+					Version: vparquet2.VersionString,
+				},
+				Block: &common.BlockConfig{
+					IndexDownsampleBytes: 1,
+					IndexPageSizeBytes:   1,
+					BloomFP:              0.01,
+					BloomShardSizeBytes:  1,
+					Version:              v2.VersionString,
+				},
+			},
+			expectedConfig: &Config{
+				WAL: &wal.Config{
+					Version: vparquet2.VersionString,
+				},
+				Block: &common.BlockConfig{
+					IndexDownsampleBytes: 1,
+					IndexPageSizeBytes:   1,
+					BloomFP:              0.01,
+					BloomShardSizeBytes:  1,
+					Version:              v2.VersionString,
 				},
 			},
 		},

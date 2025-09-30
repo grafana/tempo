@@ -15,6 +15,8 @@ const (
 	DefaultIndexPageSizeBytes   = 250 * 1024
 )
 
+const DeprecatedError = "%s is no longer supported, please use %s or later"
+
 // BlockConfig holds configuration options for newly created blocks
 type BlockConfig struct {
 	BloomFP             float64          `yaml:"bloom_filter_false_positive"`
@@ -66,6 +68,10 @@ func ValidateConfig(b *BlockConfig) error {
 
 	if b.BloomShardSizeBytes <= 0 {
 		return fmt.Errorf("positive value required for bloom-filter shard size")
+	}
+
+	if b.Version == "vParquet2" {
+		return fmt.Errorf(DeprecatedError, "vParquet2", "vParquet3")
 	}
 
 	return b.DedicatedColumns.Validate()
