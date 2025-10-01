@@ -36,9 +36,41 @@ type HLLCounter struct {
 	buckets        []*hll.Sketch // ring of bucket sketches
 	cachedUnion    *hll.Sketch   // union of all NON-current buckets (rebuilt on tick)
 	lastFlipMs     int64         // last time we flipped (unix ms), used to catch up if ticks were delayed
+	precision      uint8         // HLL precision (number of registers = 2^precision)
 }
 
+//  Per Sketch:
+//  p (precision)   m=2**p (registers)   memory (KB)   standard error (%)
+//              4                   16          0.02                26.00
+//              5                   32          0.03                18.38
+//              6                   64          0.06                13.00
+//              7                  128          0.13                 9.19
+//              8                  256          0.26                 6.50
+//              9                  512          0.51                 4.60
+//             10                1,024          1.02                 3.25
+//             11                2,048          2.05                 2.30
+//             12                4,096          4.10                 1.62
+//             13                8,192          8.19                 1.15
+//             14               16,384         16.38                 0.81
+//             15               32,768         32.77                 0.57
+//             16               65,536         65.54                 0.41
+//             17              131,072        131.07                 0.29
+//             18              262,144        262.14                 0.20
+// size: 16KB * 5 Sketches = 80KB per HLLCounter (constant with inserts)
+// note that we use sparse mode, so actual memory usage is lower for small cardinalities.
+
+// NewHLLCounter creates a sliding-window HLL counter with default precision p=14.
+// Use NewHLLCounterWithPrecision to specify a custom precision.
 func NewHLLCounter(staleTime, bucketDuration time.Duration) *HLLCounter {
+	return NewHLLCounterWithPrecision(14, staleTime, bucketDuration)
+}
+
+// NewHLLCounterWithPrecision creates a sliding-window HLL counter with the given precision.
+// Precision must be in [4,18]. Values outside this range are clamped to 14.
+func NewHLLCounterWithPrecision(precision uint8, staleTime, bucketDuration time.Duration) *HLLCounter {
+	if precision < 4 || precision > 18 {
+		precision = 14
+	}
 	if bucketDuration <= 0 {
 		bucketDuration = staleTime
 	}
@@ -55,9 +87,9 @@ func NewHLLCounter(staleTime, bucketDuration time.Duration) *HLLCounter {
 
 	buckets := make([]*hll.Sketch, windowMin)
 	for i := range buckets {
-		buckets[i] = hll.New() // default p=14 (~16 KB dense), sparse enabled
+		buckets[i] = newHLLSketch(precision)
 	}
-	u := hll.New() // initial union of non-current buckets (all empty)
+	u := newHLLSketch(precision) // initial union of non-current buckets (all empty)
 	for i := 1; i < windowMin; i++ {
 		_ = u.Merge(buckets[i])
 	}
@@ -69,6 +101,7 @@ func NewHLLCounter(staleTime, bucketDuration time.Duration) *HLLCounter {
 		buckets:        buckets,
 		cachedUnion:    u,
 		lastFlipMs:     time.Now().UnixMilli(),
+		precision:      precision,
 	}
 }
 
@@ -117,12 +150,12 @@ func (c *HLLCounter) Advance() {
 			c.cur = 0
 		}
 		// reset new current bucket
-		c.buckets[c.cur] = hll.New()
+		c.buckets[c.cur] = newHLLSketch(c.precision)
 		c.lastFlipMs += bucketMs
 	}
 
 	// Recompute cached union of all non-current buckets (O(windowMin) merges).
-	u := hll.New()
+	u := newHLLSketch(c.precision)
 	for i := 0; i < c.windowMin; i++ {
 		if i == c.cur {
 			continue
@@ -133,4 +166,17 @@ func (c *HLLCounter) Advance() {
 	c.mu.Unlock()
 
 	level.Debug(tempo_log.Logger).Log("msg", "hll counter advanced", "steps", steps)
+}
+
+// newHLLSketch returns a new HLL sketch with the given precision and sparse mode enabled.
+func newHLLSketch(p uint8) *hll.Sketch {
+	if p < 4 || p > 18 {
+		p = 14
+	}
+	sk, err := hll.NewSketch(p, true)
+	if err != nil {
+		// Fallback to default if precision is invalid for any reason
+		return hll.New()
+	}
+	return sk
 }
