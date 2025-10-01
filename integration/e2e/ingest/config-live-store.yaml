@@ -10,8 +10,10 @@ query_frontend:
   search:
     query_backend_after: 10m
     query_ingesters_until: 10m
+    default_query_end_buffer: 0 # Include all recent data
   metrics:
     query_backend_after: 10m
+    default_query_end_buffer: 0 # Include all recent data
 
 distributor:
   ingester_write_path_enabled: false
@@ -66,7 +68,7 @@ ingest:
   enabled: true
   kafka:
     address: kafka:9092
-    topic:   tempo-ingest
+    topic: tempo-ingest
 
 querier:
   frontend_worker:
