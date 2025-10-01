@@ -652,20 +652,21 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 		ResourceSpans: []ResourceSpans{
 			{
 				Resource: Resource{
-					ServiceName:      "myservice",
-					Cluster:          ptr("cluster"),
-					Namespace:        ptr("namespace"),
-					Pod:              ptr("pod"),
-					Container:        ptr("container"),
-					K8sClusterName:   ptr("k8scluster"),
-					K8sNamespaceName: ptr("k8snamespace"),
-					K8sPodName:       ptr("k8spod"),
-					K8sContainerName: ptr("k8scontainer"),
+					ServiceName: "myservice",
 					Attrs: []Attribute{
 						attr("foo", "abc"),
 						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
 						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
+						// Former well-known attributes
+						attr("cluster", "cluster"),
+						attr("namespace", "namespace"),
+						attr("pod", "pod"),
+						attr("container", "container"),
+						attr("k8s.cluster.name", "k8scluster"),
+						attr("k8s.namespace.name", "k8snamespace"),
+						attr("k8s.pod.name", "k8spod"),
+						attr("k8s.container.name", "k8scontainer"),
 						// Unsupported attributes
 						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
 						{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
@@ -765,18 +766,19 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			},
 			{
 				Resource: Resource{
-					ServiceName:      "service2",
-					Cluster:          ptr("cluster2"),
-					Namespace:        ptr("namespace2"),
-					Pod:              ptr("pod2"),
-					Container:        ptr("container2"),
-					K8sClusterName:   ptr("k8scluster2"),
-					K8sNamespaceName: ptr("k8snamespace2"),
-					K8sPodName:       ptr("k8spod2"),
-					K8sContainerName: ptr("k8scontainer2"),
+					ServiceName: "service2",
 					Attrs: []Attribute{
 						attr("foo", "abc2"),
 						attr(LabelServiceName, 1234), // Different type than dedicated column
+						// Former well-known attributes
+						attr("cluster", "cluster2"),
+						attr("namespace", "namespace2"),
+						attr("pod", "pod2"),
+						attr("container", "container2"),
+						attr("k8s.cluster.name", "k8scluster2"),
+						attr("k8s.namespace.name", "k8snamespace2"),
+						attr("k8s.pod.name", "k8spod2"),
+						attr("k8s.container.name", "k8scontainer2"),
 					},
 					DedicatedAttributes: DedicatedAttributes{
 						String01: ptr("dedicated-resource-attr-value-6"),
@@ -953,14 +955,6 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 	for _, rs := range tr.ResourceSpans {
 		var rsAttrs []attrVal
 		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName), traceql.NewStaticString(rs.Resource.ServiceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString(*rs.Resource.Cluster)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace), traceql.NewStaticString(*rs.Resource.Namespace)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod), traceql.NewStaticString(*rs.Resource.Pod)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer), traceql.NewStaticString(*rs.Resource.Container)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName), traceql.NewStaticString(*rs.Resource.K8sClusterName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName), traceql.NewStaticString(*rs.Resource.K8sNamespaceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName), traceql.NewStaticString(*rs.Resource.K8sPodName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName), traceql.NewStaticString(*rs.Resource.K8sContainerName)})
 
 		for _, a := range parquetToProtoAttrs(rs.Resource.Attrs) {
 			if arr := a.Value.GetArrayValue(); arr != nil {

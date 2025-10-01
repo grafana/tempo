@@ -77,15 +77,6 @@ func TestFetchTagNames(t *testing.T) {
 		},
 		// resource
 		{
-			name:                          "well known resource",
-			query:                         "{resource.cluster=`cluster-01`}",
-			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same"},
-			expectedResourceValues:        []string{"generic-01", "resource-same"},
-			expectedEventValues:           []string{"event-generic-01-01"},
-			expectedLinkValues:            []string{"link-generic-01-01"},
-			expectedInstrumentationValues: []string{"scope-attr-str-1"},
-		},
-		{
 			name:                          "generic resource",
 			query:                         "{resource.generic-01=`bar`}",
 			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same"},
@@ -124,7 +115,6 @@ func TestFetchTagNames(t *testing.T) {
 			{
 				Resource: Resource{
 					ServiceName: "svc-01",
-					Cluster:     strPtr("cluster-01"), // well known
 					Attrs: []Attribute{
 						{Key: "generic-01", Value: []string{"bar"}}, // generic
 						{Key: "resource-same", Value: []string{"foo"}},
@@ -190,7 +180,6 @@ func TestFetchTagNames(t *testing.T) {
 			{
 				Resource: Resource{
 					ServiceName: "svc-02",
-					Cluster:     strPtr("cluster-02"), // well known
 					Attrs: []Attribute{
 						{Key: "generic-02", Value: []string{"bar"}}, // generic
 						{Key: "resource-same", Value: []string{"foo"}},
@@ -270,7 +259,7 @@ func TestFetchTagNames(t *testing.T) {
 			dedicatedSpanValues := []string{"dedicated.span.1"}
 			dedicatedResourceValues := []string{"dedicated.resource.1"}
 
-			wellKnownResourceValues := []string{"cluster", "service.name"}
+			wellKnownResourceValues := []string{"service.name"}
 
 			expectedValues := map[string][]string{}
 			if scope == traceql.AttributeScopeSpan || scope == traceql.AttributeScopeNone {

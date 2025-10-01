@@ -892,29 +892,21 @@ func putSpansetAndSpans(ss *traceql.Spanset) {
 }
 
 const (
-	columnPathTraceID                  = "TraceID"
-	columnPathStartTimeUnixNano        = "StartTimeUnixNano"
-	columnPathEndTimeUnixNano          = "EndTimeUnixNano"
-	columnPathDurationNanos            = "DurationNano"
-	columnPathRootSpanName             = "RootSpanName"
-	columnPathRootServiceName          = "RootServiceName"
-	columnPathServiceStatsServiceName  = "ServiceStats.key_value.key"
-	columnPathServiceStatsSpanCount    = "ServiceStats.key_value.value.SpanCount"
-	columnPathServiceStatsErrorCount   = "ServiceStats.key_value.value.ErrorCount"
-	columnPathResourceAttrKey          = "rs.list.element.Resource.Attrs.list.element.Key"
-	columnPathResourceAttrString       = "rs.list.element.Resource.Attrs.list.element.Value.list.element"
-	columnPathResourceAttrInt          = "rs.list.element.Resource.Attrs.list.element.ValueInt.list.element"
-	columnPathResourceAttrDouble       = "rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element"
-	columnPathResourceAttrBool         = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
-	columnPathResourceServiceName      = "rs.list.element.Resource.ServiceName"
-	columnPathResourceCluster          = "rs.list.element.Resource.Cluster"
-	columnPathResourceNamespace        = "rs.list.element.Resource.Namespace"
-	columnPathResourcePod              = "rs.list.element.Resource.Pod"
-	columnPathResourceContainer        = "rs.list.element.Resource.Container"
-	columnPathResourceK8sClusterName   = "rs.list.element.Resource.K8sClusterName"
-	columnPathResourceK8sNamespaceName = "rs.list.element.Resource.K8sNamespaceName"
-	columnPathResourceK8sPodName       = "rs.list.element.Resource.K8sPodName"
-	columnPathResourceK8sContainerName = "rs.list.element.Resource.K8sContainerName"
+	columnPathTraceID                 = "TraceID"
+	columnPathStartTimeUnixNano       = "StartTimeUnixNano"
+	columnPathEndTimeUnixNano         = "EndTimeUnixNano"
+	columnPathDurationNanos           = "DurationNano"
+	columnPathRootSpanName            = "RootSpanName"
+	columnPathRootServiceName         = "RootServiceName"
+	columnPathServiceStatsServiceName = "ServiceStats.key_value.key"
+	columnPathServiceStatsSpanCount   = "ServiceStats.key_value.value.SpanCount"
+	columnPathServiceStatsErrorCount  = "ServiceStats.key_value.value.ErrorCount"
+	columnPathResourceAttrKey         = "rs.list.element.Resource.Attrs.list.element.Key"
+	columnPathResourceAttrString      = "rs.list.element.Resource.Attrs.list.element.Value.list.element"
+	columnPathResourceAttrInt         = "rs.list.element.Resource.Attrs.list.element.ValueInt.list.element"
+	columnPathResourceAttrDouble      = "rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element"
+	columnPathResourceAttrBool        = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
+	columnPathResourceServiceName     = "rs.list.element.Resource.ServiceName"
 
 	columnPathInstrumentationName       = "rs.list.element.ss.list.element.Scope.Name"
 	columnPathInstrumentationVersion    = "rs.list.element.ss.list.element.Scope.Version"
@@ -1012,21 +1004,14 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 }
 
 // Lookup table of all well-known attributes with dedicated columns
+// TODO there is just one column left in this mapping, can this be replaced?
 var wellKnownColumnLookups = map[string]struct {
 	columnPath string                 // path.to.column
 	level      traceql.AttributeScope // span or resource level
 	typ        traceql.StaticType     // Data type
 }{
 	// Resource-level columns
-	LabelServiceName:      {columnPathResourceServiceName, traceql.AttributeScopeResource, traceql.TypeString},
-	LabelCluster:          {columnPathResourceCluster, traceql.AttributeScopeResource, traceql.TypeString},
-	LabelNamespace:        {columnPathResourceNamespace, traceql.AttributeScopeResource, traceql.TypeString},
-	LabelPod:              {columnPathResourcePod, traceql.AttributeScopeResource, traceql.TypeString},
-	LabelContainer:        {columnPathResourceContainer, traceql.AttributeScopeResource, traceql.TypeString},
-	LabelK8sClusterName:   {columnPathResourceK8sClusterName, traceql.AttributeScopeResource, traceql.TypeString},
-	LabelK8sNamespaceName: {columnPathResourceK8sNamespaceName, traceql.AttributeScopeResource, traceql.TypeString},
-	LabelK8sPodName:       {columnPathResourceK8sPodName, traceql.AttributeScopeResource, traceql.TypeString},
-	LabelK8sContainerName: {columnPathResourceK8sContainerName, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelServiceName: {columnPathResourceServiceName, traceql.AttributeScopeResource, traceql.TypeString},
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
