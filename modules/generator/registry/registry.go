@@ -106,6 +106,7 @@ type metric interface {
 	countActiveSeries() int
 	countTotalSeries() int
 	countTotalSeriesEstimate() int
+	countTotalSeriesEstimateP10() int
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -240,34 +241,26 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	for _, m := range r.metrics {
 		demandSeries += m.countTotalSeries()
 		demandSeriesEstimate += m.countTotalSeriesEstimate()
-		// Optional p10 estimator; use if available
-		if p10m, ok := m.(interface{ countTotalSeriesEstimateP10() int }); ok {
-			demandSeriesEstimateP10 += p10m.countTotalSeriesEstimateP10()
-		}
+		demandSeriesEstimateP10 += m.countTotalSeriesEstimateP10()
 		activeSeries += m.countActiveSeries()
 	}
-
-	// to remove in prod:
-	r.metricDemandSeries.Set(float64(demandSeries))
-	r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
-	r.metricDemandSeriesEstimateP10.Set(float64(demandSeriesEstimateP10))
 
 	r.activeSeries.Store(uint32(activeSeries))
 	r.metricActiveSeries.Set(float64(activeSeries))
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 
-	// if demandSeries > int(maxActiveSeries) || demandSeriesEstimate > int(maxActiveSeries) {
-	// 	r.metricDemandSeries.Set(float64(demandSeries))
-	// 	r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
-	// } else {
-	// 	r.metricDemandSeries.Set(float64(activeSeries))
-	// 	r.metricDemandSeriesEstimate.Set(float64(activeSeries))
-	// }
+	if demandSeries > int(maxActiveSeries) || demandSeriesEstimate > int(maxActiveSeries) {
+		r.metricDemandSeries.Set(float64(demandSeries))
+		r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
+		r.metricDemandSeriesEstimateP10.Set(float64(demandSeriesEstimateP10))
+	} else {
+		r.metricDemandSeries.Set(float64(activeSeries))
+		r.metricDemandSeriesEstimate.Set(float64(activeSeries))
+		r.metricDemandSeriesEstimateP10.Set(float64(activeSeries))
+	}
 
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
-		// r.metricDemandSeries.Set(float64(demandSeries))
-		// r.metricDemandSeriesEstimate.Set(float64(max(demandSeriesEstimate, int(r.activeSeries.Load()))))
 		return
 	}
 
