@@ -15,10 +15,11 @@ type counter struct {
 	metricName string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
-	seriesMtx       sync.RWMutex
-	series          map[uint64]*counterSeries
-	rejectedSeries  map[uint64]int64
-	estimatedSeries *HLLCounter
+	seriesMtx          sync.RWMutex
+	series             map[uint64]*counterSeries
+	rejectedSeries     map[uint64]int64
+	estimatedSeries    *HLLCounter
+	estimatedSeriesP10 *HLLCounter
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -61,13 +62,14 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 	}
 
 	return &counter{
-		metricName:      name,
-		series:          make(map[uint64]*counterSeries),
-		rejectedSeries:  make(map[uint64]int64),
-		estimatedSeries: NewHLLCounter(staleDuration, removeStaleSeriesInterval),
-		onAddSeries:     onAddSeries,
-		onRemoveSeries:  onRemoveSeries,
-		externalLabels:  externalLabels,
+		metricName:         name,
+		series:             make(map[uint64]*counterSeries),
+		rejectedSeries:     make(map[uint64]int64),
+		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
+		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
+		onAddSeries:        onAddSeries,
+		onRemoveSeries:     onRemoveSeries,
+		externalLabels:     externalLabels,
 	}
 }
 
@@ -83,6 +85,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	c.seriesMtx.RUnlock()
 
 	c.estimatedSeries.Insert(hash)
+	c.estimatedSeriesP10.Insert(hash)
 	if ok {
 		c.updateSeries(s, value)
 		return
@@ -187,6 +190,13 @@ func (c *counter) countTotalSeriesEstimate() int {
 	return int(c.estimatedSeries.Estimate())
 }
 
+func (c *counter) countTotalSeriesEstimateP10() int {
+	c.seriesMtx.RLock()
+	defer c.seriesMtx.RUnlock()
+
+	return int(c.estimatedSeriesP10.Estimate())
+}
+
 func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
@@ -203,4 +213,5 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 		}
 	}
 	c.estimatedSeries.Advance()
+	c.estimatedSeriesP10.Advance()
 }

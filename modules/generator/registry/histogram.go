@@ -25,10 +25,11 @@ type histogram struct {
 	bucketLabels   []string
 	externalLabels map[string]string
 
-	seriesMtx       sync.Mutex
-	series          map[uint64]*histogramSeries
-	rejectedSeries  map[uint64]int64
-	estimatedSeries *HLLCounter
+	seriesMtx          sync.Mutex
+	series             map[uint64]*histogramSeries
+	rejectedSeries     map[uint64]int64
+	estimatedSeries    *HLLCounter
+	estimatedSeriesP10 *HLLCounter
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -92,19 +93,20 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 	}
 
 	return &histogram{
-		metricName:       name,
-		nameCount:        fmt.Sprintf("%s_count", name),
-		nameSum:          fmt.Sprintf("%s_sum", name),
-		nameBucket:       fmt.Sprintf("%s_bucket", name),
-		buckets:          buckets,
-		bucketLabels:     bucketLabels,
-		series:           make(map[uint64]*histogramSeries),
-		rejectedSeries:   make(map[uint64]int64),
-		estimatedSeries:  NewHLLCounter(staleDuration, removeStaleSeriesInterval),
-		onAddSerie:       onAddSeries,
-		onRemoveSerie:    onRemoveSeries,
-		traceIDLabelName: traceIDLabelName,
-		externalLabels:   externalLabels,
+		metricName:         name,
+		nameCount:          fmt.Sprintf("%s_count", name),
+		nameSum:            fmt.Sprintf("%s_sum", name),
+		nameBucket:         fmt.Sprintf("%s_bucket", name),
+		buckets:            buckets,
+		bucketLabels:       bucketLabels,
+		series:             make(map[uint64]*histogramSeries),
+		rejectedSeries:     make(map[uint64]int64),
+		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
+		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
+		onAddSerie:         onAddSeries,
+		onRemoveSerie:      onRemoveSeries,
+		traceIDLabelName:   traceIDLabelName,
+		externalLabels:     externalLabels,
 	}
 }
 
@@ -112,6 +114,7 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 	hash := labelValueCombo.getHash()
 
 	h.estimatedSeries.Insert(hash)
+	h.estimatedSeriesP10.Insert(hash)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -288,6 +291,11 @@ func (h *histogram) countTotalSeriesEstimate() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
+func (h *histogram) countTotalSeriesEstimateP10() int {
+	est := h.estimatedSeriesP10.Estimate()
+	return int(est) * int(h.activeSeriesPerHistogramSerie())
+}
+
 func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -304,6 +312,7 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 		}
 	}
 	h.estimatedSeries.Advance()
+	h.estimatedSeriesP10.Advance()
 }
 
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {

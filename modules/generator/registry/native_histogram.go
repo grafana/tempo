@@ -27,10 +27,11 @@ type nativeHistogram struct {
 	//  Might break processors that have variable amount of labels...
 	//  promHistogram prometheus.HistogramVec
 
-	seriesMtx       sync.Mutex
-	series          map[uint64]*nativeHistogramSeries
-	rejectedSeries  map[uint64]int64 // should it be lastUpdated or firstRejected? otherwise it will never be stale
-	estimatedSeries *HLLCounter
+	seriesMtx          sync.Mutex
+	series             map[uint64]*nativeHistogramSeries
+	rejectedSeries     map[uint64]int64 // should it be lastUpdated or firstRejected? otherwise it will never be stale
+	estimatedSeries    *HLLCounter
+	estimatedSeriesP10 *HLLCounter
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -107,18 +108,19 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 	}
 
 	return &nativeHistogram{
-		metricName:        name,
-		series:            make(map[uint64]*nativeHistogramSeries),
-		rejectedSeries:    make(map[uint64]int64),
-		estimatedSeries:   NewHLLCounter(staleDuration, removeStaleSeriesInterval),
-		onAddSerie:        onAddSeries,
-		onRemoveSerie:     onRemoveSeries,
-		traceIDLabelName:  traceIDLabelName,
-		buckets:           buckets,
-		histogramOverride: histogramOverride,
-		externalLabels:    externalLabels,
-		overrides:         overrides,
-		tenant:            tenant,
+		metricName:         name,
+		series:             make(map[uint64]*nativeHistogramSeries),
+		rejectedSeries:     make(map[uint64]int64),
+		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
+		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
+		onAddSerie:         onAddSeries,
+		onRemoveSerie:      onRemoveSeries,
+		traceIDLabelName:   traceIDLabelName,
+		buckets:            buckets,
+		histogramOverride:  histogramOverride,
+		externalLabels:     externalLabels,
+		overrides:          overrides,
+		tenant:             tenant,
 
 		// classic
 		nameCount:  fmt.Sprintf("%s_count", name),
@@ -131,6 +133,7 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 	hash := labelValueCombo.getHash()
 
 	h.estimatedSeries.Insert(hash)
+	h.estimatedSeriesP10.Insert(hash)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -297,6 +300,11 @@ func (h *nativeHistogram) countTotalSeriesEstimate() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
+func (h *nativeHistogram) countTotalSeriesEstimateP10() int {
+	est := h.estimatedSeriesP10.Estimate()
+	return int(est) * int(h.activeSeriesPerHistogramSerie())
+}
+
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 	overridesHash, _, _, _ := h.hashOverrides()
 
@@ -323,6 +331,7 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 		}
 	}
 	h.estimatedSeries.Advance()
+	h.estimatedSeriesP10.Advance()
 }
 
 func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {

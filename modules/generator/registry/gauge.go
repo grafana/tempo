@@ -22,8 +22,9 @@ type gauge struct {
 	seriesMtx sync.RWMutex
 	series    map[uint64]*gaugeSeries
 	// rejectedSeries maps rejected series has to the lastUpdated time.
-	rejectedSeries  map[uint64]int64
-	estimatedSeries *HLLCounter
+	rejectedSeries     map[uint64]int64
+	estimatedSeries    *HLLCounter
+	estimatedSeriesP10 *HLLCounter
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -58,13 +59,14 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 	}
 
 	return &gauge{
-		metricName:      name,
-		series:          make(map[uint64]*gaugeSeries),
-		rejectedSeries:  make(map[uint64]int64),
-		estimatedSeries: NewHLLCounter(staleDuration, removeStaleSeriesInterval),
-		onAddSeries:     onAddSeries,
-		onRemoveSeries:  onRemoveSeries,
-		externalLabels:  externalLabels,
+		metricName:         name,
+		series:             make(map[uint64]*gaugeSeries),
+		rejectedSeries:     make(map[uint64]int64),
+		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
+		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
+		onAddSeries:        onAddSeries,
+		onRemoveSeries:     onRemoveSeries,
+		externalLabels:     externalLabels,
 	}
 }
 
@@ -88,6 +90,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	g.seriesMtx.RUnlock()
 
 	g.estimatedSeries.Insert(hash)
+	g.estimatedSeriesP10.Insert(hash)
 
 	if ok {
 		// target_info will always be 1 so if the series exists, we don't need to go through this loop
@@ -188,6 +191,13 @@ func (g *gauge) countTotalSeriesEstimate() int {
 	return int(g.estimatedSeries.Estimate())
 }
 
+func (g *gauge) countTotalSeriesEstimateP10() int {
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
+
+	return int(g.estimatedSeriesP10.Estimate())
+}
+
 func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
@@ -204,4 +214,5 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 		}
 	}
 	g.estimatedSeries.Advance()
+	g.estimatedSeriesP10.Advance()
 }
