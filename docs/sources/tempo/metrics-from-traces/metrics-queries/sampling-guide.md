@@ -79,6 +79,6 @@ Fixed trace sampling selects complete traces for analysis, preserving trace cont
 
 **Best for:** Trace-level aggregations, service dependency mapping, and error correlation analysis.
 
-**Limitations:** May provide poor accuracy for span-level metrics and can introduce bias if trace volumes vary significantly across services.
+**Limitations:** Not as accurate as span-level sampling when trace sizes vary significantly.  Only use for queries requiring it, such as structural or spanset correlation, and prefer adaptive or span-level sampling for all others.
 
 

@@ -146,7 +146,6 @@ When using sampling in your TraceQL metrics queries, consider:
 
 - **Timeout settings:** Sampled queries run faster but may still benefit from adequate timeouts
 - **Concurrent jobs:** Sampling reduces per-job processing time, allowing higher concurrency
-- **Job sizing:** With sampling, smaller job sizes may be more efficient
 
 Example configuration optimized for sampling:
 
