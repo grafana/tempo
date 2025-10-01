@@ -38,6 +38,11 @@ var (
 		Name:      "metrics_generator_registry_demand_series_estimate",
 		Help:      "The estimated current demand (active + estimated rejected series) per tenant",
 	}, []string{"tenant"})
+	metricDemandSeriesEstimateP10 = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_demand_series_estimate_p10",
+		Help:      "The estimated current demand (active + estimated rejected series) using HLL p=10 per tenant",
+	}, []string{"tenant"})
 	metricTotalSeriesAdded = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_series_added_total",
@@ -79,12 +84,13 @@ type ManagedRegistry struct {
 
 	appendable storage.Appendable
 
-	logger                     log.Logger
-	limitLogger                *tempo_log.RateLimitedLogger
-	metricActiveSeries         prometheus.Gauge
-	metricMaxActiveSeries      prometheus.Gauge
-	metricDemandSeries         prometheus.Gauge
-	metricDemandSeriesEstimate prometheus.Gauge
+	logger                        log.Logger
+	limitLogger                   *tempo_log.RateLimitedLogger
+	metricActiveSeries            prometheus.Gauge
+	metricMaxActiveSeries         prometheus.Gauge
+	metricDemandSeries            prometheus.Gauge
+	metricDemandSeriesEstimate    prometheus.Gauge
+	metricDemandSeriesEstimateP10 prometheus.Gauge
 
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
@@ -137,17 +143,18 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 		appendable: appendable,
 
-		logger:                     logger,
-		limitLogger:                tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
-		metricActiveSeries:         metricActiveSeries.WithLabelValues(tenant),
-		metricDemandSeries:         metricDemandSeries.WithLabelValues(tenant),
-		metricDemandSeriesEstimate: metricDemandSeriesEstimate.WithLabelValues(tenant),
-		metricMaxActiveSeries:      metricMaxActiveSeries.WithLabelValues(tenant),
-		metricTotalSeriesAdded:     metricTotalSeriesAdded.WithLabelValues(tenant),
-		metricTotalSeriesRemoved:   metricTotalSeriesRemoved.WithLabelValues(tenant),
-		metricTotalSeriesLimited:   metricTotalSeriesLimited.WithLabelValues(tenant),
-		metricTotalCollections:     metricTotalCollections.WithLabelValues(tenant),
-		metricFailedCollections:    metricFailedCollections.WithLabelValues(tenant),
+		logger:                        logger,
+		limitLogger:                   tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
+		metricActiveSeries:            metricActiveSeries.WithLabelValues(tenant),
+		metricDemandSeries:            metricDemandSeries.WithLabelValues(tenant),
+		metricDemandSeriesEstimate:    metricDemandSeriesEstimate.WithLabelValues(tenant),
+		metricDemandSeriesEstimateP10: metricDemandSeriesEstimateP10.WithLabelValues(tenant),
+		metricMaxActiveSeries:         metricMaxActiveSeries.WithLabelValues(tenant),
+		metricTotalSeriesAdded:        metricTotalSeriesAdded.WithLabelValues(tenant),
+		metricTotalSeriesRemoved:      metricTotalSeriesRemoved.WithLabelValues(tenant),
+		metricTotalSeriesLimited:      metricTotalSeriesLimited.WithLabelValues(tenant),
+		metricTotalCollections:        metricTotalCollections.WithLabelValues(tenant),
+		metricFailedCollections:       metricFailedCollections.WithLabelValues(tenant),
 	}
 
 	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
@@ -228,16 +235,22 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	var demandSeries int
 	var demandSeriesEstimate int
 	var activeSeries int
+	var demandSeriesEstimateP10 int
 
 	for _, m := range r.metrics {
 		demandSeries += m.countTotalSeries()
 		demandSeriesEstimate += m.countTotalSeriesEstimate()
+		// Optional p10 estimator; use if available
+		if p10m, ok := m.(interface{ countTotalSeriesEstimateP10() int }); ok {
+			demandSeriesEstimateP10 += p10m.countTotalSeriesEstimateP10()
+		}
 		activeSeries += m.countActiveSeries()
 	}
 
 	// to remove in prod:
 	r.metricDemandSeries.Set(float64(demandSeries))
 	r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
+	r.metricDemandSeriesEstimateP10.Set(float64(demandSeriesEstimateP10))
 
 	r.activeSeries.Store(uint32(activeSeries))
 	r.metricActiveSeries.Set(float64(activeSeries))
