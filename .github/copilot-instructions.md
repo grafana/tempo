@@ -304,9 +304,9 @@ Always use dashes for unordered lists, for example
 Never use asterisks for unordered lists, for example:
 
 ```markdown
-- List item 1 (wrong)
-- List item 2 (wrong)
-- List item 3 (wrong)
+* List item 1 (wrong)
+* List item 2 (wrong)
+* List item 3 (wrong)
 ```
 
 Never use full stops at the end of unordered list items, for example:
