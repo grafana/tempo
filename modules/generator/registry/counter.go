@@ -166,6 +166,13 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) error 
 	return nil
 }
 
+func (c *counter) countActiveSeries() int {
+	c.seriesMtx.RLock()
+	defer c.seriesMtx.RUnlock()
+
+	return len(c.series)
+}
+
 func (c *counter) countTotalSeries() int {
 	c.seriesMtx.RLock()
 	defer c.seriesMtx.RUnlock()

@@ -167,6 +167,13 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) error {
 	return nil
 }
 
+func (g *gauge) countActiveSeries() int {
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
+
+	return len(g.series)
+}
+
 func (g *gauge) countTotalSeries() int {
 	g.seriesMtx.RLock()
 	defer g.seriesMtx.RUnlock()

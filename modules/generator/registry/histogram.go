@@ -269,6 +269,13 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 	return nil
 }
 
+func (h *histogram) countActiveSeries() int {
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
+
+	return len(h.series) * int(h.activeSeriesPerHistogramSerie())
+}
+
 func (h *histogram) countTotalSeries() int {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
