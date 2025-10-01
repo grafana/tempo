@@ -20,6 +20,7 @@ type counter struct {
 	rejectedSeries     map[uint64]int64
 	estimatedSeries    *HLLCounter
 	estimatedSeriesP10 *HLLCounter
+	estimatedSeries1m  *HLLCounter
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -67,6 +68,7 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 		rejectedSeries:     make(map[uint64]int64),
 		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
 		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
+		estimatedSeries1m:  NewHLLCounter(staleDuration, time.Minute),
 		onAddSeries:        onAddSeries,
 		onRemoveSeries:     onRemoveSeries,
 		externalLabels:     externalLabels,
@@ -86,6 +88,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 
 	c.estimatedSeries.Insert(hash)
 	c.estimatedSeriesP10.Insert(hash)
+	c.estimatedSeries1m.Insert(hash)
 	if ok {
 		c.updateSeries(s, value)
 		return
@@ -197,6 +200,13 @@ func (c *counter) countTotalSeriesEstimateP10() int {
 	return int(c.estimatedSeriesP10.Estimate())
 }
 
+func (c *counter) countTotalSeriesEstimate1Min() int {
+	c.seriesMtx.RLock()
+	defer c.seriesMtx.RUnlock()
+
+	return int(c.estimatedSeries1m.Estimate())
+}
+
 func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
@@ -214,4 +224,5 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	}
 	c.estimatedSeries.Advance()
 	c.estimatedSeriesP10.Advance()
+	c.estimatedSeries1m.Advance()
 }

@@ -38,6 +38,11 @@ var (
 		Name:      "metrics_generator_registry_demand_series_estimate",
 		Help:      "The estimated current demand (active + estimated rejected series) per tenant",
 	}, []string{"tenant"})
+	metricDemandSeriesEstimate1Min = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_demand_series_estimate_1min",
+		Help:      "The estimated current demand using 1m buckets (active + estimated rejected series) per tenant",
+	}, []string{"tenant"})
 	metricDemandSeriesEstimateP10 = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_demand_series_estimate_p10",
@@ -84,13 +89,14 @@ type ManagedRegistry struct {
 
 	appendable storage.Appendable
 
-	logger                        log.Logger
-	limitLogger                   *tempo_log.RateLimitedLogger
-	metricActiveSeries            prometheus.Gauge
-	metricMaxActiveSeries         prometheus.Gauge
-	metricDemandSeries            prometheus.Gauge
-	metricDemandSeriesEstimate    prometheus.Gauge
-	metricDemandSeriesEstimateP10 prometheus.Gauge
+	logger                         log.Logger
+	limitLogger                    *tempo_log.RateLimitedLogger
+	metricActiveSeries             prometheus.Gauge
+	metricMaxActiveSeries          prometheus.Gauge
+	metricDemandSeries             prometheus.Gauge
+	metricDemandSeriesEstimate     prometheus.Gauge
+	metricDemandSeriesEstimateP10  prometheus.Gauge
+	metricDemandSeriesEstimate1Min prometheus.Gauge
 
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
@@ -107,6 +113,7 @@ type metric interface {
 	countTotalSeries() int
 	countTotalSeriesEstimate() int
 	countTotalSeriesEstimateP10() int
+	countTotalSeriesEstimate1Min() int
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -144,18 +151,19 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 		appendable: appendable,
 
-		logger:                        logger,
-		limitLogger:                   tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
-		metricActiveSeries:            metricActiveSeries.WithLabelValues(tenant),
-		metricDemandSeries:            metricDemandSeries.WithLabelValues(tenant),
-		metricDemandSeriesEstimate:    metricDemandSeriesEstimate.WithLabelValues(tenant),
-		metricDemandSeriesEstimateP10: metricDemandSeriesEstimateP10.WithLabelValues(tenant),
-		metricMaxActiveSeries:         metricMaxActiveSeries.WithLabelValues(tenant),
-		metricTotalSeriesAdded:        metricTotalSeriesAdded.WithLabelValues(tenant),
-		metricTotalSeriesRemoved:      metricTotalSeriesRemoved.WithLabelValues(tenant),
-		metricTotalSeriesLimited:      metricTotalSeriesLimited.WithLabelValues(tenant),
-		metricTotalCollections:        metricTotalCollections.WithLabelValues(tenant),
-		metricFailedCollections:       metricFailedCollections.WithLabelValues(tenant),
+		logger:                         logger,
+		limitLogger:                    tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
+		metricActiveSeries:             metricActiveSeries.WithLabelValues(tenant),
+		metricDemandSeries:             metricDemandSeries.WithLabelValues(tenant),
+		metricDemandSeriesEstimate:     metricDemandSeriesEstimate.WithLabelValues(tenant),
+		metricDemandSeriesEstimateP10:  metricDemandSeriesEstimateP10.WithLabelValues(tenant),
+		metricDemandSeriesEstimate1Min: metricDemandSeriesEstimate1Min.WithLabelValues(tenant),
+		metricMaxActiveSeries:          metricMaxActiveSeries.WithLabelValues(tenant),
+		metricTotalSeriesAdded:         metricTotalSeriesAdded.WithLabelValues(tenant),
+		metricTotalSeriesRemoved:       metricTotalSeriesRemoved.WithLabelValues(tenant),
+		metricTotalSeriesLimited:       metricTotalSeriesLimited.WithLabelValues(tenant),
+		metricTotalCollections:         metricTotalCollections.WithLabelValues(tenant),
+		metricFailedCollections:        metricFailedCollections.WithLabelValues(tenant),
 	}
 
 	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
@@ -237,11 +245,13 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	var demandSeriesEstimate int
 	var activeSeries int
 	var demandSeriesEstimateP10 int
+	var demandSeriesEstimate1Min int
 
 	for _, m := range r.metrics {
 		demandSeries += m.countTotalSeries()
 		demandSeriesEstimate += m.countTotalSeriesEstimate()
 		demandSeriesEstimateP10 += m.countTotalSeriesEstimateP10()
+		demandSeriesEstimate1Min += m.countTotalSeriesEstimate1Min()
 		activeSeries += m.countActiveSeries()
 	}
 
@@ -254,10 +264,12 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 		r.metricDemandSeries.Set(float64(demandSeries))
 		r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
 		r.metricDemandSeriesEstimateP10.Set(float64(demandSeriesEstimateP10))
+		r.metricDemandSeriesEstimate1Min.Set(float64(demandSeriesEstimate1Min))
 	} else {
 		r.metricDemandSeries.Set(float64(activeSeries))
 		r.metricDemandSeriesEstimate.Set(float64(activeSeries))
 		r.metricDemandSeriesEstimateP10.Set(float64(activeSeries))
+		r.metricDemandSeriesEstimate1Min.Set(float64(activeSeries))
 	}
 
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {

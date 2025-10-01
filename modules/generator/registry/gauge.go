@@ -25,6 +25,7 @@ type gauge struct {
 	rejectedSeries     map[uint64]int64
 	estimatedSeries    *HLLCounter
 	estimatedSeriesP10 *HLLCounter
+	estimatedSeries1m  *HLLCounter
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -64,6 +65,7 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 		rejectedSeries:     make(map[uint64]int64),
 		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
 		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
+		estimatedSeries1m:  NewHLLCounter(staleDuration, time.Minute),
 		onAddSeries:        onAddSeries,
 		onRemoveSeries:     onRemoveSeries,
 		externalLabels:     externalLabels,
@@ -91,6 +93,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 
 	g.estimatedSeries.Insert(hash)
 	g.estimatedSeriesP10.Insert(hash)
+	g.estimatedSeries1m.Insert(hash)
 
 	if ok {
 		// target_info will always be 1 so if the series exists, we don't need to go through this loop
@@ -198,6 +201,13 @@ func (g *gauge) countTotalSeriesEstimateP10() int {
 	return int(g.estimatedSeriesP10.Estimate())
 }
 
+func (g *gauge) countTotalSeriesEstimate1Min() int {
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
+
+	return int(g.estimatedSeries1m.Estimate())
+}
+
 func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
@@ -215,4 +225,5 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	}
 	g.estimatedSeries.Advance()
 	g.estimatedSeriesP10.Advance()
+	g.estimatedSeries1m.Advance()
 }
