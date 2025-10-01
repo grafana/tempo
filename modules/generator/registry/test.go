@@ -109,8 +109,8 @@ func (t *testCounter) name() string {
 	return t.n
 }
 
-func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
-	return activeSeries, err
+func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) error {
+	return nil
 }
 
 func (t *testCounter) removeStaleSeries(int64) {
@@ -164,8 +164,8 @@ func (t *testGauge) name() string {
 	return t.n
 }
 
-func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
-	return 0, nil
+func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) error {
+	return nil
 }
 
 func (t *testGauge) removeStaleSeries(int64) {
@@ -222,7 +222,7 @@ func withLe(lbls labels.Labels, le float64) labels.Labels {
 	return lb.Labels()
 }
 
-func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
+func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) error {
 	panic("implement me")
 }
 

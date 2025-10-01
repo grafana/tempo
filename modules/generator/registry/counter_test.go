@@ -211,7 +211,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := c.collectMetrics(&noopAppender{}, 0)
+		err := c.collectMetrics(&noopAppender{}, 0)
 		assert.NoError(t, err)
 	})
 
@@ -264,9 +264,8 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, expectedActiveSeries int, expectedSamples []sample, expectedExemplars []exemplarSample) {
 	appender := &capturingAppender{}
 
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
+	err := m.collectMetrics(appender, collectionTimeMs)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedActiveSeries, activeSeries)
 
 	assert.False(t, appender.isCommitted)
 	assert.False(t, appender.isRolledback)

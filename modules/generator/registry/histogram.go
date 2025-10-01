@@ -200,11 +200,9 @@ func (h *histogram) name() string {
 	return h.metricName
 }
 
-func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
+func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) error {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
-
-	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSerie())
 
 	for _, s := range h.series {
 		// If we are about to call Append for the first time on a series,
@@ -213,22 +211,22 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
+			_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 			if err != nil {
-				return
+				return err
 			}
 		}
 
 		// sum
-		_, err = appender.Append(0, s.sumLabels, timeMs, s.sum.Load())
+		_, err := appender.Append(0, s.sumLabels, timeMs, s.sum.Load())
 		if err != nil {
-			return
+			return err
 		}
 
 		// count
 		_, err = appender.Append(0, s.countLabels, timeMs, s.count.Load())
 		if err != nil {
-			return
+			return err
 		}
 
 		// bucket
@@ -237,12 +235,12 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 				endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 				_, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
 				if err != nil {
-					return
+					return err
 				}
 			}
 			ref, err := appender.Append(0, s.bucketLabels[i], timeMs, s.buckets[i].Load())
 			if err != nil {
-				return activeSeries, err
+				return err
 			}
 
 			ex := s.exemplars[i].Load()
@@ -256,7 +254,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 					Ts:    timeMs,
 				})
 				if err != nil {
-					return activeSeries, err
+					return err
 				}
 			}
 			// clear the exemplar so we don't emit it again
@@ -268,7 +266,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 		}
 	}
 
-	return
+	return nil
 }
 
 func (h *histogram) countTotalSeries() int {
