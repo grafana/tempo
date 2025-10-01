@@ -128,14 +128,14 @@ The following points are important to consider:
 - Once any policy condition is satisfied, evaluation stops - remaining policies are not checked
 - This creates a "first-match wins"
 
-This is fundamentally about ensuring that your most important observability signals, such as RED (rate, error, duration) metrics, aren't accidentally filtered out by broader sampling rules.
+Being aware of the policy order ensures that your most important observability signals, such as RED (rate, error, duration) metrics, aren't accidentally filtered out by broader sampling rules.
 
 For example, add `probabilistic` policies last since they act as a catch-all after all other policies have been evaluated.
 If you have three policies in place, `status_code`, `latency`, and `probabilistic`, then the `probabilistic` policy must be the last policy specified so it doesn't prevent the `status_code` and `latency` from being evaluated.
 If the `probabilistic` policy samples at 10% and is evaluated first, then 10% of traces were sampled.
 No further evaluation on the other policies happens because one of the tail sampling processor conditions has been satisfied.
-This means that traces with errors and high latency are potentially thrown away.
-Specifying the `status_code` policy to checks for span errors and the `latency` policy to check for high latency first catches all potential errors and latency issues before probabilistic sampling occurs.
+Traces with errors and high latency are potentially thrown away.
+Specifying the `status_code` policy to check for span errors and the `latency` policy to check for high latency first catches all potential errors and latency issues before probabilistic sampling occurs.
 This ensures that all of the errors and high duration spans are captured.
 
 ## Sampling policies and use cases
