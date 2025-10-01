@@ -143,6 +143,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	if cfg.Search.Sharder.DefaultQueryStart == 0 {
 		cfg.Search.Sharder.DefaultQueryStart = cfg.Search.Sharder.QueryBackendAfter
 	}
+	if cfg.Metrics.Sharder.DefaultQueryStart == 0 {
+		cfg.Metrics.Sharder.DefaultQueryStart = cfg.Metrics.Sharder.QueryBackendAfter
+	}
 }
 
 type CortexNoQuerierLimits struct{}
