@@ -129,6 +129,10 @@ func (t *testCounter) countTotalSeriesEstimate() int {
 	panic("implement me")
 }
 
+// countTotalSeriesEstimateP10 is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testCounter) countTotalSeriesEstimateP10() int { return 0 }
+
 type testGauge struct {
 	n        string
 	registry *TestRegistry
@@ -187,6 +191,10 @@ func (t *testGauge) countTotalSeries() int {
 func (t *testGauge) countTotalSeriesEstimate() int {
 	panic("implement me")
 }
+
+// countTotalSeriesEstimateP10 is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testGauge) countTotalSeriesEstimateP10() int { return 0 }
 
 type testHistogram struct {
 	nameSum            string
@@ -249,3 +257,7 @@ func (t *testHistogram) countTotalSeries() int {
 func (t *testHistogram) countTotalSeriesEstimate() int {
 	panic("implement me")
 }
+
+// countTotalSeriesEstimateP10 is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testHistogram) countTotalSeriesEstimateP10() int { return 0 }
