@@ -2,7 +2,6 @@ package vparquet5
 
 import (
 	"context"
-	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -897,9 +896,6 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 				for _, sp := range s.Spans {
 					sortSpanAttrs(sp.(*span))
 				}
-			}
-			if !reflect.DeepEqual(ss, tc.expectedResults) {
-				t.Errorf("unexpected results\n")
 			}
 			require.Equal(t, tc.expectedResults, ss, "search request:", req)
 		})

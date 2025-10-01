@@ -22,7 +22,7 @@ func BenchmarkIndexMarshal(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
 				clearDedicatedColumnsCache()
-				idx := makeTestTenantIndex(numBlocks, 10)
+				idx := makeTestTenantIndex(numBlocks)
 				for b.Loop() {
 					doNotOptimizeBytes, _ = idx.marshal()
 				}
@@ -34,7 +34,7 @@ func BenchmarkIndexMarshal(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
 				clearDedicatedColumnsCache()
-				idx := makeTestTenantIndex(numBlocks, 10)
+				idx := makeTestTenantIndex(numBlocks)
 				for b.Loop() {
 					doNotOptimizeBytes, _ = idx.marshalPb()
 				}
@@ -50,7 +50,7 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
 				clearDedicatedColumnsCache()
-				idx := makeTestTenantIndex(numBlocks, 10)
+				idx := makeTestTenantIndex(numBlocks)
 				idxBuf, err := idx.marshal()
 				require.NoError(b, err)
 				for b.Loop() {
@@ -65,7 +65,7 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
 				clearDedicatedColumnsCache()
-				idx := makeTestTenantIndex(numBlocks, 10)
+				idx := makeTestTenantIndex(numBlocks)
 				idxBuf, err := idx.marshal()
 				require.NoError(b, err)
 				for b.Loop() {
@@ -78,7 +78,9 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 
 }
 
-func makeTestTenantIndex(numBlocks, numDistinctDedicatedCols int) *TenantIndex {
+func makeTestTenantIndex(numBlocks int) *TenantIndex {
+	const numDistinctDedicatedCols = 10
+
 	dedicatedCols := make([]DedicatedColumns, 0, numDistinctDedicatedCols)
 	for range numDistinctDedicatedCols {
 		num := 0
@@ -113,7 +115,7 @@ func makeTestTenantIndex(numBlocks, numDistinctDedicatedCols int) *TenantIndex {
 			BlockMeta:     *NewBlockMeta("test-tenant", uuid.New(), "vParquet4", EncNone, ""),
 			CompactedTime: time.Now(),
 		}
-		compactedMeta.BlockMeta.DedicatedColumns = dedicatedCols[i%numDistinctDedicatedCols]
+		compactedMeta.DedicatedColumns = dedicatedCols[i%numDistinctDedicatedCols]
 		compactedBlocks = append(compactedBlocks, compactedMeta)
 	}
 
