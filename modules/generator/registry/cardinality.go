@@ -132,12 +132,16 @@ func (c *HLLCounter) Advance() {
 
 	c.mu.Lock()
 	delta := nowMs - c.lastFlipMs
+	// if delta < bucketMs {
+	// 	c.mu.Unlock()
+	// 	return
+	// }
+	steps := 0
 	if delta < bucketMs {
-		c.mu.Unlock()
-		return
+		steps = 1
+	} else {
+		steps = int(delta / bucketMs)
 	}
-
-	steps := int(delta / bucketMs)
 	// Cap steps so we don't loop excessively after very long pauses.
 	if steps > c.windowMin {
 		steps = c.windowMin

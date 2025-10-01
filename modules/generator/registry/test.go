@@ -133,6 +133,10 @@ func (t *testCounter) countTotalSeriesEstimate() int {
 // Test registry does not track estimates, so return 0.
 func (t *testCounter) countTotalSeriesEstimateP10() int { return 0 }
 
+// countTotalSeriesEstimate1Min is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testCounter) countTotalSeriesEstimate1Min() int { return 0 }
+
 type testGauge struct {
 	n        string
 	registry *TestRegistry
@@ -195,6 +199,10 @@ func (t *testGauge) countTotalSeriesEstimate() int {
 // countTotalSeriesEstimateP10 is a stub to satisfy optional estimator usage in registry.
 // Test registry does not track estimates, so return 0.
 func (t *testGauge) countTotalSeriesEstimateP10() int { return 0 }
+
+// countTotalSeriesEstimate1Min is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testGauge) countTotalSeriesEstimate1Min() int { return 0 }
 
 type testHistogram struct {
 	nameSum            string
@@ -261,3 +269,7 @@ func (t *testHistogram) countTotalSeriesEstimate() int {
 // countTotalSeriesEstimateP10 is a stub to satisfy optional estimator usage in registry.
 // Test registry does not track estimates, so return 0.
 func (t *testHistogram) countTotalSeriesEstimateP10() int { return 0 }
+
+// countTotalSeriesEstimate1Min is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testHistogram) countTotalSeriesEstimate1Min() int { return 0 }
