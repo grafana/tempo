@@ -13,6 +13,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -594,7 +595,7 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 	i.liveTracesMtx.Lock()
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
 
-		completeTrace, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.Batches)
+		completeTrace, err := model.MustNewSegmentDecoder(v1.Encoding).PrepareForRead(liveTrace.Batches)
 		if err != nil {
 			i.liveTracesMtx.Unlock()
 			return nil, fmt.Errorf("failed to decode live trace segments: %w", err)

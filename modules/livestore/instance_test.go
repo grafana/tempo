@@ -171,3 +171,12 @@ func TestInstanceBackpressure(t *testing.T) {
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
+
+func TestInstanceCut(t *testing.T) {
+	instance, ls := defaultInstance(t)
+	now := time.Now()
+	trace := test.MakeTraceWithTimeRange(1, test.ValidTraceID(nil), uint64(now.Nanosecond()), uint64(now.Add(time.Minute).Nanosecond()))
+	pushTrace(t.Context(), t, instance, trace, test.ValidTraceID(nil))
+
+	ls.cutOneInstanceToWal(instance, true)
+}

@@ -11,15 +11,15 @@ import (
 
 const Encoding = "v2"
 
-type ObjectDecoder struct{}
-
-var staticDecoder = &ObjectDecoder{}
-
 // ObjectDecoder translates between opaque byte slices and tempopb.Trace
 // Object format:
 // | uint32 | uint32 | variable length               |
 // | start  | end    | marshalled tempopb.TraceBytes |
 // start and end are unix epoch seconds. The byte slices in tempopb.TraceBytes are marshalled tempopb.Trace's
+type ObjectDecoder struct{}
+
+var staticDecoder = &ObjectDecoder{}
+
 func NewObjectDecoder() *ObjectDecoder {
 	return staticDecoder
 }

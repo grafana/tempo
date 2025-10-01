@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
+	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -301,31 +301,30 @@ func (i *instance) writeHeadBlock(id []byte, t *livetraces.LiveTrace[[]byte]) er
 		}
 	}
 
-	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	segmentDecoder := model.MustNewSegmentDecoder(v1.Encoding)
 
 	// sort batches before cutting to reduce combinations during compaction
 	sortByteSlices(t.Batches)
 
-	var start, end uint32
-	for _, b := range t.Batches {
-		s, e, err := segmentDecoder.FastRange(b)
-		if err != nil {
-			return fmt.Errorf("failed to get range while adding segment: %w", err)
-		}
-		if start == 0 || s < start {
-			start = s
-		}
-		if end == 0 || e > end {
-			end = e
-		}
-	}
-
-	out, err := segmentDecoder.ToObject(t.Batches)
+	trace, err := segmentDecoder.PrepareForRead(t.Batches)
 	if err != nil {
 		return err
 	}
 
-	return i.headBlock.Append(id, out, start, end, false)
+	var start, end uint32 = ^uint32(0), 0 // Initialize start to max uint32, end to 0
+	for _, rs := range trace.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			for _, span := range ss.Spans {
+				spanStart := uint32(span.StartTimeUnixNano / uint64(time.Second)) // Convert nanoseconds to seconds
+				spanEnd := uint32(span.EndTimeUnixNano / uint64(time.Second))     // Convert nanoseconds to seconds
+
+				start = min(start, spanStart)
+				end = max(end, spanEnd)
+			}
+		}
+	}
+
+	return i.headBlock.AppendTrace(id, trace, start, end, false)
 }
 
 func (i *instance) resetHeadBlock() error {
