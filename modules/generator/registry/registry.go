@@ -227,18 +227,20 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 
 	var demandSeries int
 	var demandSeriesEstimate int
+	var activeSeries int
 
 	for _, m := range r.metrics {
-		c := m.countTotalSeries()
-		demandSeries += c
+		demandSeries += m.countTotalSeries()
 		demandSeriesEstimate += m.countTotalSeriesEstimate()
+		activeSeries += m.countActiveSeries()
 	}
 
 	// to remove in prod:
 	r.metricDemandSeries.Set(float64(demandSeries))
 	r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
 
-	r.metricActiveSeries.Set(float64(r.activeSeries.Load()))
+	r.activeSeries.Store(uint32(activeSeries))
+	r.metricActiveSeries.Set(float64(activeSeries))
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 

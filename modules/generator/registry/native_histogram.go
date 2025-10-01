@@ -278,6 +278,13 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 	return nil
 }
 
+func (h *nativeHistogram) countActiveSeries() int {
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
+
+	return len(h.series) * int(h.activeSeriesPerHistogramSerie())
+}
+
 func (h *nativeHistogram) countTotalSeries() int {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
