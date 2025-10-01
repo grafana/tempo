@@ -817,16 +817,10 @@ func extractQueryParam(v url.Values, param string) (string, bool) {
 }
 
 func extractDateRangeParams(vals url.Values) (start, end, since string) {
-	getDate := func(s string) string {
-		if s == "" || s == "0" {
-			return ""
-		}
-		return s
-	}
 	start, _ = extractQueryParam(vals, urlParamStart)
 	end, _ = extractQueryParam(vals, urlParamEnd)
 	since, _ = extractQueryParam(vals, urlParamSince)
-	return getDate(start), getDate(end), getDate(since)
+	return
 }
 
 // ValidateAndSanitizeRequest validates params for trace by id api
