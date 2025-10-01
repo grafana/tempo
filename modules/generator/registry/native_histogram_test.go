@@ -516,9 +516,8 @@ func Test_Histograms(t *testing.T) {
 }
 
 func collectMetricsAndAssertSeries(t *testing.T, m metric, collectionTimeMs int64, expectedSeries int, appender storage.Appender) {
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
+	err := m.collectMetrics(appender, collectionTimeMs)
 	require.NoError(t, err)
-	require.Equal(t, expectedSeries, activeSeries)
 }
 
 func assertAppenderSamples(t *testing.T, appender *capturingAppender, expectedSamples []sample) {
@@ -638,10 +637,8 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 
 		// Collect metrics
 		appender := &capturingAppender{}
-		activeSeries, err := h.collectMetrics(appender, collectionTimeMs)
+		err := h.collectMetrics(appender, collectionTimeMs)
 		require.NoError(t, err)
-
-		t.Logf("Active series: %d", activeSeries)
 		t.Logf("Captured samples: %d", len(appender.samples))
 		t.Logf("Captured exemplars: %d", len(appender.exemplars))
 
@@ -687,10 +684,8 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 
 		// Collect metrics
 		appender := &capturingAppender{}
-		activeSeries, err := h.collectMetrics(appender, collectionTimeMs)
+		err := h.collectMetrics(appender, collectionTimeMs)
 		require.NoError(t, err)
-
-		t.Logf("Native-only - Active series: %d", activeSeries)
 		t.Logf("Native-only - Captured samples: %d", len(appender.samples))
 		t.Logf("Native-only - Captured exemplars: %d", len(appender.exemplars))
 

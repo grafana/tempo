@@ -96,7 +96,7 @@ type ManagedRegistry struct {
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	name() string
-	collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error)
+	collectMetrics(appender storage.Appender, timeMs int64) error
 	countTotalSeries() int
 	countTotalSeriesEstimate() int
 	removeStaleSeries(staleTimeMs int64)
@@ -238,8 +238,8 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	r.metricDemandSeriesEstimate.Set(float64(demandSeriesEstimate))
 
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
-		//r.metricDemandSeries.Set(float64(demandSeries))
-		//r.metricDemandSeriesEstimate.Set(float64(max(demandSeriesEstimate, int(r.activeSeries.Load()))))
+		// r.metricDemandSeries.Set(float64(demandSeries))
+		// r.metricDemandSeriesEstimate.Set(float64(max(demandSeriesEstimate, int(r.activeSeries.Load()))))
 		return
 	}
 
@@ -252,22 +252,16 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 		}
 	}()
 
-	var activeSeries uint32
-
 	appender := r.appendable.Appender(ctx)
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs)
+		err := m.collectMetrics(appender, collectionTimeMs)
 		if err != nil {
 			return
 		}
-		activeSeries += uint32(active)
 	}
-
-	// set active series in case there is drift
-	r.activeSeries.Store(activeSeries)
-	r.metricActiveSeries.Set(float64(activeSeries))
+	r.metricActiveSeries.Set(float64(r.activeSeries.Load()))
 
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))

@@ -136,11 +136,9 @@ func (c *counter) name() string {
 	return c.metricName
 }
 
-func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
+func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) error {
 	c.seriesMtx.RLock()
 	defer c.seriesMtx.RUnlock()
-
-	activeSeries = len(c.series)
 
 	for _, s := range c.series {
 		// If we are about to call Append for the first time on a series, we need
@@ -150,22 +148,22 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activ
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, s.labels, endOfLastMinuteMs, 0)
+			_, err := appender.Append(0, s.labels, endOfLastMinuteMs, 0)
 			if err != nil {
-				return
+				return err
 			}
 			s.registerSeenSeries()
 		}
 
-		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())
+		_, err := appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
-			return
+			return err
 		}
 
 		// TODO: support exemplars
 	}
 
-	return
+	return nil
 }
 
 func (c *counter) countTotalSeries() int {

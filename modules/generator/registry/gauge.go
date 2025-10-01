@@ -152,21 +152,19 @@ func (g *gauge) name() string {
 	return g.metricName
 }
 
-func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
+func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) error {
 	g.seriesMtx.RLock()
 	defer g.seriesMtx.RUnlock()
 
-	activeSeries = len(g.series)
-
 	for _, s := range g.series {
-		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())
+		_, err := appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
-			return
+			return err
 		}
 		// TODO: support exemplars
 	}
 
-	return
+	return nil
 }
 
 func (g *gauge) countTotalSeries() int {

@@ -339,7 +339,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := h.collectMetrics(&noopAppender{}, 0)
+		err := h.collectMetrics(&noopAppender{}, 0)
 		assert.NoError(t, err)
 	})
 
