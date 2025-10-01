@@ -57,15 +57,15 @@ func TestBackendBlockSearch(t *testing.T) {
 					{
 						Spans: []Span{
 							{
-								Name:           "hello",
-								HttpMethod:     ptr("get"),
-								HttpUrl:        ptr("url/hello/world"),
-								HttpStatusCode: ptr(int64(500)),
-								SpanID:         []byte{},
-								ParentSpanID:   []byte{},
-								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
+								Name:         "hello",
+								SpanID:       []byte{},
+								ParentSpanID: []byte{},
+								StatusCode:   int(v1.Status_STATUS_CODE_ERROR),
 								Attrs: []Attribute{
 									attr("foo", "bar"),
+									attr("http.method", "get"),
+									attr("http.url", "url/hello/world"),
+									attr("http.status_code", 500),
 								},
 								DedicatedAttributes: DedicatedAttributes{
 									String01: ptr("dedicated-span-attr-value-1"),
@@ -151,8 +151,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		// Well-known span attributes
 		makeReq(LabelName, "ell"),
 		makeReq(LabelHTTPMethod, "get"),
-		makeReq(LabelHTTPUrl, "hello"),
-		makeReq(LabelHTTPStatusCode, "500"),
+		makeReq(LabelHTTPUrl, "url/hello/world"),
 		makeReq(LabelStatusCode, StatusCodeError),
 
 		// Dedicated span attributes
@@ -221,10 +220,11 @@ func TestBackendBlockSearch(t *testing.T) {
 		// Dedicated resource attributes
 		makeReq("dedicated.resource.3", "dedicated-resource-attr-value-1"),
 
-		// Well-known span attributes
+		// Former well-known span attributes
 		makeReq(LabelHTTPMethod, "post"),
 		makeReq(LabelHTTPUrl, "asdf"),
 		makeReq(LabelHTTPStatusCode, "200"),
+		makeReq(LabelHTTPStatusCode, "500"),
 		makeReq(LabelStatusCode, StatusCodeOK),
 
 		// Dedicated span attributes
@@ -377,15 +377,14 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 				val := test.RandomString()
 				spanAttrVals[key] = val
 
-				sts := int64(404)
 				span := Span{
-					Name:           "span",
-					HttpMethod:     ptr("method"),
-					HttpUrl:        ptr("url"),
-					HttpStatusCode: &sts,
-					StatusCode:     2,
+					Name:       "span",
+					StatusCode: 2,
 					Attrs: []Attribute{
 						attr(key, val),
+						attr("http.method", "method"),
+						attr("http.url", "url"),
+						attr("http.status_code", 404),
 					},
 					DedicatedAttributes: dedicatedSpanAttrs,
 				}

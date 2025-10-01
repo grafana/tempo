@@ -940,9 +940,6 @@ const (
 	columnPathSpanAttrInt          = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
 	columnPathSpanAttrDouble       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
 	columnPathSpanAttrBool         = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathSpanHTTPStatusCode   = "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode"
-	columnPathSpanHTTPMethod       = "rs.list.element.ss.list.element.Spans.list.element.HttpMethod"
-	columnPathSpanHTTPURL          = "rs.list.element.ss.list.element.Spans.list.element.HttpUrl"
 	columnPathSpanNestedSetLeft    = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
 	columnPathSpanNestedSetRight   = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
 	columnPathSpanParentID         = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
@@ -1030,11 +1027,6 @@ var wellKnownColumnLookups = map[string]struct {
 	LabelK8sNamespaceName: {columnPathResourceK8sNamespaceName, traceql.AttributeScopeResource, traceql.TypeString},
 	LabelK8sPodName:       {columnPathResourceK8sPodName, traceql.AttributeScopeResource, traceql.TypeString},
 	LabelK8sContainerName: {columnPathResourceK8sContainerName, traceql.AttributeScopeResource, traceql.TypeString},
-
-	// Span-level columns
-	LabelHTTPStatusCode: {columnPathSpanHTTPStatusCode, traceql.AttributeScopeSpan, traceql.TypeInt},
-	LabelHTTPMethod:     {columnPathSpanHTTPMethod, traceql.AttributeScopeSpan, traceql.TypeString},
-	LabelHTTPUrl:        {columnPathSpanHTTPURL, traceql.AttributeScopeSpan, traceql.TypeString},
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for

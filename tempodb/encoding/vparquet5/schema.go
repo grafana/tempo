@@ -100,9 +100,6 @@ var (
 		LabelK8sPodName:       "rs.list.element.Resource.K8sPodName",
 		LabelK8sContainerName: "rs.list.element.Resource.K8sContainerName",
 		LabelName:             "rs.list.element.ss.list.element.Spans.list.element.Name",
-		LabelHTTPMethod:       "rs.list.element.ss.list.element.Spans.list.element.HttpMethod",
-		LabelHTTPUrl:          "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
-		LabelHTTPStatusCode:   "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
 		LabelStatusCode:       "rs.list.element.ss.list.element.Spans.list.element.StatusCode",
 	}
 	// the two below are used in tag name search. they only include
@@ -117,11 +114,6 @@ var (
 		LabelK8sNamespaceName: "rs.list.element.Resource.K8sNamespaceName",
 		LabelK8sPodName:       "rs.list.element.Resource.K8sPodName",
 		LabelK8sContainerName: "rs.list.element.Resource.K8sContainerName",
-	}
-	traceqlSpanLabelMappings = map[string]string{
-		LabelHTTPMethod:     "rs.list.element.ss.list.element.Spans.list.element.HttpMethod",
-		LabelHTTPUrl:        "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
-		LabelHTTPStatusCode: "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
 	}
 
 	parquetSchema = parquet.SchemaOf(&Trace{})
@@ -195,11 +187,6 @@ type Span struct {
 	DroppedEventsCount     int32       `parquet:",snappy"`
 	Links                  []Link      `parquet:",list"`
 	DroppedLinksCount      int32       `parquet:",snappy"`
-
-	// Static dedicated attribute columns
-	HttpMethod     *string `parquet:",snappy,optional,dict"`
-	HttpUrl        *string `parquet:",snappy,optional,dict"`
-	HttpStatusCode *int64  `parquet:",snappy,optional"`
 
 	// Dynamically assignable dedicated attribute columns
 	DedicatedAttributes DedicatedAttributes `parquet:""`
@@ -525,9 +512,6 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
-				ss.HttpMethod = nil
-				ss.HttpUrl = nil
-				ss.HttpStatusCode = nil
 				ss.DedicatedAttributes = DedicatedAttributes{}
 
 				ss.Links = extendReuseSlice(len(s.Links), ss.Links)
@@ -542,32 +526,9 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				for _, a := range s.Attributes {
 					written := false
 
-					switch a.Key {
-					case LabelHTTPMethod:
-						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
-						if ok {
-							ss.HttpMethod = &strVal.StringValue
-							written = true
-						}
-					case LabelHTTPUrl:
-						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
-						if ok {
-							ss.HttpUrl = &strVal.StringValue
-							written = true
-						}
-					case LabelHTTPStatusCode:
-						intVal, ok := a.Value.Value.(*v1.AnyValue_IntValue)
-						if ok {
-							ss.HttpStatusCode = &intVal.IntValue
-							written = true
-						}
-					}
-
-					if !written {
-						// Dynamically assigned dedicated span attribute columns
-						if spareColumn, exists := dedicatedSpanAttributes.get(a.Key); exists {
-							written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
-						}
+					// Dynamically assigned dedicated span attribute columns
+					if spareColumn, exists := dedicatedSpanAttributes.get(a.Key); exists {
+						written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
 					}
 
 					if !written {
@@ -910,38 +871,6 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 							Value: val,
 						})
 					}
-				}
-
-				// known span attributes
-				if span.HttpMethod != nil {
-					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
-						Key: LabelHTTPMethod,
-						Value: &v1.AnyValue{
-							Value: &v1.AnyValue_StringValue{
-								StringValue: *span.HttpMethod,
-							},
-						},
-					})
-				}
-				if span.HttpUrl != nil {
-					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
-						Key: LabelHTTPUrl,
-						Value: &v1.AnyValue{
-							Value: &v1.AnyValue_StringValue{
-								StringValue: *span.HttpUrl,
-							},
-						},
-					})
-				}
-				if span.HttpStatusCode != nil {
-					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
-						Key: LabelHTTPStatusCode,
-						Value: &v1.AnyValue{
-							Value: &v1.AnyValue_IntValue{
-								IntValue: *span.HttpStatusCode,
-							},
-						},
-					})
 				}
 
 				protoSS.Spans = append(protoSS.Spans, protoSpan)

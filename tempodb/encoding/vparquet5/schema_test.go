@@ -257,9 +257,6 @@ func TestTraceToParquet(t *testing.T) {
 							SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 							Attributes: []*v1.KeyValue{
 								{Key: "span.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "aaa"}}},
-								{Key: "http.method", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "POST"}}},
-								{Key: "http.url", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "https://example.com"}}},
-								{Key: "http.status_code", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 201}}},
 								{Key: "dedicated.span.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-1"}}},
 								{Key: "dedicated.span.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-2"}}},
 								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
@@ -292,6 +289,9 @@ func TestTraceToParquet(t *testing.T) {
 										{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
 									},
 								}}}},
+								{Key: "http.method", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "POST"}}},
+								{Key: "http.url", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "https://example.com"}}},
+								{Key: "http.status_code", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 201}}},
 								{Key: "span.unsupported.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
@@ -366,15 +366,15 @@ func TestTraceToParquet(t *testing.T) {
 							NestedSetLeft:  1,
 							NestedSetRight: 2,
 							ParentID:       -1,
-							HttpMethod:     ptr("POST"),
-							HttpUrl:        ptr("https://example.com"),
-							HttpStatusCode: ptr(int64(201)),
 							Attrs: []Attribute{
 								attr("span.attr", "aaa"),
 								attr("span.string.array", []string{"one", "two"}),
 								attr("span.int.array", []int64{1, 2, 3}),
 								attr("span.double.array", []float64{1.1, 2.2}),
 								attr("span.bool.array", []bool{true, false, true, false}),
+								attr("http.method", "POST"),
+								attr("http.url", "https://example.com"),
+								attr("http.status_code", 201),
 								{Key: "span.unsupported.array", ValueUnsupported: ptr("{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}"), IsArray: false},
 								{Key: "span.unsupported.kvlist", ValueUnsupported: ptr("{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}"), IsArray: false},
 							},

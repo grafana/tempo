@@ -1639,6 +1639,10 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 				tc.expected["event"] = []string{"exception.message"}
 				tc.expected["link"] = []string{"relation"}
 			}
+			if bm.Version == vparquet5.VersionString && tc.name == "no matches" {
+				// vp5 does not have well-known attribute columns
+				tc.expected["span"] = []string{"span-dedicated.01", "span-dedicated.02"}
+			}
 			require.Equal(t, len(tc.expected), len(actualMap))
 
 			for k, expected := range tc.expected {
@@ -2371,7 +2375,6 @@ func searchTestSuite() (
 		makeReq("name", "MySpan"),
 		makeReq("http.method", "Get"),
 		makeReq("http.url", "url/Hello/World"),
-		makeReq("http.status_code", "500"),
 		makeReq("status.code", "error"),
 
 		// Dedicated span and resource attributes
