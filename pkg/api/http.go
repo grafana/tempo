@@ -649,6 +649,9 @@ func ClampDateRangeReq(req *http.Request, defStart, endBuffer time.Duration) (st
 	maxEnd := now.Add(-endBuffer)
 	if maxEnd.Before(end) {
 		end = maxEnd
+		if start.After(end) {
+			start = now.Add(-defStart) // It can be possible that after clamping the end the start time would be greater.
+		}
 	}
 
 	return start, end, p, nil

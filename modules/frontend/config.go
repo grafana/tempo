@@ -88,8 +88,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.ResponseConsumers = 10
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
-			QueryBackendAfter:     15 * time.Minute,
-			QueryIngestersUntil:   30 * time.Minute,
+			QueryBackendAfter:   15 * time.Minute,
+			QueryIngestersUntil: 30 * time.Minute,
+			// DefaultQueryStart:  0,  // Leave as 0 to indicate "not set"
+			DefaultQueryEndBuffer: 30 * time.Second,
 			DefaultLimit:          20,
 			MaxLimit:              0,
 			MaxDuration:           168 * time.Hour, // 1 week
@@ -107,8 +109,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	}
 	cfg.Metrics = MetricsConfig{
 		Sharder: QueryRangeSharderConfig{
-			MaxDuration:           3 * time.Hour,
-			QueryBackendAfter:     30 * time.Minute,
+			MaxDuration:       3 * time.Hour,
+			QueryBackendAfter: 30 * time.Minute,
+			// DefaultQueryStart:  0,  // Leave as 0 to indicate "not set"
+			DefaultQueryEndBuffer: 30 * time.Second,
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
@@ -135,6 +139,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	// enable multi tenant queries by default
 	cfg.MultiTenantQueriesEnabled = true
 	cfg.Metrics.MaxIntervals = 10_000
+
+	if cfg.Search.Sharder.DefaultQueryStart == 0 {
+		cfg.Search.Sharder.DefaultQueryStart = cfg.Search.Sharder.QueryBackendAfter
+	}
 }
 
 type CortexNoQuerierLimits struct{}
