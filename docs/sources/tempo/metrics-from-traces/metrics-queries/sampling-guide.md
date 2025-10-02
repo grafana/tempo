@@ -24,7 +24,7 @@ Sampling intelligently selects a representative subset of data for processing, m
 - Resource-constrained environments with limited compute capacity
 - Large-scale deployments processing terabytes of trace data daily
 
-Adaptive sampling was featured in the October 2025 Tempo community call. Watch the [recording](https://www.youtube.com/watch?v=7H8JX5FUw08) starting at the 12:00 minute mark to learn more.
+Adaptive sampling was featured in the September 2025 Tempo community call. Watch the [recording](https://www.youtube.com/watch?v=7H8JX5FUw08) starting at the 12:00 minute mark to learn more.
 
 Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) to learn more.
 
@@ -44,7 +44,7 @@ Adaptive sampling, `with(sample=true)`, applies probabilistic sampling at the st
 This sampling method uses an adaptive probabilistic approach that responds to how common spans and traces matching the query are.
 This approach applies probabilistic sampling at the storage layer, for example, only inspecting `xx%` spans, or `xx%` traces, depending on the needs of the query.
 
-When there is a lot of data, it lowers the sampling rate. When matches are rare it keeps the sampling rate higher, possibly never going below 100%. Therefore the performance gain depends on the query.
+When there is a lot of data, it lowers the sampling rate. When matches are rare it keeps the sampling rate higher, possibly never going below 100%. Therefore, the performance gain depends on the query.
 
 This behavior can be overridden to focus more on fixed span sampling using `with(span_sample=0.xx)` or fixed trace sampling using `with(trace_sample=0.xx)`.
 
