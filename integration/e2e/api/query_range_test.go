@@ -596,7 +596,8 @@ sendLoop:
 			break sendLoop
 		}
 	}
-
+	util.CallFlush(t, tempo)
+	time.Sleep(1 * time.Second)
 	// Wait for traces to be flushed to blocks
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))

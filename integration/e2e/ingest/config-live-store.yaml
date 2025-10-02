@@ -8,7 +8,7 @@ server:
 query_frontend:
   rf1_after: "2025-01-01T00:00:00Z"
   search:
-    query_backend_after: 10m
+    query_backend_after: 11m
     query_ingesters_until: 10m
     default_query_end_buffer: 0 # Include all recent data
   metrics:
