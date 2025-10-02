@@ -94,7 +94,7 @@ func TestInstanceLimits(t *testing.T) {
 			id := test.ValidTraceID(nil)
 			ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(1*time.Second)) // Time out after 1s, push should be immediate
 			t.Cleanup(cancel)
-			pushTrace(ctx, t, instance, test.MakeTrace(1, id))
+			pushTrace(ctx, t, instance, test.MakeTrace(1, id), id)
 		}
 		require.Equal(t, uint64(4), instance.liveTraces.Len())
 
