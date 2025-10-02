@@ -40,7 +40,7 @@ To activate the `local-blocks` processor for all users, add it to the list of pr
 ```yaml
 # Global overrides configuration.
 overrides:
-  metrics_generator_processors: ['local-blocks']
+  metrics_generator_processors: ["local-blocks"]
 ```
 
 To configure the processor per tenant, use the `metrics_generator_processor` override.
@@ -49,7 +49,7 @@ Example for per-tenant in the per-tenant overrides:
 
 ```yaml
 overrides:
-  'tenantID':
+  "tenantID":
     metrics_generator_processors:
       - local-blocks
 ```
@@ -138,21 +138,9 @@ query_frontend:
 
 ## Sampling and performance optimization
 
-TraceQL metrics queries support sampling hints to improve performance on large datasets.
-
-### Sampling configuration considerations
+TraceQL metrics queries support sampling hints to improve performance on large datasets. Refer to the [TraceQL metrics sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/sampling-guide/) documentation for more information.
 
 When using sampling in your TraceQL metrics queries, consider:
 
 - **Timeout settings:** Sampled queries run faster but may still benefit from adequate timeouts
 - **Concurrent jobs:** Sampling reduces per-job processing time, allowing higher concurrency
-
-Example configuration optimized for sampling:
-
-
-### Sampling best practices
-
-- Use `sample=true` for dashboard queries requiring fast refresh
-- Apply fixed sampling rates for consistent approximation levels
-- Avoid sampling for alerts or precise measurements
-- Test sampling accuracy against your specific data patterns
