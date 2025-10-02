@@ -478,3 +478,43 @@ func (m *CallbackPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { return m.
 func (m *CallbackPredicate) KeepPage(pq.Page) bool { return m.cb() }
 
 func (m *CallbackPredicate) KeepValue(pq.Value) bool { return m.cb() }
+
+var _ Predicate = (*NilValuePredicate)(nil)
+
+type NilValuePredicate struct{}
+
+func NewNilValuePredicate() NilValuePredicate {
+	return NilValuePredicate{}
+}
+
+func (p NilValuePredicate) String() string {
+	return "NilValuePredicate{}"
+}
+
+func (p NilValuePredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	return true
+}
+
+func (p NilValuePredicate) KeepPage(page pq.Page) bool {
+	return true
+}
+
+func (p NilValuePredicate) KeepValue(v pq.Value) bool {
+	if v.IsNull() {
+		return true
+	}
+	switch v.Kind() {
+	case pq.ByteArray:
+		return len(v.ByteArray()) == 0
+	case pq.Int32:
+		return v.Int32() == 0
+	case pq.Int64:
+		return v.Int64() == 0
+	case pq.Float:
+		return v.Float() == 0
+	case pq.Double:
+		return v.Double() == 0
+	default:
+		return false
+	}
+}
