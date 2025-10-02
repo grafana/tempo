@@ -105,7 +105,6 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 }
 
 func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
-	t.Skip("disable until block in ./test-data is converted")
 	rawR, _, _, err := local.New(&local.Config{
 		Path: "./test-data",
 	})
