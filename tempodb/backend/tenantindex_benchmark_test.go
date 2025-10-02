@@ -17,7 +17,6 @@ var (
 )
 
 func BenchmarkIndexMarshal(b *testing.B) {
-
 	b.Run("format=json", func(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
@@ -41,11 +40,9 @@ func BenchmarkIndexMarshal(b *testing.B) {
 			})
 		}
 	})
-
 }
 
 func BenchmarkIndexUnmarshal(b *testing.B) {
-
 	b.Run("format=json", func(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
@@ -75,7 +72,6 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 			})
 		}
 	})
-
 }
 
 func makeTestTenantIndex(numBlocks int) *TenantIndex {

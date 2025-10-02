@@ -266,7 +266,7 @@ func TestDedicatedColumns_ToTempopb(t *testing.T) {
 }
 
 func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
-	var roundTripTestCases = []struct {
+	roundTripTestCases := []struct {
 		name      string
 		skipProto bool
 		cols      DedicatedColumns
