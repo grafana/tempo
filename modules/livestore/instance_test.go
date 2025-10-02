@@ -91,6 +91,7 @@ func TestInstanceLimits(t *testing.T) {
 	t.Run("max traces - too many", func(t *testing.T) {
 		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 		for range 10 {
+			id := test.ValidTraceID(nil)
 			ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(1*time.Second)) // Time out after 1s, push should be immediate
 			t.Cleanup(cancel)
 			pushTrace(ctx, t, instance, test.MakeTrace(1, id))
