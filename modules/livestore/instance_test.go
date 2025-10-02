@@ -61,11 +61,11 @@ func TestInstanceLimits(t *testing.T) {
 		// two different traces with different ids
 		id1 := test.ValidTraceID(nil)
 		id2 := test.ValidTraceID(nil)
-		pushTrace(context.Background(), t, instance, test.MakeTrace(5, id1), id1)
-		pushTrace(context.Background(), t, instance, test.MakeTrace(5, id2), id2)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id1), id1)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id2), id2)
 		require.Equal(t, uint64(2), instance.liveTraces.Len())
 
-		err := services.StopAndAwaitTerminated(context.Background(), ls)
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
 		require.NoError(t, err)
 	})
 
@@ -76,14 +76,14 @@ func TestInstanceLimits(t *testing.T) {
 		id := test.ValidTraceID(nil)
 
 		// First push fits
-		pushTrace(context.Background(), t, instance, test.MakeTrace(5, id), id)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
 		// Second push with same id will exceed combined size (> maxBytes)
-		pushTrace(context.Background(), t, instance, test.MakeTrace(5, id), id)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
 		// Only one live trace stored, and accumulated size should be <= maxBytes
 		require.Equal(t, uint64(1), instance.liveTraces.Len())
 		require.LessOrEqual(t, instance.liveTraces.Size(), uint64(maxBytes))
 
-		err := services.StopAndAwaitTerminated(context.Background(), ls)
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
 		require.NoError(t, err)
 	})
 
@@ -92,11 +92,11 @@ func TestInstanceLimits(t *testing.T) {
 		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 		for range 10 {
 			id := test.ValidTraceID(nil)
-			pushTrace(context.Background(), t, instance, test.MakeTrace(1, id), id)
+			pushTrace(t.Context(), t, instance, test.MakeTrace(1, id), id)
 		}
 		require.Equal(t, uint64(4), instance.liveTraces.Len())
 
-		err := services.StopAndAwaitTerminated(context.Background(), ls)
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
 		require.NoError(t, err)
 	})
 }
@@ -106,13 +106,13 @@ func TestInstanceNoLimits(t *testing.T) {
 
 	for range 100 {
 		id := test.ValidTraceID(nil)
-		pushTrace(context.Background(), t, instance, test.MakeTrace(1, id), id)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(1, id), id)
 	}
 
 	assert.Equal(t, uint64(100), instance.liveTraces.Len())
 	assert.GreaterOrEqual(t, instance.liveTraces.Size(), uint64(1000))
 
-	err := services.StopAndAwaitTerminated(context.Background(), ls)
+	err := services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
 }
 
@@ -120,7 +120,7 @@ func TestInstanceBackpressure(t *testing.T) {
 	instance, ls, _, _ := defaultInstanceAndTmpDir(t)
 
 	id1 := test.ValidTraceID(nil)
-	pushTrace(context.Background(), t, instance, test.MakeTrace(1, id1), id1)
+	pushTrace(t.Context(), t, instance, test.MakeTrace(1, id1), id1)
 
 	instance.Cfg.MaxLiveTracesBytes = instance.liveTraces.Size() // Set max size to current live-traces size
 
@@ -131,21 +131,21 @@ func TestInstanceBackpressure(t *testing.T) {
 	go func() {
 		defer close(pushComplete)
 		// Second write will block waiting for the live traces to have room
-		pushTrace(context.Background(), t, instance, test.MakeTrace(1, id2), id2)
+		pushTrace(t.Context(), t, instance, test.MakeTrace(1, id2), id2)
 	}()
 
 	// Give goroutine time to start and block
 	time.Sleep(10 * time.Millisecond)
 
 	// First trace is found
-	res, err := instance.FindByTraceID(context.Background(), id1, true)
+	res, err := instance.FindByTraceID(t.Context(), id1, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Trace)
 	require.Greater(t, res.Trace.Size(), 0)
 
 	// Second is not (should be blocked)
-	res, err = instance.FindByTraceID(context.Background(), id2, true)
+	res, err = instance.FindByTraceID(t.Context(), id2, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Nil(t, res.Trace)
@@ -162,11 +162,11 @@ func TestInstanceBackpressure(t *testing.T) {
 	}
 
 	// After cut, second trace is pushed to instance and can be found
-	res, err = instance.FindByTraceID(context.Background(), id2, true)
+	res, err = instance.FindByTraceID(t.Context(), id2, true)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Trace)
 	require.Greater(t, res.Trace.Size(), 0)
 
-	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), ls))
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
