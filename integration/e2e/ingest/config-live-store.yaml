@@ -10,8 +10,10 @@ query_frontend:
   search:
     query_backend_after: 10m
     query_ingesters_until: 10m
+    default_query_end_buffer: -5m
   metrics:
     query_backend_after: 10m
+    default_query_end_buffer: -5m
 
 distributor:
   ingester_write_path_enabled: false
