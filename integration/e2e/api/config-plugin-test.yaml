@@ -7,6 +7,8 @@ server:
 query_frontend:
   search:
     query_backend_after: 1s
+    default_query_start: 1h
+    default_query_end_buffer: 0 # Include all recent data
 
 distributor:
   receivers:

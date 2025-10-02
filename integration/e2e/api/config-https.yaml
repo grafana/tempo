@@ -1,6 +1,17 @@
 target: all
 stream_over_http_enabled: true
 
+query_frontend:
+  search:
+    query_backend_after: 0 # setting these both to 0 will force all range searches to hit the backend
+    query_ingesters_until: 30m
+    default_query_start: 1h
+    default_query_end_buffer: 0 # Include all recent data
+  metrics:
+    default_query_start: 1h
+    default_query_end_buffer: 0 # Include all recent data
+    max_response_series: 3
+
 server:
   http_listen_port: 3200
   tls_cipher_suites: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
