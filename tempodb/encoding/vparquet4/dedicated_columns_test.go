@@ -221,7 +221,7 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 	}
 }
 
-func TestFilterIgnoredDedicatedAttributes(t *testing.T) {
+func TestFilterDedicatedColumns(t *testing.T) {
 	tests := []struct {
 		name     string
 		columns  backend.DedicatedColumns
@@ -300,7 +300,7 @@ func TestFilterIgnoredDedicatedAttributes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := filterIgnoredDedicatedAttributes(tt.columns)
+			result := filterDedicatedColumns(tt.columns)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

@@ -114,7 +114,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
 	// remove ignored attributes from dedicated columns
-	newMeta.DedicatedColumns = filterIgnoredDedicatedAttributes(meta.DedicatedColumns)
+	newMeta.DedicatedColumns = filterDedicatedColumns(meta.DedicatedColumns)
 
 	// TotalObjects is used here an an estimated count for the bloom filter.
 	// The real number of objects is tracked below.

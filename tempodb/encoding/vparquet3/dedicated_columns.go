@@ -54,8 +54,9 @@ var (
 			LabelK8sContainerName: {},
 		},
 		backend.DedicatedColumnScopeSpan: {
-			LabelHTTPMethod: {},
-			LabelHTTPUrl:    {},
+			LabelHTTPMethod:     {},
+			LabelHTTPUrl:        {},
+			LabelHTTPStatusCode: {},
 		},
 	}
 )
@@ -212,10 +213,10 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 	return mapping
 }
 
-func filterIgnoredDedicatedAttributes(columns backend.DedicatedColumns) backend.DedicatedColumns {
+func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
 	return slices.Collect(func(yield func(c backend.DedicatedColumn) bool) {
 		for _, c := range columns {
-			if isIgnoredDedicatedAttribute(c.Scope, c.Name) {
+			if isIgnoredDedicatedColumn(c.Scope, c.Type, c.Name) {
 				continue
 			}
 			yield(c)
@@ -223,7 +224,14 @@ func filterIgnoredDedicatedAttributes(columns backend.DedicatedColumns) backend.
 	})
 }
 
-func isIgnoredDedicatedAttribute(scope backend.DedicatedColumnScope, attr string) bool {
+func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType, attr string) bool {
+	if _, found := DedicatedResourceColumnPaths[scope]; !found {
+		return true
+	}
+	if _, found := DedicatedResourceColumnPaths[scope][typ]; !found {
+		return true
+	}
+
 	ignored, ok := ignoredAttributes[scope]
 	if !ok {
 		return false
