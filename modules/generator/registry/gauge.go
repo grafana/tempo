@@ -23,9 +23,9 @@ type gauge struct {
 	series    map[uint64]*gaugeSeries
 	// rejectedSeries maps rejected series has to the lastUpdated time.
 	rejectedSeries     map[uint64]int64
-	estimatedSeries    *HLLCounter
-	estimatedSeriesP10 *HLLCounter
-	estimatedSeries1m  *HLLCounter
+	estimatedSeries    *Cardinality
+	estimatedSeriesP10 *Cardinality
+	estimatedSeries1m  *Cardinality
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -63,9 +63,9 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 		metricName:         name,
 		series:             make(map[uint64]*gaugeSeries),
 		rejectedSeries:     make(map[uint64]int64),
-		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
-		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
-		estimatedSeries1m:  NewHLLCounter(staleDuration, time.Minute),
+		estimatedSeries:    NewCardinality(14, staleDuration, removeStaleSeriesInterval),
+		estimatedSeriesP10: NewCardinality(10, staleDuration, removeStaleSeriesInterval),
+		estimatedSeries1m:  NewCardinality(14, staleDuration, time.Minute),
 		onAddSeries:        onAddSeries,
 		onRemoveSeries:     onRemoveSeries,
 		externalLabels:     externalLabels,

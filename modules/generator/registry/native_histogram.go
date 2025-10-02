@@ -30,9 +30,9 @@ type nativeHistogram struct {
 	seriesMtx          sync.Mutex
 	series             map[uint64]*nativeHistogramSeries
 	rejectedSeries     map[uint64]int64 // should it be lastUpdated or firstRejected? otherwise it will never be stale
-	estimatedSeries    *HLLCounter
-	estimatedSeriesP10 *HLLCounter
-	estimatedSeries1m  *HLLCounter
+	estimatedSeries    *Cardinality
+	estimatedSeriesP10 *Cardinality
+	estimatedSeries1m  *Cardinality
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -112,9 +112,9 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		metricName:         name,
 		series:             make(map[uint64]*nativeHistogramSeries),
 		rejectedSeries:     make(map[uint64]int64),
-		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
-		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
-		estimatedSeries1m:  NewHLLCounter(staleDuration, time.Minute),
+		estimatedSeries:    NewCardinality(14, staleDuration, removeStaleSeriesInterval),
+		estimatedSeriesP10: NewCardinality(10, staleDuration, removeStaleSeriesInterval),
+		estimatedSeries1m:  NewCardinality(14, staleDuration, time.Minute),
 		onAddSerie:         onAddSeries,
 		onRemoveSerie:      onRemoveSeries,
 		traceIDLabelName:   traceIDLabelName,

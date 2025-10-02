@@ -28,9 +28,9 @@ type histogram struct {
 	seriesMtx          sync.Mutex
 	series             map[uint64]*histogramSeries
 	rejectedSeries     map[uint64]int64
-	estimatedSeries    *HLLCounter
-	estimatedSeriesP10 *HLLCounter
-	estimatedSeries1m  *HLLCounter
+	estimatedSeries    *Cardinality
+	estimatedSeriesP10 *Cardinality
+	estimatedSeries1m  *Cardinality
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -102,9 +102,9 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 		bucketLabels:       bucketLabels,
 		series:             make(map[uint64]*histogramSeries),
 		rejectedSeries:     make(map[uint64]int64),
-		estimatedSeries:    NewHLLCounter(staleDuration, removeStaleSeriesInterval),
-		estimatedSeriesP10: NewHLLCounterWithPrecision(10, staleDuration, removeStaleSeriesInterval),
-		estimatedSeries1m:  NewHLLCounter(staleDuration, time.Minute),
+		estimatedSeries:    NewCardinality(14, staleDuration, removeStaleSeriesInterval),
+		estimatedSeriesP10: NewCardinality(10, staleDuration, removeStaleSeriesInterval),
+		estimatedSeries1m:  NewCardinality(14, staleDuration, time.Minute),
 		onAddSerie:         onAddSeries,
 		onRemoveSerie:      onRemoveSeries,
 		traceIDLabelName:   traceIDLabelName,
