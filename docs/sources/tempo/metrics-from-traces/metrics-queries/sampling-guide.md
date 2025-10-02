@@ -14,12 +14,9 @@ keywords:
 
 {{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
-TraceQL metrics sampling enables faster query execution by processing a subset of trace data while maintaining acceptable accuracy.
-Sampling delivers 2-4x performance improvements for heavy aggregation queries.
+TraceQL metrics sampling dynamically and automatically chooses how to sample your tracing data to give you the highest quality signal with examining as little data as possible.
+The overall performance improvement depends on the query. Heavy queries, such as `{ } | rate()`, show improvements of 2-4 times.
 
-## Overview
-
-The sampling addresses the challenge of balancing query performance with data accuracy when working with large-scale trace datasets.
 Sampling intelligently selects a representative subset of data for processing, making it particularly valuable for:
 
 - Real-time dashboards requiring fast refresh rates
@@ -27,7 +24,25 @@ Sampling intelligently selects a representative subset of data for processing, m
 - Resource-constrained environments with limited compute capacity
 - Large-scale deployments processing terabytes of trace data daily
 
-Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) to learn more. 
+Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) to learn more.
+
+## Sampling methods
+
+There are three sampling methods available:
+
+- Adaptive sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
+- Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
+- Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
+
+### How adaptive sampling works
+
+Adaptive sampling, `with(sample=true)`, applies probabilistic sampling at the storage layer.
+This sampling method uses an adaptive probabilistic approach that responds to how common spans and traces matching the query are.
+This approach applies probabilistic sampling at the storage layer, for example, only inspecting `xx%` spans, or `xx%` traces, depending on the needs of the query.
+
+When there is a lot of data, it lowers the sampling rate. When matches are rare it keeps the sampling rate higher, possibly never going below 100%. Therefore the performance gain depends on the query.
+
+This behavior can be overridden to focus more on fixed span sampling using `with(span_sample=0.xx)` or fixed trace sampling using `with(trace_sample=0.xx)`.
 
 ## Before you begin
 
@@ -37,27 +52,24 @@ TraceQL metrics sampling requires:
 - `local-blocks` processor configured in metrics-generator ([documentation](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/configure-traceql-metrics/))
 - Grafana 10.4+ or Grafana Cloud for UI integration
 
-## Choose a sampling method
+You can use the TraceQL query editor in the Tempo data source in Grafana or Grafana Cloud to run the sample queries.
+Refer to [TraceQL queries in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/query-editor/) for more information.
 
-Select a sampling method: 
-
-- Adaptive sampling
-- Fixed span sampling
-- Fixed trace sampling
-### Adaptive sampling: `with(sample=true)`
+## Adaptive sampling using `with(sample=true)`
 
 Adaptive sampling automatically determines the optimal sampling strategy based on query characteristics. It switches between span-level and trace-level sampling as needed and adjusts sampling rates dynamically.
+The goal is for `with(sample=true)` to be safe to include in virtually any query, regardless of scale or selectivity.
 
 ```traceql
 { resource.service.name="checkout-service" } | rate() with(sample=true)
 { status=error } | count_over_time() by (resource.service.name) with(sample=true)
 ```
 
-**Best for:** Most queries.  Specifically, all queries returning a single series, and cases where the dynamic sampling rate is important ,such as when the traffic has large variations across time or is not known in advance.
+**Best for:** Most queries. Specifically, all queries returning a single series, and cases where the dynamic sampling rate is important, such as when the traffic has large variations across time or is not known in advance.
 
 **Limitations:** May under-sample rare events depending on the query, if it returns time series with a large difference between the most common and rarest events.
 
-### Fixed span sampling: `with(span_sample=0.xx)`
+## Fixed span sampling using `with(span_sample=0.xx)`
 
 Fixed span sampling selects the specified percentage of spans.
 
@@ -69,7 +81,7 @@ Fixed span sampling selects the specified percentage of spans.
 
 **Limitations:** May miss important events during low-volume periods and not optimal for naturally selective queries.
 
-### Fixed trace sampling: `with(trace_sample=0.xx)`
+## Fixed trace sampling using `with(trace_sample=0.xx)`
 
 Fixed trace sampling selects complete traces for analysis, preserving trace context and relationships between spans within the same request flow.
 
@@ -79,6 +91,4 @@ Fixed trace sampling selects complete traces for analysis, preserving trace cont
 
 **Best for:** Trace-level aggregations, service dependency mapping, and error correlation analysis.
 
-**Limitations:** Not as accurate as span-level sampling when trace sizes vary significantly.  Only use for queries requiring it, such as structural or spanset correlation, and prefer adaptive or span-level sampling for all others.
-
-
+**Limitations:** Not as accurate as span-level sampling when trace sizes vary significantly. Only use for queries requiring it, such as structural or spanset correlation, and prefer adaptive or span-level sampling for all others.
