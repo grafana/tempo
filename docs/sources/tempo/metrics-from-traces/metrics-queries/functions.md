@@ -359,10 +359,6 @@ Automatically determines optimal sampling strategy based on query selectivity an
 { resource.service.name="frontend" } | rate() with(sample=true)
 ```
 
-- **Use case:** Heavy queries with large result sets
-- **Performance:** Potentially 2-4x improvement on queries like `{ } | rate()`
-- **Accuracy:** Maintains high accuracy by adapting sampling rate
-
 #### Fixed span sampling: `with(span_sample=0.xx)`
 
 Samples a fixed percentage of spans for span-level aggregations.
