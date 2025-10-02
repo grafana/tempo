@@ -41,7 +41,8 @@ There are common use cases that are generally applied:
 
 For example, this basic Alloy configuration receives OTLP data either via HTTP or gRPC and passes incoming trace spans into the tail sampling processor.
 Before sending the trace spans to a tracing store like Tempo, the tail sampling processor decides whether or not to sample the trace based on the probabilistic policy.
-The probabilistic policy simply samples a specified percentage of traces observed randomly.
+The probabilistic policy samples a specified percentage of traces observed randomly.
+
 Defaults are used for the tail sampling processor.
 
 ```alloy
@@ -116,6 +117,26 @@ For additional information, refer to the [`otelcol.processor.tail_sampling` comp
 | [status_code](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#status_code-block)             | Samples based upon the status code, either OK, Error, or Unset.                                                | Capturing erroring traces.                                              |
 | [string_attribute](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#string_attribute-block)   | Samples based on string attributes (resource and record) value matches.                                        | Filtering specific services or database queries.                        |
 | [trace_state](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#trace_state-block)             | Samples based on TraceState value matches.                                                                     | Implementing complex sampling strategies that rely on trace context.    |
+
+### Policy order
+
+Policies are evaluated in the order they're defined.
+When you define your policies, make sure you consider the order in which they're evaluated.
+The following points are important to consider:
+
+- Policies are processed sequentially in the order they are defined in the configuration
+- Once any policy condition is satisfied, evaluation stops - remaining policies are not checked
+- This creates a "first-match wins"
+
+Being aware of the policy order ensures that your most important observability signals, such as RED (rate, error, duration) metrics, aren't accidentally filtered out by broader sampling rules.
+
+For example, add `probabilistic` policies last since they act as a catch-all after all other policies have been evaluated.
+If you have three policies in place, `status_code`, `latency`, and `probabilistic`, then the `probabilistic` policy must be the last policy specified so it doesn't prevent the `status_code` and `latency` from being evaluated.
+If the `probabilistic` policy samples at 10% and is evaluated first, then 10% of traces were sampled.
+No further evaluation on the other policies happens because one of the tail sampling processor conditions has been satisfied.
+Traces with errors and high latency are potentially thrown away.
+Specifying the `status_code` policy to check for span errors and the `latency` policy to check for high latency first catches all potential errors and latency issues before probabilistic sampling occurs.
+This ensures that all of the errors and high duration spans are captured.
 
 ## Sampling policies and use cases
 
