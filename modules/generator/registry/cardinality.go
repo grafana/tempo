@@ -104,7 +104,7 @@ func (c *Cardinality) Estimate() uint64 {
 // It advances at least 1 step per call.
 func (c *Cardinality) Advance() {
 	c.mu.Lock()
-	delta := time.Now().Sub(c.lastAdvance)
+	delta := time.Since(c.lastAdvance)
 	steps := 0
 	if delta < c.sketchDuration {
 		steps = 1
