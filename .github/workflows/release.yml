@@ -2,14 +2,13 @@ name: release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 # Needed to login to DockerHub
 permissions: {}
 jobs:
-
   release:
-    if: github.repository == 'grafana/tempo'  # skip in forks
+    if: github.repository == 'grafana/tempo' # skip in forks
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -25,6 +24,25 @@ jobs:
 
       - name: test release
         run: make release-snapshot
+
+      - name: test deb package
+        run: |
+          # podman is simpler to make it work with systemd inside containers
+          podman run -d --name systemd-debian --privileged -v /sys/fs/cgroup:/sys/fs/cgroup:ro jrei/systemd-debian:12
+          podman cp ./dist/tempo_*_linux_amd64.deb systemd-debian:.
+          podman cp ./tools/packaging/verify-deb-install.sh systemd-debian:.
+          podman cp ./tools/packaging/wait-for-ready.sh systemd-debian:.
+          podman exec systemd-debian ./verify-deb-install.sh
+          podman rm -f systemd-debian
+
+      - name: test rpm package
+        run: |
+          podman run -d --name systemd-centos --privileged -v /sys/fs/cgroup:/sys/fs/cgroup:ro jrei/systemd-centos:8
+          podman cp ./dist/tempo_*_linux_amd64.rpm systemd-centos:.
+          podman cp ./tools/packaging/verify-rpm-install.sh systemd-centos:.
+          podman cp ./tools/packaging/wait-for-ready.sh systemd-centos:.
+          podman exec systemd-centos ./verify-rpm-install.sh
+          podman rm -f systemd-centos
 
       - name: release
         env:
