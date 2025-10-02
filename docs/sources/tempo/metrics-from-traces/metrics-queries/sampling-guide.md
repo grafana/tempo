@@ -28,6 +28,8 @@ Adaptive sampling was featured in the October 2025 Tempo community call. Watch t
 
 Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) to learn more.
 
+{{< youtube id="fdmLmJMlUjI" start="720" >}}
+
 ## Sampling methods
 
 There are three sampling methods available:
