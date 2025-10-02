@@ -336,17 +336,16 @@ This example means the attribute `resource.cluster` had too many values.
 { __meta_error="__too_many_values__", resource.cluster=<nil> }
 ```
 
-## Query hints and sampling
+## Adaptive sampling
 
-TraceQL metrics queries support query hints using the `with()` syntax to optimize performance and control sampling behavior.
+TraceQL metrics queries support sampling to optimize performance and control sampling behavior.
+There are three sampling methods available:
 
-TraceQL metrics queries support sampling hints to improve performance by processing a subset of data.
+- Adaptive sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
+- Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
+- Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
 
-Sampling is particularly effective for:
-
-- Aggregation queries over large datasets
-- Dashboard queries requiring fast refresh
-- Exploratory data analysis
+Refer to the [TraceQL metrics sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/sampling-guide/) documentation for more information.
 
 {{< admonition  type="note" >}}
 Sampling hints only work with TraceQL metrics queries (those using functions like `rate()`, `count_over_time()`, etc.).
@@ -361,7 +360,7 @@ Automatically determines optimal sampling strategy based on query selectivity an
 ```
 
 - **Use case:** Heavy queries with large result sets
-- **Performance:** 2-4x improvement on queries like `{ } | rate()`
+- **Performance:** Potentially 2-4x improvement on queries like `{ } | rate()`
 - **Accuracy:** Maintains high accuracy by adapting sampling rate
 
 #### Fixed span sampling: `with(span_sample=0.xx)`
@@ -379,4 +378,3 @@ Samples a fixed percentage of traces for trace-level aggregations.
 ```
 { } | count() by (resource.service.name) with(trace_sample=0.05)
 ```
-
