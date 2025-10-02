@@ -40,6 +40,7 @@ type PartitionReader struct {
 	client *kgo.Client
 	adm    *kadm.Client
 
+	lookbackPeriod  time.Duration
 	commitInterval  time.Duration
 	wg              sync.WaitGroup
 	offsetWatermark atomic.Pointer[kadm.Offset]
@@ -50,18 +51,19 @@ type PartitionReader struct {
 	logger log.Logger
 }
 
-func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
+func NewPartitionReaderForPusher(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, lookbackPeriod time.Duration, consume consumeFn, logger log.Logger, reg prometheus.Registerer) (*PartitionReader, error) {
 	metrics := newPartitionReaderMetrics(partitionID, reg)
-	return newPartitionReader(client, partitionID, cfg, commitInterval, consume, logger, metrics)
+	return newPartitionReader(client, partitionID, cfg, commitInterval, lookbackPeriod, consume, logger, metrics)
 }
 
-func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
+func newPartitionReader(client *kgo.Client, partitionID int32, cfg ingest.KafkaConfig, commitInterval time.Duration, lookbackPeriod time.Duration, consume consumeFn, logger log.Logger, metrics partitionReaderMetrics) (*PartitionReader, error) {
 	r := &PartitionReader{
 		partitionID:    partitionID,
 		consumerGroup:  cfg.ConsumerGroup,
 		topic:          cfg.Topic,
 		client:         client,
 		adm:            kadm.NewClient(client),
+		lookbackPeriod: lookbackPeriod,
 		commitInterval: commitInterval,
 		consume:        consume,
 		metrics:        metrics,
@@ -228,11 +230,25 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 		return kgo.NewOffset(), errors.Wrap(err, "unable to fetch group offsets")
 	}
 	offset, found := offsets.Lookup(r.topic, r.partitionID)
-	if !found {
-		// No committed offset found for this partition, start from the end
-		return kgo.NewOffset().AtStart(), nil
+	if !found { // No committed offset found for this partition
+		if r.lookbackPeriod == 0 {
+			return kgo.NewOffset().AtEnd(), nil
+		}
+		return kgo.NewOffset().AfterMilli(time.Now().Add(-r.lookbackPeriod).UnixMilli()), nil
 	}
-	return kgo.NewOffset().At(offset.At), nil
+	return r.cutoffOffset(ctx, offset)
+}
+
+func (r *PartitionReader) cutoffOffset(ctx context.Context, offset kadm.OffsetResponse) (kgo.Offset, error) {
+	offsets, err := r.adm.ListOffsetsAfterMilli(ctx, time.Now().Add(-r.lookbackPeriod).UnixMilli(), r.topic)
+	if err != nil {
+		return kgo.NewOffset(), err
+	}
+	cutoffOffset, found := offsets.Lookup(r.topic, r.partitionID)
+	if !found || cutoffOffset.Offset < offset.At {
+		return kgo.NewOffset().At(offset.At), nil
+	}
+	return kgo.NewOffset().At(cutoffOffset.Offset), nil
 }
 
 func (r *PartitionReader) commitHighWatermark(ctx context.Context, lastCommittedOffset kadm.Offset) kadm.Offset {
