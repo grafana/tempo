@@ -1,6 +1,6 @@
 ---
-title: TraceQL metrics sampling guide
-menuTitle: Sampling guide
+title: TraceQL metrics sampling
+menuTitle: TraceQL metrics sampling
 description: Optimize TraceQL metrics query performance using sampling hints
 weight: 500
 keywords:
@@ -10,7 +10,7 @@ keywords:
   - query optimization
 ---
 
-# TraceQL metrics sampling guide
+# TraceQL metrics sampling
 
 {{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
