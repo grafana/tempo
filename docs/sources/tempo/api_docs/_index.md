@@ -154,7 +154,7 @@ Parameters:
   Default = `00000000-0000-0000-0000-000000000000`
   Example: `blockStart=12345678-0000-0000-1235-000001240000`
 - `blockEnd = (GUID)`
-  Specifies the blockID finish boundary. If specified, the querier only searches blocks with IDs < blockEnd.
+  Specifies the blockID finish boundary. If specified, the querier only searches blocks with IDs < `blockEnd`.
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
 - `start = (unix epoch seconds)`
