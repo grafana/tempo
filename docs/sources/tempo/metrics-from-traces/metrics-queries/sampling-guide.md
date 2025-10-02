@@ -24,6 +24,8 @@ Sampling intelligently selects a representative subset of data for processing, m
 - Resource-constrained environments with limited compute capacity
 - Large-scale deployments processing terabytes of trace data daily
 
+Adaptive sampling was featured in the October 2025 Tempo community call. Watch the [recording](https://www.youtube.com/watch?v=7H8JX5FUw08) starting at the 12:00 minute mark to learn more.
+
 Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) to learn more.
 
 ## Sampling methods
