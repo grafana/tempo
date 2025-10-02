@@ -13,7 +13,7 @@ query_frontend:
     default_query_end_buffer: 0 # Include all recent data
   metrics:
     default_query_start: 1h
-    default_query_end_buffer: 0 # Include all recent data
+    default_query_end_buffer: -5m # Include all recent data
 distributor:
   receivers:
     jaeger:

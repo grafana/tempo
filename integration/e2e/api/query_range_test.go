@@ -113,7 +113,7 @@ sendLoop:
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
 
-	for _, exeplarsCase := range []struct {
+	for _, exemplarsCase := range []struct {
 		name              string
 		exemplars         int
 		expectedExemplars int
@@ -159,10 +159,10 @@ sendLoop:
 			"{} | count_over_time() by (status)",
 			"{status != error} | count_over_time() by (status)",
 		} {
-			t.Run(fmt.Sprintf("%s: %s", exeplarsCase.name, query), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s: %s", exemplarsCase.name, query), func(t *testing.T) {
 				req := queryRangeRequest{
 					Query:     query,
-					Exemplars: exeplarsCase.exemplars,
+					Exemplars: exemplarsCase.exemplars,
 				}
 				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 				require.NotNil(t, queryRangeRes)
@@ -173,7 +173,7 @@ sendLoop:
 				for _, series := range queryRangeRes.GetSeries() {
 					exemplarCount += len(series.GetExemplars())
 				}
-				assert.LessOrEqual(t, exemplarCount, exeplarsCase.expectedExemplars)
+				assert.LessOrEqual(t, exemplarCount, exemplarsCase.expectedExemplars)
 				assert.GreaterOrEqual(t, exemplarCount, 1)
 			})
 		}
