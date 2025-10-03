@@ -494,8 +494,12 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	}
 
 	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
+	if searchReq.Start != 0 {
+		qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
+	}
+	if searchReq.End != 0 {
+		qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
+	}
 	if searchReq.Step != 0 { // if step != 0 leave the param out and Tempo will calculate it
 		qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
 	}
@@ -733,8 +737,12 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	}
 
 	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	if searchReq.Start != 0 {
+		qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	}
+	if searchReq.End != 0 {
+		qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	}
 	if searchReq.Limit != 0 {
 		qb.addParam(urlParamLimit, strconv.FormatUint(uint64(searchReq.Limit), 10))
 	}
