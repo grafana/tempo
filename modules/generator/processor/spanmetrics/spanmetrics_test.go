@@ -1317,6 +1317,7 @@ func TestDropInstanceLabelUnset(t *testing.T) {
 		assert.Equal(t, expected, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(spanMetricsLabels2, le)))
 	}
 }
+
 func TestSpanMetricsDimensionMapping(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
