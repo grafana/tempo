@@ -39,7 +39,17 @@ type QueryRangeSharderConfig struct {
 	ConcurrentRequests    int           `yaml:"concurrent_jobs,omitempty"`
 	TargetBytesPerRequest int           `yaml:"target_bytes_per_job,omitempty"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
-	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
+	// QueryBackendAfter determines when to query backend storage vs ingesters only.
+	QueryBackendAfter time.Duration `yaml:"query_backend_after,omitempty"`
+
+	// DefaultQueryStart sets the default lookback when no start time is provided.
+	// If not set (0), defaults to QueryBackendAfter, ensuring ingester-only behavior.
+	// Set explicitly if you want different behavior (e.g., deeper historical search by default).
+	DefaultQueryStart time.Duration `yaml:"default_query_start,omitempty"`
+
+	// DefaultQueryEndBuffer prevents querying incomplete recent data.
+	// If not set (0), defaults to 30 seconds.
+	DefaultQueryEndBuffer time.Duration `yaml:"default_query_end_buffer,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
 	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
 	MaxResponseSeries     int           `yaml:"max_response_series,omitempty"`

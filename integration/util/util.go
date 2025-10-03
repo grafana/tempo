@@ -576,7 +576,7 @@ func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, sp
 
 	traceIDLow := rand.Int63()
 	traceIDHigh := rand.Int63()
-	for i := 0; i < n; i++ {
+	for range n {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    traceIDLow,
 			TraceIdHigh:   traceIDHigh,
@@ -585,7 +585,7 @@ func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, sp
 			OperationName: name,
 			References:    nil,
 			Flags:         0,
-			StartTime:     time.Now().UnixNano() / 1000, // microsecconds
+			StartTime:     time.Now().Add(-3*time.Second).UnixNano() / 1000, // microsecconds
 			Duration:      1,
 			Tags: []*thrift.Tag{
 				{

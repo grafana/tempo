@@ -121,10 +121,26 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
 	}
 
+	if cfg.Search.Sharder.DefaultQueryStart > 0 && cfg.Search.Sharder.DefaultQueryEndBuffer > 0 {
+		if cfg.Search.Sharder.DefaultQueryStart <= cfg.Search.Sharder.DefaultQueryEndBuffer {
+			return nil, fmt.Errorf("search default query start (%v) must be greater than default query end buffer (%v)",
+				cfg.Search.Sharder.DefaultQueryStart, cfg.Search.Sharder.DefaultQueryEndBuffer)
+		}
+	}
+
+	if cfg.Metrics.Sharder.DefaultQueryStart > 0 && cfg.Metrics.Sharder.DefaultQueryEndBuffer > 0 {
+		if cfg.Metrics.Sharder.DefaultQueryStart <= cfg.Metrics.Sharder.DefaultQueryEndBuffer {
+			return nil, fmt.Errorf("metrics default query start (%v) must be greater than default query end buffer (%v)",
+				cfg.Metrics.Sharder.DefaultQueryStart, cfg.Metrics.Sharder.DefaultQueryEndBuffer)
+		}
+	}
+
 	// Propagate RF1After to search and traceByID sharders
 	cfg.Search.Sharder.RF1After = cfg.RF1After
 	cfg.TraceByID.RF1After = cfg.RF1After
 
+	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.DefaultQueryStart, cfg.Search.Sharder.DefaultQueryEndBuffer, false) // jpe - these should not be hardcoded but based on config: max live traces + flush cycle for the endbuffer and QueryBackendAfter for the defStart?
+	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(cfg.Metrics.Sharder.DefaultQueryStart, cfg.Metrics.Sharder.DefaultQueryEndBuffer, true)  // metrics queries work in nanoseconds
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
@@ -147,6 +163,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareSeconds,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
@@ -159,6 +176,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareSeconds,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
@@ -170,6 +188,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareSeconds,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
@@ -181,6 +200,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagValuesV2Pipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareSeconds,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
@@ -193,6 +213,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	metricsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			adjustEndWareNanos,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantUnsupportedMiddleware(cfg, logger),
@@ -204,6 +225,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
@@ -216,6 +238,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryInstantPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
+			adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),

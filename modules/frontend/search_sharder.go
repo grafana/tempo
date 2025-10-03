@@ -33,8 +33,16 @@ type SearchSharderConfig struct {
 	DefaultLimit          uint32        `yaml:"default_result_limit"`
 	MaxLimit              uint32        `yaml:"max_result_limit"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
-	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
-	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
+	// QueryBackendAfter determines when to query backend storage vs ingesters only.
+	QueryBackendAfter   time.Duration `yaml:"query_backend_after,omitempty"`
+	QueryIngestersUntil time.Duration `yaml:"query_ingesters_until,omitempty"`
+	// DefaultQueryStart sets the default lookback when no start time is provided.
+	// If not set (0), defaults to QueryBackendAfter, ensuring ingester-only behavior.
+	// Set explicitly if you want different behavior (e.g., deeper historical search by default).
+	DefaultQueryStart time.Duration `yaml:"default_query_start,omitempty"`
+	// DefaultQueryEndBuffer prevents querying incomplete recent data.
+	// If not set (0), defaults to 30 seconds.
+	DefaultQueryEndBuffer time.Duration `yaml:"default_query_end_buffer,omitempty"`
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
 	MostRecentShards      int           `yaml:"most_recent_shards,omitempty"`
 	MaxSpansPerSpanSet    uint32        `yaml:"max_spans_per_span_set,omitempty"`

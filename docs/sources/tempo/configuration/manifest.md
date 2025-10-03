@@ -392,6 +392,8 @@ query_frontend:
         max_duration: 168h0m0s
         query_backend_after: 15m0s
         query_ingesters_until: 30m0s
+        default_query_start: 15m0s
+        default_query_end_buffer: 30s
         ingester_shards: 3
         most_recent_shards: 200
         max_spans_per_span_set: 100
@@ -402,6 +404,8 @@ query_frontend:
         target_bytes_per_job: 104857600
         max_duration: 3h0m0s
         query_backend_after: 30m0s
+        default_query_start: 30m0s
+        default_query_end_buffer: 30s
         interval: 5m0s
         max_exemplars: 100
         max_intervals: 10000
