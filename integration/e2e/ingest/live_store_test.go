@@ -142,6 +142,88 @@ func TestSmokeLiveStoreAPI(t *testing.T) {
 	})
 }
 
+func TestLiveStoreLookback(t *testing.T) {
+	for _, testCase := range []struct {
+		name              string
+		argument          string // if test becomes unstable, increase sleeps and argument value
+		startNewLiveStore bool
+		expectedTraces    float64
+	}{
+		{
+			name:              "restart_2s",
+			argument:          "-live-store.complete-block-timeout=1s", // lookback period twice greater
+			startNewLiveStore: false,
+			expectedTraces:    2, // fresh and after start
+		},
+		{
+			name:              "restart_default",
+			argument:          "", // default is 1h
+			startNewLiveStore: false,
+			expectedTraces:    3, // old, fresh and after start, but not already committed
+		},
+		{
+			name:              "start_2s",
+			argument:          "-live-store.complete-block-timeout=1s", // lookback period twice greater
+			startNewLiveStore: true,
+			expectedTraces:    2, // fresh and after start
+		},
+		{
+			name:              "start_default",
+			argument:          "", // default is 1h
+			startNewLiveStore: true,
+			expectedTraces:    4, // all traces
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			s, err := e2e.NewScenario("tempo_e2e_TestLiveStoreLookback_" + testCase.name)
+			t.Parallel()
+			require.NoError(t, err)
+			defer s.Close()
+
+			// copy config template to shared directory and expand template variables
+			require.NoError(t, util.CopyFileToSharedDir(s, "config-live-store.yaml", "config.yaml"))
+
+			kafka := e2edb.NewKafka()
+			require.NoError(t, s.StartAndWaitReady(kafka))
+
+			liveStore := util.NewTempoLiveStore(0, testCase.argument)
+			require.NoError(t, s.StartAndWaitReady(liveStore))
+			waitUntilJoinedToPartitionRing(t, liveStore, 1)
+
+			distributor := util.NewTempoDistributor()
+			require.NoError(t, s.StartAndWaitReady(distributor))
+
+			// Get port for the Jaeger gRPC receiver endpoint
+			c, err := util.NewJaegerToOTLPExporter(distributor.Endpoint(4317))
+			require.NoError(t, err)
+			require.NotNil(t, c)
+
+			info := tempoUtil.NewTraceInfo(time.Now(), "")
+			require.NoError(t, info.EmitAllBatches(c)) // committed by the first live store before shutdown
+
+			expected, err := info.ConstructTraceFromEpoch()
+			require.NoError(t, err)
+
+			// should process the trace
+			require.NoError(t, distributor.WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
+			require.NoError(t, liveStore.WaitSumMetrics(e2e.Equals(1), "tempo_live_store_traces_created_total"))
+
+			require.NoError(t, s.Stop(liveStore))
+			require.NoError(t, tempoUtil.NewTraceInfo(time.Now(), "").EmitAllBatches(c)) // old trace
+			time.Sleep(3 * time.Second)
+			require.NoError(t, tempoUtil.NewTraceInfo(time.Now(), "").EmitAllBatches(c)) // fresh trace
+
+			if testCase.startNewLiveStore { // new live store without committed offset
+				liveStore = util.NewNamedTempoLiveStore("live-store-zone-b", 0, testCase.argument)
+			}
+			require.NoError(t, s.StartAndWaitReady(liveStore))
+
+			require.NoError(t, tempoUtil.NewTraceInfo(time.Now(), "").EmitAllBatches(c)) // after start
+			require.NoError(t, liveStore.WaitSumMetrics(e2e.Equals(testCase.expectedTraces), "tempo_live_store_traces_created_total"))
+		})
+	}
+}
+
 func waitUntilJoinedToPartitionRing(t *testing.T, liveStore *e2e.HTTPService, numPartitions float64) {
 	matchers := []*labels.Matcher{
 		{Type: labels.MatchEqual, Name: "state", Value: "Active"},

@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
+
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -28,6 +28,7 @@ type metricsQueryCmd struct {
 	UseGRPC    bool   `help:"stream search results over GRPC"`
 	Instant    bool   `help:"perform an instant query instead of a range query"`
 	PathPrefix string `help:"string to prefix all http paths with"`
+	Secure     bool   `help:"use https or grpc with TLS"`
 }
 
 func (cmd *metricsQueryCmd) Run(_ *globalOptions) error {
@@ -77,7 +78,12 @@ func (cmd *metricsQueryCmd) queryRangeGRPC(req *tempopb.QueryRangeRequest) error
 		return err
 	}
 
-	clientConn, err := grpc.NewClient(cmd.HostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds, err := grpcTransportCredentials(cmd.Secure)
+	if err != nil {
+		return err
+	}
+
+	clientConn, err := grpc.NewClient(cmd.HostPort, creds)
 	if err != nil {
 		return err
 	}
@@ -108,7 +114,7 @@ func (cmd *metricsQueryCmd) queryRangeGRPC(req *tempopb.QueryRangeRequest) error
 
 // nolint: goconst // goconst wants us to make http:// a const
 func (cmd *metricsQueryCmd) queryRangeHTTP(req *tempopb.QueryRangeRequest) error {
-	httpReq, err := http.NewRequest("GET", "http://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathMetricsQueryRange), nil)
+	httpReq, err := http.NewRequest("GET", httpScheme(cmd.Secure)+"://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathMetricsQueryRange), nil)
 	if err != nil {
 		return err
 	}
@@ -155,7 +161,12 @@ func (cmd *metricsQueryCmd) queryInstantGRPC(req *tempopb.QueryInstantRequest) e
 		return err
 	}
 
-	clientConn, err := grpc.NewClient(cmd.HostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds, err := grpcTransportCredentials(cmd.Secure)
+	if err != nil {
+		return err
+	}
+
+	clientConn, err := grpc.NewClient(cmd.HostPort, creds)
 	if err != nil {
 		return err
 	}
@@ -186,7 +197,7 @@ func (cmd *metricsQueryCmd) queryInstantGRPC(req *tempopb.QueryInstantRequest) e
 
 // nolint: goconst // goconst wants us to make http:// a const
 func (cmd *metricsQueryCmd) queryInstantHTTP(req *tempopb.QueryInstantRequest) error {
-	httpReq, err := http.NewRequest("GET", "http://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathMetricsQueryInstant), nil)
+	httpReq, err := http.NewRequest("GET", httpScheme(cmd.Secure)+"://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathMetricsQueryInstant), nil)
 	if err != nil {
 		return err
 	}

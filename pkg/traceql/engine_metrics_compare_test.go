@@ -37,44 +37,44 @@ func TestCompare(t *testing.T) {
 	ss, _, err := runTraceQLMetric(req, spans)
 	require.NoError(t, err)
 
-	expected := SeriesSet{
+	expected := []TimeSeries{
 		// Baseline values
-		`{__meta_type="baseline", "span.service"="baseline1"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaseline,
 				Label{Name: "span.service", Value: NewStaticString("baseline1")},
 			},
 			Values: []float64{2, 0},
 		},
-		`{__meta_type="baseline", "span.service"="baseline2"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaseline,
 				Label{Name: "span.service", Value: NewStaticString("baseline2")},
 			},
 			Values: []float64{1, 0},
 		},
-		`{__meta_type="baseline", "span.environment"="prod"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaseline,
 				Label{Name: "span.environment", Value: NewStaticString("prod")},
 			},
 			Values: []float64{2, 0},
 		},
-		`{__meta_type="baseline", "span.environment"="dev"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaseline,
 				Label{Name: "span.environment", Value: NewStaticString("dev")},
 			},
 			Values: []float64{1, 0},
 		},
-		`{__meta_type="baseline_total", "span.service"="<nil>"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaselineTotal,
 				Label{Name: "span.service", Value: NewStaticString("nil")},
 			},
 			Values: []float64{3, 0},
 		},
-		`{__meta_type="baseline_total", "span.environment"="<nil>"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaselineTotal,
 				Label{Name: "span.environment", Value: NewStaticString("nil")},
@@ -83,35 +83,35 @@ func TestCompare(t *testing.T) {
 		},
 
 		// Selection values
-		`{__meta_type="selection", "span.service"="selected"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelection,
 				Label{Name: "span.service", Value: NewStaticString("selected")},
 			},
 			Values: []float64{3, 1},
 		},
-		`{__meta_type="selection", "span.environment"="prod"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelection,
 				Label{Name: "span.environment", Value: NewStaticString("prod")},
 			},
 			Values: []float64{1, 1},
 		},
-		`{__meta_type="selection", "span.environment"="dev"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelection,
 				Label{Name: "span.environment", Value: NewStaticString("dev")},
 			},
 			Values: []float64{2, 0},
 		},
-		`{__meta_type="selection_total", "span.service"="<nil>"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelectionTotal,
 				Label{Name: "span.service", Value: NewStaticString("nil")},
 			},
 			Values: []float64{3, 1},
 		},
-		`{__meta_type="selection_total", "span.environment"="<nil>"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelectionTotal,
 				Label{Name: "span.environment", Value: NewStaticString("nil")},
@@ -163,44 +163,44 @@ func TestCompareScalesResults(t *testing.T) {
 	// Double all counts
 	ss := a.result(2.0)
 
-	expected := SeriesSet{
+	expected := []TimeSeries{
 		// Baseline values
-		`{__meta_type="baseline", "span.service"="baseline1"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaseline,
 				Label{Name: "span.service", Value: NewStaticString("baseline1")},
 			},
 			Values: []float64{4, 0},
 		},
-		`{__meta_type="baseline", "span.service"="baseline2"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaseline,
 				Label{Name: "span.service", Value: NewStaticString("baseline2")},
 			},
 			Values: []float64{2, 0},
 		},
-		`{__meta_type="baseline", "span.environment"="prod"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaseline,
 				Label{Name: "span.environment", Value: NewStaticString("prod")},
 			},
 			Values: []float64{4, 0},
 		},
-		`{__meta_type="baseline", "span.environment"="dev"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaseline,
 				Label{Name: "span.environment", Value: NewStaticString("dev")},
 			},
 			Values: []float64{2, 0},
 		},
-		`{__meta_type="baseline_total", "span.service"="<nil>"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaselineTotal,
 				Label{Name: "span.service"},
 			},
 			Values: []float64{6, 0},
 		},
-		`{__meta_type="baseline_total", "span.environment"="<nil>"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeBaselineTotal,
 				Label{Name: "span.environment"},
@@ -209,35 +209,35 @@ func TestCompareScalesResults(t *testing.T) {
 		},
 
 		// Selection values
-		`{__meta_type="selection", "span.service"="selected"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelection,
 				Label{Name: "span.service", Value: NewStaticString("selected")},
 			},
 			Values: []float64{6, 2},
 		},
-		`{__meta_type="selection", "span.environment"="prod"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelection,
 				Label{Name: "span.environment", Value: NewStaticString("prod")},
 			},
 			Values: []float64{2, 2},
 		},
-		`{__meta_type="selection", "span.environment"="dev"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelection,
 				Label{Name: "span.environment", Value: NewStaticString("dev")},
 			},
 			Values: []float64{4, 0},
 		},
-		`{__meta_type="selection_total", "span.service"="<nil>"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelectionTotal,
 				Label{Name: "span.service"},
 			},
 			Values: []float64{6, 2},
 		},
-		`{__meta_type="selection_total", "span.environment"="<nil>"}`: {
+		{
 			Labels: Labels{
 				internalLabelTypeSelectionTotal,
 				Label{Name: "span.environment"},

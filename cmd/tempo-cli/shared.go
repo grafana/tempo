@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"sort"
@@ -11,6 +12,10 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -134,4 +139,26 @@ func printAsJSON(pb proto.Message) error {
 
 	fmt.Println(string(traceJSON))
 	return nil
+}
+
+func httpScheme(secure bool) string {
+	if secure {
+		return "https"
+	}
+	return "http"
+}
+
+func grpcTransportCredentials(secure bool) (opt grpc.DialOption, err error) {
+	var creds credentials.TransportCredentials
+	if secure {
+		certPool, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, err
+		}
+		creds = credentials.NewClientTLSFromCert(certPool, "")
+	} else {
+		creds = insecure.NewCredentials()
+	}
+
+	return grpc.WithTransportCredentials(creds), nil
 }

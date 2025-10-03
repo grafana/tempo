@@ -11,6 +11,7 @@ keywords:
 title: Introduction
 weight: 120
 ---
+
 <!-- Introduction pages are mounted in Grafana Drilldown, Cloud Traces, and in GET. Refer to params.yaml in the website repo. -->
 
 # Introduction
@@ -23,12 +24,25 @@ A span is a unit of work within a trace that has a start time relative to the be
 It usually has a reference to a parent span, unless it's the first, or root, span in a trace.
 It frequently includes key/value attributes that are relevant to the span itself, for example the HTTP method used in the request, as well as other metadata such as the service name, sub-span events, or links to other spans.
 
+{{< docs/box >}}
+
+{{< docs/icon-heading heading="## Learn about tracing through a strategy game" >}}
+
+This blog post walks you through Game of Traces, a grand strategy game you can play to learn the key concepts of OpenTelemetry tracing — and, of course, heroically defend a few kingdoms along the way.
+
+[Read more about the Game of Traces](https://grafana.com/blog/2025/08/11/learn-opentelemetry-tracing-through-a-grand-strategy-game-introducing-game-of-traces/)
+
+{{< figure src="https://a-us.storyblok.com/f/1022730/350x350/55b219645d/game-of-traces-logo_2.png" alt="A screenshot of the Game of Traces logo" max-width="none" >}}
+
+{{< /docs/box >}}
+
 By definition, traces are never complete.
 You can always push another batch of spans, even if days have passed since the last one.
 When receiving a query requesting a stored trace, tracing backends like Tempo find all the spans for that specific trace and collate them into a returned result.
 Retrieving trace data can have issues if traces are extremely large.
 
 <!-- Explanation of traces -->
+
 {{< youtube id="ZirbR0ZJIOs" >}}
 
 ## Example of traces
@@ -76,12 +90,13 @@ It can show where additional requests initiate and end, and how your system resp
 This data helps you locate problem areas, often in places you never would have anticipated or found without this ability to trace the request flow.
 
 <!-- What traces provide that logs and metrics don't -->
+
 {{< youtube id="0tlp7QCPu0k" >}}
 
 ## Learn more
 
 For more information about traces, refer to:
 
-* [Traces and telemetry](./telemetry)
-* [User journeys: How tracing can help you](../solutions-with-traces)
-* [Glossary](./glossary)
+- [Traces and telemetry](./telemetry)
+- [User journeys: How tracing can help you](../solutions-with-traces)
+- [Glossary](./glossary)

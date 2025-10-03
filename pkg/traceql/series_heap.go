@@ -2,7 +2,7 @@ package traceql
 
 // seriesValue keeps a value from a time series with its key
 type seriesValue struct {
-	key   string
+	key   SeriesMapKey
 	value float64
 }
 

@@ -1360,14 +1360,14 @@ live_store:
     commit_interval: 5s
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
-    complete_block_concurrency: 4
+    complete_block_concurrency: 2
     flush_check_period: 10s
     flush_op_timeout: 5m0s
     max_trace_live: 30s
     max_trace_idle: 5s
     max_live_traces_bytes: 250000000
     max_block_duration: 30m0s
-    max_block_bytes: 524288000
+    max_block_bytes: 104857600
     block_config:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400

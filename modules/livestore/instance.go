@@ -119,7 +119,7 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		enc:                enc,
 		walBlocks:          map[uuid.UUID]common.WALBlock{},
 		completeBlocks:     map[uuid.UUID]*ingester.LocalBlock{},
-		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceLive, cfg.MaxTraceIdle),
+		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceLive, cfg.MaxTraceIdle, instanceID),
 		traceSizes:         tracesizes.New(),
 		overrides:          overrides,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -210,6 +210,9 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 			level.Error(i.logger).Log("msg", "failed to unmarshal trace", "err", err)
 			continue
 		}
+
+		// Reuse the byte slice now that we've unmarshalled it
+		tempopb.ReuseByteSlices([][]byte{traceBytes.Slice})
 
 		i.liveTracesMtx.Lock()
 		// Push each batch in the trace to live traces
