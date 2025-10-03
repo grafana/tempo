@@ -16,8 +16,7 @@ import (
 )
 
 func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore) {
-	instance, ls, _, cncl := defaultInstanceAndTmpDir(t)
-	t.Cleanup(cncl)
+	instance, ls := defaultInstance(t)
 	limits, err := overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
 			Global: overrides.GlobalOverrides{
@@ -74,7 +73,6 @@ func TestInstanceLimits(t *testing.T) {
 		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
 
 		id := test.ValidTraceID(nil)
-
 		// First push fits
 		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
 		// Second push with same id will exceed combined size (> maxBytes)
@@ -90,6 +88,7 @@ func TestInstanceLimits(t *testing.T) {
 	// max traces - too many: only first 4 unique traces are accepted
 	t.Run("max traces - too many", func(t *testing.T) {
 		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
+
 		for range 10 {
 			id := test.ValidTraceID(nil)
 			ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(1*time.Second)) // Time out after 1s, push should be immediate
@@ -104,7 +103,7 @@ func TestInstanceLimits(t *testing.T) {
 }
 
 func TestInstanceNoLimits(t *testing.T) {
-	instance, ls := instanceWithPushLimits(t, 0, 0)
+	instance, ls := instanceWithPushLimits(t, 0, 0) // no limits by default
 
 	for range 100 {
 		id := test.ValidTraceID(nil)
@@ -119,7 +118,7 @@ func TestInstanceNoLimits(t *testing.T) {
 }
 
 func TestInstanceBackpressure(t *testing.T) {
-	instance, ls, _, _ := defaultInstanceAndTmpDir(t)
+	instance, ls := defaultInstance(t)
 
 	id1 := test.ValidTraceID(nil)
 	pushTrace(t.Context(), t, instance, test.MakeTrace(1, id1), id1)
