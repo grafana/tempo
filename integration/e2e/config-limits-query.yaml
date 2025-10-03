@@ -7,7 +7,7 @@ query_frontend:
   search:
     query_backend_after: 0 # Always query backend
     query_ingesters_until: 30m
-    default_query_start: 1h
+    default_query_start: 5m
     default_query_end_buffer: 0 # Include all recent data
 
 distributor:
