@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sync"
+	"time"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
@@ -100,14 +101,14 @@ func (m *MockHTTPClient) QueryTrace(id string) (*tempopb.Trace, error) {
 }
 
 //nolint:all
-func (m *MockHTTPClient) QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
+func (m *MockHTTPClient) QueryTraceWithRange(_ context.Context, _ string, _ int64, _ int64) (*tempopb.Trace, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.requestsCount++
-	return m.traceResp, m.err
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.traceResp, nil
 }
 
 func (m *MockHTTPClient) GetRequestsCount() int {
@@ -182,7 +183,7 @@ func (m *MockHTTPClient) SearchTraceQLWithRange(query string, start int64, end i
 }
 
 //nolint:all
-func (m *MockHTTPClient) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
+func (m *MockHTTPClient) SearchWithRange(_ context.Context, _ string, _ int64, _ int64) (*tempopb.SearchResponse, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -216,4 +217,17 @@ func (m *MockHTTPClient) GetMetricsCount() int {
 	m.m.Lock()
 	defer m.m.Unlock()
 	return m.metricsCount
+}
+
+type MockClock struct {
+	now    time.Time
+	sleeps []time.Duration
+}
+
+func (m *MockClock) Now() time.Time {
+	return m.now
+}
+
+func (m *MockClock) Sleep(d time.Duration) {
+	m.sleeps = append(m.sleeps, d)
 }

@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,9 +47,9 @@ type TempoHTTPClient interface {
 	SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error)
 	SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error)
 	Search(tags string) (*tempopb.SearchResponse, error)
-	SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error)
+	SearchWithRange(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error)
 	QueryTrace(id string) (*tempopb.Trace, error)
-	QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error)
+	QueryTraceWithRange(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error)
 	SearchTraceQL(query string) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error)
@@ -113,7 +114,11 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 // getFor sends a GET request and attempts to unmarshal the response.
 func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
+	return c.getForWithContext(context.Background(), url, m)
+}
+
+func (c *Client) getForWithContext(ctx context.Context, url string, m proto.Message) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -264,9 +269,9 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 
 // SearchWithRange calls the /api/search endpoint. tags is expected to be in logfmt format and start/end are unix
 // epoch timestamps in seconds.
-func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
+func (c *Client) SearchWithRange(ctx context.Context, tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, start, end, 0, 0, c.queryParams), m)
+	_, err := c.getForWithContext(ctx, c.buildSearchQueryURL("tags", tags, start, end, 0, 0, c.queryParams), m)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +303,7 @@ func (c *Client) QueryTraceV2(id string) (*tempopb.TraceByIDResponse, error) {
 	return m, nil
 }
 
-func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error) {
+func (c *Client) QueryTraceWithRange(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
 	if start > end {
 		return nil, errors.New("start time can not be greater than end time")
@@ -308,7 +313,7 @@ func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempop
 		"end":   strconv.FormatInt(end, 10),
 	})
 	url := c.getURLWithQueryParams(QueryTraceEndpoint+"/"+id, queryParams)
-	resp, err := c.getFor(url, m)
+	resp, err := c.getForWithContext(ctx, url, m)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, util.ErrTraceNotFound
