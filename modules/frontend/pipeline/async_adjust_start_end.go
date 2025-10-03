@@ -51,13 +51,7 @@ func (c adjustStartEndWare) RoundTrip(req Request) (Responses[combiner.PipelineR
 		query      = request.URL.Query()
 		finalStart string
 		finalEnd   string
-		// s          = query.Get("start")
-		// e          = query.Get("end")
 	)
-
-	// if s == "" && e == "" {
-	// 	return c.next.RoundTrip(req.CloneFromHTTPRequest(request))
-	// }
 
 	start, end, _, err := api.ClampDateRangeReq(request, c.defStart, c.endBuffer)
 	if err != nil {
