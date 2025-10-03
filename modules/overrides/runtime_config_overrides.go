@@ -573,6 +573,14 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTarg
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions
 }
 
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsDropInstanceLabel(userID string) (bool, bool) {
+	dropInstanceLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.DropInstanceLabel
+	if dropInstanceLabel != nil {
+		return *dropInstanceLabel, true
+	}
+	return false, false
+}
+
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.HostInfo.HostIdentifiers
 }

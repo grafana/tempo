@@ -32,6 +32,10 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					FilterPolicies:               filterPoliciesPtr(overrides.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)),
 					HistogramBuckets:             floatArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID)),
 					TargetInfoExcludedDimensions: strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)),
+					DropInstanceLabel: func() *bool {
+						val, _ := overrides.MetricsGeneratorProcessorSpanMetricsDropInstanceLabel(userID)
+						return boolPtr(val)
+					}(),
 				},
 				HostInfo: client.LimitsMetricGeneratorProcessorHostInfo{
 					HostIdentifiers: strArrPtr(overrides.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)),

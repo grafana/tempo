@@ -58,6 +58,9 @@ type Config struct {
 
 	// Allow user to specify labels they want to drop from target_info
 	TargetInfoExcludedDimensions []string `yaml:"target_info_excluded_dimensions"`
+
+	// Allow user to drop instance label
+	DropInstanceLabel bool `yaml:"drop_instance_label"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

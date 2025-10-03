@@ -141,6 +141,11 @@ func TestOverrides(t *testing.T) {
 			patch := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					DisableCollection: boolPtr(true),
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
+							DropInstanceLabel: boolPtr(true),
+						},
+					},
 				},
 			}
 
@@ -154,6 +159,9 @@ func TestOverrides(t *testing.T) {
 			processors, ok = limits.GetMetricsGenerator().GetProcessors()
 			assert.True(t, ok)
 			assert.ElementsMatch(t, keys(processors.GetMap()), []string{"span-metrics"})
+			dropInstanceLabel, dropInstanceLabelIsSet := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDropInstanceLabel()
+			assert.True(t, dropInstanceLabel)
+			assert.True(t, dropInstanceLabelIsSet)
 
 			// Delete overrides
 			if !tc.skipVersioning && tc.name != "gcs" {

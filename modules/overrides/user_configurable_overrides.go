@@ -322,6 +322,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsT
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDropInstanceLabel(userID string) (bool, bool) {
+	if dropInstanceLabel, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDropInstanceLabel(); ok {
+		return dropInstanceLabel, true
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsDropInstanceLabel(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {
 	if hostIdentifiers, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetHostInfo().GetHostIdentifiers(); ok {
 		return hostIdentifiers
