@@ -3,6 +3,8 @@
 * [CHANGE] **BREAKING CHANGE** Deprecating vParquet2 block format [#5688](https://github.com/grafana/tempo/pull/5688) (@ie-pham)
 * [ENHANCEMENT] On startup, first record for live store to consume is not older than two complete block timeouts [#5693](https://github.com/grafana/tempo/pull/5693) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add secure connection support to tempo-cli [#5692](https://github.com/grafana/tempo/pull/5692) (@TheoBrigitte)
+* [FEATURE] New block encoding vParquet5-preview3 replacing well-known attributes with dedicated column defaults. This format is in development and breaking changes are expected before final release. [#5696](https://github.com/grafana/tempo/pull/5696) (@stoewer)
+
 
 # v2.9.0-rc.0
 

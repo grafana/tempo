@@ -1,41 +1,65 @@
 package vparquet3
 
 import (
+	"slices"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// Column paths for spare dedicated attribute columns
-var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.DedicatedColumnType][]string{
-	backend.DedicatedColumnScopeResource: {
-		backend.DedicatedColumnTypeString: {
-			"rs.list.element.Resource.DedicatedAttributes.String01",
-			"rs.list.element.Resource.DedicatedAttributes.String02",
-			"rs.list.element.Resource.DedicatedAttributes.String03",
-			"rs.list.element.Resource.DedicatedAttributes.String04",
-			"rs.list.element.Resource.DedicatedAttributes.String05",
-			"rs.list.element.Resource.DedicatedAttributes.String06",
-			"rs.list.element.Resource.DedicatedAttributes.String07",
-			"rs.list.element.Resource.DedicatedAttributes.String08",
-			"rs.list.element.Resource.DedicatedAttributes.String09",
-			"rs.list.element.Resource.DedicatedAttributes.String10",
+var (
+	// DedicatedResourceColumnPaths defines paths to spare dedicated attribute columns
+	DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.DedicatedColumnType][]string{
+		backend.DedicatedColumnScopeResource: {
+			backend.DedicatedColumnTypeString: {
+				"rs.list.element.Resource.DedicatedAttributes.String01",
+				"rs.list.element.Resource.DedicatedAttributes.String02",
+				"rs.list.element.Resource.DedicatedAttributes.String03",
+				"rs.list.element.Resource.DedicatedAttributes.String04",
+				"rs.list.element.Resource.DedicatedAttributes.String05",
+				"rs.list.element.Resource.DedicatedAttributes.String06",
+				"rs.list.element.Resource.DedicatedAttributes.String07",
+				"rs.list.element.Resource.DedicatedAttributes.String08",
+				"rs.list.element.Resource.DedicatedAttributes.String09",
+				"rs.list.element.Resource.DedicatedAttributes.String10",
+			},
 		},
-	},
-	backend.DedicatedColumnScopeSpan: {
-		backend.DedicatedColumnTypeString: {
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String03",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String04",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String05",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String06",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String07",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
+		backend.DedicatedColumnScopeSpan: {
+			backend.DedicatedColumnTypeString: {
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String03",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String04",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String05",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String06",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String07",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
+			},
 		},
-	},
-}
+	}
+
+	// ignoredAttributes contains well-known attributes that already have their dedicated column and should be ignored
+	ignoredAttributes = map[backend.DedicatedColumnScope]map[string]struct{}{
+		backend.DedicatedColumnScopeResource: {
+			LabelServiceName:      {},
+			LabelCluster:          {},
+			LabelNamespace:        {},
+			LabelPod:              {},
+			LabelContainer:        {},
+			LabelK8sClusterName:   {},
+			LabelK8sNamespaceName: {},
+			LabelK8sPodName:       {},
+			LabelK8sContainerName: {},
+		},
+		backend.DedicatedColumnScopeSpan: {
+			LabelHTTPMethod:     {},
+			LabelHTTPUrl:        {},
+			LabelHTTPStatusCode: {},
+		},
+	}
+)
 
 type dedicatedColumn struct {
 	Type        backend.DedicatedColumnType
@@ -187,4 +211,31 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 	}
 
 	return mapping
+}
+
+func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
+	return slices.Collect(func(yield func(c backend.DedicatedColumn) bool) {
+		for _, c := range columns {
+			if isIgnoredDedicatedColumn(c.Scope, c.Type, c.Name) {
+				continue
+			}
+			yield(c)
+		}
+	})
+}
+
+func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType, attr string) bool {
+	if _, found := DedicatedResourceColumnPaths[scope]; !found {
+		return true
+	}
+	if _, found := DedicatedResourceColumnPaths[scope][typ]; !found {
+		return true
+	}
+
+	ignored, ok := ignoredAttributes[scope]
+	if !ok {
+		return false
+	}
+	_, ok = ignored[attr]
+	return ok
 }

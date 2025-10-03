@@ -191,7 +191,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 	// span
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
 		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
-		err := scanColumns(FieldSpanAttrKey, traceqlSpanLabelMappings, columnMapping, cb, traceql.AttributeScopeSpan)
+		err := scanColumns(FieldSpanAttrKey, nil, columnMapping, cb, traceql.AttributeScopeSpan)
 		if err != nil {
 			return err
 		}
