@@ -128,15 +128,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		}
 	}
 
-	// Validate that DefaultQueryStart is greater than QueryIngestersUntil for search
-	// This ensures that ingesters will still be queried when using the default start time
-	if cfg.Search.Sharder.DefaultQueryStart > 0 && cfg.Search.Sharder.QueryIngestersUntil > 0 {
-		if cfg.Search.Sharder.DefaultQueryStart <= cfg.Search.Sharder.QueryIngestersUntil {
-			return nil, fmt.Errorf("search default query start (%v) must be greater than query ingesters until (%v) to ensure ingesters are queried",
-				cfg.Search.Sharder.DefaultQueryStart, cfg.Search.Sharder.QueryIngestersUntil)
-		}
-	}
-
 	if cfg.Metrics.Sharder.DefaultQueryStart > 0 && cfg.Metrics.Sharder.DefaultQueryEndBuffer > 0 {
 		if cfg.Metrics.Sharder.DefaultQueryStart <= cfg.Metrics.Sharder.DefaultQueryEndBuffer {
 			return nil, fmt.Errorf("metrics default query start (%v) must be greater than default query end buffer (%v)",

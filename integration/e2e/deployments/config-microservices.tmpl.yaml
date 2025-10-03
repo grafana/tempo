@@ -1,6 +1,10 @@
 server:
   http_listen_port: 3200
-
+query_frontend:
+  search:
+    default_query_end_buffer: -1m # Include all recent data
+  metrics:
+    default_query_end_buffer: -1m # Include all recent data
 distributor:
   receivers:
     jaeger:
@@ -31,7 +35,7 @@ storage:
     backend: s3
     s3:
       bucket: tempo
-      endpoint: tempo_e2e-minio-9000:9000  # TODO: this is brittle, fix this eventually
+      endpoint: tempo_e2e-minio-9000:9000 # TODO: this is brittle, fix this eventually
       access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
       secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
       insecure: true
