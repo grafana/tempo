@@ -76,6 +76,7 @@ GET /metrics
 
 Returns the metrics for the running Tempo service in the Prometheus exposition format.
 
+
 <!-- vale Grafana.Spelling = NO -->
 
 ### Pprof

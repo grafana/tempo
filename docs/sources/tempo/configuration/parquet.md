@@ -11,8 +11,7 @@ Tempo has a default columnar block format based on Apache Parquet.
 This format is required for tags-based search as well as [TraceQL](../../traceql/), the query language for traces.
 The columnar block format improves search performance and enables an ecosystem of tools, including [Tempo CLI](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#analyse-blocks), to access the underlying trace data.
 
-For more information, refer to the [Parquet design document](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2022-04%20Parquet.md) and [Issue 1480](https://github.com/grafana/tempo/issues/1480).
-Additionally, there is now a [Parquet v3 design document](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2023-05%20vParquet3.md).
+For more information, refer to [Issue 4694](https://github.com/grafana/tempo/issues/4694).
 
 ## Considerations
 
@@ -27,9 +26,8 @@ Block formats based on Parquet require more CPU and memory resources than the pr
 ## Choose a different block format
 
 The default block format is `vParquet4`, which is the latest iteration of the Parquet-based columnar block format in Tempo.
-vParquet4 introduces new columns which enable querying for data in array attributes as well as events and links.
+vParquet4 introduces columns that enable querying for data in array attributes as well as events and links.
 For more information, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
-
 
 You can still use the previous format `vParquet3`.
 To enable it, set the block version option to `vParquet3` in the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file.
@@ -59,17 +57,17 @@ For more information, refer to the [storage configuration documentation](../#sto
 
 These configuration options impact trace search.
 
-| Parameter | Default value | Description |
-| --- | --- | --- |
-| `[read_buffer_size_bytes: <int>]` | `10485676` | Size of read buffers used when performing search on a vParquet block. This value times the `read_buffer_count`  is the total amount of bytes used for buffering when performing search on a Parquet block.
- |
-| `[read_buffer_count: <int>]` | 32 | Number of read buffers used when performing search on a vParquet block. This value times the `read_buffer_size_bytes` is the total amount of bytes used for buffering when performing search on a Parquet block.
- |
+| Parameter                         | Default value | Description                                                                                                                                                                                                      |
+| --------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[read_buffer_size_bytes: <int>]` | `10485676`    | Size of read buffers used when performing search on a vParquet block. This value times the `read_buffer_count` is the total amount of bytes used for buffering when performing search on a Parquet block.        |
+|                                   |
+| `[read_buffer_count: <int>]`      | 32            | Number of read buffers used when performing search on a vParquet block. This value times the `read_buffer_size_bytes` is the total amount of bytes used for buffering when performing search on a Parquet block. |
+|                                   |
 
 The `cache_control` section contains the follow parameters for Parquet metadata objects:
 
-| Parameter | Default value | Description |
-| --- | --- | --- |
-| <code>[footer: <bool> \| default = false]</code> | `false` | Specifies if the footer should be cached |
-| `[column_index: <bool> \| default = false]` | `false` | Specifies if the column index should be cached |
-| `[offset_index: <bool> \| default = false]` | `false` | Specifies if the offset index should be cached |
+| Parameter                                        | Default value | Description                                    |
+| ------------------------------------------------ | ------------- | ---------------------------------------------- |
+| <code>[footer: <bool> \| default = false]</code> | `false`       | Specifies if the footer should be cached       |
+| `[column_index: <bool> \| default = false]`      | `false`       | Specifies if the column index should be cached |
+| `[offset_index: <bool> \| default = false]`      | `false`       | Specifies if the offset index should be cached |
