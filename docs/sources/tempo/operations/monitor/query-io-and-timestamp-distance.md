@@ -3,8 +3,6 @@ title: Monitor query I/O and span timestamp distance
 menuTitle: Query I/O and timestamp distance
 description: Monitor query I/O and span timestamp quality with key Tempo metrics.
 weight: 50
-aliases:
-  - /docs/tempo/operations/monitor/span-timestamp-distance
 ---
 
 <!-- markdownlint-disable MD025 -->
