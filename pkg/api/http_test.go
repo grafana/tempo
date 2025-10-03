@@ -683,40 +683,37 @@ func Test_parseTimestamp(t *testing.T) {
 	}
 }
 
+func TestQueryRangeRoundtripEmpty(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Step: uint64(time.Second), // you can't actually roundtrip an empty query b/c Build/Parse will force a default step
+	}
+
+	jsonBytes, err := json.Marshal(req.DedicatedColumns)
+	require.NoError(t, err)
+
+	httpReq := BuildQueryRangeRequest(nil, req, string(jsonBytes))
+	actualReq, err := ParseQueryRangeRequest(httpReq)
+	require.NoError(t, err)
+	assert.True(t, actualReq.Start != 0)
+	assert.True(t, actualReq.End != 0)
+}
+
 func TestQueryRangeRoundtrip(t *testing.T) {
-	tcs := []struct {
-		name string
-		req  *tempopb.QueryRangeRequest
-	}{
-		{
-			name: "empty",
-			req: &tempopb.QueryRangeRequest{
-				Step: uint64(time.Second), // you can't actually roundtrip an empty query b/c Build/Parse will force a default step
-			},
-		},
-		{
-			name: "not empty!",
-			req: &tempopb.QueryRangeRequest{
-				Query:     "{ foo = `bar` }",
-				Start:     uint64(24 * time.Hour),
-				End:       uint64(25 * time.Hour),
-				Step:      uint64(30 * time.Second),
-				QueryMode: "foo",
-			},
-		},
+	req := &tempopb.QueryRangeRequest{
+		Query:     "{ foo = `bar` }",
+		Start:     uint64(24 * time.Hour),
+		End:       uint64(25 * time.Hour),
+		Step:      uint64(30 * time.Second),
+		QueryMode: "foo",
 	}
 
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			jsonBytes, err := json.Marshal(tc.req.DedicatedColumns)
-			require.NoError(t, err)
+	jsonBytes, err := json.Marshal(req.DedicatedColumns)
+	require.NoError(t, err)
 
-			httpReq := BuildQueryRangeRequest(nil, tc.req, string(jsonBytes))
-			actualReq, err := ParseQueryRangeRequest(httpReq)
-			require.NoError(t, err)
-			assert.Equal(t, tc.req, actualReq)
-		})
-	}
+	httpReq := BuildQueryRangeRequest(nil, req, string(jsonBytes))
+	actualReq, err := ParseQueryRangeRequest(httpReq)
+	require.NoError(t, err)
+	assert.Equal(t, req, actualReq)
 }
 
 func Test_determineBounds(t *testing.T) {
