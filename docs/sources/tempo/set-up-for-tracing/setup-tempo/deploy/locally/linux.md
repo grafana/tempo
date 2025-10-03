@@ -58,13 +58,13 @@ Consider adding a prefix for your organization to the bucket, for example, `myor
 For a linux-amd64 installation, run the following commands via the command line interface on your Linux machine.
 You need administrator privileges to do this by running as the `root` user or via `sudo` as a user with permissions to do so.
 
-1. Download the Tempo binary, verify checksums (listed in `SHA256SUMS`), and add network capabilities to the binary. Be sure to [download the correct package installation](https://github.com/grafana/tempo/releases/) for your OS and architecture:
+Download the Tempo binary, verify checksums (listed in `SHA256SUMS`), and add network capabilities to the binary. Be sure to [download the correct package installation](https://github.com/grafana/tempo/releases/) for your OS and architecture. The following example downloads and installs Tempo 2.8.2 for the AMD64 processor architecture:
 
    ```bash
-   curl -Lo tempo_2.2.0_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v2.2.0/tempo_2.2.0_linux_amd64.deb
-   echo e81cb4ae47e1d8069efaad400df15547e809b849cbb18932e23ac3082995535b \
-     tempo_2.2.0_linux_amd64.deb | sha256sum -c
-   dpkg -i tempo_2.2.0_linux_amd64.deb
+   curl -Lo tempo_2.8.2_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v2.8.2/tempo_2.8.2_linux_amd64.deb
+   echo db322771f633a01d06f4685b14004fca8472e862d7be635f079d8fa8d5f38c3c \
+     tempo_2.8.2_linux_amd64.deb | sha256sum -c
+   sudo dpkg -i tempo_2.8.2_linux_amd64.deb
    ```
 
 ## Create a Tempo configuration file
@@ -86,16 +86,19 @@ server:
 
 distributor:
   receivers:
-      otlp:
-        protocols:
-          grpc:
-            endpoint: "0.0.0.0:4317"
-         http:
-            endpoint: "0.0.0.0:4318"
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+ingester:
+  max_block_duration: 5m
 
 compactor:
   compaction:
-    block_retention: 48h                # configure total trace retention here
+    block_retention: 48h
 
 metrics_generator:
   registry:
@@ -103,14 +106,14 @@ metrics_generator:
       source: tempo
       cluster: linux-microservices
   storage:
-    path: /var/tempo/generator/wal
+    path: /tmp/tempo/generator/wal
     remote_write:
-    - url: http://localhost:9090/api/v1/write
-      send_exemplars: true
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
 
 storage:
   trace:
-    backend: s3
+    backend: s3                        # backend configuration to use
     s3:
       endpoint: s3.us-east-1.amazonaws.com
       bucket: grafana-traces-data
@@ -121,16 +124,15 @@ storage:
       access_key: # TODO - Add S3 access key
       secret_key: # TODO - Add S3 secret key
     wal:
-      path: /var/tempo/wal         # where to store the wal locally
+      path: /var/tmp/tempo/wal         # where to store the the wal locally
     local:
-      path: /var/tempo/blocks
+      path: /var/tmp/tempo/blocks
+
 overrides:
-  defaults:
-    metrics_generator:
-      processors: [service-graphs, span-metrics]
+  metrics_generator_processors: [service-graphs, span-metrics] # enables metrics generator
 ```
 
-> **Note:** In the above configuration, metrics generator is enabled to generate Prometheus metrics data from incoming trace spans. This is sent to a Prometheus remote write compatible metrics store at `http://prometheus:9090/api/v1/write` (in the `metrics_generator` configuration block). Ensure you change the relevant `url` parameter to your own Prometheus compatible storage instance, or disable the metrics generator by removing the `metrics_generators_processors` if you do not wish to generate span metrics.
+> **Note:** The above configuration is compatible with the downloaded release of Tempo (2.8.x). The content of the configuration might be adjusted for earlier or future releases. In the configuration shown above, metrics generator is enabled to generate Prometheus metrics data from incoming trace spans. This is sent to a Prometheus remote write compatible metrics store at `http://prometheus:9090/api/v1/write` (in the `metrics_generator` configuration block). Ensure you change the relevant `url` parameter to your own Prometheus compatible storage instance, or disable the metrics generator by removing the `metrics_generators_processors` if you do not wish to generate span metrics.
 
 ## Move the configuration file to the proper directory
 
