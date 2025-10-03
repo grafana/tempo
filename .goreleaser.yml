@@ -11,7 +11,7 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-#      - darwin re-enable when https://github.com/golang/go/issues/73617 is fixed
+#      - darwin  re-enable when https://github.com/golang/go/issues/73617 is fixed
       - linux
       - windows
     goarch:
@@ -41,7 +41,7 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-#      - darwin re-enable when https://github.com/golang/go/issues/73617 is fixed
+#      - darwin  re-enable when https://github.com/golang/go/issues/73617 is fixed
       - linux
       - windows
     goarch:
@@ -71,7 +71,7 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      #      - darwin  re-enable when https://github.com/golang/go/issues/73617 is fixed
+#      - darwin  re-enable when https://github.com/golang/go/issues/73617 is fixed
       - linux
       - windows
     goarch:
@@ -94,7 +94,7 @@ builds:
       - -X main.Branch={{ .Branch }}
       - -X main.Revision={{ .ShortCommit }}
       - -X main.Version={{ .Version }}
-    mod_timestamp: "{{ .CommitTimestamp }}"
+    mod_timestamp: '{{ .CommitTimestamp }}'
 changelog:
   skip: true
   sort: asc
