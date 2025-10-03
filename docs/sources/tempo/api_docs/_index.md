@@ -76,7 +76,6 @@ GET /metrics
 
 Returns the metrics for the running Tempo service in the Prometheus exposition format.
 
-For PromQL examples using query frontend I/O metrics, refer to [Query frontend metrics](/docs/tempo/<TEMPO_VERSION>/operations/monitor/query-frontend-metrics/).
 
 <!-- vale Grafana.Spelling = NO -->
 
