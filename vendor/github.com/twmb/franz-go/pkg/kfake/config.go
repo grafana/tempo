@@ -2,6 +2,7 @@ package kfake
 
 import (
 	"crypto/tls"
+	"net"
 	"time"
 )
 
@@ -35,6 +36,8 @@ type cfg struct {
 	sasls      map[struct{ m, u string }]string // cleared after client initialization
 	tls        *tls.Config
 
+	listenFn func(network, address string) (net.Listener, error)
+
 	sleepOutOfOrder bool
 }
 
@@ -47,6 +50,11 @@ func NumBrokers(n int) Opt {
 // amount of ports.
 func Ports(ports ...int) Opt {
 	return opt{func(cfg *cfg) { cfg.ports = ports }}
+}
+
+// ListenFn sets the listerner function to use, overriding [net.Listen]
+func ListenFn(fn func(network, address string) (net.Listener, error)) Opt {
+	return opt{func(cfg *cfg) { cfg.listenFn = fn }}
 }
 
 // WithLogger sets the logger to use.

@@ -295,7 +295,10 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 					// which isn't ideal since there needs to be some sort of manual
 					// intervention to unlock the partition. But this is already
 					// mentioned in the docs and also happens with Sarama.
-					if !c.config.MessageMarking.OnError {
+					isPermanent := consumererror.IsPermanent(err)
+					shouldMark := (!isPermanent && c.config.MessageMarking.OnError) || (isPermanent && c.config.MessageMarking.OnPermanentError)
+
+					if !shouldMark {
 						fatalOffset = msg.Offset
 						break // Stop processing messages.
 					}
@@ -318,7 +321,7 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 				// Ideally, we would attempt to re-process permanent errors
 				// for up to N times and then pause processing, or even better,
 				// produce the message to a dead letter topic.
-				pc.logger.Error("unable to process message: pausing consumption of this topic / partition on this consumer instance due to MessageMarking.OnError=false",
+				pc.logger.Error("unable to process message: pausing consumption of this topic / partition on this consumer instance due to message_marking configuration",
 					zap.Int64("offset", fatalOffset),
 				)
 			}
@@ -496,7 +499,11 @@ func (c *franzConsumer) handleMessage(pc *pc, msg kafkaMessage) error {
 				zap.Duration("max_elapsed_time", pc.backOff.MaxElapsedTime),
 			)
 		}
-		if c.config.MessageMarking.After && !c.config.MessageMarking.OnError {
+
+		isPermanent := consumererror.IsPermanent(err)
+		shouldMark := (!isPermanent && c.config.MessageMarking.OnError) || (isPermanent && c.config.MessageMarking.OnPermanentError)
+
+		if c.config.MessageMarking.After && !shouldMark {
 			// Only return an error if messages are marked after successful processing.
 			return err
 		}
