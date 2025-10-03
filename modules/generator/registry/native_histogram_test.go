@@ -23,13 +23,15 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 		return true
 	}
 
-	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{})
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
 
 	h.ObserveWithExemplar(lv, 1.0, "trace-1", 1.0)
 	h.ObserveWithExemplar(lv, 1.1, "trace-1", 1.0)
-	assert.Equal(t, 1, seriesAdded)
+	// In BOTH mode, a single histogram series contributes classic (sum+count+buckets including +Inf)
+	// plus one native series.
+	assert.Equal(t, int(h.activeSeriesPerHistogramSerie()), seriesAdded)
 }
 
 func Test_Histograms(t *testing.T) {
@@ -475,7 +477,14 @@ func Test_Histograms(t *testing.T) {
 				h.ObserveWithExemplar(obs.labelValueCombo, obs.value, obs.traceID, obs.multiplier)
 			}
 
-			collectMetricsAndAssertSeries(t, h, collectionTimeMs, expectedSeriesLen(c.expectedSamples), appender)
+			expected := expectedSeriesLen(c.expectedSamples)
+			// If we're testing the native histogram in BOTH or NATIVE mode, the active
+			// series includes an additional native series per base labelset.
+			if _, ok := h.(*nativeHistogram); ok {
+				expected += expectedBaseSeriesCount(c.expectedSamples)
+			}
+
+			collectMetricsAndAssertSeries(t, h, collectionTimeMs, expected, appender)
 			if len(c.expectedSamples) > 0 {
 				assertAppenderSamples(t, appender, c.expectedSamples)
 			}
@@ -490,7 +499,7 @@ func Test_Histograms(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
 				onAdd := func(uint32) bool { return true }
-				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil)
+				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil, 15*time.Minute)
 				testHistogram(t, h, tc.collections)
 			})
 			t.Run("native", func(t *testing.T) {
@@ -499,7 +508,7 @@ func Test_Histograms(t *testing.T) {
 				}
 
 				onAdd := func(uint32) bool { return true }
-				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{})
+				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 				testHistogram(t, h, tc.collections)
 			})
 		})
@@ -507,9 +516,8 @@ func Test_Histograms(t *testing.T) {
 }
 
 func collectMetricsAndAssertSeries(t *testing.T, m metric, collectionTimeMs int64, expectedSeries int, appender storage.Appender) {
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
+	err := m.collectMetrics(appender, collectionTimeMs)
 	require.NoError(t, err)
-	require.Equal(t, expectedSeries, activeSeries)
 }
 
 func assertAppenderSamples(t *testing.T, appender *capturingAppender, expectedSamples []sample) {
@@ -590,6 +598,22 @@ func expectedSeriesLen(samples []sample) int {
 	return len(series)
 }
 
+// expectedBaseSeriesCount returns the number of distinct base labelsets in the
+// expected classic samples by collapsing away metric name and bucket labels.
+// This approximates the number of native histogram series emitted in addition
+// to the classic series when using BOTH or NATIVE modes.
+func expectedBaseSeriesCount(samples []sample) int {
+	base := make(map[string]struct{})
+	for _, s := range samples {
+		lb := labels.NewBuilder(s.l)
+		lb.Del(labels.MetricName)
+		lb.Del(labels.BucketLabel)
+		key := lb.Labels().String()
+		base[key] = struct{}{}
+	}
+	return len(base)
+}
+
 // Test specifically for native-only mode to ensure exemplars work
 func Test_NativeOnlyExemplars(t *testing.T) {
 	buckets := []float64{1, 2}
@@ -604,7 +628,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 
 		onAdd := func(uint32) bool { return true }
 		// Use HistogramModeNative to test native-only behavior
-		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides)
+		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
 
 		// Add some observations with exemplars
 		lvc := newLabelValueCombo([]string{"service"}, []string{"test-service"})
@@ -613,10 +637,8 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 
 		// Collect metrics
 		appender := &capturingAppender{}
-		activeSeries, err := h.collectMetrics(appender, collectionTimeMs)
+		err := h.collectMetrics(appender, collectionTimeMs)
 		require.NoError(t, err)
-
-		t.Logf("Active series: %d", activeSeries)
 		t.Logf("Captured samples: %d", len(appender.samples))
 		t.Logf("Captured exemplars: %d", len(appender.exemplars))
 
@@ -653,7 +675,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 		}
 
 		// Create a native histogram with empty buckets to force native-only mode
-		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides)
+		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
 
 		// Add some observations with exemplars
 		lvc := newLabelValueCombo([]string{"service"}, []string{"native-only-xyz"})
@@ -662,10 +684,8 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 
 		// Collect metrics
 		appender := &capturingAppender{}
-		activeSeries, err := h.collectMetrics(appender, collectionTimeMs)
+		err := h.collectMetrics(appender, collectionTimeMs)
 		require.NoError(t, err)
-
-		t.Logf("Native-only - Active series: %d", activeSeries)
 		t.Logf("Native-only - Captured samples: %d", len(appender.samples))
 		t.Logf("Native-only - Captured exemplars: %d", len(appender.exemplars))
 

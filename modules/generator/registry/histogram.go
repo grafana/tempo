@@ -25,8 +25,12 @@ type histogram struct {
 	bucketLabels   []string
 	externalLabels map[string]string
 
-	seriesMtx sync.Mutex
-	series    map[uint64]*histogramSeries
+	seriesMtx          sync.Mutex
+	series             map[uint64]*histogramSeries
+	rejectedSeries     map[uint64]int64
+	estimatedSeries    *Cardinality
+	estimatedSeriesP10 *Cardinality
+	estimatedSeries1m  *Cardinality
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
@@ -67,7 +71,7 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string) *histogram {
+func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -90,22 +94,30 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 	}
 
 	return &histogram{
-		metricName:       name,
-		nameCount:        fmt.Sprintf("%s_count", name),
-		nameSum:          fmt.Sprintf("%s_sum", name),
-		nameBucket:       fmt.Sprintf("%s_bucket", name),
-		buckets:          buckets,
-		bucketLabels:     bucketLabels,
-		series:           make(map[uint64]*histogramSeries),
-		onAddSerie:       onAddSeries,
-		onRemoveSerie:    onRemoveSeries,
-		traceIDLabelName: traceIDLabelName,
-		externalLabels:   externalLabels,
+		metricName:         name,
+		nameCount:          fmt.Sprintf("%s_count", name),
+		nameSum:            fmt.Sprintf("%s_sum", name),
+		nameBucket:         fmt.Sprintf("%s_bucket", name),
+		buckets:            buckets,
+		bucketLabels:       bucketLabels,
+		series:             make(map[uint64]*histogramSeries),
+		rejectedSeries:     make(map[uint64]int64),
+		estimatedSeries:    NewCardinality(14, staleDuration, removeStaleSeriesInterval),
+		estimatedSeriesP10: NewCardinality(10, staleDuration, removeStaleSeriesInterval),
+		estimatedSeries1m:  NewCardinality(14, staleDuration, time.Minute),
+		onAddSerie:         onAddSeries,
+		onRemoveSerie:      onRemoveSeries,
+		traceIDLabelName:   traceIDLabelName,
+		externalLabels:     externalLabels,
 	}
 }
 
 func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
 	hash := labelValueCombo.getHash()
+
+	h.estimatedSeries.Insert(hash)
+	h.estimatedSeriesP10.Insert(hash)
+	h.estimatedSeries1m.Insert(hash)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -117,9 +129,11 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 	}
 
 	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+		h.rejectedSeries[hash] = time.Now().UnixMilli()
 		return
 	}
 
+	delete(h.rejectedSeries, hash)
 	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
 }
 
@@ -192,11 +206,9 @@ func (h *histogram) name() string {
 	return h.metricName
 }
 
-func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
+func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) error {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
-
-	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSerie())
 
 	for _, s := range h.series {
 		// If we are about to call Append for the first time on a series,
@@ -205,22 +217,22 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
+			_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 			if err != nil {
-				return
+				return err
 			}
 		}
 
 		// sum
-		_, err = appender.Append(0, s.sumLabels, timeMs, s.sum.Load())
+		_, err := appender.Append(0, s.sumLabels, timeMs, s.sum.Load())
 		if err != nil {
-			return
+			return err
 		}
 
 		// count
 		_, err = appender.Append(0, s.countLabels, timeMs, s.count.Load())
 		if err != nil {
-			return
+			return err
 		}
 
 		// bucket
@@ -229,12 +241,12 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 				endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 				_, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
 				if err != nil {
-					return
+					return err
 				}
 			}
 			ref, err := appender.Append(0, s.bucketLabels[i], timeMs, s.buckets[i].Load())
 			if err != nil {
-				return activeSeries, err
+				return err
 			}
 
 			ex := s.exemplars[i].Load()
@@ -248,7 +260,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 					Ts:    timeMs,
 				})
 				if err != nil {
-					return activeSeries, err
+					return err
 				}
 			}
 			// clear the exemplar so we don't emit it again
@@ -260,7 +272,36 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 		}
 	}
 
-	return
+	return nil
+}
+
+func (h *histogram) countActiveSeries() int {
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
+
+	return len(h.series) * int(h.activeSeriesPerHistogramSerie())
+}
+
+func (h *histogram) countTotalSeries() int {
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
+
+	return (len(h.series) + len(h.rejectedSeries)) * int(h.activeSeriesPerHistogramSerie())
+}
+
+func (h *histogram) countTotalSeriesEstimate() int {
+	est := h.estimatedSeries.Estimate()
+	return int(est) * int(h.activeSeriesPerHistogramSerie())
+}
+
+func (h *histogram) countTotalSeriesEstimate1Min() int {
+	est := h.estimatedSeries1m.Estimate()
+	return int(est) * int(h.activeSeriesPerHistogramSerie())
+}
+
+func (h *histogram) countTotalSeriesEstimateP10() int {
+	est := h.estimatedSeriesP10.Estimate()
+	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
 func (h *histogram) removeStaleSeries(staleTimeMs int64) {
@@ -273,10 +314,18 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
 		}
 	}
+	for hash, lastUpdated := range h.rejectedSeries {
+		if lastUpdated < staleTimeMs {
+			delete(h.rejectedSeries, hash)
+		}
+	}
+	h.estimatedSeries.Advance()
+	h.estimatedSeriesP10.Advance()
+	h.estimatedSeries1m.Advance()
 }
 
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
-	// sum + count + #buckets
+	// sum + count + #buckets (including +Inf)
 	return uint32(2 + len(h.buckets))
 }
 

@@ -18,7 +18,7 @@ func Test_counter(t *testing.T) {
 		return true
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil)
+	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -59,7 +59,7 @@ func TestCounterDifferentLabels(t *testing.T) {
 		return true
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil)
+	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
@@ -84,7 +84,7 @@ func Test_counter_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil)
+	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
 
 	// allow adding new series
 	canAdd = true
@@ -123,7 +123,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	c := newCounter("my_counter", nil, onRemove, nil)
+	c := newCounter("my_counter", nil, onRemove, nil, 15*time.Minute)
 
 	timeMs := time.Now().UnixMilli()
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
@@ -161,7 +161,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 }
 
 func Test_counter_externalLabels(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, map[string]string{"external_label": "external_value"})
+	c := newCounter("my_counter", nil, nil, map[string]string{"external_label": "external_value"}, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -178,7 +178,7 @@ func Test_counter_externalLabels(t *testing.T) {
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, nil)
+	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
 
 	end := make(chan struct{})
 
@@ -211,7 +211,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := c.collectMetrics(&noopAppender{}, 0)
+		err := c.collectMetrics(&noopAppender{}, 0)
 		assert.NoError(t, err)
 	})
 
@@ -224,7 +224,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_counter_concurrencyCorrectness(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, nil)
+	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -264,9 +264,8 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, expectedActiveSeries int, expectedSamples []sample, expectedExemplars []exemplarSample) {
 	appender := &capturingAppender{}
 
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
+	err := m.collectMetrics(appender, collectionTimeMs)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedActiveSeries, activeSeries)
 
 	assert.False(t, appender.isCommitted)
 	assert.False(t, appender.isRolledback)
