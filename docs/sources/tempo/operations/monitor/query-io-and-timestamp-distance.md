@@ -13,26 +13,21 @@ aliases:
 
 You can use these metrics to monitor query I/O and span timestamp quality:
 
-- **Query frontend counter**: `tempo_query_frontend_bytes_inspected_total` measures how many bytes the frontend reads per request.
-- **Span timestamp distance histograms**: `tempo_spans_distance_in_future_seconds` and `tempo_spans_distance_in_past_seconds` measure how far a span end time is from the ingestion time.
+- `query_frontend_bytes_inspected_total` measures how many bytes the frontend reads per request. This value shows the total number of bytes read from disk and object storage.
+- `spans_distance_in_future_seconds` and `spans_distance_in_past_seconds` measure how far a span end time is from the ingestion time. This capability lets you find customers that send spans in the future, which can't be found using the Search API.
 
 Use these metrics together to correlate query cost with data quality and pipeline health.
 
 ## Reference
 
-The query frontend emits `tempo_query_frontend_bytes_inspected_total` when a request finishes, aggregating bytes inspected by queriers.
+The query frontend emits `query_frontend_bytes_inspected_total` when a request finishes, aggregating bytes inspected by queriers.
 
-The distributor emits `tempo_spans_distance_in_future_seconds` and `tempo_spans_distance_in_past_seconds` by comparing span end time with ingestion time.
+The distributor emits `spans_distance_in_future_seconds` and `spans_distance_in_past_seconds` by comparing span end time with ingestion time.
 
-| Names                                                                            | Type      | Labels         | Buckets                          | Emitted                                                                                                         | Notes                                                                     |
-| -------------------------------------------------------------------------------- | --------- | -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `tempo_query_frontend_bytes_inspected_total`                                     | Counter   | `tenant`, `op` | -                                | On request completion at the query frontend; aggregates bytes from queriers; excludes cached querier responses. |                                                                           |
-| `tempo_spans_distance_in_future_seconds`, `tempo_spans_distance_in_past_seconds` | Histogram | `tenant`       | 300s, 1800s, 3600s (5m, 30m, 1h) | In the distributor on ingest; observes seconds between span end time and ingestion time.                        | Spans in the future are accepted but invalid and might not be searchable. |
-
-## How to use them together
-
-- **Cost and performance**: Inspect bytes read to identify expensive tenants or operations and correlate with performance.
-- **Data quality and pipeline health**: Track future-dated spans (clock skew or bad clients) and high past distances (ingestion delays/backpressure).
+| Names                                                                | Type      | Labels         | Buckets                          | Emitted                                                                                                         | Notes                                                                     |
+| -------------------------------------------------------------------- | --------- | -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `query_frontend_bytes_inspected_total`                               | Counter   | `tenant`, `op` | -                                | On request completion at the query frontend; aggregates bytes from queriers; excludes cached querier responses. |                                                                           |
+| `spans_distance_in_future_seconds`, `spans_distance_in_past_seconds` | Histogram | `tenant`       | 300s, 1800s, 3600s (5m, 30m, 1h) | In the distributor on ingest; observes seconds between span end time and ingestion time.                        | Spans in the future are accepted but invalid and might not be searchable. |
 
 ## PromQL examples
 
