@@ -135,3 +135,12 @@ query_frontend:
     concurrent_jobs: 8
     target_bytes_per_job: 1.25e+09 # ~1.25GB
 ```
+
+## Sampling and performance optimization
+
+TraceQL metrics queries support sampling hints to improve performance on large datasets. Refer to the [TraceQL metrics sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/sampling-guide/) documentation for more information.
+
+When using sampling in your TraceQL metrics queries, consider:
+
+- **Timeout settings:** Sampled queries run faster but may still benefit from adequate timeouts
+- **Concurrent jobs:** Sampling reduces per-job processing time, allowing higher concurrency
