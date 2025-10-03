@@ -549,13 +549,13 @@ func TestIngesterRequests(t *testing.T) {
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         []string{"/querier?end=0&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=0&tags=foo%3Dbar"},
+			expectedURI:         []string{"minDuration=10ms&maxDuration=30ms&limit=50&spss=3&tags=foo%3Dbar"},
 			ingesterShards:      1,
 		},
 		{
 			request:             "/?limit=50",
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         []string{"/querier?end=0&limit=50&spss=3&start=0"},
+			expectedURI:         []string{"limit=50&spss=3"},
 			ingesterShards:      1,
 		},
 		// start/end = 20 - 10 mins ago - break across query ingesters until
@@ -624,8 +624,9 @@ func TestIngesterRequests(t *testing.T) {
 		require.Greater(t, tc.ingesterShards, 0)
 		s := &asyncSearchSharder{
 			cfg: SearchSharderConfig{
-				QueryIngestersUntil: tc.queryIngestersUntil,
-				IngesterShards:      tc.ingesterShards,
+				QueryIngestersUntil:   tc.queryIngestersUntil,
+				IngesterShards:        tc.ingesterShards,
+				DefaultQueryEndBuffer: 0,
 			},
 		}
 		req := httptest.NewRequest("GET", tc.request, nil)
