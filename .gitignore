@@ -1,11 +1,11 @@
 .DS_Store
-.envrc
 .idea
 .vscode
 .claude
 *.test
 *.out
 *.pprof
+/.envrc
 /bin
 /cmd/tempo-cli/tempo-cli
 /cmd/tempo-query/tempo-query
