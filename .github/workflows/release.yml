@@ -7,7 +7,6 @@ on:
 # Needed to login to DockerHub
 permissions: {}
 jobs:
-
   release:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
