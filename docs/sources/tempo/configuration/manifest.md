@@ -668,6 +668,7 @@ metrics_generator:
                 2: true
             filter_policies: []
             target_info_excluded_dimensions: []
+            drop_instance_label: false
         local_blocks:
             block:
                 bloom_filter_false_positive: 0.01

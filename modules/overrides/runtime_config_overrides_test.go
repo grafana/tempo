@@ -267,6 +267,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		expectedEnableTargetInfo             map[string]bool
 		expectedDimensionMappings            map[string][]sharedconfig.DimensionMappings
 		expectedTargetInfoExcludedDimensions map[string][]string
+		expectedDropInstanceLabel            map[string]bool
 	}{
 		{
 			name: "limits only",
@@ -282,6 +283,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 									Join:        "/",
 								},
 							},
+							DropInstanceLabel: boolPtr(false),
 						},
 					},
 				},
@@ -303,6 +305,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 					},
 				},
 			},
+			expectedDropInstanceLabel: map[string]bool{"user1": false, "user2": false},
 		},
 		{
 			name:          "basic Overrides",
@@ -321,6 +324,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 											Join:        "/",
 										},
 									},
+									DropInstanceLabel: boolPtr(true),
 								},
 							},
 						},
@@ -338,6 +342,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				},
 				"user2": nil,
 			},
+			expectedDropInstanceLabel: map[string]bool{"user1": true, "user2": false},
 		},
 		{
 			name: "wildcard override",
@@ -443,6 +448,11 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 
 			for user, expectedVal := range tt.expectedTargetInfoExcludedDimensions {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(user))
+			}
+
+			for user, expectedVal := range tt.expectedDropInstanceLabel {
+				dropInstanceLabelValue, _ := overrides.MetricsGeneratorProcessorSpanMetricsDropInstanceLabel(user)
+				assert.Equal(t, expectedVal, dropInstanceLabelValue)
 			}
 
 			err := services.StopAndAwaitTerminated(context.TODO(), overrides)

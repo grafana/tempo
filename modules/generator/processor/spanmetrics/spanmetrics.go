@@ -206,7 +206,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		labelValues = append(labelValues, jobName)
 	}
 	//  add instance label only if job is not blank
-	if instanceID != "" && p.Cfg.EnableTargetInfo {
+	if instanceID != "" && p.Cfg.EnableTargetInfo && !p.Cfg.DropInstanceLabel {
 		labels = append(labels, dimInstance)
 		labelValues = append(labelValues, instanceID)
 	}
@@ -246,7 +246,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 			targetInfoLabelValues = append(targetInfoLabelValues, jobName)
 		}
 		//  add instance label to target info only if job is not blank
-		if instanceID != "" {
+		if instanceID != "" && !p.Cfg.DropInstanceLabel {
 			targetInfoLabels = append(targetInfoLabels, dimInstance)
 			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
 		}

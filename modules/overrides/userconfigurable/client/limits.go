@@ -147,6 +147,7 @@ type LimitsMetricsGeneratorProcessorSpanMetrics struct {
 	FilterPolicies               *[]filterconfig.FilterPolicy `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
 	HistogramBuckets             *[]float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
 	TargetInfoExcludedDimensions *[]string                    `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
+	DropInstanceLabel            *bool                        `yaml:"drop_instance_label,omitempty" json:"drop_instance_label,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -182,6 +183,13 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimens
 		return *l.TargetInfoExcludedDimensions, true
 	}
 	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDropInstanceLabel() (bool, bool) {
+	if l != nil && l.DropInstanceLabel != nil {
+		return *l.DropInstanceLabel, true
+	}
+	return false, false
 }
 
 type LimitsMetricGeneratorProcessorHostInfo struct {
