@@ -2,13 +2,13 @@ name: release
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 # Needed to login to DockerHub
 permissions: {}
 jobs:
   release:
-    if: github.repository == 'grafana/tempo' # skip in forks
+    if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
     permissions:
       contents: write
