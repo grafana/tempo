@@ -248,7 +248,7 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
 	return slices.Collect(func(yield func(c backend.DedicatedColumn) bool) {
 		for _, c := range columns {
-			if isIgnoredDedicatedColumn(c.Scope, c.Type, c.Name) {
+			if isIgnoredDedicatedColumn(c.Scope, c.Type) {
 				continue
 			}
 			yield(c)
@@ -256,7 +256,7 @@ func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedC
 	})
 }
 
-func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType, attr string) bool {
+func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType) bool {
 	if _, found := DedicatedResourceColumnPaths[scope]; !found {
 		return true
 	}
