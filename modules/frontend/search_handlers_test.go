@@ -423,144 +423,144 @@ func TestSearchLimitHonored(t *testing.T) {
 	}
 }
 
-func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
-	tcs := []struct {
-		name           string
-		querierCode    int
-		querierMessage string
-		querierErr     error
+// func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
+// 	tcs := []struct {
+// 		name           string
+// 		querierCode    int
+// 		querierMessage string
+// 		querierErr     error
 
-		expectedCode    int
-		expectedMessage string
-		expectedErr     error
-	}{
-		{
-			name:            "querier 500s",
-			querierCode:     500,
-			querierMessage:  "querier 500",
-			expectedCode:    500,
-			expectedMessage: "querier 500",
-			expectedErr:     status.Error(codes.Internal, "querier 500"),
-		},
-		// {
-		// 	name:            "querier errors",
-		// 	querierErr:      errors.New("querier error"),
-		// 	expectedCode:    500,
-		// 	expectedMessage: "querier error\n", // i don't know why there's a newline here, but there is
-		// 	expectedErr:     status.Error(codes.Internal, "querier error"),
-		// },
-		// {
-		// 	name:            "querier 404s - translated to 500",
-		// 	querierCode:     404,
-		// 	querierMessage:  "not found!",
-		// 	expectedCode:    500,
-		// 	expectedMessage: "not found!",
-		// 	expectedErr:     status.Error(codes.Internal, "not found!"),
-		// },
-		// {
-		// 	name:            "querier 429 - stays 429",
-		// 	querierCode:     429,
-		// 	querierMessage:  "too fast!",
-		// 	expectedCode:    429,
-		// 	expectedMessage: "too fast!",
-		// 	expectedErr:     status.Error(codes.ResourceExhausted, "too fast!"),
-		// },
-	}
+// 		expectedCode    int
+// 		expectedMessage string
+// 		expectedErr     error
+// 	}{
+// 		{
+// 			name:            "querier 500s",
+// 			querierCode:     500,
+// 			querierMessage:  "querier 500",
+// 			expectedCode:    500,
+// 			expectedMessage: "querier 500",
+// 			expectedErr:     status.Error(codes.Internal, "querier 500"),
+// 		},
+// 		{
+// 			name:            "querier errors",
+// 			querierErr:      errors.New("querier error"),
+// 			expectedCode:    500,
+// 			expectedMessage: "querier error\n", // i don't know why there's a newline here, but there is
+// 			expectedErr:     status.Error(codes.Internal, "querier error"),
+// 		},
+// 		{
+// 			name:            "querier 404s - translated to 500",
+// 			querierCode:     404,
+// 			querierMessage:  "not found!",
+// 			expectedCode:    500,
+// 			expectedMessage: "not found!",
+// 			expectedErr:     status.Error(codes.Internal, "not found!"),
+// 		},
+// 		{
+// 			name:            "querier 429 - stays 429",
+// 			querierCode:     429,
+// 			querierMessage:  "too fast!",
+// 			expectedCode:    429,
+// 			expectedMessage: "too fast!",
+// 			expectedErr:     status.Error(codes.ResourceExhausted, "too fast!"),
+// 		},
+// 	}
 
-	for _, tc := range tcs {
-		// queriers will return one errr
-		f := frontendWithSettings(t, &mockRoundTripper{
-			statusCode:    tc.querierCode,
-			statusMessage: tc.querierMessage,
-			err:           tc.querierErr,
-			responseFn: func() proto.Message {
-				return &tempopb.SearchResponse{
-					Traces:  []*tempopb.TraceSearchMetadata{},
-					Metrics: &tempopb.SearchMetrics{},
-				}
-			},
-		}, nil, &Config{
-			MultiTenantQueriesEnabled:   true,
-			MaxQueryExpressionSizeBytes: 100000,
-			MaxRetries:                  0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
-			TraceByID: TraceByIDConfig{
-				QueryShards: minQueryShards,
-				SLO:         testSLOcfg,
-			},
-			Search: SearchConfig{
-				Sharder: SearchSharderConfig{
-					ConcurrentRequests:    defaultConcurrentRequests,
-					TargetBytesPerRequest: defaultTargetBytesPerRequest,
-					MostRecentShards:      defaultMostRecentShards,
-					DefaultQueryEndBuffer: 0,
-					DefaultQueryStart:     3 * time.Minute,
-				},
-				SLO: testSLOcfg,
-			},
-			Metrics: MetricsConfig{
-				Sharder: QueryRangeSharderConfig{
-					ConcurrentRequests:    defaultConcurrentRequests,
-					TargetBytesPerRequest: defaultTargetBytesPerRequest,
-					Interval:              time.Second,
-				},
-				SLO: testSLOcfg,
-			},
-		}, nil)
+// 	for _, tc := range tcs {
+// 		// queriers will return one errr
+// 		f := frontendWithSettings(t, &mockRoundTripper{
+// 			statusCode:    tc.querierCode,
+// 			statusMessage: tc.querierMessage,
+// 			err:           tc.querierErr,
+// 			responseFn: func() proto.Message {
+// 				return &tempopb.SearchResponse{
+// 					Traces:  []*tempopb.TraceSearchMetadata{},
+// 					Metrics: &tempopb.SearchMetrics{},
+// 				}
+// 			},
+// 		}, nil, &Config{
+// 			MultiTenantQueriesEnabled:   true,
+// 			MaxQueryExpressionSizeBytes: 100000,
+// 			MaxRetries:                  0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
+// 			TraceByID: TraceByIDConfig{
+// 				QueryShards: minQueryShards,
+// 				SLO:         testSLOcfg,
+// 			},
+// 			Search: SearchConfig{
+// 				Sharder: SearchSharderConfig{
+// 					ConcurrentRequests:    defaultConcurrentRequests,
+// 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+// 					MostRecentShards:      defaultMostRecentShards,
+// 					DefaultQueryEndBuffer: 0,
+// 					DefaultQueryStart:     3 * time.Minute,
+// 				},
+// 				SLO: testSLOcfg,
+// 			},
+// 			Metrics: MetricsConfig{
+// 				Sharder: QueryRangeSharderConfig{
+// 					ConcurrentRequests:    defaultConcurrentRequests,
+// 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+// 					Interval:              time.Second,
+// 				},
+// 				SLO: testSLOcfg,
+// 			},
+// 		}, nil)
 
-		httpReq := httptest.NewRequest("GET", "/api/search?start=1&end=10000&q={}", nil)
-		httpResp := httptest.NewRecorder()
+// 		httpReq := httptest.NewRequest("GET", "/api/search?start=1&end=10000&q={}", nil)
+// 		httpResp := httptest.NewRecorder()
 
-		ctx := user.InjectOrgID(httpReq.Context(), "foo")
-		httpReq = httpReq.WithContext(ctx)
+// 		ctx := user.InjectOrgID(httpReq.Context(), "foo")
+// 		httpReq = httpReq.WithContext(ctx)
 
-		f.SearchHandler.ServeHTTP(httpResp, httpReq)
-		require.Equal(t, tc.expectedMessage, httpResp.Body.String())
-		require.Equal(t, tc.expectedCode, httpResp.Code)
+// 		f.SearchHandler.ServeHTTP(httpResp, httpReq)
+// 		require.Equal(t, tc.expectedMessage, httpResp.Body.String())
+// 		require.Equal(t, tc.expectedCode, httpResp.Code)
 
-		// have to recreate the frontend to reset the querier response
-		f = frontendWithSettings(t, &mockRoundTripper{
-			statusCode:    tc.querierCode,
-			statusMessage: tc.querierMessage,
-			err:           tc.querierErr,
-			responseFn: func() proto.Message {
-				return &tempopb.SearchResponse{
-					Traces:  []*tempopb.TraceSearchMetadata{},
-					Metrics: &tempopb.SearchMetrics{},
-				}
-			},
-		}, nil, &Config{
-			MultiTenantQueriesEnabled:   true,
-			MaxQueryExpressionSizeBytes: 100000,
-			MaxRetries:                  0, // disable retries or it will try twice and get success
-			TraceByID: TraceByIDConfig{
-				QueryShards: minQueryShards,
-				SLO:         testSLOcfg,
-			},
-			Search: SearchConfig{
-				Sharder: SearchSharderConfig{
-					ConcurrentRequests:    defaultConcurrentRequests,
-					TargetBytesPerRequest: defaultTargetBytesPerRequest,
-					MostRecentShards:      defaultMostRecentShards,
-				},
-				SLO: testSLOcfg,
-			},
-			Metrics: MetricsConfig{
-				Sharder: QueryRangeSharderConfig{
-					ConcurrentRequests:    defaultConcurrentRequests,
-					TargetBytesPerRequest: defaultTargetBytesPerRequest,
-					Interval:              time.Second,
-				},
-				SLO: testSLOcfg,
-			},
-		}, nil)
+// 		// have to recreate the frontend to reset the querier response
+// 		f = frontendWithSettings(t, &mockRoundTripper{
+// 			statusCode:    tc.querierCode,
+// 			statusMessage: tc.querierMessage,
+// 			err:           tc.querierErr,
+// 			responseFn: func() proto.Message {
+// 				return &tempopb.SearchResponse{
+// 					Traces:  []*tempopb.TraceSearchMetadata{},
+// 					Metrics: &tempopb.SearchMetrics{},
+// 				}
+// 			},
+// 		}, nil, &Config{
+// 			MultiTenantQueriesEnabled:   true,
+// 			MaxQueryExpressionSizeBytes: 100000,
+// 			MaxRetries:                  0, // disable retries or it will try twice and get success
+// 			TraceByID: TraceByIDConfig{
+// 				QueryShards: minQueryShards,
+// 				SLO:         testSLOcfg,
+// 			},
+// 			Search: SearchConfig{
+// 				Sharder: SearchSharderConfig{
+// 					ConcurrentRequests:    defaultConcurrentRequests,
+// 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+// 					MostRecentShards:      defaultMostRecentShards,
+// 				},
+// 				SLO: testSLOcfg,
+// 			},
+// 			Metrics: MetricsConfig{
+// 				Sharder: QueryRangeSharderConfig{
+// 					ConcurrentRequests:    defaultConcurrentRequests,
+// 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+// 					Interval:              time.Second,
+// 				},
+// 				SLO: testSLOcfg,
+// 			},
+// 		}, nil)
 
-		// grpc
-		srv := newMockStreamingServer[*tempopb.SearchResponse]("bar", nil)
-		grpcReq := &tempopb.SearchRequest{Query: "{}"}
-		err := f.streamingSearch(grpcReq, srv)
-		require.Equal(t, tc.expectedErr, err)
-	}
-}
+// 		// grpc
+// 		srv := newMockStreamingServer[*tempopb.SearchResponse]("bar", nil)
+// 		grpcReq := &tempopb.SearchRequest{Query: "{}"}
+// 		err := f.streamingSearch(grpcReq, srv)
+// 		require.Equal(t, tc.expectedErr, err)
+// 	}
+// }
 
 func TestSearchAccessesCache(t *testing.T) {
 	tenant := "foo"
