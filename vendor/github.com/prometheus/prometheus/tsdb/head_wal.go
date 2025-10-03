@@ -32,6 +32,7 @@ import (
 	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/metadata"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/prometheus/prometheus/tsdb/chunks"
@@ -281,10 +282,7 @@ Outer:
 			// cause thousands of very large in flight buffers occupying large amounts
 			// of unused memory.
 			for len(samples) > 0 {
-				m := 5000
-				if len(samples) < m {
-					m = len(samples)
-				}
+				m := min(len(samples), 5000)
 				for i := 0; i < concurrency; i++ {
 					if shards[i] == nil {
 						shards[i] = processors[i].reuseBuf()
@@ -346,10 +344,7 @@ Outer:
 			// cause thousands of very large in flight buffers occupying large amounts
 			// of unused memory.
 			for len(samples) > 0 {
-				m := 5000
-				if len(samples) < m {
-					m = len(samples)
-				}
+				m := min(len(samples), 5000)
 				for i := 0; i < concurrency; i++ {
 					if histogramShards[i] == nil {
 						histogramShards[i] = processors[i].reuseHistogramBuf()
@@ -382,10 +377,7 @@ Outer:
 			// cause thousands of very large in flight buffers occupying large amounts
 			// of unused memory.
 			for len(samples) > 0 {
-				m := 5000
-				if len(samples) < m {
-					m = len(samples)
-				}
+				m := min(len(samples), 5000)
 				for i := 0; i < concurrency; i++ {
 					if histogramShards[i] == nil {
 						histogramShards[i] = processors[i].reuseHistogramBuf()
@@ -636,6 +628,14 @@ func (wp *walSubsetProcessor) processWALSamples(h *Head, mmappedChunks, oooMmapp
 			if s.T <= ms.mmMaxTime {
 				continue
 			}
+
+			if !value.IsStaleNaN(ms.lastValue) && value.IsStaleNaN(s.V) {
+				h.numStaleSeries.Inc()
+			}
+			if value.IsStaleNaN(ms.lastValue) && !value.IsStaleNaN(s.V) {
+				h.numStaleSeries.Dec()
+			}
+
 			if _, chunkCreated := ms.append(s.T, s.V, 0, appendChunkOpts); chunkCreated {
 				h.metrics.chunksCreated.Inc()
 				h.metrics.chunks.Inc()
@@ -666,11 +666,27 @@ func (wp *walSubsetProcessor) processWALSamples(h *Head, mmappedChunks, oooMmapp
 			if s.t <= ms.mmMaxTime {
 				continue
 			}
-			var chunkCreated bool
+			var chunkCreated, newlyStale, staleToNonStale bool
 			if s.h != nil {
+				newlyStale = value.IsStaleNaN(s.h.Sum)
+				if ms.lastHistogramValue != nil {
+					newlyStale = newlyStale && !value.IsStaleNaN(ms.lastHistogramValue.Sum)
+					staleToNonStale = value.IsStaleNaN(ms.lastHistogramValue.Sum) && !value.IsStaleNaN(s.h.Sum)
+				}
 				_, chunkCreated = ms.appendHistogram(s.t, s.h, 0, appendChunkOpts)
 			} else {
+				newlyStale = value.IsStaleNaN(s.fh.Sum)
+				if ms.lastFloatHistogramValue != nil {
+					newlyStale = newlyStale && !value.IsStaleNaN(ms.lastFloatHistogramValue.Sum)
+					staleToNonStale = value.IsStaleNaN(ms.lastFloatHistogramValue.Sum) && !value.IsStaleNaN(s.fh.Sum)
+				}
 				_, chunkCreated = ms.appendFloatHistogram(s.t, s.fh, 0, appendChunkOpts)
+			}
+			if newlyStale {
+				h.numStaleSeries.Inc()
+			}
+			if staleToNonStale {
+				h.numStaleSeries.Dec()
 			}
 			if chunkCreated {
 				h.metrics.chunksCreated.Inc()
@@ -813,10 +829,7 @@ func (h *Head) loadWBL(r *wlog.Reader, syms *labels.SymbolTable, multiRef map[ch
 			// cause thousands of very large in flight buffers occupying large amounts
 			// of unused memory.
 			for len(samples) > 0 {
-				m := 5000
-				if len(samples) < m {
-					m = len(samples)
-				}
+				m := min(len(samples), 5000)
 				for i := 0; i < concurrency; i++ {
 					if shards[i] == nil {
 						shards[i] = processors[i].reuseBuf()
@@ -869,10 +882,7 @@ func (h *Head) loadWBL(r *wlog.Reader, syms *labels.SymbolTable, multiRef map[ch
 			// cause thousands of very large in flight buffers occupying large amounts
 			// of unused memory.
 			for len(samples) > 0 {
-				m := 5000
-				if len(samples) < m {
-					m = len(samples)
-				}
+				m := min(len(samples), 5000)
 				for i := 0; i < concurrency; i++ {
 					if histogramShards[i] == nil {
 						histogramShards[i] = processors[i].reuseHistogramBuf()
@@ -901,10 +911,7 @@ func (h *Head) loadWBL(r *wlog.Reader, syms *labels.SymbolTable, multiRef map[ch
 			// cause thousands of very large in flight buffers occupying large amounts
 			// of unused memory.
 			for len(samples) > 0 {
-				m := 5000
-				if len(samples) < m {
-					m = len(samples)
-				}
+				m := min(len(samples), 5000)
 				for i := 0; i < concurrency; i++ {
 					if histogramShards[i] == nil {
 						histogramShards[i] = processors[i].reuseHistogramBuf()
@@ -1599,6 +1606,12 @@ func (h *Head) loadChunkSnapshot() (int, int, map[chunks.HeadSeriesRef]*memSerie
 				series.lastValue = csr.lastValue
 				series.lastHistogramValue = csr.lastHistogramValue
 				series.lastFloatHistogramValue = csr.lastFloatHistogramValue
+
+				if value.IsStaleNaN(series.lastValue) ||
+					(series.lastHistogramValue != nil && value.IsStaleNaN(series.lastHistogramValue.Sum)) ||
+					(series.lastFloatHistogramValue != nil && value.IsStaleNaN(series.lastFloatHistogramValue.Sum)) {
+					h.numStaleSeries.Inc()
+				}
 
 				app, err := series.headChunks.chunk.Appender()
 				if err != nil {
