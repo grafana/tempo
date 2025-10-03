@@ -1,0 +1,73 @@
+---
+title: Monitor query I/O and span timestamp distance
+menuTitle: Query I/O and timestamp distance
+description: Monitor query I/O and span timestamp quality with key Tempo metrics.
+weight: 50
+aliases:
+  - /docs/tempo/operations/monitor/span-timestamp-distance
+---
+
+<!-- markdownlint-disable MD025 -->
+
+# Monitor query I/O and span timestamp distance
+
+You can use these metrics to monitor query I/O and span timestamp quality:
+
+- **Query frontend counter**: `tempo_query_frontend_bytes_inspected_total` measures how many bytes the frontend reads per request.
+- **Span timestamp distance histograms**: `tempo_spans_distance_in_future_seconds` and `tempo_spans_distance_in_past_seconds` measure how far a span end time is from the ingestion time.
+
+Use these metrics together to correlate query cost with data quality and pipeline health.
+
+## Reference
+
+The query frontend emits `tempo_query_frontend_bytes_inspected_total` when a request finishes, aggregating bytes inspected by queriers.
+
+The distributor emits `tempo_spans_distance_in_future_seconds` and `tempo_spans_distance_in_past_seconds` by comparing span end time with ingestion time.
+
+| Names                                                                            | Type      | Labels         | Buckets                          | Emitted                                                                                                         | Notes                                                                     |
+| -------------------------------------------------------------------------------- | --------- | -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `tempo_query_frontend_bytes_inspected_total`                                     | Counter   | `tenant`, `op` | -                                | On request completion at the query frontend; aggregates bytes from queriers; excludes cached querier responses. |                                                                           |
+| `tempo_spans_distance_in_future_seconds`, `tempo_spans_distance_in_past_seconds` | Histogram | `tenant`       | 300s, 1800s, 3600s (5m, 30m, 1h) | In the distributor on ingest; observes seconds between span end time and ingestion time.                        | Spans in the future are accepted but invalid and might not be searchable. |
+
+## How to use them together
+
+- **Cost and performance**: Inspect bytes read to identify expensive tenants or operations and correlate with performance.
+- **Data quality and pipeline health**: Track future-dated spans (clock skew or bad clients) and high past distances (ingestion delays/backpressure).
+
+## PromQL examples
+
+To see how frequently future-dated spans arrive by tenant, use the histogram count rate:
+
+```promql
+sum by (tenant) (
+  rate(tempo_spans_distance_in_future_seconds_count[5m])
+)
+```
+
+Inspect query read throughput (`bytes/s`) by tenant and operation:
+
+```promql
+sum by (tenant, op) (
+  rate(tempo_query_frontend_bytes_inspected_total[5m])
+)
+```
+
+Top five tenants by inspected GiB over the last hour:
+
+```promql
+topk(
+  5,
+  sum by (tenant) (increase(tempo_query_frontend_bytes_inspected_total[1h])) / 1024 / 1024 / 1024
+)
+```
+
+To quantify ingestion delay using the past-distance histogram, chart the P90 over time:
+
+```promql
+histogram_quantile(
+  0.9,
+  sum by (tenant, le) (
+    rate(tempo_spans_distance_in_past_seconds_bucket[15m])
+  )
+)
+```
