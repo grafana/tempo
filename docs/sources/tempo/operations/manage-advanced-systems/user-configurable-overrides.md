@@ -88,7 +88,7 @@ metrics_generator:
       ]
       [enable_target_info: <bool>]
       [target_info_excluded_dimensions: <list of string>]
-      [drop_instance_label: <bool>]
+      [enable_instance_label: <bool>]
 
     host_info:
       [metric_name: <string>]

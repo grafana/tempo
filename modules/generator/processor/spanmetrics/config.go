@@ -60,7 +60,7 @@ type Config struct {
 	TargetInfoExcludedDimensions []string `yaml:"target_info_excluded_dimensions"`
 
 	// Allow user to drop instance label
-	DropInstanceLabel bool `yaml:"drop_instance_label"`
+	EnableInstanceLabel bool `yaml:"enable_instance_label"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -74,6 +74,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Subprocessors[Latency] = true
 	cfg.Subprocessors[Count] = true
 	cfg.Subprocessors[Size] = true
+	cfg.EnableInstanceLabel = true
 }
 
 type IntrinsicDimensions struct {

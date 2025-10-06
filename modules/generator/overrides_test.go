@@ -27,7 +27,7 @@ type mockOverrides struct {
 	spanMetricsDimensionMappings                       []sharedconfig.DimensionMappings
 	spanMetricsEnableTargetInfo                        *bool
 	spanMetricsTargetInfoExcludedDimensions            []string
-	spanMetricsDropInstanceLabel                       *bool
+	spanMetricsEnableInstanceLabel                     *bool
 	localBlocksMaxLiveTraces                           uint64
 	localBlocksMaxBlockDuration                        time.Duration
 	localBlocksMaxBlockBytes                           uint64
@@ -179,12 +179,12 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDi
 	return m.spanMetricsTargetInfoExcludedDimensions
 }
 
-func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDropInstanceLabel(string) (bool, bool) {
-	dropInstanceLabel := m.spanMetricsDropInstanceLabel
-	if dropInstanceLabel != nil {
-		return *dropInstanceLabel, true
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(string) (bool, bool) {
+	EnableInstanceLabel := m.spanMetricsEnableInstanceLabel
+	if EnableInstanceLabel != nil {
+		return *EnableInstanceLabel, true
 	}
-	return false, false
+	return true, false // default to true if not set
 }
 
 func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {

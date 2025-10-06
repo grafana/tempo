@@ -30,9 +30,9 @@ func Test_limitsFromOverrides(t *testing.T) {
 						EnableClientServerPrefix: boolPtr(true),
 					},
 					SpanMetrics: overrides.SpanMetricsOverrides{
-						Dimensions:        []string{"your-dim1", "your-dim2"},
-						EnableTargetInfo:  boolPtr(true),
-						DropInstanceLabel: boolPtr(true),
+						Dimensions:          []string{"your-dim1", "your-dim2"},
+						EnableTargetInfo:    boolPtr(true),
+						EnableInstanceLabel: boolPtr(true),
 						FilterPolicies: []filterconfig.FilterPolicy{
 							{
 								Exclude: &filterconfig.PolicyMatch{
@@ -118,7 +118,7 @@ func Test_limitsFromOverrides(t *testing.T) {
         "target_info_excluded_dimensions": [
           "no"
         ],
-        "drop_instance_label": true
+        "enable_instance_label": true
       },
       "host_info": {
         "host_identifiers": [

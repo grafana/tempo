@@ -48,7 +48,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsDimensionMappings:                       c.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:                        c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
-		MetricsGeneratorProcessorSpanMetricsDropInstanceLabel:                       c.MetricsGenerator.Processor.SpanMetrics.DropInstanceLabel,
+		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                           c.MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:                        c.MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                           c.MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes,
@@ -127,7 +127,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings                       []sharedconfig.DimensionMappings `yaml:"metrics_generator_processor_span_metrics_dimension_mappings" json:"metrics_generator_processor_span_metrics_dimension_mapings"`
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo                        *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
-	MetricsGeneratorProcessorSpanMetricsDropInstanceLabel                       *bool                            `yaml:"metrics_generator_processor_span_metrics_drop_instance_label" json:"metrics_generator_processor_span_metrics_drop_instance_label"`
+	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
 	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
 	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration                        time.Duration                    `yaml:"metrics_generator_processor_local_blocks_max_block_duration" json:"metrics_generator_processor_local_blocks_max_block_duration"`
 	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_block_bytes" json:"metrics_generator_processor_local_blocks_max_block_bytes"`
@@ -217,7 +217,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					DimensionMappings:            l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
 					EnableTargetInfo:             l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
 					TargetInfoExcludedDimensions: l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
-					DropInstanceLabel:            l.MetricsGeneratorProcessorSpanMetricsDropInstanceLabel,
+					EnableInstanceLabel:          l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
 				},
 				LocalBlocks: LocalBlocksOverrides{
 					MaxLiveTraces:        l.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces,

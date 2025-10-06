@@ -1054,7 +1054,7 @@ func TestTargetInfoWithDifferentBatches(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls3))
 }
 
-func TestDropInstanceLabel(t *testing.T) {
+func TestEnableInstanceLabelFalse(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
@@ -1062,9 +1062,9 @@ func TestDropInstanceLabel(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
-	cfg.DropInstanceLabel = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.Dimensions = []string{"http.method", "foo"}
+	cfg.EnableInstanceLabel = false
 
 	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
@@ -1174,7 +1174,7 @@ func TestDropInstanceLabel(t *testing.T) {
 	}
 }
 
-func TestDropInstanceLabelUnset(t *testing.T) {
+func TestEnableInstanceLabelUnset(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
@@ -1184,6 +1184,7 @@ func TestDropInstanceLabelUnset(t *testing.T) {
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.Dimensions = []string{"http.method", "foo"}
+	// cfg.EnableInstanceLabel = true // by default it is true
 
 	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)

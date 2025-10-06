@@ -267,7 +267,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		expectedEnableTargetInfo             map[string]bool
 		expectedDimensionMappings            map[string][]sharedconfig.DimensionMappings
 		expectedTargetInfoExcludedDimensions map[string][]string
-		expectedDropInstanceLabel            map[string]bool
+		expectedEnableInstanceLabel          map[string]bool
 	}{
 		{
 			name: "limits only",
@@ -283,7 +283,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 									Join:        "/",
 								},
 							},
-							DropInstanceLabel: boolPtr(false),
+							EnableInstanceLabel: boolPtr(false),
 						},
 					},
 				},
@@ -305,7 +305,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 					},
 				},
 			},
-			expectedDropInstanceLabel: map[string]bool{"user1": false, "user2": false},
+			expectedEnableInstanceLabel: map[string]bool{"user1": false, "user2": false},
 		},
 		{
 			name:          "basic Overrides",
@@ -324,7 +324,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 											Join:        "/",
 										},
 									},
-									DropInstanceLabel: boolPtr(true),
+									EnableInstanceLabel: boolPtr(false),
 								},
 							},
 						},
@@ -342,7 +342,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				},
 				"user2": nil,
 			},
-			expectedDropInstanceLabel: map[string]bool{"user1": true, "user2": false},
+			expectedEnableInstanceLabel: map[string]bool{"user1": false, "user2": true},
 		},
 		{
 			name: "wildcard override",
@@ -429,6 +429,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			expectedTargetInfoExcludedDimensions: map[string][]string{
 				"user1": {"some-label"},
 			},
+			expectedEnableInstanceLabel: map[string]bool{"user1": true, "user2": true},
 		},
 	}
 
@@ -450,9 +451,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(user))
 			}
 
-			for user, expectedVal := range tt.expectedDropInstanceLabel {
-				dropInstanceLabelValue, _ := overrides.MetricsGeneratorProcessorSpanMetricsDropInstanceLabel(user)
-				assert.Equal(t, expectedVal, dropInstanceLabelValue)
+			for user, expectedVal := range tt.expectedEnableInstanceLabel {
+				EnableInstanceLabelValue, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(user)
+				assert.Equal(t, expectedVal, EnableInstanceLabelValue)
 			}
 
 			err := services.StopAndAwaitTerminated(context.TODO(), overrides)

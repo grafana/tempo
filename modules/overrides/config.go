@@ -105,7 +105,7 @@ type SpanMetricsOverrides struct {
 	DimensionMappings            []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
 	EnableTargetInfo             *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
 	TargetInfoExcludedDimensions []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
-	DropInstanceLabel            *bool                            `yaml:"drop_instance_label,omitempty" json:"drop_instance_label,omitempty"`
+	EnableInstanceLabel          *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
 }
 
 type LocalBlocksOverrides struct {
