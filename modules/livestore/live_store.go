@@ -123,6 +123,7 @@ type LiveStore struct {
 	wg              sync.WaitGroup
 	completeQueues  *flushqueues.ExclusiveQueues
 	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
+	lagCancel       context.CancelFunc
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
@@ -269,6 +270,18 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
+	lagCtx, cncl := context.WithCancel(s.ctx)
+	s.lagCancel = cncl
+	// Start exporting partition lag metrics
+	ingest.ExportPartitionLagMetrics(
+		lagCtx,
+		s.client,
+		s.logger,
+		s.cfg.IngestConfig,
+		func() []int32 { return []int32{s.ingestPartitionID} },
+		s.client.ForceMetadataRefresh,
+	)
+
 	for i := range s.cfg.CompleteBlockConcurrency {
 		idx := i
 		s.runInBackground(func() {
@@ -292,12 +305,18 @@ func (s *LiveStore) running(ctx context.Context) error {
 }
 
 func (s *LiveStore) stopping(error) error {
+	// Stop the kafka lag background worker.
+	s.lagCancel()
+
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
 		level.Warn(s.logger).Log("msg", "failed to stop reader", "err", err)
 		return err
 	}
+
+	// Reset lag metrics for our partition when stopping
+	ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
 
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
@@ -356,6 +375,10 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
+
+		// Track partition lag in seconds
+		lag := now.Sub(record.Timestamp)
+		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
