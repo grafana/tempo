@@ -96,13 +96,7 @@ func (t *testCounter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
-	for i, label := range labelValueCombo.labels.names {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
-	}
-	sort.Sort(lbls)
-
-	t.registry.addToMetric(t.n, lbls, value)
+	t.registry.addToMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
 }
 
 func (t *testCounter) name() string {
@@ -129,23 +123,11 @@ func (t *testGauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
-	for i, label := range labelValueCombo.labels.names {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
-	}
-	sort.Sort(lbls)
-
-	t.registry.addToMetric(t.n, lbls, value)
+	t.registry.addToMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
 }
 
 func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
-	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
-	for i, label := range labelValueCombo.labels.names {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
-	}
-	sort.Sort(lbls)
-
-	t.registry.setMetric(t.n, lbls, value)
+	t.registry.setMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
 }
 
 func (t *testGauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
@@ -179,21 +161,17 @@ var (
 )
 
 func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, _ string, multiplier float64) {
-	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
-	for i, label := range labelValueCombo.labels.names {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
-	}
-	sort.Sort(lbls)
+	l := getLabelsFromValueCombo(labelValueCombo)
 
-	t.registry.addToMetric(t.nameCount, lbls, 1*multiplier)
-	t.registry.addToMetric(t.nameSum, lbls, value*multiplier)
+	t.registry.addToMetric(t.nameCount, l, 1*multiplier)
+	t.registry.addToMetric(t.nameSum, l, value*multiplier)
 
 	for _, bucket := range t.buckets {
 		if value <= bucket {
-			t.registry.addToMetric(t.nameBucket, withLe(lbls, bucket), 1*multiplier)
+			t.registry.addToMetric(t.nameBucket, withLe(l, bucket), 1*multiplier)
 		}
 	}
-	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1*multiplier)
+	t.registry.addToMetric(t.nameBucket, withLe(l, math.Inf(1)), 1*multiplier)
 }
 
 func (t *testHistogram) name() string {

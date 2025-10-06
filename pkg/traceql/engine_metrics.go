@@ -234,22 +234,23 @@ func (ls Labels) Has(name string) bool {
 // String returns the prometheus-formatted version of the labels. Which is downcasting
 // the typed TraceQL values to strings, with some special casing.
 func (ls Labels) String() string {
-	promLabels := labels.NewBuilder(nil)
+	promLabels := labels.NewBuilder(labels.EmptyLabels())
 	for _, l := range ls {
 		var promValue string
-		switch {
-		case l.Value.Type == TypeNil:
+		switch l.Value.Type {
+		case TypeNil:
 			promValue = "<nil>"
-		case l.Value.Type == TypeString:
+		case TypeString:
 			s := l.Value.EncodeToString(false)
-			if s == "nil" {
+			switch s {
+			case "nil":
 				promValue = "<nil>"
-			} else if s == "" {
+			case "":
 				promValue = "<empty>"
-			} else {
+			default:
 				promValue = s
 			}
-		case l.Value.Type == TypeInt:
+		case TypeInt:
 			promValue = "int(" + l.Value.EncodeToString(false) + ")"
 		default:
 			promValue = l.Value.EncodeToString(false)
