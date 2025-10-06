@@ -510,7 +510,7 @@ metrics_generator:
             [target_info_excluded_dimensions: <list of string>]
 
             # Add instance label to all span metrics series when enable_target_info is true
-            [enable_instance_label: <bool>]
+            [enable_instance_label: <bool> | default = true]
 
         local_blocks:
 
@@ -1817,7 +1817,7 @@ overrides:
           # Drop specific resource labels from traces_target_info
           [target_info_excluded_dimensions: <list of string>]
           # add instance label to all span metrics series when enable_target_info is true
-          [enable_instance_label: <bool>]
+          [enable_instance_label: <bool> | default = true]
 
         # Configuration for the local-blocks processor
         local-blocks:
