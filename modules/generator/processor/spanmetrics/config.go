@@ -59,7 +59,7 @@ type Config struct {
 	// Allow user to specify labels they want to drop from target_info
 	TargetInfoExcludedDimensions []string `yaml:"target_info_excluded_dimensions"`
 
-	// Allow user to drop instance label
+	// Allow user to disable instance label from all span metrics series
 	EnableInstanceLabel bool `yaml:"enable_instance_label"`
 }
 
