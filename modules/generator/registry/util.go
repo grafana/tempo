@@ -8,6 +8,5 @@ func getLabelsFromValueCombo(labelValueCombo *LabelValueCombo) labels.Labels {
 	for i := range lbls.names {
 		lb[i] = labels.Label{Name: lbls.names[i], Value: lbls.values[i]}
 	}
-	l := labels.New(lb...)
-	return l
+	return labels.New(lb...)
 }
