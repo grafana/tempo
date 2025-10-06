@@ -1054,6 +1054,271 @@ func TestTargetInfoWithDifferentBatches(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls3))
 }
 
+func TestEnableInstanceLabelFalse(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.Dimensions = []string{"http.method", "foo"}
+	cfg.EnableInstanceLabel = false
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	// first batch will not have name-space nor instance id
+	// this will NOT create target_info metrics since it only has job but no other attributes
+
+	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
+
+	batchCount := 10
+	batch := test.MakeBatch(batchCount, nil)
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-abc"}},
+		},
+		// add cluster
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+	}
+	for _, ils := range batch.ScopeSpans {
+		for _, s := range ils.Spans {
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "http.method",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "GET"}},
+			})
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "foo",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar"}},
+			})
+		}
+	}
+
+	// batch 2 will have instance id & cluster
+	// this will create a target_info metric with job, instance, and cluster
+	batch2 := test.MakeBatch(batchCount, nil)
+	batch2.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		// add cluster
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+	}
+	for _, ils := range batch2.ScopeSpans {
+		for _, s := range ils.Spans {
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "http.method",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "GET"}},
+			})
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "foo",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar"}},
+			})
+		}
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch, batch2}})
+
+	fmt.Println(testRegistry)
+
+	targetInfoLabels := labels.FromMap(map[string]string{
+		"job":     "test-service",
+		"cluster": "eu-west-0",
+	})
+
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", targetInfoLabels))
+
+	spanMetricsLabels := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
+		"http_method": "GET",
+		"foo":         "bar",
+		"job":         "test-service",
+	})
+	assert.Equal(t, float64(batchCount*2), testRegistry.Query("traces_spanmetrics_calls_total", spanMetricsLabels))
+	assert.Equal(t, float64(batchCount*2), testRegistry.Query("traces_spanmetrics_latency_count", spanMetricsLabels))
+	assert.Equal(t, float64(batchCount*2), testRegistry.Query("traces_spanmetrics_latency_sum", spanMetricsLabels))
+
+	expectedBuckets := map[float64]float64{
+		0.5:         0.0,
+		1.0:         20.0,
+		math.Inf(1): 20.0,
+	}
+	for le, expected := range expectedBuckets {
+		assert.Equal(t, expected, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(spanMetricsLabels, le)))
+	}
+}
+
+func TestEnableInstanceLabelUnset(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.Dimensions = []string{"http.method", "foo"}
+	// cfg.EnableInstanceLabel = true // by default it is true
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	// first batch will not have name-space nor instance id
+	// this will NOT create target_info metrics since it only has job but no other attributes
+
+	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
+
+	batchCount := 10
+	batch := test.MakeBatch(batchCount, nil)
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-abc"}},
+		},
+		// add cluster
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+	}
+	for _, ils := range batch.ScopeSpans {
+		for _, s := range ils.Spans {
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "http.method",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "GET"}},
+			})
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "foo",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar"}},
+			})
+		}
+	}
+
+	// batch 2 will have instance id & cluster
+	// this will create a target_info metric with job, instance, and cluster
+	batch2 := test.MakeBatch(batchCount, nil)
+	batch2.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		// add cluster
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+	}
+	for _, ils := range batch2.ScopeSpans {
+		for _, s := range ils.Spans {
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "http.method",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "GET"}},
+			})
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "foo",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar"}},
+			})
+		}
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch, batch2}})
+
+	fmt.Println(testRegistry)
+
+	targetInfoLabels1 := labels.FromMap(map[string]string{
+		"job":      "test-service",
+		"cluster":  "eu-west-0",
+		"instance": "abc-instance-id-test-abc",
+	})
+
+	targetInfoLabels2 := labels.FromMap(map[string]string{
+		"job":      "test-service",
+		"cluster":  "eu-west-0",
+		"instance": "abc-instance-id-test-def",
+	})
+
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", targetInfoLabels1))
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", targetInfoLabels2))
+
+	spanMetricsLabels1 := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
+		"http_method": "GET",
+		"foo":         "bar",
+		"job":         "test-service",
+		"instance":    "abc-instance-id-test-abc",
+	})
+
+	spanMetricsLabels2 := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
+		"http_method": "GET",
+		"foo":         "bar",
+		"job":         "test-service",
+		"instance":    "abc-instance-id-test-def",
+	})
+	assert.Equal(t, float64(batchCount), testRegistry.Query("traces_spanmetrics_calls_total", spanMetricsLabels1))
+	assert.Equal(t, float64(batchCount), testRegistry.Query("traces_spanmetrics_latency_count", spanMetricsLabels1))
+	assert.Equal(t, float64(batchCount), testRegistry.Query("traces_spanmetrics_latency_sum", spanMetricsLabels1))
+
+	assert.Equal(t, float64(batchCount), testRegistry.Query("traces_spanmetrics_calls_total", spanMetricsLabels2))
+	assert.Equal(t, float64(batchCount), testRegistry.Query("traces_spanmetrics_latency_count", spanMetricsLabels2))
+	assert.Equal(t, float64(batchCount), testRegistry.Query("traces_spanmetrics_latency_sum", spanMetricsLabels2))
+
+	expectedBuckets := map[float64]float64{
+		0.5:         0.0,
+		1.0:         10.0,
+		math.Inf(1): 10.0,
+	}
+	for le, expected := range expectedBuckets {
+		assert.Equal(t, expected, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(spanMetricsLabels1, le)))
+		assert.Equal(t, expected, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(spanMetricsLabels2, le)))
+	}
+}
+
 func TestSpanMetricsDimensionMapping(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
