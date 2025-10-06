@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	proto "github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/gzip"
 )
 

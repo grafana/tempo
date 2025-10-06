@@ -58,15 +58,6 @@ func TestFetchTagNames(t *testing.T) {
 			expectedInstrumentationValues: []string{"scope-attr-str-1"},
 		},
 		{
-			name:                          "well known span",
-			query:                         "{span.http.method=`method-01-01`}",
-			expectedSpanValues:            []string{"generic-01-01", "span-same"},
-			expectedResourceValues:        []string{"generic-01", "resource-same"},
-			expectedEventValues:           []string{"event-generic-01-01"},
-			expectedLinkValues:            []string{"link-generic-01-01"},
-			expectedInstrumentationValues: []string{"scope-attr-str-1"},
-		},
-		{
 			name:                          "generic span",
 			query:                         "{span.generic-01-01=`foo`}",
 			expectedSpanValues:            []string{"generic-01-01", "span-same"},
@@ -85,15 +76,6 @@ func TestFetchTagNames(t *testing.T) {
 			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
 		},
 		// resource
-		{
-			name:                          "well known resource",
-			query:                         "{resource.cluster=`cluster-01`}",
-			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same"},
-			expectedResourceValues:        []string{"generic-01", "resource-same"},
-			expectedEventValues:           []string{"event-generic-01-01"},
-			expectedLinkValues:            []string{"link-generic-01-01"},
-			expectedInstrumentationValues: []string{"scope-attr-str-1"},
-		},
 		{
 			name:                          "generic resource",
 			query:                         "{resource.generic-01=`bar`}",
@@ -133,7 +115,6 @@ func TestFetchTagNames(t *testing.T) {
 			{
 				Resource: Resource{
 					ServiceName: "svc-01",
-					Cluster:     strPtr("cluster-01"), // well known
 					Attrs: []Attribute{
 						{Key: "generic-01", Value: []string{"bar"}}, // generic
 						{Key: "resource-same", Value: []string{"foo"}},
@@ -156,8 +137,7 @@ func TestFetchTagNames(t *testing.T) {
 							{
 								SpanID:        []byte("0101"),
 								Name:          "span-01-01",
-								HttpMethod:    strPtr("method-01-01"), // well known
-								StatusMessage: "msg-01-01",            // intrinsic
+								StatusMessage: "msg-01-01", // intrinsic
 								Attrs: []Attribute{
 									{Key: "generic-01-01", Value: []string{"foo"}}, // generic
 									{Key: "span-same", Value: []string{"foo"}},     // generic
@@ -185,8 +165,7 @@ func TestFetchTagNames(t *testing.T) {
 							{
 								SpanID:        []byte("0102"),
 								Name:          "span-01-02",
-								HttpMethod:    strPtr("method-01-02"), // well known
-								StatusMessage: "msg-01-02",            // intrinsic
+								StatusMessage: "msg-01-02", // intrinsic
 								Attrs: []Attribute{
 									{Key: "generic-01-02", Value: []string{"foo"}}, // generic
 								},
@@ -201,7 +180,6 @@ func TestFetchTagNames(t *testing.T) {
 			{
 				Resource: Resource{
 					ServiceName: "svc-02",
-					Cluster:     strPtr("cluster-02"), // well known
 					Attrs: []Attribute{
 						{Key: "generic-02", Value: []string{"bar"}}, // generic
 						{Key: "resource-same", Value: []string{"foo"}},
@@ -224,8 +202,7 @@ func TestFetchTagNames(t *testing.T) {
 							{
 								SpanID:        []byte("0201"),
 								Name:          "span-02-01",
-								HttpMethod:    strPtr("method-02-01"), // well known
-								StatusMessage: "msg-02-01",            // intrinsic
+								StatusMessage: "msg-02-01", // intrinsic
 								Attrs: []Attribute{
 									{Key: "generic-02-01", Value: []string{"foo"}}, // generic
 									{Key: "span-same", Value: []string{"foo"}},     // generic
@@ -282,13 +259,11 @@ func TestFetchTagNames(t *testing.T) {
 			dedicatedSpanValues := []string{"dedicated.span.1"}
 			dedicatedResourceValues := []string{"dedicated.resource.1"}
 
-			wellKnownSpanValues := []string{"http.method"}
-			wellKnownResourceValues := []string{"cluster", "service.name"}
+			wellKnownResourceValues := []string{"service.name"}
 
 			expectedValues := map[string][]string{}
 			if scope == traceql.AttributeScopeSpan || scope == traceql.AttributeScopeNone {
 				expectedValues["span"] = append(expectedValues["span"], expectedSpanValues...)
-				expectedValues["span"] = append(expectedValues["span"], wellKnownSpanValues...)
 				expectedValues["span"] = append(expectedValues["span"], dedicatedSpanValues...)
 			}
 			if scope == traceql.AttributeScopeResource || scope == traceql.AttributeScopeNone {

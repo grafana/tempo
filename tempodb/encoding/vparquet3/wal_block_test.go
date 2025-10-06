@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -324,6 +325,34 @@ func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*temp
 	require.NoError(t, w.Flush())
 
 	f(w, ids, trs)
+}
+
+func TestCreateWALBlockFilterDedicatedColumns(t *testing.T) {
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta.DedicatedColumns = backend.DedicatedColumns{
+		{Scope: "span", Name: "span-one", Type: "string"},
+		{Scope: "span", Name: LabelHTTPMethod, Type: "string"},
+		{Scope: "span", Name: LabelHTTPUrl, Type: "string"},
+		{Scope: "span", Name: "span-two", Type: "string"},
+		{Scope: "resource", Name: LabelCluster, Type: "string"},
+		{Scope: "resource", Name: LabelK8sNamespaceName, Type: "string"},
+		{Scope: "resource", Name: "res-one", Type: "string"},
+		{Scope: "resource", Name: "res-two", Type: "string"},
+	}
+	original := slices.Clone(meta.DedicatedColumns)
+
+	wb, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(t, err)
+	outMeta := wb.BlockMeta()
+
+	expected := backend.DedicatedColumns{
+		{Scope: "span", Name: "span-one", Type: "string"},
+		{Scope: "span", Name: "span-two", Type: "string"},
+		{Scope: "resource", Name: "res-one", Type: "string"},
+		{Scope: "resource", Name: "res-two", Type: "string"},
+	}
+	require.Equal(t, expected, outMeta.DedicatedColumns) // check filtered column
+	require.Equal(t, original, meta.DedicatedColumns)    // the original meta is not changed
 }
 
 func BenchmarkWalTraceQL(b *testing.B) {

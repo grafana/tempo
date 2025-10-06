@@ -3,6 +3,7 @@ package vparquet3
 import (
 	"context"
 	"io"
+	"slices"
 	"testing"
 	"time"
 
@@ -46,6 +47,52 @@ func TestCreateBlockHonorsTraceStartEndTimesFromWalMeta(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 300, int(outMeta.StartTime.Unix()))
 	require.Equal(t, 305, int(outMeta.EndTime.Unix()))
+}
+
+func TestCreateBlockFilterDedicatedColumns(t *testing.T) {
+	ctx := context.Background()
+
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	iter := newTestIterator()
+	iter.Add(test.MakeTrace(10, nil), 100, 401)
+	cfg := &common.BlockConfig{
+		BloomFP:             0.01,
+		BloomShardSizeBytes: 100 * 1024,
+	}
+
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta.TotalObjects = 1
+	meta.DedicatedColumns = backend.DedicatedColumns{
+		{Scope: "span", Name: "span-one", Type: "string"},
+		{Scope: "span", Name: LabelHTTPMethod, Type: "string"},
+		{Scope: "span", Name: LabelHTTPUrl, Type: "string"},
+		{Scope: "span", Name: "span-two", Type: "string"},
+		{Scope: "resource", Name: LabelCluster, Type: "string"},
+		{Scope: "resource", Name: LabelK8sNamespaceName, Type: "string"},
+		{Scope: "resource", Name: "res-one", Type: "string"},
+		{Scope: "resource", Name: "res-two", Type: "string"},
+	}
+	original := slices.Clone(meta.DedicatedColumns)
+
+	outMeta, err := CreateBlock(ctx, cfg, meta, iter, r, w)
+	require.NoError(t, err)
+
+	expected := backend.DedicatedColumns{
+		{Scope: "span", Name: "span-one", Type: "string"},
+		{Scope: "span", Name: "span-two", Type: "string"},
+		{Scope: "resource", Name: "res-one", Type: "string"},
+		{Scope: "resource", Name: "res-two", Type: "string"},
+	}
+
+	require.Equal(t, expected, outMeta.DedicatedColumns) // check filtered column
+	require.Equal(t, original, meta.DedicatedColumns)    // the original meta is not changed
 }
 
 // func TestEstimateTraceSize(t *testing.T) {
