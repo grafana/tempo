@@ -130,6 +130,16 @@ processors:
         - attributes["http.request.method"] != nil
 ```
 
+#### Dropping non-error spans with a duration of less than 1 second
+```yaml
+processors:
+  filter:
+    error_mode: ignore
+    traces:
+      span:
+        - (end_time - start_time) < Duration("1s") and status.code != STATUS_CODE_ERROR
+```
+
 ### OTTL Functions
 
 The filter processor has access to all [OTTL Converter functions](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/ottlfuncs#converters)
