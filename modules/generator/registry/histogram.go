@@ -142,11 +142,7 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 	// Precompute all labels for all sub-metrics upfront
 
 	// Create and populate label builder
-	lbls := labelValueCombo.getLabelPair()
-	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)))
-	for i, name := range lbls.names {
-		lb.Set(name, lbls.values[i])
-	}
+	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
 	for name, value := range h.externalLabels {
 		lb.Set(name, value)
 	}
@@ -239,13 +235,16 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 
 			ex := s.exemplars[i].Load()
 			if ex != "" {
+
+				lbls := []labels.Label{{
+					Name:  h.traceIDLabelName,
+					Value: ex,
+				}}
+
 				_, err = appender.AppendExemplar(ref, s.bucketLabels[i], exemplar.Exemplar{
-					Labels: []labels.Label{{
-						Name:  h.traceIDLabelName,
-						Value: ex,
-					}},
-					Value: s.exemplarValues[i].Load(),
-					Ts:    timeMs,
+					Labels: labels.New(lbls...),
+					Value:  s.exemplarValues[i].Load(),
+					Ts:     timeMs,
 				})
 				if err != nil {
 					return activeSeries, err

@@ -109,13 +109,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
-	lbls := labelValueCombo.getLabelPair()
-	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)+len(g.externalLabels)))
-
-	for i, name := range lbls.names {
-		lb.Set(name, lbls.values[i])
-	}
-
+	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
 	for name, value := range g.externalLabels {
 		lb.Set(name, value)
 	}

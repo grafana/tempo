@@ -184,13 +184,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
 
-	lbls := labelValueCombo.getLabelPair()
-	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)))
-
-	// set series labels
-	for i, name := range lbls.names {
-		lb.Set(name, lbls.values[i])
-	}
+	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
 	// set external labels
 	for name, value := range h.externalLabels {
 		lb.Set(name, value)
@@ -506,7 +500,7 @@ func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {
 			Value: lbp.GetValue(),
 		}
 	}
-	return lbs
+	return labels.New(lbs...)
 }
 
 // getIfGreaterThenZeroOr returns v1 is if it's greater than zero, otherwise it returns v2.
