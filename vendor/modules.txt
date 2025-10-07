@@ -1257,7 +1257,7 @@ github.com/prometheus/common/version
 # github.com/prometheus/exporter-toolkit v0.14.0
 ## explicit; go 1.22
 github.com/prometheus/exporter-toolkit/web
-# github.com/prometheus/otlptranslator v0.0.2
+# github.com/prometheus/otlptranslator v0.0.2 => github.com/prometheus/otlptranslator v0.0.0-20250620074007-94f535e0c588
 ## explicit; go 1.23.0
 github.com/prometheus/otlptranslator
 # github.com/prometheus/procfs v0.17.0
@@ -2469,3 +2469,4 @@ sigs.k8s.io/yaml/goyaml.v3
 # k8s.io/api => k8s.io/api v0.25.0
 # k8s.io/client-go => k8s.io/client-go v0.25.0
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
+# github.com/prometheus/otlptranslator => github.com/prometheus/otlptranslator v0.0.0-20250620074007-94f535e0c588

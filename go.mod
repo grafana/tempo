@@ -425,3 +425,6 @@ replace (
 // - https://github.com/hashicorp/memberlist/pull/260
 // - https://github.com/grafana/memberlist/pull/3
 replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
+
+// Keep this until the new prometheus version is released
+replace github.com/prometheus/otlptranslator => github.com/prometheus/otlptranslator v0.0.0-20250620074007-94f535e0c588
