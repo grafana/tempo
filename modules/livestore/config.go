@@ -73,7 +73,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// Set defaults for timing configuration (based on ingester defaults)
 	cfg.InstanceFlushPeriod = 10 * time.Second
 	cfg.InstanceCleanupPeriod = 5 * time.Minute
-	cfg.MaxTraceLive = 30 * time.Second // jpe - add docs that this limits querying
+	cfg.MaxTraceLive = 30 * time.Second
 	cfg.MaxTraceIdle = 5 * time.Second
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
 	cfg.MaxBlockDuration = 30 * time.Minute
