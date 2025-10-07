@@ -82,7 +82,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -180,7 +180,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -278,7 +278,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -375,7 +375,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -470,7 +470,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -568,7 +568,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -674,7 +674,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -771,7 +771,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -888,7 +888,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -985,7 +985,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -1094,7 +1094,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "points",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -1258,7 +1258,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -1360,7 +1360,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "points",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -1527,7 +1527,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -1631,7 +1631,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -1740,7 +1740,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1837,7 +1837,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1945,7 +1945,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1995,7 +1995,7 @@
      "gridPos": {
       "h": 5,
       "w": 4,
-      "x": 12,
+      "x": 10,
       "y": 8
      },
      "id": 97,
@@ -2044,7 +2044,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2094,7 +2094,7 @@
      "gridPos": {
       "h": 5,
       "w": 6,
-      "x": 16,
+      "x": 14,
       "y": 8
      },
      "id": 93,
@@ -2160,7 +2160,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2257,7 +2257,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2365,7 +2365,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2415,7 +2415,7 @@
      "gridPos": {
       "h": 5,
       "w": 4,
-      "x": 12,
+      "x": 10,
       "y": 13
      },
      "id": 98,
@@ -2464,7 +2464,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2514,7 +2514,7 @@
      "gridPos": {
       "h": 5,
       "w": 6,
-      "x": 16,
+      "x": 14,
       "y": 13
      },
      "id": 94,
@@ -2578,7 +2578,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2675,7 +2675,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2783,7 +2783,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2833,7 +2833,7 @@
      "gridPos": {
       "h": 5,
       "w": 4,
-      "x": 12,
+      "x": 10,
       "y": 24
      },
      "id": 99,
@@ -2882,7 +2882,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2932,7 +2932,7 @@
      "gridPos": {
       "h": 5,
       "w": 6,
-      "x": 16,
+      "x": 14,
       "y": 24
      },
      "id": 95,
@@ -2996,7 +2996,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3093,7 +3093,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3201,7 +3201,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3251,7 +3251,7 @@
      "gridPos": {
       "h": 5,
       "w": 4,
-      "x": 12,
+      "x": 10,
       "y": 29
      },
      "id": 100,
@@ -3300,7 +3300,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3350,7 +3350,7 @@
      "gridPos": {
       "h": 5,
       "w": 6,
-      "x": 16,
+      "x": 14,
       "y": 29
      },
      "id": 96,
@@ -3400,6 +3400,416 @@
     },
     {
      "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.59999999999999998,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green"
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 4,
+      "x": 0,
+      "y": 34
+     },
+     "id": 1001,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_request_duration_seconds_count{route=\"/tempopb.Querier/FindTraceByID\", cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\"}[$__rate_interval])) by (status_code)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "{{status_code}}",
+       "refId": "A"
+      }
+     ],
+     "title": "Queries/Sec (Live Store)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.59999999999999998,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green"
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 6,
+      "x": 4,
+      "y": 34
+     },
+     "id": 1002,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "title": "Query Latency (Live Store)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.59999999999999998,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green"
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 4,
+      "x": 10,
+      "y": 34
+     },
+     "id": 1003,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\"/tempopb.Querier/Search.*\", cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\"}[$__rate_interval])) by (status_code)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "{{status_code}}",
+       "refId": "A"
+      }
+     ],
+     "title": "Search Queries/Sec (Live Store)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.59999999999999998,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green"
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 6,
+      "x": 14,
+      "y": 34
+     },
+     "id": 1004,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "title": "Search Query Latency (Live Store)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
       "type": "prometheus",
       "uid": "$ds"
      },
@@ -3415,7 +3825,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3466,7 +3876,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 34
+      "y": 44
      },
      "id": 102,
      "options": {
@@ -3519,7 +3929,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3570,7 +3980,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 34
+      "y": 44
      },
      "id": 103,
      "options": {
@@ -3646,7 +4056,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3697,7 +4107,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 34
+      "y": 44
      },
      "id": 110,
      "options": {
@@ -3752,7 +4162,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3802,8 +4212,8 @@
      "gridPos": {
       "h": 5,
       "w": 6,
-      "x": 16,
-      "y": 34
+      "x": 14,
+      "y": 44
      },
      "id": 111,
      "options": {
@@ -3885,7 +4295,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3989,7 +4399,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4116,7 +4526,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4166,7 +4576,7 @@
      "gridPos": {
       "h": 5,
       "w": 4,
-      "x": 12,
+      "x": 10,
       "y": 39
      },
      "id": 106,
@@ -4220,7 +4630,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4270,7 +4680,7 @@
      "gridPos": {
       "h": 5,
       "w": 6,
-      "x": 16,
+      "x": 14,
       "y": 39
      },
      "id": 107,
@@ -4361,7 +4771,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -4464,7 +4874,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4566,7 +4976,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4662,7 +5072,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4758,7 +5168,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4854,7 +5264,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "points",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4963,7 +5373,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5067,7 +5477,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5169,7 +5579,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5265,7 +5675,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5369,7 +5779,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5536,7 +5946,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5664,7 +6074,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5780,7 +6190,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -6761,7 +7171,7 @@
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "barWidthFactor": 0.6,
+        "barWidthFactor": 0.59999999999999998,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -6949,7 +7359,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -7050,7 +7460,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -7151,7 +7561,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -7256,7 +7666,7 @@
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
-      "barWidthFactor": 0.6,
+      "barWidthFactor": 0.59999999999999998,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
