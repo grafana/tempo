@@ -34,6 +34,9 @@ type Config struct {
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
 
+	// ShutdownMarkerDir is the path to the shutdown marker directory
+	ShutdownMarkerDir string `yaml:"shutdown_marker_dir"`
+
 	// Timing configuration
 	InstanceFlushPeriod   time.Duration `yaml:"flush_check_period"`
 	InstanceCleanupPeriod time.Duration `yaml:"flush_op_timeout"`
@@ -92,6 +95,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
 	cfg.WAL.Version = encoding.DefaultEncoding().Version()
 	f.StringVar(&cfg.WAL.Filepath, prefix+".wal.path", "/var/tempo/live-store/traces", "Path at which store WAL blocks.")
+	f.StringVar(&cfg.ShutdownMarkerDir, prefix+".shutdown_marker_dir", "/var/tempo/live-store/shutdown-marker", "Path to the shutdown marker directory.")
 }
 
 func (cfg *Config) Validate() error {
