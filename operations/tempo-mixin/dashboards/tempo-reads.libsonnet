@@ -51,6 +51,17 @@ dashboard_utils {
         )
       )
       .addRow(
+        g.row('Livestore')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"/tempopb.Querier/.*"}' % $.containerMatcher($._config.jobs.live_store))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Querier/.*"}' % $.containerMatcher($._config.jobs.live_store), additional_grouping='route')
+        )
+      )
+      .addRow(
         g.row('Memcached')
         .addPanel(
           $.panel('QPS') +
