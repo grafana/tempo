@@ -9,6 +9,8 @@ query_frontend:
   mcp_server:
     enabled: true
   search:
+    query_backend_after: 5s
+    query_ingesters_until: 5s
     default_query_end_buffer: -5m # Include all recent data
   metrics:
     max_response_series: 0
