@@ -95,6 +95,9 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenant1))
+	EnableInstanceLabel, EnableInstanceLabelIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(tenant1)
+	assert.Equal(t, true, EnableInstanceLabel)
+	assert.Equal(t, false, EnableInstanceLabelIsSet)
 
 	// Inject user-configurable overrides
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
@@ -112,8 +115,9 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 					HistogramBuckets:         &[]float64{1, 2, 3, 4, 5},
 				},
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
-					Dimensions:       &[]string{"sm-dimension"},
-					EnableTargetInfo: boolPtr(true),
+					Dimensions:          &[]string{"sm-dimension"},
+					EnableTargetInfo:    boolPtr(true),
+					EnableInstanceLabel: boolPtr(false),
 					FilterPolicies: &[]filterconfig.FilterPolicy{
 						{
 							Include: &filterconfig.PolicyMatch{
@@ -161,6 +165,9 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, true, enableTargetInfoIsSet)
 	assert.Equal(t, []float64{10, 20, 30, 40, 50}, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenant1))
 	assert.Equal(t, []string{"some-label"}, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenant1))
+	EnableInstanceLabel, EnableInstanceLabelIsSet = mgr.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(tenant1)
+	assert.Equal(t, false, EnableInstanceLabel)
+	assert.Equal(t, true, EnableInstanceLabelIsSet)
 
 	filterPolicies := mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1)
 	assert.NotEmpty(t, filterPolicies)
@@ -458,6 +465,10 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.BlockRetention(tenantID), baseMgr.BlockRetention(tenantID))
 	assert.Equal(t, mgr.MaxSearchDuration(tenantID), baseMgr.MaxSearchDuration(tenantID))
 	assert.Equal(t, mgr.DedicatedColumns(tenantID), baseMgr.DedicatedColumns(tenantID))
+	baseEnableInstanceLabelValue, baseEnableInstanceLabelIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(tenantID)
+	overrideEnableInstanceLabelValue, overrideEnableInstanceLabelIsSet := baseMgr.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(tenantID)
+	assert.Equal(t, overrideEnableInstanceLabelValue, baseEnableInstanceLabelValue)
+	assert.Equal(t, overrideEnableInstanceLabelIsSet, baseEnableInstanceLabelIsSet)
 }
 
 func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
@@ -504,6 +515,7 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 							DimensionMappings:            []sharedconfig.DimensionMappings{{Name: "foo", SourceLabel: []string{"bar"}, Join: "baz"}},
 							EnableTargetInfo:             boolPtr(true),
 							TargetInfoExcludedDimensions: []string{"bar", "namespace", "env"},
+							EnableInstanceLabel:          boolPtr(false),
 						},
 						LocalBlocks: LocalBlocksOverrides{
 							MaxLiveTraces:        100,

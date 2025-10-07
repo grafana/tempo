@@ -94,6 +94,9 @@ func TestOverrides(t *testing.T) {
 
 			limits, version, err := apiClient.GetOverrides()
 			assert.NoError(t, err)
+			EnableInstanceLabel, EnableInstanceLabelIsSet := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetEnableInstanceLabel()
+			assert.True(t, EnableInstanceLabel)
+			assert.False(t, EnableInstanceLabelIsSet)
 			printLimits(limits, version)
 
 			disableCollection, ok := limits.GetMetricsGenerator().GetDisableCollection()
@@ -141,6 +144,11 @@ func TestOverrides(t *testing.T) {
 			patch := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
 					DisableCollection: boolPtr(true),
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
+							EnableInstanceLabel: boolPtr(false),
+						},
+					},
 				},
 			}
 
@@ -154,6 +162,9 @@ func TestOverrides(t *testing.T) {
 			processors, ok = limits.GetMetricsGenerator().GetProcessors()
 			assert.True(t, ok)
 			assert.ElementsMatch(t, keys(processors.GetMap()), []string{"span-metrics"})
+			EnableInstanceLabel, EnableInstanceLabelIsSet = limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetEnableInstanceLabel()
+			assert.False(t, EnableInstanceLabel)
+			assert.True(t, EnableInstanceLabelIsSet)
 
 			// Delete overrides
 			if !tc.skipVersioning && tc.name != "gcs" {

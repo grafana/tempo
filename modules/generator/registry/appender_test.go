@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/prometheus/prometheus/model/exemplar"
 	prom_histogram "github.com/prometheus/prometheus/model/histogram"
@@ -71,7 +70,6 @@ type exemplarSample struct {
 
 func newSample(lbls map[string]string, t int64, v float64) sample {
 	l := labels.FromMap(lbls)
-	sort.Slice(l, func(i, j int) bool { return l[i].Name < l[j].Name })
 	return sample{
 		l: l,
 		t: t,
@@ -81,7 +79,6 @@ func newSample(lbls map[string]string, t int64, v float64) sample {
 
 func newExemplar(lbls map[string]string, e exemplar.Exemplar) exemplarSample {
 	l := labels.FromMap(lbls)
-	sort.Slice(l, func(i, j int) bool { return l[i].Name < l[j].Name })
 	return exemplarSample{
 		l: l,
 		e: e,
