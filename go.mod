@@ -428,3 +428,5 @@ replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-
 
 // Keep this until the new prometheus version is released
 replace github.com/prometheus/otlptranslator => github.com/prometheus/otlptranslator v0.0.0-20250620074007-94f535e0c588
+
+replace go.opentelemetry.io/otel/exporters/prometheus => go.opentelemetry.io/otel/exporters/prometheus v0.59.0
