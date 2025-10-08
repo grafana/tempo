@@ -60,6 +60,16 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Querier/.*"}' % $.containerMatcher($._config.jobs.live_store), additional_grouping='route')
         )
+        .addPanel(
+          $.panel('Pending Queue Length') +
+          $.queryPanel(
+            'tempo_live_store_complete_queue_length{%s}' % $.podMatcher('live-store-zone.*'), '{{pod}}'
+          )
+        )
+        .addPanel(
+          $.panel('Completed Blocks') +
+          $.queryPanel('sum by(pod) (rate(tempo_live_store_blocks_completed_total{%s}[$__rate_interval]))' % $.containerMatcher($._config.jobs.live_store), '{{pod}}')
+        )
       )
       .addRow(
         g.row('Memcached')
