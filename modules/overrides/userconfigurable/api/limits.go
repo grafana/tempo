@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 )
@@ -16,9 +17,8 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 			Processors:                     overrides.MetricsGeneratorProcessors(userID),
 			DisableCollection:              boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
 			CollectionInterval:             timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
-			GenerateNativeHistograms:       overrides.MetricsGeneratorGenerateNativeHistograms(userID),
-			NativeHistogramMaxBucketNumber: overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID),
-
+			GenerateNativeHistograms:       histogramModePtr(overrides.MetricsGeneratorGenerateNativeHistograms(userID)),
+			NativeHistogramMaxBucketNumber: uint32Ptr(overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)),
 			Processor: client.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
@@ -71,4 +71,12 @@ func floatArrPtr(f []float64) *[]float64 {
 
 func filterPoliciesPtr(p []config.FilterPolicy) *[]config.FilterPolicy {
 	return &p
+}
+
+func histogramModePtr(h histograms.HistogramMethod) *histograms.HistogramMethod {
+	return &h
+}
+
+func uint32Ptr(u uint32) *uint32 {
+	return &u
 }

@@ -36,11 +36,11 @@ func (l *Limits) GetCostAttribution() *CostAttribution {
 }
 
 type LimitsMetricsGenerator struct {
-	Processors                     listtomap.ListToMap        `yaml:"processors,omitempty" json:"processors,omitempty"`
-	DisableCollection              *bool                      `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	CollectionInterval             *Duration                  `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
-	GenerateNativeHistograms       histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
-	NativeHistogramMaxBucketNumber uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
+	Processors                     listtomap.ListToMap         `yaml:"processors,omitempty" json:"processors,omitempty"`
+	DisableCollection              *bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	CollectionInterval             *Duration                   `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	GenerateNativeHistograms       *histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	NativeHistogramMaxBucketNumber *uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 
 	Processor LimitsMetricsGeneratorProcessor `yaml:"processor,omitempty" json:"processor,omitempty"`
 }
@@ -57,6 +57,20 @@ func (l *LimitsMetricsGenerator) GetDisableCollection() (bool, bool) {
 		return *l.DisableCollection, true
 	}
 	return false, false
+}
+
+func (l *LimitsMetricsGenerator) GetGenerateNativeHistograms() (histograms.HistogramMethod, bool) {
+	if l != nil && l.GenerateNativeHistograms != nil {
+		return *l.GenerateNativeHistograms, true
+	}
+	return histograms.HistogramMethodClassic, false
+}
+
+func (l *LimitsMetricsGenerator) GetNativeHistogramMaxBucketNumber() (uint32, bool) {
+	if l != nil && l.NativeHistogramMaxBucketNumber != nil && *l.NativeHistogramMaxBucketNumber > 0 {
+		return *l.NativeHistogramMaxBucketNumber, true
+	}
+	return 0, false
 }
 
 func (l *LimitsMetricsGenerator) GetProcessor() *LimitsMetricsGeneratorProcessor {
