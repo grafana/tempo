@@ -29,9 +29,13 @@ const (
 
 	DefaultDedicatedColumnType  = DedicatedColumnTypeString
 	DefaultDedicatedColumnScope = DedicatedColumnScopeSpan
+)
 
-	maxSupportedSpanColumns     = 10
-	maxSupportedResourceColumns = 10
+var (
+	maxSupportedColumns = map[DedicatedColumnType]map[DedicatedColumnScope]int{
+		DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 10, DedicatedColumnScopeResource: 10},
+		DedicatedColumnTypeInt:    {DedicatedColumnScopeSpan: 5, DedicatedColumnScopeResource: 5},
+	}
 )
 
 func DedicatedColumnTypeFromTempopb(t tempopb.DedicatedColumn_Type) (DedicatedColumnType, error) {
@@ -247,25 +251,50 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 }
 
 func (dcs DedicatedColumns) Validate() error {
-	var countSpan, countRes int
+	columnCount := map[DedicatedColumnType]map[DedicatedColumnScope]int{}
+	nameCount := map[DedicatedColumnScope]map[string]struct{}{}
+
 	for _, dc := range dcs {
 		err := dc.Validate()
 		if err != nil {
 			return err
 		}
-		switch dc.Scope {
-		case DedicatedColumnScopeSpan:
-			countSpan++
-		case DedicatedColumnScopeResource:
-			countRes++
+
+		// check for duplicate names
+		if names, ok := nameCount[dc.Scope]; !ok {
+			nameCount[dc.Scope] = map[string]struct{}{dc.Name: {}}
+		} else {
+			if _, duplicate := names[dc.Name]; duplicate {
+				return fmt.Errorf("invalid dedicated attribute columns: duplicate name '%s' for scope '%s'", dc.Name, dc.Scope)
+			}
+			names[dc.Name] = struct{}{}
+		}
+
+		// count columns by type and scope
+		if scopes, ok := columnCount[dc.Type]; !ok {
+			columnCount[dc.Type] = map[DedicatedColumnScope]int{dc.Scope: 1}
+		} else {
+			scopes[dc.Scope]++
 		}
 	}
-	if countSpan > maxSupportedSpanColumns {
-		return fmt.Errorf("number of dedicated columns with scope 'span' must be <= %d but was %d", maxSupportedSpanColumns, countSpan)
+
+	// check max number of columns by type and scope
+	for typ, scopes := range columnCount {
+		for scope, count := range scopes {
+			supportedScopes, ok := maxSupportedColumns[typ]
+			if !ok {
+				return fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column type '%s'", typ)
+			}
+			maxCount, ok := supportedScopes[scope]
+			if !ok {
+				return fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column scope '%s'", scope)
+			}
+			if count > maxCount {
+				return fmt.Errorf("invalid dedicated attribute columns: number of columns with type '%s' and scope '%s' must be <= %d but was %d", typ, scope, maxCount, count)
+			}
+		}
 	}
-	if countRes > maxSupportedResourceColumns {
-		return fmt.Errorf("number of dedicated columns with scope 'resource' must be <= %d but was %d", maxSupportedResourceColumns, countRes)
-	}
+
 	return nil
 }
 
