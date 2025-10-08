@@ -8,6 +8,7 @@
 
 # v2.9.0-rc.0
 
+* [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605)
 * [CHANGE] Upgrade Tempo to go 1.25.1 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** We are no longer publishing rpm and deb packages due to an internal change to the handling of signing keys. [#5684](https://github.com/grafana/tempo/pull/5684) (@joe-elliott)
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
