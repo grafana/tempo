@@ -1,5 +1,5 @@
 // Package histograms provides types and constants for histogram configuration.
-// This is used in the based overrides, as well as the user configurable
+// This is used in the base overrides, as well as the user configurable
 // overrides API.
 package histograms
 
