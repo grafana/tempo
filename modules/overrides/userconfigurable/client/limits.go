@@ -3,6 +3,7 @@ package client
 import (
 	"time"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 )
@@ -35,9 +36,11 @@ func (l *Limits) GetCostAttribution() *CostAttribution {
 }
 
 type LimitsMetricsGenerator struct {
-	Processors         listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
-	DisableCollection  *bool               `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	CollectionInterval *Duration           `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	Processors                     listtomap.ListToMap        `yaml:"processors,omitempty" json:"processors,omitempty"`
+	DisableCollection              *bool                      `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	CollectionInterval             *Duration                  `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	GenerateNativeHistograms       histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	NativeHistogramMaxBucketNumber uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 
 	Processor LimitsMetricsGeneratorProcessor `yaml:"processor,omitempty" json:"processor,omitempty"`
 }

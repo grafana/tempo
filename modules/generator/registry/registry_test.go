@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -344,7 +344,7 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 type mockOverrides struct {
 	maxActiveSeries                 uint32
 	disableCollection               bool
-	generateNativeHistograms        overrides.HistogramMethod
+	generateNativeHistograms        histograms.HistogramMethod
 	nativeHistogramMaxBucketNumber  uint32
 	nativeHistogramBucketFactor     float64
 	nativeHistogramMinResetDuration time.Duration
@@ -364,7 +364,7 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return m.disableCollection
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) overrides.HistogramMethod {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) histograms.HistogramMethod {
 	return m.generateNativeHistograms
 }
 

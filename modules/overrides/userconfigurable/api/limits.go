@@ -13,9 +13,12 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 	return &client.Limits{
 		Forwarders: strArrPtr(overrides.Forwarders(userID)),
 		MetricsGenerator: client.LimitsMetricsGenerator{
-			Processors:         overrides.MetricsGeneratorProcessors(userID),
-			DisableCollection:  boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
-			CollectionInterval: timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
+			Processors:                     overrides.MetricsGeneratorProcessors(userID),
+			DisableCollection:              boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
+			CollectionInterval:             timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
+			GenerateNativeHistograms:       overrides.MetricsGeneratorGenerateNativeHistograms(userID),
+			NativeHistogramMaxBucketNumber: overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID),
+
 			Processor: client.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
