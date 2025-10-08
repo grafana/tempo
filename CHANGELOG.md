@@ -4,6 +4,7 @@
 
 * [CHANGE] Upgrade Tempo to go 1.25.1 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
+* [CHANGE] **BREAKING CHANGE** Deprecating vParquet2 block format [#5688](https://github.com/grafana/tempo/pull/5688) (@ie-pham)
 * [CHANGE]  **BREAKING CHANGE** Migrated Tempo Vulture and Integration Tests from the deprecated Jaeger agent/exporter to the standard OTLP exporter. Vulture now pushes traces to the Tempo OTLP GRCP endpoint. [#5058](https://github.com/grafana/tempo/pull/5058) (@iamrajiv, @javiermolinar)
 * [CHANGE] Do not count cached querier responses for SLO metrics such as inspected bytes. [#5185](https://github.com/grafana/tempo/pull/5185) (@carles-grafana)
 * [CHANGE] Adjust the definition of `tempo_metrics_generator_processor_service_graphs_expired_edges` to exclude edges that are counted in the service graph. [#5319](https://github.com/grafana/tempo/pull/5319) (@joe-elliott)
