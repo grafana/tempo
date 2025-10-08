@@ -102,25 +102,6 @@ const (
 	defaultSince           = 1 * time.Hour
 )
 
-type TimestampPrecision int
-
-const (
-	PrecisionUnknown TimestampPrecision = iota
-	PrecisionSeconds
-	PrecisionNanoseconds
-)
-
-func (p TimestampPrecision) String() string {
-	switch p {
-	case PrecisionSeconds:
-		return "seconds"
-	case PrecisionNanoseconds:
-		return "nanoseconds"
-	default:
-		return "unknown"
-	}
-}
-
 func ParseRecentDataTargetHeader(req *http.Request) string {
 	v := req.Header.Get(HeaderRecentDataTarget)
 	return v
@@ -566,7 +547,7 @@ func determineBounds(now time.Time, startString, endString, sinceString string) 
 		since = time.Duration(d)
 	}
 
-	end, _, err := parseTimestamp(endString, now)
+	end, err := parseTimestamp(endString, now)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'end' parameter: %w", err)
 	}
@@ -579,7 +560,7 @@ func determineBounds(now time.Time, startString, endString, sinceString string) 
 		endOrNow = now
 	}
 
-	start, _, err := parseTimestamp(startString, endOrNow.Add(-since))
+	start, err := parseTimestamp(startString, endOrNow.Add(-since))
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'start' parameter: %w", err)
 	}
@@ -610,7 +591,7 @@ func determineBounds(now time.Time, startString, endString, sinceString string) 
 // Validation rules when both start and end are provided:
 //   - Both must have the same string length (seconds vs nanoseconds format)
 //   - Both must be either fractional or integer (consistent decimal point usage)
-func ClampDateRangeReq(req *http.Request, defStart, endBuffer time.Duration) (start, end time.Time, p TimestampPrecision, err error) {
+func ClampDateRangeReq(req *http.Request, defStart, endBuffer time.Duration) (start, end time.Time, err error) {
 	vals := req.URL.Query()
 	var (
 		now                        = time.Now()
@@ -621,34 +602,34 @@ func ClampDateRangeReq(req *http.Request, defStart, endBuffer time.Duration) (st
 	if sinceVal != "" {
 		d, err := model.ParseDuration(sinceVal)
 		if err != nil {
-			return time.Time{}, time.Time{}, PrecisionUnknown, fmt.Errorf("could not parse 'since' parameter: %w", err)
+			return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'since' parameter: %w", err)
 		}
 		end = now.Add(-endBuffer)
 		start = end.Add(-time.Duration(d))
-		return start, end, PrecisionUnknown, nil
+		return start, end, nil
 	}
 
 	// No start or end, sets defaults values
 	if startVal == "" && endVal == "" {
 		end = now.Add(-endBuffer)
 		start = now.Add(-defStart)
-		return start, end, PrecisionUnknown, nil
+		return start, end, nil
 	}
 
 	// Validating inputs
 	if startVal == "" || endVal == "" {
-		return time.Time{}, time.Time{}, PrecisionUnknown, fmt.Errorf("only one of start and end provided: must provide both or neither")
+		return time.Time{}, time.Time{}, fmt.Errorf("only one of start and end provided: must provide both or neither")
 	}
 
 	// Both provided, parse and clamp
-	start, _, err = parseTimestamp(startVal, time.Time{})
+	start, err = parseTimestamp(startVal, time.Time{})
 	if err != nil {
-		return time.Time{}, time.Time{}, PrecisionUnknown, fmt.Errorf("could not parse 'start' parameter: %w", err)
+		return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'start' parameter: %w", err)
 	}
 
-	end, p, err = parseTimestamp(endVal, time.Time{})
+	end, err = parseTimestamp(endVal, time.Time{})
 	if err != nil {
-		return time.Time{}, time.Time{}, PrecisionUnknown, fmt.Errorf("could not parse 'end' parameter: %w", err)
+		return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'end' parameter: %w", err)
 	}
 	maxEnd := now.Add(-endBuffer)
 	if maxEnd.Before(end) {
@@ -658,7 +639,7 @@ func ClampDateRangeReq(req *http.Request, defStart, endBuffer time.Duration) (st
 		}
 	}
 
-	return start, end, p, nil
+	return start, end, nil
 }
 
 // parseTimestamp parses an unix timestamp from a string
@@ -666,30 +647,30 @@ func ClampDateRangeReq(req *http.Request, defStart, endBuffer time.Duration) (st
 // unix epoch fractional seconds (float), or RFC3339 string
 // any other string will result on a parsing error
 // if the value is empty it returns a default value passed as second parameter
-func parseTimestamp(value string, def time.Time) (time.Time, TimestampPrecision, error) {
+func parseTimestamp(value string, def time.Time) (time.Time, error) {
 	if value == "" {
-		return def, PrecisionUnknown, nil
+		return def, nil
 	}
 
 	if strings.Contains(value, ".") {
 		if t, err := strconv.ParseFloat(value, 64); err == nil {
 			s, ns := math.Modf(t)
 			ns = math.Round(ns*1000) / 1000
-			return time.Unix(int64(s), int64(ns*float64(time.Second))), PrecisionNanoseconds, nil
+			return time.Unix(int64(s), int64(ns*float64(time.Second))), nil
 		}
 	}
 	nanos, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		if ts, err := time.Parse(time.RFC3339Nano, value); err == nil {
-			return ts, PrecisionNanoseconds, nil
+			return ts, nil
 		}
-		return time.Time{}, PrecisionUnknown, err
+		return time.Time{}, err
 	}
 
 	if len(value) <= 10 {
-		return time.Unix(nanos, 0), PrecisionSeconds, nil
+		return time.Unix(nanos, 0), nil
 	}
-	return time.Unix(0, nanos), PrecisionNanoseconds, nil
+	return time.Unix(0, nanos), nil
 }
 
 func step(vals url.Values, start, end time.Time) (time.Duration, error) {

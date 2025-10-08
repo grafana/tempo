@@ -53,7 +53,7 @@ func (c adjustStartEndWare) RoundTrip(req Request) (Responses[combiner.PipelineR
 		finalEnd   string
 	)
 
-	start, end, _, err := api.ClampDateRangeReq(request, c.defStart, c.endBuffer)
+	start, end, err := api.ClampDateRangeReq(request, c.defStart, c.endBuffer)
 	if err != nil {
 		return NewBadRequest(fmt.Errorf("error parsing date range: %w", err)), nil
 	}

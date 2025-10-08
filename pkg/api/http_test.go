@@ -655,30 +655,29 @@ func Test_parseTimestamp(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name      string
-		value     string
-		def       time.Time
-		want      time.Time
-		precision TimestampPrecision
-		wantErr   bool
+		name  string
+		value string
+		def   time.Time
+		want  time.Time
+
+		wantErr bool
 	}{
-		{"default", "", now, now, PrecisionUnknown, false},
-		{"unix timestamp", "1571332130", now, time.Unix(1571332130, 0), PrecisionSeconds, false},
-		{"unix nano timestamp", "1571334162051000000", now, time.Unix(0, 1571334162051000000), PrecisionNanoseconds, false},
-		{"unix timestamp with subseconds", "1571332130.934", now, time.Unix(1571332130, 934*1e6), PrecisionNanoseconds, false},
-		{"RFC3339 format", "2002-10-02T15:00:00Z", now, time.Date(2002, 10, 0o2, 15, 0, 0, 0, time.UTC), PrecisionNanoseconds, false},
-		{"RFC3339nano format", "2009-11-10T23:00:00.000000001Z", now, time.Date(2009, 11, 10, 23, 0, 0, 1, time.UTC), PrecisionNanoseconds, false},
-		{"invalid", "we", now, time.Time{}, PrecisionUnknown, true},
+		{"default", "", now, now, false},
+		{"unix timestamp", "1571332130", now, time.Unix(1571332130, 0), false},
+		{"unix nano timestamp", "1571334162051000000", now, time.Unix(0, 1571334162051000000), false},
+		{"unix timestamp with subseconds", "1571332130.934", now, time.Unix(1571332130, 934*1e6), false},
+		{"RFC3339 format", "2002-10-02T15:00:00Z", now, time.Date(2002, 10, 0o2, 15, 0, 0, 0, time.UTC), false},
+		{"RFC3339nano format", "2009-11-10T23:00:00.000000001Z", now, time.Date(2009, 11, 10, 23, 0, 0, 1, time.UTC), false},
+		{"invalid", "we", now, time.Time{}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, precision, err := parseTimestamp(tt.value, tt.def)
+			got, err := parseTimestamp(tt.value, tt.def)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseTimestamp() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			assert.Equal(t, got, tt.want, fmt.Sprintf("parseTimestamp() = %v, want %v", got, tt.want))
-			assert.Equal(t, precision, tt.precision, fmt.Sprintf("Unexpected precision %s, want %s", precision.String(), tt.precision.String()))
 		})
 	}
 }
@@ -889,7 +888,7 @@ func TestClampDateRangeReq(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				time.Sleep(time.Until(refNow)) // Setting time.now to refNow
 				req := makeReq(tt.params)
-				start, end, prec, err := ClampDateRangeReq(req, defStart, endBuffer)
+				start, end, err := ClampDateRangeReq(req, defStart, endBuffer)
 
 				if tt.expectedErr != "" {
 					require.Error(t, err)
@@ -898,7 +897,7 @@ func TestClampDateRangeReq(t *testing.T) {
 				}
 
 				require.NoError(t, err)
-				assert.Equal(t, PrecisionUnknown, prec)
+
 				expectedEnd := refNow.Add(-endBuffer)
 				expectedStart := expectedEnd.Add(-tt.sinceDur)
 				assert.Equal(t, expectedStart, start)
@@ -912,9 +911,9 @@ func TestClampDateRangeReq(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			time.Sleep(time.Until(refNow)) // Setting time.now to refNow
 			req := makeReq(nil)
-			start, end, prec, err := ClampDateRangeReq(req, defStart, endBuffer)
+			start, end, err := ClampDateRangeReq(req, defStart, endBuffer)
 			require.NoError(t, err)
-			assert.Equal(t, PrecisionUnknown, prec)
+
 			assert.Equal(t, refNow.Add(-defStart), start)
 			assert.Equal(t, refNow.Add(-endBuffer), end)
 		})
@@ -935,7 +934,7 @@ func TestClampDateRangeReq(t *testing.T) {
 	for _, tt := range testsStartEndValidation {
 		t.Run(tt.name, func(t *testing.T) {
 			req := makeReq(tt.params)
-			_, _, _, err := ClampDateRangeReq(req, defStart, endBuffer)
+			_, _, err := ClampDateRangeReq(req, defStart, endBuffer)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.err)
 		})
@@ -948,10 +947,9 @@ func TestClampDateRangeReq(t *testing.T) {
 		params        map[string]string
 		expectedStart time.Time
 		expectedEnd   time.Time
-		expectedPrec  TimestampPrecision
 	}{
-		{"end clamped", map[string]string{"start": "1697360400", "end": "9999999999"}, time.Unix(1697360400, 0), refNow.Add(-endBuffer), PrecisionSeconds},
-		{"end not clamped", map[string]string{"start": "1000000000", "end": strconv.FormatInt(validEnd.Unix(), 10)}, time.Unix(1000000000, 0), validEnd, PrecisionSeconds},
+		{"end clamped", map[string]string{"start": "1697360400", "end": "9999999999"}, time.Unix(1697360400, 0), refNow.Add(-endBuffer)},
+		{"end not clamped", map[string]string{"start": "1000000000", "end": strconv.FormatInt(validEnd.Unix(), 10)}, time.Unix(1000000000, 0), validEnd},
 	}
 
 	for _, tt := range testsEndClamping {
@@ -959,9 +957,9 @@ func TestClampDateRangeReq(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				time.Sleep(time.Until(refNow)) // Setting time.now to refNow
 				req := makeReq(tt.params)
-				start, end, prec, err := ClampDateRangeReq(req, defStart, endBuffer)
+				start, end, err := ClampDateRangeReq(req, defStart, endBuffer)
 				require.NoError(t, err)
-				assert.Equal(t, tt.expectedPrec, prec)
+
 				assert.Equal(t, tt.expectedStart, start)
 				assert.WithinDuration(t, tt.expectedEnd, end, time.Second)
 			})
@@ -984,7 +982,7 @@ func TestClampDateRangeReq(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				req := makeReq(tt.params)
-				_, _, _, err := ClampDateRangeReq(req, defStart, endBuffer)
+				_, _, err := ClampDateRangeReq(req, defStart, endBuffer)
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.err)
 			})
