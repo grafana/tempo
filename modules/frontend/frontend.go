@@ -121,19 +121,19 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
 	}
 
-	if cfg.Search.Sharder.DefaultQueryEndBuffer > cfg.Search.Sharder.QueryBackendAfter {
-		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than default query end buffer (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.Search.Sharder.DefaultQueryEndBuffer)
+	if cfg.QueryEndCutoff > cfg.Search.Sharder.QueryBackendAfter {
+		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
 	}
-	if cfg.Metrics.Sharder.DefaultQueryEndBuffer > cfg.Metrics.Sharder.QueryBackendAfter {
-		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than default query end buffer (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.Search.Sharder.DefaultQueryEndBuffer)
+	if cfg.QueryEndCutoff > cfg.Metrics.Sharder.QueryBackendAfter {
+		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Metrics.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
 	}
 
 	// Propagate RF1After to search and traceByID sharders
 	cfg.Search.Sharder.RF1After = cfg.RF1After
 	cfg.TraceByID.RF1After = cfg.RF1After
 
-	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.Search.Sharder.DefaultQueryEndBuffer, false)
-	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(cfg.Metrics.Sharder.QueryBackendAfter, cfg.Metrics.Sharder.DefaultQueryEndBuffer, true) // metrics queries work in nanoseconds
+	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
+	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(cfg.Metrics.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, true) // metrics queries work in nanoseconds
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()

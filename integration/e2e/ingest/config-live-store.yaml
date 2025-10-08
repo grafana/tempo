@@ -7,10 +7,7 @@ server:
 
 query_frontend:
   rf1_after: "2025-01-01T00:00:00Z"
-  search:
-    default_query_end_buffer: -5m
-  metrics:
-    default_query_end_buffer: -5m
+  query_end_cutoff: -5m # Include all recent data
 
 distributor:
   ingester_write_path_enabled: false

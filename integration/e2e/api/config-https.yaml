@@ -2,11 +2,10 @@ target: all
 stream_over_http_enabled: true
 
 query_frontend:
+  query_end_cutoff: -1m # Include all recent data
   search:
-    default_query_end_buffer: -1m # Include all recent data
     ingester_shards: 1
   metrics:
-    default_query_end_buffer: 0 # Include all recent data
     max_response_series: 3
 
 server:

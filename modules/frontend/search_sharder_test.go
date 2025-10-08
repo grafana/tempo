@@ -624,9 +624,8 @@ func TestIngesterRequests(t *testing.T) {
 		require.Greater(t, tc.ingesterShards, 0)
 		s := &asyncSearchSharder{
 			cfg: SearchSharderConfig{
-				QueryIngestersUntil:   tc.queryIngestersUntil,
-				IngesterShards:        tc.ingesterShards,
-				DefaultQueryEndBuffer: 0,
+				QueryIngestersUntil: tc.queryIngestersUntil,
+				IngesterShards:      tc.ingesterShards,
 			},
 		}
 		req := httptest.NewRequest("GET", tc.request, nil)

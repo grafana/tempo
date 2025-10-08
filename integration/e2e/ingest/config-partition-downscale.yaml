@@ -11,10 +11,7 @@ distributor:
 
 query_frontend:
   rf1_after: "1970-01-01T00:00:00Z"
-  search:
-    default_query_end_buffer: 0 # Include all recent data
-  metrics:
-    default_query_end_buffer: 0 # Include all recent data
+  query_end_cutoff: 0 # Include all recent data
 
 ingester:
   lifecycler:

@@ -6,8 +6,7 @@ server:
   log_level: debug
 
 query_frontend:
-  metrics:
-    default_query_end_buffer: 0 # Include all recent data
+  query_end_cutoff: 0 # Include all recent data
 
 distributor:
   receivers:

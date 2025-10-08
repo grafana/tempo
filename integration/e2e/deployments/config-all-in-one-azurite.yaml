@@ -5,11 +5,10 @@ server:
   http_listen_port: 3200
 
 query_frontend:
+  query_end_cutoff: -1s # Include all recent data
   search:
     query_backend_after: 5s
     query_ingesters_until: 5s
-    default_query_end_buffer: -1s
-
 distributor:
   receivers:
     jaeger:

@@ -1,10 +1,7 @@
 server:
   http_listen_port: 3200
 query_frontend:
-  search:
-    default_query_end_buffer: -1m # Include all recent data
-  metrics:
-    default_query_end_buffer: -1m # Include all recent data
+  query_end_cutoff: -1m # Include all recent data
 distributor:
   receivers:
     jaeger:

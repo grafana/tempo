@@ -41,12 +41,9 @@ type QueryRangeSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter time.Duration `yaml:"query_backend_after,omitempty"`
-	// DefaultQueryEndBuffer prevents querying incomplete recent data.
-	// If not set (0), defaults to 30 seconds.
-	DefaultQueryEndBuffer time.Duration `yaml:"default_query_end_buffer,omitempty"`
-	Interval              time.Duration `yaml:"interval,omitempty"`
-	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
-	MaxResponseSeries     int           `yaml:"max_response_series,omitempty"`
+	Interval          time.Duration `yaml:"interval,omitempty"`
+	MaxExemplars      int           `yaml:"max_exemplars,omitempty"`
+	MaxResponseSeries int           `yaml:"max_response_series,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search

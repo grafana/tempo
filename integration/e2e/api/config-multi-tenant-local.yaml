@@ -7,12 +7,11 @@ server:
   log_level: warn
 
 query_frontend:
+  query_end_cutoff: 0 # Include all recent data
   search:
-    default_query_end_buffer: 0 # Include all recent data
     ingester_shards: 1
   metrics:
     max_response_series: 0
-    default_query_end_buffer: 0 # Include all recent data
 
 distributor:
   receivers:

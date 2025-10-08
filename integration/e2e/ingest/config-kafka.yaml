@@ -7,12 +7,10 @@ server:
 
 query_frontend:
   rf1_after: "2025-01-01T00:00:00Z"
+  query_end_cutoff: 0 # Include all recent data
   search:
     query_backend_after: 30s
     query_ingesters_until: 30s
-    default_query_end_buffer: 0 # Include all recent data
-  metrics:
-    default_query_end_buffer: 0 # Include all recent data
 
 distributor:
   receivers:

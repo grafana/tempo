@@ -6,8 +6,8 @@ server:
   log_level: debug
 
 query_frontend:
-  metrics:
-    default_query_end_buffer: -5m # Include all recent data
+  query_end_cutoff: -5m # Include all recent data
+
 distributor:
   receivers:
     jaeger:

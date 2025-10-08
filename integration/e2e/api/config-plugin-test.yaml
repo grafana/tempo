@@ -5,8 +5,7 @@ server:
   log_level: info
 
 query_frontend:
-  search:
-    default_query_end_buffer: 0 # Include all recent data
+  query_end_cutoff: 0 # Include all recent data
 
 distributor:
   receivers:

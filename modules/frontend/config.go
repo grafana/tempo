@@ -42,6 +42,10 @@ type Config struct {
 
 	// RF1After specifies the time after which RF1 logic is applied.
 	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
+
+	// QueryEndCutoff prevents querying incomplete recent data.
+	// If not set (0), defaults to 30 seconds.
+	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
 }
 
 type MCPServerConfig struct {
@@ -86,11 +90,11 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Config.MaxBatchSize = 7
 	cfg.MaxRetries = 2
 	cfg.ResponseConsumers = 10
+	cfg.QueryEndCutoff = 30 * time.Second
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:     15 * time.Minute,
 			QueryIngestersUntil:   30 * time.Minute,
-			DefaultQueryEndBuffer: 30 * time.Second,
 			DefaultLimit:          20,
 			MaxLimit:              0,
 			MaxDuration:           168 * time.Hour, // 1 week
@@ -110,7 +114,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		Sharder: QueryRangeSharderConfig{
 			MaxDuration:           3 * time.Hour,
 			QueryBackendAfter:     30 * time.Minute,
-			DefaultQueryEndBuffer: 30 * time.Second,
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
