@@ -2,7 +2,6 @@ package backend
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -255,9 +254,8 @@ func (dcs DedicatedColumns) Validate() error {
 	nameCount := map[DedicatedColumnScope]map[string]struct{}{}
 
 	for _, dc := range dcs {
-		err := dc.Validate()
-		if err != nil {
-			return err
+		if dc.Name == "" {
+			return fmt.Errorf("invalid dedicated attribute columns: empty name")
 		}
 
 		// check for duplicate names
@@ -295,21 +293,6 @@ func (dcs DedicatedColumns) Validate() error {
 		}
 	}
 
-	return nil
-}
-
-func (dc *DedicatedColumn) Validate() error {
-	if dc.Name == "" {
-		return errors.New("dedicated column invalid: name must not be empty")
-	}
-	_, err := dc.Type.ToTempopb()
-	if err != nil {
-		return fmt.Errorf("dedicated column '%s' invalid: %w", dc.Name, err)
-	}
-	_, err = dc.Scope.ToTempopb()
-	if err != nil {
-		return fmt.Errorf("dedicated column '%s' invalid: %w", dc.Name, err)
-	}
 	return nil
 }
 
