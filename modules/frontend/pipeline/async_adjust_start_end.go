@@ -68,7 +68,7 @@ func (c adjustStartEndWare) RoundTrip(req Request) (Responses[combiner.PipelineR
 
 	query.Set("start", finalStart)
 	query.Set("end", finalEnd)
-	query.Set("since", "") // Since is overwritten to use the clamped start and end
+	query.Del("since") // Since is overwritten to use the clamped start and end
 	request.URL.RawQuery = query.Encode()
 
 	return c.next.RoundTrip(req.CloneFromHTTPRequest(request))

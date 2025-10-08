@@ -690,15 +690,6 @@ func parseTimestamp(value string, def time.Time) (time.Time, TimestampPrecision,
 		return time.Unix(nanos, 0), PrecisionSeconds, nil
 	}
 	return time.Unix(0, nanos), PrecisionNanoseconds, nil
-
-	// switch len(value) { // Handle this later. This is too disruptive
-	// case 10: // seconds
-	// 	return time.Unix(nanos, 0), PrecisionSeconds, nil
-	// case 19: // nanoseconds
-	// 	return time.Unix(0, nanos), PrecisionNanoseconds, nil
-	// default:
-	// 	return time.Time{}, PrecisionUnknown, fmt.Errorf("invalid length for unix timestamp %q: must be in seconds or nanoseconds", value)
-	// }
 }
 
 func step(vals url.Values, start, end time.Time) (time.Duration, error) {
