@@ -1,4 +1,3 @@
-
 ---
 headless: true
 description: Shared file for Tempo on Grafana.
@@ -8,27 +7,26 @@ labels:
     - oss
 ---
 
-[//]: # 'This file describes how you can use tracing data in Grafana.'
-[//]: # 'This shared file is included in these locations:'
-[//]: # '/grafana/docs/sources/datasources/tempo/getting-started/tempo-in-grafana.md'
-[//]: # '/website/docs/grafana-cloud/send-data/traces/use-traces-with-grafana.md'
+[//]: # "This file describes how you can use tracing data in Grafana."
+[//]: # "This shared file is included in these locations:"
+[//]: # "/grafana/docs/sources/datasources/tempo/getting-started/tempo-in-grafana.md"
+[//]: # "/website/docs/grafana-cloud/send-data/traces/use-traces-with-grafana.md"
 [//]: #
-[//]: # 'If you make changes to this file, verify that the meaning and content are not changed in any place where the file is included.'
-[//]: # 'Any links should be fully qualified and not relative.'
+[//]: # "If you make changes to this file, verify that the meaning and content are not changed in any place where the file is included."
+[//]: # "Any links should be fully qualified and not relative."
 
 <!--  Use traces in Grafana -->
+
 ## Query your data
 
 Using tracing data in Grafana and Grafana Cloud Traces, you can search for traces, generate metrics from spans, and link your tracing data with logs, metrics, and profiles.
 
 ### Use Traces Drilldown to investigate tracing data
 
-{{< docs/public-preview product="Traces Drilldown" >}}
-
 [Grafana Traces Drilldown](https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/traces/) helps you visualize insights from your Tempo traces data.
 Using the app, you can:
 
-- Use *Rate*, *Errors*, and *Duration* (RED) metrics derived from traces to investigate issues
+- Use _Rate_, _Errors_, and _Duration_ (RED) metrics derived from traces to investigate issues
 - Uncover related issues and monitor changes over time
 - Browse automatic visualizations of your data based on its characteristics
 - Do all of this without writing TraceQL queries
@@ -46,10 +44,10 @@ Use the Explore trace view to quickly diagnose errors and high latency events in
 
 ### Search is non-deterministic
 
-Most search functions are deterministic. 
-When given the same criteria, a deterministic algorithm returns consistent results. 
-For example, let's say that you query a search engine for the definition of "traces." 
-The results list the same top matches for each query for "traces" in that search engine. 
+Most search functions are deterministic.
+When given the same criteria, a deterministic algorithm returns consistent results.
+For example, let's say that you query a search engine for the definition of "traces."
+The results list the same top matches for each query for "traces" in that search engine.
 
 However, Tempo search is non-deterministic.
 If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
@@ -59,7 +57,7 @@ Even identical searches differ due to things like machine load and network laten
 This approach values speed over predictability and is quite simple; enforcing that the search results are consistent would introduce additional complexity (and increase the time the user spends waiting for results).
 TraceQL follows the same behavior.
 
-By adding `most_recent=true` to your TraceQL queries, the search results become deterministic. 
+By adding `most_recent=true` to your TraceQL queries, the search results become deterministic.
 For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#retrieving-most-recent-results-experimental)
 
 #### Use trace search results as panels in dashboards

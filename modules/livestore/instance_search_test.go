@@ -540,6 +540,7 @@ func defaultLiveStore(t testing.TB, tmpDir string) (*LiveStore, error) {
 	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	cfg.WAL.Filepath = tmpDir
 	cfg.WAL.Version = encoding.LatestEncoding().Version()
+	cfg.ShutdownMarkerDir = tmpDir
 
 	// Set up test Kafka configuration
 	const testTopic = "traces"

@@ -29,6 +29,7 @@ live_store:
   partition_ring:
     kvstore:
       store: memberlist
+    delete_inactive_partition_after: 1s
 
 storage:
   trace:

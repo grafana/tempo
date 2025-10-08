@@ -3,6 +3,7 @@ package livestore
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/shutdownmarker"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -123,6 +125,7 @@ type LiveStore struct {
 	wg              sync.WaitGroup
 	completeQueues  *flushqueues.ExclusiveQueues
 	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
+	lagCancel       context.CancelFunc
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
@@ -217,6 +220,24 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 }
 
 func (s *LiveStore) starting(ctx context.Context) error {
+	// First of all we have to check if the shutdown marker is set. This needs to be done
+	// as first thing because, if found, it may change the behaviour of the live-store startup.
+
+	if _, err := os.Stat(s.cfg.ShutdownMarkerDir); os.IsNotExist(err) {
+		err := os.MkdirAll(s.cfg.ShutdownMarkerDir, 0o700)
+		if err != nil {
+			return fmt.Errorf("failed to create shutdown marker directory: %w", err)
+		}
+	}
+
+	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
+	if exists, err := shutdownmarker.Exists(shutdownMarkerPath); err != nil {
+		return fmt.Errorf("failed to check live-store shutdown marker: %w", err)
+	} else if exists {
+		level.Info(s.logger).Log("msg", "detected existing shutdown marker, setting prepare for shutdown", "path", shutdownMarkerPath)
+		s.setPrepareShutdown()
+	}
+
 	var err error
 	s.wal, err = wal.New(&s.cfg.WAL)
 	if err != nil {
@@ -269,6 +290,18 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
+	lagCtx, cncl := context.WithCancel(s.ctx)
+	s.lagCancel = cncl
+	// Start exporting partition lag metrics
+	ingest.ExportPartitionLagMetrics(
+		lagCtx,
+		s.client,
+		s.logger,
+		s.cfg.IngestConfig,
+		func() []int32 { return []int32{s.ingestPartitionID} },
+		s.client.ForceMetadataRefresh,
+	)
+
 	for i := range s.cfg.CompleteBlockConcurrency {
 		idx := i
 		s.runInBackground(func() {
@@ -292,6 +325,9 @@ func (s *LiveStore) running(ctx context.Context) error {
 }
 
 func (s *LiveStore) stopping(error) error {
+	// Stop the kafka lag background worker.
+	s.lagCancel()
+
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
@@ -299,8 +335,17 @@ func (s *LiveStore) stopping(error) error {
 		return err
 	}
 
+	// Reset lag metrics for our partition when stopping
+	ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
+
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
+
+	// Remove the shutdown marker if it exists since we are shutting down
+	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
+	if err := shutdownmarker.Remove(shutdownMarkerPath); err != nil {
+		level.Warn(s.logger).Log("msg", "failed to remove shutdown marker", "path", shutdownMarkerPath, "err", err)
+	}
 
 	if s.cfg.holdAllBackgroundProcesses { // nothing to do
 		return nil
@@ -356,6 +401,10 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
+
+		// Track partition lag in seconds
+		lag := now.Sub(record.Timestamp)
+		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
 
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++

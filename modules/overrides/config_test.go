@@ -458,6 +458,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		},
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             boolPtr(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
+		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                100,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:             10 * time.Minute,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                1024 * 1024,

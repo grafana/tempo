@@ -211,6 +211,9 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 			continue
 		}
 
+		// Reuse the byte slice now that we've unmarshalled it
+		tempopb.ReuseByteSlices([][]byte{traceBytes.Slice})
+
 		i.liveTracesMtx.Lock()
 		// Push each batch in the trace to live traces
 		for _, batch := range trace.ResourceSpans {

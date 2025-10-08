@@ -101,13 +101,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 }
 
 func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
-	lbls := labelValueCombo.getLabelPair()
-	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)+len(c.externalLabels)))
-
-	for i, name := range lbls.names {
-		lb.Set(name, lbls.values[i])
-	}
-
+	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
 	for name, value := range c.externalLabels {
 		lb.Set(name, value)
 	}
