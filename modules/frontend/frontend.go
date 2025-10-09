@@ -124,9 +124,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	if cfg.QueryEndCutoff > cfg.Search.Sharder.QueryBackendAfter {
 		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
 	}
-	if cfg.QueryEndCutoff > cfg.Metrics.Sharder.QueryBackendAfter {
-		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Metrics.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
-	}
 
 	// Propagate RF1After to search and traceByID sharders
 	cfg.Search.Sharder.RF1After = cfg.RF1After
