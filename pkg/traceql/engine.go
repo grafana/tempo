@@ -56,14 +56,14 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	}
 
 	// Check for performance testing hints
-	if returnIn, ok := rootExpr.Hints.GetDuration(HintReturnIn, allowUnsafeQueryHints); ok {
+	if returnIn, ok := rootExpr.Hints.GetDuration(HintDebugReturnIn, allowUnsafeQueryHints); ok {
 		var stdDev time.Duration
-		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintStdDev, allowUnsafeQueryHints); ok {
+		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintDebugStdDev, allowUnsafeQueryHints); ok {
 			stdDev = stdDevDuration
 		}
 		SimulateLatency(returnIn, stdDev)
 	}
-	if fakeData, ok := rootExpr.Hints.GetBool(HintFakeData, allowUnsafeQueryHints); ok && fakeData {
+	if fakeData, ok := rootExpr.Hints.GetBool(HintDebugFakeData, allowUnsafeQueryHints); ok && fakeData {
 		return GenerateFakeSearchResponse(), nil
 	}
 
