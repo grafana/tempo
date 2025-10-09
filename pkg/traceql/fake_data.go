@@ -12,7 +12,7 @@ import (
 // GenerateFakeSearchResponse creates a fake SearchResponse.
 // It must be used only for testing purposes.
 func GenerateFakeSearchResponse() *tempopb.SearchResponse {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // G404
 
 	numTraces := 1 + r.Intn(3)
 	traces := make([]*tempopb.TraceSearchMetadata, numTraces)
@@ -80,7 +80,7 @@ func GenerateFakeSearchResponse() *tempopb.SearchResponse {
 // SimulateLatency sleeps for the specified duration with optional standard deviation
 func SimulateLatency(duration time.Duration, stdDev time.Duration) {
 	if stdDev > 0 {
-		variation := time.Duration(rand.NormFloat64() * float64(stdDev))
+		variation := time.Duration(rand.NormFloat64() * float64(stdDev)) //nolint:gosec // G404
 		duration += variation
 
 		if duration <= 0 {
