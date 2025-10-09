@@ -2,18 +2,26 @@ package livestore
 
 import (
 	"context"
+	"flag"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/dskit/kv/consul"
+	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/ingest/testkafka"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -365,6 +373,145 @@ func TestLiveStoreShutdownWithPendingCompletions(t *testing.T) {
 	requireInstanceState(t, inst, instanceState{liveTraces: 1, walBlocks: 0, completeBlocks: 0})
 
 	require.NoError(t, liveStore.stopping(nil))
+}
+
+func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+	cfg.WAL.Filepath = tmpDir
+	cfg.WAL.Version = encoding.LatestEncoding().Version()
+	cfg.ShutdownMarkerDir = tmpDir
+
+	// Set up test Kafka configuration
+	const testTopic = "traces"
+	_, kafkaAddr := testkafka.CreateCluster(t, 1, testTopic)
+
+	cfg.IngestConfig.Kafka.Address = kafkaAddr
+	cfg.IngestConfig.Kafka.Topic = testTopic
+	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
+
+	cfg.holdAllBackgroundProcesses = true
+
+	cfg.Ring.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
+	mockParititionStore, _ := consul.NewInMemoryClient(
+		ring.GetPartitionRingCodec(),
+		log.NewNopLogger(),
+		nil,
+	)
+	mockStore, _ := consul.NewInMemoryClient(
+		ring.GetCodec(),
+		log.NewNopLogger(),
+		nil,
+	)
+
+	cfg.Ring.KVStore.Mock = mockStore
+	cfg.Ring.ListenPort = 0
+	cfg.Ring.InstanceAddr = "localhost"
+	cfg.Ring.InstanceID = "test-1"
+	cfg.PartitionRing.KVStore.Mock = mockParititionStore
+
+	// Create overrides
+	limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	// Create metrics
+	reg := prometheus.NewRegistry()
+
+	logger := &testLogger{t}
+
+	// Create LiveStore but DO NOT start it
+	liveStore, err := New(cfg, limits, logger, reg, true)
+	require.NoError(t, err)
+	require.NotNil(t, liveStore)
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	testCases := []struct {
+		name     string
+		callFunc func() (interface{}, error)
+	}{
+		{
+			name: "SearchRecent",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchRecent(ctx, &tempopb.SearchRequest{
+					Query: "{}",
+				})
+			},
+		},
+		{
+			name: "SearchTags",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchTags(ctx, &tempopb.SearchTagsRequest{
+					Scope: "span",
+				})
+			},
+		},
+		{
+			name: "SearchTagsV2",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
+					Scope: "span",
+				})
+			},
+		},
+		{
+			name: "SearchTagValues",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchTagValues(ctx, &tempopb.SearchTagValuesRequest{
+					TagName: "foo",
+				})
+			},
+		},
+		{
+			name: "SearchTagValuesV2",
+			callFunc: func() (interface{}, error) {
+				return liveStore.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+					TagName: "foo",
+				})
+			},
+		},
+		{
+			name: "QueryRange",
+			callFunc: func() (interface{}, error) {
+				return liveStore.QueryRange(ctx, &tempopb.QueryRangeRequest{
+					Query: "{} | count_over_time()",
+					Start: uint64(time.Now().Add(-time.Hour).UnixNano()),
+					End:   uint64(time.Now().UnixNano()),
+					Step:  uint64(time.Second),
+				})
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Call the function before livestore has started
+			// This should not panic and should return an empty response
+			resp, err := tc.callFunc()
+
+			// Should not panic and should not error
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			// All methods should return empty responses
+			switch r := resp.(type) {
+			case *tempopb.SearchResponse:
+				require.Empty(t, r.Traces)
+			case *tempopb.SearchTagsResponse:
+				require.Empty(t, r.TagNames)
+			case *tempopb.SearchTagsV2Response:
+				require.Empty(t, r.Scopes)
+			case *tempopb.SearchTagValuesResponse:
+				require.Empty(t, r.TagValues)
+			case *tempopb.SearchTagValuesV2Response:
+				require.Empty(t, r.TagValues)
+			case *tempopb.QueryRangeResponse:
+				require.Empty(t, r.Series)
+			}
+		})
+	}
 }
 
 type instanceState struct {
