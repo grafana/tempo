@@ -416,7 +416,6 @@ query_frontend:
         enabled: false
     max_query_expression_size_bytes: 131072
     rf1_after: 0001-01-01T00:00:00Z
-    query_end_cutoff: 30s
 compactor:
     ring:
         kvstore:
