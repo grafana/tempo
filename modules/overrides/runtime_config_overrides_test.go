@@ -267,6 +267,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		expectedEnableTargetInfo             map[string]bool
 		expectedDimensionMappings            map[string][]sharedconfig.DimensionMappings
 		expectedTargetInfoExcludedDimensions map[string][]string
+		expectedEnableInstanceLabel          map[string]bool
 	}{
 		{
 			name: "limits only",
@@ -282,6 +283,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 									Join:        "/",
 								},
 							},
+							EnableInstanceLabel: boolPtr(false),
 						},
 					},
 				},
@@ -303,6 +305,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 					},
 				},
 			},
+			expectedEnableInstanceLabel: map[string]bool{"user1": false, "user2": false},
 		},
 		{
 			name:          "basic Overrides",
@@ -321,6 +324,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 											Join:        "/",
 										},
 									},
+									EnableInstanceLabel: boolPtr(false),
 								},
 							},
 						},
@@ -338,6 +342,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				},
 				"user2": nil,
 			},
+			expectedEnableInstanceLabel: map[string]bool{"user1": false, "user2": true},
 		},
 		{
 			name: "wildcard override",
@@ -424,6 +429,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			expectedTargetInfoExcludedDimensions: map[string][]string{
 				"user1": {"some-label"},
 			},
+			expectedEnableInstanceLabel: map[string]bool{"user1": true, "user2": true},
 		},
 	}
 
@@ -443,6 +449,11 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 
 			for user, expectedVal := range tt.expectedTargetInfoExcludedDimensions {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(user))
+			}
+
+			for user, expectedVal := range tt.expectedEnableInstanceLabel {
+				EnableInstanceLabelValue, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(user)
+				assert.Equal(t, expectedVal, EnableInstanceLabelValue)
 			}
 
 			err := services.StopAndAwaitTerminated(context.TODO(), overrides)

@@ -85,17 +85,45 @@
         ]).spec,
     },
 
-  newLiveStoreZoneStatefulSet(zone, container)::
+  // Create resource that will be targetted by ScaledObject. A single ReplicaTemplate is used for all zones.
+  // HPA requires that label selector exists and is valid, but it will not be used for target type of AverageValue.
+  // In GKE however we see that selector is used to find pods and compute current usage, so we set it to target pods with given name.
+  tempo_live_store_replica_template: $.replicaTemplate('live-store', $._config.live_store.replicas, label_selector='rollout-group=live-store'),
+
+  newLiveStoreZoneStatefulSet(zone, container, primary=true)::
     local name = 'live-store-zone-%s' % zone;
 
     self.newLiveStoreStatefulSet(name, container) +
-    statefulSet.mixin.metadata.withLabels({ 'rollout-group': 'live-store' }) +
-    statefulSet.mixin.metadata.withAnnotations({ 'rollout-max-unavailable': std.toString($._config.live_store.max_unavailable) }) +
+    statefulSet.mixin.metadata.withLabels({
+      'rollout-group': 'live-store',
+      // Let the rollout-operator know that it must call the prepare-shutdown endpoint before scaling down
+      'grafana.com/prepare-downscale': 'true',
+      // Zones are scaled down at the same time, with no delay between the zones.
+      'grafana.com/min-time-between-zones-downscale': '0',
+    }) +
+    statefulSet.mixin.metadata.withAnnotations({
+      'rollout-max-unavailable': std.toString($._config.live_store.max_unavailable),
+      'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_live_store_replica_template.metadata.name,
+      'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_live_store_replica_template.kind,
+      'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_live_store_replica_template.apiVersion,
+      // Endpoint for telling live-store that it's going to be scaled down. Live-store will unregister from the ring on shutdown.
+      'grafana.com/prepare-downscale-http-path': 'live-store/prepare-downscale',
+      'grafana.com/prepare-downscale-http-port': '%(port)s' % $._config,
+      'grafana.com/rollout-delayed-downscale': $._config.live_store.downscale_delay,
+      // Endpoint for telling live-store that it's going to be scaled down later. Partition changes state to read-only.
+      'grafana.com/rollout-prepare-delayed-downscale-url': 'http://pod:%(port)s/live-store/prepare-partition-downscale' % $._config,
+    } + (
+      if !primary then {
+        // Disable updates of ReplicaTemplate/live-store from non-primary (zone-b) statefulsets.
+        'grafana.com/rollout-mirror-replicas-from-resource-write-back': 'false',
+      }
+      else {}
+    )) +
     statefulSet.mixin.spec.template.metadata.withLabels({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.selector.withMatchLabels({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.updateStrategy.withType('OnDelete') +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
-    statefulSet.mixin.spec.withReplicas($._config.live_store.replicas) +
+    statefulSet.mixin.spec.withReplicas(0) +
     (if !std.isObject($._config.node_selector) then {} else statefulSet.mixin.spec.template.spec.withNodeSelectorMixin($._config.node_selector)) +
     statefulSet.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
     self.liveStoreZoneAntiAffinity(name),
@@ -131,7 +159,7 @@
     self.newLiveStoreZoneContainer('a', $.tempo_live_store_zone_a_args),
 
   tempo_live_store_zone_a_statefulset:
-    self.newLiveStoreZoneStatefulSet('a', $.tempo_live_store_zone_a_container),
+    self.newLiveStoreZoneStatefulSet('a', $.tempo_live_store_zone_a_container, true),
 
   tempo_live_store_zone_a_service:
     $.newLiveStoreZoneService($.tempo_live_store_zone_a_statefulset),
@@ -140,7 +168,7 @@
     self.newLiveStoreZoneContainer('b', $.tempo_live_store_zone_b_args),
 
   tempo_live_store_zone_b_statefulset:
-    self.newLiveStoreZoneStatefulSet('b', $.tempo_live_store_zone_b_container),
+    self.newLiveStoreZoneStatefulSet('b', $.tempo_live_store_zone_b_container, false),
 
   tempo_live_store_zone_b_service:
     $.newLiveStoreZoneService($.tempo_live_store_zone_b_statefulset),

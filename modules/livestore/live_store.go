@@ -3,6 +3,7 @@ package livestore
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/shutdownmarker"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -218,6 +220,24 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 }
 
 func (s *LiveStore) starting(ctx context.Context) error {
+	// First of all we have to check if the shutdown marker is set. This needs to be done
+	// as first thing because, if found, it may change the behaviour of the live-store startup.
+
+	if _, err := os.Stat(s.cfg.ShutdownMarkerDir); os.IsNotExist(err) {
+		err := os.MkdirAll(s.cfg.ShutdownMarkerDir, 0o700)
+		if err != nil {
+			return fmt.Errorf("failed to create shutdown marker directory: %w", err)
+		}
+	}
+
+	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
+	if exists, err := shutdownmarker.Exists(shutdownMarkerPath); err != nil {
+		return fmt.Errorf("failed to check live-store shutdown marker: %w", err)
+	} else if exists {
+		level.Info(s.logger).Log("msg", "detected existing shutdown marker, setting prepare for shutdown", "path", shutdownMarkerPath)
+		s.setPrepareShutdown()
+	}
+
 	var err error
 	s.wal, err = wal.New(&s.cfg.WAL)
 	if err != nil {
@@ -320,6 +340,12 @@ func (s *LiveStore) stopping(error) error {
 
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
+
+	// Remove the shutdown marker if it exists since we are shutting down
+	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
+	if err := shutdownmarker.Remove(shutdownMarkerPath); err != nil {
+		level.Warn(s.logger).Log("msg", "failed to remove shutdown marker", "path", shutdownMarkerPath, "err", err)
+	}
 
 	if s.cfg.holdAllBackgroundProcesses { // nothing to do
 		return nil

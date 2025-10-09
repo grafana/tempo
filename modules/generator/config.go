@@ -220,6 +220,10 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	copyCfg.SpanMetrics.TargetInfoExcludedDimensions = o.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
 
+	if EnableInstanceLabel, ok := o.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID); ok {
+		copyCfg.SpanMetrics.EnableInstanceLabel = EnableInstanceLabel
+	}
+
 	if enableClientServerPrefix := o.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID); enableClientServerPrefix {
 		copyCfg.ServiceGraphs.EnableClientServerPrefix = enableClientServerPrefix
 	}
