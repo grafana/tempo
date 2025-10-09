@@ -46,7 +46,7 @@ func Compile(query string) (*RootExpr, SpansetFilterFunc, firstStageElement, sec
 	return expr, expr.Pipeline.evaluate, expr.MetricsPipeline, expr.MetricsSecondStage, req, nil
 }
 
-func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
+func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher, allowUnsafeQueryHints bool) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.End()
 
@@ -56,10 +56,9 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	}
 
 	// Check for performance testing hints
-	// TODO: check unsafe query hints override
-	if returnIn, ok := rootExpr.Hints.GetDuration(HintReturnIn, true); ok {
+	if returnIn, ok := rootExpr.Hints.GetDuration(HintReturnIn, allowUnsafeQueryHints); ok {
 		var stdDev time.Duration
-		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintStdDev, true); ok {
+		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintStdDev, allowUnsafeQueryHints); ok {
 			stdDev = stdDevDuration
 		}
 		SimulateLatency(returnIn, stdDev)
@@ -68,7 +67,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	}
 
 	var mostRecent, ok bool
-	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, false); !ok {
+	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, allowUnsafeQueryHints); !ok {
 		mostRecent = false
 	}
 

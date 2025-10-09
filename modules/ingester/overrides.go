@@ -10,6 +10,7 @@ type ingesterOverrides interface {
 	registry.Overrides
 
 	DedicatedColumns(userID string) backend.DedicatedColumns
+	UnsafeQueryHints(userID string) bool
 }
 
 var _ ingesterOverrides = (overrides.Interface)(nil)

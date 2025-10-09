@@ -24,7 +24,7 @@ func TestPerformanceTestingHints_Search(t *testing.T) {
 		}
 
 		start := time.Now()
-		resp, err := engine.ExecuteSearch(context.Background(), req, nil)
+		resp, err := engine.ExecuteSearch(context.Background(), req, nil, true)
 		elapsed := time.Since(start)
 
 		require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestPerformanceTestingHints_SearchWithStdDev(t *testing.T) {
 		}
 
 		start := time.Now()
-		resp, err := engine.ExecuteSearch(context.Background(), req, nil)
+		resp, err := engine.ExecuteSearch(context.Background(), req, nil, true)
 		elapsed := time.Since(start)
 
 		require.NoError(t, err)
