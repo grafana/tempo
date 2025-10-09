@@ -44,7 +44,6 @@ type Config struct {
 	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
 
 	// QueryEndCutoff prevents querying incomplete recent data.
-	// If not set (0), defaults to 30 seconds.
 	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
 }
 
@@ -90,7 +89,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Config.MaxBatchSize = 7
 	cfg.MaxRetries = 2
 	cfg.ResponseConsumers = 10
-	cfg.QueryEndCutoff = 30 * time.Second
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:     15 * time.Minute,
