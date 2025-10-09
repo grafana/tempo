@@ -18,7 +18,7 @@ func TestPerformanceTestingHints_Search(t *testing.T) {
 		engine := NewEngine()
 
 		req := &tempopb.SearchRequest{
-			Query: `{} with (debug_return_in=100s, debug_fake_date=true)`,
+			Query: `{} with (debug_return_in=100s)`,
 			Start: uint32(time.Now().Add(-1 * time.Hour).Unix()),
 			End:   uint32(time.Now().Unix()),
 		}
@@ -39,7 +39,7 @@ func TestPerformanceTestingHints_SearchWithStdDev(t *testing.T) {
 		engine := NewEngine()
 
 		req := &tempopb.SearchRequest{
-			Query: `{} with (debug_return_in=100s, debug_std_dev=10s, debug_fake_date=true)`,
+			Query: `{} with (debug_return_in=100s, debug_std_dev=10s)`,
 			Start: uint32(time.Now().Add(-1 * time.Hour).Unix()),
 			End:   uint32(time.Now().Unix()),
 		}

@@ -17,9 +17,8 @@ const (
 	HintMostRecent        = "most_recent" // traceql search hint to return most recent results ordered by time
 	HintDebug             = "debug"
 	HintInfo              = "info"
-	HintDebugReturnIn     = "debug_return_in" // performance testing hint to simulate query latency
+	HintDebugReturnIn     = "debug_return_in" // performance testing hint to simulate query latency and return fake data
 	HintDebugStdDev       = "debug_std_dev"   // standard deviation for debug_return_in latency simulation
-	HintDebugFakeData     = "debug_fake_date" // return fake data instead of querying actual data
 )
 
 func isUnsafe(h string) bool {

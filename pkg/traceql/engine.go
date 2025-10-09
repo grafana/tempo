@@ -62,8 +62,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 			stdDev = stdDevDuration
 		}
 		SimulateLatency(returnIn, stdDev)
-	}
-	if fakeData, ok := rootExpr.Hints.GetBool(HintDebugFakeData, allowUnsafeQueryHints); ok && fakeData {
+
 		return GenerateFakeSearchResponse(), nil
 	}
 
