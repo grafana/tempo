@@ -87,20 +87,33 @@ func TestGenerateFakeSearchResponse(t *testing.T) {
 
 func TestSimulateLatency(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		start := time.Now()
-		SimulateLatency(100*time.Second, 0)
-		elapsed := time.Since(start)
+		for range 10000 {
+			start := time.Now()
+			SimulateLatency(100*time.Second, 0)
+			elapsed := time.Since(start)
 
-		assert.InDelta(t, elapsed, 100*time.Second, float64(testAccuracy))
+			assert.InDelta(t, elapsed, 100*time.Second, float64(testAccuracy))
+		}
 	})
 
 	synctest.Test(t, func(t *testing.T) {
-		// Test with std dev
-		start := time.Now()
-		SimulateLatency(100*time.Second, 10*time.Second)
-		elapsed := time.Since(start)
+		// With std dev, should be around 100s but can vary
+		total := 10000
+		var outOfRange int
+		duration := 100 * time.Second
+		stdDev := 10 * time.Second
+		for range total {
+			start := time.Now()
+			SimulateLatency(duration, stdDev)
+			elapsed := time.Since(start)
 
-		// With std dev, should be around 100ms but can vary
-		assert.InDelta(t, elapsed, 100*time.Second, float64(10*time.Second+testAccuracy))
+			if elapsed > duration+2*stdDev {
+				outOfRange++
+			}
+			assert.InDelta(t, duration, elapsed, float64(3*stdDev+testAccuracy), "should not be outside of 3 sigmas")
+		}
+		// According to 3SR, 5% possibility of having a number outside of 2 standart deviation of the mean.
+		// As the process is random, to reduce possibility of false positives, doubling the expected value.
+		assert.Less(t, float64(outOfRange)/float64(total), 0.1, "possibly wrong distribution")
 	})
 }

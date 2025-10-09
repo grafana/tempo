@@ -81,11 +81,17 @@ func GenerateFakeSearchResponse() *tempopb.SearchResponse {
 func SimulateLatency(duration time.Duration, stdDev time.Duration) {
 	if stdDev > 0 {
 		variation := time.Duration(rand.NormFloat64() * float64(stdDev)) //nolint:gosec // G404
-		duration += variation
-
-		if duration <= 0 {
-			return
+		// possibility of having a crazy big number is never a zero
+		// capping to 3 sigmas (0.3% possibility)
+		if variation > 3*stdDev {
+			variation = 3 * stdDev
+		} else if variation < -3*stdDev {
+			variation = -3 * stdDev
 		}
+		duration += variation
+	}
+	if duration <= 0 {
+		return
 	}
 	time.Sleep(duration)
 }
