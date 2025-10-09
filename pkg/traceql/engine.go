@@ -55,6 +55,18 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return nil, err
 	}
 
+	// Check for performance testing hints
+	// TODO: check unsafe query hints override
+	if returnIn, ok := rootExpr.Hints.GetDuration(HintReturnIn, true); ok {
+		var stdDev time.Duration
+		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintStdDev, true); ok {
+			stdDev = stdDevDuration
+		}
+		SimulateLatency(returnIn, stdDev)
+
+		return GenerateFakeSearchResponse(), nil
+	}
+
 	var mostRecent, ok bool
 	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, false); !ok {
 		mostRecent = false
