@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
@@ -586,16 +585,10 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	})
 }
 
-// protoMessage is a constraint for protobuf message pointer types. Sadly T any wont work.
-type protoMessage[T any] interface {
-	*T            // T itself must be a concrete (non-pointer) type
-	proto.Message // and *T must implement proto.Message
-}
-
 // withInstance extracts the tenant ID from the context, gets the instance,
 // and calls the provided function if the instance exists. If the instance
 // doesn't exist, it returns a new zero-valued instance of T.
-func withInstance[T any, PT protoMessage[T]](s *LiveStore, ctx context.Context, fn func(*instance) (PT, error)) (PT, error) {
+func withInstance[T any](s *LiveStore, ctx context.Context, fn func(*instance) (*T, error)) (*T, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
