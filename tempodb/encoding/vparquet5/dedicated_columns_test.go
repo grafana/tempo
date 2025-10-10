@@ -371,14 +371,16 @@ func TestFilterDedicatedColumns(t *testing.T) {
 		expected backend.DedicatedColumns
 	}{
 		{
-			name:    "empty columns",
-			columns: backend.DedicatedColumns{},
+			name:     "empty columns",
+			columns:  backend.DedicatedColumns{},
+			expected: backend.DedicatedColumns{},
 		},
 		{
 			name: "empty result span",
 			columns: backend.DedicatedColumns{
 				{Scope: "span", Name: "span-one", Type: "float"},
 			},
+			expected: backend.DedicatedColumns{},
 		},
 		{
 			name: "empty result resource",
@@ -386,6 +388,7 @@ func TestFilterDedicatedColumns(t *testing.T) {
 				{Scope: "resource", Name: "res-one", Type: "float"},
 				{Scope: "scope", Name: "res-two", Type: "string"},
 			},
+			expected: backend.DedicatedColumns{},
 		},
 		{
 			name: "filtered result",

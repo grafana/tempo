@@ -1,8 +1,6 @@
 package vparquet3
 
 import (
-	"slices"
-
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -214,14 +212,14 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 }
 
 func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
-	return slices.Collect(func(yield func(c backend.DedicatedColumn) bool) {
-		for _, c := range columns {
-			if isIgnoredDedicatedColumn(c.Scope, c.Type, c.Name) {
-				continue
-			}
-			yield(c)
+	filtered := make(backend.DedicatedColumns, 0, len(columns))
+	for _, c := range columns {
+		if isIgnoredDedicatedColumn(c.Scope, c.Type, c.Name) {
+			continue
 		}
-	})
+		filtered = append(filtered, c)
+	}
+	return filtered
 }
 
 func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType, attr string) bool {

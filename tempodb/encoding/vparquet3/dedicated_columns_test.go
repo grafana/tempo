@@ -231,14 +231,16 @@ func TestFilterDedicatedColumns(t *testing.T) {
 		expected backend.DedicatedColumns
 	}{
 		{
-			name:    "empty columns",
-			columns: backend.DedicatedColumns{},
+			name:     "empty columns",
+			columns:  backend.DedicatedColumns{},
+			expected: backend.DedicatedColumns{},
 		},
 		{
 			name: "empty result span",
 			columns: backend.DedicatedColumns{
 				{Scope: "span", Name: "http.url", Type: "string"},
 			},
+			expected: backend.DedicatedColumns{},
 		},
 		{
 			name: "empty result resource",
@@ -247,6 +249,7 @@ func TestFilterDedicatedColumns(t *testing.T) {
 				{Scope: "resource", Name: "k8s.namespace.name", Type: "string"},
 				{Scope: "resource", Name: "service.name", Type: "string"},
 			},
+			expected: backend.DedicatedColumns{},
 		},
 		{
 			name: "filtered result",
