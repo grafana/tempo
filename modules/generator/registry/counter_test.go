@@ -18,7 +18,7 @@ func Test_counter(t *testing.T) {
 		return true
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil)
+	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -59,7 +59,7 @@ func TestCounterDifferentLabels(t *testing.T) {
 		return true
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil)
+	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
@@ -84,7 +84,7 @@ func Test_counter_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	c := newCounter("my_counter", onAdd, nil, nil)
+	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
 
 	// allow adding new series
 	canAdd = true
@@ -123,7 +123,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	c := newCounter("my_counter", nil, onRemove, nil)
+	c := newCounter("my_counter", nil, onRemove, nil, 15*time.Minute)
 
 	timeMs := time.Now().UnixMilli()
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
@@ -161,7 +161,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 }
 
 func Test_counter_externalLabels(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, map[string]string{"external_label": "external_value"})
+	c := newCounter("my_counter", nil, nil, map[string]string{"external_label": "external_value"}, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -178,7 +178,7 @@ func Test_counter_externalLabels(t *testing.T) {
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, nil)
+	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
 
 	end := make(chan struct{})
 
@@ -211,7 +211,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := c.collectMetrics(&noopAppender{}, 0)
+		err := c.collectMetrics(&noopAppender{}, 0)
 		assert.NoError(t, err)
 	})
 
@@ -224,7 +224,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_counter_concurrencyCorrectness(t *testing.T) {
-	c := newCounter("my_counter", nil, nil, nil)
+	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -264,9 +264,8 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, expectedActiveSeries int, expectedSamples []sample, expectedExemplars []exemplarSample) {
 	appender := &capturingAppender{}
 
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
+	err := m.collectMetrics(appender, collectionTimeMs)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedActiveSeries, activeSeries)
 
 	assert.False(t, appender.isCommitted)
 	assert.False(t, appender.isRolledback)
@@ -280,4 +279,81 @@ func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, expe
 		fmt.Println(" - ", sample.l, sample.v)
 	}
 	assert.ElementsMatch(t, expectedExemplars, appender.exemplars)
+}
+
+func Test_counter_demandTracking(t *testing.T) {
+	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
+
+	// Initially, demand should be 0
+	assert.Equal(t, 0, c.countSeriesDemand())
+
+	// Add some series
+	for i := 0; i < 50; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		c.Inc(lvc, 1.0)
+	}
+
+	// Demand should now be approximately 50 (within HLL error)
+	demand := c.countSeriesDemand()
+	assert.Greater(t, demand, 40, "demand should be close to 50")
+	assert.Less(t, demand, 60, "demand should be close to 50")
+
+	// Active series should exactly match
+	assert.Equal(t, 50, c.countActiveSeries())
+}
+
+func Test_counter_demandVsActiveSeries(t *testing.T) {
+	limitReached := false
+	onAdd := func(_ uint32) bool {
+		return !limitReached
+	}
+
+	c := newCounter("my_counter", onAdd, nil, nil, 15*time.Minute)
+
+	// Add series up to a point
+	for i := 0; i < 30; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		c.Inc(lvc, 1.0)
+	}
+
+	assert.Equal(t, 30, c.countActiveSeries())
+
+	// Hit the limit
+	limitReached = true
+
+	// Try to add more series (they should be rejected)
+	for i := 30; i < 60; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		c.Inc(lvc, 1.0)
+	}
+
+	// Active series should still be 30
+	assert.Equal(t, 30, c.countActiveSeries())
+
+	// But demand should show all attempted series
+	demand := c.countSeriesDemand()
+	assert.Greater(t, demand, 50, "demand should track all attempted series")
+	assert.Greater(t, demand, c.countActiveSeries(), "demand should exceed active series")
+}
+
+func Test_counter_demandDecay(t *testing.T) {
+	c := newCounter("my_counter", nil, nil, nil, 15*time.Minute)
+
+	// Add series
+	for i := 0; i < 40; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		c.Inc(lvc, 1.0)
+	}
+
+	initialDemand := c.countSeriesDemand()
+	assert.Greater(t, initialDemand, 0)
+
+	// Advance the cardinality tracker enough times to clear the window
+	for i := 0; i < 5; i++ {
+		c.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
+	}
+
+	// Demand should have decreased or be zero
+	finalDemand := c.countSeriesDemand()
+	assert.LessOrEqual(t, finalDemand, initialDemand/2, "demand should significantly decay")
 }
