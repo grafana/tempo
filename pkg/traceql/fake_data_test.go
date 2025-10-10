@@ -56,7 +56,7 @@ func TestPerformanceTestingHints_SearchWithStdDev(t *testing.T) {
 }
 
 func TestGenerateFakeSearchResponse(t *testing.T) {
-	resp := GenerateFakeSearchResponse()
+	resp := generateFakeSearchResponse()
 
 	require.NotNil(t, resp)
 	require.NotEmpty(t, resp.Traces)
@@ -89,7 +89,7 @@ func TestSimulateLatency(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		for range 10000 {
 			start := time.Now()
-			SimulateLatency(100*time.Second, 0)
+			simulateLatency(100*time.Second, 0)
 			elapsed := time.Since(start)
 
 			assert.InDelta(t, elapsed, 100*time.Second, float64(testAccuracy))
@@ -104,7 +104,7 @@ func TestSimulateLatency(t *testing.T) {
 		stdDev := 10 * time.Second
 		for range total {
 			start := time.Now()
-			SimulateLatency(duration, stdDev)
+			simulateLatency(duration, stdDev)
 			elapsed := time.Since(start)
 
 			if elapsed > duration+2*stdDev {

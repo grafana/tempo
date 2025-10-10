@@ -61,9 +61,9 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintDebugStdDev, allowUnsafeQueryHints); ok {
 			stdDev = stdDevDuration
 		}
-		SimulateLatency(returnIn, stdDev)
+		simulateLatency(returnIn, stdDev)
 
-		return GenerateFakeSearchResponse(), nil
+		return generateFakeSearchResponse(), nil
 	}
 
 	var mostRecent, ok bool

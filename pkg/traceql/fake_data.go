@@ -9,9 +9,9 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
-// GenerateFakeSearchResponse creates a fake SearchResponse.
+// generateFakeSearchResponse creates a fake SearchResponse.
 // It must be used only for testing purposes.
-func GenerateFakeSearchResponse() *tempopb.SearchResponse {
+func generateFakeSearchResponse() *tempopb.SearchResponse {
 	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // G404
 
 	numTraces := 1 + r.Intn(3)
@@ -77,8 +77,8 @@ func GenerateFakeSearchResponse() *tempopb.SearchResponse {
 	}
 }
 
-// SimulateLatency sleeps for the specified duration with optional standard deviation
-func SimulateLatency(duration time.Duration, stdDev time.Duration) {
+// simulateLatency sleeps for the specified duration with optional standard deviation
+func simulateLatency(duration time.Duration, stdDev time.Duration) {
 	if stdDev > 0 {
 		variation := time.Duration(rand.NormFloat64() * float64(stdDev)) //nolint:gosec // G404
 		// possibility of having a crazy big number is never a zero
