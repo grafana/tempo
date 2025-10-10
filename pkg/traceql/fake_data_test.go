@@ -56,7 +56,7 @@ func TestPerformanceTestingHints_SearchWithStdDev(t *testing.T) {
 }
 
 func TestGenerateFakeSearchResponse(t *testing.T) {
-	resp := generateFakeSearchResponse()
+	resp := generateFakeSearchResponse(1)
 
 	require.NotNil(t, resp)
 	require.NotEmpty(t, resp.Traces)
@@ -83,6 +83,40 @@ func TestGenerateFakeSearchResponse(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestGenerateFakeSearchResponsePossibility(t *testing.T) {
+	var nonEmptyResults int
+	// increase these two parameters if the test becomes unstable
+	total := 10000
+	acceptableDelta := 0.05
+
+	t.Run("possibility 0.25", func(t *testing.T) {
+		possibility := 0.25
+		for range total {
+			resp := generateFakeSearchResponse(possibility)
+			if len(resp.Traces) != 0 {
+				nonEmptyResults++
+			}
+		}
+		require.InDelta(t, possibility, float64(nonEmptyResults)/float64(total), acceptableDelta)
+	})
+
+	t.Run("possibility 1", func(t *testing.T) {
+		for range total {
+			resp := generateFakeSearchResponse(1)
+			require.NotNil(t, resp)
+			require.NotEmpty(t, resp.Traces) // should always be non-empty
+		}
+	})
+
+	t.Run("possibility 0", func(t *testing.T) {
+		for range total {
+			resp := generateFakeSearchResponse(0)
+			require.NotNil(t, resp)
+			require.Empty(t, resp.Traces) // should always be empty
+		}
+	})
 }
 
 func TestSimulateLatency(t *testing.T) {

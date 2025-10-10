@@ -63,7 +63,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		}
 		simulateLatency(returnIn, stdDev)
 
-		return generateFakeSearchResponse(), nil
+		return generateFakeSearchResponse(1), nil
 	}
 
 	var mostRecent, ok bool

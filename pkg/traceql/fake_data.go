@@ -9,10 +9,16 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
-// generateFakeSearchResponse creates a fake SearchResponse.
+// generateFakeSearchResponse creates a fake SearchResponse with a chance defined by given probability.
 // It must be used only for testing purposes.
-func generateFakeSearchResponse() *tempopb.SearchResponse {
+func generateFakeSearchResponse(probability float64) *tempopb.SearchResponse {
+	if probability <= 0 {
+		return &tempopb.SearchResponse{}
+	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // G404
+	if probability < 1 && r.Float64() > probability {    //nolint:gosec // G404
+		return &tempopb.SearchResponse{}
+	}
 
 	numTraces := 1 + r.Intn(3)
 	traces := make([]*tempopb.TraceSearchMetadata, numTraces)
