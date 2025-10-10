@@ -42,7 +42,7 @@ func Test_getDedicatedColumnsFromCache(t *testing.T) {
 			jsonBytes := []byte(tc.jsonStr)
 
 			// clear the map so we start with a clean slate
-			clearDedicatedColumnsCache()
+			dedicatedColumnsCache.Purge()
 
 			if tc.isCached {
 				v, ok := getDedicatedColumnsFromCache(jsonBytes)

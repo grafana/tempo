@@ -42,7 +42,3 @@ func putDedicatedColumnsToCache(marshalled []byte, cols DedicatedColumns) {
 	}
 	_ = dedicatedColumnsCache.Add(string(marshalled), cols)
 }
-
-func clearDedicatedColumnsCache() {
-	dedicatedColumnsCache.Purge()
-}

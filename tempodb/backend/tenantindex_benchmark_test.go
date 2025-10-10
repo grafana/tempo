@@ -20,7 +20,7 @@ func BenchmarkIndexMarshal(b *testing.B) {
 	b.Run("format=json", func(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
-				clearDedicatedColumnsCache()
+				dedicatedColumnsCache.Purge()
 				idx := makeTestTenantIndex(numBlocks)
 				for b.Loop() {
 					doNotOptimizeBytes, _ = idx.marshal()
@@ -32,7 +32,7 @@ func BenchmarkIndexMarshal(b *testing.B) {
 	b.Run("format=proto", func(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
-				clearDedicatedColumnsCache()
+				dedicatedColumnsCache.Purge()
 				idx := makeTestTenantIndex(numBlocks)
 				for b.Loop() {
 					doNotOptimizeBytes, _ = idx.marshalPb()
@@ -46,7 +46,7 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 	b.Run("format=json", func(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
-				clearDedicatedColumnsCache()
+				dedicatedColumnsCache.Purge()
 				idx := makeTestTenantIndex(numBlocks)
 				idxBuf, err := idx.marshal()
 				require.NoError(b, err)
@@ -61,7 +61,7 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 	b.Run("format=proto", func(b *testing.B) {
 		for _, numBlocks := range []int{100, 1000, 10000} {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
-				clearDedicatedColumnsCache()
+				dedicatedColumnsCache.Purge()
 				idx := makeTestTenantIndex(numBlocks)
 				idxBuf, err := idx.marshal()
 				require.NoError(b, err)
