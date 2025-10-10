@@ -4,12 +4,12 @@ menuTitle: Metrics-generator
 description: Gain an understanding of how to debug metrics quality issues.
 weight: 500
 aliases:
-- ../operations/troubleshooting/metrics-generator/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/metrics-generator/
+  - ../operations/troubleshooting/metrics-generator/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/metrics-generator/
 ---
 
 # Troubleshoot metrics-generator
 
-If you are concerned with data quality issues in the metrics-generator, we'd first recommend:
+If you're concerned with data quality issues in the metrics-generator, consider:
 
 - Reviewing your telemetry pipeline to determine the number of dropped spans. You are only looking for major issues here.
 - Reviewing the [service graph documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service_graphs/) to understand how they are built.
@@ -17,6 +17,8 @@ If you are concerned with data quality issues in the metrics-generator, we'd fir
 If everything seems acceptable from these two perspectives, consider the following topics to help resolve general issues with all metrics and span metrics specifically.
 
 ## All metrics
+
+This section covers metrics for all metrics related to the metrics-generator.
 
 ### Dropped spans in the distributor
 
@@ -30,7 +32,7 @@ sum(rate(tempo_distributor_queue_pushes_failures_total{}[1m]))
 ### Failed pushes to the generator
 
 For any number of reasons, the distributor can fail a push to the generators. Use the following metric to
-determine if that is happening:
+determine if that's happening:
 
 ```
 sum(rate(tempo_distributor_metrics_generator_pushes_failures_total{}[1m]))
@@ -57,7 +59,7 @@ If spans are regularly exceeding this value you may want to consider reviewing y
 Note that increasing this value allows the generator to consume more spans, but does reduce the accuracy of metrics because spans farther
 away from "now" are included.
 
-Spans could also be discarded if the attributes are not valid UTF-8 characters when those attributes are converted to metric labels.
+Spans could also be discarded if the attributes aren't valid UTF-8 characters when those attributes are converted to metric labels.
 
 ### Max active series
 
@@ -82,7 +84,7 @@ Note that this value is per metrics generator. The actual max series remote writ
 ### Remote write failures
 
 For any number of reasons, the generator may fail a write to the remote write target. Use the following metrics to
-determine if that is happening:
+determine if that's happening:
 
 ```
 sum(rate(prometheus_remote_storage_samples_failed_total{}[1m]))
@@ -98,13 +100,16 @@ Service graphs have additional configuration which can impact the quality of the
 ### Expired edges
 
 The following metrics can be used to determine how many edges are failing to find a match.
+The expired edge only includes those edges that are expired and have no matching information to generate a service graph edge.
 
 Rate of edges that have expired without a match:
+
 ```
 sum(rate(tempo_metrics_generator_processor_service_graphs_expired_edges{}[1m]))
 ```
 
 Rate of all edges:
+
 ```
 sum(rate(tempo_metrics_generator_processor_service_graphs_edges{}[1m]))
 ```
@@ -112,7 +117,7 @@ sum(rate(tempo_metrics_generator_processor_service_graphs_edges{}[1m]))
 If you are seeing a large number of edges expire without a match, consider adjusting the `wait` setting. This
 controls how long the metrics generator waits to find a match before it gives up.
 
-```
+```yaml
 metrics_generator:
   processor:
     service_graphs:
@@ -121,7 +126,7 @@ metrics_generator:
 
 ### Service graph max items
 
-The service graph processor has a maximum number of edges it will track at once to limit the total amount of memory the processor uses.
+The service graph processor has a maximum number of edges it tracks at once to limit the total amount of memory the processor uses.
 To determine if edges are being dropped due to this limit, check:
 
 ```
@@ -130,7 +135,7 @@ sum(rate(tempo_metrics_generator_processor_service_graphs_dropped_spans{}[1m]))
 
 Use `max_items` to adjust the maximum amount of edges tracked:
 
-```
+```yaml
 metrics_generator:
   processor:
     service_graphs:

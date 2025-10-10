@@ -3,8 +3,6 @@ title: Monitor Tempo
 menuTitle: Monitor Tempo
 description: Use polling, alerts, and dashboards to monitor Tempo in production.
 weight: 200
-aliases:
-- ./monitoring ## https://grafana.com/docs/tempo/latest/operations/monitoring/
 ---
 
 # Monitor Tempo
@@ -24,6 +22,14 @@ Tempo is instrumented with [Prometheus metrics](https://prometheus.io/) and emit
 RED metrics are a standardized format for monitoring microservices, where R stands for requests, E stands for errors, and D stands for duration.
 
 The [Tempo mixin](#dashboards) provides several dashboards using these metrics.
+
+#### Query frontend inspected bytes
+
+Use `tempo_query_frontend_bytes_inspected_total` to monitor how many bytes the query frontend reads from disk and object storage.
+This counter is emitted per `tenant` and `op` (`traces`, `search`, `metadata`, `metrics`).
+Because cached responses from queriers are excluded, it reflects actual storage and network I/O.
+
+For PromQL examples and alerting guidance, refer to [Query query IO and time stamp distance](/docs/tempo/<TEMPO_VERSION>/operations/monitor/query-io-and-timestamp-distance/).
 
 ### Logs
 
