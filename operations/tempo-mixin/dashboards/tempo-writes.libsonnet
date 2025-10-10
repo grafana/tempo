@@ -157,19 +157,6 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Livestore')
-        .addPanel(
-          $.panel('Pending Queue Length') +
-          $.qpsPanel(
-            'tempo_live_store_complete_queue_length{%s}' % $.podMatcher('live-store-zone.*')
-          )
-        )
-        .addPanel(
-          $.panel('Completed Blocks') +
-          $.queryPanel('sum by(pod) (rate(tempo_live_store_blocks_completed_total{%s}[$__rate_interval]))' % $.containerMatcher($._config.jobs.distributor), '{{pod}}')
-        )
-      )
-      .addRow(
         g.row('Ingester')
         .addPanel(
           $.panel('QPS') +

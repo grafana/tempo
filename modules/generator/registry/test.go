@@ -103,13 +103,21 @@ func (t *testCounter) name() string {
 	return t.n
 }
 
-func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
-	return activeSeries, err
+func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) error {
+	return nil
 }
 
 func (t *testCounter) removeStaleSeries(int64) {
 	panic("implement me")
 }
+
+func (t *testCounter) countActiveSeries() int {
+	return 0
+}
+
+// countSeriesDemand is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testCounter) countSeriesDemand() int { return 0 }
 
 type testGauge struct {
 	n        string
@@ -138,13 +146,21 @@ func (t *testGauge) name() string {
 	return t.n
 }
 
-func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
-	return 0, nil
+func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) error {
+	return nil
 }
 
 func (t *testGauge) removeStaleSeries(int64) {
 	panic("implement me")
 }
+
+func (t *testGauge) countActiveSeries() int {
+	return 0
+}
+
+// countSeriesDemand is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testGauge) countSeriesDemand() int { return 0 }
 
 type testHistogram struct {
 	nameSum            string
@@ -184,10 +200,18 @@ func withLe(lbls labels.Labels, le float64) labels.Labels {
 	return lb.Labels()
 }
 
-func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
+func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) error {
 	panic("implement me")
 }
 
 func (t *testHistogram) removeStaleSeries(int64) {
 	panic("implement me")
 }
+
+func (t *testHistogram) countActiveSeries() int {
+	return 0
+}
+
+// countSeriesDemand is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testHistogram) countSeriesDemand() int { return 0 }

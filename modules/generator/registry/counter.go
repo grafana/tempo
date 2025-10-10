@@ -15,8 +15,9 @@ type counter struct {
 	metricName string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
-	seriesMtx sync.RWMutex
-	series    map[uint64]*counterSeries
+	seriesMtx    sync.RWMutex
+	series       map[uint64]*counterSeries
+	seriesDemand *Cardinality
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -48,7 +49,7 @@ func (co *counterSeries) registerSeenSeries() {
 	co.firstSeries.Store(false)
 }
 
-func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *counter {
+func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *counter {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -61,6 +62,7 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 	return &counter{
 		metricName:     name,
 		series:         make(map[uint64]*counterSeries),
+		seriesDemand:   NewCardinality(staleDuration, removeStaleSeriesInterval),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
 		externalLabels: externalLabels,
@@ -78,8 +80,17 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	s, ok := c.series[hash]
 	c.seriesMtx.RUnlock()
 
+	c.seriesDemand.Insert(hash)
 	if ok {
 		c.updateSeries(s, value)
+		return
+	}
+
+	c.seriesMtx.Lock()
+	defer c.seriesMtx.Unlock()
+
+	if existing, ok := c.series[hash]; ok {
+		c.updateSeries(existing, value)
 		return
 	}
 
@@ -87,17 +98,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		return
 	}
 
-	newSeries := c.newSeries(labelValueCombo, value)
-
-	c.seriesMtx.Lock()
-	defer c.seriesMtx.Unlock()
-
-	s, ok = c.series[hash]
-	if ok {
-		c.updateSeries(s, value)
-		return
-	}
-	c.series[hash] = newSeries
+	c.series[hash] = c.newSeries(labelValueCombo, value)
 }
 
 func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
@@ -125,11 +126,9 @@ func (c *counter) name() string {
 	return c.metricName
 }
 
-func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
+func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) error {
 	c.seriesMtx.RLock()
 	defer c.seriesMtx.RUnlock()
-
-	activeSeries = len(c.series)
 
 	for _, s := range c.series {
 		// If we are about to call Append for the first time on a series, we need
@@ -139,22 +138,36 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activ
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, s.labels, endOfLastMinuteMs, 0)
+			_, err := appender.Append(0, s.labels, endOfLastMinuteMs, 0)
 			if err != nil {
-				return
+				return err
 			}
 			s.registerSeenSeries()
 		}
 
-		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())
+		_, err := appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
-			return
+			return err
 		}
 
 		// TODO: support exemplars
 	}
 
-	return
+	return nil
+}
+
+func (c *counter) countActiveSeries() int {
+	c.seriesMtx.RLock()
+	defer c.seriesMtx.RUnlock()
+
+	return len(c.series)
+}
+
+func (c *counter) countSeriesDemand() int {
+	c.seriesMtx.RLock()
+	defer c.seriesMtx.RUnlock()
+
+	return int(c.seriesDemand.Estimate())
 }
 
 func (c *counter) removeStaleSeries(staleTimeMs int64) {
@@ -167,4 +180,5 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 			c.onRemoveSeries(1)
 		}
 	}
+	c.seriesDemand.Advance()
 }
