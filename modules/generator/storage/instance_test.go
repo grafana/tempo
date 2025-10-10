@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 )
 
 // Verify basic functionality like sending metrics and exemplars, buffering and retrying failed
@@ -209,7 +209,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 
 	headers := map[string]string{user.OrgIDHeaderName: "my-other-tenant"}
 
-	instance, err := New(&cfg, &mockOverrides{headers, overrides.HistogramMethodClassic}, "test-tenant", &noopRegisterer{}, logger)
+	instance, err := New(&cfg, &mockOverrides{headers, histograms.HistogramMethodClassic}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -354,14 +354,14 @@ var _ Overrides = (*mockOverrides)(nil)
 
 type mockOverrides struct {
 	headers          map[string]string
-	nativeHistograms overrides.HistogramMethod
+	nativeHistograms histograms.HistogramMethod
 }
 
 func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
 	return m.headers
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) overrides.HistogramMethod {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) histograms.HistogramMethod {
 	return m.nativeHistograms
 }
 

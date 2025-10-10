@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -48,7 +49,7 @@ type Interface interface {
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
-	MetricsGeneratorGenerateNativeHistograms(userID string) HistogramMethod
+	MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod
 	MetricsGenerationTraceIDLabelName(userID string) string
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int

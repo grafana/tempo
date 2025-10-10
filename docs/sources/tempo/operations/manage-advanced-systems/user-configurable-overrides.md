@@ -63,6 +63,8 @@ metrics_generator:
   [processors: <list of strings>]
   [collection_interval: <duration>]
   [disable_collection: <bool> | default = false]
+  [generate_native_histograms: <classic|native|both> | default = classic]
+  [native_histogram_max_bucket_number: <int> | default = 100]
 
   processor:
 

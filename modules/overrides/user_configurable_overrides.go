@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
@@ -243,6 +244,20 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(use
 		return disableCollection
 	}
 	return o.Interface.MetricsGeneratorDisableCollection(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod {
+	if method, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetGenerateNativeHistograms(); ok {
+		return method
+	}
+	return o.Interface.MetricsGeneratorGenerateNativeHistograms(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32 {
+	if num, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetNativeHistogramMaxBucketNumber(); ok {
+		return num
+	}
+	return o.Interface.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {

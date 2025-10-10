@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 )
@@ -31,6 +32,8 @@ func TestLimits_parseJson(t *testing.T) {
   "metrics_generator": {
     "processors": ["service-graphs"],
     "collection_interval": "30s",
+		"native_histogram_max_bucket_number": 101,
+		"generate_native_histograms": "native",
     "processor": {
       "service_graphs": {
         "dimensions": ["cluster"]
@@ -49,8 +52,10 @@ func TestLimits_parseJson(t *testing.T) {
 			Limits{
 				Forwarders: &[]string{"dev"},
 				MetricsGenerator: LimitsMetricsGenerator{
-					Processors:         map[string]struct{}{"service-graphs": {}},
-					CollectionInterval: &Duration{Duration: 30 * time.Second},
+					Processors:                     map[string]struct{}{"service-graphs": {}},
+					CollectionInterval:             &Duration{Duration: 30 * time.Second},
+					GenerateNativeHistograms:       (*histograms.HistogramMethod)(strPtr("native")),
+					NativeHistogramMaxBucketNumber: func(u uint32) *uint32 { return &u }(101),
 					Processor: LimitsMetricsGeneratorProcessor{
 						ServiceGraphs: LimitsMetricsGeneratorProcessorServiceGraphs{
 							Dimensions: &[]string{"cluster"},
