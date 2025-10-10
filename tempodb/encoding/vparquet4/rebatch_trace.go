@@ -174,9 +174,15 @@ func attributeHash(attr *Attribute, hash uint64) uint64 {
 
 func addHash(s *string, hash uint64) uint64 {
 	if s == nil {
-		return hash
+		return addHashNil(hash)
 	}
 	return fnv1a.AddString64(hash, *s)
+}
+
+func addHashNil(hash uint64) uint64 {
+	// hash twice with large primes to avoid collisions
+	hash = fnv1a.AddUint64(hash, 9952039)
+	return fnv1a.AddUint64(hash, 10188397)
 }
 
 // clearScopeSpans clears slices in ScopeSpans so avoid multiple copies of the same
