@@ -66,6 +66,6 @@ The `cache_control` section contains the follow parameters for Parquet metadata 
 
 | Parameter | Default value | Description |
 |---|---|---|
-| <code>[footer: <bool> \| default = false]</code> | `false`       | Specifies if the footer should be cached       |
-| `[column_index: <bool> \| default = false]`      | `false`       | Specifies if the column index should be cached |
-| `[offset_index: <bool> \| default = false]`      | `false`       | Specifies if the offset index should be cached |
+| <code>[footer: <bool> \| default = false]</code> | `false`    | Specifies if the footer should be cached    |
+| `[column_index: <bool> \| default = false]`   | `false`    | Specifies if the column index should be cached |
+| `[offset_index: <bool> \| default = false]`   | `false`    | Specifies if the offset index should be cached |
