@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -110,8 +111,26 @@ func TestNewTraceByIDV2(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
 
-		actualResp := &tempopb.TraceByIDResponse{}
-		err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
+		bodyBytes, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		var actualJsonResp struct {
+			Trace struct {
+				ResourceSpans []struct {
+					ScopeSpans []struct {
+						Spans []struct {
+							TraceId string
+						}
+					}
+				}
+			}
+		}
+		err = json.Unmarshal(bodyBytes, &actualJsonResp)
+		require.NoError(t, err)
+		require.Equal(t, "01020000000000000000000000000000", actualJsonResp.Trace.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId)
+
+		actualProtoResp := &tempopb.TraceByIDResponse{}
+		err = jsonpb.UnmarshalString(string(bodyBytes), actualProtoResp)
 		require.NoError(t, err)
 	})
 	t.Run("returns a combined trace response as protobuff", func(t *testing.T) {
