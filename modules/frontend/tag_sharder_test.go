@@ -87,6 +87,30 @@ func (r *fakeReq) buildTagSearchBlockRequest(subR *http.Request, blockID string,
 	return newReq, nil
 }
 
+func TestTagsBackendRequestsDoNotHitBackendIfStartIsAfterQueryBackendAfter(t *testing.T) {
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	startTime := time.Now().Add(-1 * time.Minute).Unix()
+	endTime := time.Now().Unix()
+	s := &searchTagSharder{
+		cfg: SearchSharderConfig{
+			QueryBackendAfter: 2 * time.Minute,
+		},
+		reader: &mockReader{metas: []*backend.BlockMeta{bm}},
+	}
+
+	r := httptest.NewRequest("GET", fmt.Sprintf("/?start=%d&end=%d", startTime, endTime), nil)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	reqCh := make(chan pipeline.Request)
+	req := fakeReq{
+		startValue: uint32(startTime),
+		endValue:   uint32(endTime),
+	}
+	s.backendRequests(context.TODO(), "test", pipeline.NewHTTPRequest(r), &req, reqCh, func(_ error) {})
+
+	assert.Empty(t, reqCh)
+}
+
 func TestTagsBackendRequests(t *testing.T) {
 	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
 	bm.StartTime = time.Unix(100, 0)
