@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"testing"
@@ -17,7 +18,7 @@ func Test_gaugeInc(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -52,7 +53,7 @@ func TestGaugeDifferentLabels(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
@@ -74,7 +75,7 @@ func Test_gaugeSet(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
 
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -109,7 +110,7 @@ func Test_gauge_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
 
 	// allow adding new series
 	canAdd = true
@@ -145,7 +146,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	c := newGauge("my_gauge", nil, onRemove, nil)
+	c := newGauge("my_gauge", nil, onRemove, nil, 15*time.Minute)
 
 	timeMs := time.Now().UnixMilli()
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
@@ -180,7 +181,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 }
 
 func Test_gauge_externalLabels(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, map[string]string{"external_label": "external_value"})
+	c := newGauge("my_gauge", nil, nil, map[string]string{"external_label": "external_value"}, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -194,7 +195,7 @@ func Test_gauge_externalLabels(t *testing.T) {
 }
 
 func Test_gauge_concurrencyDataRace(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, nil)
+	c := newGauge("my_gauge", nil, nil, nil, 15*time.Minute)
 
 	end := make(chan struct{})
 
@@ -227,7 +228,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := c.collectMetrics(&noopAppender{}, 0)
+		err := c.collectMetrics(&noopAppender{}, 0)
 		assert.NoError(t, err)
 	})
 
@@ -240,7 +241,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_gauge_concurrencyCorrectness(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, nil)
+	c := newGauge("my_gauge", nil, nil, nil, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -273,4 +274,81 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
+}
+
+func Test_gauge_demandTracking(t *testing.T) {
+	g := newGauge("my_gauge", nil, nil, nil, 15*time.Minute)
+
+	// Initially, demand should be 0
+	assert.Equal(t, 0, g.countSeriesDemand())
+
+	// Add some series
+	for i := 0; i < 50; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		g.Inc(lvc, 1.0)
+	}
+
+	// Demand should now be approximately 50 (within HLL error)
+	demand := g.countSeriesDemand()
+	assert.Greater(t, demand, 40, "demand should be close to 50")
+	assert.Less(t, demand, 60, "demand should be close to 50")
+
+	// Active series should exactly match
+	assert.Equal(t, 50, g.countActiveSeries())
+}
+
+func Test_gauge_demandVsActiveSeries(t *testing.T) {
+	limitReached := false
+	onAdd := func(_ uint32) bool {
+		return !limitReached
+	}
+
+	g := newGauge("my_gauge", onAdd, nil, nil, 15*time.Minute)
+
+	// Add series up to a point
+	for i := 0; i < 30; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		g.Set(lvc, float64(i))
+	}
+
+	assert.Equal(t, 30, g.countActiveSeries())
+
+	// Hit the limit
+	limitReached = true
+
+	// Try to add more series (they should be rejected)
+	for i := 30; i < 60; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		g.Set(lvc, float64(i))
+	}
+
+	// Active series should still be 30
+	assert.Equal(t, 30, g.countActiveSeries())
+
+	// But demand should show all attempted series
+	demand := g.countSeriesDemand()
+	assert.Greater(t, demand, 50, "demand should track all attempted series")
+	assert.Greater(t, demand, g.countActiveSeries(), "demand should exceed active series")
+}
+
+func Test_gauge_demandDecay(t *testing.T) {
+	g := newGauge("my_gauge", nil, nil, nil, 15*time.Minute)
+
+	// Add series
+	for i := 0; i < 40; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		g.Inc(lvc, 1.0)
+	}
+
+	initialDemand := g.countSeriesDemand()
+	assert.Greater(t, initialDemand, 0)
+
+	// Advance the cardinality tracker enough times to clear the window
+	for i := 0; i < 5; i++ {
+		g.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
+	}
+
+	// Demand should have decreased or be zero
+	finalDemand := g.countSeriesDemand()
+	assert.LessOrEqual(t, finalDemand, initialDemand/2, "demand should significantly decay")
 }
