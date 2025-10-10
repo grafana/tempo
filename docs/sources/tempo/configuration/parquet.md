@@ -57,17 +57,15 @@ For more information, refer to the [storage configuration documentation](../#sto
 
 These configuration options impact trace search.
 
-| Parameter                         | Default value | Description                                                                                                                                                                                                      |
-| --------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[read_buffer_size_bytes: <int>]` | `10485676`    | Size of read buffers used when performing search on a vParquet block. This value times the `read_buffer_count` is the total amount of bytes used for buffering when performing search on a Parquet block.        |
-|                                   |
-| `[read_buffer_count: <int>]`      | 32            | Number of read buffers used when performing search on a vParquet block. This value times the `read_buffer_size_bytes` is the total amount of bytes used for buffering when performing search on a Parquet block. |
-|                                   |
+| Parameter | Default value | Description |
+|---|---|---|
+| `[read_buffer_size_bytes: <int>]` | 10485676 | Size of read buffers used when performing search on a vParquet block. This value times the read_buffer_count is the total amount of bytes used for buffering when performing search on a Parquet block. |
+| `[read_buffer_count: <int>]` | 32 | Number of read buffers used when performing search on a vParquet block. This value times the read_buffer_size_bytes is the total amount of bytes used for buffering when performing search on a Parquet block. |
 
 The `cache_control` section contains the follow parameters for Parquet metadata objects:
 
-| Parameter                                        | Default value | Description                                    |
-| ------------------------------------------------ | ------------- | ---------------------------------------------- |
+| Parameter | Default value | Description |
+|---|---|---|
 | <code>[footer: <bool> \| default = false]</code> | `false`       | Specifies if the footer should be cached       |
 | `[column_index: <bool> \| default = false]`      | `false`       | Specifies if the column index should be cached |
 | `[offset_index: <bool> \| default = false]`      | `false`       | Specifies if the offset index should be cached |
