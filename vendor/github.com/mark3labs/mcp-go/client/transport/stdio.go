@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -200,11 +201,15 @@ func (c *Stdio) Close() error {
 	// cancel all in-flight request
 	close(c.done)
 
-	if err := c.stdin.Close(); err != nil {
-		return fmt.Errorf("failed to close stdin: %w", err)
+	if c.stdin != nil {
+		if err := c.stdin.Close(); err != nil {
+			return fmt.Errorf("failed to close stdin: %w", err)
+		}
 	}
-	if err := c.stderr.Close(); err != nil {
-		return fmt.Errorf("failed to close stderr: %w", err)
+	if c.stderr != nil {
+		if err := c.stderr.Close(); err != nil {
+			return fmt.Errorf("failed to close stderr: %w", err)
+		}
 	}
 
 	if c.cmd != nil {
@@ -255,6 +260,7 @@ func (c *Stdio) readResponses() {
 				return
 			}
 
+			line = strings.TrimRight(line, "\r\n")
 			// First try to parse as a generic message to check for ID field
 			var baseMessage struct {
 				JSONRPC string         `json:"jsonrpc"`
@@ -397,18 +403,12 @@ func (c *Stdio) handleIncomingRequest(request JSONRPCRequest) {
 
 	if handler == nil {
 		// Send error response if no handler is configured
-		errorResponse := JSONRPCResponse{
-			JSONRPC: mcp.JSONRPC_VERSION,
-			ID:      request.ID,
-			Error: &struct {
-				Code    int             `json:"code"`
-				Message string          `json:"message"`
-				Data    json.RawMessage `json:"data"`
-			}{
-				Code:    mcp.METHOD_NOT_FOUND,
-				Message: "No request handler configured",
-			},
-		}
+		errorResponse := *NewJSONRPCErrorResponse(
+			request.ID,
+			mcp.METHOD_NOT_FOUND,
+			"No request handler configured",
+			nil,
+		)
 		c.sendResponse(errorResponse)
 		return
 	}
@@ -422,18 +422,7 @@ func (c *Stdio) handleIncomingRequest(request JSONRPCRequest) {
 		// Check if context is already cancelled before processing
 		select {
 		case <-ctx.Done():
-			errorResponse := JSONRPCResponse{
-				JSONRPC: mcp.JSONRPC_VERSION,
-				ID:      request.ID,
-				Error: &struct {
-					Code    int             `json:"code"`
-					Message string          `json:"message"`
-					Data    json.RawMessage `json:"data"`
-				}{
-					Code:    mcp.INTERNAL_ERROR,
-					Message: ctx.Err().Error(),
-				},
-			}
+			errorResponse := *NewJSONRPCErrorResponse(request.ID, mcp.INTERNAL_ERROR, ctx.Err().Error(), nil)
 			c.sendResponse(errorResponse)
 			return
 		default:
@@ -441,18 +430,7 @@ func (c *Stdio) handleIncomingRequest(request JSONRPCRequest) {
 
 		response, err := handler(ctx, request)
 		if err != nil {
-			errorResponse := JSONRPCResponse{
-				JSONRPC: mcp.JSONRPC_VERSION,
-				ID:      request.ID,
-				Error: &struct {
-					Code    int             `json:"code"`
-					Message string          `json:"message"`
-					Data    json.RawMessage `json:"data"`
-				}{
-					Code:    mcp.INTERNAL_ERROR,
-					Message: err.Error(),
-				},
-			}
+			errorResponse := *NewJSONRPCErrorResponse(request.ID, mcp.INTERNAL_ERROR, err.Error(), nil)
 			c.sendResponse(errorResponse)
 			return
 		}
