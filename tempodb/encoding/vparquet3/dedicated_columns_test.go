@@ -284,6 +284,17 @@ func TestFilterDedicatedColumns(t *testing.T) {
 			},
 		},
 		{
+			name: "non-filtered wrong-type",
+			columns: backend.DedicatedColumns{
+				{Scope: "span", Name: "span-one", Type: "string"},
+				{Scope: "span", Name: "http.status_code", Type: "string"},
+			},
+			expected: backend.DedicatedColumns{
+				{Scope: "span", Name: "span-one", Type: "string"},
+				{Scope: "span", Name: "http.status_code", Type: "string"},
+			},
+		},
+		{
 			name: "non-filtered wrong-scope",
 			columns: backend.DedicatedColumns{
 				{Scope: "span", Name: "span-one", Type: "string"},

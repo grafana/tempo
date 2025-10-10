@@ -39,22 +39,28 @@ var (
 	}
 
 	// ignoredAttributes contains well-known attributes that already have their dedicated column and should be ignored
-	ignoredAttributes = map[backend.DedicatedColumnScope]map[string]struct{}{
+	ignoredAttributes = map[backend.DedicatedColumnScope]map[backend.DedicatedColumnType]map[string]struct{}{
 		backend.DedicatedColumnScopeResource: {
-			LabelServiceName:      {},
-			LabelCluster:          {},
-			LabelNamespace:        {},
-			LabelPod:              {},
-			LabelContainer:        {},
-			LabelK8sClusterName:   {},
-			LabelK8sNamespaceName: {},
-			LabelK8sPodName:       {},
-			LabelK8sContainerName: {},
+			backend.DedicatedColumnTypeString: {
+				LabelServiceName:      {},
+				LabelCluster:          {},
+				LabelNamespace:        {},
+				LabelPod:              {},
+				LabelContainer:        {},
+				LabelK8sClusterName:   {},
+				LabelK8sNamespaceName: {},
+				LabelK8sPodName:       {},
+				LabelK8sContainerName: {},
+			},
 		},
 		backend.DedicatedColumnScopeSpan: {
-			LabelHTTPMethod:     {},
-			LabelHTTPUrl:        {},
-			LabelHTTPStatusCode: {},
+			backend.DedicatedColumnTypeString: {
+				LabelHTTPMethod: {},
+				LabelHTTPUrl:    {},
+			},
+			backend.DedicatedColumnTypeInt: {
+				LabelHTTPStatusCode: {},
+			},
 		},
 	}
 )
@@ -223,17 +229,10 @@ func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedC
 }
 
 func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType, attr string) bool {
-	if _, found := DedicatedResourceColumnPaths[scope]; !found {
-		return true
-	}
 	if _, found := DedicatedResourceColumnPaths[scope][typ]; !found {
 		return true
 	}
 
-	ignored, ok := ignoredAttributes[scope]
-	if !ok {
-		return false
-	}
-	_, ok = ignored[attr]
+	_, ok := ignoredAttributes[scope][typ][attr]
 	return ok
 }

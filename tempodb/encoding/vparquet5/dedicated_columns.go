@@ -256,12 +256,8 @@ func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedC
 }
 
 func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType) bool {
-	if _, found := DedicatedResourceColumnPaths[scope]; !found {
-		return true
-	}
 	if _, found := DedicatedResourceColumnPaths[scope][typ]; !found {
 		return true
 	}
-
 	return false
 }
