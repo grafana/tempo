@@ -22,10 +22,10 @@ The query frontend emits `query_frontend_bytes_inspected_total` when a request f
 
 The distributor emits `spans_distance_in_future_seconds` and `spans_distance_in_past_seconds` by comparing span end time with ingestion time.
 
-| Names                                                                | Type      | Labels         | Buckets                          | Emitted                                                                                                         | Notes                                                                     |
-| -------------------------------------------------------------------- | --------- | -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `query_frontend_bytes_inspected_total`                               | Counter   | `tenant`, `op` | -                                | On request completion at the query frontend; aggregates bytes from queriers; excludes cached querier responses. |                                                                           |
-| `spans_distance_in_future_seconds`, `spans_distance_in_past_seconds` | Histogram | `tenant`       | 300s, 1800s, 3600s (5m, 30m, 1h) | In the distributor on ingest; observes seconds between span end time and ingestion time.                        | Spans in the future are accepted but invalid and might not be searchable. |
+| Names | Type | Labels | Buckets | Emitted | Notes |
+|---|---|---|---|---|---|
+| `query_frontend_bytes_inspected_total `| Counter | `tenant`, `op` | - | On request completion at the query frontend; aggregates bytes from queriers; excludes cached querier responses. |  |
+| `spans_distance_in_future_seconds`, `spans_distance_in_past_seconds` | Histogram | `tenant` | 300s, 1800s, 3600s (5m, 30m, 1h) | In the distributor on ingest; observes seconds between span end time and ingestion time. | Spans in the future are accepted but invalid and might not be searchable. |
 
 ## PromQL examples
 
