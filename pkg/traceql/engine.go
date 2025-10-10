@@ -63,7 +63,11 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		}
 		simulateLatency(returnIn, stdDev)
 
-		return generateFakeSearchResponse(1), nil
+		var probability float64
+		if p, ok := rootExpr.Hints.GetFloat(HintDebugDataFactor, allowUnsafeQueryHints); ok {
+			probability = p
+		}
+		return generateFakeSearchResponse(probability), nil
 	}
 
 	var mostRecent, ok bool
