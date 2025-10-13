@@ -77,6 +77,11 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 func makeTestTenantIndex(numBlocks int) *TenantIndex {
 	const numDistinctDedicatedCols = 10
 
+	var (
+		maxSupportedSpanColumns     = maxSupportedColumns[DedicatedColumnTypeString][DedicatedColumnScopeSpan]
+		maxSupportedResourceColumns = maxSupportedColumns[DedicatedColumnTypeString][DedicatedColumnScopeResource]
+	)
+
 	dedicatedCols := make([]DedicatedColumns, 0, numDistinctDedicatedCols)
 	for range numDistinctDedicatedCols {
 		num := 0
