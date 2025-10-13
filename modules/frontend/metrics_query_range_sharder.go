@@ -39,10 +39,11 @@ type QueryRangeSharderConfig struct {
 	ConcurrentRequests    int           `yaml:"concurrent_jobs,omitempty"`
 	TargetBytesPerRequest int           `yaml:"target_bytes_per_job,omitempty"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
-	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
-	Interval              time.Duration `yaml:"interval,omitempty"`
-	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
-	MaxResponseSeries     int           `yaml:"max_response_series,omitempty"`
+	// QueryBackendAfter determines when to query backend storage vs ingesters only.
+	QueryBackendAfter time.Duration `yaml:"query_backend_after,omitempty"`
+	Interval          time.Duration `yaml:"interval,omitempty"`
+	MaxExemplars      int           `yaml:"max_exemplars,omitempty"`
+	MaxResponseSeries int           `yaml:"max_response_series,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
