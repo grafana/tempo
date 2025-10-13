@@ -330,3 +330,185 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 		}
 	})
 }
+
+func TestDedicatedColumns_Validate(t *testing.T) {
+	testCases := []struct {
+		name    string
+		cols    DedicatedColumns
+		isValid bool
+	}{
+		{name: "nil", isValid: true},
+		{name: "empty", cols: DedicatedColumns{}, isValid: true},
+		{
+			name: "minimal valid",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+			isValid: true,
+		},
+		{
+			name: "all valid scopes and types",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.int", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.str", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.int", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+			},
+			isValid: true,
+		},
+		{
+			name: "maximum allowed columns",
+			cols: DedicatedColumns{
+				{Name: "test.res.str-01", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-02", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-03", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-04", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-05", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-06", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-07", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-08", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-09", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-10", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+
+				{Name: "test.res.int-01", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-02", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-03", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-04", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-05", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+
+				{Name: "test.span.str-01", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-02", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-03", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-04", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-05", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-06", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-07", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-08", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-09", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-10", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+
+				{Name: "test.span.int-01", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-02", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-03", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-04", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-05", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+			},
+			isValid: true,
+		},
+		{
+			name: "duplicated names different scope",
+			cols: DedicatedColumns{
+				{Name: "test.same", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.same", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+			isValid: true,
+		},
+		{
+			name: "duplicated names same scope",
+			cols: DedicatedColumns{
+				{Name: "test.same", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.same", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+			},
+		},
+		{
+			name: "empty name",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+		},
+		{
+			name: "duplicated names same scope",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+		},
+		{
+			name: "invalid scope",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: "link", Type: DedicatedColumnTypeString},
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+		},
+		{
+			name: "invalid type",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: "float"},
+			},
+		},
+		{
+			name: "too many resource str cols",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-01", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-02", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-03", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-04", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-05", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-06", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-07", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-08", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-09", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-10", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.res.str-11", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+			},
+		},
+		{
+			name: "too many resource int cols",
+			cols: DedicatedColumns{
+				{Name: "test.span.str", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.res.int-01", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-02", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-03", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-04", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-05", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+				{Name: "test.res.int-06", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeInt},
+			},
+		},
+		{
+			name: "too many span str cols",
+			cols: DedicatedColumns{
+				{Name: "test.res.str", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-01", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-02", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-03", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-04", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-05", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-06", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-07", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-08", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-09", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-10", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+				{Name: "test.span.str-11", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
+			},
+		},
+		{
+			name: "too many span int cols",
+			cols: DedicatedColumns{
+				{Name: "test.res.str", Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString},
+				{Name: "test.span.int-01", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-02", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-03", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-04", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-05", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+				{Name: "test.span.int-06", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.cols.Validate()
+			if tc.isValid {
+				require.NoError(t, err, "dedicated columns expected to be valid, but got error: %s", err)
+			} else {
+				require.Error(t, err, "dedicated columns expected to be invalid, but got no error")
+			}
+		})
+	}
+}

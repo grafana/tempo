@@ -96,26 +96,28 @@ func (t *testCounter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
-	for i, label := range labelValueCombo.labels.names {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
-	}
-	sort.Sort(lbls)
-
-	t.registry.addToMetric(t.n, lbls, value)
+	t.registry.addToMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
 }
 
 func (t *testCounter) name() string {
 	return t.n
 }
 
-func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
-	return activeSeries, err
+func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) error {
+	return nil
 }
 
 func (t *testCounter) removeStaleSeries(int64) {
 	panic("implement me")
 }
+
+func (t *testCounter) countActiveSeries() int {
+	return 0
+}
+
+// countSeriesDemand is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testCounter) countSeriesDemand() int { return 0 }
 
 type testGauge struct {
 	n        string
@@ -129,23 +131,11 @@ func (t *testGauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
-	for i, label := range labelValueCombo.labels.names {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
-	}
-	sort.Sort(lbls)
-
-	t.registry.addToMetric(t.n, lbls, value)
+	t.registry.addToMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
 }
 
 func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
-	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
-	for i, label := range labelValueCombo.labels.names {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
-	}
-	sort.Sort(lbls)
-
-	t.registry.setMetric(t.n, lbls, value)
+	t.registry.setMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
 }
 
 func (t *testGauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
@@ -156,13 +146,21 @@ func (t *testGauge) name() string {
 	return t.n
 }
 
-func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
-	return 0, nil
+func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) error {
+	return nil
 }
 
 func (t *testGauge) removeStaleSeries(int64) {
 	panic("implement me")
 }
+
+func (t *testGauge) countActiveSeries() int {
+	return 0
+}
+
+// countSeriesDemand is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testGauge) countSeriesDemand() int { return 0 }
 
 type testHistogram struct {
 	nameSum            string
@@ -179,21 +177,17 @@ var (
 )
 
 func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, _ string, multiplier float64) {
-	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
-	for i, label := range labelValueCombo.labels.names {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
-	}
-	sort.Sort(lbls)
+	l := getLabelsFromValueCombo(labelValueCombo)
 
-	t.registry.addToMetric(t.nameCount, lbls, 1*multiplier)
-	t.registry.addToMetric(t.nameSum, lbls, value*multiplier)
+	t.registry.addToMetric(t.nameCount, l, 1*multiplier)
+	t.registry.addToMetric(t.nameSum, l, value*multiplier)
 
 	for _, bucket := range t.buckets {
 		if value <= bucket {
-			t.registry.addToMetric(t.nameBucket, withLe(lbls, bucket), 1*multiplier)
+			t.registry.addToMetric(t.nameBucket, withLe(l, bucket), 1*multiplier)
 		}
 	}
-	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1*multiplier)
+	t.registry.addToMetric(t.nameBucket, withLe(l, math.Inf(1)), 1*multiplier)
 }
 
 func (t *testHistogram) name() string {
@@ -206,10 +200,18 @@ func withLe(lbls labels.Labels, le float64) labels.Labels {
 	return lb.Labels()
 }
 
-func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) (activeSeries int, err error) {
+func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) error {
 	panic("implement me")
 }
 
 func (t *testHistogram) removeStaleSeries(int64) {
 	panic("implement me")
 }
+
+func (t *testHistogram) countActiveSeries() int {
+	return 0
+}
+
+// countSeriesDemand is a stub to satisfy optional estimator usage in registry.
+// Test registry does not track estimates, so return 0.
+func (t *testHistogram) countSeriesDemand() int { return 0 }

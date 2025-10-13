@@ -3,6 +3,7 @@ package livestore
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/shutdownmarker"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -123,6 +125,7 @@ type LiveStore struct {
 	wg              sync.WaitGroup
 	completeQueues  *flushqueues.ExclusiveQueues
 	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
+	lagCancel       context.CancelFunc
 }
 
 func New(cfg Config, overridesService overrides.Interface, logger log.Logger, reg prometheus.Registerer, singlePartition bool) (*LiveStore, error) {
@@ -217,6 +220,24 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 }
 
 func (s *LiveStore) starting(ctx context.Context) error {
+	// First of all we have to check if the shutdown marker is set. This needs to be done
+	// as first thing because, if found, it may change the behaviour of the live-store startup.
+
+	if _, err := os.Stat(s.cfg.ShutdownMarkerDir); os.IsNotExist(err) {
+		err := os.MkdirAll(s.cfg.ShutdownMarkerDir, 0o700)
+		if err != nil {
+			return fmt.Errorf("failed to create shutdown marker directory: %w", err)
+		}
+	}
+
+	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
+	if exists, err := shutdownmarker.Exists(shutdownMarkerPath); err != nil {
+		return fmt.Errorf("failed to check live-store shutdown marker: %w", err)
+	} else if exists {
+		level.Info(s.logger).Log("msg", "detected existing shutdown marker, setting prepare for shutdown", "path", shutdownMarkerPath)
+		s.setPrepareShutdown()
+	}
+
 	var err error
 	s.wal, err = wal.New(&s.cfg.WAL)
 	if err != nil {
@@ -269,6 +290,18 @@ func (s *LiveStore) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start partition reader: %w", err)
 	}
 
+	lagCtx, cncl := context.WithCancel(s.ctx)
+	s.lagCancel = cncl
+	// Start exporting partition lag metrics
+	ingest.ExportPartitionLagMetrics(
+		lagCtx,
+		s.client,
+		s.logger,
+		s.cfg.IngestConfig,
+		func() []int32 { return []int32{s.ingestPartitionID} },
+		s.client.ForceMetadataRefresh,
+	)
+
 	for i := range s.cfg.CompleteBlockConcurrency {
 		idx := i
 		s.runInBackground(func() {
@@ -292,6 +325,9 @@ func (s *LiveStore) running(ctx context.Context) error {
 }
 
 func (s *LiveStore) stopping(error) error {
+	// Stop the kafka lag background worker.
+	s.lagCancel()
+
 	// Stop consuming
 	err := services.StopAndAwaitTerminated(context.Background(), s.reader)
 	if err != nil {
@@ -299,8 +335,17 @@ func (s *LiveStore) stopping(error) error {
 		return err
 	}
 
+	// Reset lag metrics for our partition when stopping
+	ingest.ResetLagMetricsForRevokedPartitions(s.cfg.IngestConfig.Kafka.ConsumerGroup, []int32{s.ingestPartitionID})
+
 	// Flush all data to disk
 	s.cutAllInstancesToWal()
+
+	// Remove the shutdown marker if it exists since we are shutting down
+	shutdownMarkerPath := shutdownmarker.GetPath(s.cfg.ShutdownMarkerDir)
+	if err := shutdownmarker.Remove(shutdownMarkerPath); err != nil {
+		level.Warn(s.logger).Log("msg", "failed to remove shutdown marker", "path", shutdownMarkerPath, "err", err)
+	}
 
 	if s.cfg.holdAllBackgroundProcesses { // nothing to do
 		return nil
@@ -357,6 +402,10 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 		// Push data to tenant instance
 		inst.pushBytes(ctx, record.Timestamp, pushReq)
 
+		// Track partition lag in seconds
+		lag := now.Sub(record.Timestamp)
+		ingest.SetPartitionLagSeconds(s.cfg.IngestConfig.Kafka.ConsumerGroup, record.Partition, lag)
+
 		metricRecordsProcessed.WithLabelValues(tenant).Inc()
 		recordCount++
 		lastRecord = record
@@ -370,6 +419,13 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 
 	offset := kadm.NewOffsetFromRecord(lastRecord)
 	return &offset, nil
+}
+
+func (s *LiveStore) getInstance(tenantID string) (*instance, bool) {
+	s.instancesMtx.RLock()
+	defer s.instancesMtx.RUnlock()
+	inst, ok := s.instances[tenantID]
+	return inst, ok
 }
 
 func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
@@ -467,31 +523,16 @@ func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 
 // FindTraceByID implements tempopb.Querier
 func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-	return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.TraceByIDResponse, error) {
+		return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
+	})
 }
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.Search(ctx, req)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
+		return inst.Search(ctx, req)
+	})
 }
 
 // SearchBlock implements tempopb.Querier
@@ -501,62 +542,30 @@ func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest
 
 // SearchTags implements tempopb.Querier
 func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.SearchTags(ctx, req.Scope)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsResponse, error) {
+		return inst.SearchTags(ctx, req.Scope)
+	})
 }
 
 // SearchTagsV2 implements tempopb.Querier
 func (s *LiveStore) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.SearchTagsV2(ctx, req)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsV2Response, error) {
+		return inst.SearchTagsV2(ctx, req)
+	})
 }
 
 // SearchTagValues implements tempopb.Querier
 func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.SearchTagValues(ctx, req)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesResponse, error) {
+		return inst.SearchTagValues(ctx, req)
+	})
 }
 
 // SearchTagValuesV2 implements tempopb.Querier
 func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.SearchTagValuesV2(ctx, req)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesV2Response, error) {
+		return inst.SearchTagValuesV2(ctx, req)
+	})
 }
 
 // PushSpans implements tempopb.MetricsGeneratorServer
@@ -571,14 +580,24 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
+		return inst.QueryRange(ctx, req)
+	})
+}
+
+// withInstance extracts the tenant ID from the context, gets the instance,
+// and calls the provided function if the instance exists. If the instance
+// doesn't exist, it returns a new zero-valued instance of T.
+func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (*T, error)) (*T, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
+	inst, found := s.getInstance(instanceID)
+	if inst == nil || !found {
+		return new(T), nil // Call new on the Type needed.
 	}
-	return inst.QueryRange(ctx, req)
+
+	return fn(inst)
 }

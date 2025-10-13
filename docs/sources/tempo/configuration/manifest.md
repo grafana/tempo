@@ -668,6 +668,7 @@ metrics_generator:
                 2: true
             filter_policies: []
             target_info_excluded_dimensions: []
+            enable_instance_label: true
         local_blocks:
             block:
                 bloom_filter_false_positive: 0.01
@@ -1361,6 +1362,7 @@ live_store:
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
     complete_block_concurrency: 2
+    shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
     flush_check_period: 10s
     flush_op_timeout: 5m0s
     max_trace_live: 30s

@@ -88,6 +88,19 @@ Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/
 
 For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
 
+### Local blocks and metrics-generator in Azure blob storage and Helm
+
+{{< admonition type="note" >}}
+This configuration only applies if you are using a Helm chart, like `tempo-distributed`, to deploy Tempo.
+{{< /admonition >}}
+
+[//]: # "Shared content for localblocks and metrics-generator in Azure blob storage when using Helm"
+[//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
+
+{{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}
+
+For more information, refer to [Azure hosted storage](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/azure/).
+
 ## Evaluate query timeouts
 
 Because of their expensive nature, these queries can take a long time to run.
@@ -135,3 +148,12 @@ query_frontend:
     concurrent_jobs: 8
     target_bytes_per_job: 1.25e+09 # ~1.25GB
 ```
+
+## Sampling and performance optimization
+
+TraceQL metrics queries support sampling hints to improve performance on large datasets. Refer to the [TraceQL metrics sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/sampling-guide/) documentation for more information.
+
+When using sampling in your TraceQL metrics queries, consider:
+
+- **Timeout settings:** Sampled queries run faster but may still benefit from adequate timeouts
+- **Concurrent jobs:** Sampling reduces per-job processing time, allowing higher concurrency

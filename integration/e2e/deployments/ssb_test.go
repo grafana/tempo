@@ -1,6 +1,7 @@
 package deployments
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -84,7 +85,7 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NotNil(t, c3)
 
 	info := tempoUtil.NewTraceInfo(time.Unix(1632169410, 0), "")
-	require.NoError(t, info.EmitBatches(c1))
+	require.NoError(t, info.EmitBatches(context.Background(), c1))
 
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
@@ -113,7 +114,7 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NoError(t, err)
 
 	// Push to one of the instances that are still running.
-	require.NoError(t, info.EmitBatches(c2))
+	require.NoError(t, info.EmitBatches(context.Background(), c2))
 
 	err = tempo2.Kill()
 	require.NoError(t, err)

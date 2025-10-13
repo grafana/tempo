@@ -156,7 +156,6 @@ dashboard_utils {
           { fieldConfig+: { defaults+: { unit: 's' } } },
         )
       )
-
       .addRow(
         g.row('Ingester')
         .addPanel(

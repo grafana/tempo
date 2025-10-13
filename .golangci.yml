@@ -55,6 +55,7 @@ linters:
       - linters:
           - goconst
           - gosec
+          - forbidigo
         path: (.+)_test\.go
     paths:
       - third_party$

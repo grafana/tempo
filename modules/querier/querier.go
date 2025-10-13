@@ -898,7 +898,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 			return q.store.Fetch(ctx, meta, req, opts)
 		})
 
-		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher)
+		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, q.limits.UnsafeQueryHints(tenantID))
 	}
 
 	return q.store.Search(ctx, meta, req.SearchReq, opts)
