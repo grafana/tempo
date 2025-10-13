@@ -84,7 +84,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			// and engine.ExecuteSearch is parsing the query for each block
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return block.Fetch(ctx, req, opts)
-			}))
+			}), i.overrides.UnsafeQueryHints(i.instanceID))
 		} else {
 			resp, err = block.Search(ctx, req, opts)
 		}

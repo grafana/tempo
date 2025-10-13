@@ -78,6 +78,16 @@ func (s *escSeqParser) Consume(char rune) {
 	if s.inEscSeq {
 		s.escapeSeq += string(char)
 
+		// --- FIX for OSC 8 hyperlinks (e.g. \x1b]8;;url\x07label\x1b]8;;\x07)
+		if s.escSeqKind == escSeqKindOSI &&
+			strings.HasPrefix(s.escapeSeq, escapeStartConcealOSI) &&
+			char == '\a' { // BEL
+
+			s.ParseSeq(s.escapeSeq, s.escSeqKind)
+			s.Reset()
+			return
+		}
+
 		if s.isEscapeStopRune(char) {
 			s.ParseSeq(s.escapeSeq, s.escSeqKind)
 			s.Reset()
