@@ -2,6 +2,7 @@
 
 # v2.9.0-rc.0
 
+* [CHANGE] docs: Add explicit notes about authentication [#5735](https://github.com/grafana/tempo/pull/5735) (@electron0zero)
 * [CHANGE] Upgrade Tempo to go 1.25.1 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)
 * [CHANGE] **BREAKING CHANGE** Deprecating vParquet2 block format [#5688](https://github.com/grafana/tempo/pull/5688) (@ie-pham)

@@ -10,3 +10,7 @@ You can deploy Tempo This section provides instructions for deploying Tempo loca
 
 {{< section withDescriptions="true">}}
 
+{{< admonition type="note" >}}
+Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details
+{{< /admonition >}}
+
