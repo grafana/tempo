@@ -132,7 +132,7 @@ overrides:
   metrics_generator_processors: [service-graphs, span-metrics] # enables metrics generator
 ```
 
-{{< admonition type="note"
+{{< admonition type="note" >}}
 The above configuration is compatible with the downloaded release of Tempo. 
 Future release may impact the configuration content. In the configuration shown above, the metrics-generator is enabled to generate Prometheus metrics data from incoming trace spans. This is sent to a Prometheus remote-write compatible metrics store at `http://prometheus:9090/api/v1/write` in the `metrics_generator` configuration block. 
 Make sure you change the relevant `url` parameter to your own Prometheus compatible storage instance, or disable the metrics-generator by removing the `metrics_generators_processors` if you do not wish to generate span metrics.
