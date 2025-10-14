@@ -1,13 +1,19 @@
 ## main / unreleased
 
-* [CHANGE] **BREAKING CHANGE** Deprecating vParquet2 block format [#5688](https://github.com/grafana/tempo/pull/5688) (@ie-pham)
+* [CHANGE] docs: Add explicit notes about authentication [#5735](https://github.com/grafana/tempo/pull/5735) (@electron0zero)
 * [ENHANCEMENT] On startup, first record for live store to consume is not older than two complete block timeouts [#5693](https://github.com/grafana/tempo/pull/5693) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add secure connection support to tempo-cli [#5692](https://github.com/grafana/tempo/pull/5692) (@TheoBrigitte)
 * [ENHANCEMENT] Add config to enable instance label for spanmetrics series[#5706](https://github.com/grafana/tempo/pull/5706) (@ie-pham)
 * [ENHANCEMENT] Add endpoints for partition downscaling for live-store [#5600](https://github.com/grafana/tempo/pull/5600) [#5738](https://github.com/grafana/tempo/pull/5738) (@ruslan-mikhailov, @mapno)
+* [ENHANCEMENT] Add config to enable instance label for spanmetrics series [#5706](https://github.com/grafana/tempo/pull/5706) (@ie-pham)
+* [ENHANCEMENT] Unsafe search hints for frontend performance tests [#5723](https://github.com/grafana/tempo/pull/5723) (@ruslan-mikhailov)
+* [FEATURE] Add `tempo_metrics_generator_registry_active_series_demand_estimate` that estimates metrics-generator active series demand even when the active series limit is reached [#5710](https://github.com/grafana/tempo/pull/5710) (@carles-grafana)
+* [BUGFIX] Fix issues related to integer dedicated columns in vParquet5-preview2 [#5716](https://github.com/grafana/tempo/pull/5716) (@stoewer)
+* [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605)
 
-# v2.9.0-rc.0
+# v2.9.0
 
+* [CHANGE] **BREAKING CHANGE** Deprecating vParquet2 block format [#5688](https://github.com/grafana/tempo/pull/5688) (@ie-pham)
 * [CHANGE] Upgrade Tempo to go 1.25.1 [#5685](https://github.com/grafana/tempo/pull/5685) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** We are no longer publishing rpm and deb packages due to an internal change to the handling of signing keys. [#5684](https://github.com/grafana/tempo/pull/5684) (@joe-elliott)
 * [CHANGE] Return Bad Request from all frontend endpoints if the tenant can't be extracted. [#5480](https://github.com/grafana/tempo/pull/5480) (@carles-grafana)

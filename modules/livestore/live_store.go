@@ -421,6 +421,13 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 	return &offset, nil
 }
 
+func (s *LiveStore) getInstance(tenantID string) (*instance, bool) {
+	s.instancesMtx.RLock()
+	defer s.instancesMtx.RUnlock()
+	inst, ok := s.instances[tenantID]
+	return inst, ok
+}
+
 func (s *LiveStore) getOrCreateInstance(tenantID string) (*instance, error) {
 	s.instancesMtx.RLock()
 	inst, ok := s.instances[tenantID]
@@ -516,31 +523,16 @@ func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 
 // FindTraceByID implements tempopb.Querier
 func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-	return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.TraceByIDResponse, error) {
+		return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
+	})
 }
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.Search(ctx, req)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
+		return inst.Search(ctx, req)
+	})
 }
 
 // SearchBlock implements tempopb.Querier
@@ -550,62 +542,30 @@ func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest
 
 // SearchTags implements tempopb.Querier
 func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.SearchTags(ctx, req.Scope)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsResponse, error) {
+		return inst.SearchTags(ctx, req.Scope)
+	})
 }
 
 // SearchTagsV2 implements tempopb.Querier
 func (s *LiveStore) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.SearchTagsV2(ctx, req)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsV2Response, error) {
+		return inst.SearchTagsV2(ctx, req)
+	})
 }
 
 // SearchTagValues implements tempopb.Querier
 func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.SearchTagValues(ctx, req)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesResponse, error) {
+		return inst.SearchTagValues(ctx, req)
+	})
 }
 
 // SearchTagValuesV2 implements tempopb.Querier
 func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return inst.SearchTagValuesV2(ctx, req)
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesV2Response, error) {
+		return inst.SearchTagValuesV2(ctx, req)
+	})
 }
 
 // PushSpans implements tempopb.MetricsGeneratorServer
@@ -620,14 +580,24 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
+		return inst.QueryRange(ctx, req)
+	})
+}
+
+// withInstance extracts the tenant ID from the context, gets the instance,
+// and calls the provided function if the instance exists. If the instance
+// doesn't exist, it returns a new zero-valued instance of T.
+func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (*T, error)) (*T, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	inst, err := s.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
+	inst, found := s.getInstance(instanceID)
+	if inst == nil || !found {
+		return new(T), nil // Call new on the Type needed.
 	}
-	return inst.QueryRange(ctx, req)
+
+	return fn(inst)
 }
