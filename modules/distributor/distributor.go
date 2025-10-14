@@ -1043,3 +1043,22 @@ func (d *Distributor) getMaxAttributeBytes(userID string) int {
 
 	return d.cfg.MaxAttributeBytes
 }
+
+func (d *Distributor) RetryInfoEnabled(ctx context.Context) (bool, error) {
+	userID, e := user.ExtractOrgID(ctx)
+	if e != nil {
+		return false, e
+	}
+
+	// if retryInfo is disabled at cluster level, return false
+	if !d.cfg.RetryInfoEnabled {
+		return false, nil
+	}
+
+	// otherwise check of per tenant override, and if override doesn't exist, return cluster level default.
+	if retryInfoEnabled := d.overrides.IngestionRetryInfoEnabled(userID); retryInfoEnabled {
+		return retryInfoEnabled, nil
+	}
+
+	return d.cfg.RetryInfoEnabled, nil
+}
