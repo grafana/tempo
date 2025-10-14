@@ -11,8 +11,8 @@ weight: 50
 
 You can use these metrics to monitor query I/O and span timestamp quality:
 
-- `query_frontend_bytes_inspected_total` measures how many bytes the frontend reads per request. This value shows the total number of bytes read from disk and object storage.
-- `spans_distance_in_future_seconds` and `spans_distance_in_past_seconds` measure how far a span end time is from the ingestion time. This capability lets you find customers that send spans in the future, which can't be found using the Search API.
+- `query_frontend_bytes_inspected_total` measures how many bytes the frontend reads per request type and tenant. This value shows the total number of bytes read from disk and object storage.
+- `spans_distance_in_future_seconds` and `spans_distance_in_past_seconds` measure how far a span end time is from the ingestion time. This capability lets you find customers that send spans too far in the future or past, which may not be found using the Search API.
 
 Use these metrics together to correlate query cost with data quality and pipeline health.
 
