@@ -232,6 +232,7 @@ distributor:
         consumer_group_lag_metric_update_interval: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
+    retry_info_enabled: true
     max_attribute_bytes: 2048
 ingester_client:
     pool_config:
@@ -1029,6 +1030,7 @@ overrides:
             rate_limit_bytes: 15000000
             burst_size_bytes: 20000000
             max_traces_per_user: 10000
+            retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
         metrics_generator:
