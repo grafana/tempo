@@ -123,7 +123,7 @@
     statefulSet.mixin.spec.selector.withMatchLabels({ name: name, 'rollout-group': 'live-store' }) +
     statefulSet.mixin.spec.updateStrategy.withType('OnDelete') +
     statefulSet.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
-    $.removeReplicasFromSpec +
+    $.removeReplicasFromSpec +  // Zone-aware live-store statefulsets follow the replicas in the ReplicaTemplate
     (if !std.isObject($._config.node_selector) then {} else statefulSet.mixin.spec.template.spec.withNodeSelectorMixin($._config.node_selector)) +
     statefulSet.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
     self.liveStoreZoneAntiAffinity(name),

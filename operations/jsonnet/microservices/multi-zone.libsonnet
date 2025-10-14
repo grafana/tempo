@@ -139,14 +139,14 @@
     // Remove it if multi-zone is enabled and no migration is in progress.
     else null,
 
-    //
-    // Helper methods
-    //
+  //
+  // Helper methods
+  //
 
-    removeReplicasFromSpec:: {
-      spec+: {
-        // Remove the "replicas" field so that Flux doesn't reconcile it.
-        replicas+:: null,
-      },
+  removeReplicasFromSpec:: {
+    spec+: {
+      // Remove the "replicas" field so that it isn't reconciled.
+      replicas+:: null,
     },
+  },
 }
