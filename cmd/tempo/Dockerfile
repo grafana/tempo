@@ -15,7 +15,7 @@ COPY bin/linux/tempo-${TARGETARCH} /tempo
 COPY --from=ca-certificates /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=tempo-setup /etc/passwd /etc/passwd
 COPY --from=tempo-setup /etc/group /etc/group
-COPY --from=tempo-setup --chown=10001:10001 /var/tempo /var/tempo
+COPY --from=tempo-setup --chown=10001:10001 --chmod=0700 /var/tempo /var/tempo
 
 USER 10001:10001
 
