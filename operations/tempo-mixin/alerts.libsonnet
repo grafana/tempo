@@ -47,6 +47,20 @@
             },
           },
           {
+            alert: 'TempoLiveStoreUnhealthy',
+            'for': '15m',
+            expr: |||
+              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+            ||| % [$._config.group_by_cluster, $._config.jobs.live_store, $._config.namespace],
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'There are {{ printf "%f" $value }} unhealthy livestore(s).',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreUnhealthy',
+            },
+          },
+          {
             alert: 'TempoMetricsGeneratorUnhealthy',
             'for': '15m',
             expr: |||
