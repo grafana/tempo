@@ -12,17 +12,17 @@ If you don't have a cluster available, you can use the linked documentation to s
 
 To set up monitoring, you need to:
 
-* Use Grafana Alloy to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/).
-* Update your Alloy configuration to scrape metrics to monitor for your Tempo data.
+- Use Grafana Alloy to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/).
+- Update your Alloy configuration to scrape metrics to monitor for your Tempo data.
 
-This procedure assumes that you have set up Tempo [using the Helm chart](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/) with [Grafana Alloy](https://grafana.com/docs/alloy/<TEMPO_VERSION>/set-up/install/).
+This procedure assumes that you have set up Tempo [using the Helm chart](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/) with [Grafana Alloy](https://grafana.com/docs/alloy/latest/set-up/install/).
 
 The steps outlined below use the Alloy configurations described in [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/).
 
 {{< admonition type="note" >}}
 Update any instructions in this document for your own deployment.
 
-If you use the [Kubernetes integration Grafana Alloy Helm chart](https://grafana.com/docs/alloy/<ALLOY_VERSION>/set-up/install/kubernetes/), you can use the Kubernetes scrape annotations to automatically scrape Tempo.
+If you use the [Kubernetes integration Grafana Alloy Helm chart](https://grafana.com/docs/alloy/latest/set-up/install/kubernetes/), you can use the Kubernetes scrape annotations to automatically scrape Tempo.
 You’ll need to add the labels to all of the deployed components.
 {{< /admonition >}}
 
@@ -30,9 +30,9 @@ You’ll need to add the labels to all of the deployed components.
 
 To configure monitoring using the examples on this page, you’ll need the following running in your Kubernetes environment:
 
-* Tempo instance - For storing traces and emitting metrics ([install using the `tempo-distributed` Helm chart](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/))
-* Mimir - For storing metrics emitted from Tempo ([install using the `mimir-distributed` Helm chart](https://grafana.com/docs/helm-charts/mimir-distributed/latest/get-started-helm-charts/))
-* Grafana - For visualizing traces and metrics ([install on Kubernetes](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/kubernetes/#deploy-grafana-oss-on-kubernetes))
+- Tempo instance - For storing traces and emitting metrics ([install using the `tempo-distributed` Helm chart](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/))
+- Mimir - For storing metrics emitted from Tempo ([install using the `mimir-distributed` Helm chart](https://grafana.com/docs/helm-charts/mimir-distributed/latest/get-started-helm-charts/))
+- Grafana - For visualizing traces and metrics ([install on Kubernetes](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/setup-grafana/installation/kubernetes/#deploy-grafana-oss-on-kubernetes))
 
 You can use Grafana Alloy or the OpenTelemetry Collector. This procedure provides examples only for Grafana Alloy.
 
@@ -60,8 +60,8 @@ Change this namespace name in the examples as needed to fit your own environment
 
 In your Grafana instance, you'll need:
 
-* [A Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/) (created in the previous section)
-* A [Mimir (Prometheus) data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/prometheus/)
+- [A Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/) (created in the previous section)
+- A [Mimir (Prometheus) data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/prometheus/)
 
 ## Enable Tempo metrics scraping
 
@@ -86,18 +86,18 @@ app.kubernetes.io/version=2.6.0
 ```
 
 Because of this, you can use Kubernetes service discovery in Grafana Alloy using these annotations, ensuring Alloy scrapes metrics from each Tempo component.
-Using the [`discovery.kubernetes` Alloy component](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/discovery/discovery.kubernetes/), you can include selectors to scrape from targets based on labels, for example.
+Using the [`discovery.kubernetes` Alloy component](https://grafana.com/docs/alloy/latest/reference/components/discovery/discovery.kubernetes/), you can include selectors to scrape from targets based on labels, for example.
 As there are Tempo-specific component labels, you can specify a rule that covers all of the Tempo components.
 
 ```yaml
 discovery.kubernetes "k8s_pods" {
-  role = "pod"
-  selectors {
-    // Only scrape pods with a particular selector.
-    role = "pod"
-    // The selector is any component that belongs to Tempo.
-    label = "app.kubernetes.io/name=tempo"
-  }
+role = "pod"
+selectors {
+// Only scrape pods with a particular selector.
+role = "pod"
+// The selector is any component that belongs to Tempo.
+label = "app.kubernetes.io/name=tempo"
+}
 }
 ```
 
@@ -109,17 +109,17 @@ For example: `tempo/compactor`, where `tempo` is the namespace and `compactor` r
 
 You can acquire all three labels from the annotations that are included as Kubernetes metadata from each components scrape data.
 Because this metadata is a string with a prefix of `__meta_kubernetes`, Alloy must be configured not to discard these labels during the metrics pipeline.
-To do this, you can use the [`discover.relabel` component](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/discovery/discovery.relabel/) to add rules to keep any required metadata labels.
+To do this, you can use the [`discover.relabel` component](https://grafana.com/docs/alloy/latest/reference/components/discovery/discovery.relabel/) to add rules to keep any required metadata labels.
 
 In the following example, the specific Tempo component name (for example, `__meta_kubernetes_app_kubernetes_io_component`) is replaced by a more useful label name and kept for future pipeline operations.
 
 ```yaml
 rule {
-  source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
-  action = "replace"
-  regex = "(.*)"
-  replacement = "$1"
-  target_label = "k8s_component_name"
+source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+action = "replace"
+regex = "(.*)"
+replacement = "$1"
+target_label = "k8s_component_name"
 }
 ```
 
@@ -139,7 +139,7 @@ rule {
 
 This lets you create a configuration that scrapes metrics from Tempo components and writes the data to a Mimir instance of your choice.
 
-This example provides a Helm `values.yaml` file that you can use for [Alloy deployed on Kubernetes](https://grafana.com/docs/alloy/<ALLOY_VERSION>/configure/kubernetes/).
+This example provides a Helm `values.yaml` file that you can use for [Alloy deployed on Kubernetes](https://grafana.com/docs/alloy/latest/configure/kubernetes/).
 The file configures the options Alloy uses to scrap a running instance of Tempo.
 Refer to the comments in the example for details.
 
@@ -235,9 +235,9 @@ You can then monitor Tempo using the mixin.
 
 Tempo ships with a mixin that includes:
 
-* Relevant dashboards for overseeing the health of Tempo as a whole, as well as its individual components
-* Recording rules that simplify the generation of metrics for dashboards and free-form queries
-* Alerts that trigger when Tempo falls out of operational parameters
+- Relevant dashboards for overseeing the health of Tempo as a whole, as well as its individual components
+- Recording rules that simplify the generation of metrics for dashboards and free-form queries
+- Alerts that trigger when Tempo falls out of operational parameters
 
 To install the mixins in Grafana, you need to:
 
@@ -250,6 +250,7 @@ To install the mixins in Grafana, you need to:
 ### Download the `tempo-mixin` dashboards
 
 1. First, clone the Tempo repository from Github:
+
    ```bash
    git clone git+ssh://github.com/grafana/tempo
    ```

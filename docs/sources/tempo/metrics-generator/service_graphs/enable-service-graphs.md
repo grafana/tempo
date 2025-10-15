@@ -1,7 +1,7 @@
 ---
 aliases:
-- /docs/tempo/latest/server_side_metrics/service_graphs/
-- /docs/tempo/latest/metrics-generator/service_graphs/
+  - /docs/tempo/latest/server_side_metrics/service_graphs/
+  - /docs/tempo/latest/metrics-generator/service_graphs/
 title: Enable service graphs
 description: Learn how to enable service graphs
 weight: 200
@@ -27,7 +27,6 @@ To learn more about cardinality and how to perform a dry run of the metrics-gene
 ### Enable service graphs in Tempo/GET
 
 To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `service-graphs` generator.
-For more information, refer to the [configuration details](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
 
 To enable service graphs when using Grafana Alloy, refer to the [Grafana Alloy and service graphs documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/service-graphs/).
 
