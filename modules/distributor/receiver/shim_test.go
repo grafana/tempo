@@ -223,7 +223,7 @@ func (p *capturingPusher) PushTraces(ctx context.Context, t ptrace.Traces) (*tem
 	return &tempopb.PushResponse{}, nil
 }
 
-func (p *capturingPusher) RetryInfoEnabled(ctx context.Context) (bool, error) {
+func (p *capturingPusher) RetryInfoEnabled(_ context.Context) (bool, error) {
 	return p.retryInfoEnabled, nil
 }
 
