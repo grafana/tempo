@@ -117,21 +117,21 @@ type Attribute struct {
 
 // DedicatedAttributes add spare columns to the schema that can be assigned to attributes at runtime.
 type DedicatedAttributes struct {
-	String01 *string `parquet:",snappy,optional,dict"`
-	String02 *string `parquet:",snappy,optional,dict"`
-	String03 *string `parquet:",snappy,optional,dict"`
-	String04 *string `parquet:",snappy,optional,dict"`
-	String05 *string `parquet:",snappy,optional,dict"`
-	String06 *string `parquet:",snappy,optional,dict"`
-	String07 *string `parquet:",snappy,optional,dict"`
-	String08 *string `parquet:",snappy,optional,dict"`
-	String09 *string `parquet:",snappy,optional,dict"`
-	String10 *string `parquet:",snappy,optional,dict"`
-	Int01    *int64  `parquet:",snappy,optional"`
-	Int02    *int64  `parquet:",snappy,optional"`
-	Int03    *int64  `parquet:",snappy,optional"`
-	Int04    *int64  `parquet:",snappy,optional"`
-	Int05    *int64  `parquet:",snappy,optional"`
+	String01 []string `parquet:",snappy,optional,dict"`
+	String02 []string `parquet:",snappy,optional,dict"`
+	String03 []string `parquet:",snappy,optional,dict"`
+	String04 []string `parquet:",snappy,optional,dict"`
+	String05 []string `parquet:",snappy,optional,dict"`
+	String06 []string `parquet:",snappy,optional,dict"`
+	String07 []string `parquet:",snappy,optional,dict"`
+	String08 []string `parquet:",snappy,optional,dict"`
+	String09 []string `parquet:",snappy,optional,dict"`
+	String10 []string `parquet:",snappy,optional,dict"`
+	Int01    []int64  `parquet:",snappy,optional"`
+	Int02    []int64  `parquet:",snappy,optional"`
+	Int03    []int64  `parquet:",snappy,optional"`
+	Int04    []int64  `parquet:",snappy,optional"`
+	Int05    []int64  `parquet:",snappy,optional"`
 }
 
 type Event struct {
