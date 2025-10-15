@@ -3,7 +3,6 @@ package vparquet5
 import (
 	"bytes"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
@@ -990,7 +989,7 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 	return append(in, make([]T, sz-len(in))...)
 }
 
-func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption) {
+func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
 	var (
 		resMapping   = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
 		spanMapping  = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
@@ -1035,8 +1034,9 @@ func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 		rewrite func(parquet.Node) parquet.Node
 	}
 
-	options := []parquet.WriterOption{}
-	rewrites := make([]rewritePath, 0)
+	writerOptions := []parquet.WriterOption{}
+	readerOptions := []parquet.ReaderOption{}
+	// rewrites := make([]rewritePath, 0)
 
 	// Minor optimization: skip page bounds for blob columns. The min/max values are not
 	// selective, and this saves a little bit of storage and overhead.
@@ -1044,42 +1044,57 @@ func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 		if col.Blob() {
 			fmt.Println("Blob column:", col.ColumnPath, key)
 			path := strings.Split(col.ColumnPath, ".")
-			options = append(options, parquet.SkipPageBounds(path...))
-			rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
+			writerOptions = append(writerOptions, parquet.SkipPageBounds(path...))
+
+			r := parquet.TagReplacement(path, parquet.ParquetTags{Parquet: ",zstd,optional"})
+			writerOptions = append(writerOptions, r)
+			readerOptions = append(readerOptions, r)
+
+			/*rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
 				node = parquet.Encoded(node, &parquet.Plain)
 				node = parquet.Compressed(node, &parquet.Zstd)
 				return node
-			}})
+			}})*/
 		}
 	}
 	for key, col := range resMapping.mapping {
 		if col.Blob() {
 			fmt.Println("Blob column:", col.ColumnPath, key)
 			path := strings.Split(col.ColumnPath, ".")
-			options = append(options, parquet.SkipPageBounds(path...))
-			rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
+			writerOptions = append(writerOptions, parquet.SkipPageBounds(path...))
+
+			r := parquet.TagReplacement(path, parquet.ParquetTags{Parquet: ",zstd,optional"})
+			writerOptions = append(writerOptions, r)
+			readerOptions = append(readerOptions, r)
+
+			/*rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
 				node = parquet.Encoded(node, &parquet.Plain)
 				node = parquet.Compressed(node, &parquet.Zstd)
 				return node
-			}})
+			}})*/
 		}
 	}
 	for key, col := range eventMapping.mapping {
 		if col.Blob() {
 			fmt.Println("Blob column:", col.ColumnPath, key)
 			path := strings.Split(col.ColumnPath, ".")
-			options = append(options, parquet.SkipPageBounds(path...))
-			rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
+			writerOptions = append(writerOptions, parquet.SkipPageBounds(path...))
+
+			r := parquet.TagReplacement(path, parquet.ParquetTags{Parquet: ",zstd,optional"})
+			writerOptions = append(writerOptions, r)
+			readerOptions = append(readerOptions, r)
+
+			/*rewrites = append(rewrites, rewritePath{path, func(node parquet.Node) parquet.Node {
 				node = parquet.Encoded(node, &parquet.Plain)
 				node = parquet.Compressed(node, &parquet.Zstd)
 				return node
-			}})
+			}})*/
 		}
 	}
 
 	schema := parquet.SchemaOf(&Trace{})
 
-	schema = parquet.RewriteSchema(schema, func(path []string, node parquet.Node) parquet.Node {
+	/*schema = parquet.RewriteSchema(schema, func(path []string, node parquet.Node) parquet.Node {
 		for _, rewrite := range rewrites {
 			if slices.Equal(path, rewrite.path) {
 				return rewrite.rewrite(node)
@@ -1089,7 +1104,7 @@ func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 		return node
 	})
 
-	options = append(options, schema)
+	options = append(options, schema)*/
 
-	return schema, options
+	return schema, writerOptions, readerOptions
 }

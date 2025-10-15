@@ -828,7 +828,7 @@ func BenchmarkDeconstruct(b *testing.B) {
 				test.AddDedicatedAttributes(dbt)
 
 				tr, _ := traceToParquet(&meta, id, dbt, nil)
-				sch := parquet.SchemaOf(tr, nil)
+				sch := parquet.SchemaOf(tr)
 
 				b.ResetTimer()
 
@@ -877,7 +877,7 @@ func estimateRowSize(t *testing.T, name string) {
 		}
 
 		tr := row[0]
-		sch := parquet.SchemaOf(tr, nil)
+		sch := parquet.SchemaOf(tr)
 		row := sch.Deconstruct(nil, tr)
 
 		totalProtoSize += int64(estimateMarshalledSizeFromParquetRow(row))

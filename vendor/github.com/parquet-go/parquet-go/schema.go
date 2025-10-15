@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,7 +29,6 @@ type Schema struct {
 	root  Node
 	funcs onceValue[schemaFuncs]
 	state onceValue[schemaState]
-	cfg   SchemaConfig
 }
 
 type schemaFuncs struct {
@@ -145,21 +145,15 @@ func (v *onceValue[T]) load(f func() *T) *T {
 func SchemaOf(model any, opts ...SchemaOption) *Schema {
 	cfg := SchemaConfig{}
 	for _, opt := range opts {
-		if opt != nil {
-			opt.ConfigureSchema(&cfg)
-		}
+		opt.ConfigureSchema(&cfg)
 	}
-	return schemaOfWithConfig(dereference(reflect.TypeOf(model)), cfg)
+	return schemaOf(dereference(reflect.TypeOf(model)), cfg.TagReplacements...)
 }
 
 var cachedSchemas sync.Map // map[reflect.Type]*Schema
 
-func schemaOf(model reflect.Type) *Schema {
-	return schemaOfWithConfig(model, SchemaConfig{})
-}
-
-func schemaOfWithConfig(model reflect.Type, cfg SchemaConfig) *Schema {
-	cacheable := len(cfg.tagOverrides) == 0
+func schemaOf(model reflect.Type, tagReplacements ...TagReplacementOption) *Schema {
+	cacheable := len(tagReplacements) == 0
 	if cacheable {
 		cached, _ := cachedSchemas.Load(model)
 		schema, _ := cached.(*Schema)
@@ -170,8 +164,7 @@ func schemaOfWithConfig(model reflect.Type, cfg SchemaConfig) *Schema {
 	if model.Kind() != reflect.Struct {
 		panic("cannot construct parquet schema from value of type " + model.String())
 	}
-	schema := NewSchema(model.Name(), nodeOf(model, noTags, cfg))
-	schema.cfg = cfg
+	schema := NewSchema(model.Name(), nodeOf(nil, model, noTags, tagReplacements))
 
 	if cacheable {
 		if actual, loaded := cachedSchemas.LoadOrStore(model, schema); loaded {
@@ -426,10 +419,10 @@ type structNode struct {
 	fields []structField
 }
 
-func structNodeOf(t reflect.Type, cfg SchemaConfig) *structNode {
+func structNodeOf(path []string, t reflect.Type, tagReplacements []TagReplacementOption) *structNode {
 	// Collect struct fields first so we can order them before generating the
 	// column indexes.
-	fields := structFieldsOf(t, cfg)
+	fields, tags := structFieldsOf(path, t, tagReplacements)
 
 	s := &structNode{
 		gotype: t,
@@ -439,15 +432,7 @@ func structNodeOf(t reflect.Type, cfg SchemaConfig) *structNode {
 	for i := range fields {
 		field := structField{name: fields[i].Name, index: fields[i].Index}
 
-		tags := fromStructTag(fields[i].Tag)
-		for _, override := range cfg.tagOverrides {
-			if override.typ == t && override.name == fields[i].Name {
-				tags = override.tags
-				break
-			}
-		}
-
-		field.Node = makeNodeOf(fields[i].Type, fields[i].Name, tags, cfg)
+		field.Node = makeNodeOf(append(path, fields[i].Name), fields[i].Type, fields[i].Name, tags[i], tagReplacements)
 
 		s.fields[i] = field
 	}
@@ -455,47 +440,35 @@ func structNodeOf(t reflect.Type, cfg SchemaConfig) *structNode {
 	return s
 }
 
-func structFieldsOf(t reflect.Type, cfg SchemaConfig) []reflect.StructField {
-	fields := appendStructFields(t, nil, nil, 0, cfg)
-
-	for i := range fields {
-		f := &fields[i]
-
-		tags := fromStructTag(f.Tag)
-		for _, override := range cfg.tagOverrides {
-			if override.typ == t && override.name == f.Name {
-				tags = override.tags
-				break
-			}
-		}
-
-		if tag := tags.Parquet; tag != "" {
-			name, _ := split(tag)
-			if name != "" {
-				f.Name = name
-			}
-		}
-	}
-
-	return fields
+func structFieldsOf(path []string, t reflect.Type, tagReplacements []TagReplacementOption) ([]reflect.StructField, []ParquetTags) {
+	return appendStructFields(path, t, nil, nil, nil, 0, tagReplacements)
 }
 
-func appendStructFields(t reflect.Type, fields []reflect.StructField, index []int, offset uintptr, cfg SchemaConfig) []reflect.StructField {
+func appendStructFields(path []string, t reflect.Type, fields []reflect.StructField, tags []ParquetTags, index []int, offset uintptr, tagReplacements []TagReplacementOption) ([]reflect.StructField, []ParquetTags) {
 	for i, n := 0, t.NumField(); i < n; i++ {
 		f := t.Field(i)
+		ftags := fromStructTag(f.Tag)
 
-		tags := fromStructTag(f.Tag)
-		for _, override := range cfg.tagOverrides {
-			if override.typ == t && override.name == f.Name {
-				tags = override.tags
-				break
+		// Tag overrides if present.
+		// Embedded anonymous fields do not extend the
+		// column path and are not directly addressable.
+		if !f.Anonymous {
+			fpath := append(path, f.Name)
+			for _, override := range tagReplacements {
+				if slices.Equal(fpath, override.Path) {
+					ftags = override.Tags
+					break
+				}
 			}
 		}
 
-		if tag := tags.Parquet; tag != "" {
+		if tag := ftags.Parquet; tag != "" {
 			name, _ := split(tag)
 			if tag != "-," && name == "-" {
 				continue
+			}
+			if name != "" {
+				f.Name = name
 			}
 		}
 
@@ -505,13 +478,14 @@ func appendStructFields(t reflect.Type, fields []reflect.StructField, index []in
 		f.Offset += offset
 
 		if f.Anonymous {
-			fields = appendStructFields(f.Type, fields, fieldIndex, f.Offset, cfg)
+			fields, tags = appendStructFields(path, f.Type, fields, tags, fieldIndex, f.Offset, tagReplacements)
 		} else if f.IsExported() {
 			f.Index = fieldIndex
 			fields = append(fields, f)
+			tags = append(tags, ftags)
 		}
 	}
-	return fields
+	return fields, tags
 }
 
 func (s *structNode) Optional() bool { return false }
@@ -620,8 +594,8 @@ func decimalFixedLenByteArraySize(precision int) int {
 	return int(math.Ceil((math.Log10(2) + float64(precision)) / math.Log10(256)))
 }
 
-func forEachStructTagOption(sf reflect.StructField, do func(t reflect.Type, option, args string)) {
-	if tag := sf.Tag.Get("parquet"); tag != "" {
+func forEachStructTagOption(sf reflect.StructField, tags ParquetTags, do func(t reflect.Type, option, args string)) {
+	if tag := tags.Parquet; tag != "" {
 		_, tag = split(tag) // skip the field name
 		for tag != "" {
 			option := ""
@@ -637,7 +611,7 @@ func forEachStructTagOption(sf reflect.StructField, do func(t reflect.Type, opti
 	}
 }
 
-func nodeOf(t reflect.Type, tags ParquetTags, cfg SchemaConfig) Node {
+func nodeOf(path []string, t reflect.Type, tags ParquetTags, tagReplacements []TagReplacementOption) Node {
 	switch t {
 	case reflect.TypeOf(deprecated.Int96{}):
 		return Leaf(Int96Type)
@@ -674,13 +648,13 @@ func nodeOf(t reflect.Type, tags ParquetTags, cfg SchemaConfig) Node {
 		n = String()
 
 	case reflect.Ptr:
-		n = Optional(nodeOf(t.Elem(), noTags, cfg))
+		n = Optional(nodeOf(path, t.Elem(), noTags, tagReplacements))
 
 	case reflect.Slice:
 		if elem := t.Elem(); elem.Kind() == reflect.Uint8 { // []byte?
 			n = Leaf(ByteArrayType)
 		} else {
-			n = Repeated(nodeOf(elem, noTags, cfg))
+			n = Repeated(nodeOf(path, elem, noTags, tagReplacements))
 		}
 
 	case reflect.Array:
@@ -694,8 +668,8 @@ func nodeOf(t reflect.Type, tags ParquetTags, cfg SchemaConfig) Node {
 			n = JSON()
 		} else {
 			n = Map(
-				makeNodeOf(t.Key(), t.Name(), tags.getMapKeyNodeTags(), cfg),
-				makeNodeOf(t.Elem(), t.Name(), tags.getMapValueNodeTags(), cfg),
+				makeNodeOf(append(path, "key_value", "key"), t.Key(), t.Name(), tags.getMapKeyNodeTags(), tagReplacements),
+				makeNodeOf(append(path, "key_value", "value"), t.Elem(), t.Name(), tags.getMapValueNodeTags(), tagReplacements),
 			)
 		}
 
@@ -717,7 +691,7 @@ func nodeOf(t reflect.Type, tags ParquetTags, cfg SchemaConfig) Node {
 		})
 
 	case reflect.Struct:
-		return structNodeOf(t, cfg)
+		return structNodeOf(path, t, tagReplacements)
 	}
 
 	if n == nil {
@@ -848,7 +822,9 @@ var (
 	_ WriterOption   = (*Schema)(nil)
 )
 
-func makeNodeOf(t reflect.Type, name string, tags ParquetTags, cfg SchemaConfig) Node {
+func makeNodeOf(path []string, t reflect.Type, name string, tags ParquetTags, tagReplacements []TagReplacementOption) Node {
+	// path = append(path, name)
+
 	var (
 		node       Node
 		optional   bool
@@ -894,7 +870,7 @@ func makeNodeOf(t reflect.Type, name string, tags ParquetTags, cfg SchemaConfig)
 	}
 
 	if t.Kind() == reflect.Map {
-		node = nodeOf(t, tags, cfg)
+		node = nodeOf(path, t, tags, tagReplacements)
 	} else {
 		forEachTagOption([]string{tags.Parquet}, func(option, args string) {
 			switch option {
@@ -968,7 +944,7 @@ func makeNodeOf(t reflect.Type, name string, tags ParquetTags, cfg SchemaConfig)
 			case "list":
 				switch t.Kind() {
 				case reflect.Slice:
-					element := makeNodeOf(t.Elem(), t.Name(), tags.getListElementNodeTags(), cfg)
+					element := makeNodeOf(append(path, "list", "element"), t.Elem(), t.Name(), tags.getListElementNodeTags(), tagReplacements)
 					setNode(element)
 					setList()
 				default:
@@ -1098,14 +1074,14 @@ func makeNodeOf(t reflect.Type, name string, tags ParquetTags, cfg SchemaConfig)
 		// Note for strings "optional" applies only to the entire BYTE_ARRAY and
 		// not each individual byte.
 		if optional && !isUint8 {
-			node = Repeated(Optional(nodeOf(t.Elem(), tags, cfg)))
+			node = Repeated(Optional(nodeOf(path, t.Elem(), tags, tagReplacements)))
 			// Don't also apply "optional" to the whole list.
 			optional = false
 		}
 	}
 
 	if node == nil {
-		node = nodeOf(t, tags, cfg)
+		node = nodeOf(path, t, tags, tagReplacements)
 	}
 
 	if compressed != nil {
@@ -1150,81 +1126,4 @@ func forEachTagOption(tags []string, do func(option, args string)) {
 			do(option, args)
 		}
 	}
-}
-
-func RewriteSchema(schema *Schema, replace func(path []string, node Node) Node) *Schema {
-	sch := NewSchema(schema.name, rewriteSchema(nil, schema.root, replace))
-	sch.cfg = schema.cfg
-	return sch
-}
-
-func rewriteSchema(path []string, node Node, replace func(path []string, node Node) Node) Node {
-	if node.Leaf() {
-		return replace(path, node)
-	}
-
-	// Types requiring special handling.
-	switch n := node.(type) {
-	case *structNode:
-		// Maintain struct information including field order and index.
-		fields := make([]structField, 0, len(n.fields))
-		for _, field := range n.fields {
-			fields = append(fields, structField{
-				Node:  rewriteSchema(append(path, field.name), field.Node, replace),
-				name:  field.name,
-				index: field.index,
-			})
-		}
-		return &structNode{
-			gotype: n.gotype,
-			fields: fields,
-		}
-	case *groupField:
-		// Rewrite innner node only, groupField accounted for in parent Group below.
-		return rewriteSchema(path, n.Node, replace)
-	}
-
-	g := Group{}
-	for _, field := range node.Fields() {
-		n := field.Name()
-		g[n] = &groupField{
-			Node: rewriteSchema(append(path, n), field, replace),
-			name: n,
-		}
-	}
-
-	out := (Node)(&g)
-
-	if logicalType := node.Type().LogicalType(); logicalType != nil {
-		switch {
-		case logicalType.List != nil:
-			out = &listNode{Group: g}
-		case logicalType.Map != nil:
-			out = &mapNode{Group: g}
-		}
-	}
-
-	// Reapply options as needed.
-
-	if node.Optional() && !out.Optional() {
-		out = Optional(out)
-	}
-
-	if node.Repeated() && !out.Repeated() {
-		out = Repeated(out)
-	}
-
-	if node.Required() && !out.Required() {
-		out = Required(out)
-	}
-
-	// This must be last.
-	if node.GoType() != out.GoType() {
-		out = &goNode{
-			Node:   out,
-			gotype: node.GoType(),
-		}
-	}
-
-	return out
 }

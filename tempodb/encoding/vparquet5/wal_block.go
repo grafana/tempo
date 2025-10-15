@@ -391,13 +391,13 @@ func (b *walBlock) openWriter() (err error) {
 	}
 
 	if b.writer == nil {
-		_, options := SchemaWithDyanmicChanges(b.meta.DedicatedColumns)
+		_, writerOptions, _ := SchemaWithDyanmicChanges(b.meta.DedicatedColumns)
 
 		// setting this value low massively reduces the amount of static memory we hold onto in highly multi-tenant environments at the cost of
 		// cutting pages more aggressively when writing column chunks
-		options = append(options, parquet.PageBufferSize(1024))
+		writerOptions = append(writerOptions, parquet.PageBufferSize(1024))
 
-		b.writer = parquet.NewGenericWriter[*Trace](b.file, options...)
+		b.writer = parquet.NewGenericWriter[*Trace](b.file, writerOptions...)
 	} else {
 		b.writer.Reset(b.file)
 	}
@@ -469,7 +469,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 	}
 
 	// sch := parquet.SchemaOf(new(Trace))
-	sch, _ := SchemaWithDyanmicChanges(b.meta.DedicatedColumns)
+	sch, _, _ := SchemaWithDyanmicChanges(b.meta.DedicatedColumns)
 
 	iter := newMultiblockIterator(bookmarks, func(rows []parquet.Row) (parquet.Row, error) {
 		if len(rows) == 1 {

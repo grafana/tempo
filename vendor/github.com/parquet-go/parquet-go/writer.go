@@ -102,7 +102,7 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 
 	var genWriteErr error
 	if schema == nil && t != nil {
-		schema = schemaOf(dereference(t))
+		schema = schemaOf(dereference(t), config.TagReplacements...)
 		if len(schema.Columns()) == 0 {
 			genWriteErr = fmt.Errorf("cannot write %v: it has no columns (maybe it has no exported fields)", t)
 		}
@@ -119,7 +119,7 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 	if genWriteErr != nil {
 		writeFn = func(*GenericWriter[T], []T) (int, error) { return 0, genWriteErr }
 	} else {
-		writeFn = writeFuncOf[T](t, config.Schema)
+		writeFn = writeFuncOf[T](t, config.Schema, config.TagReplacements)
 	}
 
 	return &GenericWriter[T]{
@@ -135,7 +135,7 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 
 type writeFunc[T any] func(*GenericWriter[T], []T) (int, error)
 
-func writeFuncOf[T any](t reflect.Type, schema *Schema) writeFunc[T] {
+func writeFuncOf[T any](t reflect.Type, schema *Schema, tagReplacements []TagReplacementOption) writeFunc[T] {
 	if t == nil {
 		return (*GenericWriter[T]).writeAny
 	}
@@ -144,18 +144,18 @@ func writeFuncOf[T any](t reflect.Type, schema *Schema) writeFunc[T] {
 		return (*GenericWriter[T]).writeRows
 
 	case reflect.Struct:
-		return makeWriteFunc[T](t, schema)
+		return makeWriteFunc[T](t, schema, tagReplacements)
 
 	case reflect.Pointer:
 		if e := t.Elem(); e.Kind() == reflect.Struct {
-			return makeWriteFunc[T](t, schema)
+			return makeWriteFunc[T](t, schema, tagReplacements)
 		}
 	}
 	panic("cannot create writer for values of type " + t.String())
 }
 
-func makeWriteFunc[T any](t reflect.Type, schema *Schema) writeFunc[T] {
-	writeRows := writeRowsFuncOf(t, schema, nil)
+func makeWriteFunc[T any](t reflect.Type, schema *Schema, tagReplacements []TagReplacementOption) writeFunc[T] {
+	writeRows := writeRowsFuncOf(t, schema, nil, tagReplacements)
 	return func(w *GenericWriter[T], rows []T) (n int, err error) {
 		if w.columns == nil {
 			w.columns = make([]ColumnBuffer, len(w.base.writer.columns))

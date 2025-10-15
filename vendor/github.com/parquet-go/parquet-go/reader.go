@@ -80,7 +80,7 @@ func NewGenericRowGroupReader[T any](rowGroup RowGroup, options ...ReaderOption)
 		if t == nil {
 			c.Schema = rowGroup.Schema()
 		} else {
-			c.Schema = schemaOf(dereference(t))
+			c.Schema = schemaOf(dereference(t), c.TagReplacements...)
 		}
 	}
 

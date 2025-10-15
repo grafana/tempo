@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"reflect"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -161,7 +160,8 @@ func (c *FileConfig) Validate() error {
 //		// ...
 //	})
 type ReaderConfig struct {
-	Schema *Schema
+	Schema          *Schema
+	TagReplacements []TagReplacementOption
 }
 
 // DefaultReaderConfig returns a new ReaderConfig value initialized with the
@@ -224,6 +224,7 @@ type WriterConfig struct {
 	Sorting              SortingConfig
 	SkipPageBounds       [][]string
 	Encodings            map[Kind]encoding.Encoding
+	TagReplacements      []TagReplacementOption
 }
 
 // DefaultWriterConfig returns a new WriterConfig value initialized with the
@@ -296,6 +297,7 @@ func (c *WriterConfig) ConfigureWriter(config *WriterConfig) {
 		Sorting:              coalesceSortingConfig(c.Sorting, config.Sorting),
 		SkipPageBounds:       coalesceSkipPageBounds(c.SkipPageBounds, config.SkipPageBounds),
 		Encodings:            encodings,
+		TagReplacements:      coalesceTagReplacements(c.TagReplacements, config.TagReplacements),
 	}
 }
 
@@ -761,24 +763,37 @@ func DropDuplicatedRows(drop bool) SortingOption {
 	return sortingOption(func(config *SortingConfig) { config.DropDuplicatedRows = drop })
 }
 
-type SchemaConfig struct {
-	tagOverrides []struct {
-		typ  reflect.Type
-		name string
-		tags ParquetTags
-	}
+type TagReplacementOption struct {
+	Path []string
+	Tags ParquetTags
 }
 
-// FieldTags allows for customiziation of parquet tags when deriving a schema
+var (
+	_ WriterOption = (*TagReplacementOption)(nil)
+	_ SchemaOption = (*TagReplacementOption)(nil)
+	_ ReaderOption = (*TagReplacementOption)(nil)
+)
+
+type SchemaConfig struct {
+	TagReplacements []TagReplacementOption
+}
+
+// TagReplacement provide runtime customization of parquet field tags when deriving a schema
 // from a Go struct.
-func FieldTags(typ reflect.Type, name string, tags ParquetTags) schemaOption {
-	return func(cfg *SchemaConfig) {
-		cfg.tagOverrides = append(cfg.tagOverrides, struct {
-			typ  reflect.Type
-			name string
-			tags ParquetTags
-		}{typ, name, tags})
-	}
+func TagReplacement(path []string, tags ParquetTags) *TagReplacementOption {
+	return &TagReplacementOption{Path: path, Tags: tags}
+}
+
+func (f *TagReplacementOption) ConfigureSchema(config *SchemaConfig) {
+	config.TagReplacements = append(config.TagReplacements, *f)
+}
+
+func (f *TagReplacementOption) ConfigureWriter(config *WriterConfig) {
+	config.TagReplacements = append(config.TagReplacements, *f)
+}
+
+func (f *TagReplacementOption) ConfigureReader(config *ReaderConfig) {
+	config.TagReplacements = append(config.TagReplacements, *f)
 }
 
 type fileOption func(*FileConfig)
@@ -885,6 +900,13 @@ func coalesceCompression(c1, c2 compress.Codec) compress.Codec {
 		return c1
 	}
 	return c2
+}
+
+func coalesceTagReplacements(f1, f2 []TagReplacementOption) []TagReplacementOption {
+	if f1 != nil {
+		return f1
+	}
+	return f2
 }
 
 func validatePositiveInt(optionName string, optionValue int) error {

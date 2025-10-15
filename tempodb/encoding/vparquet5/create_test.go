@@ -120,7 +120,7 @@ func (i *testIterator) Close() {
 func TestIdenticalSchema(t *testing.T) {
 	expected := parquet.SchemaOf(&Trace{})
 
-	got, _ := SchemaWithDyanmicChanges(backend.DedicatedColumns{})
+	got, _, _ := SchemaWithDyanmicChanges(backend.DedicatedColumns{})
 	if !parquet.IdenticalNodes(expected, got) {
 		t.Fatal("schemas are not identical", expected, got)
 	}
