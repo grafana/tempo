@@ -50,5 +50,5 @@ The query response is also limited by the number of traces (**Limit**) and spans
 
 1. TraceQL query editor
 2. Query options: **Limit**, **Span Limit** and **Table Format** (Traces or Spans).
-3. Trace (by Trace ID). The **Name** and **Service** columns are displaying the trace root span name and associated service.
+3. Trace (by Trace ID). The **Name** and **Service** columns are displaying the trace root span name and associated service. *Note:* Trace results for matching spans are returned on a first-match basis. These results may not be the latest traces stored by Tempo.
 4. Spans associated to the Trace
