@@ -1075,6 +1075,7 @@ func checkConditions(conditions []traceql.Condition) error {
 			if opCount != 1 {
 				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Op, cond)
 			}
+
 		case traceql.OpNotExists:
 			if opCount != 0 {
 				return fmt.Errorf("operation %v must have 0 arguments. condition: %+v", cond.Op, cond)
@@ -2022,6 +2023,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				continue
 			}
 
+			// = nil ?
 			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
 				pred := parquetquery.NewNilValuePredicate()
 				iters = append(iters, makeIter(entry.columnPath, pred, entry.columnPath))
@@ -2048,6 +2050,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				continue
 			}
 
+			// = nil ?
 			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
 				pred := parquetquery.NewNilValuePredicate()
 				iters = append(iters, makeIter(c.ColumnPath, pred, c.ColumnPath))
@@ -2069,10 +2072,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 
 		// check attr not exists
 		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
-			pred, err := createNilPredicate(cond.Attribute.Name)
-			if err != nil {
-				return nil, err
-			}
+			pred := createNilPredicate(cond.Attribute.Name)
 			iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
 			continue
 		}
@@ -2212,10 +2212,7 @@ func createInstrumentationIterator(makeIter, makeNilIter makeIterFn, spanIterato
 
 		// check attr not exists
 		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
-			pred, err := createNilPredicate(cond.Attribute.Name)
-			if err != nil {
-				return nil, err
-			}
+			pred := createNilPredicate(cond.Attribute.Name)
 			iters = append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, columnPathInstrumentationAttrKey))
 			continue
 		}
@@ -2299,15 +2296,15 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 			}
 
 			// = nil ?
-			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
-				pred := parquetquery.NewNilValuePredicate()
+			if entry.columnPath == columnPathResourceServiceName && cond.Op == traceql.OpNotExists {
+				// well known attr with default of "" instead of nil
+				pred := parquetquery.NewStringEqualPredicate([]byte(""))
 				iters = append(iters, makeIter(entry.columnPath, pred, entry.columnPath))
 				continue
 			}
 
-			if entry.columnPath == columnPathResourceServiceName && cond.Op == traceql.OpNotExists {
-				// well known attr with default of "" instead of nil
-				pred := parquetquery.NewStringEqualPredicate([]byte(""))
+			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+				pred := parquetquery.NewNilValuePredicate()
 				iters = append(iters, makeIter(entry.columnPath, pred, entry.columnPath))
 				continue
 			}
@@ -2351,12 +2348,9 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 			}
 		}
 
-		// nil?
+		// check attr not exists
 		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
-			pred, err := createNilPredicate(cond.Attribute.Name)
-			if err != nil {
-				return nil, err
-			}
+			pred := createNilPredicate(cond.Attribute.Name)
 			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, columnPathResourceAttrKey))
 			continue
 		}
@@ -2569,8 +2563,8 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 	}
 }
 
-func createNilPredicate(attribute string) (parquetquery.Predicate, error) {
-	return parquetquery.NewStringEqualPredicate([]byte(attribute)), nil
+func createNilPredicate(attribute string) parquetquery.Predicate {
+	return parquetquery.NewStringEqualPredicate([]byte(attribute))
 }
 
 func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -2827,7 +2821,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	// Ensure operand is bool
 	b, ok := operands[0].Bool()
 	if !ok {
-		return nil, fmt.Errorf("oparand is not bool: %+v", operands[0].EncodeToString(false))
+		return nil, fmt.Errorf("operand is not bool: %+v", operands[0].EncodeToString(false))
 	}
 
 	switch op {

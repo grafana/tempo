@@ -42,7 +42,7 @@ func (c *NilAttributeIterator) String() string {
 }
 
 func (c *NilAttributeIterator) Next() (*IteratorResult, error) {
-	rn, v, err := c.next2()
+	rn, v, err := c.next()
 	if err != nil {
 		return nil, err
 	}
@@ -60,10 +60,10 @@ func (c *NilAttributeIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber)
 	return c.syncIterator.popRowGroup()
 }
 
-func (c *NilAttributeIterator) next2() (RowNumber, *pq.Value, error) {
+func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 	for {
 		if c.syncIterator.currRowGroup == nil {
-			rg, min, max := c.popRowGroup()
+			rg, minRN, maxRN := c.popRowGroup()
 			if rg == nil {
 				return EmptyRowNumber(), nil, nil
 			}
@@ -74,7 +74,7 @@ func (c *NilAttributeIterator) next2() (RowNumber, *pq.Value, error) {
 				continue
 			}
 
-			c.setRowGroup(rg, min, max, cc)
+			c.setRowGroup(rg, minRN, maxRN, cc)
 		}
 
 		if c.syncIterator.currPage == nil {
@@ -164,8 +164,8 @@ func (c *NilAttributeIterator) next2() (RowNumber, *pq.Value, error) {
 	}
 }
 
-func (c *NilAttributeIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *ColumnChunkHelper) {
-	c.syncIterator.setRowGroup(rg, min, max, cc)
+func (c *NilAttributeIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *ColumnChunkHelper) {
+	c.syncIterator.setRowGroup(rg, minRN, maxRN, cc)
 }
 
 func (c *NilAttributeIterator) setPage(pg pq.Page) {
