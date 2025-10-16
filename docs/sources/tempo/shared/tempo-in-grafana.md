@@ -21,6 +21,11 @@ labels:
 
 Using tracing data in Grafana and Grafana Cloud Traces, you can search for traces, generate metrics from spans, and link your tracing data with logs, metrics, and profiles.
 
+{{< admonition type="note" >}}
+Trace results for matching spans are returned on a first-match basis. These results may not be the latest traces stored by Tempo.
+{{< /admonition >}}
+
+
 ### Use Traces Drilldown to investigate tracing data
 
 [Grafana Traces Drilldown](https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/traces/) helps you visualize insights from your Tempo traces data.
@@ -58,7 +63,7 @@ This approach values speed over predictability and is quite simple; enforcing th
 TraceQL follows the same behavior.
 
 By adding `most_recent=true` to your TraceQL queries, the search results become deterministic.
-For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#retrieving-most-recent-results-experimental)
+For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#retrieving-most-recent-results-experimental).
 
 #### Use trace search results as panels in dashboards
 
