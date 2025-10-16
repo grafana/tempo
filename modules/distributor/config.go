@@ -54,8 +54,6 @@ type Config struct {
 	// configures the distributor to indicate to the client that it should retry resource exhausted errors after the
 	// provided duration
 	RetryAfterOnResourceExhausted time.Duration `yaml:"retry_after_on_resource_exhausted"`
-	// control retryInfo at cluster level
-	RetryInfoEnabled bool `yaml:"retry_info_enabled"`
 
 	// For testing.
 	factory ring_client.PoolAddrFunc `yaml:"-"`
@@ -89,7 +87,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.IngesterWritePathEnabled = true
 
 	cfg.MaxAttributeBytes = 2048 // 2KB
-	cfg.RetryInfoEnabled = true  // enable RetryInfo by default
 
 	f.BoolVar(&cfg.LogReceivedSpans.Enabled, util.PrefixConfig(prefix, "log-received-spans.enabled"), false, "Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.IncludeAllAttributes, util.PrefixConfig(prefix, "log-received-spans.include-attributes"), false, "Enable to include span attributes in the logs.")
