@@ -45,14 +45,13 @@ func pushTrace(ctx context.Context, t *testing.T, instance *instance, tr *tempop
 
 // TestInstanceLimits verifies MaxBytesPerTrace and MaxLocalTracesPerUser enforcement in livestore.
 func TestInstanceLimits(t *testing.T) {
-	// Measure a small trace size to derive a reasonable MaxBytesPerTrace
-	smallID := test.ValidTraceID(nil)
-	small := test.MakeTrace(5, smallID)
-	smallBatchSize := small.ResourceSpans[0].Size()
-
+	const batches = 20
 	// Configure limits: allow up to ~1.5x small trace, and max 4 live traces
-	maxBytes := smallBatchSize + smallBatchSize/2
 	maxTraces := 4
+
+	batch1 := test.MakeTrace(batches, test.ValidTraceID(nil))
+	batch2 := test.MakeTrace(batches, test.ValidTraceID(nil))
+	maxBytes := batch1.Size() + batch2.Size()/2 // set limit between 1 and 2 batches so pushing both batches to a single trace exceeds limit
 
 	// bytes - succeeds: push two different traces under size limit
 	t.Run("bytes - succeeds", func(t *testing.T) {
@@ -60,8 +59,8 @@ func TestInstanceLimits(t *testing.T) {
 		// two different traces with different ids
 		id1 := test.ValidTraceID(nil)
 		id2 := test.ValidTraceID(nil)
-		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id1), id1)
-		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id2), id2)
+		pushTrace(t.Context(), t, instance, batch1, id1)
+		pushTrace(t.Context(), t, instance, batch2, id2)
 		require.Equal(t, uint64(2), instance.liveTraces.Len())
 
 		err := services.StopAndAwaitTerminated(t.Context(), ls)
@@ -74,14 +73,71 @@ func TestInstanceLimits(t *testing.T) {
 
 		id := test.ValidTraceID(nil)
 		// First push fits
-		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
+		pushTrace(t.Context(), t, instance, batch1, id)
 		// Second push with same id will exceed combined size (> maxBytes)
-		pushTrace(t.Context(), t, instance, test.MakeTrace(5, id), id)
+		pushTrace(t.Context(), t, instance, batch2, id)
 		// Only one live trace stored, and accumulated size should be <= maxBytes
 		require.Equal(t, uint64(1), instance.liveTraces.Len())
 		require.LessOrEqual(t, instance.liveTraces.Size(), uint64(maxBytes))
 
 		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		require.NoError(t, err)
+	})
+
+	// bytes - second push fails even after cutIdleTraces
+	t.Run("bytes - second push fails even after cutIdleTraces", func(t *testing.T) {
+		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
+
+		id := test.ValidTraceID(nil)
+		// First push fits
+		pushTrace(t.Context(), t, instance, batch1, id)
+
+		// cut idle traces but we retain the too large trace in traceSizes
+		err := instance.cutIdleTraces(true)
+		require.NoError(t, err)
+
+		// Second push with same id will fail b/c we are still tracking in traceSizes
+		pushTrace(t.Context(), t, instance, batch2, id)
+		require.Equal(t, uint64(0), instance.liveTraces.Len())
+		require.Equal(t, instance.liveTraces.Size(), uint64(0))
+
+		err = services.StopAndAwaitTerminated(t.Context(), ls)
+		require.NoError(t, err)
+	})
+
+	// bytes - second push succeeds after cutIdleTraces and 2x cutBlocks
+	t.Run("bytes - second push succeeds after cutting head block 2x", func(t *testing.T) {
+		instance, ls := instanceWithPushLimits(t, maxBytes, maxTraces)
+
+		id := test.ValidTraceID(nil)
+		// First push fits
+		pushTrace(t.Context(), t, instance, batch1, id)
+
+		// cut idle traces but we retain the too large trace in traceSizes
+		err := instance.cutIdleTraces(true)
+		require.NoError(t, err)
+		blockID, err := instance.cutBlocks(true) // this won't clear the trace b/c the trace must not be seen for 2 head block cuts to be fully removed from live traces
+		require.NoError(t, err)
+		err = instance.completeBlock(context.Background(), blockID)
+		require.NoError(t, err)
+
+		// push a second trace so cutIdle/cutBlocks goes through
+		secondID := test.ValidTraceID(nil)
+		pushTrace(t.Context(), t, instance, batch1, secondID)
+
+		err = instance.cutIdleTraces(true)
+		require.NoError(t, err)
+		blockID, err = instance.cutBlocks(true) // this will clear the trace b/c the trace has not been seen for 2 head block cuts
+		require.NoError(t, err)
+		err = instance.completeBlock(context.Background(), blockID)
+		require.NoError(t, err)
+
+		// Second push with same id will succeed b/c we have gone through one block flush cycles w/o seeing it
+		pushTrace(t.Context(), t, instance, batch1, id)
+		require.Equal(t, uint64(1), instance.liveTraces.Len())
+		require.LessOrEqual(t, instance.liveTraces.Size(), uint64(maxBytes))
+
+		err = services.StopAndAwaitTerminated(t.Context(), ls)
 		require.NoError(t, err)
 	})
 
