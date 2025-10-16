@@ -285,10 +285,6 @@ func (o UnaryOperation) validate() error {
 		return fmt.Errorf("illegal operation for the given type: %s", o.String())
 	}
 
-	if (o.Op == OpExists || o.Op == OpNotExists) && t != TypeAttribute {
-		return fmt.Errorf("illegal operation for the given type: %s", o.String())
-	}
-
 	return nil
 }
 

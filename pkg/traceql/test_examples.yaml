@@ -169,6 +169,7 @@ valid:
   - '{ nil != nil }'
   - '{ nil = nil }'
   - '{ .foo != nil }'
+  - '{ name != nil }'
 
 # parse_fails throw an error when parsing
 parse_fails:
