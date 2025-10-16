@@ -72,6 +72,35 @@ dashboard_utils {
         )
       )
       .addRow(
+        $.row('Livestore Partitions')
+        .addPanel(
+          $.timeseriesPanel('Lag of records by partition') +
+          $.panelDescription(
+            'Kafka lag by partition records',
+            'Overview of the lag by partition in records.',
+          ) +
+          $.queryPanel(
+            'max(tempo_ingest_group_partition_lag{%(job)s}) by (partition,group)' % { job: $.jobMatcher('live-store-zone.*') }, '{{partition}}'
+          ) +
+          $.stack
+          +
+          { fieldConfig+: { defaults+: { unit: 'short' } } },
+        )
+        .addPanel(
+          $.timeseriesPanel('Lag by partition (sec)') +
+          $.panelDescription(
+            'Kafka lag by partition in seconds',
+            'Overview of the lag by partition in seconds.',
+          ) +
+          $.queryPanel(
+            'max(tempo_ingest_group_partition_lag_seconds{%(job)s}) by (partition,group)' % { job: $.jobMatcher('live-store-zone.*') }, '{{partition}}'
+          ) +
+          $.stack
+          +
+          { fieldConfig+: { defaults+: { unit: 's' } } },
+        )
+      )
+      .addRow(
         g.row('Memcached')
         .addPanel(
           $.panel('QPS') +

@@ -1249,6 +1249,134 @@
    "height": "250px",
    "panels": [
     {
+     "datasource": "$datasource",
+     "description": "### Kafka lag by partition records\nOverview of the lag by partition in records.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 13,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 6,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "max(tempo_ingest_group_partition_lag{cluster=~\"$cluster\", job=~\"($namespace)/live-store-zone.*\"}) by (partition,group)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{partition}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Lag of records by partition",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Kafka lag by partition in seconds\nOverview of the lag by partition in seconds.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 10,
+     "id": 14,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 6,
+     "stack": true,
+     "targets": [
+      {
+       "expr": "max(tempo_ingest_group_partition_lag_seconds{cluster=~\"$cluster\", job=~\"($namespace)/live-store-zone.*\"}) by (partition,group)",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{partition}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Lag by partition (sec)",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Livestore Partitions",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
      "aliasColors": {
       "1xx": "#EAB839",
       "2xx": "#7EB26D",
@@ -1265,7 +1393,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 13,
+     "id": 15,
      "legend": {
       "avg": false,
       "current": false,
@@ -1350,7 +1478,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 14,
+     "id": 16,
      "legend": {
       "avg": false,
       "current": false,
@@ -1475,7 +1603,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 15,
+     "id": 17,
      "legend": {
       "avg": false,
       "current": false,
@@ -1560,7 +1688,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 16,
+     "id": 18,
      "legend": {
       "avg": false,
       "current": false,
