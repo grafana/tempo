@@ -21,7 +21,10 @@ labels:
 
 Using tracing data in Grafana and Grafana Cloud Traces, you can search for traces, generate metrics from spans, and link your tracing data with logs, metrics, and profiles.
 
-*Note:* Trace results for matching spans are returned on a first-match basis. These results may not be the latest traces stored by Tempo.
+{{< admonition type="note" >}}
+Trace results for matching spans are returned on a first-match basis. These results may not be the latest traces stored by Tempo.
+{{< /admonition >}}
+
 
 ### Use Traces Drilldown to investigate tracing data
 
