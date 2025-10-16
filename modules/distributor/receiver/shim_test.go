@@ -203,8 +203,9 @@ func (m *mockHost) GetExtensions() map[component.ID]component.Component {
 }
 
 type capturingPusher struct {
-	traces []ptrace.Traces
-	t      *testing.T
+	traces           []ptrace.Traces
+	retryInfoEnabled bool
+	t                *testing.T
 }
 
 func (p *capturingPusher) GetAndClearTraces() []ptrace.Traces {
@@ -222,29 +223,39 @@ func (p *capturingPusher) PushTraces(ctx context.Context, t ptrace.Traces) (*tem
 	return &tempopb.PushResponse{}, nil
 }
 
+func (p *capturingPusher) RetryInfoEnabled(_ context.Context) (bool, error) {
+	return p.retryInfoEnabled, nil
+}
+
 // TestWrapRetryableError confirms that errors are wrapped as expected
 func TestWrapRetryableError(t *testing.T) {
 	// no wrapping b/c not a grpc error
 	err := errors.New("test error")
-	wrapped := wrapErrorIfRetryable(err, nil)
+	wrapped := wrapErrorIfRetryable(err, nil, false)
 	require.Equal(t, err, wrapped)
 	require.False(t, isRetryable(wrapped))
 
 	// no wrapping b/c not a resource exhausted grpc error
 	err = status.Error(codes.FailedPrecondition, "failed precondition")
-	wrapped = wrapErrorIfRetryable(err, nil)
+	wrapped = wrapErrorIfRetryable(err, nil, false)
 	require.Equal(t, err, wrapped)
 	require.False(t, isRetryable(wrapped))
 
 	// no wrapping b/c no configured duration
 	err = status.Error(codes.ResourceExhausted, "res exhausted")
-	wrapped = wrapErrorIfRetryable(err, nil)
+	wrapped = wrapErrorIfRetryable(err, nil, false)
 	require.Equal(t, err, wrapped)
 	require.False(t, isRetryable(wrapped))
 
-	// wrapping b/c this is a resource exhausted grpc error
+	// no wrapping b/c this is a resource exhausted grpc error but retry info is disabled
 	err = status.Error(codes.ResourceExhausted, "res exhausted")
-	wrapped = wrapErrorIfRetryable(err, durationpb.New(time.Second))
+	wrapped = wrapErrorIfRetryable(err, durationpb.New(time.Second), false)
+	require.Equal(t, err, wrapped)
+	require.False(t, isRetryable(wrapped))
+
+	// wrapping b/c this is a resource exhausted grpc error with retry info enabled
+	err = status.Error(codes.ResourceExhausted, "res exhausted")
+	wrapped = wrapErrorIfRetryable(err, durationpb.New(time.Second), true)
 	require.NotEqual(t, err, wrapped)
 	require.True(t, isRetryable(wrapped))
 }

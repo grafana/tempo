@@ -74,6 +74,7 @@ type IngestionOverrides struct {
 	TenantShardSize   int            `yaml:"tenant_shard_size,omitempty" json:"tenant_shard_size,omitempty"`
 	MaxAttributeBytes int            `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
 	ArtificialDelay   *time.Duration `yaml:"artificial_delay,omitempty" json:"artificial_delay,omitempty"`
+	RetryInfoEnabled  bool           `yaml:"retry_info_enabled,omitempty" json:"retry_info_enabled,omitempty"`
 }
 
 type ForwarderOverrides struct {
@@ -267,6 +268,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
 
 	// Distributor LegacyOverrides
+	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
 	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
