@@ -491,11 +491,11 @@ func (p NilValuePredicate) String() string {
 	return "NilValuePredicate{}"
 }
 
-func (p NilValuePredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+func (p NilValuePredicate) KeepColumnChunk(_ *ColumnChunkHelper) bool {
 	return true
 }
 
-func (p NilValuePredicate) KeepPage(page pq.Page) bool {
+func (p NilValuePredicate) KeepPage(_ pq.Page) bool {
 	return true
 }
 

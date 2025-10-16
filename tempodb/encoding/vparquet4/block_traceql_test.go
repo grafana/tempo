@@ -851,7 +851,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 }
 
 func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
-	numTraces := 1
+	numTraces := 50
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
@@ -1083,7 +1083,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "service2",
-					Cluster:          nil,
+					Cluster:          ptr("cluster2"),
 					Namespace:        ptr("namespace2"),
 					Pod:              ptr("pod2"),
 					Container:        ptr("container2"),

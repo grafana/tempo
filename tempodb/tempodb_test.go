@@ -719,6 +719,9 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 
 func BenchmarkCompleteBlock(b *testing.B) {
 	for _, enc := range encoding.AllEncodings() {
+		if enc.Version() == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		b.Run(enc.Version(), func(b *testing.B) {
 			benchmarkCompleteBlock(b, enc)
 		})

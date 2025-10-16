@@ -368,6 +368,29 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 	}
 }
 
+func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
+	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
+		if index == -1 {
+			// TODO - don't panic, error instead
+			panic("column not found in parquet file:" + name)
+		}
+
+		opts := []pq.SyncIteratorOpt{
+			pq.SyncIteratorOptColumnName(name),
+			pq.SyncIteratorOptPredicate(predicate),
+			pq.SyncIteratorOptSelectAs(selectAs),
+			pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
+		}
+
+		if name != columnPathSpanID && name != columnPathTraceID {
+			opts = append(opts, pq.SyncIteratorOptIntern())
+		}
+
+		return pq.NewNilAttributeIterator(ctx, rgs, index, opts...)
+	}
+}
+
 type rowNumberIterator struct {
 	rowNumbers []pq.RowNumber
 }
