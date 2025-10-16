@@ -156,7 +156,7 @@ When implementing tail sampling into your telemetry collection pipeline, there a
 The act of sampling reduces the amount of tracing telemetry data that's sent to Tempo.
 This can have an effect on observation of data inside Grafana.
 
-The following is a suggested pipeline that can be applied to both [Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/) and the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), to carry out tail sampling, but also ensure that other telemetry signals are still captured for observation from within Grafana and Grafana Cloud.
+The following is a suggested pipeline that can be applied to both [Grafana Alloy](https://grafana.com/docs/alloy/latest/) and the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), to carry out tail sampling, but also ensure that other telemetry signals are still captured for observation from within Grafana and Grafana Cloud.
 
 This pipeline exists in the second layer of collectors, sent data by the load balancing layer, and is commonly deployed as a Kubernetes `StatefulSet` to ensure that each instance has a consistent identity. A realistic example pipeline could be made of up the following components:
 
