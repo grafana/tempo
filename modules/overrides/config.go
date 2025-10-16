@@ -268,7 +268,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
 
 	// Distributor LegacyOverrides
-	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default
+	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
 	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")

@@ -232,7 +232,6 @@ distributor:
         consumer_group_lag_metric_update_interval: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
-    retry_info_enabled: true
     max_attribute_bytes: 2048
 ingester_client:
     pool_config:
