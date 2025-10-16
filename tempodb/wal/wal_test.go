@@ -377,7 +377,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	// todo: once vParquet2 is removed this can be changed to equal the number of encodings
-	require.Len(t, blocks, len(encoding.AllEncodings()) - 1) // valid blocks created above
+	require.Len(t, blocks, len(encoding.AllEncodings())-1) // valid blocks created above
 
 	// empty file should have been removed
 	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
