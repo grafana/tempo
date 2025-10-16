@@ -58,6 +58,7 @@
 * [ENHANCEMENT] Improve exemplar selection in `quantile_over_time()`. [#5278](https://github.com/grafana/tempo/pull/5278) (@zalegrala)
 * [ENHANCEMENT] Measure bytes received before limits and publish it as `tempo_distributor_ingress_bytes_total`. [#5601](https://github.com/grafana/tempo/pull/5601) (@mapno)
 * [ENHANCEMENT] Add total size logging functionality to track trace [#5625](https://github.com/grafana/tempo/pull/5628)(@sienna011022)
+* [ENHANCEMENT] Enable histogram tuning in the user-configurable overrides API [#5721](https://github.com/grafana/tempo/pull/5721)(@zalegrala)
 * [BUGFIX] Fix Tempo configuration options that are always overrided with config overrides section. [#5202](https://github.com/grafana/tempo/pull/5202) (@KyriosGN0)
 * [BUGFIX] Correctly apply trace idle period in ingesters and add the concept of trace live period. [#5346](https://github.com/grafana/tempo/pull/5346/files) (@joe-elliott)
 * [BUGFIX] Fix invalid YAML output from `/status/runtime_config` endpoint by adding document separator. [#5371](https://github.com/grafana/tempo/pull/5371) (@iamrajiv)

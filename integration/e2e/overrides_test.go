@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/httpclient"
 )
@@ -143,7 +144,9 @@ func TestOverrides(t *testing.T) {
 			// Modify overrides - PATCH
 			patch := &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
+					GenerateNativeHistograms:       histogramModePtr(histograms.HistogramMethodNative),
+					NativeHistogramMaxBucketNumber: uint32Ptr(200),
+					DisableCollection:              boolPtr(true),
 					Processor: client.LimitsMetricsGeneratorProcessor{
 						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
 							EnableInstanceLabel: boolPtr(false),
@@ -165,6 +168,13 @@ func TestOverrides(t *testing.T) {
 			EnableInstanceLabel, EnableInstanceLabelIsSet = limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetEnableInstanceLabel()
 			assert.False(t, EnableInstanceLabel)
 			assert.True(t, EnableInstanceLabelIsSet)
+
+			generateNativeHistograms, ok := limits.GetMetricsGenerator().GetGenerateNativeHistograms()
+			assert.True(t, ok)
+			assert.Equal(t, histograms.HistogramMethodNative, generateNativeHistograms)
+			nativeHistogramMaxBucketNumber, ok := limits.GetMetricsGenerator().GetNativeHistogramMaxBucketNumber()
+			assert.True(t, ok)
+			assert.Equal(t, uint32(200), nativeHistogramMaxBucketNumber)
 
 			// Delete overrides
 			if !tc.skipVersioning && tc.name != "gcs" {
@@ -210,6 +220,14 @@ func printLimits(limits *client.Limits, version string) {
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func histogramModePtr(h histograms.HistogramMethod) *histograms.HistogramMethod {
+	return &h
+}
+
+func uint32Ptr(u uint32) *uint32 {
+	return &u
 }
 
 func keys(m map[string]struct{}) []string {

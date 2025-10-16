@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
@@ -419,7 +420,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorMaxActiveSeries:                                             1000,
 		MetricsGeneratorCollectionInterval:                                          10 * time.Second,
 		MetricsGeneratorDisableCollection:                                           false,
-		MetricsGeneratorGenerateNativeHistograms:                                    HistogramMethodNative,
+		MetricsGeneratorGenerateNativeHistograms:                                    histograms.HistogramMethodNative,
 		MetricsGeneratorTraceIDLabelName:                                            "trace_id",
 		MetricsGeneratorForwarderQueueSize:                                          100,
 		MetricsGeneratorForwarderWorkers:                                            5,
