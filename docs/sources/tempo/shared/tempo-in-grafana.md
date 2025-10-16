@@ -63,7 +63,7 @@ This approach values speed over predictability and is quite simple; enforcing th
 TraceQL follows the same behavior.
 
 By adding `most_recent=true` to your TraceQL queries, the search results become deterministic.
-For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#retrieving-most-recent-results-experimental)
+For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#retrieving-most-recent-results-experimental).
 
 #### Use trace search results as panels in dashboards
 
