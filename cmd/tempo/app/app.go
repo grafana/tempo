@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/frontend"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/livestore"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/common/version"
@@ -88,6 +89,9 @@ type App struct {
 	backendWorker        *backendworker.BackendWorker
 	liveStore            *livestore.LiveStore
 	signalsHandler       *signals.Handler
+
+	usageTrackerPartitionRing *ring.MultiPartitionInstanceRing
+	seriesLimiterFactory      registry.SeriesLimiterFactory
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware

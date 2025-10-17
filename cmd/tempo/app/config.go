@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/generator"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
+	"github.com/grafana/tempo/modules/generator/remoteserieslimiter"
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/livestore"
@@ -58,6 +59,7 @@ type Config struct {
 	Compactor             compactor.Config               `yaml:"compactor,omitempty"`
 	Ingester              ingester.Config                `yaml:"ingester,omitempty"`
 	Generator             generator.Config               `yaml:"metrics_generator,omitempty"`
+	RemoteSeriesLimiter   remoteserieslimiter.Config     `yaml:"remote_series_limiter,omitempty"`
 	Ingest                ingest.Config                  `yaml:"ingest,omitempty"`
 	BlockBuilder          blockbuilder.Config            `yaml:"block_builder,omitempty"`
 	StorageConfig         storage.Config                 `yaml:"storage,omitempty"`
@@ -156,6 +158,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.BackendScheduler.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-scheduler"), f)
 	c.BackendWorker.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-worker"), f)
 	c.LiveStore.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "live-store"), f)
+
+	c.RemoteSeriesLimiter.RegisterFlags(f)
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled

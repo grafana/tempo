@@ -20,6 +20,8 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/generator/remoteserieslimiter"
+	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/grafana/tempo/modules/livestore"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -74,6 +76,7 @@ const (
 	PartitionRing         string = "partition-ring"
 	GeneratorRingWatcher  string = "generator-ring-watcher"
 
+	GeneratorExternalLimiter  string = "generator-external-limiter"
 	UsageTrackerRing          string = "usage-tracker-ring"
 	UsageTrackerPartitionRing string = "usage-tracker-partition-ring"
 
@@ -199,6 +202,48 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 	return ring, nil
 }
 
+func (t *App) initGeneratorExternalLimiter() (services.Service, error) {
+	remoteLimiter := remoteserieslimiter.NewRemoteSeriesLimiter(&t.cfg.RemoteSeriesLimiter, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
+	t.seriesLimiterFactory = remoteLimiter.ForTenant
+	return nil, nil
+
+}
+
+func (t *App) initUsageTrackerRing() (services.Service, error) {
+	return t.initReadRing(t.cfg.RemoteSeriesLimiter.UsageTrackerRing.ToRingConfig(), usagetrackerclient.InstanceRingName, usagetrackerclient.InstanceRingKey)
+}
+
+func (t *App) initUsageTrackerPartitionRing() (services.Service, error) {
+	// choose the correct partition ring based on config
+	var (
+		heartbeatTimeout time.Duration
+		readRing         ring.InstanceRingReader
+		ringName         string
+		ringKey          string
+		kvConfig         kv.Config
+	)
+
+	// default to ingester but use live-store if configured
+	heartbeatTimeout = t.cfg.RemoteSeriesLimiter.UsageTrackerRing.HeartbeatTimeout
+	ringName = usagetrackerclient.PartitionRingName
+	ringKey = usagetrackerclient.PartitionRingKey
+	kvConfig = t.cfg.RemoteSeriesLimiter.UsageTrackerPartitionRing.KVStore
+	readRing = t.readRings[usagetrackerclient.InstanceRingName]
+
+	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating KV store for %s partitions ring watcher: %w", ringName, err)
+	}
+
+	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ringName, ringKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
+	t.usageTrackerPartitionRing = ring.NewMultiPartitionInstanceRing(t.partitionRingWatcher, readRing, heartbeatTimeout)
+
+	// Expose a web page to view the partitions ring state.
+	t.Server.HTTPRouter().Path("/usage-tracker-partition-ring").Methods("GET", "POST").Handler(ring.NewPartitionRingPageHandler(t.partitionRingWatcher, ring.NewPartitionRingEditor(ringKey, kvClient)))
+
+	return t.partitionRingWatcher, nil
+}
+
 func (t *App) initPartitionRing() (services.Service, error) {
 	if !t.cfg.Ingest.Enabled {
 		return nil, nil
@@ -219,13 +264,6 @@ func (t *App) initPartitionRing() (services.Service, error) {
 	ringName = ingester.PartitionRingName
 	ringKey = ingester.PartitionRingKey
 	kvConfig = t.cfg.Ingester.IngesterPartitionRing.KVStore
-	if t.cfg.PartitionRingLiveStore {
-		heartbeatTimeout = t.cfg.LiveStore.Ring.HeartbeatTimeout
-		readRing = t.readRings[ringLiveStore]
-		ringName = livestore.PartitionRingName
-		ringKey = livestore.PartitionRingKey
-		kvConfig = t.cfg.LiveStore.Ring.KVStore
-	}
 
 	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
 	if err != nil {
@@ -392,7 +430,7 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	t.cfg.Generator.DisableGRPC = true
 
 	var err error
-	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger, nil)
+	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger, t.seriesLimiterFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
 	}
@@ -842,6 +880,10 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
 
+	mm.RegisterModule(GeneratorExternalLimiter, t.initGeneratorExternalLimiter, modules.UserInvisibleModule)
+	mm.RegisterModule(UsageTrackerRing, t.initUsageTrackerRing, modules.UserInvisibleModule)
+	mm.RegisterModule(UsageTrackerPartitionRing, t.initUsageTrackerPartitionRing, modules.UserInvisibleModule)
+
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Distributor, t.initDistributor)
@@ -884,7 +926,8 @@ func (t *App) setupModuleManager() error {
 		Distributor:                   {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
 		Ingester:                      {Common, Store, MemberlistKV, PartitionRing},
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
-		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher, UsageTrackerRing, UsageTrackerPartitionRing},
+		GeneratorExternalLimiter:      {Common, UsageTrackerRing, UsageTrackerPartitionRing},
+		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher, GeneratorExternalLimiter},
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing, PartitionRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},

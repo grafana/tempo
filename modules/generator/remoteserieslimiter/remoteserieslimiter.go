@@ -2,9 +2,10 @@ package remoteserieslimiter
 
 import (
 	"context"
+	"flag"
+	"os"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
@@ -12,11 +13,15 @@ import (
 )
 
 type Config struct {
-	UsageTrackerClientCfg usagetrackerclient.Config `yaml:"usage_tracker_client"`
+	UsageTrackerRing          usagetrackerclient.InstanceRingConfig  `yaml:"usage_tracker_ring"`
+	UsageTrackerPartitionRing usagetrackerclient.PartitionRingConfig `yaml:"usage_tracker_partition_ring"`
+	UsageTrackerClientCfg     usagetrackerclient.Config              `yaml:"usage_tracker_client"`
 }
 
-type UsageTrackerClientConfig struct {
-	GRPCClientConfig grpcclient.Config `yaml:"grpc"`
+func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
+	cfg.UsageTrackerRing.RegisterFlags(f, log.NewLogfmtLogger(os.Stderr))
+	cfg.UsageTrackerPartitionRing.RegisterFlags(f)
+	cfg.UsageTrackerClientCfg.RegisterFlags(f)
 }
 
 type RemoteSeriesLimiter struct {
