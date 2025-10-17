@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/grafana/tempo/modules/generator/storage"
 	objStorage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -88,10 +89,11 @@ type Generator struct {
 	partitionMtx       sync.RWMutex
 	assignedPartitions []int32
 	limiterFactory     registry.SeriesLimiterFactory
+	usageTrackerClient *usagetrackerclient.UsageTrackerClient
 }
 
 // New makes a new Generator.
-func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, store objStorage.Store, logger log.Logger, limiterFactory registry.SeriesLimiterFactory) (*Generator, error) {
+func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, store objStorage.Store, logger log.Logger, limiterFactory registry.SeriesLimiterFactory, usageTrackerClient *usagetrackerclient.UsageTrackerClient) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, ErrUnconfigured
 	}
@@ -111,11 +113,12 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 
 		instances: map[string]*instance{},
 
-		store:          store,
-		partitionRing:  partitionRing,
-		reg:            reg,
-		logger:         logger,
-		limiterFactory: limiterFactory,
+		store:              store,
+		partitionRing:      partitionRing,
+		reg:                reg,
+		logger:             logger,
+		limiterFactory:     limiterFactory,
+		usageTrackerClient: usageTrackerClient,
 	}
 
 	if !cfg.DisableGRPC {
@@ -357,7 +360,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL, g.store, g.limiterFactory(id))
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL, g.store, g.limiterFactory(id), g.usageTrackerClient)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err

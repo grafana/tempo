@@ -21,7 +21,6 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/generator/remoteserieslimiter"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/grafana/tempo/modules/livestore"
 	jsoniter "github.com/json-iterator/go"
@@ -204,15 +203,15 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initGeneratorExternalLimiter() (services.Service, error) {
-	if !t.cfg.RemoteSeriesLimiter.Enabled {
-		t.seriesLimiterFactory = registry.NewLocalSeriesLimiterFactory(t.Overrides, util_log.Logger)
-		return nil, nil
-	}
+	t.seriesLimiterFactory = registry.NewLocalSeriesLimiterFactory(t.Overrides, util_log.Logger)
+	// if !t.cfg.RemoteSeriesLimiter.Enabled {
+	// 	t.seriesLimiterFactory = registry.NewLocalSeriesLimiterFactory(t.Overrides, util_log.Logger)
+	// 	return nil, nil
+	// }
 
-	remoteLimiter := remoteserieslimiter.NewRemoteSeriesLimiter(&t.cfg.RemoteSeriesLimiter, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
-	t.seriesLimiterFactory = remoteLimiter.ForTenant
+	// remoteLimiter := remoteserieslimiter.NewRemoteSeriesLimiter(&t.cfg.RemoteSeriesLimiter, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
+	// t.seriesLimiterFactory = remoteLimiter.ForTenant
 	return nil, nil
-
 }
 
 func (t *App) initUsageTrackerRing() (services.Service, error) {
@@ -403,7 +402,8 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
 
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger, t.seriesLimiterFactory)
+	client := usagetrackerclient.NewUsageTrackerClient("usage-tracker", t.cfg.RemoteSeriesLimiter.UsageTrackerClientCfg, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger, t.seriesLimiterFactory, client)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -443,8 +443,10 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	// queries, so we can skip setting up a gRPC server.
 	t.cfg.Generator.DisableGRPC = true
 
+	client := usagetrackerclient.NewUsageTrackerClient("usage-tracker", t.cfg.RemoteSeriesLimiter.UsageTrackerClientCfg, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
+
 	var err error
-	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger, t.seriesLimiterFactory)
+	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger, t.seriesLimiterFactory, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
 	}
