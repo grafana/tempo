@@ -22,7 +22,7 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
       - name: Get Github App secrets from vault
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@a37de51f3d713a30a9e4b21bcdfbd38170020593 #get-vault-secrets 1.3.0
+        uses: grafana/shared-workflows/actions/get-vault-secrets@c906affb19f070fde9dce56e0db8053c490946cc #get-vault-secrets 1.3.0
         with:
           export_env: false
           repo_secrets: |
