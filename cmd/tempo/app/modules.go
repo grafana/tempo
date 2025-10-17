@@ -74,6 +74,9 @@ const (
 	PartitionRing         string = "partition-ring"
 	GeneratorRingWatcher  string = "generator-ring-watcher"
 
+	UsageTrackerRing          string = "usage-tracker-ring"
+	UsageTrackerPartitionRing string = "usage-tracker-partition-ring"
+
 	// individual targets
 	Distributor                   string = "distributor"
 	Ingester                      string = "ingester"
@@ -348,7 +351,7 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
 
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger, nil)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -389,7 +392,7 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	t.cfg.Generator.DisableGRPC = true
 
 	var err error
-	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger)
+	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
 	}
@@ -859,18 +862,20 @@ func (t *App) setupModuleManager() error {
 	deps := map[string][]string{
 		// InternalServer: nil,
 		// CacheProvider:  nil,
-		Store:                 {CacheProvider},
-		Server:                {InternalServer},
-		Overrides:             {Server},
-		OverridesAPI:          {Server, Overrides},
-		MemberlistKV:          {Server},
-		UsageReport:           {MemberlistKV},
-		IngesterRing:          {Server, MemberlistKV},
-		SecondaryIngesterRing: {Server, MemberlistKV},
-		MetricsGeneratorRing:  {Server, MemberlistKV},
-		LiveStoreRing:         {Server, MemberlistKV},
-		PartitionRing:         {MemberlistKV, Server, IngesterRing, LiveStoreRing},
-		GeneratorRingWatcher:  {MemberlistKV},
+		Store:                     {CacheProvider},
+		Server:                    {InternalServer},
+		Overrides:                 {Server},
+		OverridesAPI:              {Server, Overrides},
+		MemberlistKV:              {Server},
+		UsageReport:               {MemberlistKV},
+		IngesterRing:              {Server, MemberlistKV},
+		SecondaryIngesterRing:     {Server, MemberlistKV},
+		MetricsGeneratorRing:      {Server, MemberlistKV},
+		LiveStoreRing:             {Server, MemberlistKV},
+		PartitionRing:             {MemberlistKV, Server, IngesterRing, LiveStoreRing},
+		GeneratorRingWatcher:      {MemberlistKV},
+		UsageTrackerRing:          {MemberlistKV},
+		UsageTrackerPartitionRing: {MemberlistKV},
 
 		Common: {UsageReport, Server, Overrides},
 
@@ -879,7 +884,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:                   {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
 		Ingester:                      {Common, Store, MemberlistKV, PartitionRing},
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
-		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
+		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher, UsageTrackerRing, UsageTrackerPartitionRing},
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing, PartitionRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},

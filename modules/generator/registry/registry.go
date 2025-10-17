@@ -12,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
@@ -69,9 +68,8 @@ type ManagedRegistry struct {
 	externalLabels map[string]string
 	metricLimiter  SeriesLimiter
 
-	metricsMtx   sync.RWMutex
-	metrics      map[string]metric
-	activeSeries atomic.Uint32
+	metricsMtx sync.RWMutex
+	metrics    map[string]metric
 
 	appendable storage.Appendable
 
@@ -106,7 +104,7 @@ var _ Registry = (*ManagedRegistry)(nil)
 
 // New creates a ManagedRegistry. This Registry will scrape itself, write samples into an appender
 // and remove stale series.
-func New(cfg *Config, overrides Overrides, tenant string, appendable storage.Appendable, logger log.Logger) *ManagedRegistry {
+func New(cfg *Config, overrides Overrides, tenant string, appendable storage.Appendable, logger log.Logger, limiter SeriesLimiter) *ManagedRegistry {
 	instanceCtx, cancel := context.WithCancel(context.Background())
 
 	externalLabels := make(map[string]string)
@@ -120,9 +118,8 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		externalLabels[cfg.InjectTenantIDAs] = tenant
 	}
 
-	var metricLimiter SeriesLimiter
-	if metricLimiter == nil {
-		metricLimiter = newLocalMetricLimiter(overrides, tempo_log.NewRateLimitedLogger(1, level.Warn(logger)))
+	if limiter == nil {
+		limiter = newSingleTenantSeriesLimiter(tenant, overrides, tempo_log.NewRateLimitedLogger(1, level.Warn(logger)))
 	}
 
 	r := &ManagedRegistry{
@@ -132,7 +129,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		overrides:      overrides,
 		tenant:         tenant,
 		externalLabels: externalLabels,
-		metricLimiter:  metricLimiter,
+		metricLimiter:  limiter,
 
 		metrics: map[string]metric{},
 
@@ -202,17 +199,17 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 }
 
 func (r *ManagedRegistry) onAddMetricSeries(hashes []uint64) bool {
-	if !r.metricLimiter.Allow(r.tenant, hashes) {
-		r.metricTotalSeriesLimited.Add(float64(len(hashes)))
-		return false
+	if r.metricLimiter.Allow(hashes) {
+		r.metricTotalSeriesAdded.Add(float64(len(hashes)))
+		return true
 	}
 
-	r.metricTotalSeriesAdded.Add(float64(len(hashes)))
-	return true
+	r.metricTotalSeriesLimited.Add(float64(len(hashes)))
+	return false
 }
 
 func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
-	r.metricLimiter.Remove(r.tenant, count)
+	r.metricLimiter.Remove(count)
 
 	r.metricTotalSeriesRemoved.Add(float64(count))
 }
@@ -229,7 +226,6 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 		activeSeries += m.countActiveSeries()
 	}
 
-	r.activeSeries.Store(uint32(activeSeries))
 	r.metricActiveSeries.Set(float64(activeSeries))
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
@@ -285,11 +281,13 @@ func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
 
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
+	activeSeries := 0
 	for _, m := range r.metrics {
 		m.removeStaleSeries(timeMs)
+		activeSeries += m.countActiveSeries()
 	}
 
-	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())
+	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", activeSeries)
 }
 
 func (r *ManagedRegistry) Close() {

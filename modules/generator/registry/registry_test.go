@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,7 @@ func TestManagedRegistry_concurrency(*testing.T) {
 	cfg := &Config{
 		StaleDuration: 1 * time.Millisecond,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", &noopAppender{}, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", &noopAppender{}, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	end := make(chan struct{})
@@ -61,7 +62,7 @@ func TestManagedRegistry_concurrency(*testing.T) {
 func TestManagedRegistry_counter(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
@@ -78,7 +79,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 func TestManagedRegistry_histogram(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	histogram := registry.NewHistogram("histogram", []float64{1.0, 2.0}, HistogramModeClassic)
@@ -105,7 +106,7 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	cfg := &Config{
 		StaleDuration: 75 * time.Millisecond,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	counter1 := registry.NewCounter("metric_1")
@@ -146,7 +147,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 			"__foo": "bar",
 		},
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
@@ -165,7 +166,7 @@ func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
 	cfg := &Config{
 		InjectTenantIDAs: "__tempo_tenant",
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
@@ -184,7 +185,8 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	overrides := &mockOverrides{
 		maxActiveSeries: 1,
 	}
-	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+	limiter := newSingleTenantSeriesLimiter("test", overrides, tempo_log.NewRateLimitedLogger(1, log.NewNopLogger()))
+	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger(), limiter)
 	defer registry.Close()
 
 	counter1 := registry.NewCounter("metric_1")
@@ -195,7 +197,7 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	counter1.Inc(newLabelValueCombo(nil, []string{"value-2"}), 1.0)
 	counter2.Inc(nil, 1.0)
 
-	assert.Equal(t, uint32(1), registry.activeSeries.Load())
+	assert.Equal(t, uint32(1), limiter.activeSeries.Load())
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
@@ -209,14 +211,15 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	overrides := &mockOverrides{
 		disableCollection: true,
 	}
-	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+	limiter := newSingleTenantSeriesLimiter("test", overrides, tempo_log.NewRateLimitedLogger(1, log.NewNopLogger()))
+	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger(), limiter)
 	defer registry.Close()
 
 	counter := registry.NewCounter("metric_1")
 	counter.Inc(nil, 1.0)
 
 	// active series are still tracked
-	assert.Equal(t, uint32(1), registry.activeSeries.Load())
+	assert.Equal(t, uint32(1), limiter.activeSeries.Load())
 	// but no samples are collected and sent out
 	registry.CollectMetrics(context.Background())
 	assert.Empty(t, appender.samples)
@@ -230,7 +233,7 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 		MaxLabelNameLength:  8,
 		MaxLabelValueLength: 5,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	counter := registry.NewCounter("counter")
@@ -256,7 +259,7 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 func TestValidLabelValueCombo(t *testing.T) {
 	appender := &capturingAppender{}
 
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	assert.Panics(t, func() {
@@ -291,7 +294,7 @@ func TestHistogramOverridesConfig(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			appender := &capturingAppender{}
 			overrides := &mockOverrides{}
-			registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+			registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger(), nil)
 			defer registry.Close()
 
 			tt := registry.NewHistogram("histogram", []float64{1.0, 2.0}, c.nativeHistogramMode)
@@ -396,7 +399,8 @@ func TestManagedRegistry_demandTracking(t *testing.T) {
 	cfg := &Config{
 		StaleDuration: 15 * time.Minute,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	limiter := newSingleTenantSeriesLimiter("test", &mockOverrides{}, tempo_log.NewRateLimitedLogger(1, log.NewNopLogger()))
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), limiter)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
@@ -411,7 +415,7 @@ func TestManagedRegistry_demandTracking(t *testing.T) {
 	registry.CollectMetrics(context.Background())
 
 	// Check that active series matches expected
-	activeSeries := registry.activeSeries.Load()
+	activeSeries := limiter.activeSeries.Load()
 	assert.Equal(t, uint32(100), activeSeries)
 
 	// Access the internal metrics to verify demand tracking
@@ -437,7 +441,8 @@ func TestManagedRegistry_demandExceedsMax(t *testing.T) {
 	overrides := &mockOverrides{
 		maxActiveSeries: 50,
 	}
-	registry := New(cfg, overrides, "test", appender, log.NewNopLogger())
+	limiter := newSingleTenantSeriesLimiter("test", overrides, tempo_log.NewRateLimitedLogger(1, log.NewNopLogger()))
+	registry := New(cfg, overrides, "test", appender, log.NewNopLogger(), limiter)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
@@ -458,7 +463,7 @@ func TestManagedRegistry_demandExceedsMax(t *testing.T) {
 	registry.CollectMetrics(context.Background())
 
 	// Active series should be capped at max
-	activeSeries := registry.activeSeries.Load()
+	activeSeries := limiter.activeSeries.Load()
 	assert.Equal(t, uint32(50), activeSeries)
 
 	// Demand tracking should show all attempted series (including rejected ones)
@@ -480,7 +485,7 @@ func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
 	cfg := &Config{
 		StaleDuration: 15 * time.Minute,
 	}
-	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), nil)
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")

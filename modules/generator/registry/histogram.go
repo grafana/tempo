@@ -121,7 +121,12 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 	}
 
 	// TODO: this should send all hashes including the le labels
-	if !h.onAddSerie([]uint64{hash}) {
+	// This is a fake hash :)
+	hashes := make([]uint64, h.activeSeriesPerHistogramSerie())
+	for i := range hashes {
+		hashes[i] = hash + uint64(i)
+	}
+	if !h.onAddSerie(hashes) {
 		return
 	}
 

@@ -15,6 +15,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
@@ -72,7 +73,8 @@ overrides:
 		netWorkInteraces[i] = iface.Name
 	}
 	generatorConfig.Ring.InstanceInterfaceNames = netWorkInteraces
-	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, newTestLogger(t))
+	logger := newTestLogger(t)
+	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, logger, registry.NewLocalSeriesLimiterFactory(o, logger))
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
 
@@ -174,7 +176,7 @@ func BenchmarkPushSpans(b *testing.B) {
 	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 
@@ -252,7 +254,7 @@ func BenchmarkCollect(b *testing.B) {
 	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 

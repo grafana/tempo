@@ -140,7 +140,12 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 	}
 
 	// TODO: this should send all hashes including the buckets?
-	if !h.onAddSerie([]uint64{hash}) {
+	// This is a fake hash :)
+	hashes := make([]uint64, h.activeSeriesPerHistogramSerie())
+	for i := range hashes {
+		hashes[i] = hash + uint64(i)
+	}
+	if !h.onAddSerie(hashes) {
 		return
 	}
 
