@@ -124,22 +124,22 @@ func scopeSpanHash(ss *ScopeSpans) uint64 {
 func resourceSpanHash(rs *ResourceSpans) uint64 {
 	hash := fnv1a.HashString64(rs.Resource.ServiceName)
 
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String01, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String02, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String03, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String04, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String05, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String06, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String07, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String08, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String09, hash)
-	hash = addHashStr(rs.Resource.DedicatedAttributes.String10, hash)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String01...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String02...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String03...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String04...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String05...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String06...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String07...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String08...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String09...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String10...)
 
-	hash = addHashInt(rs.Resource.DedicatedAttributes.Int01, hash)
-	hash = addHashInt(rs.Resource.DedicatedAttributes.Int02, hash)
-	hash = addHashInt(rs.Resource.DedicatedAttributes.Int03, hash)
-	hash = addHashInt(rs.Resource.DedicatedAttributes.Int04, hash)
-	hash = addHashInt(rs.Resource.DedicatedAttributes.Int05, hash)
+	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int01...)
+	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int02...)
+	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int03...)
+	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int04...)
+	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int05...)
 
 	// sort keys for consistency
 	slices.SortFunc(rs.Resource.Attrs, func(i, j Attribute) int {
@@ -173,23 +173,33 @@ func attributeHash(attr *Attribute, hash uint64) uint64 {
 	for _, v := range attr.ValueInt {
 		hash = fnv1a.AddUint64(hash, uint64(v))
 	}
-	hash = addHashStr(attr.ValueUnsupported, hash)
+	if attr.ValueUnsupported != nil {
+		hash = addHashStr(hash, *attr.ValueUnsupported)
+	} else {
+		hash = addHashNil(hash)
+	}
 
 	return hash
 }
 
-func addHashStr(s *string, hash uint64) uint64 {
-	if s == nil {
+func addHashStr(hash uint64, strs ...string) uint64 {
+	if len(strs) == 0 {
 		return addHashNil(hash)
 	}
-	return fnv1a.AddString64(hash, *s)
+	for _, s := range strs {
+		hash = fnv1a.AddString64(hash, s)
+	}
+	return hash
 }
 
-func addHashInt(i *int64, hash uint64) uint64 {
-	if i == nil {
+func addHashInt(hash uint64, ints ...int64) uint64 {
+	if len(ints) == 0 {
 		return addHashNil(hash)
 	}
-	return fnv1a.AddUint64(hash, uint64(*i))
+	for _, n := range ints {
+		hash = fnv1a.AddUint64(hash, uint64(n))
+	}
+	return hash
 }
 
 func addHashNil(hash uint64) uint64 {
