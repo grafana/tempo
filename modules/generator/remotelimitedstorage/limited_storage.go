@@ -2,6 +2,7 @@ package remotelimitedstorage
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
@@ -36,75 +37,147 @@ type limitedAppender struct {
 	appender     storage.Appender
 	usageTracker *usagetrackerclient.UsageTrackerClient
 	tenant       string
+
+	capturedAppends map[uint64][]capturedAppend
+}
+
+type appendType int
+
+const (
+	appendTypeSample appendType = iota
+	appendTypeCTZeroSample
+	appendTypeExemplar
+	appendTypeHistogram
+	appendTypeHistogramCTZeroSample
+	appendTypeMetadata
+)
+
+type capturedAppend struct {
+	ref  storage.SeriesRef
+	lbls labels.Labels
+	typ  appendType
+	t    int64
+	v    float64
+	ct   int64
+	h    *histogram.Histogram
+	fh   *histogram.FloatHistogram
+	e    exemplar.Exemplar
+	m    metadata.Metadata
 }
 
 // Append implements storage.Appender.
 func (l *limitedAppender) Append(ref storage.SeriesRef, lbls labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
-	if allow, err := l.allowSeries(lbls); err != nil {
-		return 0, err
-	} else if !allow {
-		return 0, nil
+	ca := capturedAppend{
+		ref:  ref,
+		lbls: lbls,
+		typ:  appendTypeSample,
+		t:    t,
+		v:    v,
 	}
-
-	return l.appender.Append(ref, lbls, t, v)
-}
-
-func (l *limitedAppender) allowSeries(lbls labels.Labels) (bool, error) {
 	hash := lbls.Hash()
-	ctx := user.InjectOrgID(context.Background(), l.tenant)
-	rejected, err := l.usageTracker.TrackSeries(ctx, l.tenant, []uint64{hash})
-	if err != nil {
-		return false, err
-	}
-	if len(rejected) > 0 {
-		// TODO: track metrics here. We can't return an error because the generator treats that as fatal.
-		return false, nil
-	}
-	return true, nil
+	l.capturedAppends[hash] = append(l.capturedAppends[hash], ca)
+	return ref, nil
 }
 
 // AppendCTZeroSample implements storage.Appender.
 func (l *limitedAppender) AppendCTZeroSample(ref storage.SeriesRef, lbls labels.Labels, t int64, ct int64) (storage.SeriesRef, error) {
-	if allow, err := l.allowSeries(lbls); err != nil {
-		return 0, err
-	} else if !allow {
-		return 0, nil
+	ca := capturedAppend{
+		ref:  ref,
+		lbls: lbls,
+		typ:  appendTypeCTZeroSample,
+		t:    t,
+		ct:   ct,
 	}
-	return l.appender.AppendCTZeroSample(ref, lbls, t, ct)
+	h := lbls.Hash()
+	l.capturedAppends[h] = append(l.capturedAppends[h], ca)
+	return ref, nil
 }
 
 // AppendExemplar implements storage.Appender.
 func (l *limitedAppender) AppendExemplar(ref storage.SeriesRef, lbls labels.Labels, e exemplar.Exemplar) (storage.SeriesRef, error) {
-	if allow, err := l.allowSeries(lbls); err != nil {
-		return 0, err
-	} else if !allow {
-		return 0, nil
+	ca := capturedAppend{
+		ref:  ref,
+		lbls: lbls,
+		typ:  appendTypeExemplar,
+		e:    e,
 	}
-	return l.appender.AppendExemplar(ref, lbls, e)
+	hash := lbls.Hash()
+	l.capturedAppends[hash] = append(l.capturedAppends[hash], ca)
+	return ref, nil
 }
 
 // AppendHistogram implements storage.Appender.
 func (l *limitedAppender) AppendHistogram(ref storage.SeriesRef, lbls labels.Labels, t int64, h *histogram.Histogram, fh *histogram.FloatHistogram) (storage.SeriesRef, error) {
-	if allow, err := l.allowSeries(lbls); err != nil {
-		return 0, err
-	} else if !allow {
-		return 0, nil
+	ca := capturedAppend{
+		ref:  ref,
+		lbls: lbls,
+		typ:  appendTypeHistogram,
+		t:    t,
+		h:    h,
+		fh:   fh,
 	}
-	return l.appender.AppendHistogram(ref, lbls, t, h, fh)
+	hash := lbls.Hash()
+	l.capturedAppends[hash] = append(l.capturedAppends[hash], ca)
+	return ref, nil
 }
 
 // AppendHistogramCTZeroSample implements storage.Appender.
 func (l *limitedAppender) AppendHistogramCTZeroSample(ref storage.SeriesRef, lbls labels.Labels, t int64, ct int64, h *histogram.Histogram, fh *histogram.FloatHistogram) (storage.SeriesRef, error) {
-	if allow, err := l.allowSeries(lbls); err != nil {
-		return 0, err
-	} else if !allow {
-		return 0, nil
+	ca := capturedAppend{
+		ref:  ref,
+		lbls: lbls,
+		typ:  appendTypeHistogramCTZeroSample,
+		t:    t,
+		ct:   ct,
+		h:    h,
+		fh:   fh,
 	}
-	return l.appender.AppendHistogramCTZeroSample(ref, lbls, t, ct, h, fh)
+	hash := lbls.Hash()
+	l.capturedAppends[hash] = append(l.capturedAppends[hash], ca)
+	return ref, nil
 }
 
 // Commit implements storage.Appender.
 func (l *limitedAppender) Commit() error {
+
+	hashes := make([]uint64, 0, len(l.capturedAppends))
+	for hash := range l.capturedAppends {
+		hashes = append(hashes, hash)
+	}
+	ctx := user.InjectOrgID(context.Background(), l.tenant)
+	rejected, err := l.usageTracker.TrackSeries(ctx, l.tenant, hashes)
+	if err != nil {
+		return err
+	}
+	if len(rejected) == 0 {
+		return l.appender.Commit()
+	}
+
+	for _, hash := range rejected {
+		delete(l.capturedAppends, hash)
+	}
+
+	for _, cas := range l.capturedAppends {
+		for _, ca := range cas {
+			switch ca.typ {
+			case appendTypeSample:
+				l.appender.Append(ca.ref, ca.lbls, ca.t, ca.v)
+			case appendTypeCTZeroSample:
+				l.appender.AppendCTZeroSample(ca.ref, ca.lbls, ca.t, ca.ct)
+			case appendTypeExemplar:
+				l.appender.AppendExemplar(ca.ref, ca.lbls, ca.e)
+			case appendTypeHistogram:
+				l.appender.AppendHistogram(ca.ref, ca.lbls, ca.t, ca.h, ca.fh)
+			case appendTypeHistogramCTZeroSample:
+				l.appender.AppendHistogramCTZeroSample(ca.ref, ca.lbls, ca.t, ca.ct, ca.h, ca.fh)
+			case appendTypeMetadata:
+				l.appender.UpdateMetadata(ca.ref, ca.lbls, ca.m)
+			default:
+				panic(fmt.Sprintf("unknown append type: %d", ca.typ))
+			}
+		}
+	}
+
 	return l.appender.Commit()
 }
 
@@ -120,7 +193,15 @@ func (l *limitedAppender) SetOptions(opts *storage.AppendOptions) {
 
 // UpdateMetadata implements storage.Appender.
 func (l *limitedAppender) UpdateMetadata(ref storage.SeriesRef, lbls labels.Labels, m metadata.Metadata) (storage.SeriesRef, error) {
-	return l.appender.UpdateMetadata(ref, lbls, m)
+	ca := capturedAppend{
+		ref:  ref,
+		lbls: lbls,
+		typ:  appendTypeMetadata,
+		m:    m,
+	}
+	hash := lbls.Hash()
+	l.capturedAppends[hash] = append(l.capturedAppends[hash], ca)
+	return ref, nil
 }
 
 var _ storage.Appender = (*limitedAppender)(nil)
