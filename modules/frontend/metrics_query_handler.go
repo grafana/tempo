@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
@@ -26,7 +27,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 	return func(req *tempopb.QueryInstantRequest, srv tempopb.StreamingQuerier_MetricsQueryInstantServer) error {
 		start := time.Now()
 		ctx := srv.Context()
-		tenant, err := extractValidOrgID(ctx)
+		tenant, err := util.ExtractValidOrgID(ctx)
 		if err != nil {
 			return err
 		}

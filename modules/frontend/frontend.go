@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -307,7 +308,7 @@ func (q *QueryFrontend) MetricsQueryInstant(req *tempopb.QueryInstantRequest, sr
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
 func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, err := extractValidOrgID(req.Context())
+		tenant, err := util.ExtractValidOrgID(req.Context())
 		if err != nil {
 			level.Error(logger).Log("msg", "metrics summary: failed to extract tenant id", "err", err)
 			return &http.Response{

@@ -58,7 +58,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	start := time.Now()
-	orgID, _ := extractValidOrgID(ctx)
+	orgID, _ := util.ExtractValidOrgID(ctx)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	// add orgid to existing spans

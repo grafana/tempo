@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
@@ -55,7 +56,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}, req, "") // dedicated cols are never passed from the caller
 
 		httpReq = httpReq.WithContext(ctx)
-		tenant, _ := extractValidOrgID(ctx)
+		tenant, _ := util.ExtractValidOrgID(ctx)
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse

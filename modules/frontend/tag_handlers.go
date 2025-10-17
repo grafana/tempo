@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"google.golang.org/grpc/codes"
 )
 
@@ -461,7 +462,7 @@ func buildTagsRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTa
 	}
 	httpReq = httpReq.WithContext(ctx)
 
-	tenant, err := extractValidOrgID(ctx)
+	tenant, err := util.ExtractValidOrgID(ctx)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "search tags: ", "err", err)
 		return nil, "", status.Error(codes.InvalidArgument, err.Error())
@@ -490,7 +491,7 @@ func buildTagValuesRequestAndExtractTenant(ctx context.Context, req *tempopb.Sea
 	// an *http.Request pipeline.
 	httpReq = mux.SetURLVars(httpReq, map[string]string{api.MuxVarTagName: req.TagName})
 
-	tenant, err := extractValidOrgID(ctx)
+	tenant, err := util.ExtractValidOrgID(ctx)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "search tag values: ", "err", err)
 		return nil, "", status.Error(codes.InvalidArgument, err.Error())
