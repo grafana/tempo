@@ -23,7 +23,7 @@ type gauge struct {
 	series       map[uint64]*gaugeSeries
 	seriesDemand *Cardinality
 
-	onAddSeries    func(count uint32) bool
+	onAddSeries    func(hashes []uint64) bool
 	onRemoveSeries func(count uint32)
 
 	externalLabels map[string]string
@@ -45,9 +45,9 @@ const (
 	set = "set"
 )
 
-func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *gauge {
+func newGauge(name string, onAddSeries func([]uint64) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *gauge {
 	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
+		onAddSeries = func([]uint64) bool {
 			return true
 		}
 	}
@@ -106,7 +106,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		return
 	}
 
-	if !g.onAddSeries(1) {
+	if !g.onAddSeries([]uint64{hash}) {
 		return
 	}
 

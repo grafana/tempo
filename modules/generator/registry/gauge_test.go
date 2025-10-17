@@ -13,7 +13,7 @@ import (
 
 func Test_gaugeInc(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
+	onAdd := func(hashes []uint64) bool {
 		seriesAdded++
 		return true
 	}
@@ -48,7 +48,7 @@ func Test_gaugeInc(t *testing.T) {
 
 func TestGaugeDifferentLabels(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
+	onAdd := func(hashes []uint64) bool {
 		seriesAdded++
 		return true
 	}
@@ -70,7 +70,7 @@ func TestGaugeDifferentLabels(t *testing.T) {
 
 func Test_gaugeSet(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
+	onAdd := func(hashes []uint64) bool {
 		seriesAdded++
 		return true
 	}
@@ -105,8 +105,8 @@ func Test_gaugeSet(t *testing.T) {
 
 func Test_gauge_cantAdd(t *testing.T) {
 	canAdd := false
-	onAdd := func(count uint32) bool {
-		assert.Equal(t, uint32(1), count)
+	onAdd := func(hashes []uint64) bool {
+		assert.Len(t, hashes, 1)
 		return canAdd
 	}
 
@@ -299,7 +299,7 @@ func Test_gauge_demandTracking(t *testing.T) {
 
 func Test_gauge_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	onAdd := func(_ uint32) bool {
+	onAdd := func(hashes []uint64) bool {
 		return !limitReached
 	}
 

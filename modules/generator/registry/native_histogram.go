@@ -31,7 +31,7 @@ type nativeHistogram struct {
 	series       map[uint64]*nativeHistogramSeries
 	seriesDemand *Cardinality
 
-	onAddSerie    func(count uint32) bool
+	onAddSerie    func(hashes []uint64) bool
 	onRemoveSerie func(count uint32)
 
 	buckets []float64
@@ -91,9 +91,9 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func([]uint64) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
 	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
+		onAddSeries = func([]uint64) bool {
 			return true
 		}
 	}
@@ -139,7 +139,8 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 		return
 	}
 
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+	// TODO: this should send all hashes including the buckets?
+	if !h.onAddSerie([]uint64{hash}) {
 		return
 	}
 

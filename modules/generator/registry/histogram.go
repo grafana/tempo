@@ -29,7 +29,7 @@ type histogram struct {
 	series       map[uint64]*histogramSeries
 	seriesDemand *Cardinality
 
-	onAddSerie    func(count uint32) bool
+	onAddSerie    func(hashes []uint64) bool
 	onRemoveSerie func(count uint32)
 
 	traceIDLabelName string
@@ -68,9 +68,9 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
+func newHistogram(name string, buckets []float64, onAddSeries func([]uint64) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
 	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
+		onAddSeries = func([]uint64) bool {
 			return true
 		}
 	}
@@ -120,7 +120,8 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 		return
 	}
 
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+	// TODO: this should send all hashes including the le labels
+	if !h.onAddSerie([]uint64{hash}) {
 		return
 	}
 

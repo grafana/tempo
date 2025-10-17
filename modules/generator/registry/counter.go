@@ -19,7 +19,7 @@ type counter struct {
 	series       map[uint64]*counterSeries
 	seriesDemand *Cardinality
 
-	onAddSeries    func(count uint32) bool
+	onAddSeries    func(hashes []uint64) bool
 	onRemoveSeries func(count uint32)
 
 	externalLabels map[string]string
@@ -49,9 +49,9 @@ func (co *counterSeries) registerSeenSeries() {
 	co.firstSeries.Store(false)
 }
 
-func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *counter {
+func newCounter(name string, onAddSeries func([]uint64) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *counter {
 	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
+		onAddSeries = func([]uint64) bool {
 			return true
 		}
 	}
@@ -94,7 +94,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		return
 	}
 
-	if !c.onAddSeries(1) {
+	if !c.onAddSeries([]uint64{hash}) {
 		return
 	}
 

@@ -67,6 +67,7 @@ type ManagedRegistry struct {
 	overrides      Overrides
 	tenant         string
 	externalLabels map[string]string
+	metricLimiter  SeriesLimiter
 
 	metricsMtx   sync.RWMutex
 	metrics      map[string]metric
@@ -119,6 +120,11 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		externalLabels[cfg.InjectTenantIDAs] = tenant
 	}
 
+	var metricLimiter SeriesLimiter
+	if metricLimiter == nil {
+		metricLimiter = newLocalMetricLimiter(overrides, tempo_log.NewRateLimitedLogger(1, level.Warn(logger)))
+	}
+
 	r := &ManagedRegistry{
 		onShutdown: cancel,
 
@@ -126,6 +132,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		overrides:      overrides,
 		tenant:         tenant,
 		externalLabels: externalLabels,
+		metricLimiter:  metricLimiter,
 
 		metrics: map[string]metric{},
 
@@ -194,22 +201,18 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metrics[m.name()] = m
 }
 
-func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
-	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
-	if maxActiveSeries != 0 && r.activeSeries.Load()+count > maxActiveSeries {
-		r.metricTotalSeriesLimited.Add(float64(count))
-		r.limitLogger.Log("msg", "reached max active series", "active_series", r.activeSeries.Load(), "max_active_series", maxActiveSeries)
+func (r *ManagedRegistry) onAddMetricSeries(hashes []uint64) bool {
+	if !r.metricLimiter.Allow(r.tenant, hashes) {
+		r.metricTotalSeriesLimited.Add(float64(len(hashes)))
 		return false
 	}
 
-	r.activeSeries.Add(count)
-
-	r.metricTotalSeriesAdded.Add(float64(count))
+	r.metricTotalSeriesAdded.Add(float64(len(hashes)))
 	return true
 }
 
 func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
-	r.activeSeries.Sub(count)
+	r.metricLimiter.Remove(r.tenant, count)
 
 	r.metricTotalSeriesRemoved.Add(float64(count))
 }

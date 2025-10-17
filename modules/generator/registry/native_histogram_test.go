@@ -18,8 +18,8 @@ var testTenant = "test-tenant"
 // Duplicate labels should not grow the series count.
 func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(count uint32) bool {
-		seriesAdded += int(count)
+	onAdd := func(hashes []uint64) bool {
+		seriesAdded += len(hashes)
 		return true
 	}
 
@@ -498,7 +498,7 @@ func Test_Histograms(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
-				onAdd := func(uint32) bool { return true }
+				onAdd := func(hashes []uint64) bool { return true }
 				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil, 15*time.Minute)
 				testHistogram(t, h, tc.collections)
 			})
@@ -507,7 +507,7 @@ func Test_Histograms(t *testing.T) {
 					t.SkipNow()
 				}
 
-				onAdd := func(uint32) bool { return true }
+				onAdd := func(hashes []uint64) bool { return true }
 				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 				testHistogram(t, h, tc.collections)
 			})
@@ -626,7 +626,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 			nativeHistogramMinResetDuration: time.Minute,
 		}
 
-		onAdd := func(uint32) bool { return true }
+		onAdd := func(hashes []uint64) bool { return true }
 		// Use HistogramModeNative to test native-only behavior
 		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
 
@@ -666,7 +666,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 	})
 
 	t.Run("native_only_histogram_exemplars", func(t *testing.T) {
-		onAdd := func(uint32) bool { return true }
+		onAdd := func(hashes []uint64) bool { return true }
 
 		overrides := &mockOverrides{
 			nativeHistogramBucketFactor:     1.5,
@@ -748,7 +748,7 @@ func Test_nativeHistogram_activeSeriesPerHistogramSerie(t *testing.T) {
 
 func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	onAdd := func(_ uint32) bool {
+	onAdd := func(_ []uint64) bool {
 		return !limitReached
 	}
 

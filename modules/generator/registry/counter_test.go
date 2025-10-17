@@ -13,7 +13,7 @@ import (
 
 func Test_counter(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
+	onAdd := func(_ []uint64) bool {
 		seriesAdded++
 		return true
 	}
@@ -54,7 +54,7 @@ func Test_counter(t *testing.T) {
 
 func TestCounterDifferentLabels(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
+	onAdd := func(_ []uint64) bool {
 		seriesAdded++
 		return true
 	}
@@ -79,8 +79,8 @@ func TestCounterDifferentLabels(t *testing.T) {
 
 func Test_counter_cantAdd(t *testing.T) {
 	canAdd := false
-	onAdd := func(count uint32) bool {
-		assert.Equal(t, uint32(1), count)
+	onAdd := func(hashes []uint64) bool {
+		assert.Len(t, hashes, 1)
 		return canAdd
 	}
 
@@ -304,7 +304,7 @@ func Test_counter_demandTracking(t *testing.T) {
 
 func Test_counter_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	onAdd := func(_ uint32) bool {
+	onAdd := func(_ []uint64) bool {
 		return !limitReached
 	}
 

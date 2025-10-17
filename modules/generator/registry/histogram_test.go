@@ -15,7 +15,7 @@ import (
 
 func Test_histogram(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
+	onAdd := func(_ []uint64) bool {
 		seriesAdded++
 		return true
 	}
@@ -152,8 +152,8 @@ func Test_histogram(t *testing.T) {
 
 func Test_histogram_cantAdd(t *testing.T) {
 	canAdd := false
-	onAdd := func(count uint32) bool {
-		assert.Equal(t, uint32(5), count)
+	onAdd := func(hashes []uint64) bool {
+		assert.Len(t, hashes, 5)
 		return canAdd
 	}
 
@@ -457,7 +457,7 @@ func Test_histogram_activeSeriesPerHistogramSerie(t *testing.T) {
 
 func Test_histogram_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	onAdd := func(_ uint32) bool {
+	onAdd := func(_ []uint64) bool {
 		return !limitReached
 	}
 
