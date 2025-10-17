@@ -932,8 +932,8 @@ func (t *App) setupModuleManager() error {
 		LiveStoreRing:             {Server, MemberlistKV},
 		PartitionRing:             {MemberlistKV, Server, IngesterRing, LiveStoreRing},
 		GeneratorRingWatcher:      {MemberlistKV},
-		UsageTrackerRing:          {MemberlistKV},
-		UsageTrackerPartitionRing: {MemberlistKV},
+		UsageTrackerRing:          {Server, MemberlistKV},
+		UsageTrackerPartitionRing: {Server, MemberlistKV},
 
 		Common: {UsageReport, Server, Overrides},
 
