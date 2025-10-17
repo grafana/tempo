@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/prometheus/client_golang/prometheus"
@@ -56,7 +57,8 @@ func (r *tenantSeriesLimiter) Allow(hashes []uint64) bool {
 	// and not allow series to be created. As of now, the only time this can
 	// happen is with histograms, and it's better to avoid partially limiting
 	// the histogram.
-	rejected, err := r.UsageTrackerClient.TrackSeries(context.Background(), r.tenant, hashes)
+	ctx := user.InjectOrgID(context.Background(), r.tenant)
+	rejected, err := r.UsageTrackerClient.TrackSeries(ctx, r.tenant, hashes)
 	if err != nil {
 		return false
 	}
