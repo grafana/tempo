@@ -37,8 +37,8 @@ For information on Parquet, refer to the [Apache Parquet backend](http://grafana
 
 To use TraceQL, you need to:
 
-* Understand the [structure of a trace](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/structure/) and spans to determine what information you want to query.
-* [Construct a query to locate the information](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/). Use the language reference to learn about the syntax and semantics of TraceQL.
+- Understand the [structure of a trace](/docs/tempo/<TEMPO_VERSION>/traceql/trace-structure/) and spans to determine what information you want to query.
+- [Construct a query to locate the information](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/). Use the language reference to learn about the syntax and semantics of TraceQL.
 
 ### Query using TraceQL
 
@@ -66,6 +66,7 @@ For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/<TEMPO
 ### TraceQL metrics
 
 <!-- Using a custom admonition because no feature flag is required. -->
+
 {{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
 
 TraceQL metrics are easy to get started with.

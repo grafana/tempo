@@ -1,10 +1,10 @@
 ---
-title: 'Automatic logging: Trace discovery through logs'
+title: "Automatic logging: Trace discovery through logs"
 description: Automatic logging provides an easy and fast way of getting trace discovery through logs.
 menuTitle: Automatic logging
 weight: 200
 aliases:
-- /docs/tempo/grafana-agent/automatic-logging
+  - /docs/tempo/grafana-agent/automatic-logging
 ---
 
 # Automatic logging: Trace discovery through logs
@@ -51,9 +51,8 @@ For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo
 
 To configure automatic logging, you need to select your preferred backend and the trace data to log.
 
-To see all the available configuration options, refer to the [configuration reference](https://grafana.com/docs/agent/<AGENT_VERSION>/static/configuration/traces-config//).
-
 This simple example logs trace roots to `stdout` and is a good way to get started using automatic logging:
+
 ```yaml
 traces:
   configs:
