@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/segmentio/fasthash/fnv1a"
@@ -207,7 +208,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 	r := pipelineRequest.HTTPRequest()
 	ctx := pipelineRequest.Context()
 
-	tenantID, err := extractValidOrgID(ctx)
+	tenantID, err := util.ExtractValidOrgID(ctx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}

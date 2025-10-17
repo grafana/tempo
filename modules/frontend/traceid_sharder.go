@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -70,7 +71,7 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 // buildShardedRequests returns a slice of requests sharded on the precalculated
 // block boundaries
 func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pipeline.Request, error) {
-	userID, err := extractValidOrgID(parent.Context())
+	userID, err := util.ExtractValidOrgID(parent.Context())
 	if err != nil {
 		return nil, err
 	}
