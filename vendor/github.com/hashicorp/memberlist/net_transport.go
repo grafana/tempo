@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package memberlist
 
 import (
@@ -10,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/armon/go-metrics"
+	"github.com/hashicorp/go-metrics/compat"
 	sockaddr "github.com/hashicorp/go-sockaddr"
 )
 
@@ -35,6 +38,10 @@ type NetTransportConfig struct {
 
 	// Logger is a logger for operator messages.
 	Logger *log.Logger
+
+	// MetricLabels is a map of optional labels to apply to all metrics
+	// emitted by this transport.
+	MetricLabels []metrics.Label
 }
 
 // NetTransport is a Transport implementation that uses connectionless UDP for
@@ -48,6 +55,8 @@ type NetTransport struct {
 	tcpListeners []*net.TCPListener
 	udpListeners []*net.UDPConn
 	shutdown     int32
+
+	metricLabels []metrics.Label
 }
 
 var _ NodeAwareTransport = (*NetTransport)(nil)
@@ -64,10 +73,11 @@ func NewNetTransport(config *NetTransportConfig) (*NetTransport, error) {
 	// Build out the new transport.
 	var ok bool
 	t := NetTransport{
-		config:   config,
-		packetCh: make(chan *Packet),
-		streamCh: make(chan net.Conn),
-		logger:   config.Logger,
+		config:       config,
+		packetCh:     make(chan *Packet),
+		streamCh:     make(chan net.Conn),
+		logger:       config.Logger,
+		metricLabels: config.MetricLabels,
 	}
 
 	// Clean up listeners if there's an error.
@@ -341,7 +351,7 @@ func (t *NetTransport) udpListen(udpLn *net.UDPConn) {
 		}
 
 		// Ingest the packet.
-		metrics.IncrCounter([]string{"memberlist", "udp", "received"}, float32(n))
+		metrics.IncrCounterWithLabels([]string{"memberlist", "udp", "received"}, float32(n), t.metricLabels)
 		t.packetCh <- &Packet{
 			Buf:       buf[:n],
 			From:      addr,

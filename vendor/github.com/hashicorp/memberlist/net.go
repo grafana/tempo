@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package memberlist
 
 import (
@@ -12,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	metrics "github.com/armon/go-metrics"
-	"github.com/hashicorp/go-msgpack/codec"
+	"github.com/hashicorp/go-metrics/compat"
+	"github.com/hashicorp/go-msgpack/v2/codec"
 )
 
 // This is the minimum and maximum protocol version that we can
@@ -234,7 +237,7 @@ func (m *Memberlist) handleConn(conn net.Conn) {
 	defer conn.Close()
 	m.logger.Printf("[DEBUG] memberlist: Stream connection %s", LogConn(conn))
 
-	metrics.IncrCounter([]string{"memberlist", "tcp", "accept"}, 1)
+	metrics.IncrCounterWithLabels([]string{"memberlist", "tcp", "accept"}, 1, m.metricLabels)
 
 	conn.SetDeadline(time.Now().Add(m.config.TCPTimeout))
 
@@ -264,7 +267,7 @@ func (m *Memberlist) handleConn(conn net.Conn) {
 			m.logger.Printf("[ERR] memberlist: failed to receive: %s %s", err, LogConn(conn))
 
 			resp := errResp{err.Error()}
-			out, err := encode(errMsg, &resp)
+			out, err := encode(errMsg, &resp, m.config.MsgpackUseNewTimeFormat)
 			if err != nil {
 				m.logger.Printf("[ERR] memberlist: Failed to encode error response: %s", err)
 				return
@@ -323,7 +326,7 @@ func (m *Memberlist) handleConn(conn net.Conn) {
 		}
 
 		ack := ackResp{p.SeqNo, nil}
-		out, err := encode(ackRespMsg, &ack)
+		out, err := encode(ackRespMsg, &ack, m.config.MsgpackUseNewTimeFormat)
 		if err != nil {
 			m.logger.Printf("[ERR] memberlist: Failed to encode ack: %s", err)
 			return
@@ -762,7 +765,7 @@ func (m *Memberlist) handleCompressed(buf []byte, from net.Addr, timestamp time.
 
 // encodeAndSendMsg is used to combine the encoding and sending steps
 func (m *Memberlist) encodeAndSendMsg(a Address, msgType messageType, msg interface{}) error {
-	out, err := encode(msgType, msg)
+	out, err := encode(msgType, msg, m.config.MsgpackUseNewTimeFormat)
 	if err != nil {
 		return err
 	}
@@ -814,7 +817,7 @@ func (m *Memberlist) rawSendMsgPacket(a Address, node *Node, msg []byte) error {
 
 	// Check if we have compression enabled
 	if m.config.EnableCompression {
-		buf, err := compressPayload(msg)
+		buf, err := compressPayload(msg, m.config.MsgpackUseNewTimeFormat)
 		if err != nil {
 			m.logger.Printf("[WARN] memberlist: Failed to compress payload: %v", err)
 		} else {
@@ -867,7 +870,7 @@ func (m *Memberlist) rawSendMsgPacket(a Address, node *Node, msg []byte) error {
 		msg = buf.Bytes()
 	}
 
-	metrics.IncrCounter([]string{"memberlist", "udp", "sent"}, float32(len(msg)))
+	metrics.IncrCounterWithLabels([]string{"memberlist", "udp", "sent"}, float32(len(msg)), m.metricLabels)
 	_, err := m.transport.WriteToAddress(msg, a)
 	return err
 }
@@ -877,7 +880,7 @@ func (m *Memberlist) rawSendMsgPacket(a Address, node *Node, msg []byte) error {
 func (m *Memberlist) rawSendMsgStream(conn net.Conn, sendBuf []byte, streamLabel string) error {
 	// Check if compression is enabled
 	if m.config.EnableCompression {
-		compBuf, err := compressPayload(sendBuf)
+		compBuf, err := compressPayload(sendBuf, m.config.MsgpackUseNewTimeFormat)
 		if err != nil {
 			m.logger.Printf("[ERROR] memberlist: Failed to compress payload: %v", err)
 		} else {
@@ -896,7 +899,7 @@ func (m *Memberlist) rawSendMsgStream(conn net.Conn, sendBuf []byte, streamLabel
 	}
 
 	// Write out the entire send buffer
-	metrics.IncrCounter([]string{"memberlist", "tcp", "sent"}, float32(len(sendBuf)))
+	metrics.IncrCounterWithLabels([]string{"memberlist", "tcp", "sent"}, float32(len(sendBuf)), m.metricLabels)
 
 	if n, err := conn.Write(sendBuf); err != nil {
 		return err
@@ -925,7 +928,11 @@ func (m *Memberlist) sendUserMsg(a Address, sendBuf []byte) error {
 	}
 
 	header := userMsgHeader{UserMsgLen: len(sendBuf)}
-	hd := codec.MsgpackHandle{}
+	hd := codec.MsgpackHandle{
+		BasicHandle: codec.BasicHandle{
+			TimeNotBuiltin: !m.config.MsgpackUseNewTimeFormat,
+		},
+	}
 	enc := codec.NewEncoder(bufConn, &hd)
 	if err := enc.Encode(&header); err != nil {
 		return err
@@ -951,7 +958,7 @@ func (m *Memberlist) sendAndReceiveState(a Address, join bool) ([]pushNodeState,
 	}
 	defer conn.Close()
 	m.logger.Printf("[DEBUG] memberlist: Initiating push/pull sync with: %s %s", a.Name, conn.RemoteAddr())
-	metrics.IncrCounter([]string{"memberlist", "tcp", "connect"}, 1)
+	metrics.IncrCounterWithLabels([]string{"memberlist", "tcp", "connect"}, 1, m.metricLabels)
 
 	// Send our state
 	if err := m.sendLocalState(conn, join, m.config.Label); err != nil {
@@ -1005,6 +1012,22 @@ func (m *Memberlist) sendLocalState(conn net.Conn, join bool, streamLabel string
 	}
 	m.nodeLock.RUnlock()
 
+	nodeStateCounts := make(map[string]int)
+	nodeStateCounts[StateAlive.metricsString()] = 0
+	nodeStateCounts[StateLeft.metricsString()] = 0
+	nodeStateCounts[StateDead.metricsString()] = 0
+	nodeStateCounts[StateSuspect.metricsString()] = 0
+
+	for _, n := range localNodes {
+		nodeStateCounts[n.State.metricsString()]++
+	}
+
+	for nodeState, cnt := range nodeStateCounts {
+		metrics.SetGaugeWithLabels([]string{"memberlist", "node", "instances"},
+			float32(cnt),
+			append(m.metricLabels, metrics.Label{Name: "node_state", Value: nodeState}))
+	}
+
 	// Get the delegate state
 	var userData []byte
 	if m.config.Delegate != nil {
@@ -1039,6 +1062,9 @@ func (m *Memberlist) sendLocalState(conn net.Conn, join bool, streamLabel string
 			return err
 		}
 	}
+
+	moreBytes := binary.BigEndian.Uint32(bufConn.Bytes()[1:5])
+	metrics.SetGaugeWithLabels([]string{"memberlist", "size", "local"}, float32(moreBytes), m.metricLabels)
 
 	// Get the send buffer
 	return m.rawSendMsgStream(conn, bufConn.Bytes(), streamLabel)
@@ -1086,6 +1112,8 @@ func (m *Memberlist) decryptRemoteState(bufConn io.Reader, streamLabel string) (
 	// Ensure we aren't asked to download too much. This is to guard against
 	// an attack vector where a huge amount of state is sent
 	moreBytes := binary.BigEndian.Uint32(cipherText.Bytes()[1:5])
+	metrics.AddSampleWithLabels([]string{"memberlist", "size", "remote"}, float32(moreBytes), m.metricLabels)
+
 	if moreBytes > maxPushStateBytes {
 		return nil, fmt.Errorf("Remote node state is larger than limit (%d)", moreBytes)
 
@@ -1314,7 +1342,7 @@ func (m *Memberlist) sendPingAndWaitForAck(a Address, ping ping, deadline time.T
 	defer conn.Close()
 	conn.SetDeadline(deadline)
 
-	out, err := encode(pingMsg, &ping)
+	out, err := encode(pingMsg, &ping, m.config.MsgpackUseNewTimeFormat)
 	if err != nil {
 		return false, err
 	}
