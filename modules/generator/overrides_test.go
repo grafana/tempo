@@ -3,7 +3,7 @@ package generator
 import (
 	"time"
 
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -38,7 +38,7 @@ type mockOverrides struct {
 	maxLocalTraces                                     int
 	maxBytesPerTrace                                   int
 	unsafeQueryHints                                   bool
-	nativeHistograms                                   overrides.HistogramMethod
+	nativeHistograms                                   histograms.HistogramMethod
 	hostInfoHostIdentifiers                            []string
 	hostInfoMetricName                                 string
 }
@@ -65,7 +65,7 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return false
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) overrides.HistogramMethod {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) histograms.HistogramMethod {
 	return m.nativeHistograms
 }
 

@@ -4,7 +4,7 @@ This document should help with remediation of operational issues in Tempo.
 
 ### Trace Lookup Failures
 
-If trace lookups are fail with the error: `error querying store in Querier.FindTraceByID: queue doesn't have room for <xyz> jobs`, this 
+If trace lookups are fail with the error: `error querying store in Querier.FindTraceByID: queue doesn't have room for <xyz> jobs`, this
 means that the number of blocks has exceeded the queriers' ability to check them all.  This can be caused by an increase in
 the number of blocks, or if the number of queriers was reduced.
 
@@ -50,6 +50,13 @@ This can happen when we have unhealthy ingesters sticking around in the ring.
 If this occurs, access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/ingester/ring`.
 Use the "Forget" button to forget and remove any unhealthy ingesters from the ring.
 
+## TempoLiveStoreUnhealthy
+
+This can happen when we have unhealthy livestore sticking around in the ring.
+
+If this occurs, access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/live-store/ring`.
+Use the "Forget" button to forget and remove any unhealthy livestore from the ring.
+
 ## TempoMetricsGeneratorUnhealthy
 
 This can happen when we have unhealthy metrics-generators sticking around in the ring.
@@ -94,7 +101,7 @@ How to **investigate**:
 - Check the logs for errors
 
 If a single block can not be flushed, this block might be corrupted. A corrupted or bad block might be missing some files or a file
-might be empty, compare this block with other blocks in the WAL to verify.  
+might be empty, compare this block with other blocks in the WAL to verify.
 After inspecting the block, consider moving this file out of the WAL or outright deleting it. Restart the ingester to stop the retry
 attempts. Removing blocks from a single ingester will not cause data loss if replication is used and the other ingesters are flushing
 their blocks successfully. By default, the WAL is at `/var/tempo/wal/blocks`.
@@ -113,14 +120,14 @@ We have only seen polling failures occur due to intermittent backend issues.
 
 See [Polling Issues](#polling-issues) below for general information.
 
-If the following is being logged then things are stable (due to polling fallback) and we just need to review the logs to determine why 
+If the following is being logged then things are stable (due to polling fallback) and we just need to review the logs to determine why
 there is an issue with the index and correct.
 ```
 failed to pull bucket index for tenant. falling back to polling
 ```
 
 If the following (or other errors) are being logged repeatedly then the tenant index is not being updated and more direct action is necessary.
-If the core issue can not be resolved delete any tenant index that is not being updated. This will force the components to fallback to 
+If the core issue can not be resolved delete any tenant index that is not being updated. This will force the components to fallback to
 bucket scanning for the offending tenants.
 ```
 failed to write tenant index
@@ -153,15 +160,15 @@ with `tempodb_blocklist_tenant_index_builder` for the offending tenant set to 1 
 tenant and should be checked first. If no compactors are creating tenant indexes refer to [TempoNoTenantIndexBuilders](#temponotenantindexbuilders)
 above.
 
-Additionally the metric `tempodb_blocklist_tenant_index_age_seconds` can be grouped by the `tenant` label. If only one (or few) 
+Additionally the metric `tempodb_blocklist_tenant_index_age_seconds` can be grouped by the `tenant` label. If only one (or few)
 indexes are lagging these can be deleted to force components to manually rescan just the offending tenants.
 
 ### Polling Issues
 
-In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed. 
+In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed.
 
 Failure to poll just means that the component is not aware of the current state of the backend but will continue working
-otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale. 
+otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale.
 Compactors will attempt to compact blocks that don't exist.
 
 If persistent backend issues are preventing any fixes to polling then reads will start to fail, but writes will remain fine.
@@ -169,7 +176,7 @@ Alert your users accordingly!
 
 Note that tenant indexes are built independently and an issue may only be impacting one or very few tenants. `tempodb_blocklist_tenant_index_builder`,
 `tempodb_blocklist_tenant_index_age_seconds` and `tempodb_blocklist_tenant_index_errors_total` are all per-tenant metrics. If
-you can isolate the impacted tenants, attempt to take targeted action instead of making sweeping changes. Your easiest lever 
+you can isolate the impacted tenants, attempt to take targeted action instead of making sweeping changes. Your easiest lever
 to pull is to simply delete stale tenant indexes as all components will fallback to bucket listing. The tenant index is located at:
 
 ```
@@ -226,7 +233,7 @@ This alert fires when an ingester has encountered an error while replaying a blo
 
 How to fix:
 
-Check the ingester logs for errors to identify the culprit ingester, tenant, and block ID. 
+Check the ingester logs for errors to identify the culprit ingester, tenant, and block ID.
 
 If an ingester is restarted unexpectedly while writing a block to disk, the files might be corrupted.
 The error "Unexpected error reloading meta for local block. Ignoring and continuing." indicates there was an error parsing the
@@ -316,4 +323,3 @@ Look at the logs for scheduler and worker and fix the issues.
 ## TempoVultureHighErrorRate
 
 This alert fires when Tempo vulture detects a high error rate (above the configured threshold) while validating write or read paths. It indicates there are problems with trace processing or storage.
-

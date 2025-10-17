@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util"
@@ -422,7 +423,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorDisableCollection(userID
 	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
 }
 
-func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) HistogramMethod {
+func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod {
 	return o.getOverridesForUser(userID).MetricsGenerator.GenerateNativeHistograms
 }
 

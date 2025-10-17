@@ -102,6 +102,10 @@ func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 		}
 		// ensure stability of the cluster seed
 		stableSeed := ensureStableKey(ctx, kvClient, rep.logger)
+		if stableSeed == nil {
+			return nil
+		}
+
 		seed = *stableSeed
 		// Fetch the remote cluster seed.
 		remoteSeed, err := rep.fetchSeed(ctx,
@@ -136,7 +140,12 @@ func ensureStableKey(ctx context.Context, kvClient kv.Client, logger log.Logger)
 		stableCount int
 	)
 	for {
-		time.Sleep(stabilityCheckInterval)
+		select {
+		case <-time.After(stabilityCheckInterval):
+		case <-ctx.Done():
+			return nil
+		}
+
 		value, err := kvClient.Get(ctx, seedKey)
 		if err != nil {
 			level.Debug(logger).Log("msg", "failed to get cluster seed key for stability check", "err", err)

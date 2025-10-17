@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -83,6 +84,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.Forwarders(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessors(tenant1))
 	assert.Equal(t, false, mgr.MetricsGeneratorDisableCollection(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorGenerateNativeHistograms(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorMaxActiveSeries(tenant1))
 	assert.Equal(t, 0*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
@@ -103,9 +106,11 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
-			Processors:         map[string]struct{}{"service-graphs": {}},
-			DisableCollection:  boolPtr(true),
-			CollectionInterval: &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
+			Processors:                     map[string]struct{}{"service-graphs": {}},
+			DisableCollection:              boolPtr(true),
+			CollectionInterval:             &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
+			GenerateNativeHistograms:       (*histograms.HistogramMethod)(strPtr("native")),
+			NativeHistogramMaxBucketNumber: func(u uint32) *uint32 { return &u }(101),
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
@@ -151,6 +156,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
 	assert.Equal(t, map[string]struct{}{"service-graphs": {}}, mgr.MetricsGeneratorProcessors(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorDisableCollection(tenant1))
+	assert.Equal(t, histograms.HistogramMethodNative, mgr.MetricsGeneratorGenerateNativeHistograms(tenant1))
+	assert.Equal(t, uint32(101), mgr.MetricsGeneratorNativeHistogramMaxBucketNumber(tenant1))
 	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Equal(t, 60*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
@@ -545,4 +552,8 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 	}
 
 	return pto
+}
+
+func strPtr(s string) *string {
+	return &s
 }

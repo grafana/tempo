@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/common/config"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 
@@ -51,14 +52,6 @@ const (
 	MetricCompactionWindow                = "compaction_window"
 	MetricMetricsGeneratorMaxActiveSeries = "metrics_generator_max_active_series"
 	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
-)
-
-type HistogramMethod string
-
-const (
-	HistogramMethodClassic HistogramMethod = "classic"
-	HistogramMethodNative  HistogramMethod = "native"
-	HistogramMethodBoth    HistogramMethod = "both"
 )
 
 var metricLimitsDesc = prometheus.NewDesc(
@@ -144,13 +137,13 @@ func (h *RemoteWriteHeaders) toStringStringMap() map[string]string {
 }
 
 type MetricsGeneratorOverrides struct {
-	RingSize                 int                 `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
-	Processors               listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
-	MaxActiveSeries          uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
-	CollectionInterval       time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
-	DisableCollection        bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	GenerateNativeHistograms HistogramMethod     `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
-	TraceIDLabelName         string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
+	RingSize                 int                        `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
+	Processors               listtomap.ListToMap        `yaml:"processors,omitempty" json:"processors,omitempty"`
+	MaxActiveSeries          uint32                     `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
+	CollectionInterval       time.Duration              `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	DisableCollection        bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	TraceIDLabelName         string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
@@ -271,7 +264,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet
 func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Generator
-	c.Defaults.MetricsGenerator.GenerateNativeHistograms = HistogramMethodClassic
+	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
 
 	// Distributor LegacyOverrides
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
@@ -316,8 +309,8 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
 }
 
-func HasNativeHistograms(s HistogramMethod) bool {
-	return s == HistogramMethodNative || s == HistogramMethodBoth
+func HasNativeHistograms(s histograms.HistogramMethod) bool {
+	return s == histograms.HistogramMethodNative || s == histograms.HistogramMethodBoth
 }
 
 type Uint32Value uint32
