@@ -719,6 +719,8 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.RemoteSeriesLimiter.UsageTrackerPartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.RemoteSeriesLimiter.UsageTrackerRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
