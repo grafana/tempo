@@ -27,9 +27,10 @@ func NewLimitedStorage(storage storage.Appendable, usageTracker *usagetrackercli
 
 func (l *LimitedStorage) Appender(ctx context.Context) storage.Appender {
 	return &limitedAppender{
-		appender:     l.storage.Appender(ctx),
-		usageTracker: l.usageTracker,
-		tenant:       l.tenant,
+		appender:        l.storage.Appender(ctx),
+		usageTracker:    l.usageTracker,
+		tenant:          l.tenant,
+		capturedAppends: make(map[uint64][]capturedAppend),
 	}
 }
 
@@ -140,6 +141,12 @@ func (l *limitedAppender) AppendHistogramCTZeroSample(ref storage.SeriesRef, lbl
 // Commit implements storage.Appender.
 func (l *limitedAppender) Commit() error {
 
+	numCaptured := 0
+	numHashes := len(l.capturedAppends)
+	for _, cas := range l.capturedAppends {
+		numCaptured += len(cas)
+	}
+
 	hashes := make([]uint64, 0, len(l.capturedAppends))
 	for hash := range l.capturedAppends {
 		hashes = append(hashes, hash)
@@ -150,12 +157,15 @@ func (l *limitedAppender) Commit() error {
 		return err
 	}
 	if len(rejected) == 0 {
+		fmt.Printf("no rejected series, committing. %d captured, %d hashes\n", numCaptured, numHashes)
 		return l.appender.Commit()
 	}
 
 	for _, hash := range rejected {
 		delete(l.capturedAppends, hash)
 	}
+
+	fmt.Printf("rejected series: %d, committing. %d captured, %d hashes, %d remaining\n", len(rejected), numCaptured, numHashes, len(l.capturedAppends))
 
 	for _, cas := range l.capturedAppends {
 		for _, ca := range cas {
