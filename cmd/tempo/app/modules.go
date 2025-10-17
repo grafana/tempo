@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/grafana/tempo/modules/livestore"
@@ -204,6 +205,7 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 
 func (t *App) initGeneratorExternalLimiter() (services.Service, error) {
 	if !t.cfg.RemoteSeriesLimiter.Enabled {
+		t.seriesLimiterFactory = registry.NewLocalSeriesLimiterFactory(t.Overrides, util_log.Logger)
 		return nil, nil
 	}
 
