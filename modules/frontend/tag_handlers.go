@@ -16,7 +16,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/gorilla/mux"
-	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
@@ -462,7 +461,7 @@ func buildTagsRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTa
 	}
 	httpReq = httpReq.WithContext(ctx)
 
-	tenant, err := tenant.TenantID(ctx)
+	tenant, err := extractValidOrgID(ctx)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "search tags: ", "err", err)
 		return nil, "", status.Error(codes.InvalidArgument, err.Error())
@@ -491,7 +490,7 @@ func buildTagValuesRequestAndExtractTenant(ctx context.Context, req *tempopb.Sea
 	// an *http.Request pipeline.
 	httpReq = mux.SetURLVars(httpReq, map[string]string{api.MuxVarTagName: req.TagName})
 
-	tenant, err := tenant.TenantID(ctx)
+	tenant, err := extractValidOrgID(ctx)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "search tag values: ", "err", err)
 		return nil, "", status.Error(codes.InvalidArgument, err.Error())

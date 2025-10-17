@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
-	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 
@@ -56,7 +55,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}, req, "") // dedicated cols are never passed from the caller
 
 		httpReq = httpReq.WithContext(ctx)
-		tenant, _ := tenant.TenantID(ctx)
+		tenant, _ := extractValidOrgID(ctx)
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse

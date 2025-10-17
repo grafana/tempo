@@ -11,7 +11,6 @@ import (
 	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grafana/dskit/tenant"
 	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -87,7 +86,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, ch, nil, s.next), nil
 	}
 
-	tenantID, err := tenant.TenantID(ctx)
+	tenantID, err := extractValidOrgID(ctx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}

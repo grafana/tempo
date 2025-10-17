@@ -18,7 +18,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/grafana/dskit/tenant"
 
 	"github.com/grafana/tempo/pkg/util/tracing"
 )
@@ -59,7 +58,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	start := time.Now()
-	orgID, _ := tenant.TenantID(ctx)
+	orgID, _ := extractValidOrgID(ctx)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	// add orgid to existing spans

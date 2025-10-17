@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
@@ -208,7 +207,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 	r := pipelineRequest.HTTPRequest()
 	ctx := pipelineRequest.Context()
 
-	tenantID, err := tenant.TenantID(ctx)
+	tenantID, err := extractValidOrgID(ctx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
