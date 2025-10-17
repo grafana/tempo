@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -8,13 +9,17 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/tenant"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+func extractValidOrgID(ctx context.Context) (string, error) {
+	return util.ExtractValidOrgID(ctx)
+}
+
 // extractTenant extracts tenant ID from request context and returns HTTP error response if extraction fails
 func extractTenant(req *http.Request, logger log.Logger) (string, *http.Response) {
-	tenant, err := tenant.TenantID(req.Context())
+	tenant, err := extractValidOrgID(req.Context())
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to extract tenant id", "err", err)
 		return "", &http.Response{
