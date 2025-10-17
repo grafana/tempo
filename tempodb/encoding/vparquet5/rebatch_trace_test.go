@@ -13,20 +13,16 @@ func TestRebatchTrace(t *testing.T) {
 		// setup distinct resources
 		r1 = Resource{
 			ServiceName: "service1",
-			Cluster:     ptr("cluster1"),
 		}
 		r2 = Resource{
 			ServiceName: "service1",
-			Cluster:     ptr("cluster1"),
 			Attrs:       []Attribute{{Key: "res.attr.1", Value: []string{"res.val.1"}}},
 		}
 		r3 = Resource{
-			ServiceName: "service1",
-			Cluster:     ptr("cluster2"),
+			ServiceName: "service2",
 		}
 		r4 = Resource{
 			ServiceName:         "service1",
-			Cluster:             ptr("cluster1"),
 			DedicatedAttributes: DedicatedAttributes{String01: ptr("string01")},
 		}
 		// setup distinct instrumentation scopes

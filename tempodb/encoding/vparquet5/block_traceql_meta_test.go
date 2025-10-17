@@ -897,7 +897,6 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					sortSpanAttrs(sp.(*span))
 				}
 			}
-
 			require.Equal(t, tc.expectedResults, ss, "search request:", req)
 		})
 	}

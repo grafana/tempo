@@ -124,15 +124,6 @@ func scopeSpanHash(ss *ScopeSpans) uint64 {
 func resourceSpanHash(rs *ResourceSpans) uint64 {
 	hash := fnv1a.HashString64(rs.Resource.ServiceName)
 
-	hash = addHashStr(rs.Resource.Cluster, hash)
-	hash = addHashStr(rs.Resource.Container, hash)
-	hash = addHashStr(rs.Resource.K8sClusterName, hash)
-	hash = addHashStr(rs.Resource.K8sContainerName, hash)
-	hash = addHashStr(rs.Resource.K8sNamespaceName, hash)
-	hash = addHashStr(rs.Resource.K8sPodName, hash)
-	hash = addHashStr(rs.Resource.Namespace, hash)
-	hash = addHashStr(rs.Resource.Pod, hash)
-
 	hash = addHashStr(rs.Resource.DedicatedAttributes.String01, hash)
 	hash = addHashStr(rs.Resource.DedicatedAttributes.String02, hash)
 	hash = addHashStr(rs.Resource.DedicatedAttributes.String03, hash)

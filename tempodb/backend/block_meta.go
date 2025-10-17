@@ -3,6 +3,7 @@ package backend
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -96,6 +97,30 @@ const (
 	LiveStoreReplicationFactor        = MetricsGeneratorReplicationFactor
 )
 
+var defaultDedicatedColumns = DedicatedColumns{
+	// resource
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.cluster.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.namespace.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.pod.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.container.name"},
+	// span
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.request.method"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "http.response.status_code"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "url.path"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "url.route"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "server.address"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "server.port"},
+	// legacy
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.method"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.url"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.route"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "http.status_code"},
+}
+
+func DefaultDedicatedColumns() DedicatedColumns {
+	return slices.Clone(defaultDedicatedColumns)
+}
+
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
 // be stored in a dedicated column instead of the generic attribute column.
 type DedicatedColumn struct {
@@ -140,10 +165,10 @@ func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 type DedicatedColumns []DedicatedColumn
 
 func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
-	// Get the pre-unmarshalled data if available.
-	v := getDedicatedColumns(string(b))
-	if v != nil {
-		*dcs = *v
+	// get the pre-unmarshalled data if available
+	v, ok := getDedicatedColumnsFromCache(b)
+	if ok && v != nil {
+		*dcs = v
 		return nil
 	}
 
@@ -153,8 +178,7 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	putDedicatedColumns(string(b), dcs)
-
+	putDedicatedColumnsToCache(b, *dcs)
 	return nil
 }
 

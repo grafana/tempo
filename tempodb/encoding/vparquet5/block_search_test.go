@@ -33,17 +33,17 @@ func TestBackendBlockSearch(t *testing.T) {
 		ResourceSpans: []ResourceSpans{
 			{
 				Resource: Resource{
-					ServiceName:      "myservice",
-					Cluster:          ptr("cluster"),
-					Namespace:        ptr("namespace"),
-					Pod:              ptr("pod"),
-					Container:        ptr("container"),
-					K8sClusterName:   ptr("k8scluster"),
-					K8sNamespaceName: ptr("k8snamespace"),
-					K8sPodName:       ptr("k8spod"),
-					K8sContainerName: ptr("k8scontainer"),
+					ServiceName: "myservice",
 					Attrs: []Attribute{
 						attr("bat", "baz"),
+						attr("cluster", "cluster"),
+						attr("namespace", "namespace"),
+						attr("pod", "pod"),
+						attr("container", "container"),
+						attr("k8s.cluster.name", "k8scluster"),
+						attr("k8s.namespace.name", "k8snamespace"),
+						attr("k8s.pod.name", "k8spod"),
+						attr("k8s.container.name", "k8scontainer"),
 					},
 					DedicatedAttributes: DedicatedAttributes{
 						String01: ptr("dedicated-resource-attr-value-1"),
@@ -57,15 +57,15 @@ func TestBackendBlockSearch(t *testing.T) {
 					{
 						Spans: []Span{
 							{
-								Name:           "hello",
-								HttpMethod:     ptr("get"),
-								HttpUrl:        ptr("url/hello/world"),
-								HttpStatusCode: ptr(int64(500)),
-								SpanID:         []byte{},
-								ParentSpanID:   []byte{},
-								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
+								Name:         "hello",
+								SpanID:       []byte{},
+								ParentSpanID: []byte{},
+								StatusCode:   int(v1.Status_STATUS_CODE_ERROR),
 								Attrs: []Attribute{
 									attr("foo", "bar"),
+									attr("http.method", "get"),
+									attr("http.url", "url/hello/world"),
+									attr("http.status_code", 500),
 								},
 								DedicatedAttributes: DedicatedAttributes{
 									String01: ptr("dedicated-span-attr-value-1"),
@@ -151,8 +151,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		// Well-known span attributes
 		makeReq(LabelName, "ell"),
 		makeReq(LabelHTTPMethod, "get"),
-		makeReq(LabelHTTPUrl, "hello"),
-		makeReq(LabelHTTPStatusCode, "500"),
+		makeReq(LabelHTTPUrl, "url/hello/world"),
 		makeReq(LabelStatusCode, StatusCodeError),
 
 		// Dedicated span attributes
@@ -221,10 +220,11 @@ func TestBackendBlockSearch(t *testing.T) {
 		// Dedicated resource attributes
 		makeReq("dedicated.resource.3", "dedicated-resource-attr-value-1"),
 
-		// Well-known span attributes
+		// Former well-known span attributes
 		makeReq(LabelHTTPMethod, "post"),
 		makeReq(LabelHTTPUrl, "asdf"),
 		makeReq(LabelHTTPStatusCode, "200"),
+		makeReq(LabelHTTPStatusCode, "500"),
 		makeReq(LabelStatusCode, StatusCodeOK),
 
 		// Dedicated span attributes
@@ -352,17 +352,17 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 
 			rs := ResourceSpans{
 				Resource: Resource{
-					ServiceName:      "servicename",
-					Cluster:          ptr("cluster"),
-					Namespace:        ptr("ns"),
-					Pod:              ptr("pod"),
-					Container:        ptr("con"),
-					K8sClusterName:   ptr("kclust"),
-					K8sNamespaceName: ptr("kns"),
-					K8sPodName:       ptr("kpod"),
-					K8sContainerName: ptr("k8scon"),
+					ServiceName: "servicename",
 					Attrs: []Attribute{
 						attr(key, val),
+						attr("cluster", "cluster"),
+						attr("namespace", "ns"),
+						attr("pod", "pod"),
+						attr("container", "con"),
+						attr("k8s.cluster.name", "kclust"),
+						attr("k8s.namespace.name", "kns"),
+						attr("k8s.pod.name", "kpod"),
+						attr("k8s.container.name", "k8scon"),
 					},
 					DedicatedAttributes: dedicatedResourceAttrs,
 				},
@@ -377,15 +377,14 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 				val := test.RandomString()
 				spanAttrVals[key] = val
 
-				sts := int64(404)
 				span := Span{
-					Name:           "span",
-					HttpMethod:     ptr("method"),
-					HttpUrl:        ptr("url"),
-					HttpStatusCode: &sts,
-					StatusCode:     2,
+					Name:       "span",
+					StatusCode: 2,
 					Attrs: []Attribute{
 						attr(key, val),
+						attr("http.method", "method"),
+						attr("http.url", "url"),
+						attr("http.status_code", 404),
 					},
 					DedicatedAttributes: dedicatedSpanAttrs,
 				}
