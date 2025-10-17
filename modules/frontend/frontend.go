@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/grafana/dskit/middleware"
+	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -307,7 +308,7 @@ func (q *QueryFrontend) MetricsQueryInstant(req *tempopb.QueryInstantRequest, sr
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
 func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, err := user.ExtractOrgID(req.Context())
+		tenant, err := tenant.TenantID(req.Context())
 		if err != nil {
 			level.Error(logger).Log("msg", "metrics summary: failed to extract tenant id", "err", err)
 			return &http.Response{
