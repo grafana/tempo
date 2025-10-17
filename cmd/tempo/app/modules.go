@@ -203,6 +203,10 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initGeneratorExternalLimiter() (services.Service, error) {
+	if !t.cfg.RemoteSeriesLimiter.Enabled {
+		return nil, nil
+	}
+
 	remoteLimiter := remoteserieslimiter.NewRemoteSeriesLimiter(&t.cfg.RemoteSeriesLimiter, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
 	t.seriesLimiterFactory = remoteLimiter.ForTenant
 	return nil, nil
@@ -210,10 +214,18 @@ func (t *App) initGeneratorExternalLimiter() (services.Service, error) {
 }
 
 func (t *App) initUsageTrackerRing() (services.Service, error) {
+	if !t.cfg.RemoteSeriesLimiter.Enabled {
+		return nil, nil
+	}
+
 	return t.initReadRing(t.cfg.RemoteSeriesLimiter.UsageTrackerRing.ToRingConfig(), usagetrackerclient.InstanceRingName, usagetrackerclient.InstanceRingKey)
 }
 
 func (t *App) initUsageTrackerPartitionRing() (services.Service, error) {
+	if !t.cfg.RemoteSeriesLimiter.Enabled {
+		return nil, nil
+	}
+
 	// choose the correct partition ring based on config
 	var (
 		heartbeatTimeout time.Duration
