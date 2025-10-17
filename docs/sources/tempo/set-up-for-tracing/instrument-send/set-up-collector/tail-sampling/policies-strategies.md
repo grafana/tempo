@@ -12,7 +12,7 @@ aliases:
 
 # Tail sampling policies and strategies
 
-[Tail sampling strategies](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/) consider all, or a subset, of the spans that have been collected by an OpenTelemetry Collector [distribution](https://opentelemetry.io/docs/concepts/distributions/), such as [Grafana Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/).
+[Tail sampling strategies](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/) consider all, or a subset, of the spans that have been collected by an OpenTelemetry Collector [distribution](https://opentelemetry.io/docs/concepts/distributions/), such as [Grafana Alloy](https://grafana.com/docs/alloy/latest/).
 
 ## Add tail sampling to your Telemetry pipeline
 
@@ -24,7 +24,7 @@ A sampling policy provides the criteria that makes a decision to sample or disca
 These criteria might include decisions based on specific response status codes, trace duration, attribute values, or other custom-defined rules.
 Tail sampling operates as part of the telemetry processing pipeline in Alloy: it can make informed decisions based on the entire trace as opposed to isolated spans.
 The sampling criteria policies are defined within a tail sampling block.
-For more information, refer to [tail sampling processor block](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/).
+For more information, refer to [tail sampling processor block](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/).
 
 ### Use cases
 
@@ -100,23 +100,23 @@ otelcol.exporter.otlp "example" {
 ## Policy types
 
 The table lists available policy types for the tail sampling processor.
-For additional information, refer to the [`otelcol.processor.tail_sampling` component](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/) in the Alloy documentation and the [Tail Sampling Processor README](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/tailsamplingprocessor/README.md) for the OTel Collector.
+For additional information, refer to the [`otelcol.processor.tail_sampling` component](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/) in the Alloy documentation and the [Tail Sampling Processor README](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/tailsamplingprocessor/README.md) for the OTel Collector.
 
-| Policy                                                                                                                                                    | Description                                                                                                    | Useful for                                                              |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [always_sample](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/)                             | Samples all traces.                                                                                            | Debugging or collecting all data.                                       |
-| [and](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#and-block)                             | Lets you combine multiple policies using a logical `AND` operation.                                            | Activating one or more policies.                                        |
-| [boolean_attribute](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#boolean_attribute-block) | Samples based on a boolean attribute (resource and record).                                                    | Feature flags or debug modes.                                           |
-| [composite](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#composite-block)                 | Samples based on a combination of samplers, with ordering and rate allocation per sampler.                     | Matching multiple different conditions.                                 |
-| [latency](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#latency-block)                     | Samples traces based on their duration.                                                                        | Identifying slow performance.                                           |
-| [numeric_attribute](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#numeric_attribute-block) | Samples based on the number attributes (resource and record).                                                  | Capturing large responses.                                              |
-| [ottl_condition](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#ottl_condition-block)       | Samples based on a given boolean OpenTelemetry Transformation Language (OTTL) condition (span and span event). | Applying complex and specific filtering.                                |
-| [probabilistic](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#probabilistic-block)         | Samples a percentage of traces.                                                                                | Filtering only a percentage of received traces. Reducing data received. |
-| [rate_limiting](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#rate_limiting-block)         | Samples based on rate of spans per second.                                                                     | Controlling data volume.                                                |
-| [span_count](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#span_count-block)               | Samples based on the minimum number of spans within the observed trace.                                        | Limiting sampled data to a specific number of spans within a trace.     |
-| [status_code](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#status_code-block)             | Samples based upon the status code, either OK, Error, or Unset.                                                | Capturing erroring traces.                                              |
-| [string_attribute](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#string_attribute-block)   | Samples based on string attributes (resource and record) value matches.                                        | Filtering specific services or database queries.                        |
-| [trace_state](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#trace_state-block)             | Samples based on TraceState value matches.                                                                     | Implementing complex sampling strategies that rely on trace context.    |
+| Policy                                                                                                                                     | Description                                                                                                    | Useful for                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [always_sample](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/)                       | Samples all traces.                                                                                            | Debugging or collecting all data.                                       |
+| [and](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#and)                             | Lets you combine multiple policies using a logical `AND` operation.                                            | Activating one or more policies.                                        |
+| [boolean_attribute](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#boolean_attribute) | Samples based on a boolean attribute (resource and record).                                                    | Feature flags or debug modes.                                           |
+| [composite](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#composite)                 | Samples based on a combination of samplers, with ordering and rate allocation per sampler.                     | Matching multiple different conditions.                                 |
+| [latency](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#latency)                     | Samples traces based on their duration.                                                                        | Identifying slow performance.                                           |
+| [numeric_attribute](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#numeric_attribute) | Samples based on the number attributes (resource and record).                                                  | Capturing large responses.                                              |
+| [ottl_condition](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#ottl_condition)       | Samples based on a given boolean OpenTelemetry Transformation Language (OTTL) condition (span and span event). | Applying complex and specific filtering.                                |
+| [probabilistic](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#probabilistic)         | Samples a percentage of traces.                                                                                | Filtering only a percentage of received traces. Reducing data received. |
+| [rate_limiting](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#rate_limiting)         | Samples based on rate of spans per second.                                                                     | Controlling data volume.                                                |
+| [span_count](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#span_count)               | Samples based on the minimum number of spans within the observed trace.                                        | Limiting sampled data to a specific number of spans within a trace.     |
+| [status_code](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#status_code)             | Samples based upon the status code, either OK, Error, or Unset.                                                | Capturing erroring traces.                                              |
+| [string_attribute](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#string_attribute)   | Samples based on string attributes (resource and record) value matches.                                        | Filtering specific services or database queries.                        |
+| [trace_state](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#trace_state)             | Samples based on TraceState value matches.                                                                     | Implementing complex sampling strategies that rely on trace context.    |
 
 ### Policy order
 
@@ -150,7 +150,7 @@ Sample data at the collector after metrics generation so that all traces are ava
 
 You can use `always_sample` when you want to capture all tracing data. This could be useful for troubleshooting.
 
-Refer to the [`always_sample` policy documentation](https://grafana.com/docs/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#always_sample) for more information.
+Refer to the [`always_sample` policy documentation](https://grafana.com/docs/latest/reference/components/otelcol/otelcol.processor.tail_sampling/) for more information.
 
 ```alloy
 policy {
@@ -166,7 +166,7 @@ You use the `and` sampling policy when you want to match on multiple conditions.
 
 You can use this to look for slow requests and sample a percentage of traces.
 
-Refer to the [`and` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#and) for more information.
+Refer to the [`and` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#and) for more information.
 
 ```alloy
 policy {
@@ -196,7 +196,7 @@ policy {
 
 Use `boolean_attribute` to sample based on whether a specific span attribute with a boolean value is true or false. Any span with the named span attribute set to the given boolean value will cause the trace to be sampled.
 
-Refer to the [`boolean_attribute` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#boolean_attribute) for more information.
+Refer to the [`boolean_attribute` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#boolean_attribute) for more information.
 
 ```alloy
 policy {
@@ -222,7 +222,7 @@ Should the percentage be maxed out during evaluation, then the other policies in
 Because `composite` is evaluated just like any other sampling policy, it can be used in conjunction with others to act as final decision maker to limit trace sample output should no other policies match.
 Generally, composite policies end with an `always_sample` policy type to ensure that traces are still sampled should none of the other aggregated policies inside it match.
 
-Refer to the [`composite` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#composite-block) for more information.
+Refer to the [`composite` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#composite) for more information.
 
 ```alloy
 policy {
@@ -271,7 +271,7 @@ For example, you can use it for performance monitoring.
 Slow-running spans can indicate performance bottlenecks.
 The example samples for traces that are between 3s and 10s long.
 
-Refer to the [`latency` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#latency) for more information.
+Refer to the [`latency` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#latency) for more information.
 
 ```alloy
 policy {
@@ -294,7 +294,7 @@ The `numeric_attribute` policy lets you sample based on a number of attributes.
 In this example below, spans are sampled where `http.response_content_length` is between 10,000 and 500,000.
 The sample span below would be captured because the attribute value falls within the specified range.
 
-Refer to the [`numeric_attribute` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#numeric_attribute) for more information.
+Refer to the [`numeric_attribute` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#numeric_attribute) for more information.
 
 ```alloy
 policy {
@@ -319,7 +319,7 @@ This policy type lets you configure policies based around the OpenTelemetry Tran
 The various language semantics let you write flexible and detailed sampling policies that can evaluate any trace span conditions to determine whether or not to sample a trace.
 If OTTL conditions are particularly complex, this flexibility can potentially create resource overhead.
 
-Refer to the [`ottl_condition` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#ottl_condition) for more information.
+Refer to the [`ottl_condition` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#ottl_condition) for more information.
 
 ```alloy
 policy {
@@ -339,7 +339,7 @@ Probabilistic sampling lets you determine a ratio of traces that should be sampl
 This is within a range of `0` to `100%`, and selects the required percentage of traces from those it receives based on the number of traces per second configured.
 This can be combined with varying hashing salt values, should multiple collectors be carrying out sampling simultaneously, for example, in a load balanced sampling hierarchy).
 
-Refer to the [`probabilistic` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#probabilistic-block) for more information.
+Refer to the [`probabilistic` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#probabilistic) for more information.
 
 ```alloy
 policy {
@@ -359,7 +359,7 @@ policy {
 This policy type samples traces based around the configured spans per second.
 This ensures that only traces that conform to the number of those spans available in that trace are sampled, any trace with greater than this number of spans will automatically be dropped.
 
-Refer to the [`rate_limiting` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#rate_limiting`) for more information.
+Refer to the [`rate_limiting` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#rate_limiting`) for more information.
 
 ```alloy
 policy {
@@ -380,7 +380,7 @@ The `span_count` policy accepts a window of minimum and maximum number of spans 
 
 Setting the minimum number of spans to zero essentially replicates the rate limiting policy.
 
-Refer to the [`span_count` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#span_count) for more information.
+Refer to the [`span_count` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#span_count) for more information.
 
 ```alloy
 policy {
@@ -400,7 +400,7 @@ policy {
 The `status_code` policy check for the span intrinsic status of `OK`, `UNSET`, or `ERROR`.
 The policy takes an array of statuses, so only traces with at least one span that matches these statuses are sampled.
 
-Refer to the [`status_code` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#status_code) for more information.
+Refer to the [`status_code` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#status_code) for more information.
 
 ```alloy
 policy {
@@ -421,7 +421,7 @@ policy {
 This policy examines the values of a specified string attribute key for trace’s spans, to make a sampling decision.
 There are a number of configurable options, including the ability to use regular expressions, inversion matching, for example, to only sample traces that don't match a regular expression, and an LRU cache for accelerating future policy decision making.
 
-Refer to the [`string_attribute` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#string_attribute) for more information.
+Refer to the [`string_attribute` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#string_attribute) for more information.
 
 ```alloy
 policy {
@@ -447,7 +447,7 @@ policy {
 
 The `trace_state` policy looks at the traces states associated with the incoming spans for traces and then compares the keys, should any exist, with those configured by the policy. This ensures that only traces with the relevant trace state keys are sampled.
 
-Refer to the [`trace_state` policy documentation](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/#trace_state) for more information.
+Refer to the [`trace_state` policy documentation](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.processor.tail_sampling/#trace_state) for more information.
 
 ```alloy
 policy {

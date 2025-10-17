@@ -52,8 +52,8 @@ You can use Tempo with open source tracing protocols, including Jaeger, Zipkin, 
 
 Tempo integrates well with a number of open source tools:
 
-- **Grafana** ships with native support using the built-in [Tempo data source](/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/).
-- **Grafana Loki**, with its powerful query language LogQL v2 lets you filter requests that you care about, and jump to traces using the [Derived fields support in Grafana](/docs/grafana/<GRAFANA_VERSION>/datasources/loki/#derived-fields).
+- **Grafana** ships with native support using the built-in [Tempo data source](/docs/grafana/latest/datasources/tempo/).
+- **Grafana Loki**, with its powerful query language LogQL v2 lets you filter requests that you care about, and jump to traces using the [Derived fields support in Grafana](/docs/grafana/latest/datasources/loki).
 - **Prometheus exemplars** let you jump from Prometheus metrics to Tempo traces by clicking on recorded exemplars.
 
 ## Explore
