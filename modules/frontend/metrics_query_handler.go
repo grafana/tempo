@@ -13,7 +13,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grafana/dskit/user"
+	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/api"
@@ -27,7 +27,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 	return func(req *tempopb.QueryInstantRequest, srv tempopb.StreamingQuerier_MetricsQueryInstantServer) error {
 		start := time.Now()
 		ctx := srv.Context()
-		tenant, err := user.ExtractOrgID(ctx)
+		tenant, err := tenant.TenantID(ctx)
 		if err != nil {
 			return err
 		}

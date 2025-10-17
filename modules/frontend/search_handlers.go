@@ -12,7 +12,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/gogo/status"
-	"github.com/grafana/dskit/user"
+	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"google.golang.org/grpc/codes"
@@ -51,7 +51,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 
 		httpReq = httpReq.WithContext(ctx)
-		tenant, _ := user.ExtractOrgID(ctx)
+		tenant, _ := tenant.TenantID(ctx)
 		start := time.Now()
 
 		comb, err := newCombiner(req, cfg.Search.Sharder)
