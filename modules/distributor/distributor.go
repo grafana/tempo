@@ -396,7 +396,7 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 }
 
 func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID string, spanCount, tracesSize int, err error) {
-	user, e := user.ExtractOrgID(ctx)
+	user, e := util.ExtractValidOrgID(ctx)
 	if e != nil {
 		return "", 0, 0, e
 	}
