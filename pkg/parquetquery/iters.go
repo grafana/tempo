@@ -312,6 +312,18 @@ type LeftJoinIteratorOption interface {
 	applyToLeftJoinIterator(*LeftJoinIterator)
 }
 
+type CollectorOption struct {
+	collector Collector
+}
+
+func (c CollectorOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
+	j.collector = c.collector
+}
+
+func WithCollector(c Collector) CollectorOption {
+	return CollectorOption{c}
+}
+
 type PoolOption struct {
 	pool *ResultPool
 }
@@ -1075,6 +1087,7 @@ type LeftJoinIterator struct {
 	required, optional           []Iterator
 	peeksRequired, peeksOptional []*IteratorResult
 	pred                         GroupPredicate
+	collector                    Collector
 	pool                         *ResultPool
 	at                           *IteratorResult
 }
@@ -1172,6 +1185,9 @@ outer:
 		}
 
 		// Keep group?
+		if j.collector != nil {
+			return j.collector.Result(), nil
+		}
 		if j.pred == nil || j.pred.KeepGroup(result) {
 			// Yes
 			return result, nil
@@ -1262,6 +1278,35 @@ func (j *LeftJoinIterator) peek(iterNum int) (*IteratorResult, error) {
 	return j.peeksRequired[iterNum], nil
 }
 
+func (j *LeftJoinIterator) collectInternal(rowNumber RowNumber, result *IteratorResult, iters []Iterator, peeks []*IteratorResult) (err error) {
+iters:
+	for i := range iters {
+		// Collect matches
+		for peeks[i] != nil /*&& EqualRowNumber(j.definitionLevel, peeks[i].RowNumber, rowNumber)*/ {
+
+			// Interned version of EqualRowNumber
+			// Compare in reverse order because most row number activity
+			// occurs at the lower definition levels.
+			for k := j.definitionLevel; k >= 0; k-- {
+				if peeks[i].RowNumber[k] != rowNumber[k] {
+					continue iters
+				}
+			}
+
+			if j.collector != nil {
+				j.collector.Collect(peeks[i])
+			} else {
+				result.Append(peeks[i])
+			}
+			peeks[i], err = iters[i].Next()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // Collect data from the given iterators until they point at
 // the next row (according to the configured definition level)
 // or are exhausted.
@@ -1272,19 +1317,6 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 	result.Reset()
 	result.RowNumber = rowNumber
 
-	collect := func(iters []Iterator, peeks []*IteratorResult) {
-		for i := range iters {
-			// Collect matches
-			for peeks[i] != nil && EqualRowNumber(j.definitionLevel, peeks[i].RowNumber, rowNumber) {
-				result.Append(peeks[i])
-				peeks[i], err = iters[i].Next()
-				if err != nil {
-					return
-				}
-			}
-		}
-	}
-
 	// Collect is only called after we have found a match among all
 	// required iterators, therefore we only need to seek the optional ones to same location.
 	err = j.seekAllOptional(rowNumber, j.definitionLevel)
@@ -1292,12 +1324,12 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 		return nil, err
 	}
 
-	collect(j.required, j.peeksRequired)
+	err = j.collectInternal(rowNumber, result, j.required, j.peeksRequired)
 	if err != nil {
 		return nil, err
 	}
 
-	collect(j.optional, j.peeksOptional)
+	err = j.collectInternal(rowNumber, result, j.optional, j.peeksOptional)
 	if err != nil {
 		return nil, err
 	}
@@ -1461,6 +1493,12 @@ func (u *UnionIterator) Close() {
 	for _, i := range u.iters {
 		i.Close()
 	}
+}
+
+type Collector interface {
+	Collect(*IteratorResult)
+	Reset(RowNumber)
+	Result() *IteratorResult
 }
 
 type GroupPredicate interface {

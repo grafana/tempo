@@ -31,6 +31,7 @@ type Searcher interface {
 
 	// TODO(suraj): use MetricsCallback in Fetch and remove the Bytes callback from FetchSpansResponse
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
+	FetchSpansOnly(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansOnlyResponse, error)
 	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, MetricsCallback, SearchOptions) error
 	FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, MetricsCallback, SearchOptions) error
 }

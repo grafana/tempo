@@ -256,8 +256,23 @@ type FetchSpansResponse struct {
 	Bytes func() uint64
 }
 
+type SpanIterator interface {
+	Next(context.Context) (Span, error)
+	Close()
+}
+
+type FetchSpansOnlyResponse struct {
+	Results SpanIterator
+	// callback to get the size of data read during Fetch
+	Bytes func() uint64
+}
+
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
+}
+
+type SpanFetcher interface {
+	Fetch(context.Context, FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
 // FetchTagValuesCallback is called to collect unique tag values.
@@ -320,13 +335,27 @@ type SpansetFetcherWrapper struct {
 	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-var _ = (SpansetFetcher)(&SpansetFetcherWrapper{})
+var _ SpansetFetcher = (*SpansetFetcherWrapper)(nil)
 
 func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
 	return SpansetFetcherWrapper{f}
 }
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
+	return s.f(ctx, request)
+}
+
+type SpanFetcherWrapper struct {
+	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)
+}
+
+var _ SpanFetcher = (*SpanFetcherWrapper)(nil)
+
+func NewSpanFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)) SpanFetcher {
+	return SpanFetcherWrapper{f}
+}
+
+func (s SpanFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
 	return s.f(ctx, request)
 }
 

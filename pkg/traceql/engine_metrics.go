@@ -1289,6 +1289,88 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	return nil
 }
 
+func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpanFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	// Make a copy of the request so we can modify it.
+	storageReq := *e.storageReq
+
+	if fetcherStart > 0 && fetcherEnd > 0 &&
+		// exclude special case for a block with the same start and end
+		fetcherStart != fetcherEnd {
+		// Dynamically decide whether to use the trace-level timestamp columns
+		// for filtering.
+		overlap := timeRangeOverlap(e.start, e.end, fetcherStart, fetcherEnd)
+
+		if overlap == 0.0 {
+			// This shouldn't happen but might as well check.
+			// No overlap == nothing to do
+			return nil
+		}
+
+		// Our heuristic is if the overlap between the given fetcher (i.e. block)
+		// and the request is less than X%, use them.  Above X%, the cost of loading
+		// them doesn't outweight the benefits. The default 20% was measured in
+		// local benchmarking.
+		if overlap < e.timeOverlapCutoff {
+			storageReq.StartTimeUnixNanos = e.start
+			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
+		}
+	}
+
+	fetch, err := f.Fetch(ctx, storageReq)
+	if errors.Is(err, util.ErrUnsupported) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	defer fetch.Results.Close()
+
+	seriesCount := 0
+
+	for {
+		s, err := fetch.Results.Next(ctx)
+		if err != nil {
+			return err
+		}
+		if s == nil {
+			break
+		}
+
+		// e.mtx.Lock()
+
+		if e.checkTime {
+			st := s.StartTimeUnixNanos()
+			if st <= e.start || st > e.end {
+				// e.mtx.Unlock()
+				continue
+			}
+		}
+
+		if e.storageReq.SpanSampler != nil {
+			e.storageReq.SpanSampler.Measured()
+		}
+
+		e.metricsPipeline.observe(s)
+
+		e.spansTotal += 1
+
+		seriesCount = e.metricsPipeline.length()
+
+		// e.mtx.Unlock()
+
+		if maxSeries > 0 && seriesCount >= maxSeries {
+			break
+		}
+	}
+
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.bytes += fetch.Bytes()
+
+	return nil
+}
+
 func (e *MetricsEvaluator) Length() int {
 	return e.metricsPipeline.length()
 }
