@@ -263,9 +263,21 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 
 func TestDedicatedColumn_readValue(t *testing.T) {
 	attrComplete := DedicatedAttributes{
-		[]string{"one"}, []string{"two"}, []string{"three"}, []string{"four"}, []string{"five"},
-		[]string{"six"}, []string{"seven"}, []string{"eight"}, []string{"nine"}, []string{"ten"},
-		[]int64{1}, []int64{2}, []int64{3}, []int64{4}, []int64{5},
+		String01: []string{"one"},
+		String02: []string{"two"},
+		String03: []string{"three"},
+		String04: []string{"four"},
+		String05: []string{"five"},
+		String06: []string{"six"},
+		String07: []string{"seven"},
+		String08: []string{"eight"},
+		String09: []string{"nine"},
+		String10: []string{"ten"},
+		Int01:    []int64{1},
+		Int02:    []int64{2},
+		Int03:    []int64{3},
+		Int04:    []int64{4},
+		Int05:    []int64{5},
 	}
 
 	tests := []struct {
