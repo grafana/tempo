@@ -239,7 +239,7 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
 	filtered := make(backend.DedicatedColumns, 0, len(columns))
 	for _, c := range columns {
-		if isIgnoredDedicatedColumn(c.Scope, c.Type) {
+		if isIgnoredDedicatedColumn(&c) {
 			continue
 		}
 		filtered = append(filtered, c)
@@ -247,9 +247,9 @@ func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedC
 	return filtered
 }
 
-func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType) bool {
-	if _, found := DedicatedResourceColumnPaths[scope][typ]; !found {
-		return true
+func isIgnoredDedicatedColumn(dc *backend.DedicatedColumn) bool {
+	if _, found := DedicatedResourceColumnPaths[dc.Scope][dc.Type]; !found {
+		return true // unsupported scope or type
 	}
 	return false
 }
