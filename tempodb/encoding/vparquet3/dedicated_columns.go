@@ -195,6 +195,9 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 			if c.Scope != scope {
 				continue
 			}
+			if len(c.Options) > 0 {
+				continue // vp3 does not support options
+			}
 			spareColumnPaths, exists := spareColumnsByType[c.Type]
 			if !exists {
 				continue
@@ -220,7 +223,7 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
 	filtered := make(backend.DedicatedColumns, 0, len(columns))
 	for _, c := range columns {
-		if isIgnoredDedicatedColumn(c.Scope, c.Type, c.Name) {
+		if isIgnoredDedicatedColumn(c.Scope, c.Type, c.Name, c.Options) {
 			continue
 		}
 		filtered = append(filtered, c)
@@ -228,11 +231,14 @@ func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedC
 	return filtered
 }
 
-func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType, attr string) bool {
+func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType, attr string, options backend.DedicatedColumnOptions) bool {
+	if len(options) > 0 {
+		return true // vp3 does not support options
+	}
 	if _, found := DedicatedResourceColumnPaths[scope][typ]; !found {
-		return true
+		return true // unsupported scope or type
 	}
 
-	_, ok := ignoredAttributes[scope][typ][attr]
+	_, ok := ignoredAttributes[scope][typ][attr] // ignored attribute name
 	return ok
 }
