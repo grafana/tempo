@@ -15,7 +15,7 @@ func (j *AttributeNameValueType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(j.Value)
 }
 
-var enumValuesAttributeNameValueType = []interface{}{
+var enumValuesAttributeNameValueType = []any{
 	nil,
 	"string",
 	"bool",
@@ -30,7 +30,7 @@ var enumValuesAttributeNameValueType = []interface{}{
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *AttributeNameValueType) UnmarshalJSON(b []byte) error {
 	var v struct {
-		Value interface{}
+		Value any
 	}
 	if err := json.Unmarshal(b, &v.Value); err != nil {
 		return err
@@ -51,7 +51,7 @@ func (j *AttributeNameValueType) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *BatchLogRecordProcessor) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (j *BatchLogRecordProcessor) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *BatchSpanProcessor) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (j *BatchSpanProcessor) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *GeneralInstrumentationPeerServiceMappingElem) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (j *GeneralInstrumentationPeerServiceMappingElem) UnmarshalJSON(b []byte) e
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *NameStringValuePair) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (j *NameStringValuePair) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-var enumValuesOTLPMetricDefaultHistogramAggregation = []interface{}{
+var enumValuesOTLPMetricDefaultHistogramAggregation = []any{
 	"explicit_bucket_histogram",
 	"base2_exponential_bucket_histogram",
 }
@@ -161,7 +161,7 @@ func (j *OTLPMetricDefaultHistogramAggregation) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *OTLPMetric) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func (j *OTLPMetric) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *OTLP) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (j *OTLP) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *OpenTelemetryConfiguration) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (j *OpenTelemetryConfiguration) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *PeriodicMetricReader) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (j *PeriodicMetricReader) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *PullMetricReader) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (j *PullMetricReader) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *SimpleLogRecordProcessor) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -275,7 +275,7 @@ func (j *SimpleLogRecordProcessor) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *SimpleSpanProcessor) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -291,7 +291,7 @@ func (j *SimpleSpanProcessor) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-var enumValuesViewSelectorInstrumentType = []interface{}{
+var enumValuesViewSelectorInstrumentType = []any{
 	"counter",
 	"histogram",
 	"observable_counter",
@@ -322,7 +322,7 @@ func (j *ViewSelectorInstrumentType) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *Zipkin) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -340,7 +340,7 @@ func (j *Zipkin) UnmarshalJSON(b []byte) error {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (j *AttributeNameValue) UnmarshalJSON(b []byte) error {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
@@ -362,9 +362,9 @@ func (j *AttributeNameValue) UnmarshalJSON(b []byte) error {
 		}
 	}
 	if plain.Type != nil && plain.Type.Value == "int_array" {
-		m, ok := plain.Value.([]interface{})
+		m, ok := plain.Value.([]any)
 		if ok {
-			var vals []interface{}
+			var vals []any
 			for _, v := range m {
 				val, ok := v.(float64)
 				if ok {

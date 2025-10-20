@@ -18,8 +18,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc/credentials"
-
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -32,6 +30,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
+	"google.golang.org/grpc/credentials"
 )
 
 var zeroScope instrumentation.Scope
@@ -42,9 +41,7 @@ func meterProvider(cfg configOptions, res *resource.Resource) (metric.MeterProvi
 	if cfg.opentelemetryConfig.MeterProvider == nil {
 		return noop.NewMeterProvider(), noopShutdown, nil
 	}
-	opts := []sdkmetric.Option{
-		sdkmetric.WithResource(res),
-	}
+	opts := append(cfg.meterProviderOptions, sdkmetric.WithResource(res))
 
 	var errs []error
 	for _, reader := range cfg.opentelemetryConfig.MeterProvider.Readers {
@@ -150,7 +147,7 @@ func otlpHTTPMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 		if u.Scheme == "http" {
 			opts = append(opts, otlpmetrichttp.WithInsecure())
 		}
-		if len(u.Path) > 0 {
+		if u.Path != "" {
 			opts = append(opts, otlpmetrichttp.WithURLPath(u.Path))
 		}
 	}
@@ -292,7 +289,7 @@ func lowMemory(ik sdkmetric.InstrumentKind) metricdata.Temporality {
 // If IncludeExclude is empty a include-all filter is returned.
 func newIncludeExcludeFilter(lists *IncludeExclude) (attribute.Filter, error) {
 	if lists == nil {
-		return func(kv attribute.KeyValue) bool { return true }, nil
+		return func(attribute.KeyValue) bool { return true }, nil
 	}
 
 	included := make(map[attribute.Key]struct{})
@@ -386,10 +383,10 @@ func prometheusReaderOpts(prometheusConfig *Prometheus) ([]otelprom.Option, erro
 		opts = append(opts, otelprom.WithoutScopeInfo())
 	}
 	if prometheusConfig.WithoutTypeSuffix != nil && *prometheusConfig.WithoutTypeSuffix {
-		opts = append(opts, otelprom.WithoutCounterSuffixes())
+		opts = append(opts, otelprom.WithoutCounterSuffixes()) //nolint:staticcheck // WithouTypeSuffix is deprecated, but we still need it for backwards compatibility.
 	}
 	if prometheusConfig.WithoutUnits != nil && *prometheusConfig.WithoutUnits {
-		opts = append(opts, otelprom.WithoutUnits())
+		opts = append(opts, otelprom.WithoutUnits()) //nolint:staticcheck // WithouTypeSuffix is deprecated, but we still need it for backwards compatibility.
 	}
 	if prometheusConfig.WithResourceConstantLabels != nil {
 		f, err := newIncludeExcludeFilter(prometheusConfig.WithResourceConstantLabels)
@@ -556,7 +553,7 @@ func int32OrZero(pInt *int) int32 {
 	if i < math.MinInt32 {
 		return math.MinInt32
 	}
-	return int32(i) // nolint: gosec  // Overflow and underflow checked above.
+	return int32(i)
 }
 
 func strOrEmpty(pStr *string) string {
