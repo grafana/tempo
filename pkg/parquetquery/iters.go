@@ -420,6 +420,7 @@ type SyncIterator struct {
 
 	intern   bool
 	interner *intern.Interner
+	clone    bool
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -455,11 +456,22 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 		curr:               EmptyRowNumber(),
 		at:                 IteratorResult{},
 		maxDefinitionLevel: MaxDefinitionLevel, // default value
+		clone:              true,               // default value
 	}
 
 	// Apply options
 	for _, opt := range opts {
 		opt(i)
+	}
+
+	// Always disable intern/clone for non-pointer types that don't need it.
+	// This eliminates unnecessary function calls on the hot path.
+	if len(rgs) > 0 {
+		cc := rgs[0].ColumnChunks()[column]
+		if cc.Type().Kind() != pq.ByteArray && cc.Type().Kind() != pq.FixedLenByteArray {
+			i.intern = false
+			i.clone = false
+		}
 	}
 
 	if i.selectAs != "" {
@@ -1047,8 +1059,19 @@ func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	result.Reset()
 	result.RowNumber = rowNumber
 
+iters:
 	for i := range j.iters {
-		for j.peeks[i] != nil && EqualRowNumber(j.definitionLevel, j.peeks[i].RowNumber, rowNumber) {
+		for j.peeks[i] != nil {
+
+			// Interned version of EqualRowNumber
+			// Compare in reverse order because most row number activity
+			// occurs at the deeper definition levels.
+			for k := j.definitionLevel; k >= 0; k-- {
+				if j.peeks[i].RowNumber[k] != rowNumber[k] {
+					continue iters
+				}
+			}
+
 			result.Append(j.peeks[i])
 			j.peeks[i], err = j.iters[i].Next()
 			if err != nil {
@@ -1272,37 +1295,52 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 	result.Reset()
 	result.RowNumber = rowNumber
 
-	collect := func(iters []Iterator, peeks []*IteratorResult) {
-		for i := range iters {
-			// Collect matches
-			for peeks[i] != nil && EqualRowNumber(j.definitionLevel, peeks[i].RowNumber, rowNumber) {
-				result.Append(peeks[i])
-				peeks[i], err = iters[i].Next()
-				if err != nil {
-					return
-				}
-			}
+	// Collect is only called after we have found a match among all
+	// required iterators, therefore we only need to seek the optional ones to same location.
+	if len(j.optional) > 0 {
+		err = j.seekAllOptional(rowNumber, j.definitionLevel)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	// Collect is only called after we have found a match among all
-	// required iterators, therefore we only need to seek the optional ones to same location.
-	err = j.seekAllOptional(rowNumber, j.definitionLevel)
+	err = j.collectInternal(rowNumber, result, j.required, j.peeksRequired)
 	if err != nil {
 		return nil, err
 	}
 
-	collect(j.required, j.peeksRequired)
-	if err != nil {
-		return nil, err
-	}
-
-	collect(j.optional, j.peeksOptional)
-	if err != nil {
-		return nil, err
+	if len(j.optional) > 0 {
+		err = j.collectInternal(rowNumber, result, j.optional, j.peeksOptional)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
+}
+
+func (j *LeftJoinIterator) collectInternal(rowNumber RowNumber, result *IteratorResult, iters []Iterator, peeks []*IteratorResult) (err error) {
+iters:
+	for i := range iters {
+		// Collect matches
+		for peeks[i] != nil {
+			// Interned version of EqualRowNumber
+			// Compare in reverse order because most row number activity
+			// occurs at the deeper definition levels.
+			for k := j.definitionLevel; k >= 0; k-- {
+				if peeks[i].RowNumber[k] != rowNumber[k] {
+					continue iters
+				}
+			}
+
+			result.Append(peeks[i])
+			peeks[i], err = iters[i].Next()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (j *LeftJoinIterator) Close() {
