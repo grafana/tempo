@@ -728,7 +728,7 @@ github.com/grafana/dskit/user
 github.com/grafana/e2e
 github.com/grafana/e2e/db
 github.com/grafana/e2e/images
-# github.com/grafana/gomemcache v0.0.0-20250828162811-a96f6acee2fe
+# github.com/grafana/gomemcache v0.0.0-20251008140118-65a671e12fdf
 ## explicit; go 1.21
 github.com/grafana/gomemcache/memcache
 # github.com/grafana/otel-profiling-go v0.5.1
