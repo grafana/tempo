@@ -379,6 +379,10 @@ func (dcs DedicatedColumns) Hash() uint64 {
 		_, _ = h.WriteString(c.Name)
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(string(c.Type))
+		for _, opt := range c.Options {
+			_, _ = h.Write(separatorByte)
+			_, _ = h.WriteString(string(opt))
+		}
 	}
 	return h.Sum64()
 }
