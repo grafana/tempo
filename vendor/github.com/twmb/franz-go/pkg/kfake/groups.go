@@ -24,6 +24,7 @@ type (
 		c    *Cluster
 		gs   *groups
 		name string
+		typ  string
 
 		state groupState
 
@@ -137,6 +138,7 @@ func (gs *groups) newGroup(name string) *group {
 		c:         gs.c,
 		gs:        gs,
 		name:      name,
+		typ:       "classic", // only supported group type at the moment; group-coordinator/src/main/java/org/apache/kafka/coordinator/group/Group.java
 		members:   make(map[string]*groupMember),
 		pending:   make(map[string]*groupMember),
 		protocols: make(map[string]int),
@@ -165,6 +167,7 @@ start:
 	case g.reqCh <- creq:
 	case <-g.quitCh:
 		goto start
+	case <-g.c.die:
 	}
 }
 
@@ -182,6 +185,8 @@ func (gs *groups) handleHijack(group string, creq *clientReq) bool {
 	case g.reqCh <- creq:
 		return true
 	case <-g.quitCh:
+		return false
+	case <-g.c.die:
 		return false
 	}
 }
@@ -216,6 +221,7 @@ start:
 	case g.reqCh <- creq:
 	case <-g.quitCh:
 		goto start
+	case <-g.c.die:
 	}
 }
 
@@ -235,6 +241,14 @@ func (gs *groups) handleList(creq *clientReq) *kmsg.ListGroupsResponse {
 		}
 	}
 
+	var types map[string]struct{}
+	if len(req.TypesFilter) > 0 {
+		types = make(map[string]struct{})
+		for _, typ := range req.TypesFilter {
+			types[typ] = struct{}{}
+		}
+	}
+
 	for _, g := range gs.gs {
 		if g.c.coordinator(g.name).node != creq.cc.b.node {
 			continue
@@ -245,10 +259,16 @@ func (gs *groups) handleList(creq *clientReq) *kmsg.ListGroupsResponse {
 					return
 				}
 			}
+			if types != nil {
+				if _, ok := types[g.typ]; !ok {
+					return
+				}
+			}
 			sg := kmsg.NewListGroupsResponseGroup()
 			sg.Group = g.name
 			sg.ProtocolType = g.protocolType
 			sg.GroupState = g.state.String()
+			sg.GroupType = g.typ
 			resp.Groups = append(resp.Groups, sg)
 		})
 	}
@@ -275,6 +295,9 @@ func (gs *groups) handleDescribe(creq *clientReq) *kmsg.DescribeGroupsResponse {
 		g, ok := gs.gs[rg]
 		if !ok {
 			sg.State = groupDead.String()
+			if req.Version >= 6 {
+				sg.ErrorCode = kerr.GroupIDNotFound.Code
+			}
 			continue
 		}
 		if !g.waitControl(func() {
@@ -558,6 +581,8 @@ func (g *group) manage(detachNew func()) {
 		select {
 		case <-g.quitCh:
 			return
+		case <-g.c.die:
+			return
 		case creq := <-g.reqCh:
 			var kresp kmsg.Response
 			switch creq.kreq.(type) {
@@ -593,6 +618,8 @@ func (g *group) waitControl(fn func()) bool {
 	wfn := func() { fn(); close(wait) }
 	select {
 	case <-g.quitCh:
+		return false
+	case <-g.c.die:
 		return false
 	case g.controlCh <- wfn:
 		<-wait
@@ -941,6 +968,7 @@ func (g *group) rebalance() {
 		g.tRebalance = time.AfterFunc(time.Duration(rebalanceTimeoutMs)*time.Millisecond, func() {
 			select {
 			case <-g.quitCh:
+			case <-g.c.die:
 			case g.controlCh <- func() {
 				g.completeRebalance()
 			}:
@@ -1062,6 +1090,7 @@ func (g *group) atSessionTimeout(m *groupMember, fn func()) {
 	tfn := func() {
 		select {
 		case <-g.quitCh:
+		case <-g.c.die:
 		case g.controlCh <- func() {
 			if time.Since(m.last) >= timeout {
 				fn()
