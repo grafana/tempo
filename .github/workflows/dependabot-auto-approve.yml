@@ -17,7 +17,7 @@ jobs:
           persist-credentials: false
       - name: Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b
+        uses: dependabot/fetch-metadata@5a70a1d133aebc31503dc07fb19f294cf18ff31c
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
       - name: Get Github App secrets from vault
