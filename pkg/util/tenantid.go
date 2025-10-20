@@ -26,3 +26,11 @@ func ExtractValidOrgID(ctx context.Context) (string, error) {
 
 	return user.ExtractOrgID(ctx)
 }
+
+func ExtractValidOrgID2(ctx context.Context) (string, error) {
+	if _, idsErr := tenant.TenantIDs(ctx); idsErr != nil {
+		return "", idsErr
+	}
+
+	return user.ExtractOrgID(ctx)
+}
