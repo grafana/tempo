@@ -12,6 +12,7 @@
 * [ENHANCEMENT] Add config to enable instance label for spanmetrics series [#5706](https://github.com/grafana/tempo/pull/5706) (@ie-pham)
 * [ENHANCEMENT] Unsafe search hints for frontend performance tests [#5723](https://github.com/grafana/tempo/pull/5723) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add new livestore alert to the tempo-mixin [#5752](https://github.com/grafana/tempo/pull/5752) (@javiermolinar)
+* [ENHANCEMENT] TraceQL query performance improvement [#5773](https://github.com/grafana/tempo/pull/5773) (@mdisibio)
 * [ENHANCEMENT] Improve shutdown time in the first 30 seconds [#5725](https://github.com/grafana/tempo/pull/5725) (@ldufr)
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
 * [BUGFIX] Fix issues related to integer dedicated columns in vParquet5-preview2 [#5716](https://github.com/grafana/tempo/pull/5716) (@stoewer)
