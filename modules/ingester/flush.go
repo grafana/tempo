@@ -193,7 +193,18 @@ func (i *Ingester) cutOneInstanceToWal(instance *instance, immediate bool) {
 	}
 
 	if blockID != uuid.Nil {
-		level.Info(log.Logger).Log("msg", "head block cut. enqueueing flush op", "tenant", instance.instanceID, "block", blockID)
+		// Get block size from completing blocks
+		instance.blocksMtx.RLock()
+		var blockSize uint64
+		for _, block := range instance.completingBlocks {
+			if (uuid.UUID)(block.BlockMeta().BlockID) == blockID {
+				blockSize = block.DataLength()
+				break
+			}
+		}
+		instance.blocksMtx.RUnlock()
+
+		level.Info(log.Logger).Log("msg", "head block cut. enqueueing flush op", "tenant", instance.instanceID, "block", blockID, "size", blockSize)
 		// jitter to help when flushing many instances at the same time
 		// no jitter if immediate (initiated via /flush handler for example)
 		i.enqueue(&flushOp{
