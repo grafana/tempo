@@ -495,26 +495,35 @@ func (p NilValuePredicate) KeepColumnChunk(_ *ColumnChunkHelper) bool {
 	return true
 }
 
-func (p NilValuePredicate) KeepPage(_ pq.Page) bool {
-	return true
+func (p NilValuePredicate) KeepPage(page pq.Page) bool {
+	return page.NumNulls() > 0
 }
 
 func (p NilValuePredicate) KeepValue(v pq.Value) bool {
-	if v.IsNull() {
-		return true
-	}
-	switch v.Kind() {
-	case pq.ByteArray:
-		return len(v.ByteArray()) == 0
-	case pq.Int32:
-		return v.Int32() == 0
-	case pq.Int64:
-		return v.Int64() == 0
-	case pq.Float:
-		return v.Float() == 0
-	case pq.Double:
-		return v.Double() == 0
-	default:
-		return false
-	}
+	return v.IsNull()
+}
+
+type IncludeNilStringEqualPredicate struct {
+	value []byte
+}
+
+func NewIncludeNilStringEqualPredicate(val []byte) IncludeNilStringEqualPredicate {
+	return IncludeNilStringEqualPredicate{value: val}
+}
+
+func (p IncludeNilStringEqualPredicate) String() string {
+	return "IncludeNilStringEqualPredicate{}"
+}
+
+func (p IncludeNilStringEqualPredicate) KeepColumnChunk(_ *ColumnChunkHelper) bool {
+	return true
+}
+
+func (p IncludeNilStringEqualPredicate) KeepPage(_ pq.Page) bool {
+	return true
+}
+
+func (p IncludeNilStringEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return bytes.Equal(vv, p.value)
 }

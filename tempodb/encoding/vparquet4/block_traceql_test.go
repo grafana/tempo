@@ -184,6 +184,8 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 	numSpansExpected := 0
+	numOfSpansWithEvents := 0
+	numOfSpansWithLinks := 0
 	for i := 0; i < numTraces; i++ {
 		if i == wantTraceIdx {
 			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
@@ -196,6 +198,14 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 		for _, resource := range tr.ResourceSpans {
 			for _, scope := range resource.ScopeSpans {
 				numSpansExpected += len(scope.Spans)
+				for _, span := range scope.Spans {
+					if len(span.Events) > 0 {
+						numOfSpansWithEvents++
+					}
+					if len(span.Links) > 0 {
+						numOfSpansWithLinks++
+					}
+				}
 			}
 		}
 	}
@@ -211,6 +221,8 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
 		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
 		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
+		{"event", "event.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.foo = nil}`)},
+		{"link", "link.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{link.foo = nil}`)},
 	}
 
 	for _, tc := range searches {
@@ -274,6 +286,32 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 														break
 													}
 												}
+											case "event":
+												// just need at least one event without this attribute to pass
+												// only set found = true if we find the attribute in all events
+												eventsWithAttrFound := 0
+												for _, event := range span.Events {
+													for _, attr := range event.Attrs {
+														if attr.Key == "foo" {
+															eventsWithAttrFound++
+														}
+													}
+												}
+												if eventsWithAttrFound == len(span.Events) && len(span.Events) > 0 {
+													found = true
+												}
+											case "link":
+												linksWithAttrFound := 0
+												for _, link := range span.Links {
+													for _, attr := range link.Attrs {
+														if attr.Key == "foo" {
+															linksWithAttrFound++
+														}
+													}
+												}
+												if linksWithAttrFound == len(span.Links) && len(span.Links) > 0 {
+													found = true
+												}
 											}
 										}
 									}
@@ -296,6 +334,14 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 				// since our expected trace is the only one with spans that have foo attributes
 				// all other traces should not have any spans with foo attributes
 				require.Equal(t, numSpansExpected, numSpansFound, "search request:%v", req)
+			}
+			if tc.level == "event" {
+				// our expected trace also has one span with one event that does not have foo attribute
+				require.Equal(t, numOfSpansWithEvents+1, numSpansFound, "search request:%v", req)
+			}
+			if tc.level == "link" {
+				// our expected trace also has one span with one link that does not have foo attribute
+				require.Equal(t, numOfSpansWithLinks+1, numSpansFound, "search request:%v", req)
 			}
 			require.False(t, found, "search request:%v", req)
 		})
@@ -945,6 +991,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			DroppedAttributesCount: 3,
 			Attrs: []Attribute{
 				attr("opentracing.ref_type", "child-of"),
+				attr("foo", "bar"),
 			},
 		},
 	}
@@ -1053,6 +1100,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 										Attrs: []Attribute{
 											attr("event-attr-key-1", "event-value-1"),
 											attr("event-attr-key-2", "event-value-2"),
+											attr("foo", "bar"),
 											attr("message", "exception"),
 										},
 									},
@@ -1064,6 +1112,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 											attr("event-attr-key-1", "event-value-1"),
 											attr("event-attr-key-2", "event-value-2"),
 											attr("message", "exception"),
+											attr("foo", "bar"),
 										},
 									},
 								},
@@ -1136,6 +1185,25 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									attr(LabelName, "Bob2"),                    // Conflicts with intrinsic but still looked up by .name
 									attr(LabelServiceName, "spanservicename2"), // Overrides resource-level dedicated column
 									attr(LabelHTTPStatusCode, "500ouch2"),      // Different type than dedicated column
+								},
+								Events: []Event{
+									{
+										TimeSinceStartNano: 3 * 1000 * 1000, // 3ms
+										Name:               "e1",
+										Attrs: []Attribute{
+											attr("event-attr", "event-value-1"),
+										},
+									},
+								},
+								Links: []Link{
+									{
+										TraceID:    linkTraceID,
+										SpanID:     linkSpanID,
+										TraceState: "state2",
+										Attrs: []Attribute{
+											attr("link-attr", "abc"),
+										},
+									},
 								},
 							},
 						},

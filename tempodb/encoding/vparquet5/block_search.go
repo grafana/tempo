@@ -393,7 +393,7 @@ func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.Fi
 			opts = append(opts, pq.SyncIteratorOptIntern())
 		}
 
-		return pq.NewNilAttributeIterator(ctx, rgs, index, opts...)
+		return pq.NewNilSyncIterator(ctx, rgs, index, opts...)
 	}
 }
 

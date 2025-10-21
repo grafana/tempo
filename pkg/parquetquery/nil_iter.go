@@ -9,39 +9,41 @@ import (
 	pq "github.com/parquet-go/parquet-go"
 )
 
-// NilAttributeIterator copies all functions of the sync iterator with just the next() function being different
-type NilAttributeIterator struct {
-	syncIterator          SyncIterator
-	lastRowNumberReturned RowNumber
-	attrFound             bool
-	lastBuff              bool
+// NilSyncIterator copies all functions of the sync iterator with just the next() function being different
+type NilSyncIterator struct {
+	syncIterator                    SyncIterator
+	lastRowNumberReturned           RowNumber
+	attrFound                       bool
+	lastBuff                        bool
+	scannedAtLeastOneRowAtSameLevel bool
 }
 
-var _ Iterator = (*NilAttributeIterator)(nil)
+var _ Iterator = (*NilSyncIterator)(nil)
 
-func NewNilAttributeIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ...SyncIteratorOpt) *NilAttributeIterator {
+func NewNilSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ...SyncIteratorOpt) *NilSyncIterator {
 	// Create the sync iterator
 	syncIterator := NewSyncIterator(ctx, rgs, column, opts...)
 
-	i := &NilAttributeIterator{
-		syncIterator:          *syncIterator,
-		lastRowNumberReturned: EmptyRowNumber(),
-		attrFound:             false,
-		lastBuff:              false,
+	i := &NilSyncIterator{
+		syncIterator:                    *syncIterator,
+		lastRowNumberReturned:           EmptyRowNumber(),
+		attrFound:                       false,
+		lastBuff:                        false,
+		scannedAtLeastOneRowAtSameLevel: false,
 	}
 
 	return i
 }
 
-func (c *NilAttributeIterator) String() string {
+func (c *NilSyncIterator) String() string {
 	filter := "nil"
 	if c.syncIterator.filter != nil {
 		filter = c.syncIterator.filter.String()
 	}
-	return fmt.Sprintf("NilAttributeIterator: %s : %s", c.syncIterator.columnName, filter)
+	return fmt.Sprintf("NilSyncIterator: %s : %s", c.syncIterator.columnName, filter)
 }
 
-func (c *NilAttributeIterator) Next() (*IteratorResult, error) {
+func (c *NilSyncIterator) Next() (*IteratorResult, error) {
 	rn, v, err := c.next()
 	if err != nil {
 		return nil, err
@@ -52,15 +54,15 @@ func (c *NilAttributeIterator) Next() (*IteratorResult, error) {
 	return c.makeResult(rn, v), nil
 }
 
-func (c *NilAttributeIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
+func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
 	return c.syncIterator.SeekTo(to, definitionLevel)
 }
 
-func (c *NilAttributeIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
+func (c *NilSyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
 	return c.syncIterator.popRowGroup()
 }
 
-func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
+func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 	for {
 		if c.syncIterator.currRowGroup == nil {
 			rg, minRN, maxRN := c.popRowGroup()
@@ -126,6 +128,7 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 			if v.RepetitionLevel() < v.DefinitionLevel() {
 				// new level reset
 				c.attrFound = false
+				c.scannedAtLeastOneRowAtSameLevel = false
 			}
 
 			// Inspect all values to track the current row number,
@@ -134,13 +137,17 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 			c.syncIterator.currBufN++
 			c.syncIterator.currPageN++
 
+			if RowNumberValidAtDefinitionLevel(c.syncIterator.curr, c.syncIterator.maxDefinitionLevel) {
+				c.scannedAtLeastOneRowAtSameLevel = true
+			}
+
 			if c.syncIterator.filter != nil && c.syncIterator.filter.KeepValue(*v) {
 				c.attrFound = true
 				continue
 			}
 
 			// if this is the last value then check here
-			if c.lastBuff && c.syncIterator.currBufN == len(c.syncIterator.currBuf) && !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) {
+			if c.lastBuff && c.syncIterator.currBufN == len(c.syncIterator.currBuf) && !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) && c.scannedAtLeastOneRowAtSameLevel {
 				c.lastRowNumberReturned = c.syncIterator.curr
 				return c.syncIterator.curr, v, nil
 			}
@@ -152,7 +159,7 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 					// moving on to the next level higher than attribute level
 					// so if we haven't seen the attribute yet, it is nil
 					// check if we've already returned this row so we can properly next()
-					if !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) {
+					if !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) && c.scannedAtLeastOneRowAtSameLevel {
 						c.lastRowNumberReturned = c.syncIterator.curr
 						return c.syncIterator.curr, v, nil
 					}
@@ -164,22 +171,22 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 	}
 }
 
-func (c *NilAttributeIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *ColumnChunkHelper) {
+func (c *NilSyncIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *ColumnChunkHelper) {
 	c.syncIterator.setRowGroup(rg, minRN, maxRN, cc)
 }
 
-func (c *NilAttributeIterator) setPage(pg pq.Page) {
+func (c *NilSyncIterator) setPage(pg pq.Page) {
 	c.syncIterator.setPage(pg)
 }
 
-func (c *NilAttributeIterator) closeCurrRowGroup() {
+func (c *NilSyncIterator) closeCurrRowGroup() {
 	c.syncIterator.closeCurrRowGroup()
 }
 
-func (c *NilAttributeIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
+func (c *NilSyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	return c.syncIterator.makeResult(t, v)
 }
 
-func (c *NilAttributeIterator) Close() {
+func (c *NilSyncIterator) Close() {
 	c.syncIterator.Close()
 }
