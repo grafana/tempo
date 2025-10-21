@@ -187,6 +187,7 @@ func addHashStr(hash uint64, strs ...string) uint64 {
 		return addHashNil(hash)
 	}
 	for _, s := range strs {
+		hash = addHashNil(hash)
 		hash = fnv1a.AddString64(hash, s)
 	}
 	return hash
@@ -197,6 +198,7 @@ func addHashInt(hash uint64, ints ...int64) uint64 {
 		return addHashNil(hash)
 	}
 	for _, n := range ints {
+		hash = addHashNil(hash)
 		hash = fnv1a.AddUint64(hash, uint64(n))
 	}
 	return hash
