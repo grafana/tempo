@@ -31,10 +31,13 @@ import (
 )
 
 const (
-	getMethod          = "GET"
-	putMethod          = "PUT"
-	tagHeader          = "X-Amz-Tagging"
-	storageClassHeader = "X-Amz-Storage-Class"
+	getMethod           = "GET"
+	putMethod           = "PUT"
+	tagHeader           = "X-Amz-Tagging"
+	storageClassHeader  = "X-Amz-Storage-Class"
+	sseHeader           = "X-Amz-Server-Side-Encryption"
+	sseKMSKeyIDHeader   = "X-Amz-Server-Side-Encryption-Aws-Kms-Key-Id"
+	sseKMSContextHeader = "X-Amz-Server-Side-Encryption-Context"
 
 	defaultAccessKey = "AKIAIOSFODNN7EXAMPLE"
 	defaultSecretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
@@ -334,21 +337,13 @@ func TestReadError(t *testing.T) {
 	assert.Equal(t, wups, errB)
 }
 
-func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string) *httptest.Server {
-	require.NotNil(t, obj)
+func fakeServerWithHeader(t *testing.T, httpHeader *http.Header) *httptest.Server {
+	require.NotNil(t, httpHeader)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch method := r.Method; method {
 		case putMethod:
-			// https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
-			switch testedHeaderValue := r.Header.Get(testedHeaderName); testedHeaderValue {
-			case "":
-			default:
-
-				value, err := url.ParseQuery(testedHeaderValue)
-				require.NoError(t, err)
-				*obj = value
-			}
+			*httpHeader = r.Header
 		case getMethod:
 			// return fake list response b/c it's the only call that has to succeed
 			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
@@ -375,9 +370,9 @@ func TestObjectBlockTags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// rawObject := raw.Object{}
-			var obj url.Values
+			var httpHeaders http.Header
 
-			server := fakeServerWithHeader(t, &obj, tagHeader)
+			server := fakeServerWithHeader(t, &httpHeaders)
 			_, w, _, err := New(&Config{
 				Region:    "blerg",
 				AccessKey: "test",
@@ -392,8 +387,13 @@ func TestObjectBlockTags(t *testing.T) {
 			ctx := context.Background()
 			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
 
+			testedHeaderValue := httpHeaders.Get(tagHeader)
+			require.NotEmpty(t, testedHeaderValue)
+			headerValue, err := url.ParseQuery(testedHeaderValue)
+			require.NoError(t, err)
+
 			for k, v := range tc.tags {
-				vv := obj.Get(k)
+				vv := headerValue.Get(k)
 				require.NotEmpty(t, vv)
 				require.Equal(t, v, vv)
 			}
@@ -604,9 +604,9 @@ func TestObjectStorageClass(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// rawObject := raw.Object{}
-			var obj url.Values
+			var httpHeader http.Header
 
-			server := fakeServerWithHeader(t, &obj, storageClassHeader)
+			server := fakeServerWithHeader(t, &httpHeader)
 			_, w, _, err := New(&Config{
 				Region:       "blerg",
 				AccessKey:    "test",
@@ -620,7 +620,7 @@ func TestObjectStorageClass(t *testing.T) {
 
 			ctx := context.Background()
 			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
-			require.Equal(t, obj.Has(tc.StorageClass), true)
+			require.Equal(t, tc.StorageClass, httpHeader.Get(storageClassHeader))
 		})
 	}
 }
