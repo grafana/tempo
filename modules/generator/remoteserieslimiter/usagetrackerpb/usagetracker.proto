@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+syntax = "proto3";
+
+package usagetrackerpb;
+
+// import "gogoproto/gogo.proto";
+
+option go_package = "usagetrackerpb";
+// option (gogoproto.marshaler_all) = true;
+// option (gogoproto.unmarshaler_all) = true;
+
+service UsageTracker {
+  rpc TrackSeries(TrackSeriesRequest) returns (TrackSeriesResponse);
+}
+
+message TrackSeriesRequest {
+  // The tenant owning the series.
+  string userID = 1;
+
+  // Partition that this series belong to.
+  int32 partition = 2;
+
+  // The hashes of the series to track.
+  repeated uint64 seriesHashes = 3;
+}
+
+message TrackSeriesResponse {
+  // The hashes of the series that have been rejected because the tenant is over the limit.
+  repeated uint64 rejectedSeriesHashes = 1;
+}
+
+message SeriesCreatedEvent {
+  // The tenant owning the series.
+  string userID = 1;
+
+  // Unix timestamp when this event was emitted.
+  int64 timestamp = 2;
+
+  // The hashes of the series to track.
+  repeated uint64 seriesHashes = 3;
+}
+
+message SnapshotRecord {
+  int64 timestamp = 1;
+  repeated string filenames = 2;
+
+  int64 lastEventOffsetPublishedBeforeSnapshot = 3;
+  int64 lastSnapshotEventOffset = 4;
+}
+
+message SnapshotEvent {
+  int64 timestamp = 1;
+  string filename = 2;
+}
+
+message SnapshotFile {
+  repeated bytes data = 1;
+}

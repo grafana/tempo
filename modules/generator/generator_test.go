@@ -72,7 +72,8 @@ overrides:
 		netWorkInteraces[i] = iface.Name
 	}
 	generatorConfig.Ring.InstanceInterfaceNames = netWorkInteraces
-	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, newTestLogger(t))
+	logger := newTestLogger(t)
+	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, logger, nil)
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
 
@@ -174,7 +175,7 @@ func BenchmarkPushSpans(b *testing.B) {
 	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 
@@ -252,7 +253,7 @@ func BenchmarkCollect(b *testing.B) {
 	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 
