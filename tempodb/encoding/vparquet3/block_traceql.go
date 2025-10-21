@@ -1488,6 +1488,25 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, primaryIter parquetque
 	}
 
 	for _, cond := range conditions {
+		isNotExistSearch := len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists
+		if isNotExistSearch {
+			// the default value for some intrinsics is 0 not nil
+			switch cond.Attribute.Intrinsic {
+			case traceql.IntrinsicSpanStartTime,
+				traceql.IntrinsicKind,
+				traceql.IntrinsicDuration,
+				traceql.IntrinsicStatus:
+				// rewrite to = 0
+				cond.Operands = []traceql.Static{traceql.NewStaticInt(0)}
+				cond.Op = traceql.OpEqual
+			case traceql.IntrinsicName,
+				traceql.IntrinsicStatusMessage:
+				// rewrite to = ""
+				cond.Operands = []traceql.Static{traceql.NewStaticString("")}
+				cond.Op = traceql.OpEqual
+			}
+		}
+
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
@@ -1614,7 +1633,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, primaryIter parquetque
 			}
 
 			// = nil ?
-			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			if isNotExistSearch {
 				pred := parquetquery.NewNilValuePredicate()
 				iters = append(iters, makeIter(entry.columnPath, pred, entry.columnPath))
 				continue
@@ -1641,7 +1660,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, primaryIter parquetque
 			}
 
 			// = nil ?
-			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			if isNotExistSearch {
 				pred := parquetquery.NewNilValuePredicate()
 				iters = append(iters, makeIter(c.ColumnPath, pred, c.ColumnPath))
 				continue
@@ -1661,8 +1680,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, primaryIter parquetque
 		}
 
 		// check attr not exists
-		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
-			pred := createNilPredicate(cond.Attribute.Name)
+		if isNotExistSearch {
+			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
 			iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
 			continue
 		}
@@ -1851,7 +1870,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, spanIterator parqu
 
 		// generic attr does not exist?
 		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
-			pred := createNilPredicate(cond.Attribute.Name)
+			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
 			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, columnPathResourceAttrKey))
 			continue
 		}
@@ -2028,10 +2047,6 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 	default:
 		return nil, fmt.Errorf("cannot create predicate for operand: %v", operands[0])
 	}
-}
-
-func createNilPredicate(attribute string) parquetquery.Predicate {
-	return parquetquery.NewStringEqualPredicate([]byte(attribute))
 }
 
 func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {

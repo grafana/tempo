@@ -214,17 +214,6 @@ func (o *BinaryOperation) validate() error {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
-	if rhsT == TypeNil && o.Op == OpEqual {
-		if o.LHS.impliedType() == TypeAttribute {
-			switch o.LHS.(Attribute).Scope {
-			case AttributeScopeEvent:
-				return newUnsupportedError("{event.a = nil}")
-			case AttributeScopeLink:
-				return newUnsupportedError("{link.a = nil}")
-			}
-		}
-	}
-
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}

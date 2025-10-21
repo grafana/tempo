@@ -183,6 +183,9 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 	numSpansExpected := 0
+	numOfSpansWithEvents := 0
+	numOfSpansWithLinks := 0
+
 	for i := 0; i < numTraces; i++ {
 		if i == wantTraceIdx {
 			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
@@ -195,6 +198,14 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 		for _, resource := range tr.ResourceSpans {
 			for _, scope := range resource.ScopeSpans {
 				numSpansExpected += len(scope.Spans)
+				for _, span := range scope.Spans {
+					if len(span.Events) > 0 {
+						numOfSpansWithEvents++
+					}
+					if len(span.Links) > 0 {
+						numOfSpansWithLinks++
+					}
+				}
 			}
 		}
 	}
@@ -210,6 +221,8 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
 		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
 		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
+		{"event", "event.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.foo = nil}`)},
+		{"link", "link.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{link.foo = nil}`)},
 	}
 
 	for _, tc := range searches {
@@ -295,6 +308,14 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 				// since our expected trace is the only one with spans that have foo attributes
 				// all other traces should not have any spans with foo attributes
 				require.Equal(t, numSpansExpected, numSpansFound, "search request:%v", req)
+			}
+			if tc.level == "event" {
+				// our expected trace also has one span with one event that does not have foo attribute
+				require.Equal(t, numOfSpansWithEvents+1, numSpansFound, "search request:%v", req)
+			}
+			if tc.level == "link" {
+				// our expected trace also has one span with one link that does not have foo attribute
+				require.Equal(t, numOfSpansWithLinks+1, numSpansFound, "search request:%v", req)
 			}
 			require.False(t, found, "search request:%v", req)
 		})

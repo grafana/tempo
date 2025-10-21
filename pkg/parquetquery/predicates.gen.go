@@ -693,9 +693,9 @@ func (p StringEqualPredicate) String() string {
 }
 
 func (p StringEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	// if d := c.Dictionary(); d != nil {
-	// 	return keepDictionary(d, p.KeepValue)
-	// }
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
 
 	return true
 }
