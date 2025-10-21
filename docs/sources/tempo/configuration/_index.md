@@ -1151,7 +1151,7 @@ storage:
             [sse: <map[string]string>]:
               # Optional
               # Example: type: SSE-S3
-              # Type of encryption to use with s3 bucket, either SSE-KMS or SSE-S3
+              # Type of encryption to use with s3 bucket, either SSE-KMS, SSE-S3, or SSE-C
               [type: string]:
 
               # Optional
@@ -1162,6 +1162,12 @@ storage:
               # Example: kms_encryption_context: "encryptionContext": {"department": "10103.0"}
               # KMS Encryption Context used for object encryption. It expects JSON formatted string
               kms_encryption_context:
+
+              # Optional
+              # Example: encryption_key: <32-byte-long-key>
+              # SSE-C Encryption Key used for object encryption with customer provided keys. 
+              # It expects a 32 byte long string.
+              encryption_key:
 
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL

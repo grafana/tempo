@@ -239,7 +239,9 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		a.partNum,
 		bytes.NewReader(buffer),
 		int64(len(buffer)),
-		minio.PutObjectPartOptions{},
+		minio.PutObjectPartOptions{
+			SSE: rw.sse,
+		},
 	)
 	if err != nil {
 		return a, fmt.Errorf("error in multipart upload: %w", err)
@@ -270,7 +272,9 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		a.objectName,
 		a.uploadID,
 		completeParts,
-		minio.PutObjectOptions{},
+		minio.PutObjectOptions{
+			ServerSideEncryption: rw.sse,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("error completing multipart upload, object: %s, obj etag: %s: %w", a.objectName, uploadInfo.ETag, err)
@@ -744,6 +748,14 @@ func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
 		}
 	case SSES3:
 		return encrypt.NewSSE(), nil
+	case SSEC:
+		if cfg.SSE.CustomerEncryptionKey == "" {
+			return nil, errors.New("SSE-C EncryptionKey is missing")
+		}
+		if len(cfg.SSE.CustomerEncryptionKey) != 32 {
+			return nil, errors.New("SSE-C EncryptionKey must be 32 bytes long")
+		}
+		return encrypt.NewSSEC([]byte(cfg.SSE.CustomerEncryptionKey))
 	default:
 		return nil, errUnsupportedSSEType
 	}
