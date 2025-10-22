@@ -66,6 +66,18 @@ func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
 	return 0
 }
 
+func CompareRowNumbersLossy(upToDefinitionLevel int, a, b RowNumber) int {
+	for i := 0; i <= upToDefinitionLevel; i++ {
+		if a[i] != -1 && a[i] < b[i] {
+			return -1
+		}
+		if a[i] > b[i] && b[i] != -1 {
+			return 1
+		}
+	}
+	return 0
+}
+
 // EqualRowNumber compares the sequences of row numbers in a and b
 // for partial equality. A little faster than CompareRowNumbers(d,a,b)==0
 func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
@@ -350,6 +362,30 @@ func (o PoolOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
 	j.pool = o.pool
 }
 
+type IteratorOption struct {
+	definitionLevel int
+	iter            Iterator
+	optional        bool
+}
+
+func WithIterator(definitionLevel int, iter Iterator, optional bool) IteratorOption {
+	return IteratorOption{
+		definitionLevel: definitionLevel,
+		iter:            iter,
+		optional:        optional,
+	}
+}
+
+func (o IteratorOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
+	if o.optional {
+		j.optional = append(j.optional, o.iter)
+		j.defLevelsOptional = append(j.defLevelsOptional, o.definitionLevel)
+	} else {
+		j.required = append(j.required, o.iter)
+		j.defLevelsRequired = append(j.defLevelsRequired, o.definitionLevel)
+	}
+}
+
 type SyncIteratorOpt func(i *SyncIterator)
 
 // SyncIteratorOptIntern enables interning of string values.
@@ -533,6 +569,10 @@ func (c *SyncIterator) Next() (*IteratorResult, error) {
 // SeekTo moves this iterator to the next result that is greater than
 // or equal to the given row number (and based on the given definition level)
 func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
+	if definitionLevel > c.maxDefinitionLevel {
+		to = TruncateRowNumber(c.maxDefinitionLevel, to)
+	}
+
 	if c.seekRowGroup(to, definitionLevel) {
 		return nil, nil
 	}
@@ -1116,6 +1156,8 @@ func (j *JoinIterator) Close() {
 // TODO - This should technically obsolete the JoinIterator.
 type LeftJoinIterator struct {
 	definitionLevel              int
+	defLevelsRequired            []int
+	defLevelsOptional            []int
 	required, optional           []Iterator
 	peeksRequired, peeksOptional []*IteratorResult
 	pred                         GroupPredicate
@@ -1127,28 +1169,36 @@ type LeftJoinIterator struct {
 var _ Iterator = (*LeftJoinIterator)(nil)
 
 func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate, opts ...LeftJoinIteratorOption) (*LeftJoinIterator, error) {
-	// No query should ever result in a left-join with no required iterators.
-	// If this happens, it's a bug in the iter building code.
-	// LeftJoinIterator is not designed to handle this case and will loop forever.
-	if len(required) == 0 {
-		return nil, fmt.Errorf("left join iterator requires at least one required iterator")
-	}
-
 	j := &LeftJoinIterator{
 		definitionLevel: definitionLevel,
 		required:        required,
 		optional:        optional,
-		peeksRequired:   make([]*IteratorResult, len(required)),
-		peeksOptional:   make([]*IteratorResult, len(optional)),
 		pred:            pred,
 		pool:            DefaultPool,
+	}
+
+	// Fill in definition levels
+	for range j.required {
+		j.defLevelsRequired = append(j.defLevelsRequired, j.definitionLevel)
+	}
+	for range j.optional {
+		j.defLevelsOptional = append(j.defLevelsOptional, j.definitionLevel)
 	}
 
 	for _, opt := range opts {
 		opt.applyToLeftJoinIterator(j)
 	}
 
+	// No query should ever result in a left-join with no required iterators.
+	// If this happens, it's a bug in the iter building code.
+	// LeftJoinIterator is not designed to handle this case and will loop forever.
+	if len(j.required) == 0 {
+		return nil, fmt.Errorf("left join iterator requires at least one required iterator")
+	}
+
 	j.at = j.pool.Get()
+	j.peeksRequired = make([]*IteratorResult, len(j.required))
+	j.peeksOptional = make([]*IteratorResult, len(j.optional))
 
 	return j, nil
 }
@@ -1190,7 +1240,7 @@ outer:
 		// The first iter is pointing at the next candidate row. Proceed through iters 2 to N looking
 		// for matches.
 		for iterNum := 1; iterNum < len(j.required); iterNum++ {
-			err := j.seek(iterNum, j.peeksRequired[0].RowNumber, j.definitionLevel)
+			err := j.seek(iterNum, j.defLevelsRequired[0], j.peeksRequired[0].RowNumber)
 			if err != nil {
 				return nil, err
 			}
@@ -1200,11 +1250,14 @@ outer:
 				return nil, nil
 			}
 
-			if CompareRowNumbers(j.definitionLevel, j.peeksRequired[iterNum].RowNumber, j.peeksRequired[0].RowNumber) == 1 {
+			d := min(j.defLevelsRequired[0], j.defLevelsRequired[iterNum])
+
+			if CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, j.peeksRequired[0].RowNumber) == 1 {
 				// This iterator has a higher row number than all previous iterators.  That means it might have
 				// a higher filtering power, swap it to the top and restart the loop.
 				j.required[0], j.required[iterNum] = j.required[iterNum], j.required[0]
 				j.peeksRequired[0], j.peeksRequired[iterNum] = j.peeksRequired[iterNum], j.peeksRequired[0]
+				j.defLevelsRequired[0], j.defLevelsRequired[iterNum] = j.defLevelsRequired[iterNum], j.defLevelsRequired[0]
 				continue outer
 			}
 		}
@@ -1246,7 +1299,8 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	return j.Next()
 }
 
-func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
+func (j *LeftJoinIterator) seek(iterNum int, d int, t RowNumber) (err error) {
+	d = min(d, j.defLevelsRequired[iterNum])
 	if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
 		// Release peek if present
 		// These results have been collected but never returned upstream,
@@ -1265,7 +1319,8 @@ func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
 
 func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (done bool, err error) {
 	for iterNum, iter := range j.required {
-		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
+		d2 := min(d, j.defLevelsRequired[iterNum])
+		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d2, j.peeksRequired[iterNum].RowNumber, t) == -1 {
 
 			// Release peek if present
 			// These results have been collected but never returned upstream,
@@ -1289,7 +1344,8 @@ func (j *LeftJoinIterator) seekAllRequired(t RowNumber, d int) (done bool, err e
 
 func (j *LeftJoinIterator) seekAllOptional(t RowNumber, d int) (err error) {
 	for iterNum, iter := range j.optional {
-		if j.peeksOptional[iterNum] == nil || CompareRowNumbers(d, j.peeksOptional[iterNum].RowNumber, t) == -1 {
+		d2 := min(d, j.defLevelsOptional[iterNum])
+		if j.peeksOptional[iterNum] == nil || CompareRowNumbers(d2, j.peeksOptional[iterNum].RowNumber, t) == -1 {
 			j.peeksOptional[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return
@@ -1310,17 +1366,25 @@ func (j *LeftJoinIterator) peek(iterNum int) (*IteratorResult, error) {
 	return j.peeksRequired[iterNum], nil
 }
 
-func (j *LeftJoinIterator) collectInternal(rowNumber RowNumber, result *IteratorResult, iters []Iterator, peeks []*IteratorResult) (err error) {
+func (j *LeftJoinIterator) collectInternal(rowNumber RowNumber, result *IteratorResult, iters []Iterator, peeks []*IteratorResult, defLevels []int) (err error) {
 iters:
 	for i := range iters {
 		// Collect matches
-		for peeks[i] != nil /*&& EqualRowNumber(j.definitionLevel, peeks[i].RowNumber, rowNumber)*/ {
+		for peeks[i] != nil {
+
+			// Compare at the smaller of the two definition levels.
+			// Either the definition level of this join,
+			// or if the set definition level of the child iterator.
+			// d := min(j.definitionLevel, defLevels[i])
+			d := defLevels[i]
 
 			// Interned version of EqualRowNumber
 			// Compare in reverse order because most row number activity
 			// occurs at the deeper definition levels.
-			for k := j.definitionLevel; k >= 0; k-- {
-				if peeks[i].RowNumber[k] != rowNumber[k] {
+			for k := d; k >= 0; k-- {
+				// If the iter row number component is -1, that means
+				// it's at a lower definition level which is ok.
+				if /*peeks[i].RowNumber[k] != -1 &&*/ peeks[i].RowNumber[k] != rowNumber[k] {
 					continue iters
 				}
 			}
@@ -1358,13 +1422,17 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 		}
 	}
 
-	err = j.collectInternal(rowNumber, result, j.required, j.peeksRequired)
+	if j.collector != nil {
+		j.collector.Reset(rowNumber)
+	}
+
+	err = j.collectInternal(rowNumber, result, j.required, j.peeksRequired, j.defLevelsRequired)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(j.optional) > 0 {
-		err = j.collectInternal(rowNumber, result, j.optional, j.peeksOptional)
+		err = j.collectInternal(rowNumber, result, j.optional, j.peeksOptional, j.defLevelsOptional)
 		if err != nil {
 			return nil, err
 		}
