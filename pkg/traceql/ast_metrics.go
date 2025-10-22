@@ -123,7 +123,10 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		a.exemplarFn = exemplarFnFor(a.attr)
 
 	case metricsAggregateRate:
-		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+		// For rate(), only apply the rate multiplier at the final stage
+		// At raw and sum stages, just count spans like count_over_time()
+		// At final stage, also just count spans - rate multiplier is applied by series aggregator
+		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarNaN
 
@@ -256,6 +259,9 @@ func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
 		a.seriesAgg = NewHistogramAggregator(q, a.floats, q.Exemplars)
+	case metricsAggregateRate:
+		// For rate() in final mode, we need to apply the rate multiplier after summing counts
+		a.seriesAgg = NewRateSeriesAggregator(q, q.Exemplars)
 	default:
 		// These are simple additions by series
 		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp, q.Exemplars)
