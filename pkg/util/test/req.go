@@ -152,6 +152,30 @@ func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange
 						},
 					},
 				},
+				{
+					Key: "job",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "dummy-job",
+						},
+					},
+				},
+				{
+					Key: "service.instance.id",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "instance",
+						},
+					},
+				},
+				{
+					Key: "instance",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "dummy-instance",
+						},
+					},
+				},
 			},
 		},
 	}

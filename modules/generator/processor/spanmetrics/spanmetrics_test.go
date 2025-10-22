@@ -79,6 +79,7 @@ func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
+	cfg.TargetInfoExcludedDimensions = []string{"random.res.attr"}
 
 	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
 	require.NoError(t, err)
@@ -97,15 +98,23 @@ func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
 		"job":         "test-service",
+		"instance":    "instance",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
-
 	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+
+	targetInfoLabels := labels.FromMap(map[string]string{
+		"job":        "test-service",
+		"__job":      "dummy-job",
+		"instance":   "instance",
+		"__instance": "dummy-instance",
+	})
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", targetInfoLabels))
 }
 
 func TestSpanMetrics_dimensions(t *testing.T) {
