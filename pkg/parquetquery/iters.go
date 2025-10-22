@@ -869,8 +869,10 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	if len(c.at.Entries) == 1 {
 		if c.intern {
 			c.at.Entries[0].Value = c.interner.UnsafeClone(v)
-		} else {
+		} else if c.clone {
 			c.at.Entries[0].Value = v.Clone()
+		} else {
+			c.at.Entries[0].Value = *v
 		}
 	}
 
