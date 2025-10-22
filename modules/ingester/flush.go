@@ -193,6 +193,7 @@ func (i *Ingester) cutOneInstanceToWal(instance *instance, immediate bool) {
 	}
 
 	if blockID != uuid.Nil {
+		level.Info(log.Logger).Log("msg", "enqueueing flush op", "tenant", instance.instanceID, "block", blockID)
 		// jitter to help when flushing many instances at the same time
 		// no jitter if immediate (initiated via /flush handler for example)
 		i.enqueue(&flushOp{
