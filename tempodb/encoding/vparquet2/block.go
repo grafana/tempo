@@ -49,3 +49,26 @@ func (b *backendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, 
 func (b *backendBlock) Validate(context.Context) error {
 	return util.ErrUnsupported
 }
+
+func (b *backendBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
+	return &blockFetcher{b: b, opts: opts}
+}
+
+type blockFetcher struct {
+	b    *backendBlock
+	opts common.SearchOptions
+}
+
+var _ traceql.Fetcher = (*blockFetcher)(nil)
+
+func (b *blockFetcher) SpansetFetcher() traceql.SpansetFetcher {
+	return b
+}
+
+func (b *blockFetcher) SpanFetcher() traceql.SpanFetcher {
+	return nil
+}
+
+func (b *blockFetcher) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	return b.b.Fetch(ctx, req, b.opts)
+}

@@ -91,8 +91,9 @@ type Reader interface {
 	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 
 	// TODO(suraj): use common.MetricsCallback in Fetch and remove the Bytes callback from traceql.FetchSpansResponse
-	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
-	FetchSpansOnly(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error)
+	// Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
+	// FetchSpansOnly(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error)
+	Fetcher(ctx context.Context, meta *backend.BlockMeta, opts common.SearchOptions) (traceql.Fetcher, error)
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 
@@ -533,8 +534,17 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 	return resp, nil
 }
 
+func (rw *readerWriter) Fetcher(ctx context.Context, meta *backend.BlockMeta, opts common.SearchOptions) (traceql.Fetcher, error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, err
+	}
+
+	return block.FetcherFor(opts), nil
+}
+
 // Fetch only uses rw.r which has caching enabled
-func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+/*func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
@@ -552,7 +562,7 @@ func (rw *readerWriter) FetchSpansOnly(ctx context.Context, meta *backend.BlockM
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.FetchSpansOnly(ctx, req, opts)
-}
+}*/
 
 func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	block, err := encoding.OpenBlock(meta, rw.r)

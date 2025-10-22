@@ -105,7 +105,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		return nil, err
 	}
 
-	if expr.NeedsFullTrace() {
+	/*if expr.NeedsFullTrace() {
 		f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return q.store.Fetch(ctx, meta, req, opts)
 		})
@@ -121,6 +121,16 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		if err != nil {
 			return nil, err
 		}
+	}*/
+
+	fetcher, err := q.store.Fetcher(ctx, meta, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	err = eval.Do(ctx, fetcher, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
+	if err != nil {
+		return nil, err
 	}
 
 	res := eval.Results()

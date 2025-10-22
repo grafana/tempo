@@ -1092,9 +1092,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				e := traceql.NewEngine()
 
-				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-					return block.Fetch(ctx, req, opts)
-				}), false)
+				f := &blockFetcher{
+					b:    block,
+					opts: opts,
+				}
+
+				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
@@ -1242,9 +1245,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	block := blockForBenchmarks(b)
 
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
+	f := &blockFetcher{
+		b:    block,
+		opts: opts,
+	}
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
@@ -1317,9 +1321,10 @@ func TestSamplingError(t *testing.T) {
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(t, err)
 
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
+	f := &blockFetcher{
+		b:    block,
+		opts: opts,
+	}
 
 	executeQuery := func(t *testing.T, q string) (results traceql.SeriesSet, spanCount int) {
 		st := uint64(block.meta.StartTime.UnixNano())

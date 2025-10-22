@@ -371,7 +371,7 @@ func BenchmarkWalTraceQL(b *testing.B) {
 		req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 		b.Run(q, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				resp, err := w.Fetch(context.TODO(), req, common.DefaultSearchOptions())
+				resp, err := w.FetcherFor(common.DefaultSearchOptions()).SpansetFetcher().Fetch(context.TODO(), req)
 				require.NoError(b, err)
 
 				for {

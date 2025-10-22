@@ -186,3 +186,19 @@ func (b *BackendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, 
 func (b *BackendBlock) Validate(_ context.Context) error {
 	return util.ErrUnsupported
 }
+
+func (b *BackendBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
+	return &backendFetcher{}
+}
+
+type backendFetcher struct{}
+
+var _ traceql.Fetcher = (*backendFetcher)(nil)
+
+func (b *backendFetcher) SpansetFetcher() traceql.SpansetFetcher {
+	return nil
+}
+
+func (b *backendFetcher) SpanFetcher() traceql.SpanFetcher {
+	return nil
+}

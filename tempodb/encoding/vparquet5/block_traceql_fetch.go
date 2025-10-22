@@ -29,7 +29,7 @@ func (b *backendBlock) FetchSpansOnly(ctx context.Context, req traceql.FetchSpan
 		return traceql.FetchSpansOnlyResponse{}, err
 	}
 
-	if len(req.SecondPassConditions) > 0 {
+	if len(req.SecondPassConditions) > 0 || req.SecondPassSelectAll {
 		iter, span, err = create(makeIter, iter, req.SecondPassConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, false, req.SecondPassSelectAll, b.meta.DedicatedColumns)
 		if err != nil {
 			return traceql.FetchSpansOnlyResponse{}, err
@@ -133,14 +133,20 @@ func create(makeIter makeIterFn,
 	optional = append(optional, spanOptional...)*/
 
 	spanCol := NewSpanCollector2()
-	if allConditions {
-		// The final number of expected attributes.
+	switch {
+	case selectAll:
+		// We are selecting everything so don't assert any restrictions on the number of attributes.
+		spanCol.minAttributes = 0
+	case allConditions:
+		// Asserting that every condition is met.
+		// So the number of matched attributes should match every distinct condition.
 		distinct := map[string]struct{}{}
 		for _, cond := range conditions {
 			distinct[cond.Attribute.Name] = struct{}{}
 		}
 		spanCol.minAttributes = len(distinct)
-	} else if batchRequireAtLeastOneMatchOverall {
+	case batchRequireAtLeastOneMatchOverall:
+		// TODO - Do we still need this?
 		spanCol.minAttributes = 1
 	}
 
@@ -562,6 +568,45 @@ func createSpanIterators(
 		genericConditions = append(genericConditions, cond)
 	}
 
+	// SecondPass SelectAll
+	if selectAll {
+		for wellKnownAttr, entry := range wellKnownColumnLookups {
+			if entry.level != traceql.AttributeScopeSpan {
+				continue
+			}
+
+			addPredicate(entry.columnPath, nil)
+			columnSelectAs[entry.columnPath] = wellKnownAttr
+		}
+
+		for intrins, entry := range intrinsicColumnLookups {
+			if entry.scope != intrinsicScopeSpan {
+				continue
+			}
+			// These intrinsics aren't included in select all because they
+			// aren't useful for compare().
+			switch intrins {
+			case traceql.IntrinsicSpanID,
+				traceql.IntrinsicParentID,
+				traceql.IntrinsicSpanStartTime,
+				traceql.IntrinsicStructuralDescendant,
+				traceql.IntrinsicStructuralChild,
+				traceql.IntrinsicStructuralSibling,
+				traceql.IntrinsicNestedSetLeft,
+				traceql.IntrinsicNestedSetRight,
+				traceql.IntrinsicNestedSetParent:
+				continue
+			}
+			addPredicate(entry.columnPath, nil)
+			columnSelectAs[entry.columnPath] = entry.columnPath
+		}
+
+		for k, v := range columnMapping.mapping {
+			addPredicate(v.ColumnPath, nil)
+			columnSelectAs[v.ColumnPath] = k
+		}
+	}
+
 	for columnPath, predicates := range columnPredicates {
 		optional = append(optional, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
@@ -881,17 +926,31 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult) {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
 		default:
-			// TODO - This exists for span-level dedicated columns like http.status_code
-			// Are nils possible here?
-			switch kv.Value.Kind() {
-			case parquet.Boolean:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticBool(kv.Value.Boolean()))
-			case parquet.Int32, parquet.Int64:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticInt(int(kv.Value.Int64())))
-			case parquet.Float:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double()))
-			case parquet.ByteArray:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+			if res.RowNumber[DefinitionLevelResourceSpansILSSpan] == -1 {
+				// Resource level attribute
+				switch kv.Value.Kind() {
+				case parquet.Boolean:
+					sp.resourceAttrs = append(sp.resourceAttrs, attrVal{newResAttr(kv.Key), traceql.NewStaticBool(kv.Value.Boolean())})
+				case parquet.Int32, parquet.Int64:
+					sp.resourceAttrs = append(sp.resourceAttrs, attrVal{newResAttr(kv.Key), traceql.NewStaticInt(int(kv.Value.Int64()))})
+				case parquet.Float:
+					sp.resourceAttrs = append(sp.resourceAttrs, attrVal{newResAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double())})
+				case parquet.ByteArray:
+					sp.resourceAttrs = append(sp.resourceAttrs, attrVal{newResAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
+				}
+			} else {
+				// TODO - This exists for span-level dedicated columns like http.status_code
+				// Are nils possible here?
+				switch kv.Value.Kind() {
+				case parquet.Boolean:
+					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticBool(kv.Value.Boolean()))
+				case parquet.Int32, parquet.Int64:
+					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticInt(int(kv.Value.Int64())))
+				case parquet.Float:
+					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double()))
+				case parquet.ByteArray:
+					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+				}
 			}
 		}
 	}

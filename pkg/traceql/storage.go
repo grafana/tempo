@@ -267,12 +267,17 @@ type FetchSpansOnlyResponse struct {
 	Bytes func() uint64
 }
 
+type Fetcher interface {
+	SpansetFetcher() SpansetFetcher
+	SpanFetcher() SpanFetcher
+}
+
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
 type SpanFetcher interface {
-	Fetch(context.Context, FetchSpansRequest) (FetchSpansOnlyResponse, error)
+	FetchSpans(context.Context, FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
 // FetchTagValuesCallback is called to collect unique tag values.
@@ -355,7 +360,7 @@ func NewSpanFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (F
 	return SpanFetcherWrapper{f}
 }
 
-func (s SpanFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
+func (s SpanFetcherWrapper) FetchSpans(ctx context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
 	return s.f(ctx, request)
 }
 

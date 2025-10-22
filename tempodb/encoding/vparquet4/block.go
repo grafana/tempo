@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"go.opentelemetry.io/otel"
@@ -74,4 +75,27 @@ func (b *backendBlock) Validate(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (b *backendBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
+	return &blockFetcher{b: b, opts: opts}
+}
+
+type blockFetcher struct {
+	b    *backendBlock
+	opts common.SearchOptions
+}
+
+var _ traceql.Fetcher = (*blockFetcher)(nil)
+
+func (b *blockFetcher) SpansetFetcher() traceql.SpansetFetcher {
+	return b
+}
+
+func (b *blockFetcher) SpanFetcher() traceql.SpanFetcher {
+	return nil
+}
+
+func (b *blockFetcher) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	return b.b.Fetch(ctx, req, b.opts)
 }

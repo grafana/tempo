@@ -55,3 +55,19 @@ func (b Block) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.
 func (b Block) Validate(context.Context) error {
 	return nil
 }
+
+func (b Block) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
+	return &blockFetcher{}
+}
+
+type blockFetcher struct{}
+
+var _ traceql.Fetcher = (*blockFetcher)(nil)
+
+func (b *blockFetcher) SpansetFetcher() traceql.SpansetFetcher {
+	return nil
+}
+
+func (b *blockFetcher) SpanFetcher() traceql.SpanFetcher {
+	return nil
+}

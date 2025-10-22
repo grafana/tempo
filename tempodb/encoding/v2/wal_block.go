@@ -445,3 +445,19 @@ func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding
 
 	return id, tenant, version, encoding, dataEncoding, nil
 }
+
+func (b *walBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
+	return &walFetcher{}
+}
+
+type walFetcher struct{}
+
+var _ traceql.Fetcher = (*walFetcher)(nil)
+
+func (b *walFetcher) SpansetFetcher() traceql.SpansetFetcher {
+	return nil
+}
+
+func (b *walFetcher) SpanFetcher() traceql.SpanFetcher {
+	return nil
+}

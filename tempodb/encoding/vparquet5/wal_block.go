@@ -994,3 +994,26 @@ func (i *commonIterator) NextRow(ctx context.Context) (common.ID, parquet.Row, e
 func (i *commonIterator) Close() {
 	i.iter.Close()
 }
+
+func (b *walBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
+	return &walFetcher{b: b, opts: opts}
+}
+
+type walFetcher struct {
+	b    *walBlock
+	opts common.SearchOptions
+}
+
+var _ traceql.Fetcher = (*walFetcher)(nil)
+
+func (b *walFetcher) SpansetFetcher() traceql.SpansetFetcher {
+	return b
+}
+
+func (b *walFetcher) SpanFetcher() traceql.SpanFetcher {
+	return nil
+}
+
+func (b *walFetcher) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	return b.b.Fetch(ctx, req, b.opts)
+}

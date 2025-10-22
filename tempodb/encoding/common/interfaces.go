@@ -30,8 +30,8 @@ type Searcher interface {
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagValuesCallbackV2, mcb MetricsCallback, opts SearchOptions) error
 
 	// TODO(suraj): use MetricsCallback in Fetch and remove the Bytes callback from FetchSpansResponse
-	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
-	FetchSpansOnly(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansOnlyResponse, error)
+	// Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
+	// FetchSpansOnly(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansOnlyResponse, error)
 	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, MetricsCallback, SearchOptions) error
 	FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, MetricsCallback, SearchOptions) error
 }
@@ -100,6 +100,8 @@ type Iterator interface {
 type BackendBlock interface {
 	Finder
 	Searcher
+
+	FetcherFor(opts SearchOptions) traceql.Fetcher
 
 	BlockMeta() *backend.BlockMeta
 	Validate(ctx context.Context) error

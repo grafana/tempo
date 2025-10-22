@@ -918,9 +918,6 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 }
 
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
-// Dedupe spans parameter is an indicator of whether to expected duplicates in the datasource. For
-// example if the datasource is replication factor=1 or only a single block then we know there
-// aren't duplicates, and we can make some optimizations.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
@@ -939,6 +936,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
+
+	needsFullTrace := expr.NeedsFullTrace()
 
 	if metricsPipeline == nil {
 		return nil, fmt.Errorf("not a metrics query")
@@ -995,6 +994,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		metricsPipeline:   metricsPipeline,
 		timeOverlapCutoff: timeOverlapCutoff,
 		maxExemplars:      exemplars,
+		needsFullTrace:    needsFullTrace,
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
@@ -1158,6 +1158,7 @@ func lookup(needles []Attribute, haystack Span) Static {
 type MetricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
+	needsFullTrace                  bool
 	maxExemplars, exemplarCount     int
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
@@ -1181,7 +1182,17 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
-func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+func (e *MetricsEvaluator) Do(ctx context.Context, f Fetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	if !e.needsFullTrace {
+		// The query can operate at a span level so attempt.
+		// This is faster. If not supported then fallback to spanset level.
+		spanFetcher := f.SpanFetcher()
+		if spanFetcher != nil {
+			return e.DoSpansOnly(ctx, spanFetcher, fetcherStart, fetcherEnd, maxSeries)
+		}
+	}
+
+	spanSetFetcher := f.SpansetFetcher()
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1208,7 +1219,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		}
 	}
 
-	fetch, err := f.Fetch(ctx, storageReq)
+	fetch, err := spanSetFetcher.Fetch(ctx, storageReq)
 	if errors.Is(err, util.ErrUnsupported) {
 		return nil
 	}
@@ -1316,7 +1327,7 @@ func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpanFetcher, fetch
 		}
 	}
 
-	fetch, err := f.Fetch(ctx, storageReq)
+	fetch, err := f.FetchSpans(ctx, storageReq)
 	if errors.Is(err, util.ErrUnsupported) {
 		return nil
 	}

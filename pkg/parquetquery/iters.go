@@ -1255,9 +1255,10 @@ outer:
 			if CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, j.peeksRequired[0].RowNumber) == 1 {
 				// This iterator has a higher row number than all previous iterators.  That means it might have
 				// a higher filtering power, swap it to the top and restart the loop.
-				j.required[0], j.required[iterNum] = j.required[iterNum], j.required[0]
+				/*j.required[0], j.required[iterNum] = j.required[iterNum], j.required[0]
 				j.peeksRequired[0], j.peeksRequired[iterNum] = j.peeksRequired[iterNum], j.peeksRequired[0]
-				j.defLevelsRequired[0], j.defLevelsRequired[iterNum] = j.defLevelsRequired[iterNum], j.defLevelsRequired[0]
+				j.defLevelsRequired[0], j.defLevelsRequired[iterNum] = j.defLevelsRequired[iterNum], j.defLevelsRequired[0]*/
+				j.seek(0, d, j.peeksRequired[iterNum].RowNumber)
 				continue outer
 			}
 		}
@@ -1346,7 +1347,7 @@ func (j *LeftJoinIterator) seekAllOptional(t RowNumber, d int) (err error) {
 	for iterNum, iter := range j.optional {
 		d2 := min(d, j.defLevelsOptional[iterNum])
 		if j.peeksOptional[iterNum] == nil || CompareRowNumbers(d2, j.peeksOptional[iterNum].RowNumber, t) == -1 {
-			j.peeksOptional[iterNum], err = iter.SeekTo(t, d)
+			j.peeksOptional[iterNum], err = iter.SeekTo(t, d2)
 			if err != nil {
 				return
 			}
