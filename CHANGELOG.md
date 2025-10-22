@@ -15,6 +15,7 @@
 * [ENHANCEMENT] Improve shutdown time in the first 30 seconds [#5725](https://github.com/grafana/tempo/pull/5725) (@ldufr)
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
 * [BUGFIX] Fix issues related to integer dedicated columns in vParquet5-preview2 [#5716](https://github.com/grafana/tempo/pull/5716) (@stoewer)
+* [BUGFIX] Fix: handle collisions with job and instance labels when targetInfo is enabled [#5774](https://github.com/grafana/tempo/pull/5774) (@javiermolinar)
 * [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605)
 
 # v2.9.0
