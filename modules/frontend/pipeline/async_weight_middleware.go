@@ -96,7 +96,8 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 		traceQLQuery = query.Get("query")
 	}
 
-	req.SetWeight(c.weights.TraceQLSearchWeight)
+	weight := c.weights.TraceQLSearchWeight
+	req.SetWeight(weight)
 
 	if traceQLQuery == "" {
 		return
@@ -120,6 +121,7 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 	}
 	complexQuery := regexConditions >= c.weights.MaxRegexConditions || conditions >= c.weights.MaxTraceQLConditions
 	if complexQuery {
-		req.SetWeight(c.weights.TraceQLSearchWeight + 1)
+		weight++
 	}
+	req.SetWeight(weight)
 }
