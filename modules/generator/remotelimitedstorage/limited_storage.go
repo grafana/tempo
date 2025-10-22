@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -11,22 +12,25 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/statsd_exporter/pkg/level"
 )
 
 type LimitedStorage struct {
 	storage      storage.Appendable
 	usageTracker *usagetrackerclient.UsageTrackerClient
 	tenant       string
+	logger       log.Logger
 }
 
 var _ storage.Appendable = (*LimitedStorage)(nil)
 
-func NewLimitedStorage(storage storage.Appendable, usageTracker *usagetrackerclient.UsageTrackerClient, tenant string) *LimitedStorage {
-	return &LimitedStorage{storage: storage, usageTracker: usageTracker, tenant: tenant}
+func NewLimitedStorage(storage storage.Appendable, usageTracker *usagetrackerclient.UsageTrackerClient, tenant string, logger log.Logger) *LimitedStorage {
+	return &LimitedStorage{storage: storage, usageTracker: usageTracker, tenant: tenant, logger: log.With(logger, "tenant", tenant)}
 }
 
 func (l *LimitedStorage) Appender(ctx context.Context) storage.Appender {
 	return &limitedAppender{
+		logger:          l.logger,
 		appender:        l.storage.Appender(ctx),
 		usageTracker:    l.usageTracker,
 		tenant:          l.tenant,
@@ -35,6 +39,7 @@ func (l *LimitedStorage) Appender(ctx context.Context) storage.Appender {
 }
 
 type limitedAppender struct {
+	logger       log.Logger
 	appender     storage.Appender
 	usageTracker *usagetrackerclient.UsageTrackerClient
 	tenant       string
@@ -163,7 +168,7 @@ func (l *limitedAppender) Commit() error {
 		return err
 	}
 	if len(rejected) == 0 {
-		fmt.Printf("no rejected series, committing. %d captured, %d hashes\n", numCaptured, numHashes)
+		level.Info(l.logger).Log("msg", "no rejected series, committing", "events", numCaptured, "hashes", numHashes)
 		return l.appender.Commit()
 	}
 
@@ -171,7 +176,7 @@ func (l *limitedAppender) Commit() error {
 		delete(l.capturedAppends, hash)
 	}
 
-	fmt.Printf("rejected series: %d, committing. %d captured, %d hashes, %d remaining\n", len(rejected), numCaptured, numHashes, len(l.capturedAppends))
+	level.Warn(l.logger).Log("msg", "rejected series, committing", "rejected", len(rejected), "events", numCaptured, "hashes", numHashes, "remaining", len(l.capturedAppends))
 
 	for _, cas := range l.capturedAppends {
 		for _, ca := range cas {

@@ -114,7 +114,7 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 
 	var store promstorage.Appendable = wal
 	if cfg.RemoteSeriesLimiter.Enabled {
-		store = remotelimitedstorage.NewLimitedStorage(wal, usageTrackerClient, instanceID)
+		store = remotelimitedstorage.NewLimitedStorage(wal, usageTrackerClient, instanceID, logger)
 	}
 
 	i := &instance{
