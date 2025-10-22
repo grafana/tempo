@@ -86,7 +86,32 @@ func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
-	batch := test.MakeBatch(10, nil)
+	batch := test.MakeBatchWithAttributes(10, nil, []*common_v1.KeyValue{
+		{
+			Key: "job",
+			Value: &common_v1.AnyValue{
+				Value: &common_v1.AnyValue_StringValue{
+					StringValue: "dummy-job",
+				},
+			},
+		},
+		{
+			Key: "service.instance.id",
+			Value: &common_v1.AnyValue{
+				Value: &common_v1.AnyValue_StringValue{
+					StringValue: "instance",
+				},
+			},
+		},
+		{
+			Key: "instance",
+			Value: &common_v1.AnyValue{
+				Value: &common_v1.AnyValue_StringValue{
+					StringValue: "dummy-instance",
+				},
+			},
+		},
+	})
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 

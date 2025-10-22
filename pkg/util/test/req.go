@@ -41,7 +41,7 @@ func MakeSpanWithTimeWindow(traceID []byte, startTime uint64, endTime uint64) *v
 
 func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, endTime uint64) *v1_trace.Span {
 	attributes := make([]*v1_common.KeyValue, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		attributes = append(attributes, &v1_common.KeyValue{
 			Key:   RandomString(),
 			Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
@@ -122,7 +122,11 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 }
 
 func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
-	return makeBatchWithTimeRange(spans, traceID, nil)
+	return makeBatchWithTimeRange(spans, traceID, nil, nil)
+}
+
+func MakeBatchWithAttributes(spans int, traceID []byte, resAttributes []*v1_common.KeyValue) *v1_trace.ResourceSpans {
+	return makeBatchWithTimeRange(spans, traceID, nil, resAttributes)
 }
 
 type batchTimeRange struct {
@@ -130,7 +134,7 @@ type batchTimeRange struct {
 	end   uint64
 }
 
-func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange) *v1_trace.ResourceSpans {
+func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange, resAttributes []*v1_common.KeyValue) *v1_trace.ResourceSpans {
 	traceID = ValidTraceID(traceID)
 
 	batch := &v1_trace.ResourceSpans{
@@ -152,32 +156,12 @@ func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange
 						},
 					},
 				},
-				{
-					Key: "job",
-					Value: &v1_common.AnyValue{
-						Value: &v1_common.AnyValue_StringValue{
-							StringValue: "dummy-job",
-						},
-					},
-				},
-				{
-					Key: "service.instance.id",
-					Value: &v1_common.AnyValue{
-						Value: &v1_common.AnyValue_StringValue{
-							StringValue: "instance",
-						},
-					},
-				},
-				{
-					Key: "instance",
-					Value: &v1_common.AnyValue{
-						Value: &v1_common.AnyValue_StringValue{
-							StringValue: "dummy-instance",
-						},
-					},
-				},
 			},
 		},
+	}
+
+	if resAttributes != nil {
+		batch.Resource.Attributes = append(batch.Resource.Attributes, resAttributes...)
 	}
 
 	var (
@@ -185,7 +169,7 @@ func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange
 		ssCount int
 	)
 
-	for i := 0; i < spans; i++ {
+	for range spans {
 		// occasionally make a new ss
 		if ss == nil || rand.Int()%3 == 0 {
 			ssCount++
@@ -215,7 +199,7 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID))
 	}
 
@@ -229,9 +213,9 @@ func MakeTraceWithTimeRange(requests int, traceID []byte, startTime, endTime uin
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		timeRange := &batchTimeRange{start: startTime, end: endTime}
-		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange))
+		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange, nil))
 	}
 
 	return trace
