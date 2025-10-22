@@ -22,7 +22,10 @@ const (
 	dimInstance      = "instance"
 )
 
-var intrinsicLabels = []string{dimService, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage}
+var (
+	intrinsicLabels           = []string{dimService, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage}
+	targetInfoIntrinsicLabels = append(intrinsicLabels, dimJob, dimInstance)
+)
 
 type Config struct {
 	// Buckets for latency histogram in seconds.
