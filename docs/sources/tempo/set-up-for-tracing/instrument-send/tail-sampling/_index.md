@@ -34,8 +34,8 @@ You can use sampling with Tempo using Grafana or Grafana Cloud.
 
 - [OpenTelemetry Sampling documentation](https://opentelemetry.io/docs/concepts/sampling/)
 - Sampling in Grafana Cloud Traces with a collector: [Head sampling](https://grafana.com/docs/opentelemetry/collector/sampling/head/) and [Tail sampling](https://grafana.com/docs/opentelemetry/collector/sampling/tail/)
-- [Enable tail sampling in Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/)
-- [Sampling policies and strategies](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/policies-strategies/)
+- [Enable tail sampling in Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/tail-sampling/)
+- [Sampling policies and strategies](https://grafana.com/docs/tempo/<TEMPO_VERSION/set-up-for-tracing/instrument-send/tail-sampling/policies-strategies/)
 
 ## Sampling and telemetry correlation
 
