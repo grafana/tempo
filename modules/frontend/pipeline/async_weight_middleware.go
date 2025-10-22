@@ -123,5 +123,11 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 	if complexQuery {
 		weight++
 	}
+	// Queries with OR operations (AllConditions=false) are more expensive
+	// because they can't be optimized in the storage layer
+	if !spanRequest.AllConditions {
+		weight++
+	}
+
 	req.SetWeight(weight)
 }
