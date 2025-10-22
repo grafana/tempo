@@ -167,16 +167,12 @@ func (l *limitedAppender) Commit() error {
 	if err != nil {
 		return err
 	}
-	if len(rejected) == 0 {
-		level.Info(l.logger).Log("msg", "no rejected series, committing", "events", numCaptured, "hashes", numHashes)
-		return l.appender.Commit()
-	}
 
 	for _, hash := range rejected {
 		delete(l.capturedAppends, hash)
 	}
 
-	level.Warn(l.logger).Log("msg", "rejected series, committing", "rejected", len(rejected), "events", numCaptured, "hashes", numHashes, "remaining", len(l.capturedAppends))
+	level.Warn(l.logger).Log("msg", "remote limiting applied", "rejected_series", len(rejected), "series_before", numHashes, "series_after", len(l.capturedAppends))
 
 	for _, cas := range l.capturedAppends {
 		for _, ca := range cas {
