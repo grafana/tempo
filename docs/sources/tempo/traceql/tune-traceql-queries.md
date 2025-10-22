@@ -27,19 +27,19 @@ Rewrite or simplify queries to use `&&` when possible.
 
 For example, to match spans with a non‑200 status code on a specific path, use a single conjunction inside one selector:
 
-The following query returns spans where the HTTP status code is not 200 and the URL is `/api`:
+The following query returns a single span where the HTTP status code is not `200` and the URL is `/api`:
 
 ```traceql
 { span.http.status_code != 200 && span.http.url = "/api" }
 ```
 
-Avoid forms that require OR or structural operators when a single conjunction suffices. For example, instead of separating conditions across multiple selectors with structural operators:
+Also avoid splitting these conditions across multiple selectors joined by `&&`, which matches them on different spans and changes semantics:
 
 ```traceql
-{ span.http.url = "/api" } >> { span.http.status_code != 200 }
+{ span.http.url = "/api" } && { span.http.status_code != 200 }
 ```
 
-prefer a single selector with `&&` when the intent is to match on the same span:
+Use a single selector when you want both conditions to be true on the same span.
 
 ```traceql
 { span.http.url = "/api" && span.http.status_code != 200 }
@@ -67,7 +67,7 @@ Avoid forms without a scope that force extra lookups:
 
 Tempo stores trace data in a columnar format (Parquet). It only reads the columns referenced by your query. If you can achieve the same effect while referencing fewer attributes, the query runs faster.
 
-For example, if filtering by status code already identifies error spans in your environment, you can drop a redundant status check:
+For example, if filtering by status code already identifies error spans in your environment, you can drop a redundant status check.
 
 This query filters on both an HTTP status and an explicit status:
 
@@ -119,7 +119,7 @@ To get the 90th percentile span duration for a service with sampling enabled:
 { resource.service.name = "api" } | quantile_over_time(duration, 0.9) with(sample=true)
 ```
 
-For guidance on when and how to use sampling, refer to the [sampling guide](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/sampling-guide/).
+For guidance on when and how to use sampling, refer to the [Sampling guide](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/).
 
 ## Next steps
 
