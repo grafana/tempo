@@ -215,7 +215,7 @@ func MakeTraceWithTimeRange(requests int, traceID []byte, startTime, endTime uin
 
 	for range requests {
 		timeRange := &batchTimeRange{start: startTime, end: endTime}
-		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange, nil))
+		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange, nil)) // #nosec G40
 	}
 
 	return trace
@@ -226,7 +226,7 @@ func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempop
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(spansEach, traceID))
 	}
 
