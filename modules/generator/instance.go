@@ -28,6 +28,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/wal"
+	promstorage "github.com/prometheus/prometheus/storage"
 
 	"go.uber.org/atomic"
 )
@@ -111,12 +112,17 @@ type instance struct {
 func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer, usageTrackerClient *usagetrackerclient.UsageTrackerClient) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
+	var store promstorage.Appendable = wal
+	if cfg.RemoteSeriesLimiter.Enabled {
+		store = remotelimitedstorage.NewLimitedStorage(wal, usageTrackerClient, instanceID)
+	}
+
 	i := &instance{
 		cfg:        cfg,
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:      registry.New(&cfg.Registry, overrides, instanceID, remotelimitedstorage.NewLimitedStorage(wal, usageTrackerClient, instanceID), logger),
+		registry:      registry.New(&cfg.Registry, overrides, instanceID, store, logger),
 		wal:           wal,
 		traceWAL:      traceWAL,
 		traceQueryWAL: rf1TraceWAL,

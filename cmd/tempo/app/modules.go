@@ -201,15 +201,15 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initUsageTrackerRing() (services.Service, error) {
-	if !t.cfg.RemoteSeriesLimiter.Enabled {
+	if !t.cfg.Generator.RemoteSeriesLimiter.Enabled {
 		return nil, nil
 	}
 
-	return t.initReadRing(t.cfg.RemoteSeriesLimiter.UsageTrackerRing.ToRingConfig(), usagetrackerclient.InstanceRingName, usagetrackerclient.InstanceRingKey)
+	return t.initReadRing(t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerRing.ToRingConfig(), usagetrackerclient.InstanceRingName, usagetrackerclient.InstanceRingKey)
 }
 
 func (t *App) initUsageTrackerPartitionRing() (services.Service, error) {
-	if !t.cfg.RemoteSeriesLimiter.Enabled {
+	if !t.cfg.Generator.RemoteSeriesLimiter.Enabled {
 		return nil, nil
 	}
 
@@ -223,10 +223,10 @@ func (t *App) initUsageTrackerPartitionRing() (services.Service, error) {
 	)
 
 	// default to ingester but use live-store if configured
-	heartbeatTimeout = t.cfg.RemoteSeriesLimiter.UsageTrackerRing.HeartbeatTimeout
+	heartbeatTimeout = t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerRing.HeartbeatTimeout
 	ringName = usagetrackerclient.PartitionRingName
 	ringKey = usagetrackerclient.PartitionRingKey
-	kvConfig = t.cfg.RemoteSeriesLimiter.UsageTrackerPartitionRing.KVStore
+	kvConfig = t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerPartitionRing.KVStore
 	readRing = t.readRings[usagetrackerclient.InstanceRingName]
 
 	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
@@ -395,7 +395,7 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
 
-	client := usagetrackerclient.NewUsageTrackerClient("usage-tracker", t.cfg.RemoteSeriesLimiter.UsageTrackerClientCfg, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
+	client := usagetrackerclient.NewUsageTrackerClient("usage-tracker", t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerClientCfg, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger, client)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
@@ -436,7 +436,7 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	// queries, so we can skip setting up a gRPC server.
 	t.cfg.Generator.DisableGRPC = true
 
-	client := usagetrackerclient.NewUsageTrackerClient("usage-tracker", t.cfg.RemoteSeriesLimiter.UsageTrackerClientCfg, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
+	client := usagetrackerclient.NewUsageTrackerClient("usage-tracker", t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerClientCfg, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
 
 	var err error
 	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger, client)
@@ -714,8 +714,8 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
-	t.cfg.RemoteSeriesLimiter.UsageTrackerPartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
-	t.cfg.RemoteSeriesLimiter.UsageTrackerRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerPartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
