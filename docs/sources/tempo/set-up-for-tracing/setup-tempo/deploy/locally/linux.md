@@ -58,13 +58,13 @@ Consider adding a prefix for your organization to the bucket, for example, `myor
 For a linux-amd64 installation, run the following commands via the command line interface on your Linux machine.
 You need administrator privileges to do this by running as the `root` user or via `sudo` as a user with permissions to do so.
 
-Download the Tempo binary, verify checksums (listed in `SHA256SUMS`), and add network capabilities to the binary. Be sure to [download the correct package installation](https://github.com/grafana/tempo/releases/) for your OS and architecture. The following example downloads and installs Tempo 2.8.2 for the AMD64 processor architecture:
+Download the Tempo binary, verify checksums (listed in `SHA256SUMS`), and add network capabilities to the binary. Be sure to [download the correct package installation](https://github.com/grafana/tempo/releases/) for your OS and architecture. The following example downloads and installs Tempo 2.9.0 for the AMD64 (x86_64) processor architecture on a Linux distribution supporting deb packages:
 
    ```bash
-   curl -Lo tempo_2.8.2_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v2.8.2/tempo_2.8.2_linux_amd64.deb
-   echo db322771f633a01d06f4685b14004fca8472e862d7be635f079d8fa8d5f38c3c \
-     tempo_2.8.2_linux_amd64.deb | sha256sum -c
-   sudo dpkg -i tempo_2.8.2_linux_amd64.deb
+   curl -Lo tempo_2.9.0_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v2.9.0/tempo_2.9.0_linux_amd64.deb
+   echo c1bc0fc8af5dcbe1b4806bdfad6d120e5a5df376d6782d22d0c3190be14fff05 \
+     tempo_2.9.0_linux_amd64.deb | sha256sum -c
+   sudo dpkg -i tempo_2.9.0_linux_amd64.deb
    ```
 
 ## Create a Tempo configuration file
@@ -98,7 +98,7 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 48h
+    block_retention: 48h               # configure total trace retention here
 
 metrics_generator:
   registry:
