@@ -250,7 +250,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
 
 	if legacyErr := unmarshal(&legacyCfg); legacyErr != nil {
-		return fmt.Errorf("failed to unmarshal config in new format: %w; also failed in legacy format: %w", err, legacyErr)
+		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
 	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
