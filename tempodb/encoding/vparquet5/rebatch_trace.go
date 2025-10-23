@@ -106,8 +106,9 @@ func rebatchTrace(trace *Trace) {
 
 func scopeSpanHash(ss *ScopeSpans) uint64 {
 	hash := fnv1a.HashString64(ss.Scope.Name)
-
+	hash = addHashSeparator(hash)
 	hash = fnv1a.AddString64(hash, ss.Scope.Version)
+	hash = addHashSeparator(hash)
 
 	// sort keys for consistency
 	slices.SortFunc(ss.Scope.Attrs, func(i, j Attribute) int {
@@ -123,7 +124,7 @@ func scopeSpanHash(ss *ScopeSpans) uint64 {
 
 func resourceSpanHash(rs *ResourceSpans) uint64 {
 	hash := fnv1a.HashString64(rs.Resource.ServiceName)
-
+	hash = addHashSeparator(hash)
 	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String01...)
 	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String02...)
 	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String03...)
@@ -156,27 +157,18 @@ func resourceSpanHash(rs *ResourceSpans) uint64 {
 func attributeHash(attr *Attribute, hash uint64) uint64 {
 	hash = fnv1a.AddString64(hash, attr.Key)
 
-	// is array?
-	for _, v := range attr.Value {
-		hash = fnv1a.AddString64(hash, v)
+	if attr.IsArray {
+		hash = addHashSeparator(hash)
 	}
-	for _, v := range attr.ValueBool {
-		b := uint64(0)
-		if v {
-			b = 1
-		}
-		hash = fnv1a.AddUint64(hash, b)
-	}
-	for _, v := range attr.ValueDouble {
-		hash = fnv1a.AddUint64(hash, math.Float64bits(v))
-	}
-	for _, v := range attr.ValueInt {
-		hash = fnv1a.AddUint64(hash, uint64(v))
-	}
+	hash = addHashStr(hash, attr.Value...)
+	hash = addHashInt(hash, attr.ValueInt...)
+	hash = addHashDouble(hash, attr.ValueDouble...)
+	hash = addHashBool(hash, attr.ValueBool...)
+
 	if attr.ValueUnsupported != nil {
 		hash = addHashStr(hash, *attr.ValueUnsupported)
 	} else {
-		hash = addHashNil(hash)
+		hash = addHashSeparator(hash)
 	}
 
 	return hash
@@ -184,10 +176,10 @@ func attributeHash(attr *Attribute, hash uint64) uint64 {
 
 func addHashStr(hash uint64, strs ...string) uint64 {
 	if len(strs) == 0 {
-		return addHashNil(hash)
+		return addHashSeparator(hash)
 	}
 	for _, s := range strs {
-		hash = addHashNil(hash)
+		hash = addHashSeparator(hash)
 		hash = fnv1a.AddString64(hash, s)
 	}
 	return hash
@@ -195,16 +187,39 @@ func addHashStr(hash uint64, strs ...string) uint64 {
 
 func addHashInt(hash uint64, ints ...int64) uint64 {
 	if len(ints) == 0 {
-		return addHashNil(hash)
+		return addHashSeparator(hash)
 	}
 	for _, n := range ints {
-		hash = addHashNil(hash)
 		hash = fnv1a.AddUint64(hash, uint64(n))
 	}
 	return hash
 }
 
-func addHashNil(hash uint64) uint64 {
+func addHashDouble(hash uint64, ints ...float64) uint64 {
+	if len(ints) == 0 {
+		return addHashSeparator(hash)
+	}
+	for _, n := range ints {
+		hash = fnv1a.AddUint64(hash, math.Float64bits(n))
+	}
+	return hash
+}
+
+func addHashBool(hash uint64, bools ...bool) uint64 {
+	if len(bools) == 0 {
+		return addHashSeparator(hash)
+	}
+	for _, b := range bools {
+		if b {
+			hash = fnv1a.AddUint64(hash, 1)
+		} else {
+			hash = fnv1a.AddUint64(hash, 0)
+		}
+	}
+	return hash
+}
+
+func addHashSeparator(hash uint64) uint64 {
 	// hash twice with large primes to avoid collisions
 	hash = fnv1a.AddUint64(hash, 9952039)
 	return fnv1a.AddUint64(hash, 10188397)
