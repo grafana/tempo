@@ -249,8 +249,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
 	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
 
-	if err := unmarshal(&legacyCfg); err != nil {
-		return err
+	if legacyErr := unmarshal(&legacyCfg); legacyErr != nil {
+		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
 	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
