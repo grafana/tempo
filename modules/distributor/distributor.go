@@ -396,12 +396,15 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 }
 
 func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID string, spanCount, tracesSize int, err error) {
-	user, e := user.ExtractOrgID(ctx)
+	orgID, e := user.ExtractOrgID(ctx)
 	if e != nil {
 		return "", 0, 0, e
 	}
+	if err := validation.TempoValidTenantID(orgID); err != nil {
+		return "", 0, 0, err
+	}
 
-	return user, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
+	return orgID, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
 }
 
 // PushTraces pushes a batch of traces
