@@ -9,13 +9,13 @@ import (
 	"strconv"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/user"
 	jsoniter "github.com/json-iterator/go"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -39,7 +39,7 @@ func (a *UserConfigOverridesAPI) GetHandler(w http.ResponseWriter, r *http.Reque
 	ctx, f := a.logRequest(r.Context(), "UserConfigOverridesAPI.GetHandler", r)
 	defer f(&err)
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -72,7 +72,7 @@ func (a *UserConfigOverridesAPI) PostHandler(w http.ResponseWriter, r *http.Requ
 	ctx, f := a.logRequest(r.Context(), "UserConfigOverridesAPI.PostHandler", r)
 	defer f(&err)
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -112,7 +112,7 @@ func (a *UserConfigOverridesAPI) PatchHandler(w http.ResponseWriter, r *http.Req
 	ctx, f := a.logRequest(r.Context(), "UserConfigOverridesAPI.PatchHandler", r)
 	defer f(&err)
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -150,7 +150,7 @@ func (a *UserConfigOverridesAPI) DeleteHandler(w http.ResponseWriter, r *http.Re
 	ctx, f := a.logRequest(r.Context(), "UserConfigOverridesAPI.DeleteHandler", r)
 	defer f(&err)
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
