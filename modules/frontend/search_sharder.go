@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
-	"github.com/grafana/dskit/user"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -17,6 +16,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -86,7 +86,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 
 	requestCtx := r.Context()
-	tenantID, err := user.ExtractOrgID(requestCtx)
+	tenantID, err := validation.ExtractValidTenantID(requestCtx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}

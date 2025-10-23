@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 const (
@@ -71,7 +71,7 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 // buildShardedRequests returns a slice of requests sharded on the precalculated
 // block boundaries
 func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pipeline.Request, error) {
-	userID, err := user.ExtractOrgID(parent.Context())
+	userID, err := validation.ExtractValidTenantID(parent.Context())
 	if err != nil {
 		return nil, err
 	}
