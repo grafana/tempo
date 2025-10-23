@@ -24,6 +24,7 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/grafana/tempo/modules/generator/remotelimitedstorage"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/grafana/tempo/modules/generator/storage"
 	objStorage "github.com/grafana/tempo/modules/storage"
@@ -357,7 +358,12 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL, g.store, g.usageTrackerClient)
+	var store = wal
+	if g.cfg.RemoteSeriesLimiter.Enabled {
+		store = remotelimitedstorage.NewLimitedStorage(wal, g.usageTrackerClient, id, g.logger)
+	}
+
+	inst, err := newInstance(g.cfg, id, g.overrides, store, g.logger, tracesWAL, tracesQueryWAL, g.store)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err

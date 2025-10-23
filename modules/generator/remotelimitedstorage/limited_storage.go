@@ -7,6 +7,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
+	generatorstorage "github.com/grafana/tempo/modules/generator/storage"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
@@ -16,15 +17,15 @@ import (
 )
 
 type LimitedStorage struct {
-	storage      storage.Appendable
+	storage      generatorstorage.Storage
 	usageTracker *usagetrackerclient.UsageTrackerClient
 	tenant       string
 	logger       log.Logger
 }
 
-var _ storage.Appendable = (*LimitedStorage)(nil)
+var _ generatorstorage.Storage = (*LimitedStorage)(nil)
 
-func NewLimitedStorage(storage storage.Appendable, usageTracker *usagetrackerclient.UsageTrackerClient, tenant string, logger log.Logger) *LimitedStorage {
+func NewLimitedStorage(storage generatorstorage.Storage, usageTracker *usagetrackerclient.UsageTrackerClient, tenant string, logger log.Logger) *LimitedStorage {
 	return &LimitedStorage{storage: storage, usageTracker: usageTracker, tenant: tenant, logger: log.With(logger, "tenant", tenant)}
 }
 
@@ -36,6 +37,11 @@ func (l *LimitedStorage) Appender(ctx context.Context) storage.Appender {
 		tenant:          l.tenant,
 		capturedAppends: make(map[uint64][]capturedAppend),
 	}
+}
+
+// Close implements storage.Storage.
+func (l *LimitedStorage) Close() error {
+	return l.storage.Close()
 }
 
 type limitedAppender struct {

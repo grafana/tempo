@@ -37,10 +37,10 @@ func Test_instance_concurrency(t *testing.T) {
 		servicegraphs.Name: {},
 	}
 
-	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil, nil)
+	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	assert.NoError(t, err)
 
-	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil, nil)
+	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -93,7 +93,7 @@ func TestInstancePushSpansSkipProcessors(t *testing.T) {
 	}
 	const tenantID = "skip-processors-test"
 
-	i, err := newInstance(&Config{}, tenantID, overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil, nil)
+	i, err := newInstance(&Config{}, tenantID, overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	require.NoError(t, err)
 
 	req := test.MakeBatch(1, nil)
@@ -140,7 +140,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 	overrides := mockOverrides{}
 
-	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, logger, nil, nil, nil, nil)
+	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, logger, nil, nil, nil)
 	assert.NoError(t, err)
 
 	// stop the update goroutine
