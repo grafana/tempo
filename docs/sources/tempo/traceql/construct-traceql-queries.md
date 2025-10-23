@@ -395,6 +395,12 @@ Find all traces where `any_attribute` is not `nil` or where `any_attribute` exis
 { span.any_attribute != nil }
 ```
 
+Find all traces where `any_attribtute` is `nil` or where `any_attribute` does NOT exist in a span
+
+```
+{ span.any_attribute = nil }
+```
+
 ### Field expressions
 
 Fields can also be combined in various ways to allow more flexible search criteria.

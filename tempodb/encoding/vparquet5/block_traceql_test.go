@@ -348,9 +348,6 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 										Name:                   "hello",
 										StartTimeUnixNano:      uint64(100 * time.Second),
 										DurationNano:           uint64(100 * time.Second),
-										HttpMethod:             ptr("get"),
-										HttpUrl:                ptr("url/hello/world"),
-										HttpStatusCode:         ptr(int64(500)),
 										StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 										StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
 										TraceState:             "tracestate",
@@ -371,15 +368,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 					},
 					{
 						Resource: Resource{
-							ServiceName:      "myservice",
-							Cluster:          ptr("cluster"),
-							Namespace:        ptr("namespace"),
-							Pod:              ptr("pod"),
-							Container:        ptr("container"),
-							K8sClusterName:   ptr("k8scluster"),
-							K8sNamespaceName: ptr("k8snamespace"),
-							K8sPodName:       ptr("k8spod"),
-							K8sContainerName: ptr("k8scontainer"),
+							ServiceName: "myservice",
 							Attrs: []Attribute{
 								attr("foo", "abc"),
 								attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
@@ -434,31 +423,10 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = nil}`), []int{0, 2}},
 		// Resource well-known attributes
 		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
-		{"resource.cluster", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelCluster + ` = nil}`), []int{0, 1}},
-		{"resource.namespace", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` = nil}`), []int{0, 1}},
-		{"resource.pod", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelPod + ` = nil}`), []int{0, 1}},
-		{"resource.container", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelContainer + ` = nil}`), []int{0, 1}},
-		{"resource.k8s.namespace.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` = nil}`), []int{0, 1}},
-		{"resource.k8s.cluster.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sClusterName + ` = nil}`), []int{0, 1}},
-		{"resource.k8s.pod.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sPodName + ` = nil}`), []int{0, 1}},
-		{"resource.k8s.container.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sContainerName + ` = nil}`), []int{0, 1}},
-		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
-		{"resource.cluster", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelCluster + ` = nil}`), []int{0, 1}},
-		{"resource.namespace", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` = nil}`), []int{0, 1}},
-		{"resource.pod", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelPod + ` = nil}`), []int{0, 1}},
-		{"resource.container", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelContainer + ` = nil}`), []int{0, 1}},
-		{"resource.k8s.namespace.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sNamespaceName + ` = nil}`), []int{0, 1}},
-		{"resource.k8s.cluster.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sClusterName + ` = nil}`), []int{0, 1}},
-		{"resource.k8s.pod.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sPodName + ` = nil}`), []int{0, 1}},
-		{"resource.k8s.container.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelK8sContainerName + ` = nil}`), []int{0, 1}},
+
 		// Resource dedicated attributes
 		{"resource.dedicated.resource.3", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = nil}`), []int{0, 1}},
 		{"resource.dedicated.resource.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.5 = nil}`), []int{0, 1}},
-
-		// Span well-known attributes
-		{"span.http.status_code", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPStatusCode + ` = nil}`), []int{0, 2}},
-		{"span.http.method", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPMethod + ` = nil}`), []int{0, 2}},
-		{"span.http.url", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPUrl + ` = nil}`), []int{0, 2}},
 
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = nil}`), []int{0, 2}},
