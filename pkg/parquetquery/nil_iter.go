@@ -11,10 +11,9 @@ import (
 
 // NilSyncIterator copies all functions of the sync iterator with just the next() function being different
 type NilSyncIterator struct {
-	syncIterator                    SyncIterator
+	SyncIterator
 	lastRowNumberReturned           RowNumber
-	attrFound                       bool
-	lastBuff                        bool
+	valueFound                      bool
 	scannedAtLeastOneRowAtSameLevel bool
 }
 
@@ -25,10 +24,9 @@ func NewNilSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts
 	syncIterator := NewSyncIterator(ctx, rgs, column, opts...)
 
 	i := &NilSyncIterator{
-		syncIterator:                    *syncIterator,
+		SyncIterator:                    *syncIterator,
 		lastRowNumberReturned:           EmptyRowNumber(),
-		attrFound:                       false,
-		lastBuff:                        false,
+		valueFound:                      false,
 		scannedAtLeastOneRowAtSameLevel: false,
 	}
 
@@ -37,10 +35,10 @@ func NewNilSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts
 
 func (c *NilSyncIterator) String() string {
 	filter := "nil"
-	if c.syncIterator.filter != nil {
-		filter = c.syncIterator.filter.String()
+	if c.filter != nil {
+		filter = c.filter.String()
 	}
-	return fmt.Sprintf("NilSyncIterator: %s : %s", c.syncIterator.columnName, filter)
+	return fmt.Sprintf("NilSyncIterator: %s : %s", c.columnName, filter)
 }
 
 func (c *NilSyncIterator) Next() (*IteratorResult, error) {
@@ -48,30 +46,30 @@ func (c *NilSyncIterator) Next() (*IteratorResult, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if !rn.Valid() {
 		return nil, nil
 	}
 	return c.makeResult(rn, v), nil
 }
 
-func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
-	return c.syncIterator.SeekTo(to, definitionLevel)
-}
-
-func (c *NilSyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
-	return c.syncIterator.popRowGroup()
-}
-
 func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
+	var lastValue *pq.Value
+	lastRowNumber := EmptyRowNumber()
 	for {
-		if c.syncIterator.currRowGroup == nil {
+		if c.currRowGroup == nil {
 			rg, minRN, maxRN := c.popRowGroup()
 			if rg == nil {
+				// no more rows, return last row if we still haven't found the value
+				if lastValue != nil && !c.valueFound && lastRowNumber.Valid() && !EqualRowNumber(lastValue.DefinitionLevel(), c.lastRowNumberReturned, lastRowNumber) && c.scannedAtLeastOneRowAtSameLevel {
+					c.lastRowNumberReturned = lastRowNumber
+					return lastRowNumber, lastValue, nil
+				}
 				return EmptyRowNumber(), nil, nil
 			}
 
-			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.syncIterator.column]}
-			if c.syncIterator.filter != nil && !c.syncIterator.filter.KeepColumnChunk(cc) {
+			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
+			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
 				cc.Close()
 				continue
 			}
@@ -79,8 +77,8 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.setRowGroup(rg, minRN, maxRN, cc)
 		}
 
-		if c.syncIterator.currPage == nil {
-			pg, err := c.syncIterator.currChunk.NextPage()
+		if c.currPage == nil {
+			pg, err := c.currChunk.NextPage()
 			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
 				c.closeCurrRowGroup()
@@ -89,9 +87,9 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			if err != nil {
 				return EmptyRowNumber(), nil, err
 			}
-			if c.syncIterator.filter != nil && !c.syncIterator.filter.KeepPage(pg) {
+			if c.filter != nil && !c.filter.KeepPage(pg) {
 				// This page filtered out
-				c.syncIterator.curr.Skip(pg.NumRows())
+				c.curr.Skip(pg.NumRows())
 				pq.Release(pg)
 				continue
 			}
@@ -99,21 +97,18 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		}
 
 		// Read next batch of values if needed
-		if c.syncIterator.currBuf == nil {
-			c.syncIterator.currBuf = syncIteratorPoolGet(c.syncIterator.readSize, 0)
+		if c.currBuf == nil {
+			c.currBuf = syncIteratorPoolGet(c.readSize, 0)
 		}
 
-		if c.syncIterator.currBufN >= len(c.syncIterator.currBuf) || len(c.syncIterator.currBuf) == 0 {
-			c.syncIterator.currBuf = c.syncIterator.currBuf[:cap(c.syncIterator.currBuf)]
-			n, err := c.syncIterator.currValues.ReadValues(c.syncIterator.currBuf)
+		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
+			c.currBuf = c.currBuf[:cap(c.currBuf)]
+			n, err := c.currValues.ReadValues(c.currBuf)
 			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
 			}
-			if errors.Is(err, io.EOF) {
-				c.lastBuff = true
-			}
-			c.syncIterator.currBuf = c.syncIterator.currBuf[:n]
-			c.syncIterator.currBufN = 0
+			c.currBuf = c.currBuf[:n]
+			c.currBufN = 0
 			if n == 0 {
 				// This value reader and page are exhausted.
 				c.setPage(nil)
@@ -122,71 +117,39 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		}
 
 		// Consume current buffer until empty
-		for c.syncIterator.currBufN < len(c.syncIterator.currBuf) {
-			v := &c.syncIterator.currBuf[c.syncIterator.currBufN]
+		for c.currBufN < len(c.currBuf) {
+			v := &c.currBuf[c.currBufN]
 
 			if v.RepetitionLevel() < v.DefinitionLevel() {
+				// moving on to the next level higher than value level
+				// so if we haven't seen the value yet, it does not exist
+				// check if we've already returned this row so we can properly next()
+				if !c.valueFound && lastRowNumber.Valid() && !EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) && c.scannedAtLeastOneRowAtSameLevel {
+					c.lastRowNumberReturned = lastRowNumber
+					return lastRowNumber, lastValue, nil
+				}
 				// new level reset
-				c.attrFound = false
+				c.valueFound = false
 				c.scannedAtLeastOneRowAtSameLevel = false
 			}
 
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
-			c.syncIterator.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.syncIterator.maxDefinitionLevel)
-			c.syncIterator.currBufN++
-			c.syncIterator.currPageN++
+			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
+			c.currBufN++
+			c.currPageN++
 
-			if RowNumberValidAtDefinitionLevel(c.syncIterator.curr, c.syncIterator.maxDefinitionLevel) {
+			if RowNumberValidAtDefinitionLevel(c.curr, c.maxDefinitionLevel) {
 				c.scannedAtLeastOneRowAtSameLevel = true
 			}
 
-			if c.syncIterator.filter != nil && c.syncIterator.filter.KeepValue(*v) {
-				c.attrFound = true
-				continue
+			if c.filter != nil && c.filter.KeepValue(*v) {
+				c.valueFound = true
 			}
 
-			// if this is the last value then check here
-			if c.lastBuff && c.syncIterator.currBufN == len(c.syncIterator.currBuf) && !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) && c.scannedAtLeastOneRowAtSameLevel {
-				c.lastRowNumberReturned = c.syncIterator.curr
-				return c.syncIterator.curr, v, nil
-			}
-
-			// if not last value then check if the next value puts us at a higher level
-			if c.syncIterator.currBufN < len(c.syncIterator.currBuf) {
-				nextV := &c.syncIterator.currBuf[c.syncIterator.currBufN]
-				if nextV.RepetitionLevel() < nextV.DefinitionLevel() {
-					// moving on to the next level higher than attribute level
-					// so if we haven't seen the attribute yet, it is nil
-					// check if we've already returned this row so we can properly next()
-					if !c.attrFound && c.syncIterator.curr.Valid() && !EqualRowNumber(v.DefinitionLevel(), c.lastRowNumberReturned, c.syncIterator.curr) && c.scannedAtLeastOneRowAtSameLevel {
-						c.lastRowNumberReturned = c.syncIterator.curr
-						return c.syncIterator.curr, v, nil
-					}
-				}
-			}
-
+			lastValue = v
+			lastRowNumber = c.curr
 			continue
 		}
 	}
-}
-
-func (c *NilSyncIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *ColumnChunkHelper) {
-	c.syncIterator.setRowGroup(rg, minRN, maxRN, cc)
-}
-
-func (c *NilSyncIterator) setPage(pg pq.Page) {
-	c.syncIterator.setPage(pg)
-}
-
-func (c *NilSyncIterator) closeCurrRowGroup() {
-	c.syncIterator.closeCurrRowGroup()
-}
-
-func (c *NilSyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
-	return c.syncIterator.makeResult(t, v)
-}
-
-func (c *NilSyncIterator) Close() {
-	c.syncIterator.Close()
 }
