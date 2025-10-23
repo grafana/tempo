@@ -52,7 +52,7 @@ func createNilIterTestFile(t testing.TB, count int) *parquet.File {
 	for i := 0; i < count; i++ {
 		keys := genericKeys
 		if i%3 == 0 {
-			keys = append(genericKeys, "special-key")
+			keys = append(keys, "special-key")
 		}
 		attrs := make([]Attr, 0, len(keys))
 		for _, key := range keys {
