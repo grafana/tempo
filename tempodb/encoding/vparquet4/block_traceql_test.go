@@ -1095,7 +1095,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 										Attrs: []Attribute{
 											attr("event-attr-key-1", "event-value-1"),
 											attr("event-attr-key-2", "event-value-2"),
-											attr("foo", "bar"),
 											attr("message", "exception"),
 										},
 									},
@@ -1107,7 +1106,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 											attr("event-attr-key-1", "event-value-1"),
 											attr("event-attr-key-2", "event-value-2"),
 											attr("message", "exception"),
-											attr("foo", "bar"),
 										},
 									},
 								},
@@ -1180,25 +1178,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									attr(LabelName, "Bob2"),                    // Conflicts with intrinsic but still looked up by .name
 									attr(LabelServiceName, "spanservicename2"), // Overrides resource-level dedicated column
 									attr(LabelHTTPStatusCode, "500ouch2"),      // Different type than dedicated column
-								},
-								Events: []Event{
-									{
-										TimeSinceStartNano: 3 * 1000 * 1000, // 3ms
-										Name:               "e1",
-										Attrs: []Attribute{
-											attr("event-attr", "event-value-1"),
-										},
-									},
-								},
-								Links: []Link{
-									{
-										TraceID:    linkTraceID,
-										SpanID:     linkSpanID,
-										TraceState: "state2",
-										Attrs: []Attribute{
-											attr("link-attr", "abc"),
-										},
-									},
 								},
 							},
 						},

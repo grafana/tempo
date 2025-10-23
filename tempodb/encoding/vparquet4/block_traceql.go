@@ -2093,7 +2093,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			}
 
 			// = nil ?
-			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			if isNotExistSearch {
 				pred := parquetquery.NewNilValuePredicate()
 				iters = append(iters, makeIter(c.ColumnPath, pred, c.ColumnPath))
 				continue
