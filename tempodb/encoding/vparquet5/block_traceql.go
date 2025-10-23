@@ -1903,7 +1903,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	for _, cond := range conditions {
 		isNotExistSearch := len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists
 		if isNotExistSearch {
-			// the default value for some intrinsics is 0 not nil
+			// the default value for some intrinsics is 0 or "" not nil
 			switch cond.Attribute.Intrinsic {
 			case traceql.IntrinsicSpanStartTime,
 				traceql.IntrinsicKind,
@@ -1914,10 +1914,9 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				cond.Op = traceql.OpEqual
 			case traceql.IntrinsicName,
 				traceql.IntrinsicStatusMessage:
-				if isNotExistSearch {
-					cond.Operands = []traceql.Static{traceql.NewStaticString("")}
-					cond.Op = traceql.OpEqual
-				}
+				// rewrite to = ""
+				cond.Operands = []traceql.Static{traceql.NewStaticString("")}
+				cond.Op = traceql.OpEqual
 			}
 		}
 
