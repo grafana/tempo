@@ -26,10 +26,8 @@ import (
 	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerpb"
 )
 
-var (
-	// The ring operation used to track series.
-	TrackSeriesOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
-)
+// The ring operation used to track series.
+var TrackSeriesOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
 
 type Config struct {
 	IgnoreRejectedSeries bool `yaml:"ignore_rejected_series" category:"experimental"`
@@ -174,7 +172,6 @@ func (c *UsageTrackerClient) TrackSeries(ctx context.Context, userID string, ser
 			return nil
 		}, batchOptions,
 	)
-
 	if err != nil {
 		if c.cfg.IgnoreErrors {
 			return nil, nil
@@ -246,7 +243,6 @@ func (c *UsageTrackerClient) trackSeriesPerPartition(ctx context.Context, userID
 	}, func(_ []uint64) {
 		// No cleanup.
 	})
-
 	if err != nil {
 		if c.cfg.IgnoreErrors {
 			return nil, nil

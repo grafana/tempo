@@ -358,7 +358,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		}
 	}
 
-	var store = wal
+	store := wal
 	if g.cfg.RemoteSeriesLimiter.Enabled {
 		store = remotelimitedstorage.NewLimitedStorage(wal, g.usageTrackerClient, id, g.logger)
 	}

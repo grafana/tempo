@@ -157,7 +157,6 @@ func (l *limitedAppender) AppendHistogramCTZeroSample(ref storage.SeriesRef, lbl
 
 // Commit implements storage.Appender.
 func (l *limitedAppender) Commit() error {
-
 	numCaptured := 0
 	numHashes := len(l.capturedAppends)
 	for _, cas := range l.capturedAppends {
