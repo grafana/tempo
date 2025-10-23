@@ -117,21 +117,39 @@ type Attribute struct {
 
 // DedicatedAttributes add spare columns to the schema that can be assigned to attributes at runtime.
 type DedicatedAttributes struct {
-	String01 *string `parquet:",snappy,optional,dict"`
-	String02 *string `parquet:",snappy,optional,dict"`
-	String03 *string `parquet:",snappy,optional,dict"`
-	String04 *string `parquet:",snappy,optional,dict"`
-	String05 *string `parquet:",snappy,optional,dict"`
-	String06 *string `parquet:",snappy,optional,dict"`
-	String07 *string `parquet:",snappy,optional,dict"`
-	String08 *string `parquet:",snappy,optional,dict"`
-	String09 *string `parquet:",snappy,optional,dict"`
-	String10 *string `parquet:",snappy,optional,dict"`
-	Int01    *int64  `parquet:",snappy,optional"`
-	Int02    *int64  `parquet:",snappy,optional"`
-	Int03    *int64  `parquet:",snappy,optional"`
-	Int04    *int64  `parquet:",snappy,optional"`
-	Int05    *int64  `parquet:",snappy,optional"`
+	String01 []string `parquet:",snappy,optional,dict"`
+	String02 []string `parquet:",snappy,optional,dict"`
+	String03 []string `parquet:",snappy,optional,dict"`
+	String04 []string `parquet:",snappy,optional,dict"`
+	String05 []string `parquet:",snappy,optional,dict"`
+	String06 []string `parquet:",snappy,optional,dict"`
+	String07 []string `parquet:",snappy,optional,dict"`
+	String08 []string `parquet:",snappy,optional,dict"`
+	String09 []string `parquet:",snappy,optional,dict"`
+	String10 []string `parquet:",snappy,optional,dict"`
+	Int01    []int64  `parquet:",snappy,optional"`
+	Int02    []int64  `parquet:",snappy,optional"`
+	Int03    []int64  `parquet:",snappy,optional"`
+	Int04    []int64  `parquet:",snappy,optional"`
+	Int05    []int64  `parquet:",snappy,optional"`
+}
+
+func (da *DedicatedAttributes) Reset() {
+	da.String01 = da.String01[:0]
+	da.String02 = da.String02[:0]
+	da.String03 = da.String03[:0]
+	da.String04 = da.String04[:0]
+	da.String05 = da.String05[:0]
+	da.String06 = da.String06[:0]
+	da.String07 = da.String07[:0]
+	da.String08 = da.String08[:0]
+	da.String09 = da.String09[:0]
+	da.String10 = da.String10[:0]
+	da.Int01 = da.Int01[:0]
+	da.Int02 = da.Int02[:0]
+	da.Int03 = da.Int03[:0]
+	da.Int04 = da.Int04[:0]
+	da.Int05 = da.Int05[:0]
 }
 
 type Event struct {
@@ -355,7 +373,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 		// Clear out any existing fields in case they were set on the original
 		ob.Resource.DroppedAttributesCount = 0
 		ob.Resource.ServiceName = ""
-		ob.Resource.DedicatedAttributes = DedicatedAttributes{}
+		ob.Resource.DedicatedAttributes.Reset()
 
 		if b.Resource != nil {
 			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
@@ -458,7 +476,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
-				ss.DedicatedAttributes = DedicatedAttributes{}
+				ss.DedicatedAttributes.Reset()
 
 				ss.Links = extendReuseSlice(len(s.Links), ss.Links)
 				for ie, e := range s.Links {

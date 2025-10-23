@@ -118,9 +118,14 @@ message DedicatedColumn {
     STRING = 0;
     INT = 1;
   }
+  enum Option {
+    NONE = 0;
+    ARRAY = 1;
+  }
   Scope scope = 3;
   string name = 2;
   Type type = 1;
+  Option options = 4; // bitmask representing multiple options
 }
 
 message SearchResponse {

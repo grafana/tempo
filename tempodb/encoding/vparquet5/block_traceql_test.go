@@ -673,11 +673,11 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 					},
 					DroppedAttributesCount: 22,
 					DedicatedAttributes: DedicatedAttributes{
-						String01: ptr("dedicated-resource-attr-value-1"),
-						String02: ptr("dedicated-resource-attr-value-2"),
-						String03: ptr("dedicated-resource-attr-value-3"),
-						String04: ptr("dedicated-resource-attr-value-4"),
-						String05: ptr("dedicated-resource-attr-value-5"),
+						String01: []string{"dedicated-resource-attr-value-1"},
+						String02: []string{"dedicated-resource-attr-value-2"},
+						String03: []string{"dedicated-resource-attr-value-3"},
+						String04: []string{"dedicated-resource-attr-value-4"},
+						String05: []string{"dedicated-resource-attr-value-5"},
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -753,11 +753,11 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								},
 								Links: links,
 								DedicatedAttributes: DedicatedAttributes{
-									String01: ptr("dedicated-span-attr-value-1"),
-									String02: ptr("dedicated-span-attr-value-2"),
-									String03: ptr("dedicated-span-attr-value-3"),
-									String04: ptr("dedicated-span-attr-value-4"),
-									String05: ptr("dedicated-span-attr-value-5"),
+									String01: []string{"dedicated-span-attr-value-1"},
+									String02: []string{"dedicated-span-attr-value-2"},
+									String03: []string{"dedicated-span-attr-value-3"},
+									String04: []string{"dedicated-span-attr-value-4"},
+									String05: []string{"dedicated-span-attr-value-5"},
 								},
 							},
 						},
@@ -781,11 +781,11 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 						attr("k8s.container.name", "k8scontainer2"),
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: ptr("dedicated-resource-attr-value-6"),
-						String02: ptr("dedicated-resource-attr-value-7"),
-						String03: ptr("dedicated-resource-attr-value-8"),
-						String04: ptr("dedicated-resource-attr-value-9"),
-						String05: ptr("dedicated-resource-attr-value-10"),
+						String01: []string{"dedicated-resource-attr-value-6"},
+						String02: []string{"dedicated-resource-attr-value-7"},
+						String03: []string{"dedicated-resource-attr-value-8"},
+						String04: []string{"dedicated-resource-attr-value-9"},
+						String05: []string{"dedicated-resource-attr-value-10"},
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -1047,40 +1047,42 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}{
 		// span
 		{"spanAttValMatch", "{ span.component = `net/http` }"},
+		{"spanAttValMatchFew", "{ span.component =~ `database/sql` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `does-not-exit-6c2408325a45` }"},
-		{"spanAttIntrinsicMatch", "{ name = `/cortex.Ingester/Push` }"},
+		{"spanAttIntrinsicMatch", "{ name = `distributor.ConsumeTraces` }"},
+		{"spanAttIntrinsicMatchFew", "{ name = `grpcutils.Authenticate` }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `does-not-exit-6c2408325a45` }"},
 
 		// resource
 		{"resourceAttValMatch", "{ resource.opencensus.exporterversion = `Jaeger-Go-2.30.0` }"},
 		{"resourceAttValNoMatch", "{ resource.module.path = `does-not-exit-6c2408325a45` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
-		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
+		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
 		// trace
-		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrMatch", "{ rootServiceName = `tempo-distributor` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrMatchFew", "{ rootServiceName = `faro-collector` && (status = error || span.http.status_code = 500)}"},
 		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
 
 		// mixed
 		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
-		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
+		{"mixedValMixedMatchAnd", "{ resource.k8s.cluster.name =~ `prod.*` && name = `gcs.ReadRange` }"},
 		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
 
 		{"count", "{ } | count() > 1"},
 		{"struct", "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-gateway` && status = error }"},
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
-		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
-		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},
+		{"complex", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "hosted-grafana" && resource.k8s.container.name="hosted-grafana-gateway" && name = "httpclient/grafana" && span.http.status_code = 200 && duration > 20ms}`},
+		{"select", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "tempo-prod"} | select(resource.container)`},
 	}
 
 	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 3
-	opts.TotalPages = 2
+	opts.TotalPages = 7
 
 	block := blockForBenchmarks(b)
-
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
@@ -1088,6 +1090,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ResetTimer()
 			bytesRead := 0
+			matches := 0
 
 			for i := 0; i < b.N; i++ {
 				e := traceql.NewEngine()
@@ -1098,11 +1101,16 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
-				// Read first 20 results (if any)
+				for _, tr := range resp.Traces {
+					for _, ss := range tr.SpanSets {
+						matches += len(ss.Spans)
+					}
+				}
 				bytesRead += int(resp.Metrics.InspectedBytes)
 			}
 			b.SetBytes(int64(bytesRead) / int64(b.N))
 			b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
+			b.ReportMetric(float64(matches)/float64(b.N), "spans/op")
 		})
 	}
 }
@@ -1221,6 +1229,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",
 		"{} | quantile_over_time(duration, .99, .9, .5)",
+		"{} | quantile_over_time(duration, .99, .9, .5)",
 		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",
@@ -1239,8 +1248,12 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	e := traceql.NewEngine()
 	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
+	opts.StartPage = 3
+	opts.TotalPages = 7
 
 	block := blockForBenchmarks(b)
+	_, _, err := block.openForSearch(ctx, opts)
+	require.NoError(b, err)
 
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return block.Fetch(ctx, req, opts)
@@ -1259,7 +1272,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				MaxSeries: 1000,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+			eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1271,9 +1284,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			_ = eval.Results()
 
 			bytes, spansTotal, _ := eval.Metrics()
-			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
 			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-			b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 		})
 	}
 }
