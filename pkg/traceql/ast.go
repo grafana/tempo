@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"fmt"
 	"hash/fnv"
+	"iter"
 	"math"
 	"slices"
 	"time"
@@ -864,49 +865,57 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
-type VisitFunc func(Static) bool // Return false to stop iteration
+// MustElements turn a Static into a sequence of its elements. If the Static is not an array,
+// it returns a sequence containing only itself.
+func (s Static) MustElements() iter.Seq[Static] {
+	seq, err := s.Elements()
+	if err != nil {
+		return func(yield func(Static) bool) { yield(s) }
+	}
+	return seq
+}
 
-// GetElements turns arrays into slice of Static elements to iterate over.
-func (s Static) GetElements(fn VisitFunc) error {
+// Elements turn a Static into a sequence of its elements
+func (s Static) Elements() (iter.Seq[Static], error) {
 	switch s.Type {
 	case TypeIntArray:
-		ints, _ := s.IntArray()
-		for _, n := range ints {
-			if !fn(NewStaticInt(n)) {
-				break // stop early if the callback returns false
+		return func(yield func(Static) bool) {
+			ints, _ := s.IntArray()
+			for _, n := range ints {
+				if !yield(NewStaticInt(n)) {
+					break
+				}
 			}
-		}
-		return nil
-
+		}, nil
 	case TypeFloatArray:
-		floats, _ := s.FloatArray()
-		for _, f := range floats {
-			if !fn(NewStaticFloat(f)) {
-				break
+		return func(yield func(Static) bool) {
+			floats, _ := s.FloatArray()
+			for _, f := range floats {
+				if !yield(NewStaticFloat(f)) {
+					break
+				}
 			}
-		}
-		return nil
-
+		}, nil
 	case TypeStringArray:
-		strs, _ := s.StringArray()
-		for _, str := range strs {
-			if !fn(NewStaticString(str)) {
-				break
+		return func(yield func(Static) bool) {
+			strs, _ := s.StringArray()
+			for _, str := range strs {
+				if !yield(NewStaticString(str)) {
+					break
+				}
 			}
-		}
-		return nil
-
+		}, nil
 	case TypeBooleanArray:
-		bools, _ := s.BooleanArray()
-		for _, b := range bools {
-			if !fn(NewStaticBool(b)) {
-				break
+		return func(yield func(Static) bool) {
+			bools, _ := s.BooleanArray()
+			for _, b := range bools {
+				if !yield(NewStaticBool(b)) {
+					break
+				}
 			}
-		}
-		return nil
-
+		}, nil
 	default:
-		return fmt.Errorf("unsupported type")
+		return nil, fmt.Errorf("unsupported type: array type expected")
 	}
 }
 
