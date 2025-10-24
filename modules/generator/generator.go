@@ -24,6 +24,8 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/grafana/tempo/modules/generator/remotelimitedstorage"
+	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/grafana/tempo/modules/generator/storage"
 	objStorage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -86,10 +88,11 @@ type Generator struct {
 	partitionRing      ring.PartitionRingReader
 	partitionMtx       sync.RWMutex
 	assignedPartitions []int32
+	usageTrackerClient *usagetrackerclient.UsageTrackerClient
 }
 
 // New makes a new Generator.
-func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, store objStorage.Store, logger log.Logger) (*Generator, error) {
+func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, store objStorage.Store, logger log.Logger, usageTrackerClient *usagetrackerclient.UsageTrackerClient) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, ErrUnconfigured
 	}
@@ -109,10 +112,11 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 
 		instances: map[string]*instance{},
 
-		store:         store,
-		partitionRing: partitionRing,
-		reg:           reg,
-		logger:        logger,
+		store:              store,
+		partitionRing:      partitionRing,
+		reg:                reg,
+		logger:             logger,
+		usageTrackerClient: usageTrackerClient,
 	}
 
 	if !cfg.DisableGRPC {
@@ -354,7 +358,12 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL, g.store)
+	store := wal
+	if g.cfg.RemoteSeriesLimiter.Enabled {
+		store = remotelimitedstorage.NewLimitedStorage(wal, g.usageTrackerClient, id, g.logger)
+	}
+
+	inst, err := newInstance(g.cfg, id, g.overrides, store, g.logger, tracesWAL, tracesQueryWAL, g.store)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err

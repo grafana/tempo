@@ -72,7 +72,8 @@ overrides:
 		netWorkInteraces[i] = iface.Name
 	}
 	generatorConfig.Ring.InstanceInterfaceNames = netWorkInteraces
-	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, newTestLogger(t))
+	logger := newTestLogger(t)
+	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, logger, nil)
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
 

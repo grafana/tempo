@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerclient"
 	"github.com/grafana/tempo/modules/livestore"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -73,6 +74,9 @@ const (
 	LiveStoreRing         string = "live-store-ring"
 	PartitionRing         string = "partition-ring"
 	GeneratorRingWatcher  string = "generator-ring-watcher"
+
+	UsageTrackerRing          string = "usage-tracker-ring"
+	UsageTrackerPartitionRing string = "usage-tracker-partition-ring"
 
 	// individual targets
 	Distributor                   string = "distributor"
@@ -194,6 +198,49 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 	t.readRings[name] = ring
 
 	return ring, nil
+}
+
+func (t *App) initUsageTrackerRing() (services.Service, error) {
+	if !t.cfg.Generator.RemoteSeriesLimiter.Enabled {
+		return nil, nil
+	}
+
+	return t.initReadRing(t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerRing.ToRingConfig(), usagetrackerclient.InstanceRingName, usagetrackerclient.InstanceRingKey)
+}
+
+func (t *App) initUsageTrackerPartitionRing() (services.Service, error) {
+	if !t.cfg.Generator.RemoteSeriesLimiter.Enabled {
+		return nil, nil
+	}
+
+	// choose the correct partition ring based on config
+	var (
+		heartbeatTimeout time.Duration
+		readRing         ring.InstanceRingReader
+		ringName         string
+		ringKey          string
+		kvConfig         kv.Config
+	)
+
+	// default to ingester but use live-store if configured
+	heartbeatTimeout = t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerRing.HeartbeatTimeout
+	ringName = usagetrackerclient.PartitionRingName
+	ringKey = usagetrackerclient.PartitionRingKey
+	kvConfig = t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerPartitionRing.KVStore
+	readRing = t.readRings[usagetrackerclient.InstanceRingName]
+
+	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating KV store for %s partitions ring watcher: %w", ringName, err)
+	}
+
+	t.usageTrackerPartitionRingWatcher = ring.NewPartitionRingWatcher(ringName, ringKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
+	t.usageTrackerPartitionRing = ring.NewMultiPartitionInstanceRing(t.usageTrackerPartitionRingWatcher, readRing, heartbeatTimeout)
+
+	// Expose a web page to view the partitions ring state.
+	t.Server.HTTPRouter().Path("/usage-tracker-partition-ring").Methods("GET", "POST").Handler(ring.NewPartitionRingPageHandler(t.usageTrackerPartitionRingWatcher, ring.NewPartitionRingEditor(ringKey, kvClient)))
+
+	return t.usageTrackerPartitionRingWatcher, nil
 }
 
 func (t *App) initPartitionRing() (services.Service, error) {
@@ -348,7 +395,8 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
 
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
+	client := usagetrackerclient.NewUsageTrackerClient("usage-tracker", t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerClientCfg, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger, client)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -388,8 +436,10 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	// queries, so we can skip setting up a gRPC server.
 	t.cfg.Generator.DisableGRPC = true
 
+	client := usagetrackerclient.NewUsageTrackerClient("usage-tracker", t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerClientCfg, t.usageTrackerPartitionRing, t.readRings[usagetrackerclient.InstanceRingName], util_log.Logger, prometheus.DefaultRegisterer)
+
 	var err error
-	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger)
+	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
 	}
@@ -664,6 +714,8 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerPartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Generator.RemoteSeriesLimiter.UsageTrackerRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
@@ -839,6 +891,9 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
 
+	mm.RegisterModule(UsageTrackerRing, t.initUsageTrackerRing, modules.UserInvisibleModule)
+	mm.RegisterModule(UsageTrackerPartitionRing, t.initUsageTrackerPartitionRing, modules.UserInvisibleModule)
+
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Distributor, t.initDistributor)
@@ -859,18 +914,20 @@ func (t *App) setupModuleManager() error {
 	deps := map[string][]string{
 		// InternalServer: nil,
 		// CacheProvider:  nil,
-		Store:                 {CacheProvider},
-		Server:                {InternalServer},
-		Overrides:             {Server},
-		OverridesAPI:          {Server, Overrides},
-		MemberlistKV:          {Server},
-		UsageReport:           {MemberlistKV},
-		IngesterRing:          {Server, MemberlistKV},
-		SecondaryIngesterRing: {Server, MemberlistKV},
-		MetricsGeneratorRing:  {Server, MemberlistKV},
-		LiveStoreRing:         {Server, MemberlistKV},
-		PartitionRing:         {MemberlistKV, Server, IngesterRing, LiveStoreRing},
-		GeneratorRingWatcher:  {MemberlistKV},
+		Store:                     {CacheProvider},
+		Server:                    {InternalServer},
+		Overrides:                 {Server},
+		OverridesAPI:              {Server, Overrides},
+		MemberlistKV:              {Server},
+		UsageReport:               {MemberlistKV},
+		IngesterRing:              {Server, MemberlistKV},
+		SecondaryIngesterRing:     {Server, MemberlistKV},
+		MetricsGeneratorRing:      {Server, MemberlistKV},
+		LiveStoreRing:             {Server, MemberlistKV},
+		PartitionRing:             {MemberlistKV, Server, IngesterRing, LiveStoreRing},
+		GeneratorRingWatcher:      {MemberlistKV},
+		UsageTrackerRing:          {Server, MemberlistKV},
+		UsageTrackerPartitionRing: {Server, MemberlistKV},
 
 		Common: {UsageReport, Server, Overrides},
 
@@ -879,7 +936,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:                   {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
 		Ingester:                      {Common, Store, MemberlistKV, PartitionRing},
 		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
-		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
+		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher, UsageTrackerRing, UsageTrackerPartitionRing},
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing, PartitionRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},

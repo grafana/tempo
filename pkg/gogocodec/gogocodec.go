@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	frontendProtoGenPkgPath = "github.com/grafana/tempo/modules/frontend"
-	tempoProtoGenPkgPath    = "github.com/grafana/tempo/pkg/tempopb"
-	jaegerProtoGenPkgPath   = "github.com/jaegertracing/jaeger-idl/proto-gen"
-	jaegerModelPkgPath      = "github.com/jaegertracing/jaeger-idl/model"
-	otelProtoPkgPath        = "go.opentelemetry.io/collector"
+	frontendProtoGenPkgPath  = "github.com/grafana/tempo/modules/frontend"
+	tempoProtoGenPkgPath     = "github.com/grafana/tempo/pkg/tempopb"
+	tempoUsageTrackerPkgPath = "github.com/grafana/tempo/modules/generator/remoteserieslimiter/usagetrackerpb"
+	jaegerProtoGenPkgPath    = "github.com/jaegertracing/jaeger-idl/proto-gen"
+	jaegerModelPkgPath       = "github.com/jaegertracing/jaeger-idl/model"
+	otelProtoPkgPath         = "go.opentelemetry.io/collector"
 	// etcd path can be removed once upgrade to grpc >v1.38 is released (tentatively next release from v3.5.1)
 	etcdAPIProtoPkgPath = "go.etcd.io/etcd/api/v3"
 )
@@ -69,5 +70,11 @@ func useGogo(t reflect.Type) bool {
 		return false
 	}
 	pkgPath := t.PkgPath()
-	return strings.HasPrefix(pkgPath, frontendProtoGenPkgPath) || strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, otelProtoPkgPath) || strings.HasPrefix(pkgPath, etcdAPIProtoPkgPath)
+	return strings.HasPrefix(pkgPath, frontendProtoGenPkgPath) ||
+		strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) ||
+		strings.HasPrefix(pkgPath, tempoUsageTrackerPkgPath) ||
+		strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) ||
+		strings.HasPrefix(pkgPath, jaegerModelPkgPath) ||
+		strings.HasPrefix(pkgPath, otelProtoPkgPath) ||
+		strings.HasPrefix(pkgPath, etcdAPIProtoPkgPath)
 }

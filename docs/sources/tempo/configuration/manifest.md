@@ -787,6 +787,123 @@ metrics_generator:
     disable_grpc: false
     ingest_concurrency: 16
     instance_id: hostname
+    remote_series_limiter:
+        enabled: false
+        usage_tracker_ring:
+            kvstore:
+                store: memberlist
+                prefix: collectors/
+                consul:
+                    host: localhost:8500
+                    acl_token: ""
+                    http_client_timeout: 20s
+                    consistent_reads: false
+                    watch_rate_limit: 1
+                    watch_burst_size: 1
+                    cas_retry_delay: 1s
+                etcd:
+                    endpoints: []
+                    dial_timeout: 10s
+                    max_retries: 10
+                    tls_enabled: false
+                    tls_cert_path: ""
+                    tls_key_path: ""
+                    tls_ca_path: ""
+                    tls_server_name: ""
+                    tls_insecure_skip_verify: false
+                    tls_cipher_suites: ""
+                    tls_min_version: ""
+                    username: ""
+                    password: ""
+                multi:
+                    primary: ""
+                    secondary: ""
+                    mirror_enabled: false
+                    mirror_timeout: 2s
+            heartbeat_period: 15s
+            heartbeat_timeout: 1m0s
+            auto_forget_unhealthy_periods: 4
+            instance_id: Mac-Studio.local
+            instance_interface_names:
+                - en1
+                - bridge100
+                - bridge101
+                - utun5
+            instance_port: 0
+            instance_addr: ""
+            instance_availability_zone: ""
+            instance_enable_ipv6: false
+        usage_tracker_partition_ring:
+            kvstore:
+                store: memberlist
+                prefix: collectors/
+                consul:
+                    host: localhost:8500
+                    acl_token: ""
+                    http_client_timeout: 20s
+                    consistent_reads: false
+                    watch_rate_limit: 1
+                    watch_burst_size: 1
+                    cas_retry_delay: 1s
+                etcd:
+                    endpoints: []
+                    dial_timeout: 10s
+                    max_retries: 10
+                    tls_enabled: false
+                    tls_cert_path: ""
+                    tls_key_path: ""
+                    tls_ca_path: ""
+                    tls_server_name: ""
+                    tls_insecure_skip_verify: false
+                    tls_cipher_suites: ""
+                    tls_min_version: ""
+                    username: ""
+                    password: ""
+                multi:
+                    primary: ""
+                    secondary: ""
+                    mirror_enabled: false
+                    mirror_timeout: 2s
+        usage_tracker_client:
+            ignore_rejected_series: false
+            ignore_errors: false
+            grpc:
+                max_recv_msg_size: 104857600
+                max_send_msg_size: 104857600
+                grpc_compression: ""
+                rate_limit: 0
+                rate_limit_burst: 0
+                backoff_on_ratelimits: false
+                backoff_config:
+                    min_period: 100ms
+                    max_period: 10s
+                    max_retries: 10
+                initial_stream_window_size: 63KiB1023B
+                initial_connection_window_size: 63KiB1023B
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                connect_timeout: 5s
+                connect_backoff_base_delay: 1s
+                connect_backoff_max_delay: 5s
+                cluster_validation:
+                    label: ""
+            prefer_availability_zone: ""
+            requests_hedging_delay: 100ms
+            reusable_workers: 500
+            tls_enabled: false
+            tls_cert_path: ""
+            tls_key_path: ""
+            tls_ca_path: ""
+            tls_server_name: ""
+            tls_insecure_skip_verify: false
+            tls_cipher_suites: ""
+            tls_min_version: ""
 ingest:
     enabled: false
     kafka:

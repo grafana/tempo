@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/modules/generator/remoteserieslimiter"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
@@ -64,6 +65,8 @@ type Config struct {
 	Ingest            ingest.Config `yaml:"-"`
 	IngestConcurrency uint          `yaml:"ingest_concurrency"`
 	InstanceID        string        `yaml:"instance_id" doc:"default=<hostname>" category:"advanced"`
+
+	RemoteSeriesLimiter remoteserieslimiter.Config `yaml:"remote_series_limiter,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -91,6 +94,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		os.Exit(1)
 	}
 	f.StringVar(&cfg.InstanceID, prefix+".instance-id", hostname, "Instance id.")
+	cfg.RemoteSeriesLimiter.RegisterFlags(f)
 }
 
 func (cfg *Config) Validate() error {

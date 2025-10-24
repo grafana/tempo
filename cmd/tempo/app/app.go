@@ -89,6 +89,9 @@ type App struct {
 	liveStore            *livestore.LiveStore
 	signalsHandler       *signals.Handler
 
+	usageTrackerPartitionRingWatcher *ring.PartitionRingWatcher
+	usageTrackerPartitionRing        *ring.MultiPartitionInstanceRing
+
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
 
