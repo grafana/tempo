@@ -491,7 +491,17 @@ func (p NilValuePredicate) String() string {
 	return "NilValuePredicate{}"
 }
 
-func (p NilValuePredicate) KeepColumnChunk(_ *ColumnChunkHelper) bool {
+func (p NilValuePredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
+		for i := range ci.NumPages() {
+			if ci.NullCount(i) > 0 {
+				// At least one page in this chunk matches
+				return true
+			}
+		}
+		return false
+	}
 	return true
 }
 

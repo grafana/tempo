@@ -986,7 +986,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			DroppedAttributesCount: 3,
 			Attrs: []Attribute{
 				attr("opentracing.ref_type", "child-of"),
-				attr("foo", "bar"),
 			},
 		},
 	}

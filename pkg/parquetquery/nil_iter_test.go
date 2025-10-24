@@ -49,7 +49,7 @@ func createNilIterTestFile(t testing.TB, count int) *parquet.File {
 	genericKeys := []string{"key-1", "key-2", "key-3", "key-4", "key-5"}
 
 	rows := []T{}
-	for i := 0; i < count; i++ {
+	for i := range count {
 		keys := genericKeys
 		if i%3 == 0 {
 			keys = append(keys, "special-key")
