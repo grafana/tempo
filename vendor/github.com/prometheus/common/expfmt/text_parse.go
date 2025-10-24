@@ -78,6 +78,14 @@ type TextParser struct {
 	// These indicate if the metric name from the current line being parsed is inside
 	// braces and if that metric name was found respectively.
 	currentMetricIsInsideBraces, currentMetricInsideBracesIsPresent bool
+	// scheme sets the desired ValidationScheme for names. Defaults to the invalid
+	// UnsetValidation.
+	scheme model.ValidationScheme
+}
+
+// NewTextParser returns a new TextParser with the provided nameValidationScheme.
+func NewTextParser(nameValidationScheme model.ValidationScheme) TextParser {
+	return TextParser{scheme: nameValidationScheme}
 }
 
 // TextToMetricFamilies reads 'in' as the simple and flat text-based exchange
@@ -126,6 +134,7 @@ func (p *TextParser) TextToMetricFamilies(in io.Reader) (map[string]*dto.MetricF
 
 func (p *TextParser) reset(in io.Reader) {
 	p.metricFamiliesByName = map[string]*dto.MetricFamily{}
+	p.currentLabelPairs = nil
 	if p.buf == nil {
 		p.buf = bufio.NewReader(in)
 	} else {
@@ -216,6 +225,9 @@ func (p *TextParser) startComment() stateFn {
 		return nil
 	}
 	p.setOrCreateCurrentMF()
+	if p.err != nil {
+		return nil
+	}
 	if p.skipBlankTab(); p.err != nil {
 		return nil // Unexpected end of input.
 	}
@@ -244,6 +256,9 @@ func (p *TextParser) readingMetricName() stateFn {
 		return nil
 	}
 	p.setOrCreateCurrentMF()
+	if p.err != nil {
+		return nil
+	}
 	// Now is the time to fix the type if it hasn't happened yet.
 	if p.currentMF.Type == nil {
 		p.currentMF.Type = dto.MetricType_UNTYPED.Enum()
@@ -311,6 +326,9 @@ func (p *TextParser) startLabelName() stateFn {
 			switch p.currentByte {
 			case ',':
 				p.setOrCreateCurrentMF()
+				if p.err != nil {
+					return nil
+				}
 				if p.currentMF.Type == nil {
 					p.currentMF.Type = dto.MetricType_UNTYPED.Enum()
 				}
@@ -319,6 +337,10 @@ func (p *TextParser) startLabelName() stateFn {
 				return p.startLabelName
 			case '}':
 				p.setOrCreateCurrentMF()
+				if p.err != nil {
+					p.currentLabelPairs = nil
+					return nil
+				}
 				if p.currentMF.Type == nil {
 					p.currentMF.Type = dto.MetricType_UNTYPED.Enum()
 				}
@@ -341,6 +363,12 @@ func (p *TextParser) startLabelName() stateFn {
 	p.currentLabelPair = &dto.LabelPair{Name: proto.String(p.currentToken.String())}
 	if p.currentLabelPair.GetName() == string(model.MetricNameLabel) {
 		p.parseError(fmt.Sprintf("label name %q is reserved", model.MetricNameLabel))
+		p.currentLabelPairs = nil
+		return nil
+	}
+	if !p.scheme.IsValidLabelName(p.currentLabelPair.GetName()) {
+		p.parseError(fmt.Sprintf("invalid label name %q", p.currentLabelPair.GetName()))
+		p.currentLabelPairs = nil
 		return nil
 	}
 	// Special summary/histogram treatment. Don't add 'quantile' and 'le'
@@ -805,6 +833,10 @@ func (p *TextParser) setOrCreateCurrentMF() {
 	p.currentIsHistogramCount = false
 	p.currentIsHistogramSum = false
 	name := p.currentToken.String()
+	if !p.scheme.IsValidMetricName(name) {
+		p.parseError(fmt.Sprintf("invalid metric name %q", name))
+		return
+	}
 	if p.currentMF = p.metricFamiliesByName[name]; p.currentMF != nil {
 		return
 	}

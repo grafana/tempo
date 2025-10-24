@@ -25,7 +25,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20250828173137-de14cf923eeb
-	github.com/grafana/e2e v0.1.2-0.20250428181430-708d63bcc673
+	github.com/grafana/e2e v0.1.2-0.20250825134630-3cea6f657739
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/json-iterator/go v1.1.12
@@ -39,9 +39,9 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.23.0
+	github.com/prometheus/client_golang v1.23.1-0.20250825092754-3692d7faba80
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.65.1-0.20250703115700-7f8b2a0d32d3
+	github.com/prometheus/common v0.65.1-0.20250825082953-9deefbac4820
 	github.com/prometheus/prometheus v0.306.0
 	github.com/prometheus/statsd_exporter v0.26.1
 	github.com/segmentio/fasthash v1.0.3
