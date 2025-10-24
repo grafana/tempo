@@ -18,14 +18,12 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/munnerz/goautoneg"
+	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/prometheus/common/model"
-
-	"github.com/munnerz/goautoneg"
-
-	dto "github.com/prometheus/client_model/go"
 )
 
 // Encoder types encode metric families into an underlying wire protocol.
