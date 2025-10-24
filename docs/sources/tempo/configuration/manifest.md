@@ -680,7 +680,49 @@ metrics_generator:
                 v2_index_page_size_bytes: 256000
                 v2_encoding: zstd
                 parquet_row_group_size_bytes: 100000000
-                parquet_dedicated_columns: []
+                parquet_dedicated_columns:
+                    - scope: resource
+                      name: k8s.cluster.name
+                      type: string
+                    - scope: resource
+                      name: k8s.namespace.name
+                      type: string
+                    - scope: resource
+                      name: k8s.pod.name
+                      type: string
+                    - scope: resource
+                      name: k8s.container.name
+                      type: string
+                    - scope: span
+                      name: http.request.method
+                      type: string
+                    - scope: span
+                      name: http.response.status_code
+                      type: int
+                    - scope: span
+                      name: url.path
+                      type: string
+                    - scope: span
+                      name: url.route
+                      type: string
+                    - scope: span
+                      name: server.address
+                      type: string
+                    - scope: span
+                      name: server.port
+                      type: int
+                    - scope: span
+                      name: http.method
+                      type: string
+                    - scope: span
+                      name: http.url
+                      type: string
+                    - scope: span
+                      name: http.route
+                      type: string
+                    - scope: span
+                      name: http.status_code
+                      type: int
             search:
                 chunk_size_bytes: 1000000
                 prefetch_trace_count: 1000
@@ -781,7 +823,49 @@ block_builder:
         v2_index_page_size_bytes: 256000
         v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns: []
+        parquet_dedicated_columns:
+            - scope: resource
+              name: k8s.cluster.name
+              type: string
+            - scope: resource
+              name: k8s.namespace.name
+              type: string
+            - scope: resource
+              name: k8s.pod.name
+              type: string
+            - scope: resource
+              name: k8s.container.name
+              type: string
+            - scope: span
+              name: http.request.method
+              type: string
+            - scope: span
+              name: http.response.status_code
+              type: int
+            - scope: span
+              name: url.path
+              type: string
+            - scope: span
+              name: url.route
+              type: string
+            - scope: span
+              name: server.address
+              type: string
+            - scope: span
+              name: server.port
+              type: int
+            - scope: span
+              name: http.method
+              type: string
+            - scope: span
+              name: http.url
+              type: string
+            - scope: span
+              name: http.route
+              type: string
+            - scope: span
+              name: http.status_code
+              type: int
     wal:
         path: /var/tempo/block-builder/traces
         v2_encoding: none
@@ -808,7 +892,49 @@ storage:
             v2_index_page_size_bytes: 256000
             v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
-            parquet_dedicated_columns: []
+            parquet_dedicated_columns:
+                - scope: resource
+                  name: k8s.cluster.name
+                  type: string
+                - scope: resource
+                  name: k8s.namespace.name
+                  type: string
+                - scope: resource
+                  name: k8s.pod.name
+                  type: string
+                - scope: resource
+                  name: k8s.container.name
+                  type: string
+                - scope: span
+                  name: http.request.method
+                  type: string
+                - scope: span
+                  name: http.response.status_code
+                  type: int
+                - scope: span
+                  name: url.path
+                  type: string
+                - scope: span
+                  name: url.route
+                  type: string
+                - scope: span
+                  name: server.address
+                  type: string
+                - scope: span
+                  name: server.port
+                  type: int
+                - scope: span
+                  name: http.method
+                  type: string
+                - scope: span
+                  name: http.url
+                  type: string
+                - scope: span
+                  name: http.route
+                  type: string
+                - scope: span
+                  name: http.status_code
+                  type: int
         search:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
@@ -1254,5 +1380,47 @@ live_store:
         v2_index_page_size_bytes: 256000
         v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns: []
+        parquet_dedicated_columns:
+            - scope: resource
+              name: k8s.cluster.name
+              type: string
+            - scope: resource
+              name: k8s.namespace.name
+              type: string
+            - scope: resource
+              name: k8s.pod.name
+              type: string
+            - scope: resource
+              name: k8s.container.name
+              type: string
+            - scope: span
+              name: http.request.method
+              type: string
+            - scope: span
+              name: http.response.status_code
+              type: int
+            - scope: span
+              name: url.path
+              type: string
+            - scope: span
+              name: url.route
+              type: string
+            - scope: span
+              name: server.address
+              type: string
+            - scope: span
+              name: server.port
+              type: int
+            - scope: span
+              name: http.method
+              type: string
+            - scope: span
+              name: http.url
+              type: string
+            - scope: span
+              name: http.route
+              type: string
+            - scope: span
+              name: http.status_code
+              type: int
 ```

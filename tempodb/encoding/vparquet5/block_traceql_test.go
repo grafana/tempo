@@ -342,7 +342,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"Almost conflicts with intrinsic but still works", traceql.MustExtractFetchSpansRequestWithMetadata(`{.name = "Bob"}`)},
 		{"service.name doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = 123}`)},
 		{"service.name present on span", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "spanservicename"}`)},
-		{"http.status_code doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` = "500ouch"}`)},
 		{`.foo = "def"`, traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo = "def"}`)},
 		{".bool && true", traceql.MustExtractFetchSpansRequestWithMetadata(`{.bool && true}`)},
 		{"false || .bool", traceql.MustExtractFetchSpansRequestWithMetadata(`{false || .bool}`)},
@@ -653,20 +652,21 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 		ResourceSpans: []ResourceSpans{
 			{
 				Resource: Resource{
-					ServiceName:      "myservice",
-					Cluster:          ptr("cluster"),
-					Namespace:        ptr("namespace"),
-					Pod:              ptr("pod"),
-					Container:        ptr("container"),
-					K8sClusterName:   ptr("k8scluster"),
-					K8sNamespaceName: ptr("k8snamespace"),
-					K8sPodName:       ptr("k8spod"),
-					K8sContainerName: ptr("k8scontainer"),
+					ServiceName: "myservice",
 					Attrs: []Attribute{
 						attr("foo", "abc"),
 						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
 						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
+						// Former well-known attributes
+						attr("cluster", "cluster"),
+						attr("namespace", "namespace"),
+						attr("pod", "pod"),
+						attr("container", "container"),
+						attr("k8s.cluster.name", "k8scluster"),
+						attr("k8s.namespace.name", "k8snamespace"),
+						attr("k8s.pod.name", "k8spod"),
+						attr("k8s.container.name", "k8scontainer"),
 						// Unsupported attributes
 						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
 						{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
@@ -703,9 +703,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								StartTimeRounded300:    uint32(intervalMapper300Seconds.Interval(uint64(100 * time.Second))),
 								StartTimeRounded3600:   uint32(intervalMapper3600Seconds.Interval(uint64(100 * time.Second))),
 								DurationNano:           uint64(100 * time.Second),
-								HttpMethod:             ptr("get"),
-								HttpUrl:                ptr("url/hello/world"),
-								HttpStatusCode:         ptr(int64(500)),
 								ParentSpanID:           parentID,
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
@@ -722,10 +719,13 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									attr("int-array", []int64{111, 222, 333, 444}),
 									attr("double-array", []float64{1.1, 2.2, 3.3}),
 									attr("bool-array", []bool{true, false, true, false}),
+									// Former well-known attributes
+									attr("http.method", "get"),
+									attr("http.url", "url/hello/world"),
+									attr("http.status_code", 500),
 									// Edge-cases
 									attr(LabelName, "Bob"),                    // Conflicts with intrinsic but still looked up by .name
 									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
-									attr(LabelHTTPStatusCode, "500ouch"),      // Different type than dedicated column
 									// Unsupported attributes
 									{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
 									{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
@@ -766,18 +766,19 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			},
 			{
 				Resource: Resource{
-					ServiceName:      "service2",
-					Cluster:          ptr("cluster2"),
-					Namespace:        ptr("namespace2"),
-					Pod:              ptr("pod2"),
-					Container:        ptr("container2"),
-					K8sClusterName:   ptr("k8scluster2"),
-					K8sNamespaceName: ptr("k8snamespace2"),
-					K8sPodName:       ptr("k8spod2"),
-					K8sContainerName: ptr("k8scontainer2"),
+					ServiceName: "service2",
 					Attrs: []Attribute{
 						attr("foo", "abc2"),
 						attr(LabelServiceName, 1234), // Different type than dedicated column
+						// Former well-known attributes
+						attr("cluster", "cluster2"),
+						attr("namespace", "namespace2"),
+						attr("pod", "pod2"),
+						attr("container", "container2"),
+						attr("k8s.cluster.name", "k8scluster2"),
+						attr("k8s.namespace.name", "k8snamespace2"),
+						attr("k8s.pod.name", "k8spod2"),
+						attr("k8s.container.name", "k8scontainer2"),
 					},
 					DedicatedAttributes: DedicatedAttributes{
 						String01: ptr("dedicated-resource-attr-value-6"),
@@ -802,9 +803,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								Name:                   "world",
 								StartTimeUnixNano:      uint64(200 * time.Second),
 								DurationNano:           uint64(200 * time.Second),
-								HttpMethod:             ptr("PUT"),
-								HttpUrl:                ptr("url/hello/world/2"),
-								HttpStatusCode:         ptr(int64(501)),
 								StatusCode:             int(v1.Status_STATUS_CODE_OK),
 								StatusMessage:          v1.Status_STATUS_CODE_OK.String(),
 								TraceState:             "tracestate2",
@@ -816,10 +814,13 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									attr("bar", 1234),
 									attr("float", 456.789),
 									attr("bool", true),
+									// Former well-known attributes
+									attr("http.method", "PUT"),
+									attr("http.url", "url/hello/world/2"),
+									attr("http.status_code", 501),
 									// Edge-cases
 									attr(LabelName, "Bob2"),                    // Conflicts with intrinsic but still looked up by .name
 									attr(LabelServiceName, "spanservicename2"), // Overrides resource-level dedicated column
-									attr(LabelHTTPStatusCode, "500ouch2"),      // Different type than dedicated column
 								},
 							},
 						},
@@ -954,14 +955,6 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 	for _, rs := range tr.ResourceSpans {
 		var rsAttrs []attrVal
 		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName), traceql.NewStaticString(rs.Resource.ServiceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString(*rs.Resource.Cluster)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace), traceql.NewStaticString(*rs.Resource.Namespace)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod), traceql.NewStaticString(*rs.Resource.Pod)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer), traceql.NewStaticString(*rs.Resource.Container)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName), traceql.NewStaticString(*rs.Resource.K8sClusterName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName), traceql.NewStaticString(*rs.Resource.K8sNamespaceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName), traceql.NewStaticString(*rs.Resource.K8sPodName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName), traceql.NewStaticString(*rs.Resource.K8sContainerName)})
 
 		for _, a := range parquetToProtoAttrs(rs.Resource.Attrs) {
 			if arr := a.Value.GetArrayValue(); arr != nil {
@@ -1016,16 +1009,6 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
 				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
 				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
-
-				if s.HttpStatusCode != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
-				}
-				if s.HttpMethod != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod), traceql.NewStaticString(*s.HttpMethod))
-				}
-				if s.HttpUrl != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl), traceql.NewStaticString(*s.HttpUrl))
-				}
 
 				for attr, col := range dcm.items() {
 					if strings.Contains(col.ColumnPath, "Span") {
@@ -1111,7 +1094,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 					return block.Fetch(ctx, req, opts)
-				}))
+				}), false)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 

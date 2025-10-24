@@ -1,6 +1,8 @@
 package backend
 
 import (
+	"fmt"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -8,121 +10,115 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	// globals to avoid compiler optimizations
+	doNotOptimizeBytes       []byte
+	doNotOptimizeTenantIndex *TenantIndex
+)
+
 func BenchmarkIndexMarshal(b *testing.B) {
-	idx := &TenantIndex{
-		Meta: []*BlockMeta{
-			NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
-			NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
-			NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
-		},
-		CompactedMeta: []*CompactedBlockMeta{
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
-				CompactedTime: time.Now(),
-			},
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncZstd, "adsf"),
-				CompactedTime: time.Now(),
-			},
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncSnappy, "adsf"),
-				CompactedTime: time.Now(),
-			},
-		},
-	}
-
-	for i := range idx.Meta {
-		idx.Meta[i].DedicatedColumns = DedicatedColumns{
-			{Scope: "resource", Name: "namespace", Type: "string"},
-			{Scope: "span", Name: "http.method", Type: "string"},
-			{Scope: "span", Name: "namespace", Type: "string"},
+	b.Run("format=json", func(b *testing.B) {
+		for _, numBlocks := range []int{100, 1000, 10000} {
+			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
+				dedicatedColumnsCache.Purge()
+				idx := makeTestTenantIndex(numBlocks)
+				for b.Loop() {
+					doNotOptimizeBytes, _ = idx.marshal()
+				}
+			})
 		}
-	}
+	})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = idx.marshal()
-	}
+	b.Run("format=proto", func(b *testing.B) {
+		for _, numBlocks := range []int{100, 1000, 10000} {
+			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
+				dedicatedColumnsCache.Purge()
+				idx := makeTestTenantIndex(numBlocks)
+				for b.Loop() {
+					doNotOptimizeBytes, _ = idx.marshalPb()
+				}
+			})
+		}
+	})
 }
 
 func BenchmarkIndexUnmarshal(b *testing.B) {
-	idx := &TenantIndex{
-		Meta: []*BlockMeta{
-			NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
-			NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
-			NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
-		},
-		CompactedMeta: []*CompactedBlockMeta{
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
-				CompactedTime: time.Now(),
-			},
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncZstd, "adsf"),
-				CompactedTime: time.Now(),
-			},
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncSnappy, "adsf"),
-				CompactedTime: time.Now(),
-			},
-		},
-	}
-
-	for i := range idx.Meta {
-		idx.Meta[i].DedicatedColumns = DedicatedColumns{
-			{Scope: "resource", Name: "namespace", Type: "string"},
-			{Scope: "span", Name: "http.method", Type: "string"},
-			{Scope: "span", Name: "namespace", Type: "string"},
+	b.Run("format=json", func(b *testing.B) {
+		for _, numBlocks := range []int{100, 1000, 10000} {
+			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
+				dedicatedColumnsCache.Purge()
+				idx := makeTestTenantIndex(numBlocks)
+				idxBuf, err := idx.marshal()
+				require.NoError(b, err)
+				for b.Loop() {
+					doNotOptimizeTenantIndex = &TenantIndex{}
+					_ = doNotOptimizeTenantIndex.unmarshal(idxBuf)
+				}
+			})
 		}
-	}
+	})
 
-	buf, err := idx.marshal()
-	require.NoError(b, err)
-
-	unIdx := &TenantIndex{}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = unIdx.unmarshal(buf)
-	}
+	b.Run("format=proto", func(b *testing.B) {
+		for _, numBlocks := range []int{100, 1000, 10000} {
+			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
+				dedicatedColumnsCache.Purge()
+				idx := makeTestTenantIndex(numBlocks)
+				idxBuf, err := idx.marshal()
+				require.NoError(b, err)
+				for b.Loop() {
+					doNotOptimizeTenantIndex = &TenantIndex{}
+					_ = doNotOptimizeTenantIndex.unmarshalPb(idxBuf)
+				}
+			})
+		}
+	})
 }
 
-func BenchmarkIndexUnmarshalPb(b *testing.B) {
-	idx := &TenantIndex{
-		Meta: []*BlockMeta{
-			NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
-			NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
-			NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
-		},
-		CompactedMeta: []*CompactedBlockMeta{
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
-				CompactedTime: time.Now(),
-			},
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncZstd, "adsf"),
-				CompactedTime: time.Now(),
-			},
-			{
-				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncSnappy, "adsf"),
-				CompactedTime: time.Now(),
-			},
-		},
-	}
+func makeTestTenantIndex(numBlocks int) *TenantIndex {
+	const numDistinctDedicatedCols = 10
 
-	for i := range idx.Meta {
-		idx.Meta[i].DedicatedColumns = DedicatedColumns{
-			{Scope: "resource", Name: "namespace", Type: "string"},
-			{Scope: "span", Name: "http.method", Type: "string"},
-			{Scope: "span", Name: "namespace", Type: "string"},
+	var (
+		maxSupportedSpanColumns     = maxSupportedColumns[DedicatedColumnTypeString][DedicatedColumnScopeSpan]
+		maxSupportedResourceColumns = maxSupportedColumns[DedicatedColumnTypeString][DedicatedColumnScopeResource]
+	)
+
+	dedicatedCols := make([]DedicatedColumns, 0, numDistinctDedicatedCols)
+	for range numDistinctDedicatedCols {
+		num := 0
+		cols := make([]DedicatedColumn, 0, maxSupportedSpanColumns+maxSupportedResourceColumns)
+		for range maxSupportedSpanColumns {
+			num += rand.IntN(10)
+			cols = append(cols, DedicatedColumn{
+				Scope: DedicatedColumnScopeSpan,
+				Name:  fmt.Sprintf("ded-span-%d", num),
+				Type:  DedicatedColumnTypeString,
+			})
 		}
+		for range maxSupportedResourceColumns {
+			num += rand.IntN(10)
+			cols = append(cols, DedicatedColumn{
+				Scope: DedicatedColumnScopeResource,
+				Name:  fmt.Sprintf("ded-res-%d", num),
+				Type:  DedicatedColumnTypeString,
+			})
+		}
+		dedicatedCols = append(dedicatedCols, cols)
 	}
 
-	buf, err := idx.marshalPb()
-	require.NoError(b, err)
+	blocks := make([]*BlockMeta, 0, numBlocks)
+	compactedBlocks := make([]*CompactedBlockMeta, 0, numBlocks)
+	for i := range numBlocks {
+		meta := NewBlockMeta("test-tenant", uuid.New(), "vParquet4", EncNone, "")
+		meta.DedicatedColumns = dedicatedCols[i%numDistinctDedicatedCols]
+		blocks = append(blocks, meta)
 
-	unIdx := &TenantIndex{}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = unIdx.unmarshalPb(buf)
+		compactedMeta := &CompactedBlockMeta{
+			BlockMeta:     *NewBlockMeta("test-tenant", uuid.New(), "vParquet4", EncNone, ""),
+			CompactedTime: time.Now(),
+		}
+		compactedMeta.DedicatedColumns = dedicatedCols[i%numDistinctDedicatedCols]
+		compactedBlocks = append(compactedBlocks, compactedMeta)
 	}
+
+	return newTenantIndex(blocks, compactedBlocks)
 }

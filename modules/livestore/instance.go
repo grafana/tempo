@@ -3,6 +3,7 @@ package livestore
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"sort"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/tracesizes"
+	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -34,6 +36,7 @@ const (
 	traceDataType              = "trace"
 	reasonWaitingForLiveTraces = "waiting_for_live_traces"
 	reasonWaitingForWAL        = "waiting_for_wal"
+	maxTraceLogLinesPerSecond  = 10
 )
 
 var (
@@ -96,9 +99,10 @@ type instance struct {
 	lastCutTime    time.Time
 
 	// Live traces
-	liveTracesMtx sync.Mutex
-	liveTraces    *livetraces.LiveTraces[*v1.ResourceSpans]
-	traceSizes    *tracesizes.Tracker
+	liveTracesMtx  sync.Mutex
+	liveTraces     *livetraces.LiveTraces[*v1.ResourceSpans]
+	traceSizes     *tracesizes.Tracker
+	maxTraceLogger *util_log.RateLimitedLogger
 
 	// Metrics
 	tracesCreatedTotal prometheus.Counter
@@ -119,8 +123,9 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, overrides override
 		enc:                enc,
 		walBlocks:          map[uuid.UUID]common.WALBlock{},
 		completeBlocks:     map[uuid.UUID]*ingester.LocalBlock{},
-		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceLive, cfg.MaxTraceIdle, instanceID),
+		liveTraces:         livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
 		traceSizes:         tracesizes.New(),
+		maxTraceLogger:     util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
 		overrides:          overrides,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
 		bytesReceivedTotal: metricBytesReceivedTotal,
@@ -214,6 +219,17 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 		// Reuse the byte slice now that we've unmarshalled it
 		tempopb.ReuseByteSlices([][]byte{traceBytes.Slice})
 
+		// test max trace size. use trace sizes over liveTraces b/c it tracks large traces across multiple flushes
+		if maxBytes > 0 {
+			traceSz := trace.Size()
+			allowResult := i.traceSizes.Allow(traceID, traceSz, maxBytes)
+			if !allowResult.IsAllowed {
+				i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "traceSz", traceSz, "totalSize", allowResult.CurrentTotalSize, "trace", hex.EncodeToString(traceID))
+				overrides.RecordDiscardedSpans(countSpans(trace), overrides.ReasonTraceTooLarge, i.tenantID)
+				continue
+			}
+		}
+
 		i.liveTracesMtx.Lock()
 		// Push each batch in the trace to live traces
 		for _, batch := range trace.ResourceSpans {
@@ -222,12 +238,12 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 			}
 
 			// Push to live traces with tenant-specific limits
-			if err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), uint64(maxBytes)); err != nil {
+			if err := i.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, uint64(maxLiveTraces), 0); err != nil {
 				var reason string
 				switch {
 				case errors.Is(err, livetraces.ErrMaxLiveTracesExceeded):
 					reason = overrides.ReasonLiveTracesExceeded
-				case errors.Is(err, livetraces.ErrMaxTraceSizeExceeded):
+				case errors.Is(err, livetraces.ErrMaxTraceSizeExceeded): // this should technically never happen b/c we are passing 0 as max trace sz
 					reason = overrides.ReasonTraceTooLarge
 				default:
 					reason = overrides.ReasonUnknown
@@ -371,6 +387,8 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 		return uuid.Nil, nil
 	}
 
+	i.traceSizes.ClearIdle(i.lastCutTime)
+
 	// Final flush
 	err := i.headBlock.Flush()
 	if err != nil {
@@ -378,9 +396,10 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	}
 
 	id := (uuid.UUID)(i.headBlock.BlockMeta().BlockID)
+	blockSize := i.headBlock.DataLength()
 	i.walBlocks[id] = i.headBlock
 
-	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String())
+	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String(), "size", blockSize)
 
 	err = i.resetHeadBlock()
 	if err != nil {

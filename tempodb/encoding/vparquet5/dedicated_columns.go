@@ -243,3 +243,21 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 
 	return mapping
 }
+
+func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
+	filtered := make(backend.DedicatedColumns, 0, len(columns))
+	for _, c := range columns {
+		if isIgnoredDedicatedColumn(c.Scope, c.Type) {
+			continue
+		}
+		filtered = append(filtered, c)
+	}
+	return filtered
+}
+
+func isIgnoredDedicatedColumn(scope backend.DedicatedColumnScope, typ backend.DedicatedColumnType) bool {
+	if _, found := DedicatedResourceColumnPaths[scope][typ]; !found {
+		return true
+	}
+	return false
+}

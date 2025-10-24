@@ -138,4 +138,15 @@
     then super.ingester_pdb + podDisruptionBudget.mixin.spec.withMaxUnavailable(0)
     // Remove it if multi-zone is enabled and no migration is in progress.
     else null,
+
+  //
+  // Helper methods
+  //
+
+  removeReplicasFromSpec:: {
+    spec+: {
+      // Remove the "replicas" field so that it isn't reconciled.
+      replicas+:: null,
+    },
+  },
 }

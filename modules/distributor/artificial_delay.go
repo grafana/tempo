@@ -3,7 +3,19 @@ package distributor
 import (
 	"math/rand"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+var metricAddedLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace:                       "tempo",
+	Subsystem:                       "distributor",
+	Name:                            "added_latency_seconds",
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: time.Hour,
+}, []string{"tenant"})
 
 func (d *Distributor) padWithArtificialDelay(reqStart time.Time, userID string) {
 	artificialDelay := d.cfg.ArtificialDelay
@@ -19,6 +31,7 @@ func (d *Distributor) padWithArtificialDelay(reqStart time.Time, userID string) 
 	// If the request took longer than the target delay, we don't delay at all as sleep will return immediately for a negative value
 	reqDuration := d.now().Sub(reqStart)
 	delay := artificialDelay - reqDuration
+	metricAddedLatency.WithLabelValues(userID).Observe(delay.Seconds())
 	d.sleep(durationWithJitter(delay, 0.10))
 }
 

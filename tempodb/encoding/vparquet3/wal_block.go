@@ -151,14 +151,17 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 // createWALBlock creates a new appendable block
 func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+	newMeta := &backend.BlockMeta{
+		Version:           VersionString,
+		BlockID:           meta.BlockID,
+		TenantID:          meta.TenantID,
+		ReplicationFactor: meta.ReplicationFactor,
+		// remove ignored attributes from dedicated columns
+		DedicatedColumns: filterDedicatedColumns(meta.DedicatedColumns),
+	}
+
 	b := &walBlock{
-		meta: &backend.BlockMeta{
-			Version:           VersionString,
-			BlockID:           meta.BlockID,
-			TenantID:          meta.TenantID,
-			DedicatedColumns:  meta.DedicatedColumns,
-			ReplicationFactor: meta.ReplicationFactor,
-		},
+		meta:           newMeta,
 		path:           filepath,
 		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,

@@ -30,8 +30,8 @@ Otherwise, refer to [Install Grafana](/docs/grafana/<GRAFANA_VERSION>/setup-graf
 You can skip this section if you have already configured Alloy to send traces to Tempo.
 {{< /admonition >}}
 
-[//]: # 'Shared content for best practices for traces'
-[//]: # 'This content is located in /tempo/docs/sources/shared/alloy-remote-write-tempo.md'
+[//]: # "Shared content for best practices for traces"
+[//]: # "This content is located in /tempo/docs/sources/shared/alloy-remote-write-tempo.md"
 
 {{< docs/shared source="tempo" lookup="alloy-remote-write-tempo.md" version="next" >}}
 
@@ -46,7 +46,7 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 1. Select **Tempo**.
 
 1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to the Tempo query frontend service and the configured HTTP API prefix.
-   If you followed [Deploy Tempo with Helm installation example](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/deploy/deploy-kubernetes/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3100`
+   If you followed [Deploy Tempo with Helm installation example](/docs/tempo/latest/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/), the query frontend service's URL looks something like this: `http://tempo-cluster-query-frontend.<NAMESPACE>.svc.cluster.local:3100`
 
 1. Click **Save & Test**.
 
