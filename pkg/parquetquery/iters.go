@@ -114,7 +114,7 @@ func (t *RowNumber) Valid() bool {
 	return t[0] >= 0
 }
 
-func RowNumberValidAtDefinitionLevel(t RowNumber, definitionLevel int) bool {
+func rowNumberValidAtDefinitionLevel(t RowNumber, definitionLevel int) bool {
 	return t[definitionLevel] >= 0
 }
 

@@ -139,7 +139,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.currBufN++
 			c.currPageN++
 
-			if RowNumberValidAtDefinitionLevel(c.curr, c.maxDefinitionLevel) {
+			if rowNumberValidAtDefinitionLevel(c.curr, c.maxDefinitionLevel) {
 				c.scannedAtLeastOneRowAtSameLevel = true
 			}
 
