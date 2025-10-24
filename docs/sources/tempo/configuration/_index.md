@@ -16,43 +16,44 @@ Instructions for configuring Tempo data sources are available in the [Grafana Cl
 The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)
-  - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
-  - [Server](#server)
-  - [Distributor](#distributor)
-    - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
-    - [gRPC compression](#grpc-compression)
-  - [Ingester](#ingester)
-    - [Ingester configuration block](#ingester-configuration-block)
-  - [Metrics-generator](#metrics-generator)
-  - [Query-frontend](#query-frontend)
-    - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
-      - [Limit the spans per spanset](#limit-the-spans-per-spanset)
-      - [Cap the maximum query length](#cap-the-maximum-query-length)
-  - [Querier](#querier)
-  - [Compactor](#compactor)
-  - [Storage](#storage)
-    - [Local storage recommendations](#local-storage-recommendations)
-    - [Storage block configuration example](#storage-block-configuration-example)
-  - [Memberlist](#memberlist)
-  - [Configuration blocks](#configuration-blocks)
-    - [Block config](#block-config)
-    - [Filter policy config](#filter-policy-config)
-      - [Filter policy](#filter-policy)
-      - [Policy match](#policy-match)
-      - [Examples](#examples)
-    - [KVStore config](#kvstore-config)
-    - [Search config](#search-config)
-    - [WAL config](#wal-config)
-  - [Overrides](#overrides)
-    - [Ingestion limits](#ingestion-limits)
-      - [Standard overrides](#standard-overrides)
-      - [Tenant-specific overrides](#tenant-specific-overrides)
-        - [Runtime overrides](#runtime-overrides)
-        - [User-configurable overrides](#user-configurable-overrides)
-      - [Override strategies](#override-strategies)
-  - [Usage-report](#usage-report)
-    - [Configure usage-reporting](#configure-usage-reporting)
-  - [Cache](#cache)
+    - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+    - [Server](#server)
+    - [Distributor](#distributor)
+        - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
+        - [gRPC compression](#grpc-compression)
+    - [Ingester](#ingester)
+        - [Ingester configuration block](#ingester-configuration-block)
+    - [Metrics-generator](#metrics-generator)
+    - [Query-frontend](#query-frontend)
+        - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
+            - [Limit the spans per spanset](#limit-the-spans-per-spanset)
+            - [Cap the maximum query length](#cap-the-maximum-query-length)
+    - [Querier](#querier)
+    - [Compactor](#compactor)
+    - [Storage](#storage)
+        - [Local storage recommendations](#local-storage-recommendations)
+        - [Storage block configuration example](#storage-block-configuration-example)
+    - [Memberlist](#memberlist)
+    - [Configuration blocks](#configuration-blocks)
+        - [Block config](#block-config)
+        - [Filter policy config](#filter-policy-config)
+            - [Filter policy](#filter-policy)
+            - [Policy match](#policy-match)
+            - [Examples](#examples)
+        - [KVStore config](#kvstore-config)
+        - [Search config](#search-config)
+        - [WAL config](#wal-config)
+    - [Overrides](#overrides)
+        - [Ingestion limits](#ingestion-limits)
+            - [Standard overrides](#standard-overrides)
+            - [Tenant-specific overrides](#tenant-specific-overrides)
+                - [Runtime overrides](#runtime-overrides)
+                - [User-configurable overrides](#user-configurable-overrides)
+            - [Override strategies](#override-strategies)
+    - [Usage-report](#usage-report)
+        - [Configure usage-reporting](#configure-usage-reporting)
+    - [Cache](#cache)
+    - [Configure authentication](#configure-authentication)
 
 Additionally, you can review [TLS](network/tls/) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
@@ -508,6 +509,9 @@ metrics_generator:
 
             # Drop specific labels from `traces_target_info` metrics
             [target_info_excluded_dimensions: <list of string>]
+
+            # Add instance label to all span metrics series when enable_target_info is true
+            [enable_instance_label: <bool> | default = true]
 
         local_blocks:
 
@@ -1413,7 +1417,7 @@ Defines re-used configuration blocks.
 ### Block config
 
 ```yaml
-# block format version. options: v2, vParquet2, vParquet3, vParquet4
+# block format version. options: v2, vParquet3, vParquet4
 [version: <string> | default = vParquet4]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
@@ -1614,7 +1618,7 @@ The storage WAL configuration block.
 [ingestion_time_range_slack: <duration> | default = unset]
 
 # WAL file format version
-# Options: v2, vParquet, vParquet2, vParquet3
+# Options: v2, vParquet3, vParquet4
 [version: <string> | default = "vParquet3"]
 ```
 
@@ -1813,6 +1817,8 @@ overrides:
           [enable_target_info: <bool>]
           # Drop specific resource labels from traces_target_info
           [target_info_excluded_dimensions: <list of string>]
+          # add instance label to all span metrics series when enable_target_info is true
+          [enable_instance_label: <bool> | default = true]
 
         # Configuration for the local-blocks processor
         local-blocks:
@@ -2182,6 +2188,9 @@ cache:
             # CLI flag: -<prefix>.memcached.tls-min-version
             [tls_min_version: <string> | default = ""]
 
+            # sets the TTL of keys in memcached
+            [ttl: <string> | default = ""]
+
         # Redis configuration block
         # EXPERIMENTAL
         redis:
@@ -2251,3 +2260,7 @@ cache:
       redis:
         endpoint: redis-instance
 ```
+
+## Configure authentication
+
+Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details

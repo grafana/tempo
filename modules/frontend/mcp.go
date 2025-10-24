@@ -202,7 +202,7 @@ func (s *MCPServer) setupResources() {
 // setupTools registers MCP tools for trace operations
 func (s *MCPServer) setupTools() {
 	// api tools
-	searchTool := mcp.NewTool(toolTraceQLSearch,
+	searchTool := newReadOnlyTool(toolTraceQLSearch,
 		mcp.WithDescription("Search for traces using TraceQL queries"),
 		mcp.WithString("query",
 			mcp.Required(),
@@ -217,7 +217,7 @@ func (s *MCPServer) setupTools() {
 	)
 	s.mcpServer.AddTool(searchTool, s.handleSearch)
 
-	instantQueryTool := mcp.NewTool(toolTraceQLMetricsInstant,
+	instantQueryTool := newReadOnlyTool(toolTraceQLMetricsInstant,
 		mcp.WithDescription("Retrieve a single metric value given a TraceQL metrics query. The value is at the current instant or end. Most metrics questions can be answered with instant values."),
 		mcp.WithString("query",
 			mcp.Required(),
@@ -229,11 +229,12 @@ func (s *MCPServer) setupTools() {
 		mcp.WithString("end",
 			mcp.Description("End time for the search (RFC3339 format). If not provided will search the past 1 hour. If provided, must be after start."),
 		),
+		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(instantQueryTool, s.handleInstantQuery)
 
 	// TODO: should we even expose this? the LLM would be better at using the instant query tool and giving accurate answers.
-	rangeQueryTool := mcp.NewTool(toolTraceQLMetricsRange,
+	rangeQueryTool := newReadOnlyTool(toolTraceQLMetricsRange,
 		mcp.WithDescription("Retrieve a metric series given a TraceQL metrics query. The series ranges from start to end."),
 		mcp.WithString("query",
 			mcp.Required(),
@@ -245,27 +246,30 @@ func (s *MCPServer) setupTools() {
 		mcp.WithString("end",
 			mcp.Description("End time for the search (RFC3339 format). If not provided will search the past 1 hour. If provided, must be after start."),
 		),
+		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(rangeQueryTool, s.handleRangeQuery)
 
-	traceTool := mcp.NewTool(toolGetTrace,
+	traceTool := newReadOnlyTool(toolGetTrace,
 		mcp.WithDescription("Retrieve a specific trace by ID"),
 		mcp.WithString("trace_id",
 			mcp.Required(),
 			mcp.Description("Trace ID to retrieve"),
 		),
+		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(traceTool, s.handleGetTrace)
 
-	attributeNamesTool := mcp.NewTool(toolGetAttributeNames,
+	attributeNamesTool := newReadOnlyTool(toolGetAttributeNames,
 		mcp.WithDescription("Get a list of available attribute names that can be used in TraceQL queries. This is useful for finding the names of attributes that can be used in a query."),
 		mcp.WithString("scope",
 			mcp.Description("Optional scope to filter attributes by (span, resource, event, link, instrumentation). If not provided, returns all attributes."),
 		),
+		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(attributeNamesTool, s.handleGetAttributeNames)
 
-	attributeValuesTool := mcp.NewTool(toolGetAttributeValues,
+	attributeValuesTool := newReadOnlyTool(toolGetAttributeValues,
 		mcp.WithDescription("Get a list of values for a fully scoped attribute name. This is useful for finding the values of a specific attribute. i.e. you can find all the services in the data by asking for resource.service.name"),
 		mcp.WithString("name",
 			mcp.Required(),
@@ -274,18 +278,33 @@ func (s *MCPServer) setupTools() {
 		mcp.WithString("filter-query",
 			mcp.Description("Filter query to apply to the attribute values. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }.This is useful for filtering the values to a specific set of values. i.e. you can find all endpoints for a given service by asking for span.http.endpoint and filtering resource.service.name."),
 		),
+		mcp.WithDestructiveHintAnnotation(false),
 	)
+
 	s.mcpServer.AddTool(attributeValuesTool, s.handleGetAttributeValues)
 
 	// docs tools - these are defined as tools as well as resources b/c claude code never asks for resources but it will nicely
 	// request the content from these docs tools.
-	traceQLDocs := mcp.NewTool(toolDocsTraceQL,
+	traceQLDocs := newReadOnlyTool(toolDocsTraceQL,
 		mcp.WithDescription(docsTraceQLQueryDescription),
 		mcp.WithString("name",
 			mcp.Required(),
 			mcp.Description("The type of TraceQL documentation to retrieve"),
 			mcp.Enum(frontendDocs.DocsTypeBasic, frontendDocs.DocsTypeAggregates, frontendDocs.DocsTypeStructural, frontendDocs.DocsTypeMetrics),
 		),
+		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(traceQLDocs, s.handleTraceQLDocs)
+}
+
+func newReadOnlyTool(name string, opts ...mcp.ToolOption) mcp.Tool {
+	standardReadOnlyOpts := []mcp.ToolOption{
+		mcp.WithReadOnlyHintAnnotation(true),
+		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithOpenWorldHintAnnotation(false),
+	}
+
+	opts = append(opts, standardReadOnlyOpts...)
+
+	return mcp.NewTool(name, opts...)
 }

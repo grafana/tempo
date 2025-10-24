@@ -63,8 +63,8 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
 	})
 
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
@@ -137,8 +137,8 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address, []int32{0})
 
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond) // Send for 5 seconds
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond, ingest.Encode) // Send for 5 seconds
 
 	commitedAt := len(producedRecords) / 2
 	// Commit half of the records
@@ -158,7 +158,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
 	})
 
-	records := sendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond) // Send for 5 seconds
+	records := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond, ingest.Encode) // Send for 5 seconds
 	producedRecords = append(producedRecords, records...)
 
 	// Wait for record to be consumed and committed.
@@ -199,8 +199,8 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond, ingest.Encode) // Send for 1 second, <1 consumption cycles
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -245,8 +245,8 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
 	})
 
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
@@ -326,8 +326,8 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond, ingest.Encode) // Send for 1 second, <1 consumption cycle
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -384,8 +384,8 @@ func TestBlockbuilder_retries_on_retriable_commit_error(t *testing.T) {
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
@@ -442,8 +442,8 @@ func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
 	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
@@ -487,10 +487,10 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	// Set a shorter consume cycle duration
 	cfg.ConsumeCycleDuration = 500 * time.Millisecond
 
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 
 	// Send a single record
-	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	// Create the block builder
@@ -510,7 +510,7 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 
 	// Send another record
-	newRecords := sendReq(t, ctx, client, util.FakeTenantID)
+	newRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	newRecordOffset := newRecords[len(newRecords)-1].Offset
 
 	// Wait for the new record to be consumed and committed
@@ -539,7 +539,7 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 		{
 			name:             "Limited to 1 bytes per cycle",
 			maxBytesPerCycle: 1,
-			expectedCommits:  1,
+			expectedCommits:  2,
 			expectedWrites:   2,
 		},
 		{
@@ -585,10 +585,10 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 				require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
 			})
 
-			client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+			client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 			// We send two records with a size less than 30KB
-			sendReq(t, ctx, client, util.FakeTenantID)
-			producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
+			testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+			producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
 			require.Eventually(t, func() bool {
 				return kafkaCommits.Load() == tc.expectedCommits
@@ -599,6 +599,110 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 			}, 30*time.Second, time.Second)
 
 			requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
+		})
+	}
+}
+
+func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
+	// default ingestion slack is 2 minutes. create some convenient times to help the test below
+	now := time.Unix(1000000, 0)
+	oneMinuteAgo := now.Add(-time.Minute)
+	oneMinuteLater := now.Add(time.Minute)
+	twoMinutesAgo := now.Add(-2 * time.Minute)
+	threeMinutesAgo := now.Add(-3 * time.Minute)
+
+	tcs := []struct {
+		name          string
+		startTime     time.Time
+		endTime       time.Time
+		recordTime    time.Time
+		expectedStart time.Time
+		expectedEnd   time.Time
+	}{
+		{ // records where the timestamp exactly matches the span timings
+			name:          "exact match",
+			startTime:     oneMinuteAgo,
+			endTime:       oneMinuteAgo,
+			recordTime:    oneMinuteAgo,
+			expectedStart: oneMinuteAgo,
+			expectedEnd:   oneMinuteAgo,
+		},
+		{ // records where the timestamp doesn't match the span timings, but within the ingestion slack
+			name:          "within ingestion slack",
+			startTime:     oneMinuteAgo,
+			endTime:       oneMinuteLater,
+			recordTime:    now,
+			expectedStart: oneMinuteAgo,
+			expectedEnd:   oneMinuteLater,
+		},
+		{ // records where the timestamp doesn't match the span timings and is outside the ingestion slack
+			name:          "outside ingestion slack",
+			startTime:     threeMinutesAgo,
+			endTime:       now,
+			recordTime:    now,
+			expectedStart: twoMinutesAgo, // default ingestion slack is 2 minutes
+			expectedEnd:   now,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancelCause(context.Background())
+			t.Cleanup(func() { cancel(errors.New("test done")) })
+
+			k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+			kafkaCommits := atomic.NewInt32(0)
+			k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+				kafkaCommits.Inc()
+				return nil, nil, false
+			})
+
+			store := newStore(ctx, t)
+			cfg := blockbuilderConfig(t, address, []int32{0})
+
+			client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+
+			// Create a trace with specific start/end times
+			traceID := generateTraceID(t)
+			startTimeNano := uint64(tc.startTime.UnixNano())
+			endTimeNano := uint64(tc.endTime.UnixNano())
+			req := test.MakePushBytesRequest(t, 1, traceID, startTimeNano, endTimeNano)
+			records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
+			require.NoError(t, err)
+
+			// Set the record timestamp
+			for _, record := range records {
+				record.Timestamp = tc.recordTime
+			}
+
+			// Send the record
+			res := client.ProduceSync(ctx, records...)
+			require.NoError(t, res.FirstErr())
+
+			b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+			require.NoError(t, err)
+			require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+			t.Cleanup(func() {
+				require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+			})
+
+			// Wait for record to be consumed and committed
+			require.Eventually(t, func() bool {
+				return kafkaCommits.Load() > 0
+			}, time.Minute, time.Second)
+
+			// Wait for the block to be flushed
+			require.Eventually(t, func() bool {
+				return len(store.BlockMetas(util.FakeTenantID)) == 1
+			}, time.Minute, time.Second)
+
+			// Verify block timestamps
+			metas := store.BlockMetas(util.FakeTenantID)
+			require.Len(t, metas, 1)
+			meta := metas[0]
+			require.Equal(t, tc.expectedStart.Unix(), meta.StartTime.Unix())
+			require.Equal(t, tc.expectedEnd.Unix(), meta.EndTime.Unix())
 		})
 	}
 }
@@ -618,7 +722,7 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 
 	var (
 		cfg    = blockbuilderConfig(t, address, []int32{0})
-		client = newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+		client = testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 	)
 
 	// Send data for each tenant
@@ -627,8 +731,8 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 		badTenantID     = "2"
 		producedRecords []*kgo.Record
 	)
-	producedRecords = append(producedRecords, sendReq(t, ctx, client, goodTenantID)...)
-	producedRecords = append(producedRecords, sendReq(t, ctx, client, badTenantID)...)
+	producedRecords = append(producedRecords, testkafka.SendReq(ctx, t, client, ingest.Encode, goodTenantID)...)
+	producedRecords = append(producedRecords, testkafka.SendReq(ctx, t, client, ingest.Encode, badTenantID)...)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	// Simulate failures on the first cycle
@@ -655,13 +759,16 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 		}
 		return store.WriteBlock(ctx, block)
 	})
+	t.Cleanup(func() { require.NoError(t, services.StopAndAwaitTerminated(context.Background(), store)) })
 
 	// Create the block builder
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
-		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), b))
+		cancel(errors.New("test cleanup"))
+		store.Shutdown()
 	})
 
 	// Wait for the records to be consumed and committed
@@ -718,9 +825,13 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address, []int32{0}) // Fix: Properly specify partition
 
+	// Send initial traces to ensure the partition has records
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+
 	// Start sending traces in the background
 	go func() {
-		sendTracesFor(t, ctx, newKafkaClient(t, cfg.IngestStorageConfig.Kafka), 60*time.Second, time.Second)
+		testkafka.SendTracesFor(t, ctx, client, 60*time.Second, time.Second, ingest.Encode)
 	}()
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -876,66 +987,12 @@ type mockOverrides struct {
 func (m *mockOverrides) MaxBytesPerTrace(_ string) int                      { return 0 }
 func (m *mockOverrides) DedicatedColumns(_ string) backend.DedicatedColumns { return m.dc }
 
-func newKafkaClient(t testing.TB, config ingest.KafkaConfig) *kgo.Client {
-	writeClient, err := kgo.NewClient(
-		kgo.SeedBrokers(config.Address),
-		kgo.AllowAutoTopicCreation(),
-		kgo.DefaultProduceTopic(config.Topic),
-		// We will choose the partition of each record.
-		kgo.RecordPartitioner(kgo.ManualPartitioner()),
-	)
-	require.NoError(t, err)
-	t.Cleanup(writeClient.Close)
-
-	return writeClient
-}
-
 func countFlushedTraces(store storage.Store) int {
 	count := 0
 	for _, meta := range store.BlockMetas(util.FakeTenantID) {
 		count += int(meta.TotalObjects)
 	}
 	return count
-}
-
-// nolint: revive
-func sendReq(t testing.TB, ctx context.Context, client *kgo.Client, tenantID string) []*kgo.Record {
-	traceID := generateTraceID(t)
-
-	now := time.Now()
-	startTime := uint64(now.UnixNano())
-	endTime := uint64(now.Add(time.Second).UnixNano())
-	req := test.MakePushBytesRequest(t, 10, traceID, startTime, endTime)
-	records, err := ingest.Encode(0, tenantID, req, 1_000_000)
-	require.NoError(t, err)
-
-	res := client.ProduceSync(ctx, records...)
-	require.NoError(t, res.FirstErr())
-
-	return records
-}
-
-// nolint: revive,unparam
-func sendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, interval time.Duration) []*kgo.Record {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	timer := time.NewTimer(dur)
-	defer timer.Stop()
-
-	producedRecords := make([]*kgo.Record, 0)
-
-	for {
-		select {
-		case <-ctx.Done(): // Exit the function if the context is done
-			return producedRecords
-		case <-timer.C: // Exit the function when the timer is done
-			return producedRecords
-		case <-ticker.C:
-			records := sendReq(t, ctx, client, util.FakeTenantID)
-			producedRecords = append(producedRecords, records...)
-		}
-	}
 }
 
 func generateTraceID(t testing.TB) []byte {
@@ -961,7 +1018,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
 		store      = newStoreWithLogger(ctx, b, logger, false)
 		cfg        = blockbuilderConfig(b, address, []int32{0})
-		client     = newKafkaClient(b, cfg.IngestStorageConfig.Kafka)
+		client     = testkafka.NewKafkaClient(b, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 		o          = &mockOverrides{
 			dc: backend.DedicatedColumns{
 				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res0", Type: backend.DedicatedColumnTypeString},
@@ -1006,7 +1063,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		b.StopTimer()
 		size := 0
 		for i := 0; i < 1000; i++ {
-			for _, r := range sendReq(b, ctx, client, util.FakeTenantID) {
+			for _, r := range testkafka.SendReq(ctx, b, client, ingest.Encode, util.FakeTenantID) {
 				size += len(r.Value)
 			}
 		}
@@ -1016,5 +1073,102 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		require.NoError(b, err)
 
 		b.SetBytes(int64(size))
+	}
+}
+
+type slowStore struct {
+	storage.Store
+	wait chan struct{}
+}
+
+func (s *slowStore) WriteBlock(ctx context.Context, block tempodb.WriteableBlock) error {
+	s.wait <- struct{}{} // send a signal to a goroutine
+	<-s.wait             // wait for the signal from the goroutine
+	return s.Store.WriteBlock(ctx, block)
+}
+
+// lock waits for the signal from WriteBlock locking the operation
+func (s *slowStore) lock() {
+	<-s.wait
+}
+
+// unlock sends a signal to WriteBlock unlocking the operation
+func (s *slowStore) unlock() {
+	s.wait <- struct{}{}
+}
+
+// TestBlockbuilder_twoPartitions_secondEmpty verifies correct handling of two Kafka
+// partitions where the second partition is initially empty and receives data later.
+// It uses a channel-gated store to step consumption, injects records between consume
+// cycles (sleeping longer than ConsumeCycleDuration), and asserts that:
+// - both partitions are assigned,
+// - three blocks are flushed (p0 initial, p0 later, p1 later), and
+// - committed offsets equal number of sent records.
+// The test highly coupled with the blockbuilder implementation. In case it stuck
+// due to channel, it is advised to debug consume cycle step by step.
+func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+	reqTime := time.Now().Add(-1 * time.Minute) // to be sure it won't be filtered out by cycle duration check
+
+	// Create a Kafka cluster with 2 partitions
+	_, address := testkafka.CreateCluster(t, 2, testTopic)
+
+	// Setup block-builder
+	ch := make(chan struct{})
+	store := &slowStore{Store: newStore(ctx, t), wait: ch}
+	cfg := blockbuilderConfig(t, address, []int32{0, 1})
+	cfg.ConsumeCycleDuration = time.Second
+	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
+		0: {Id: 0, State: ring.PartitionActive},
+		1: {Id: 1, State: ring.PartitionActive},
+	})
+
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	// First, produce to partition 0
+	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
+
+	// And only then create block builder
+	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, store)
+	require.NoError(t, err)
+
+	// Verify builder is listening to both partitions
+	parts := b.getAssignedPartitions()
+	require.ElementsMatch(t, []int32{0, 1}, parts)
+
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// after initial consumption, add more records
+	store.lock()
+	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
+	store.unlock()
+
+	// after processing the first partition, add more records to the second partition
+	store.lock()
+	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 1, Time: reqTime, TenantID: util.FakeTenantID})
+	store.unlock()
+
+	// wait for the second partition to finish
+	store.lock()
+	store.unlock()
+
+	// Wait for the block to be flushed (one block per each consumePartition call)
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 3 && countFlushedTraces(store) == 3
+	}, 20*time.Second, time.Second)
+
+	// Verify offsets
+	offsets, err := kadm.NewClient(client).FetchOffsetsForTopics(ctx, testConsumerGroup, testTopic)
+	require.NoError(t, err)
+	for partition, expectedOffset := range map[int32]int64{
+		0: 2,
+		1: 1,
+	} {
+		offset, ok := offsets.Lookup(testTopic, partition)
+		require.True(t, ok, "partition %d should have a committed offset", partition)
+		require.Equal(t, expectedOffset, offset.At)
 	}
 }

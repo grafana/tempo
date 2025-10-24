@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -150,14 +151,17 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 // createWALBlock creates a new appendable block
 func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+	newMeta := &backend.BlockMeta{
+		Version:           VersionString,
+		BlockID:           meta.BlockID,
+		TenantID:          meta.TenantID,
+		ReplicationFactor: meta.ReplicationFactor,
+		// remove ignored attributes from dedicated columns
+		DedicatedColumns: filterDedicatedColumns(meta.DedicatedColumns),
+	}
+
 	b := &walBlock{
-		meta: &backend.BlockMeta{
-			Version:           VersionString,
-			BlockID:           meta.BlockID,
-			TenantID:          meta.TenantID,
-			DedicatedColumns:  meta.DedicatedColumns,
-			ReplicationFactor: meta.ReplicationFactor,
-		},
+		meta:           newMeta,
 		path:           filepath,
 		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
@@ -362,7 +366,7 @@ func (b *walBlock) IngestionSlack() time.Duration {
 }
 
 func (b *walBlock) Validate(context.Context) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {

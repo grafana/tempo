@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -46,11 +47,13 @@ import (
 )
 
 const (
-	image           = "tempo:latest"
-	debugImage      = "tempo-debug:latest"
-	queryImage      = "tempo-query:latest"
-	jaegerImage     = "jaegertracing/jaeger-query:1.64.0"
-	prometheusImage = "prom/prometheus:latest"
+	image               = "tempo:latest"
+	debugImage          = "tempo-debug:latest"
+	queryImage          = "tempo-query:latest"
+	jaegerImage         = "jaegertracing/jaeger-query:1.64.0"
+	prometheusImage     = "prom/prometheus:latest"
+	xScopeOrgIDHeader   = "x-scope-orgid"
+	authorizationHeader = "authorization"
 )
 
 // GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
@@ -254,6 +257,26 @@ func NewNamedTempoBlockBuilder(name string, replica int, extraArgs ...string) *e
 	return s
 }
 
+func NewTempoLiveStore(replica int, extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoLiveStore("live-store", replica, extraArgs...)
+}
+
+func NewNamedTempoLiveStore(name string, replica int, extraArgs ...string) *e2e.HTTPService {
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=live-store"}
+	args = buildArgsWithExtra(args, extraArgs)
+
+	s := e2e.NewHTTPService(
+		name+"-"+strconv.Itoa(replica),
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
+	)
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
 func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=scalable-single-binary", "-querier.frontend-address=tempo-" + strconv.Itoa(replica) + ":9095"}
 	args = buildArgsWithExtra(args, extraArgs)
@@ -382,16 +405,28 @@ func TempoBackoff() backoff.Config {
 	}
 }
 
-func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
+func NewOtelGRPCExporterWithAuth(endpoint, orgID, basicAuthToken string, useTLS bool) (exporter.Traces, error) {
 	factory := otlpexporter.NewFactory()
 	exporterCfg := factory.CreateDefaultConfig()
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
+
+	// Configure headers for authentication (gRPC metadata format)
+	headers := make(map[string]configopaque.String)
+	if orgID != "" {
+		headers[xScopeOrgIDHeader] = configopaque.String(orgID)
+	}
+	if basicAuthToken != "" {
+		headers[authorizationHeader] = configopaque.String("Basic " + basicAuthToken)
+	}
+
 	otlpCfg.ClientConfig = configgrpc.ClientConfig{
 		Endpoint: endpoint,
 		TLS: configtls.ClientConfig{
-			Insecure: true,
+			Insecure: !useTLS,
 		},
+		Headers: headers,
 	}
+
 	// Disable retries to get immediate error feedback
 	otlpCfg.RetryConfig.Enabled = false
 	// Disable queueing
@@ -418,6 +453,10 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 		return nil, err
 	}
 	return te, nil
+}
+
+func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
+	return NewOtelGRPCExporterWithAuth(endpoint, "", "", false)
 }
 
 func NewSearchGRPCClient(ctx context.Context, endpoint string) (tempopb.StreamingQuerierClient, error) {
@@ -511,7 +550,7 @@ func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 
 	// verify trace can be found using attribute and time range
-	resp, err := client.SearchWithRange(attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
+	resp, err := client.SearchWithRange(context.Background(), attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
 	require.NoError(t, err)
 
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
@@ -700,12 +739,16 @@ type JaegerToOTLPExporter struct {
 	exporter exporter.Traces
 }
 
-func NewJaegerToOTLPExporter(endpoint string) (*JaegerToOTLPExporter, error) {
-	exp, err := NewOtelGRPCExporter(endpoint)
+func NewJaegerToOTLPExporterWithAuth(endpoint, orgID, basicAuthToken string, useTLS bool) (*JaegerToOTLPExporter, error) {
+	exp, err := NewOtelGRPCExporterWithAuth(endpoint, orgID, basicAuthToken, useTLS)
 	if err != nil {
 		return nil, err
 	}
 	return &JaegerToOTLPExporter{exporter: exp}, nil
+}
+
+func NewJaegerToOTLPExporter(endpoint string) (*JaegerToOTLPExporter, error) {
+	return NewJaegerToOTLPExporterWithAuth(endpoint, "", "", false)
 }
 
 // EmitBatch converts a Jaeger Thrift batch to OpenTelemetry traces format

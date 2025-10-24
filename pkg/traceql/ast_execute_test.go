@@ -1766,6 +1766,39 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 	}
 }
 
+func TestBinOp(t *testing.T) {
+	testCases := []struct {
+		op       Operator
+		lhs      Static
+		rhs      Static
+		expected Static
+	}{
+		{
+			op:       OpGreater,
+			lhs:      NewStaticString("foo"),
+			rhs:      NewStaticString(""),
+			expected: StaticTrue,
+		},
+		{
+			// Comparison of strings starting with a number were previously broken.
+			op:       OpGreater,
+			lhs:      NewStaticString("123"),
+			rhs:      NewStaticString(""),
+			expected: StaticTrue,
+		},
+	}
+	for _, tc := range testCases {
+		b := newBinaryOperation(tc.op, tc.lhs, tc.rhs)
+
+		// Static operations are already "compiled" away so recreate via string here.
+		text := tc.lhs.String() + " " + tc.op.String() + " " + tc.rhs.String()
+
+		actual, err := b.execute(nil)
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, actual, text)
+	}
+}
+
 func TestArithmetic(t *testing.T) {
 	testCases := []evalTC{
 		// static arithmetic works
@@ -2066,4 +2099,28 @@ func BenchmarkAggregate(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = agg.evaluate(ss)
 	}
+}
+
+func TestNotParentWithEmptyLHS(t *testing.T) {
+	// Build a single spanset with only RHS candidates matching name="list-articles"
+	rhsChild := newMockSpan([]byte{1}).WithNestedSetInfo(0, 1, 2)
+	rhsChild.attributes[IntrinsicNameAttribute] = NewStaticString("list-articles")
+
+	ss := []*Spanset{
+		{Spans: []Span{rhsChild}},
+	}
+
+	query := "{ span:name = `some-span-that-does-not-exist` } !< { span:name = `list-articles` }"
+	ast, err := Parse(query)
+	require.NoError(t, err)
+
+	out, err := ast.Pipeline.evaluate(ss)
+	require.NoError(t, err)
+
+	// Expect the RHS span to be returned because no LHS parent exists (negated parent)
+	require.Len(t, out, 1)
+	require.Len(t, out[0].Spans, 1)
+	nameStatic, _ := out[0].Spans[0].AttributeFor(IntrinsicNameAttribute)
+	expected := NewStaticString("list-articles")
+	require.True(t, nameStatic.Equals(&expected))
 }

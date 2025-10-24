@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/grafana/tempo/pkg/collector"
+	"github.com/grafana/tempo/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
 
 	gkLog "github.com/go-kit/log"
@@ -104,6 +106,11 @@ type Reader interface {
 	// PollNow does an immediate poll of the blocklist and is for testing purposes. Must have already called EnablePolling.
 	PollNow(ctx context.Context)
 
+	// PollNotification returns a channel that will be closed when the blocklist
+	// is updated.  The received context is used as the parent, to avoid
+	// deadlocks.
+	PollNotification(ctx context.Context) <-chan struct{}
+
 	Shutdown()
 }
 
@@ -155,6 +162,9 @@ type readerWriter struct {
 	compactorTenantOffset uint
 
 	pollerShutdownCh chan struct{}
+
+	pollerNotificationLock  sync.Mutex
+	pollerNotificationFuncs []func()
 }
 
 // New creates a new tempodb
@@ -209,13 +219,14 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:         c,
-		r:         r,
-		w:         w,
-		cfg:       cfg,
-		logger:    logger,
-		pool:      pool.NewPool(cfg.Pool),
-		blocklist: blocklist.New(),
+		c:                       c,
+		r:                       r,
+		w:                       w,
+		cfg:                     cfg,
+		logger:                  logger,
+		pool:                    pool.NewPool(cfg.Pool),
+		blocklist:               blocklist.New(),
+		pollerNotificationFuncs: make([]func(), 0),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -378,6 +389,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 		foundObject, err := block.FindTraceByID(ctx, id, opts)
 		if err != nil {
+			if errors.Is(err, util.ErrUnsupported) {
+				return nil, nil
+			}
 			return nil, fmt.Errorf("error finding trace by id, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
@@ -651,6 +665,20 @@ func (rw *readerWriter) PollNow(ctx context.Context) {
 	rw.pollBlocklist(ctx)
 }
 
+// PollNotification returns a context.Done() channel, the closure of which indicates
+// that the blocklist has been updated.  The channel is never written to, but
+// allows waiting more precisely for updated information from the backend.
+func (rw *readerWriter) PollNotification(ctx context.Context) <-chan struct{} {
+	ctx, cancel := context.WithCancel(ctx)
+
+	rw.pollerNotificationLock.Lock()
+	defer rw.pollerNotificationLock.Unlock()
+
+	rw.pollerNotificationFuncs = append(rw.pollerNotificationFuncs, cancel)
+
+	return ctx.Done()
+}
+
 func (rw *readerWriter) pollingLoop(ctx context.Context) {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
 
@@ -676,6 +704,15 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 	}
 
 	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
+
+	rw.pollerNotificationLock.Lock()
+	defer rw.pollerNotificationLock.Unlock()
+
+	for _, fn := range rw.pollerNotificationFuncs {
+		fn()
+	}
+
+	rw.pollerNotificationFuncs = rw.pollerNotificationFuncs[:0]
 }
 
 // includeBlock indicates whether a given block should be included in a backend search

@@ -22,7 +22,10 @@ const (
 	dimInstance      = "instance"
 )
 
-var intrinsicLabels = []string{dimService, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage}
+var (
+	intrinsicLabels           = []string{dimService, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage}
+	targetInfoIntrinsicLabels = append(intrinsicLabels, dimJob, dimInstance)
+)
 
 type Config struct {
 	// Buckets for latency histogram in seconds.
@@ -58,6 +61,9 @@ type Config struct {
 
 	// Allow user to specify labels they want to drop from target_info
 	TargetInfoExcludedDimensions []string `yaml:"target_info_excluded_dimensions"`
+
+	// Allow user to disable instance label from all span metrics series
+	EnableInstanceLabel bool `yaml:"enable_instance_label"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -71,6 +77,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Subprocessors[Latency] = true
 	cfg.Subprocessors[Count] = true
 	cfg.Subprocessors[Size] = true
+	cfg.EnableInstanceLabel = true
 }
 
 type IntrinsicDimensions struct {

@@ -16,6 +16,7 @@ import (
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -416,7 +417,7 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 	// Send a pair of spans with a messaging system relationship (producer -> consumer)
 	// ignore the gosec linter because we are using a random number generator to create trace IDs
 	// and span IDs, which is not a security risk in this context.
-	// #nosec G404
+	// #nosec G404 -- nosemgrep: math-random-used
 	r := rand.New(rand.NewSource(time.Now().UnixMilli()))
 	traceIDLow := r.Int63()
 	traceIDHigh := r.Int63()
@@ -508,7 +509,7 @@ func extractMetricsFromPrometheus(prometheus *e2e.HTTPService, matcher string) (
 		return nil, err
 	}
 
-	var tp expfmt.TextParser
+	tp := expfmt.NewTextParser(model.UTF8Validation)
 	return tp.TextToMetricFamilies(strings.NewReader(string(body)))
 }
 

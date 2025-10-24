@@ -130,7 +130,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 		w,
 	)
 
-	b := p.prepareNextTenant(ctx)
+	b := p.prepareNextTenant(ctx, false)
 	require.False(t, b, "no tenant should be found")
 	require.Nil(t, p.curTenant, "a tenant should not be set")
 	require.Nil(t, p.curSelector, "a block selector should not be set")
@@ -138,7 +138,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
 	time.Sleep(150 * time.Millisecond)
 
-	b = p.prepareNextTenant(ctx)
+	b = p.prepareNextTenant(ctx, false)
 	require.False(t, b, "no tenant with a single block should be found")
 	require.Nil(t, p.curTenant, "a tenant should not be set")
 	require.Nil(t, p.curSelector, "a block selector should not be set")
@@ -146,7 +146,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
 	time.Sleep(150 * time.Millisecond)
 
-	b = p.prepareNextTenant(ctx)
+	b = p.prepareNextTenant(ctx, false)
 	require.True(t, b, "tenant with two blocks should be found")
 	require.NotNil(t, p.curTenant, "a tenant should be set")
 	require.NotNil(t, p.curSelector, "a block selector should be set")
@@ -214,7 +214,9 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 		},
 	}
 
-	provider.addToRecentJobs(job1)
+	ctx := context.Background()
+
+	provider.addToRecentJobs(ctx, job1)
 	require.Len(t, provider.outstandingJobs, 1, "Cache should contain one job")
 	require.Contains(t, provider.outstandingJobs, "job1", "Cache should contain job1")
 	require.Equal(t, []backend.UUID{block1, block2}, provider.outstandingJobs["job1"], "Cache should contain correct blocks")
@@ -229,7 +231,7 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 		},
 	}
 
-	provider.addToRecentJobs(job2)
+	provider.addToRecentJobs(ctx, job2)
 	require.Len(t, provider.outstandingJobs, 2, "Cache should contain two jobs")
 	require.Equal(t, []backend.UUID{block3, block4}, provider.outstandingJobs["job2"], "Cache should contain correct blocks for job2")
 
@@ -239,7 +241,7 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 		Type: tempopb.JobType_JOB_TYPE_RETENTION,
 	}
 
-	provider.addToRecentJobs(retentionJob)
+	provider.addToRecentJobs(ctx, retentionJob)
 	require.Len(t, provider.outstandingJobs, 2, "Non-compaction jobs should not be added to cache")
 
 	// Empty compaction input should not be added
@@ -253,7 +255,7 @@ func TestCompactionProvider_RecentJobsCache(t *testing.T) {
 		},
 	}
 
-	provider.addToRecentJobs(emptyJob)
+	provider.addToRecentJobs(ctx, emptyJob)
 	require.Len(t, provider.outstandingJobs, 2, "Jobs with empty input should not be added to cache")
 }
 

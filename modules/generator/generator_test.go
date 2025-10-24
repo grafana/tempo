@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -242,7 +243,7 @@ func BenchmarkCollect(b *testing.B) {
 			spanMetricsDimensions:                   []string{"k8s.cluster.name", "k8s.namespace.name"},
 			spanMetricsEnableTargetInfo:             boolPtr(true),
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
-			nativeHistograms:                        overrides.HistogramMethodBoth,
+			nativeHistograms:                        histograms.HistogramMethodBoth,
 		}
 	)
 

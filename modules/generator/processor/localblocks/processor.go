@@ -108,7 +108,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
 		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
-		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.TraceIdlePeriod, cfg.TraceLivePeriod),
+		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.TraceIdlePeriod, cfg.TraceLivePeriod, tenant),
 		traceSizes:     tracesizes.New(),
 		ctx:            ctx,
 		cancel:         cancel,
@@ -237,15 +237,18 @@ func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 		metricTotalSpans.WithLabelValues(p.tenant).Add(float64(numSpans))
 
 		// Check max trace size
-		if maxSz > 0 && !p.traceSizes.Allow(traceID, batch.Size(), maxSz) {
-			metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
-			continue
+		if maxSz > 0 {
+			allowResult := p.traceSizes.Allow(traceID, batch.Size(), maxSz)
+			if !allowResult.IsAllowed {
+				metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
+				continue
+			}
 		}
 
 		// Live traces
 		// Doesn't assert trace size because that is done above using traceSizes
 		// which tracks it across flushes.
-		if !p.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, maxLen, 0) {
+		if err := p.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, maxLen, 0); err != nil {
 			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			continue
 		}

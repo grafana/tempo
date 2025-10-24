@@ -52,11 +52,15 @@ func randoDedicatedCols() backend.DedicatedColumns {
 		if rand.IntN(2) == 0 {
 			scope = backend.DedicatedColumnScopeResource
 		}
+		typ := backend.DedicatedColumnTypeString
+		if rand.IntN(2) == 0 {
+			typ = backend.DedicatedColumnTypeInt
+		}
 
 		col := backend.DedicatedColumn{
 			Scope: scope,
 			Name:  test.RandomString(),
-			Type:  backend.DedicatedColumnTypeString,
+			Type:  typ,
 		}
 
 		ret = append(ret, col)

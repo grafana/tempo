@@ -5,7 +5,6 @@ import (
 	"math"
 	"slices"
 	"sort"
-	"strings"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -105,7 +104,25 @@ func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCComb
 func sortResponse(res *tempopb.QueryRangeResponse) {
 	// Sort all output, series alphabetically, samples by time
 	sort.SliceStable(res.Series, func(i, j int) bool {
-		return strings.Compare(res.Series[i].PromLabels, res.Series[j].PromLabels) == -1
+		li := len(res.Series[i].Labels)
+		lj := len(res.Series[j].Labels)
+		if li != lj {
+			return li < lj
+		}
+		for k := range res.Series[i].Labels {
+			ki := res.Series[i].Labels[k].Key
+			kj := res.Series[j].Labels[k].Key
+			if ki != kj {
+				return ki < kj
+			}
+
+			si := res.Series[i].Labels[k].Value.String()
+			sj := res.Series[j].Labels[k].Value.String()
+			if si != sj {
+				return si < sj
+			}
+		}
+		return false
 	})
 	for _, series := range res.Series {
 		sort.Slice(series.Samples, func(i, j int) bool {
@@ -134,18 +151,15 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 	for _, s := range curr.Series {
 		// is this a series that's new in curr that wasn't in prev? this check assumes that
 		// a series can not be removed from the output as the input series are combined
-		if seriesIdx >= len(prev.Series) || s.PromLabels != prev.Series[seriesIdx].PromLabels {
+		if seriesIdx >= len(prev.Series) || traceql.LabelsFromProto(s.Labels).MapKey() != traceql.LabelsFromProto(prev.Series[seriesIdx].Labels).MapKey() {
 			diff.Series = append(diff.Series, s)
 			continue
 		}
 
-		// promlabels are the same, have to check individual samples
-		// just copy forward labels and exemplars
 		diffSeries := &tempopb.TimeSeries{
-			Labels:     s.Labels,
-			PromLabels: s.PromLabels,
-			Exemplars:  make([]tempopb.Exemplar, 0, len(s.Exemplars)/10), // prealloc 10% of exemplars. untuned
-			Samples:    make([]tempopb.Sample, 0, len(s.Samples)/10),     // prealloc 10% of samples. untuned
+			Labels:    s.Labels,
+			Exemplars: make([]tempopb.Exemplar, 0, len(s.Exemplars)/10), // prealloc 10% of exemplars. untuned
+			Samples:   make([]tempopb.Sample, 0, len(s.Samples)/10),     // prealloc 10% of samples. untuned
 		}
 
 		// samples are sorted, so we can do this in a single pass
@@ -200,6 +214,7 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()
 // have NaNs, and we can't attach them until the very end.
 func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResponse) {
+	intervalMapper := traceql.NewIntervalMapperFromReq(req)
 	for _, ss := range res.Series {
 		for i, e := range ss.Exemplars {
 
@@ -208,13 +223,13 @@ func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResp
 				continue
 			}
 
-			exemplarInterval := traceql.IntervalOfMs(e.TimestampMs, req.Start, req.End, req.Step)
+			exemplarInterval := intervalMapper.IntervalMs(e.TimestampMs)
 
 			// Look for sample in the same slot.
 			// BinarySearch is possible because all samples were sorted previously.
 			j, ok := slices.BinarySearchFunc(ss.Samples, exemplarInterval, func(s tempopb.Sample, _ int) int {
 				// NOTE - Look for sample in same interval, not same value.
-				si := traceql.IntervalOfMs(s.TimestampMs, req.Start, req.End, req.Step)
+				si := intervalMapper.IntervalMs(s.TimestampMs)
 
 				// This returns negative, zero, or positive
 				return si - exemplarInterval

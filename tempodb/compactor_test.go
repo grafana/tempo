@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"path"
 	"testing"
@@ -27,6 +28,7 @@ import (
 	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -73,6 +75,9 @@ func (m *mockOverrides) MaxCompactionRangeForTenant(_ string) time.Duration {
 func TestCompactionRoundtrip(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
+		if version == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
 			testCompactionRoundtrip(t, version)
@@ -125,7 +130,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	blockCount := 4
-	recordCount := 100
+	recordCount := 50
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
@@ -163,7 +168,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, 2)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, 2, 0)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
@@ -194,35 +199,42 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	// now see if we can find our ids
 	for i, id := range allIds {
-		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
-		require.NoError(t, err)
-		require.Nil(t, failedBlocks)
-		require.NotNil(t, trs)
-
-		c := trace.NewCombiner(0, false)
-		for _, tr := range trs {
-			require.NotNil(t, tr)
-			require.NotNil(t, tr.Trace)
-			_, err = c.Consume(tr.Trace)
+		t.Run(fmt.Sprintf("trace-%d", i), func(t *testing.T) {
+			trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 			require.NoError(t, err)
-		}
-		tr, _ := c.Result()
+			require.Nil(t, failedBlocks)
+			require.NotNil(t, trs)
 
-		// Sort all traces to check equality consistently.
-		trace.SortTrace(allReqs[i])
-		trace.SortTrace(tr)
+			t.Parallel()
 
-		if !proto.Equal(allReqs[i], tr) {
-			wantJSON, _ := json.MarshalIndent(allReqs[i], "", "  ")
-			gotJSON, _ := json.MarshalIndent(tr, "", "  ")
-			require.Equal(t, wantJSON, gotJSON)
-		}
+			c := trace.NewCombiner(0, false)
+			for _, tr := range trs {
+				require.NotNil(t, tr)
+				require.NotNil(t, tr.Trace)
+				_, err = c.Consume(tr.Trace)
+				require.NoError(t, err)
+			}
+			tr, _ := c.Result()
+
+			// Sort all traces to check equality consistently.
+			trace.SortTrace(allReqs[i])
+			trace.SortTrace(tr)
+
+			if !proto.Equal(allReqs[i], tr) {
+				wantJSON, _ := json.MarshalIndent(allReqs[i], "", "  ")
+				gotJSON, _ := json.MarshalIndent(tr, "", "  ")
+				require.Equal(t, wantJSON, gotJSON)
+			}
+		})
 	}
 }
 
 func TestSameIDCompaction(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
+		if version == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(version, func(t *testing.T) {
 			testSameIDCompaction(t, version)
 		})
@@ -333,7 +345,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
-	blockSelector := blockselector.NewTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount, 0)
 	blocks, _ = blockSelector.BlocksToCompact()
 	require.Len(t, blocks, blockCount)
 
@@ -587,7 +599,11 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
+		if version == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactionHonorsBlockStartEndTimes(t, version)
 		})
 	}
@@ -663,7 +679,11 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 func TestCompactionDropsTraces(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
+		if version == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactionDropsTraces(t, version)
 		})
 	}
@@ -808,7 +828,11 @@ func TestDoForAtLeast(t *testing.T) {
 func TestCompactWithConfig(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
+		if version == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactWithConfig(t, version)
 		})
 	}
@@ -927,6 +951,9 @@ func makeTraceID(i int, j int) []byte {
 func BenchmarkCompaction(b *testing.B) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
+		if version == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		b.Run(version, func(b *testing.B) {
 			benchmarkCompaction(b, version)
 		})

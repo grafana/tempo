@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,6 +40,25 @@ func TestQueryTrace(t *testing.T) {
 		assert.True(t, proto.Equal(trace, response))
 	})
 
+	t.Run("includes the recentDataTarget header", func(t *testing.T) {
+		mockTransport := MockRoundTripper(func(req *http.Request) *http.Response {
+			assert.Equal(t, liveStoreHeaderValue, req.Header.Get(recentDataTargetHeader))
+			response, _ := proto.Marshal(trace)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(bytes.NewReader(response)),
+			}
+		})
+
+		client := New("www.tempo.com", "1000")
+		client.QueryLiveStores = true
+		client.WithTransport(mockTransport)
+		response, err := client.QueryTrace("100")
+
+		assert.NoError(t, err)
+		assert.True(t, proto.Equal(trace, response))
+	})
+
 	t.Run("returns a trace not found error on 404", func(t *testing.T) {
 		mockTransport := MockRoundTripper(func(_ *http.Request) *http.Response {
 			return &http.Response{
@@ -56,11 +76,11 @@ func TestQueryTrace(t *testing.T) {
 	})
 }
 
-func TestQueryTraceWithRance(t *testing.T) {
+func TestQueryTraceWithRange(t *testing.T) {
 	trace := &tempopb.Trace{}
 	t.Run("returns an error if start time is greater than end time", func(t *testing.T) {
 		client := New("www.tempo.com", "1000")
-		response, err := client.QueryTraceWithRange("notfound", 3000, 2000)
+		response, err := client.QueryTraceWithRange(context.Background(), "notfound", 3000, 2000)
 
 		assert.Error(t, err)
 		assert.Nil(t, response)
@@ -79,7 +99,7 @@ func TestQueryTraceWithRance(t *testing.T) {
 
 		client := New("www.tempo.com", "1000")
 		client.WithTransport(mockTransport)
-		response, err := client.QueryTraceWithRange("100", 1000, 2000)
+		response, err := client.QueryTraceWithRange(context.Background(), "100", 1000, 2000)
 
 		assert.NoError(t, err)
 		assert.True(t, proto.Equal(trace, response))
@@ -95,7 +115,7 @@ func TestQueryTraceWithRance(t *testing.T) {
 
 		client := New("www.tempo.com", "1000")
 		client.WithTransport(mockTransport)
-		response, err := client.QueryTraceWithRange("notfound", 1000, 2000)
+		response, err := client.QueryTraceWithRange(context.Background(), "notfound", 1000, 2000)
 
 		assert.Error(t, err)
 		assert.Nil(t, response)

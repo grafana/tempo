@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -26,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 )
 
 // Verify basic functionality like sending metrics and exemplars, buffering and retrying failed
@@ -208,7 +209,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 
 	headers := map[string]string{user.OrgIDHeaderName: "my-other-tenant"}
 
-	instance, err := New(&cfg, &mockOverrides{headers, overrides.HistogramMethodClassic}, "test-tenant", &noopRegisterer{}, logger)
+	instance, err := New(&cfg, &mockOverrides{headers, histograms.HistogramMethodClassic}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -353,14 +354,14 @@ var _ Overrides = (*mockOverrides)(nil)
 
 type mockOverrides struct {
 	headers          map[string]string
-	nativeHistograms overrides.HistogramMethod
+	nativeHistograms histograms.HistogramMethod
 }
 
 func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
 	return m.headers
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) overrides.HistogramMethod {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) histograms.HistogramMethod {
 	return m.nativeHistograms
 }
 
@@ -373,3 +374,43 @@ func (n *noopRegisterer) Register(prometheus.Collector) error { return nil }
 func (n *noopRegisterer) MustRegister(...prometheus.Collector) {}
 
 func (n *noopRegisterer) Unregister(prometheus.Collector) bool { return true }
+
+func TestInstance_emptyTenantValidation(t *testing.T) {
+	t.Parallel()
+
+	o := &mockOverrides{}
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+
+	t.Run("empty tenant should return error", func(t *testing.T) {
+		var cfg Config
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.Path = t.TempDir()
+		reg := prometheus.NewRegistry()
+
+		// Empty tenant should return error when org ID header is required
+		instance, err := New(&cfg, o, "", reg, logger)
+
+		require.Error(t, err)
+		require.Nil(t, instance)
+		assert.Contains(t, err.Error(), "tenant cannot be empty")
+	})
+
+	t.Run("valid tenant should work normally", func(t *testing.T) {
+		var cfg Config
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.Path = t.TempDir()
+		reg := prometheus.NewRegistry()
+
+		instance, err := New(&cfg, o, "valid-tenant", reg, logger)
+
+		require.NoError(t, err)
+		require.NotNil(t, instance)
+
+		// Verify correct WAL directory structure
+		expectedPath := filepath.Join(cfg.Path, "valid-tenant")
+		_, err = os.Stat(expectedPath)
+		assert.NoError(t, err, "WAL directory should be created for valid tenant")
+
+		instance.Close()
+	})
+}

@@ -322,6 +322,7 @@ func writeTenantBlocks(ctx context.Context, t *testing.T, w backend.Writer, tena
 		meta := &backend.BlockMeta{
 			BlockID:  backend.NewUUID(),
 			TenantID: tenant,
+			Version:  encoding.DefaultEncoding().Version(),
 		}
 
 		blockIDs = append(blockIDs, meta.BlockID)

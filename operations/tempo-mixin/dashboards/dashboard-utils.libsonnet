@@ -33,6 +33,12 @@ grafana {
   jobMatcher(job)::
     $._config.per_cluster_label + '=~"$cluster", job=~"($namespace)' + $._config.namespace_selector_separator + '%s"' % job,
 
+  podMatcher(pod)::
+    $._config.per_cluster_label + '=~"$cluster", pod=~"' + '%s"' % pod,
+
+  containerMatcher(container)::
+    $._config.per_cluster_label + '=~"$cluster", container="' + '%s"' % container,
+
   queryPanel(queries, legends, legendLink=null)::
     super.queryPanel(queries, legends, legendLink) + {
       targets: [

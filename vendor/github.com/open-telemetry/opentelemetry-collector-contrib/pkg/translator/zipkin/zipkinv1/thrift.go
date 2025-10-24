@@ -24,7 +24,7 @@ import (
 type thriftUnmarshaler struct{}
 
 // UnmarshalTraces from Thrift bytes.
-func (t thriftUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
+func (thriftUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 	spans, err := jaegerzipkin.DeserializeThrift(context.TODO(), buf)
 	if err != nil {
 		return ptrace.Traces{}, err

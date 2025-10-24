@@ -36,6 +36,7 @@ import (
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -47,6 +48,9 @@ func TestSearchCompleteBlock(t *testing.T) {
 	t.Parallel()
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
+		if vers == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(vers, func(t *testing.T) {
 			t.Parallel()
 			runCompleteBlockSearchTest(t, vers,
@@ -62,7 +66,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 				traceQLDuration,
 			)
 		})
-		if vers == vparquet4.VersionString {
+		if vers == vparquet4.VersionString || vers == vparquet5.VersionString {
 			t.Run("event/link/instrumentation query", func(t *testing.T) {
 				runEventLinkInstrumentationSearchTest(t, vers)
 			})
@@ -75,7 +79,7 @@ func searchRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchM
 
 	for _, req := range searchesThatMatch {
 		res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
-		if errors.Is(err, common.ErrUnsupported) {
+		if errors.Is(err, util.ErrUnsupported) {
 			return
 		}
 		require.NoError(t, err, "search request: %+v", req)
@@ -111,8 +115,8 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, req, fetcher)
-		if errors.Is(err, common.ErrUnsupported) {
+		res, err := e.ExecuteSearch(ctx, req, fetcher, false)
+		if errors.Is(err, util.ErrUnsupported) {
 			continue
 		}
 
@@ -137,7 +141,7 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		res, err := e.ExecuteSearch(ctx, req, fetcher, false)
 		require.NoError(t, err, "search request: %+v", req)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 	}
@@ -255,6 +259,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		{Query: "{} | select(resource.missing) | { !(resource.missing != nil)}"},
 		// search by traceID
 		{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)},
+		{Query: "{ .numericString > ``}"}, // String comparison that was previously broken
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		// conditions
@@ -298,7 +303,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		res, err := e.ExecuteSearch(ctx, req, fetcher, false)
 		require.NoError(t, err, "search request: %+v", req)
 		actual := actualForExpectedMeta(wantMeta, res)
 		require.NotNil(t, actual, "search request: %v", req)
@@ -313,7 +318,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		res, err := e.ExecuteSearch(ctx, req, fetcher, false)
 		require.NoError(t, err, "search request: %+v", req)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 	}
@@ -482,7 +487,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
+		res, err := e.ExecuteSearch(ctx, tc.req, fetcher, false)
 		require.NoError(t, err, "search request: %+v", tc)
 
 		// copy the root stuff in directly, spansets defined in test cases above.
@@ -510,7 +515,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, tc, fetcher)
+		res, err := e.ExecuteSearch(ctx, tc, fetcher, false)
 		require.NoError(t, err, "search request: %+v", tc)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", tc)
 	}
@@ -974,6 +979,46 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 				},
 			},
 		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ name = `does-not-exist` } !< { name = `MySpan` }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "MySpan",
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ name = `does-not-exist` } !> { name = `MySpan` }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "MySpan",
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{
@@ -1008,8 +1053,8 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
-		if errors.Is(err, common.ErrUnsupported) {
+		res, err := e.ExecuteSearch(ctx, tc.req, fetcher, false)
+		if errors.Is(err, util.ErrUnsupported) {
 			continue
 		}
 
@@ -1040,8 +1085,8 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, tc, fetcher)
-		if errors.Is(err, common.ErrUnsupported) {
+		res, err := e.ExecuteSearch(ctx, tc, fetcher, false)
+		if errors.Is(err, util.ErrUnsupported) {
 			continue
 		}
 		require.NoError(t, err, "search request: %+v", tc)
@@ -1211,8 +1256,8 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
-		if errors.Is(err, common.ErrUnsupported) {
+		res, err := e.ExecuteSearch(ctx, tc.req, fetcher, false)
+		if errors.Is(err, util.ErrUnsupported) {
 			continue
 		}
 
@@ -1316,8 +1361,8 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
-		if errors.Is(err, common.ErrUnsupported) {
+		res, err := e.ExecuteSearch(ctx, tc.req, fetcher, false)
+		if errors.Is(err, util.ErrUnsupported) {
 			continue
 		}
 
@@ -1361,8 +1406,8 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, tc, fetcher)
-		if errors.Is(err, common.ErrUnsupported) {
+		res, err := e.ExecuteSearch(ctx, tc, fetcher, false)
+		if errors.Is(err, util.ErrUnsupported) {
 			continue
 		}
 		require.NoError(t, err, "search request: %+v", tc)
@@ -1395,10 +1440,10 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 			})
 
-			engineRes, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: engineQuery}, fetcher)
+			engineRes, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: engineQuery}, fetcher, false)
 			require.NoError(t, err)
 
-			fetchRes, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: fetchQuery}, fetcher)
+			fetchRes, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: fetchQuery}, fetcher, false)
 			require.NoError(t, err)
 
 			containsRootSpan := func(res *tempopb.SearchResponse) bool {
@@ -1511,7 +1556,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 			})
 
 			err := e.ExecuteTagValues(ctx, tc.tag, tc.query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
-			if errors.Is(err, common.ErrUnsupported) {
+			if errors.Is(err, util.ErrUnsupported) {
 				return
 			}
 			require.NoError(t, err, "autocomplete request: %+v", tc)
@@ -1558,7 +1603,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			scope: "none",
 			query: "{ resource.cluster = `MyCluster` }",
 			expected: map[string][]string{
-				"span":     {"child", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"span":     {"child", "foo", "http.method", "http.status_code", "http.url", "numericString", "span-dedicated.01", "span-dedicated.02"},
 				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
 			},
 		},
@@ -1567,7 +1612,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			scope: "none",
 			query: "{ span.foo = `Bar` }",
 			expected: map[string][]string{
-				"span":     {"child", "parent", "{ } ( ) = ~ ! < > & | ^", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"span":     {"child", "parent", "{ } ( ) = ~ ! < > & | ^", "foo", "http.method", "http.status_code", "http.url", "numericString", "span-dedicated.01", "span-dedicated.02"},
 				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
 			},
 		},
@@ -1584,18 +1629,23 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			err := e.ExecuteTagNames(ctx, traceql.AttributeScopeFromString(tc.scope), tc.query, func(tag string, scope traceql.AttributeScope) bool {
 				return valueCollector.Collect(scope.String(), tag)
 			}, fetcher)
-			if errors.Is(err, common.ErrUnsupported) {
+			if errors.Is(err, util.ErrUnsupported) {
 				return
 			}
 			require.NoError(t, err, "autocomplete request: %+v", tc)
 
 			actualMap := valueCollector.Strings()
 
-			if (bm.Version == vparquet4.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
+			if (bm.Version == vparquet4.VersionString || bm.Version == vparquet5.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
 				// v4 has scope, events, and links
 				tc.expected["instrumentation"] = []string{"scope-attr-str"}
 				tc.expected["event"] = []string{"exception.message"}
 				tc.expected["link"] = []string{"relation"}
+			}
+			if bm.Version == vparquet5.VersionString && tc.name == "no matches" {
+				// vp5 does not have well-known attribute columns
+				tc.expected["resource"] = []string{"res-dedicated.01", "res-dedicated.02", "service.name"}
+				tc.expected["span"] = []string{"span-dedicated.01", "span-dedicated.02"}
 			}
 			require.Equal(t, len(tc.expected), len(actualMap))
 
@@ -1687,8 +1737,8 @@ func traceQLDuration(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSear
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, req, fetcher)
-		if errors.Is(err, common.ErrUnsupported) {
+		res, err := e.ExecuteSearch(ctx, req, fetcher, false)
+		if errors.Is(err, util.ErrUnsupported) {
 			continue
 		}
 
@@ -1734,7 +1784,7 @@ func traceQLDuration(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSear
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		res, err := e.ExecuteSearch(ctx, req, fetcher, false)
 		require.NoError(t, err, "search request: %+v", req)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 	}
@@ -1755,7 +1805,7 @@ func traceQLDuration(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSear
 // 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 // 		})
 
-// 		res, err := e.ExecuteSearch(ctx, req, fetcher)
+// 		res, err := e.ExecuteSearch(ctx, req, fetcher, false)
 // 		require.NoError(t, err, "search request: %+v", req)
 // 		actual := actualForExpectedMeta(wantMeta, res)
 // 		require.NotNil(t, actual, "search request: %v", req)
@@ -1919,7 +1969,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 
 func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// only run this test for vparquet4
-	if blockVersion != vparquet4.VersionString {
+	if blockVersion != vparquet4.VersionString && blockVersion != vparquet5.VersionString {
 		return
 	}
 
@@ -2006,8 +2056,8 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 			return rw.Fetch(ctx, blockMeta, req, common.DefaultSearchOptions())
 		})
 
-		res, err := e.ExecuteSearch(ctx, req, fetcher)
-		if errors.Is(err, common.ErrUnsupported) {
+		res, err := e.ExecuteSearch(ctx, req, fetcher, false)
+		if errors.Is(err, util.ErrUnsupported) {
 			continue
 		}
 
@@ -2165,6 +2215,7 @@ func makeExpectedTrace(traceID []byte) (
 									boolKV("child"),
 									stringKV("span-dedicated.01", "span-1a"),
 									stringKV("span-dedicated.02", "span-2a"),
+									stringKV("numericString", "123"),
 								},
 								Events: []*v1.Span_Event{
 									{
@@ -2328,7 +2379,6 @@ func searchTestSuite() (
 		makeReq("name", "MySpan"),
 		makeReq("http.method", "Get"),
 		makeReq("http.url", "url/Hello/World"),
-		makeReq("http.status_code", "500"),
 		makeReq("status.code", "error"),
 
 		// Dedicated span and resource attributes
@@ -2614,6 +2664,10 @@ func TestSearchByShortTraceID(t *testing.T) {
 			continue
 		}
 
+		if v.Version() == vparquet2.VersionString { // vparquet2 is deprecated
+			continue
+		}
+
 		blockVersion := v.Version()
 
 		tempDir := t.TempDir()
@@ -2671,7 +2725,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%s: include trace id", v.Version()), func(t *testing.T) {
 			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id="%s"}`, wantMeta.TraceID)}
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher, false)
 			require.NoError(t, err, "search request: %+v", req)
 			require.NotEmpty(t, res.Traces)
 
@@ -2688,7 +2742,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 			spanID := "0000000000010203"
 			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id="%s"}`, spanID)}
 
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher, false)
 			require.NoError(t, err, "search request: %+v", req)
 			require.NotEmpty(t, res.Traces)
 
@@ -2715,7 +2769,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%s: exclude trace id", v.Version()), func(t *testing.T) {
 			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{trace:id!="%s"}`, wantMeta.TraceID)}
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher, false)
 			require.NoError(t, err, "search request: %+v", req)
 			require.NotEmpty(t, res.Traces)
 			actual := actualForExpectedMeta(wantMeta, res)
@@ -2726,7 +2780,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 			spanID := "0000000000010203"
 			req := &tempopb.SearchRequest{Query: fmt.Sprintf(`{span:id!="%s"}`, spanID)}
 
-			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher)
+			res, err := traceql.NewEngine().ExecuteSearch(ctx, req, fetcher, false)
 			require.NoError(t, err, "search request: %+v", req)
 			require.NotEmpty(t, res.Traces)
 

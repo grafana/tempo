@@ -11,7 +11,7 @@ var _ plog.Unmarshaler = RawLogsUnmarshaler{}
 
 type RawLogsUnmarshaler struct{}
 
-func (r RawLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
+func (RawLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 	l := plog.NewLogs()
 	l.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty().Body().SetEmptyBytes().FromRaw(buf)
 	return l, nil

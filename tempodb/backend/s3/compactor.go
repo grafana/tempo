@@ -21,18 +21,23 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	putObjectOptions := getPutObjectOptions(rw)
-
 	metaFileName := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
+
 	// copy meta.json to meta.compacted.json
-	_, err := rw.core.CopyObject(
-		context.TODO(),
-		rw.cfg.Bucket,
-		metaFileName,
-		rw.cfg.Bucket,
-		backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix),
-		nil,
-		minio.CopySrcOptions{},
-		putObjectOptions,
+	// core.CopyObject does not support SSE on src object
+	_, err := rw.core.Client.CopyObject(context.TODO(),
+		minio.CopyDestOptions{
+			Bucket:     rw.cfg.Bucket,
+			Object:     backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix),
+			Encryption: putObjectOptions.ServerSideEncryption,
+			UserTags:   putObjectOptions.UserTags,
+			// to set X-Amz-Tagging header, we need to set this flag if tags are present
+			ReplaceTags: len(putObjectOptions.UserTags) > 0,
+		}, minio.CopySrcOptions{
+			Bucket:     rw.cfg.Bucket,
+			Object:     metaFileName,
+			Encryption: putObjectOptions.ServerSideEncryption,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("error copying obj meta to compacted obj meta: %w", err)

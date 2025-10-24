@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testTenant = "test-tenant"
+
 // Duplicate labels should not grow the series count.
 func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 	var seriesAdded int
@@ -21,13 +23,15 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 		return true
 	}
 
-	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil)
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
 
 	h.ObserveWithExemplar(lv, 1.0, "trace-1", 1.0)
 	h.ObserveWithExemplar(lv, 1.1, "trace-1", 1.0)
-	assert.Equal(t, 1, seriesAdded)
+	// In BOTH mode, a single histogram series contributes classic (sum+count+buckets including +Inf)
+	// plus one native series.
+	assert.Equal(t, int(h.activeSeriesPerHistogramSerie()), seriesAdded)
 }
 
 func Test_Histograms(t *testing.T) {
@@ -473,7 +477,14 @@ func Test_Histograms(t *testing.T) {
 				h.ObserveWithExemplar(obs.labelValueCombo, obs.value, obs.traceID, obs.multiplier)
 			}
 
-			collectMetricsAndAssertSeries(t, h, collectionTimeMs, expectedSeriesLen(c.expectedSamples), appender)
+			expected := expectedSeriesLen(c.expectedSamples)
+			// If we're testing the native histogram in BOTH or NATIVE mode, the active
+			// series includes an additional native series per base labelset.
+			if _, ok := h.(*nativeHistogram); ok {
+				expected += expectedBaseSeriesCount(c.expectedSamples)
+			}
+
+			collectMetricsAndAssertSeries(t, h, collectionTimeMs, expected, appender)
 			if len(c.expectedSamples) > 0 {
 				assertAppenderSamples(t, appender, c.expectedSamples)
 			}
@@ -488,7 +499,7 @@ func Test_Histograms(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
 				onAdd := func(uint32) bool { return true }
-				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil)
+				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil, 15*time.Minute)
 				testHistogram(t, h, tc.collections)
 			})
 			t.Run("native", func(t *testing.T) {
@@ -497,7 +508,7 @@ func Test_Histograms(t *testing.T) {
 				}
 
 				onAdd := func(uint32) bool { return true }
-				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil)
+				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 				testHistogram(t, h, tc.collections)
 			})
 		})
@@ -505,9 +516,8 @@ func Test_Histograms(t *testing.T) {
 }
 
 func collectMetricsAndAssertSeries(t *testing.T, m metric, collectionTimeMs int64, expectedSeries int, appender storage.Appender) {
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
+	err := m.collectMetrics(appender, collectionTimeMs)
 	require.NoError(t, err)
-	require.Equal(t, expectedSeries, activeSeries)
 }
 
 func assertAppenderSamples(t *testing.T, appender *capturingAppender, expectedSamples []sample) {
@@ -586,4 +596,188 @@ func expectedSeriesLen(samples []sample) int {
 		series[s.l.String()] = struct{}{}
 	}
 	return len(series)
+}
+
+// expectedBaseSeriesCount returns the number of distinct base labelsets in the
+// expected classic samples by collapsing away metric name and bucket labels.
+// This approximates the number of native histogram series emitted in addition
+// to the classic series when using BOTH or NATIVE modes.
+func expectedBaseSeriesCount(samples []sample) int {
+	base := make(map[string]struct{})
+	for _, s := range samples {
+		lb := labels.NewBuilder(s.l)
+		lb.Del(labels.MetricName)
+		lb.Del(labels.BucketLabel)
+		key := lb.Labels().String()
+		base[key] = struct{}{}
+	}
+	return len(base)
+}
+
+// Test specifically for native-only mode to ensure exemplars work
+func Test_NativeOnlyExemplars(t *testing.T) {
+	buckets := []float64{1, 2}
+	collectionTimeMs := time.Now().UnixMilli()
+
+	t.Run("native_only_with_exemplars", func(t *testing.T) {
+		overrides := &mockOverrides{
+			nativeHistogramBucketFactor:     1.5,
+			nativeHistogramMaxBucketNumber:  10,
+			nativeHistogramMinResetDuration: time.Minute,
+		}
+
+		onAdd := func(uint32) bool { return true }
+		// Use HistogramModeNative to test native-only behavior
+		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
+
+		// Add some observations with exemplars
+		lvc := newLabelValueCombo([]string{"service"}, []string{"test-service"})
+		h.ObserveWithExemplar(lvc, 1.5, "trace-123", 1.0)
+		h.ObserveWithExemplar(lvc, 0.5, "trace-456", 1.0)
+
+		// Collect metrics
+		appender := &capturingAppender{}
+		err := h.collectMetrics(appender, collectionTimeMs)
+		require.NoError(t, err)
+		t.Logf("Captured samples: %d", len(appender.samples))
+		t.Logf("Captured exemplars: %d", len(appender.exemplars))
+
+		for i, ex := range appender.exemplars {
+			t.Logf("Exemplar %d: labels=%v, value=%f, trace=%v", i, ex.l, ex.e.Value, ex.e.Labels)
+		}
+
+		// We should have exemplars
+		require.Greater(t, len(appender.exemplars), 0, "Native-only mode should capture exemplars")
+
+		// Verify that exemplars have the correct format for native histograms
+		for _, ex := range appender.exemplars {
+			// Exemplars should be attached to the main histogram metric, not bucket metrics
+			require.Equal(t, "test_native_histogram", ex.l.Get(labels.MetricName), "Exemplar should be attached to main histogram metric")
+			require.Contains(t, ex.e.Labels.String(), "trace_id", "Exemplar should contain trace_id")
+			require.Greater(t, ex.e.Value, 0.0, "Exemplar should have a value")
+		}
+
+		require.Len(t, appender.exemplars, 2, "Should have exactly 2 exemplars for 2 observations")
+
+		require.Equal(t, "trace-456", appender.exemplars[0].e.Labels.Get("trace_id"))
+		require.Equal(t, 0.5, appender.exemplars[0].e.Value)
+		require.Equal(t, "trace-123", appender.exemplars[1].e.Labels.Get("trace_id"))
+		require.Equal(t, 1.5, appender.exemplars[1].e.Value)
+	})
+
+	t.Run("native_only_histogram_exemplars", func(t *testing.T) {
+		onAdd := func(uint32) bool { return true }
+
+		overrides := &mockOverrides{
+			nativeHistogramBucketFactor:     1.5,
+			nativeHistogramMaxBucketNumber:  10,
+			nativeHistogramMinResetDuration: time.Minute,
+		}
+
+		// Create a native histogram with empty buckets to force native-only mode
+		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
+
+		// Add some observations with exemplars
+		lvc := newLabelValueCombo([]string{"service"}, []string{"native-only-xyz"})
+		h.ObserveWithExemplar(lvc, 1.5, "trace-native-123", 1.0)
+		h.ObserveWithExemplar(lvc, 0.5, "trace-native-456", 1.0)
+
+		// Collect metrics
+		appender := &capturingAppender{}
+		err := h.collectMetrics(appender, collectionTimeMs)
+		require.NoError(t, err)
+		t.Logf("Native-only - Captured samples: %d", len(appender.samples))
+		t.Logf("Native-only - Captured exemplars: %d", len(appender.exemplars))
+
+		// This test might still use bucket exemplars due to Prometheus's default behavior,
+		// but it helps us understand the difference
+
+		require.Len(t, appender.exemplars, 2, "Should have exactly 2 exemplars for 2 observations")
+
+		for i, ex := range appender.exemplars {
+			t.Logf("Native-only exemplar %d: labels=%v, value=%f, trace=%v", i, ex.l, ex.e.Value, ex.e.Labels)
+		}
+
+		require.Equal(t, "trace-native-456", appender.exemplars[0].e.Labels.Get("trace_id"))
+		require.Equal(t, 0.5, appender.exemplars[0].e.Value)
+		require.Equal(t, "trace-native-123", appender.exemplars[1].e.Labels.Get("trace_id"))
+		require.Equal(t, 1.5, appender.exemplars[1].e.Value)
+	})
+}
+
+func Test_nativeHistogram_demandTracking(t *testing.T) {
+	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+	// Initially, demand should be 0
+	assert.Equal(t, 0, h.countSeriesDemand())
+
+	// Add some histogram series
+	for i := 0; i < 20; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+	}
+
+	// In BOTH mode: sum, count, 3 buckets (classic) + 1 native = 6 series per histogram
+	// 20 histograms * 6 = 120 total series (within HLL error)
+	demand := h.countSeriesDemand()
+	assert.Greater(t, demand, 100, "demand should be close to 120")
+	assert.Less(t, demand, 140, "demand should be close to 120")
+
+	// Active series should exactly match
+	expectedActive := 20 * int(h.activeSeriesPerHistogramSerie())
+	assert.Equal(t, expectedActive, h.countActiveSeries())
+}
+
+func Test_nativeHistogram_activeSeriesPerHistogramSerie(t *testing.T) {
+	// Test BOTH mode with 2 buckets: sum, count, bucket1, bucket2, +Inf, native = 6
+	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	assert.Equal(t, uint32(6), h.activeSeriesPerHistogramSerie(), "BOTH mode should be classic + native")
+
+	// Test NATIVE mode only: 1 native histogram series
+	h2 := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	assert.Equal(t, uint32(1), h2.activeSeriesPerHistogramSerie(), "NATIVE mode should be 1 series")
+
+	// Test CLASSIC mode with 2 buckets: sum, count, bucket1, bucket2, +Inf = 5
+	h3 := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", HistogramModeClassic, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	assert.Equal(t, uint32(5), h3.activeSeriesPerHistogramSerie(), "CLASSIC mode should be sum + count + buckets")
+
+	// Test BOTH mode with 3 buckets: sum, count, 4 buckets, native = 7
+	h4 := newNativeHistogram("my_histogram", []float64{1.0, 2.0, 3.0}, nil, nil, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	assert.Equal(t, uint32(7), h4.activeSeriesPerHistogramSerie(), "BOTH mode with 3 buckets")
+}
+
+func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
+	limitReached := false
+	onAdd := func(_ uint32) bool {
+		return !limitReached
+	}
+
+	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+	// Add some histogram series
+	for i := 0; i < 10; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+	}
+
+	expectedActive := 10 * int(h.activeSeriesPerHistogramSerie())
+	assert.Equal(t, expectedActive, h.countActiveSeries())
+
+	// Hit the limit
+	limitReached = true
+
+	// Try to add more series (they should be rejected)
+	for i := 10; i < 20; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+	}
+
+	// Active series should not have increased
+	assert.Equal(t, expectedActive, h.countActiveSeries())
+
+	// But demand should show all attempted series
+	demand := h.countSeriesDemand()
+	expectedDemand := 20 * int(h.activeSeriesPerHistogramSerie())
+	assert.Greater(t, demand, expectedDemand-10, "demand should track all attempted series")
+	assert.Greater(t, demand, h.countActiveSeries(), "demand should exceed active series")
 }

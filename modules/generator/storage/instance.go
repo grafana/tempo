@@ -60,14 +60,21 @@ var _ Storage = (*storageImpl)(nil)
 // Should we standarize slog and deprecate go-kit/log too?
 func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ log.Logger) (Storage, error) {
 	// TODO move this to the generator.go
+
+	// Validate empty tenant to prevent WAL directory deletion only when org ID header is required
+	if tenant == "" {
+		return nil, errors.New("tenant cannot be empty")
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
 	})).With("tenant", tenant)
 	reg = prometheus.WrapRegistererWith(prometheus.Labels{"tenant": tenant}, reg)
 
+	// Create tenant-specific WAL directory
 	walDir := filepath.Join(cfg.Path, tenant)
 
-	// clean the wal before everything
+	// Clean the WAL before everything
 	logger.Info("clearing old WAL on start up", "dir", walDir)
 
 	err := os.RemoveAll(walDir)
@@ -77,7 +84,7 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ l
 
 	logger.Info("creating WAL", "dir", walDir)
 
-	// Create WAL directory with necessary permissions
+	// Create complete WAL directory structure: <root>/<tenant>/wal/
 	// This creates both <walDir>/<tenant>/ and <walDir>/<tenant>/wal/. If we don't create the wal
 	// subdirectory remote storage logs a scary error.
 	err = os.MkdirAll(filepath.Join(walDir, "wal"), 0o700)

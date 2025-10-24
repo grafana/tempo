@@ -1,12 +1,12 @@
 [
   {
-	// import the microservices example
+    // import the microservices example
     local tempo = import '../tempo-microservices/main.jsonnet',
 
     name: 'cluster name',
     apiServer: 'https://0.0.0.0:6443',
     namespace: 'namespace',
-    
+
     data: tempo,
 
     dataOverride: {
@@ -17,7 +17,7 @@
       _config+:: {
 
         // config can be overridden here if desired
-        
+
       },
 
     },

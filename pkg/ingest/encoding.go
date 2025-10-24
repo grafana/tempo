@@ -15,26 +15,25 @@ import (
 
 var encoderPool = sync.Pool{
 	New: func() any {
-		return &tempopb.PushBytesRequest{}
+		return &tempopb.PushBytesRequest{
+			Traces: make([]tempopb.PreallocBytes, 0, 10),
+			Ids:    make([][]byte, 0, 10),
+		}
 	},
 }
 
-func encoderPoolGet() *tempopb.PushBytesRequest {
-	x := encoderPool.Get()
-	if x != nil {
-		return x.(*tempopb.PushBytesRequest)
-	}
-
-	return &tempopb.PushBytesRequest{
-		Traces: make([]tempopb.PreallocBytes, 0, 10),
-		Ids:    make([][]byte, 0, 10),
-	}
+func resetPushBytesRequest(req *tempopb.PushBytesRequest) {
+	traces := req.Traces
+	ids := req.Ids
+	clear(traces)
+	clear(ids)
+	req.Reset()
+	req.Traces = traces[:0]
+	req.Ids = ids[:0]
 }
 
 func encoderPoolPut(req *tempopb.PushBytesRequest) {
-	req.Traces = req.Traces[:0]
-	req.Ids = req.Ids[:0]
-	req.SkipMetricsGeneration = false
+	resetPushBytesRequest(req)
 	encoderPool.Put(req)
 }
 
@@ -51,7 +50,7 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 	}
 
 	var records []*kgo.Record
-	batch := encoderPoolGet()
+	batch := encoderPool.Get().(*tempopb.PushBytesRequest)
 	defer encoderPoolPut(batch)
 
 	currentSize := 0

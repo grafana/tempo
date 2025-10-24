@@ -1,11 +1,22 @@
 package livetraces
 
 import (
+	"errors"
 	"hash"
 	"hash/fnv"
 	"time"
 
+	kitlog "github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+)
+
+var (
+	ErrMaxLiveTracesExceeded = errors.New("max live traces exceeded")
+	ErrMaxTraceSizeExceeded  = errors.New("max trace size exceeded")
 )
 
 type LiveTraceBatchT interface {
@@ -16,8 +27,8 @@ type LiveTrace[T LiveTraceBatchT] struct {
 	ID      []byte
 	Batches []T
 
-	lastAppend time.Time
-	createdAt  time.Time
+	LastAppend time.Time
+	CreatedAt  time.Time
 	sz         uint64
 }
 
@@ -30,15 +41,24 @@ type LiveTraces[T LiveTraceBatchT] struct {
 
 	sz     uint64
 	szFunc func(T) uint64
+
+	maxTraceErrorLogger *log.RateLimitedLogger
 }
 
-func New[T LiveTraceBatchT](sizeFunc func(T) uint64, maxIdleTime, maxLiveTime time.Duration) *LiveTraces[T] {
+const (
+	maxTraceLogLinesPerSecond = 10
+)
+
+func New[T LiveTraceBatchT](sizeFunc func(T) uint64, maxIdleTime, maxLiveTime time.Duration, tenantID string) *LiveTraces[T] {
+	logger := kitlog.With(log.Logger, "tenant", tenantID)
+
 	return &LiveTraces[T]{
-		hash:        fnv.New64(),
-		Traces:      make(map[uint64]*LiveTrace[T]),
-		szFunc:      sizeFunc,
-		maxIdleTime: maxIdleTime,
-		maxLiveTime: maxLiveTime,
+		hash:                fnv.New64(),
+		Traces:              make(map[uint64]*LiveTrace[T]),
+		szFunc:              sizeFunc,
+		maxIdleTime:         maxIdleTime,
+		maxLiveTime:         maxLiveTime,
+		maxTraceErrorLogger: log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Error(logger)),
 	}
 }
 
@@ -57,10 +77,10 @@ func (l *LiveTraces[T]) Size() uint64 {
 }
 
 func (l *LiveTraces[T]) Push(traceID []byte, batch T, max uint64) bool {
-	return l.PushWithTimestampAndLimits(time.Now(), traceID, batch, max, 0)
+	return l.PushWithTimestampAndLimits(time.Now(), traceID, batch, max, 0) == nil
 }
 
-func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte, batch T, maxLiveTraces, maxTraceSize uint64) (ok bool) {
+func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte, batch T, maxLiveTraces, maxTraceSize uint64) error {
 	token := l.token(traceID)
 
 	tr := l.Traces[token]
@@ -69,12 +89,12 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 		// Before adding this check against max
 		// Zero means no limit
 		if maxLiveTraces > 0 && uint64(len(l.Traces)) >= maxLiveTraces {
-			return false
+			return ErrMaxLiveTracesExceeded
 		}
 
 		tr = &LiveTrace[T]{
 			ID:        traceID,
-			createdAt: ts,
+			CreatedAt: ts,
 		}
 		l.Traces[token] = tr
 	}
@@ -83,15 +103,16 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 
 	// Before adding check against max trace size
 	if maxTraceSize > 0 && (tr.sz+sz > maxTraceSize) {
-		return false
+		l.maxTraceErrorLogger.Log("msg", "max trace size exceeded", "max", maxTraceSize, "reqSize", sz, "totalSize", tr.sz, "trace", util.TraceIDToHexString(traceID))
+		return ErrMaxTraceSizeExceeded
 	}
 
 	tr.sz += sz
 	l.sz += sz
 
 	tr.Batches = append(tr.Batches, batch)
-	tr.lastAppend = ts
-	return true
+	tr.LastAppend = ts
+	return nil
 }
 
 func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) []*LiveTrace[T] {
@@ -101,7 +122,7 @@ func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) []*LiveTrace[T] {
 	liveSince := now.Add(-l.maxLiveTime)
 
 	for k, tr := range l.Traces {
-		if tr.lastAppend.Before(idleSince) || tr.createdAt.Before(liveSince) || immediate {
+		if tr.LastAppend.Before(idleSince) || tr.CreatedAt.Before(liveSince) || immediate {
 			res = append(res, tr)
 			l.sz -= tr.sz
 			delete(l.Traces, k)

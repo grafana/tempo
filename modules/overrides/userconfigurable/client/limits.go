@@ -3,6 +3,7 @@ package client
 import (
 	"time"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 )
@@ -35,9 +36,11 @@ func (l *Limits) GetCostAttribution() *CostAttribution {
 }
 
 type LimitsMetricsGenerator struct {
-	Processors         listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
-	DisableCollection  *bool               `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	CollectionInterval *Duration           `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	Processors                     listtomap.ListToMap         `yaml:"processors,omitempty" json:"processors,omitempty"`
+	DisableCollection              *bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	CollectionInterval             *Duration                   `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	GenerateNativeHistograms       *histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	NativeHistogramMaxBucketNumber *uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 
 	Processor LimitsMetricsGeneratorProcessor `yaml:"processor,omitempty" json:"processor,omitempty"`
 }
@@ -54,6 +57,20 @@ func (l *LimitsMetricsGenerator) GetDisableCollection() (bool, bool) {
 		return *l.DisableCollection, true
 	}
 	return false, false
+}
+
+func (l *LimitsMetricsGenerator) GetGenerateNativeHistograms() (histograms.HistogramMethod, bool) {
+	if l != nil && l.GenerateNativeHistograms != nil {
+		return *l.GenerateNativeHistograms, true
+	}
+	return histograms.HistogramMethodClassic, false
+}
+
+func (l *LimitsMetricsGenerator) GetNativeHistogramMaxBucketNumber() (uint32, bool) {
+	if l != nil && l.NativeHistogramMaxBucketNumber != nil && *l.NativeHistogramMaxBucketNumber > 0 {
+		return *l.NativeHistogramMaxBucketNumber, true
+	}
+	return 0, false
 }
 
 func (l *LimitsMetricsGenerator) GetProcessor() *LimitsMetricsGeneratorProcessor {
@@ -147,6 +164,7 @@ type LimitsMetricsGeneratorProcessorSpanMetrics struct {
 	FilterPolicies               *[]filterconfig.FilterPolicy `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
 	HistogramBuckets             *[]float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
 	TargetInfoExcludedDimensions *[]string                    `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
+	EnableInstanceLabel          *bool                        `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -182,6 +200,13 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimens
 		return *l.TargetInfoExcludedDimensions, true
 	}
 	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetEnableInstanceLabel() (bool, bool) {
+	if l != nil && l.EnableInstanceLabel != nil {
+		return *l.EnableInstanceLabel, true
+	}
+	return true, false // default to true if not set
 }
 
 type LimitsMetricGeneratorProcessorHostInfo struct {

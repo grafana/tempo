@@ -2,10 +2,13 @@ package overrides
 
 import (
 	"flag"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/common/config"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 
@@ -51,14 +54,6 @@ const (
 	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
 )
 
-type HistogramMethod string
-
-const (
-	HistogramMethodClassic HistogramMethod = "classic"
-	HistogramMethodNative  HistogramMethod = "native"
-	HistogramMethodBoth    HistogramMethod = "both"
-)
-
 var metricLimitsDesc = prometheus.NewDesc(
 	"tempo_limits_defaults",
 	"Default resource limits",
@@ -79,6 +74,7 @@ type IngestionOverrides struct {
 	TenantShardSize   int            `yaml:"tenant_shard_size,omitempty" json:"tenant_shard_size,omitempty"`
 	MaxAttributeBytes int            `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
 	ArtificialDelay   *time.Duration `yaml:"artificial_delay,omitempty" json:"artificial_delay,omitempty"`
+	RetryInfoEnabled  bool           `yaml:"retry_info_enabled,omitempty" json:"retry_info_enabled,omitempty"`
 }
 
 type ForwarderOverrides struct {
@@ -103,6 +99,7 @@ type SpanMetricsOverrides struct {
 	DimensionMappings            []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
 	EnableTargetInfo             *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
 	TargetInfoExcludedDimensions []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
+	EnableInstanceLabel          *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
 }
 
 type LocalBlocksOverrides struct {
@@ -141,19 +138,23 @@ func (h *RemoteWriteHeaders) toStringStringMap() map[string]string {
 }
 
 type MetricsGeneratorOverrides struct {
-	RingSize                 int                 `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
-	Processors               listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
-	MaxActiveSeries          uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
-	CollectionInterval       time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
-	DisableCollection        bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	GenerateNativeHistograms HistogramMethod     `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
-	TraceIDLabelName         string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
+	RingSize                 int                        `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
+	Processors               listtomap.ListToMap        `yaml:"processors,omitempty" json:"processors,omitempty"`
+	MaxActiveSeries          uint32                     `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
+	CollectionInterval       time.Duration              `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	DisableCollection        bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	GenerateNativeHistograms histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	TraceIDLabelName         string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
 	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
 	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack"`
+
+	NativeHistogramBucketFactor     float64       `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
+	NativeHistogramMaxBucketNumber  uint32        `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
+	NativeHistogramMinResetDuration time.Duration `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 }
 
 type ReadOverrides struct {
@@ -249,8 +250,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
 	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
 
-	if err := unmarshal(&legacyCfg); err != nil {
-		return err
+	if legacyErr := unmarshal(&legacyCfg); legacyErr != nil {
+		return fmt.Errorf("failed to unmarshal config: %w; also failed in legacy format: %w", err, legacyErr)
 	}
 
 	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
@@ -264,9 +265,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet
 func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Generator
-	c.Defaults.MetricsGenerator.GenerateNativeHistograms = HistogramMethodClassic
+	c.Defaults.MetricsGenerator.GenerateNativeHistograms = histograms.HistogramMethodClassic
 
 	// Distributor LegacyOverrides
+	c.Defaults.Ingestion.RetryInfoEnabled = true // enabled in overrides by default but it's disabled with RetryAfterOnResourceExhausted = 0
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
 	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
@@ -279,6 +281,12 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Querier limits
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 10e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&c.Defaults.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
+
+	// Generator - NativeHistograms config
+	f.Float64Var(&c.Defaults.MetricsGenerator.NativeHistogramBucketFactor, "metrics-generator.native-histogram-bucket-factor", 1.1, "The growth factor between buckets for native histograms.")
+	_ = (*Uint32Value)(&c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber).Set("100")
+	f.Var((*Uint32Value)(&c.Defaults.MetricsGenerator.NativeHistogramMaxBucketNumber), "metrics-generator.native-histogram-max-bucket-number", "The maximum number of buckets for native histograms.")
+	f.DurationVar(&c.Defaults.MetricsGenerator.NativeHistogramMinResetDuration, "metrics-generator.native-histogram-min-reset-duration", 15*time.Minute, "The minimum duration before a native histogram can be reset.")
 
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
@@ -303,6 +311,18 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
 }
 
-func HasNativeHistograms(s HistogramMethod) bool {
-	return s == HistogramMethodNative || s == HistogramMethodBoth
+func HasNativeHistograms(s histograms.HistogramMethod) bool {
+	return s == histograms.HistogramMethodNative || s == histograms.HistogramMethodBoth
+}
+
+type Uint32Value uint32
+
+func (u *Uint32Value) String() string { return fmt.Sprintf("%d", *u) }
+func (u *Uint32Value) Set(s string) error {
+	v, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return err
+	}
+	*u = Uint32Value(v)
+	return nil
 }

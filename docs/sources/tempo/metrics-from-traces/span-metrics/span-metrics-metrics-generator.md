@@ -83,7 +83,7 @@ By default, the metrics processor adds the following labels to each metric: `ser
   - `STATUS_CODE_ERROR` - The span operation completed with an error
 - `status_message` (optionally enabled) - The message that details the reason for the `status_code` label
 - `job` - The name of the job, a combination of namespace and service; only added if `metrics_generator.processor.span_metrics.enable_target_info: true`
-- `instance` - The instance ID; only added if `metrics_generator.processor.span_metrics.enable_target_info: true`
+- `instance` - The instance ID; only added if `metrics_generator.processor.span_metrics.enable_target_info: true` and `metrics_generator.processor.span_metrics.enable_instance_label: true` 
 
 Additional user defined labels can be created using the [`dimensions` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
 When a configured dimension collides with one of the default labels (for example, `status_code`), the label for the respective dimension is prefixed with double underscore (for example, `__status_code`).

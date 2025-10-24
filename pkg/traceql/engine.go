@@ -46,7 +46,7 @@ func Compile(query string) (*RootExpr, SpansetFilterFunc, firstStageElement, sec
 	return expr, expr.Pipeline.evaluate, expr.MetricsPipeline, expr.MetricsSecondStage, req, nil
 }
 
-func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
+func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher, allowUnsafeQueryHints bool) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.End()
 
@@ -55,8 +55,23 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return nil, err
 	}
 
+	// Check for performance testing hints
+	if returnIn, ok := rootExpr.Hints.GetDuration(HintDebugReturnIn, allowUnsafeQueryHints); ok {
+		var stdDev time.Duration
+		if stdDevDuration, ok := rootExpr.Hints.GetDuration(HintDebugStdDev, allowUnsafeQueryHints); ok {
+			stdDev = stdDevDuration
+		}
+		simulateLatency(returnIn, stdDev)
+
+		var probability float64
+		if p, ok := rootExpr.Hints.GetFloat(HintDebugDataFactor, allowUnsafeQueryHints); ok {
+			probability = p
+		}
+		return generateFakeSearchResponse(probability), nil
+	}
+
 	var mostRecent, ok bool
-	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, false); !ok {
+	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, allowUnsafeQueryHints); !ok {
 		mostRecent = false
 	}
 
@@ -114,8 +129,15 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, *fetchSpansRequest)
 	if err != nil {
+		if errors.Is(err, util.ErrUnsupported) {
+			return &tempopb.SearchResponse{
+				Traces:  nil,
+				Metrics: &tempopb.SearchMetrics{},
+			}, nil
+		}
 		return nil, err
 	}
+
 	iterator := fetchSpansResponse.Results
 	defer iterator.Close()
 
@@ -224,7 +246,9 @@ func (e *Engine) ExecuteTagNames(
 		Scope:      scope,
 	}
 
-	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
+	if rootExpr != nil {
+		span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
+	}
 	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)

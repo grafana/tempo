@@ -16,12 +16,13 @@ import (
 )
 
 type Config struct {
-	BackendSchedulerAddr string                  `yaml:"backend_scheduler_addr"`
-	Backoff              backoff.Config          `yaml:"backoff"`
-	Compactor            tempodb.CompactorConfig `yaml:"compaction"`
-	OverrideRingKey      string                  `yaml:"override_ring_key"`
-	Poll                 bool                    `yaml:"-"`
-	Ring                 RingConfig              `yaml:"ring,omitempty"`
+	BackendSchedulerAddr    string                  `yaml:"backend_scheduler_addr"`
+	Backoff                 backoff.Config          `yaml:"backoff"`
+	Compactor               tempodb.CompactorConfig `yaml:"compaction"`
+	OverrideRingKey         string                  `yaml:"override_ring_key"`
+	Poll                    bool                    `yaml:"-"`
+	Ring                    RingConfig              `yaml:"ring,omitempty"`
+	FinishOnShutdownTimeout time.Duration           `yaml:"finish_on_shutdown_timeout"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -29,6 +30,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
 	f.DurationVar(&cfg.Backoff.MaxBackoff, prefix+".backoff-max-period", time.Minute, "Maximum delay when backing off.")
 	f.IntVar(&cfg.Backoff.MaxRetries, prefix+".backoff-retries", 0, "Number of times to backoff and retry before failing.")
+
+	f.DurationVar(&cfg.FinishOnShutdownTimeout, prefix+".finish-on-shutdown-timeout", 30*time.Second, "Timeout for finishing the current job before shutting down the worker.")
 
 	// Compactor
 	cfg.Compactor = tempodb.CompactorConfig{}

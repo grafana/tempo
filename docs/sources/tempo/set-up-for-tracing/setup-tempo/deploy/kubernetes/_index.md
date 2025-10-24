@@ -17,6 +17,10 @@ Kubernetes offers several deployment options for Tempo:
 
 Choose the method that best fits your Kubernetes workflow and operational requirements.
 
+{{< admonition type="note" >}}
+Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details
+{{< /admonition >}}
+
 ## Helm
 
 Helm charts are available in the `grafana/helm-charts` repository:

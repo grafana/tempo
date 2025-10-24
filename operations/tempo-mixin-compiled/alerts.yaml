@@ -28,6 +28,15 @@
     "for": "15m"
     "labels":
       "severity": "critical"
+  - "alert": "TempoLiveStoreUnhealthy"
+    "annotations":
+      "message": "There are {{ printf \"%f\" $value }} unhealthy livestore(s)."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreUnhealthy"
+    "expr": |
+      max by (cluster, namespace) (tempo_ring_members{state="Unhealthy", name="live-store", namespace=~".*"}) > 0
+    "for": "15m"
+    "labels":
+      "severity": "critical"
   - "alert": "TempoMetricsGeneratorUnhealthy"
     "annotations":
       "message": "There are {{ printf \"%f\" $value }} unhealthy metric-generator(s)."
@@ -194,6 +203,24 @@
     "for": "5m"
     "labels":
       "severity": "critical"
+  - "alert": "TempoLiveStorePartitionLagWarning"
+    "annotations":
+      "message": "Tempo ingest partition {{ $labels.partition }} for live store  {{ $labels.group }} is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
+    "expr": |
+      max by (cluster, namespace, partition, group) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container="live-store"}[6m])) > 200
+    "for": "5m"
+    "labels":
+      "severity": "warning"
+  - "alert": "TempoLiveStorePartitionLagCritical"
+    "annotations":
+      "message": "Tempo ingest partition {{ $labels.partition }} for live store group {{ $labels.group }} is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
+    "expr": |
+      max by (cluster, namespace, partition, group) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~".*", container=~"live-store"}[6m])) > 300
+    "for": "5m"
+    "labels":
+      "severity": "critical"
   - "alert": "TempoBackendSchedulerJobsFailureRateHigh"
     "annotations":
       "message": "Tempo backend scheduler job failure rate is {{ printf \"%0.2f\" $value }} (threshold 0.1) in {{ $labels.cluster }}/{{ $labels.namespace }}"
@@ -247,7 +274,7 @@
       "message": "Tempo vulture error rate is {{ printf \"%0.2f\" $value }} for error type {{ $labels.error }} in {{ $labels.cluster }}/{{ $labels.namespace }}"
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoVultureHighErrorRate"
     "expr": |
-      sum(rate(tempo_vulture_trace_error_total{namespace=~".*"}[1m])) by (cluster, namespace, error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{namespace=~".*"}[1m])) by (cluster, namespace) > 0.200000
+      sum(rate(tempo_vulture_trace_error_total{namespace=~".*"}[1m])) by (cluster, namespace, error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{namespace=~".*"}[1m])) by (cluster, namespace) > 0.100000
     "for": "5m"
     "labels":
-      "severity": "warning"
+      "severity": "critical"

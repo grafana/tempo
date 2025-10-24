@@ -268,7 +268,14 @@ func (c *consumerGroupHandler) handleMessage(
 		claim.HighWaterMarkOffset()-message.Offset-1,
 		metric.WithAttributeSet(attrs),
 	)
+	// KafkaReceiverMessages is deprecated in favor of KafkaReceiverRecords.
 	c.telemetryBuilder.KafkaReceiverMessages.Add(
+		context.Background(),
+		1,
+		metric.WithAttributeSet(attrs),
+		metric.WithAttributes(attribute.String("outcome", "success")),
+	)
+	c.telemetryBuilder.KafkaReceiverRecords.Add(
 		context.Background(),
 		1,
 		metric.WithAttributeSet(attrs),

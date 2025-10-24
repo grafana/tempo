@@ -38,11 +38,18 @@ var (
 // streaming grpc handlers
 
 // newTagsStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsHandler {
+func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingTagsHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTags)
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
+		if dataAccessController != nil {
+			err := dataAccessController.HandleGRPCTagsReq(srv.Context(), req)
+			if err != nil {
+				level.Error(logger).Log("msg", "SearchTags streaming: access control handling failed", "err", err)
+				return err
+			}
+		}
 		httpReq, tenant, err := buildTagsRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
 		if err != nil {
 			return err
@@ -84,12 +91,21 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 	}
 }
 
-func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsV2Handler {
+func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingTagsV2Handler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTagsV2)
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
-		httpReq, tenant, err := buildTagsRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
+		ctx := srv.Context()
+
+		if dataAccessController != nil {
+			err := dataAccessController.HandleGRPCTagsV2Req(ctx, req)
+			if err != nil {
+				level.Error(logger).Log("msg", "SearchTagsV2 streaming: access control handling failed", "err", err)
+				return err
+			}
+		}
+		httpReq, tenant, err := buildTagsRequestAndExtractTenant(ctx, req, downstreamPath, logger)
 		if err != nil {
 			return err
 		}
@@ -137,10 +153,21 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	}
 }
 
-func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesHandler {
+func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingTagValuesHandler {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
+		ctx := srv.Context()
+		var err error
+
+		if dataAccessController != nil {
+			err = dataAccessController.HandleGRPCTagValuesReq(ctx, req)
+			if err != nil {
+				level.Error(logger).Log("msg", "SearchTagValues streaming: access control handling failed", "err", err)
+				return err
+			}
+		}
+
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
 		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
@@ -174,16 +201,25 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 	}
 }
 
-func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesV2Handler {
+func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingTagValuesV2Handler {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
+		ctx := srv.Context()
+
+		if dataAccessController != nil {
+			err := dataAccessController.HandleGRPCTagValuesV2Req(ctx, req)
+			if err != nil {
+				level.Error(logger).Log("msg", "SearchTagValues streaming: access control handling failed", "err", err)
+				return err
+			}
+		}
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
 		pathWithValue := strings.Replace(api.PathSearchTagValuesV2, "{"+api.MuxVarTagName+"}", req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
-		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
+		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(ctx, req, downstreamPath, logger)
 		if err != nil {
 			return err
 		}
@@ -212,14 +248,20 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 }
 
 // HTTP Handlers
-func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
+func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		if err != nil {
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
 			return errResp, nil
+		}
+
+		if dataAccessController != nil {
+			if err := dataAccessController.HandleHTTPTagsReq(req); err != nil {
+				level.Error(logger).Log("msg", "SearchTags http: access control handling failed", "err", err)
+				return httpInvalidRequest(err), nil
+			}
 		}
 
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
@@ -260,14 +302,20 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 	})
 }
 
-func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
+func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		if err != nil {
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
 			return errResp, nil
+		}
+
+		if dataAccessController != nil {
+			if err := dataAccessController.HandleHTTPTagsV2Req(req); err != nil {
+				level.Error(logger).Log("msg", "SearchTagsV2 http: access control handling failed", "err", err)
+				return httpInvalidRequest(err), nil
+			}
 		}
 
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
@@ -315,14 +363,20 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	})
 }
 
-func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
+func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		if err != nil {
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
 			return errResp, nil
+		}
+
+		if dataAccessController != nil {
+			if err := dataAccessController.HandleHTTPTagValuesReq(req); err != nil {
+				level.Error(logger).Log("msg", "SearchTagValues http: access control handling failed", "err", err)
+				return httpInvalidRequest(err), nil
+			}
 		}
 
 		_, query, rangeDur, maxTagsValues, staleValueThreshold := parseParams(req)
@@ -351,14 +405,20 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 	})
 }
 
-func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
+func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		if err != nil {
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
 			return errResp, nil
+		}
+
+		if dataAccessController != nil {
+			if err := dataAccessController.HandleHTTPTagValuesV2Req(req); err != nil {
+				level.Error(logger).Log("msg", "SearchTagValuesV2 http: access control handling failed", "err", err)
+				return httpInvalidRequest(err), nil
+			}
 		}
 
 		_, query, rangeDur, maxTagsValues, staleValueThreshold := parseParams(req)
@@ -388,19 +448,6 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 }
 
 // helpers
-func extractTenantWithErrorResp(req *http.Request, logger log.Logger) (string, *http.Response, error) {
-	tenant, err := user.ExtractOrgID(req.Context())
-	if err != nil {
-		level.Error(logger).Log("msg", "tags failed to extract orgid", "err", err)
-		return "", &http.Response{
-			StatusCode: http.StatusBadRequest,
-			Status:     http.StatusText(http.StatusBadRequest),
-			Body:       io.NopCloser(strings.NewReader(err.Error())),
-		}, err
-	}
-	return tenant, nil, err
-}
-
 func buildTagsRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTagsRequest, downstreamPath string, logger log.Logger) (*http.Request, string, error) {
 	headers := headersFromGrpcContext(ctx)
 

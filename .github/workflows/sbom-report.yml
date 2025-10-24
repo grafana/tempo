@@ -13,12 +13,12 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         persist-credentials: false
         
     - name: Anchore SBOM Action
-      uses: anchore/sbom-action@9f7302141466aa6482940f15371237e9d9f4c34a # v0.19.0
+      uses: anchore/sbom-action@f8bdd1d8ac5e901a77a92f111440fdb1b593736b # v0.20.6
       with:
          artifact-name: ${{ github.event.repository.name }}-spdx.json
 

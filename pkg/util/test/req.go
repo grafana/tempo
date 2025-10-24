@@ -41,7 +41,7 @@ func MakeSpanWithTimeWindow(traceID []byte, startTime uint64, endTime uint64) *v
 
 func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, endTime uint64) *v1_trace.Span {
 	attributes := make([]*v1_common.KeyValue, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		attributes = append(attributes, &v1_common.KeyValue{
 			Key:   RandomString(),
 			Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
@@ -122,7 +122,11 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 }
 
 func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
-	return makeBatchWithTimeRange(spans, traceID, nil)
+	return makeBatchWithTimeRange(spans, traceID, nil, nil)
+}
+
+func MakeBatchWithAttributes(spans int, traceID []byte, resAttributes []*v1_common.KeyValue) *v1_trace.ResourceSpans {
+	return makeBatchWithTimeRange(spans, traceID, nil, resAttributes)
 }
 
 type batchTimeRange struct {
@@ -130,7 +134,7 @@ type batchTimeRange struct {
 	end   uint64
 }
 
-func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange) *v1_trace.ResourceSpans {
+func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange, resAttributes []*v1_common.KeyValue) *v1_trace.ResourceSpans {
 	traceID = ValidTraceID(traceID)
 
 	batch := &v1_trace.ResourceSpans{
@@ -156,12 +160,16 @@ func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange
 		},
 	}
 
+	if resAttributes != nil {
+		batch.Resource.Attributes = append(batch.Resource.Attributes, resAttributes...)
+	}
+
 	var (
 		ss      *v1_trace.ScopeSpans
 		ssCount int
 	)
 
-	for i := 0; i < spans; i++ {
+	for range spans {
 		// occasionally make a new ss
 		if ss == nil || rand.Int()%3 == 0 {
 			ssCount++
@@ -191,7 +199,7 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID))
 	}
 
@@ -205,9 +213,9 @@ func MakeTraceWithTimeRange(requests int, traceID []byte, startTime, endTime uin
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		timeRange := &batchTimeRange{start: startTime, end: endTime}
-		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange))
+		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange, nil)) // #nosec G40
 	}
 
 	return trace
@@ -218,7 +226,7 @@ func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempop
 		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
-	for i := 0; i < requests; i++ {
+	for range requests {
 		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(spansEach, traceID))
 	}
 
@@ -232,6 +240,8 @@ var (
 		{Scope: "resource", Name: "dedicated.resource.3", Type: "string"},
 		{Scope: "resource", Name: "dedicated.resource.4", Type: "string"},
 		{Scope: "resource", Name: "dedicated.resource.5", Type: "string"},
+		{Scope: "resource", Name: "dedicated.resource.6", Type: "int"},
+		{Scope: "resource", Name: "dedicated.resource.7", Type: "int"},
 	}
 	dedicatedColumnsSpan = backend.DedicatedColumns{
 		{Scope: "span", Name: "dedicated.span.1", Type: "string"},
@@ -239,32 +249,41 @@ var (
 		{Scope: "span", Name: "dedicated.span.3", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.4", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.5", Type: "string"},
+		{Scope: "span", Name: "dedicated.span.6", Type: "int"},
+		{Scope: "span", Name: "dedicated.span.7", Type: "int"},
 	}
 )
 
 // AddDedicatedAttributes adds resource and span attributes to a trace that are stored in dedicated
 // columns when a backend.BlockMeta is created with the column assignments from MakeDedicatedColumns.
 func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
+	makeVal := func(typ backend.DedicatedColumnType, scope backend.DedicatedColumnScope, i int) *v1_common.AnyValue {
+		if typ == backend.DedicatedColumnTypeInt {
+			return &v1_common.AnyValue{
+				Value: &v1_common.AnyValue_IntValue{
+					IntValue: int64(i + 1),
+				},
+			}
+		}
+		return &v1_common.AnyValue{
+			Value: &v1_common.AnyValue_StringValue{
+				StringValue: fmt.Sprintf("dedicated-%s-attr-value-%d", scope, i+1),
+			},
+		}
+	}
+
 	spanAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsSpan))
 	for i, c := range dedicatedColumnsSpan {
 		spanAttrs = append(spanAttrs, &v1_common.KeyValue{
-			Key: c.Name,
-			Value: &v1_common.AnyValue{
-				Value: &v1_common.AnyValue_StringValue{
-					StringValue: fmt.Sprintf("dedicated-span-attr-value-%d", i+1),
-				},
-			},
+			Key:   c.Name,
+			Value: makeVal(c.Type, c.Scope, i),
 		})
 	}
 	resourceAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsResource))
 	for i, c := range dedicatedColumnsResource {
 		resourceAttrs = append(resourceAttrs, &v1_common.KeyValue{
-			Key: c.Name,
-			Value: &v1_common.AnyValue{
-				Value: &v1_common.AnyValue_StringValue{
-					StringValue: fmt.Sprintf("dedicated-resource-attr-value-%d", i+1),
-				},
-			},
+			Key:   c.Name,
+			Value: makeVal(c.Type, c.Scope, i),
 		})
 	}
 

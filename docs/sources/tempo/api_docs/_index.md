@@ -47,6 +47,8 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Flush](#flush)                                                                       | Ingester                                  | HTTP | `GET,POST /flush`                                       |
 | [Shutdown](#shutdown)                                                                 | Ingester                                  | HTTP | `GET,POST /shutdown`                                    |
 | [Prepare partition downscale](#prepare-partition-downscale)                           | Ingester                                  | HTTP | `GET,POST,DELETE /ingester/prepare-partition-downscale` |
+| [Prepare live store partition downscale](#prepare-live-store-partition-downscale)     | Live store                                | HTTP | `GET,POST,DELETE /live-store/prepare-partition-downscale` |
+| [Prepare live store downscale](#prepare-live-store-downscale)                         | Live store                                | HTTP | `POST,DELETE /live-store/prepare-downscale`             |
 | [Usage Metrics](#usage-metrics)                                                       | Distributor                               | HTTP | `GET /usage_metrics`                                    |
 | [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                 |
 | [Ingesters ring status](#ingesters-ring-status)                                       | Distributor, Querier                      | HTTP | `GET /ingester/ring`                                    |
@@ -75,6 +77,7 @@ GET /metrics
 ```
 
 Returns the metrics for the running Tempo service in the Prometheus exposition format.
+
 
 <!-- vale Grafana.Spelling = NO -->
 
@@ -153,7 +156,7 @@ Parameters:
   Default = `00000000-0000-0000-0000-000000000000`
   Example: `blockStart=12345678-0000-0000-1235-000001240000`
 - `blockEnd = (GUID)`
-  Specifies the blockID finish boundary. If specified, the querier only searches blocks with IDs < blockEnd.
+  Specifies the blockID finish boundary. If specified, the querier only searches blocks with IDs < `blockEnd`.
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
 - `start = (unix epoch seconds)`
@@ -375,7 +378,7 @@ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 
 Parameters:
 
-- `scope = (resource|span|intrinsic)`
+- `scope = (resource|span|intrinsic|event|link|instrumentation)`
   Optional. Specifies the scope of the tags. If not specified, it means all scopes.
   Default = `all`
 - `start = (unix epoch seconds)`
@@ -399,7 +402,7 @@ The tags endpoint takes a scope that controls the kinds of tags or attributes re
 If nothing is provided, the endpoint returns all resource and span tags.
 
 ```bash
-GET /api/v2/search/tags?scope=<resource|span|intrinsic>
+GET /api/v2/search/tags?scope=<resource|span|intrinsic|event|link|instrumentation>
 ```
 
 Parameters:
@@ -759,7 +762,33 @@ A `POST` call switches this ingester's partition to the `INACTIVE` state, if it 
 
 A `DELETE` call sets the partition back from the `INACTIVE` to the `ACTIVE` state.
 
-If the ingester is not configured to use ingest-storage, any call to this endpoint fails.
+### Prepare live store downscale
+
+```
+POST,DELETE /live-store/prepare-downscale
+```
+
+This endpoint prepares the live store for downscaling by configuring whether it should remove itself from the ring on shutdown.
+
+A `GET` call returns set if the live-store is prepared for downscale, unset otherwise.
+
+A `POST` call enables prepare downscale mode (remove the live store from the ring owners on shutdown). The partition must be in `INACTIVE` state.
+
+A `DELETE` call disables prepare downscale mode (do not remove the live store from the ring owners on shutdown).
+
+### Prepare live store partition downscale
+
+```
+GET,POST,DELETE /live-store/prepare-partition-downscale
+```
+
+This endpoint prepares the live store's partition for downscaling by setting it to the `INACTIVE` state.
+
+A `GET` call to this endpoint returns a timestamp of when the partition was switched to the `INACTIVE` state, or 0, if the partition is not in the `INACTIVE` state.
+
+A `POST` call switches this live store's partition to the `INACTIVE` state, if it isn't `INACTIVE` already, and returns the timestamp of when the switch to the `INACTIVE` state occurred.
+
+A `DELETE` call sets the partition back from the `INACTIVE` to the `ACTIVE` state.
 
 ### Usage metrics
 

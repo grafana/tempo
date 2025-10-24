@@ -209,7 +209,7 @@ func (p *Parser[K]) ParseCondition(condition string) (*Condition[K], error) {
 	}, nil
 }
 
-func (p *Parser[K]) prependContextToPaths(context string, ottl string, ottlPathsGetter func(ottl string) ([]path, error)) (string, error) {
+func (p *Parser[K]) prependContextToPaths(context, ottl string, ottlPathsGetter func(ottl string) ([]path, error)) (string, error) {
 	if _, ok := p.pathContextNames[context]; !ok {
 		return "", fmt.Errorf(`unknown context "%s" for parser %T, valid options are: %s`, context, p, p.buildPathContextNamesText(""))
 	}
@@ -235,7 +235,7 @@ func (p *Parser[K]) prependContextToPaths(context string, ottl string, ottlPaths
 // to all context-less paths. No modifications are performed for paths which [Path.Context]
 // value matches any WithPathContextNames value.
 // The context argument must be valid WithPathContextNames value, otherwise an error is returned.
-func (p *Parser[K]) prependContextToStatementPaths(context string, statement string) (string, error) {
+func (p *Parser[K]) prependContextToStatementPaths(context, statement string) (string, error) {
 	return p.prependContextToPaths(context, statement, func(ottl string) ([]path, error) {
 		parsed, err := parseStatement(ottl)
 		if err != nil {
@@ -249,7 +249,7 @@ func (p *Parser[K]) prependContextToStatementPaths(context string, statement str
 // to all context-less paths. No modifications are performed for paths which [Path.Context]
 // value matches any WithPathContextNames value.
 // The context argument must be valid WithPathContextNames value, otherwise an error is returned.
-func (p *Parser[K]) prependContextToConditionPaths(context string, condition string) (string, error) {
+func (p *Parser[K]) prependContextToConditionPaths(context, condition string) (string, error) {
 	return p.prependContextToPaths(context, condition, func(ottl string) ([]path, error) {
 		parsed, err := parseCondition(ottl)
 		if err != nil {
@@ -263,7 +263,7 @@ func (p *Parser[K]) prependContextToConditionPaths(context string, condition str
 // to all context-less paths. No modifications are performed for paths which [Path.Context]
 // value matches any WithPathContextNames value.
 // The context argument must be valid WithPathContextNames value, otherwise an error is returned.
-func (p *Parser[K]) prependContextToValueExpressionPaths(context string, expr string) (string, error) {
+func (p *Parser[K]) prependContextToValueExpressionPaths(context, expr string) (string, error) {
 	return p.prependContextToPaths(context, expr, func(ottl string) ([]path, error) {
 		parsed, err := parseValueExpression(ottl)
 		if err != nil {
@@ -318,7 +318,7 @@ func parseValueExpression(raw string) (*value, error) {
 	return parsed, nil
 }
 
-func insertContextIntoPathsOffsets(context string, statement string, offsets []int) (string, error) {
+func insertContextIntoPathsOffsets(context, statement string, offsets []int) (string, error) {
 	if len(offsets) == 0 {
 		return statement, nil
 	}

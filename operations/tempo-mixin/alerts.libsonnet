@@ -47,6 +47,20 @@
             },
           },
           {
+            alert: 'TempoLiveStoreUnhealthy',
+            'for': '15m',
+            expr: |||
+              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+            ||| % [$._config.group_by_cluster, $._config.jobs.live_store, $._config.namespace],
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'There are {{ printf "%f" $value }} unhealthy livestore(s).',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoreUnhealthy',
+            },
+          },
+          {
             alert: 'TempoMetricsGeneratorUnhealthy',
             'for': '15m',
             expr: |||
@@ -308,6 +322,34 @@
             },
           },
           {
+            alert: 'TempoLiveStorePartitionLagWarning',
+            expr: |||
+              max by (%s, partition, group) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container="%s"}[6m])) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.live_store, $._config.alerts.live_store_partition_lag_warning_seconds],
+            'for': '5m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Tempo ingest partition {{ $labels.partition }} for live store  {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
+            },
+          },
+          {
+            alert: 'TempoLiveStorePartitionLagCritical',
+            expr: |||
+              max by (%s, partition, group) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container=~"%s"}[6m])) > %d
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.live_store, $._config.alerts.live_store_partition_lag_critical_seconds],
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo ingest partition {{ $labels.partition }} for live store group {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
+            },
+          },
+          {
             alert: 'TempoBackendSchedulerJobsFailureRateHigh',
             expr: |||
               sum(increase(tempo_backend_scheduler_jobs_failed_total{namespace=~"%s"}[5m])) by (%s)
@@ -387,7 +429,7 @@
             ||| % [$._config.namespace, $._config.group_by_cluster, $._config.namespace, $._config.group_by_cluster, $._config.alerts.vulture_error_rate_threshold],
             'for': '5m',
             labels: {
-              severity: 'warning',
+              severity: 'critical',
             },
             annotations: {
               message: 'Tempo vulture error rate is {{ printf "%0.2f" $value }} for error type {{ $labels.error }} in {{ $labels.cluster }}/{{ $labels.namespace }}',

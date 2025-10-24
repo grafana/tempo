@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -22,6 +23,7 @@ type Client struct {
 	requestID          atomic.Int64
 	clientCapabilities mcp.ClientCapabilities
 	serverCapabilities mcp.ServerCapabilities
+	protocolVersion    string
 	samplingHandler    SamplingHandler
 }
 
@@ -111,6 +113,17 @@ func (c *Client) OnNotification(
 	c.notifications = append(c.notifications, handler)
 }
 
+// OnConnectionLost registers a handler function to be called when the connection is lost.
+// This is useful for handling HTTP2 idle timeout disconnections that should not be treated as errors.
+func (c *Client) OnConnectionLost(handler func(error)) {
+	type connectionLostSetter interface {
+		SetConnectionLostHandler(func(error))
+	}
+	if setter, ok := c.transport.(connectionLostSetter); ok {
+		setter.SetConnectionLostHandler(handler)
+	}
+}
+
 // sendRequest sends a JSON-RPC request to the server and waits for a response.
 // Returns the raw JSON response message or an error if the request fails.
 func (c *Client) sendRequest(
@@ -176,8 +189,19 @@ func (c *Client) Initialize(
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	// Store serverCapabilities
+	// Validate protocol version
+	if !slices.Contains(mcp.ValidProtocolVersions, result.ProtocolVersion) {
+		return nil, mcp.UnsupportedProtocolVersionError{Version: result.ProtocolVersion}
+	}
+
+	// Store serverCapabilities and protocol version
 	c.serverCapabilities = result.Capabilities
+	c.protocolVersion = result.ProtocolVersion
+
+	// Set protocol version on HTTP transports
+	if httpConn, ok := c.transport.(transport.HTTPConnection); ok {
+		httpConn.SetProtocolVersion(result.ProtocolVersion)
+	}
 
 	// Send initialized notification
 	notification := mcp.JSONRPCNotification{

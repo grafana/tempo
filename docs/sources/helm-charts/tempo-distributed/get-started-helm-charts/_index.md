@@ -41,14 +41,14 @@ This procedure is primarily aimed at local or development setups.
 ### Hardware requirements
 
 - Tempo: A single Kubernetes node with a minimum of 6 cores and 16 GB RAM
-- GET: A single  Kubernetes node with a minimum of 9 cores and 32 GB RAM
+- GET: A single Kubernetes node with a minimum of 9 cores and 32 GB RAM
 
 ### Software requirements
 
 - Kubernetes 1.29 or later (refer to [Kubernetes installation documentation](https://kubernetes.io/docs/setup/))
 - The `kubectl` command for your version of Kubernetes
 - Helm 3 or later (refer to [Helm installation documentation](https://helm.sh/docs/intro/install/))
-- GET only: [An enterprise license](https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/#obtain-a-get-license)
+- GET only: [An enterprise license](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license)
 
 ### Additional requirements
 
@@ -86,7 +86,7 @@ Using a custom namespace solves problems later on because you don't have to over
    kubectl create namespace tempo-test
    ```
 
-  For more details, see the Kubernetes documentation about [Creating a namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
+For more details, see the Kubernetes documentation about [Creating a namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
 
 1. Set up a Helm repository using the following commands:
 
@@ -131,10 +131,10 @@ storage:
   trace:
     backend: s3
     s3:
-      access_key: 'grafana-tempo'
-      secret_key: 'supersecret'
-      bucket: 'tempo-traces'
-      endpoint: 'tempo-minio:9000'
+      access_key: "grafana-tempo"
+      secret_key: "supersecret"
+      bucket: "tempo-traces"
+      endpoint: "tempo-minio:9000"
       insecure: true
 # MinIO storage configuration
 # Note: MinIO should not be used for production environments. This is for demonstration purposes only.
@@ -173,7 +173,7 @@ These values include an additional `admin` bucket and specifies a license.
 The `enterpriseGateway` is automatically enabled as part of enabling the chart for installation of GET.
 
 GET requires multitenancy. It must also be enabled explicitly in the values file.
-For more information, refer to [Set up GET tenants](https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/set-up-get-tenants/).
+For more information, refer to [Set up GET tenants](https://grafana.com/docs/enterprise-traces/latest/setup/set-up-get-tenants/).
 
 {{< collapse title="GET example values file" >}}
 
@@ -181,7 +181,7 @@ For more information, refer to [Set up GET tenants](https://grafana.com/docs/ent
 ---
 # Specify the global domain for the cluster (in this case just local cluster mDNS)
 global:
-  clusterDomain: 'cluster.local'
+  clusterDomain: "cluster.local"
 
 # Enable the Helm chart for GET installation
 # Configure the Helm chart for a Grafana Enterprise Traces installation.
@@ -209,27 +209,27 @@ minio:
       policy: none
       purge: false
   # Changed the mc (the MinIO CLI client) config path to '/tmp' from '/etc' as '/etc' is only writable by root and OpenShift will not permit this.
-  configPathmc: '/tmp/minio/mc/'
+  configPathmc: "/tmp/minio/mc/"
 storage:
   # Specifies traces storage location.
   # Uses the MinIO bucket configured for trace storage.
   trace:
     backend: s3
     s3:
-      access_key: 'grafana-tempo'
-      secret_key: 'supersecret'
-      bucket: 'enterprise-traces'
-      endpoint: 'tempo-minio:9000'
+      access_key: "grafana-tempo"
+      secret_key: "supersecret"
+      bucket: "enterprise-traces"
+      endpoint: "tempo-minio:9000"
       insecure: true
   # Specifies administration data storage location.
   # Uses the MinIO bucket configured for admin storage.
   admin:
     backend: s3
     s3:
-      access_key_id: 'grafana-tempo'
-      secret_access_key: 'supersecret'
-      bucket_name: 'enterprise-traces-admin'
-      endpoint: 'tempo-minio:9000'
+      access_key_id: "grafana-tempo"
+      secret_access_key: "supersecret"
+      bucket_name: "enterprise-traces-admin"
+      endpoint: "tempo-minio:9000"
       insecure: true
 
 # Specifies which trace protocols to accept by the gateway.
@@ -277,7 +277,7 @@ If you are using GET, you need to configure a license by either
 Only use one of these options.
 
 {{< admonition type="note" >}}
-The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/#obtain-a-get-license) explain how to obtain a license.
+The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
 {{< /admonition >}}
 
 Using the first option, you can specify the license text in the `custom.yaml` values file created in the `license:` section.
@@ -335,26 +335,26 @@ If you don't need to change the values, you can skip this section.
      trace:
        backend: s3
        s3:
-         access_key: 'grafana-tempo'
-         secret_key: 'supersecret'
-         bucket: 'tempo-traces'
-         endpoint: 'tempo-minio:9000'
+         access_key: "grafana-tempo"
+         secret_key: "supersecret"
+         bucket: "tempo-traces"
+         endpoint: "tempo-minio:9000"
          insecure: true
    ```
 
    Enterprise users also need to specify an additional bucket for `admin` resources.
 
-    ```yaml
-    storage:
-      admin:
-        backend: s3
-        s3:
-          access_key_id: 'grafana-tempo'
-          secret_access_key: 'supersecret'
-          bucket_name: 'enterprise-traces-admin'
-          endpoint: 'tempo-minio:9000'
-          insecure: true
-    ```
+   ```yaml
+   storage:
+     admin:
+       backend: s3
+       s3:
+         access_key_id: "grafana-tempo"
+         secret_access_key: "supersecret"
+         bucket_name: "enterprise-traces-admin"
+         endpoint: "tempo-minio:9000"
+         insecure: true
+   ```
 
 1. Optional: If you need to change the defaults for MinIO, locate the MinIO section and change the relevant fields. The following example shows the username and password. Ensure that you update any `trace` or `admin` storage sections appropriately.
 
@@ -385,6 +385,15 @@ Update the `storage` configuration options based upon your requirements:
 - [Azure Blob Storage configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/azure)
 
 - [Google Cloud Storage configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/gcs)
+
+#### Azure with the `local_blocks` and metrics-generator processors
+
+[//]: # "Shared content for local_blocks and metrics-generator in Azure blob storage when using Helm"
+[//]: # "This content is located in /tempo/docs/sources/shared/azure-metrics-generator.md"
+
+{{< docs/shared source="tempo" lookup="azure-metrics-generator.md" version="<TEMPO_VERSION>" >}}
+
+For more information about the local-blocks processor, refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/next/metrics-from-traces/metrics-queries/configure-traceql-metrics).
 
 ### Set traces receivers
 
@@ -468,8 +477,8 @@ For instructions, refer to [Configure TLS with Helm](https://grafana.com/docs/te
 
 The `tempo-distributed` Helm chart provides a module for users to set global or per-tenant override settings:
 
-* Global overrides come under the `overrides` property, which pertain to the standard overrides
-* Per-tenant overrides come under the `per_tenant_overrides` property, and allow specific tenants to alter configuration associated with them as per tenant-specific runtime overrides. The Helm chart generates a `/runtime/overrides.yaml` configuration file for all per-tenant configuration.
+- Global overrides come under the `overrides` property, which pertain to the standard overrides
+- Per-tenant overrides come under the `per_tenant_overrides` property, and allow specific tenants to alter configuration associated with them as per tenant-specific runtime overrides. The Helm chart generates a `/runtime/overrides.yaml` configuration file for all per-tenant configuration.
 
 These overrides correlate to the standard (global) and tenant-specific (`per_tenant_overide_config`)overrides in Tempo and GET configuration.
 For more information about overrides, refer to the [Overrides configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) documentation.
@@ -480,32 +489,32 @@ The following example configuration sets some global configuration options, as w
 
 ```yaml
 overrides:
-    defaults:
-        ingestion:
-          rate_limit_bytes: 5 * 1000 * 1000
-          burst_size_bytes: 5 * 1000 * 1000
-          max_traces_per_user: 1000
-        global:
-          max_bytes_per_trace: 10 * 1000 * 1000
+  defaults:
+    ingestion:
+      rate_limit_bytes: 5 * 1000 * 1000
+      burst_size_bytes: 5 * 1000 * 1000
+      max_traces_per_user: 1000
+    global:
+      max_bytes_per_trace: 10 * 1000 * 1000
 
-        metrics_generator:
-          processors: ['service-graphs', 'span-metrics']
+    metrics_generator:
+      processors: ["service-graphs", "span-metrics"]
 
 per_tenant_overrides:
-    '1234':
-        ingestion:
-          rate_limit_bytes: 2 * 1000 * 1000
-          burst_size_bytes: 2 * 1000 * 1000
-          max_traces_per_user: 400
-        global:
-          max_bytes_per_trace: 5 * 1000 * 1000
+  "1234":
+    ingestion:
+      rate_limit_bytes: 2 * 1000 * 1000
+      burst_size_bytes: 2 * 1000 * 1000
+      max_traces_per_user: 400
+    global:
+      max_bytes_per_trace: 5 * 1000 * 1000
 ```
 
 This configuration:
 
-* Enables the Span Metrics and Service Graph metrics-generator processors for all tenants
-* An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces in an ingester for all tenants
-* Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces in an ingester
+- Enables the Span Metrics and Service Graph metrics-generator processors for all tenants
+- An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces in an ingester for all tenants
+- Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces in an ingester
 
 {{< admonition type="note" >}}
 Runtime configurations should include all options for a specific tenant.
@@ -556,6 +565,7 @@ Installed components:
 * compactor
 * memcached
 ```
+
 {{< /collapse >}}
 
 {{< admonition type="note" >}}
@@ -629,3 +639,108 @@ For example:
 
 Enterprise users may need to [install the Enterprise Traces plugin](/docs/enterprise-traces/latest/setup/setup-get-plugin-grafana/) in their Grafana Enterprise instance to allow configuration of tenants, tokens, and access policies.
 After creating a user and access policy using the plugin, you can configure a data source to point at `http://tempo-enterprise-gateway.tempo-test.svc.cluster.local:3100`.
+
+## Set up metamonitoring
+
+Metamonitoring provides observability for your Tempo deployment by collecting metrics and logs from the Tempo components themselves. This helps you monitor the health and performance of your tracing infrastructure.
+Setting up metamonitoring for Tempo and GET uses the `k8s-monitoring` Helm chart.
+For more information about this Helm chart, refer to [k8s-monitoring README](https://github.com/grafana/k8s-monitoring-helm/blob/main/charts/k8s-monitoring/README.md).
+### Configure metamonitoring
+
+To configure metamonitoring, you need to create a `metamonitoring-values.yaml` file and use the Kubernetes Monitoring Helm chart.
+1. Create a `metamonitoring-values.yaml` file for the Kubernetes Monitoring Helm chart configuration.
+
+   Replace the following values with your monitoring backend details:
+   - `tempo`: A descriptive name for your cluster and namespace
+   - `<url>`: Your Prometheus and Loki endpoint URLs
+   - `<username>`: Your username/instance ID
+   - `<password>`: Your password/API key
+
+   ```yaml
+   cluster:
+     name: tempo # Name of the cluster, this will populate the cluster label
+
+   integrations:
+     tempo:
+       instances:
+         - name: "tempo" # This is the name for the instance label that will be reported.
+           namespaces:
+             - tempo # This is the namespace that will be searched for tempo instances, change this accordingly
+           metrics:
+             enabled: true
+             portName: prom-metrics
+           logs:
+             enabled: true
+           labelSelectors:
+             app.kubernetes.io/name: tempo
+
+     alloy:
+       name: "alloy-tempo"
+
+   destinations:
+     - name: "tempo-metrics"
+       type: prometheus
+       url: "<url>" # Enter Prometheus URL
+       auth:
+         type: basic
+         username: "<username>" # Enter username
+         password: "<password>" # Enter password
+
+     - name: "tempo-logs"
+       type: loki
+       url: "<url>" # Enter Loki URL
+       auth:
+         type: basic
+         username: "<username>" # Enter username
+         password: "<password>" # Enter password
+
+   alloy-metrics:
+     enabled: true
+
+   podLogs:
+     enabled: true
+     gatherMethod: kubernetesApi
+     namespaces: [tempo] # Set to namespace
+     collector: alloy-singleton
+
+   alloy-singleton:
+     enabled: true
+
+   alloy-metrics:
+     enabled: true # This will send Grafana Alloy metrics to ensure the monitoring is working properly.
+   ```
+
+
+1. Install the k8s-monitoring Helm chart:
+
+   ```bash
+   helm install k8s-monitoring grafana/k8s-monitoring \
+     --namespace monitoring \
+     --create-namespace \
+     -f metamonitoring-values.yaml
+   ```
+
+1. Verify the installation:
+
+   ```bash
+   kubectl -n monitoring get pods
+   ```
+
+   You should see pods for the k8s-monitoring components running.
+
+### Verify metamonitoring in Grafana
+
+1. Navigate to your Grafana instance (Grafana Cloud or self-hosted).
+
+1. Check that metrics are being collected:
+   - Go to **Explore** > **Prometheus**.
+   - Query for Tempo metrics like `tempo_build_info` or `tempo_distributor_spans_received_total`.
+
+1. Check that logs are being collected:
+   - Go to **Explore** > **Loki**
+   - Filter logs by your cluster name and look for Tempo component logs
+
+1. Set up Tempo monitoring dashboards:
+   - For pre-built dashboards and alerts, refer to the [Tempo mixin documentation](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin)
+
+Your Tempo deployment now includes comprehensive metamonitoring, giving you visibility into the health and performance of your tracing infrastructure.

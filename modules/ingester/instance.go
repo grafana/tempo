@@ -203,9 +203,12 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
 	reqSize := len(traceBytes)
 
-	if maxBytes > 0 && !i.traceSizes.Allow(id, reqSize, maxBytes) {
-		i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "size", reqSize, "trace", hex.EncodeToString(id))
-		return errTraceTooLarge
+	if maxBytes > 0 {
+		allowResult := i.traceSizes.Allow(id, reqSize, maxBytes)
+		if !allowResult.IsAllowed {
+			i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "reqSize", reqSize, "totalSize", allowResult.CurrentTotalSize, "trace", hex.EncodeToString(id))
+			return errTraceTooLarge
+		}
 	}
 
 	tkn := util.HashForTraceID(id)
@@ -284,6 +287,10 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 		}
 
 		completingBlock := i.headBlock
+		blockID := (uuid.UUID)(completingBlock.BlockMeta().BlockID)
+		blockSize := completingBlock.DataLength()
+
+		level.Info(i.logger).Log("msg", "head block cut", "block", blockID, "size", blockSize)
 
 		// Now that we are adding a new block take the blocks mutex.
 		// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
@@ -301,7 +308,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		return (uuid.UUID)(completingBlock.BlockMeta().BlockID), nil
+		return blockID, nil
 	}
 
 	return uuid.Nil, nil
@@ -456,6 +463,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	for _, c := range i.completingBlocks {
 		tr, err = c.FindTraceByID(ctx, id, searchOpts)
 		if err != nil {
+			if errors.Is(err, util.ErrUnsupported) {
+				continue
+			}
 			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
 		if tr == nil {
@@ -474,6 +484,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	for _, c := range i.completeBlocks {
 		found, err := c.FindTraceByID(ctx, id, searchOpts)
 		if err != nil {
+			if errors.Is(err, util.ErrUnsupported) {
+				continue
+			}
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
 		if found == nil {
@@ -650,7 +663,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		// validate the block before adding it to the list. if we drop a block here and its not in the wal this is data loss, but there is no way to recover. this is likely due to disk
 		// level corruption
 		err = b.Validate(ctx)
-		if err != nil && !errors.Is(err, common.ErrUnsupported) {
+		if err != nil && !errors.Is(err, util.ErrUnsupported) {
 			level.Error(i.logger).Log("msg", "local block failed validation, dropping", "block", id.String(), "error", err)
 			metricReplayErrorsTotal.WithLabelValues(i.instanceID).Inc()
 

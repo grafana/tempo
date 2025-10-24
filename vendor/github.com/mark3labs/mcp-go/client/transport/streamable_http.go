@@ -68,10 +68,16 @@ func WithHTTPOAuth(config OAuthConfig) StreamableHTTPCOption {
 	}
 }
 
-func WithLogger(logger util.Logger) StreamableHTTPCOption {
+// WithHTTPLogger sets a custom logger for the StreamableHTTP transport.
+func WithHTTPLogger(logger util.Logger) StreamableHTTPCOption {
 	return func(sc *StreamableHTTP) {
 		sc.logger = logger
 	}
+}
+
+// Deprecated: Use [WithHTTPLogger] instead.
+func WithLogger(logger util.Logger) StreamableHTTPCOption {
+	return WithHTTPLogger(logger)
 }
 
 // WithSession creates a client with a pre-configured session
@@ -90,10 +96,8 @@ func WithSession(sessionID string) StreamableHTTPCOption {
 // https://modelcontextprotocol.io/specification/2025-03-26/basic/transports
 //
 // The current implementation does not support the following features:
-//   - batching
 //   - resuming stream
 //     (https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#resumability-and-redelivery)
-//   - server -> client request
 type StreamableHTTP struct {
 	serverURL           *url.URL
 	httpClient          *http.Client
@@ -102,13 +106,18 @@ type StreamableHTTP struct {
 	logger              util.Logger
 	getListeningEnabled bool
 
-	sessionID atomic.Value // string
+	sessionID       atomic.Value // string
+	protocolVersion atomic.Value // string
 
 	initialized     chan struct{}
 	initializedOnce sync.Once
 
 	notificationHandler func(mcp.JSONRPCNotification)
 	notifyMu            sync.RWMutex
+
+	// Request handler for incoming server-to-client requests (like sampling)
+	requestHandler RequestHandler
+	requestMu      sync.RWMutex
 
 	closed chan struct{}
 
@@ -194,7 +203,13 @@ func (c *StreamableHTTP) Close() error {
 				c.logger.Errorf("failed to create close request: %v", err)
 				return
 			}
-			req.Header.Set(headerKeySessionID, sessionId)
+			req.Header.Set(HeaderKeySessionID, sessionId)
+			// Set protocol version header if negotiated
+			if v := c.protocolVersion.Load(); v != nil {
+				if version, ok := v.(string); ok && version != "" {
+					req.Header.Set(HeaderKeyProtocolVersion, version)
+				}
+			}
 			res, err := c.httpClient.Do(req)
 			if err != nil {
 				c.logger.Errorf("failed to send close request: %v", err)
@@ -207,9 +222,10 @@ func (c *StreamableHTTP) Close() error {
 	return nil
 }
 
-const (
-	headerKeySessionID = "Mcp-Session-Id"
-)
+// SetProtocolVersion sets the negotiated protocol version for this connection.
+func (c *StreamableHTTP) SetProtocolVersion(version string) {
+	c.protocolVersion.Store(version)
+}
 
 // ErrOAuthAuthorizationRequired is a sentinel error for OAuth authorization required
 var ErrOAuthAuthorizationRequired = errors.New("no valid token available, authorization required")
@@ -252,6 +268,13 @@ func (c *StreamableHTTP) SendRequest(
 			return nil, fmt.Errorf("failed to send request: %w", err)
 		}
 	}
+
+	// Only proceed if we have a valid response.
+	// When sendHTTP fails and resp is nil but method is mcp.MethodInitialize
+	// defer resp.Body.Close() fails with nil pointer dereference.
+	if resp == nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
 	defer resp.Body.Close()
 
 	// Check if we got an error response
@@ -276,7 +299,7 @@ func (c *StreamableHTTP) SendRequest(
 	if request.Method == string(mcp.MethodInitialize) {
 		// saved the received session ID in the response
 		// empty session ID is allowed
-		if sessionID := resp.Header.Get(headerKeySessionID); sessionID != "" {
+		if sessionID := resp.Header.Get(HeaderKeySessionID); sessionID != "" {
 			c.sessionID.Store(sessionID)
 		}
 
@@ -328,7 +351,13 @@ func (c *StreamableHTTP) sendHTTP(
 	req.Header.Set("Accept", acceptType)
 	sessionID := c.sessionID.Load().(string)
 	if sessionID != "" {
-		req.Header.Set(headerKeySessionID, sessionID)
+		req.Header.Set(HeaderKeySessionID, sessionID)
+	}
+	// Set protocol version header if negotiated
+	if v := c.protocolVersion.Load(); v != nil {
+		if version, ok := v.(string); ok && version != "" {
+			req.Header.Set(HeaderKeyProtocolVersion, version)
+		}
 	}
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
@@ -377,17 +406,23 @@ func (c *StreamableHTTP) handleSSEResponse(ctx context.Context, reader io.ReadCl
 	// Create a channel for this specific request
 	responseChan := make(chan *JSONRPCResponse, 1)
 
+	// Add timeout context for request processing if not already set
+	if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > 30*time.Second {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Start a goroutine to process the SSE stream
 	go func() {
-		// only close responseChan after readingSSE()
+		// Ensure this goroutine respects the context
 		defer close(responseChan)
 
 		c.readSSE(ctx, reader, func(event, data string) {
-			// (unsupported: batching)
-
+			// Try to unmarshal as a response first
 			var message JSONRPCResponse
 			if err := json.Unmarshal([]byte(data), &message); err != nil {
 				c.logger.Errorf("failed to unmarshal message: %v", err)
@@ -407,6 +442,19 @@ func (c *StreamableHTTP) handleSSEResponse(ctx context.Context, reader io.ReadCl
 				}
 				c.notifyMu.RUnlock()
 				return
+			}
+
+			// Check if this is actually a request from the server by looking for method field
+			var rawMessage map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(data), &rawMessage); err == nil {
+				if _, hasMethod := rawMessage["method"]; hasMethod && !message.ID.IsNil() {
+					var request JSONRPCRequest
+					if err := json.Unmarshal([]byte(data), &request); err == nil {
+						// This is a request from the server
+						c.handleIncomingRequest(ctx, request)
+						return
+					}
+				}
 			}
 
 			if !ignoreResponse {
@@ -529,6 +577,13 @@ func (c *StreamableHTTP) SetNotificationHandler(handler func(mcp.JSONRPCNotifica
 	c.notificationHandler = handler
 }
 
+// SetRequestHandler sets the handler for incoming requests from the server.
+func (c *StreamableHTTP) SetRequestHandler(handler RequestHandler) {
+	c.requestMu.Lock()
+	defer c.requestMu.Unlock()
+	c.requestHandler = handler
+}
+
 func (c *StreamableHTTP) GetSessionId() string {
 	return c.sessionID.Load().(string)
 }
@@ -546,7 +601,11 @@ func (c *StreamableHTTP) IsOAuthEnabled() bool {
 func (c *StreamableHTTP) listenForever(ctx context.Context) {
 	c.logger.Infof("listening to server forever")
 	for {
-		err := c.createGETConnectionToServer(ctx)
+		// Add timeout for individual connection attempts
+		connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := c.createGETConnectionToServer(connectCtx)
+		cancel()
+		
 		if errors.Is(err, ErrGetMethodNotAllowed) {
 			// server does not support listening
 			c.logger.Errorf("server does not support listening")
@@ -562,7 +621,13 @@ func (c *StreamableHTTP) listenForever(ctx context.Context) {
 		if err != nil {
 			c.logger.Errorf("failed to listen to server. retry in 1 second: %v", err)
 		}
-		time.Sleep(retryInterval)
+		
+		// Use context-aware sleep
+		select {
+		case <-time.After(retryInterval):
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -607,6 +672,116 @@ func (c *StreamableHTTP) createGETConnectionToServer(ctx context.Context) error 
 	}
 
 	return nil
+}
+
+// handleIncomingRequest processes requests from the server (like sampling requests)
+func (c *StreamableHTTP) handleIncomingRequest(ctx context.Context, request JSONRPCRequest) {
+	c.requestMu.RLock()
+	handler := c.requestHandler
+	c.requestMu.RUnlock()
+
+	if handler == nil {
+		c.logger.Errorf("received request from server but no handler set: %s", request.Method)
+		// Send method not found error
+		errorResponse := &JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Error: &struct {
+				Code    int             `json:"code"`
+				Message string          `json:"message"`
+				Data    json.RawMessage `json:"data"`
+			}{
+				Code:    -32601, // Method not found
+				Message: fmt.Sprintf("no handler configured for method: %s", request.Method),
+			},
+		}
+		c.sendResponseToServer(ctx, errorResponse)
+		return
+	}
+
+	// Handle the request in a goroutine to avoid blocking the SSE reader
+	go func() {
+		// Create a new context with timeout for request handling, respecting parent context
+		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		
+		response, err := handler(requestCtx, request)
+		if err != nil {
+			c.logger.Errorf("error handling request %s: %v", request.Method, err)
+			
+			// Determine appropriate JSON-RPC error code based on error type
+			var errorCode int
+			var errorMessage string
+			
+			// Check for specific sampling-related errors
+			if errors.Is(err, context.Canceled) {
+				errorCode = -32800 // Request cancelled
+				errorMessage = "request was cancelled"
+			} else if errors.Is(err, context.DeadlineExceeded) {
+				errorCode = -32800 // Request timeout
+				errorMessage = "request timed out"
+			} else {
+				// Generic error cases
+				switch request.Method {
+				case string(mcp.MethodSamplingCreateMessage):
+					errorCode = -32603 // Internal error
+					errorMessage = fmt.Sprintf("sampling request failed: %v", err)
+				default:
+					errorCode = -32603 // Internal error
+					errorMessage = err.Error()
+				}
+			}
+			
+			// Send error response
+			errorResponse := &JSONRPCResponse{
+				JSONRPC: "2.0",
+				ID:      request.ID,
+				Error: &struct {
+					Code    int             `json:"code"`
+					Message string          `json:"message"`
+					Data    json.RawMessage `json:"data"`
+				}{
+					Code:    errorCode,
+					Message: errorMessage,
+				},
+			}
+			c.sendResponseToServer(requestCtx, errorResponse)
+			return
+		}
+
+		if response != nil {
+			c.sendResponseToServer(requestCtx, response)
+		}
+	}()
+}
+
+// sendResponseToServer sends a response back to the server via HTTP POST
+func (c *StreamableHTTP) sendResponseToServer(ctx context.Context, response *JSONRPCResponse) {
+	if response == nil {
+		c.logger.Errorf("cannot send nil response to server")
+		return
+	}
+
+	responseBody, err := json.Marshal(response)
+	if err != nil {
+		c.logger.Errorf("failed to marshal response: %v", err)
+		return
+	}
+
+	ctx, cancel := c.contextAwareOfClientClose(ctx)
+	defer cancel()
+
+	resp, err := c.sendHTTP(ctx, http.MethodPost, bytes.NewReader(responseBody), "application/json")
+	if err != nil {
+		c.logger.Errorf("failed to send response to server: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		c.logger.Errorf("server rejected response with status %d: %s", resp.StatusCode, body)
+	}
 }
 
 func (c *StreamableHTTP) contextAwareOfClientClose(ctx context.Context) (context.Context, context.CancelFunc) {

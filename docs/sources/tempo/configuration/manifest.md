@@ -26,6 +26,7 @@ server:
     grpc_listen_address: ""
     grpc_listen_port: 9095
     grpc_listen_conn_limit: 0
+    grpc_collect_max_streams_by_conn: true
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
@@ -75,6 +76,8 @@ server:
     log_request_headers: false
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
+    trace_request_headers: false
+    trace_request_exclude_headers_list: ""
     http_path_prefix: ""
     cluster_validation:
         label: ""
@@ -85,6 +88,7 @@ server:
             enabled: false
             soft_validation: false
             excluded_paths: ""
+            excluded_user_agents: ""
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -94,6 +98,7 @@ internal_server:
     grpc_listen_address: ""
     grpc_listen_port: 0
     grpc_listen_conn_limit: 0
+    grpc_collect_max_streams_by_conn: false
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
@@ -143,6 +148,8 @@ internal_server:
     log_request_headers: false
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
+    trace_request_headers: false
+    trace_request_exclude_headers_list: ""
     http_path_prefix: ""
     cluster_validation:
         label: ""
@@ -153,6 +160,7 @@ internal_server:
             enabled: false
             soft_validation: false
             excluded_paths: ""
+            excluded_user_agents: ""
     enable: false
 distributor:
     ring:
@@ -202,6 +210,7 @@ distributor:
         cost_attribution:
             max_cardinality: 10000
             stale_duration: 15m0s
+    ingester_write_path_enabled: true
     kafka_write_path_enabled: false
     kafka_config:
         address: ""
@@ -290,6 +299,39 @@ metrics_generator_client:
         connect_backoff_max_delay: 5s
         cluster_validation:
             label: ""
+live_store_client:
+    pool_config:
+        checkinterval: 15s
+        healthcheckenabled: true
+        healthchecktimeout: 1s
+        maxconcurrenthealthchecks: 0
+    remote_timeout: 5s
+    grpc_client_config:
+        max_recv_msg_size: 104857600
+        max_send_msg_size: 104857600
+        grpc_compression: snappy
+        rate_limit: 0
+        rate_limit_burst: 0
+        backoff_on_ratelimits: false
+        backoff_config:
+            min_period: 100ms
+            max_period: 10s
+            max_retries: 10
+        initial_stream_window_size: 63KiB1023B
+        initial_connection_window_size: 63KiB1023B
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
+        connect_timeout: 5s
+        connect_backoff_base_delay: 1s
+        connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
 querier:
     search:
         query_timeout: 30s
@@ -298,6 +340,9 @@ querier:
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
+    partition_ring:
+        minimize_requests: true
+        hedging_delay: 3s
     max_concurrent_queries: 20
     frontend_worker:
         frontend_address: ""
@@ -568,6 +613,7 @@ metrics_generator:
         instance_addr: ""
         instance_port: 0
         enable_inet6: false
+        instance_zone: ""
     processor:
         service_graphs:
             wait: 10s
@@ -622,6 +668,7 @@ metrics_generator:
                 2: true
             filter_policies: []
             target_info_excluded_dimensions: []
+            enable_instance_label: true
         local_blocks:
             block:
                 bloom_filter_false_positive: 0.01
@@ -633,7 +680,49 @@ metrics_generator:
                 v2_index_page_size_bytes: 256000
                 v2_encoding: zstd
                 parquet_row_group_size_bytes: 100000000
-                parquet_dedicated_columns: []
+                parquet_dedicated_columns:
+                    - scope: resource
+                      name: k8s.cluster.name
+                      type: string
+                    - scope: resource
+                      name: k8s.namespace.name
+                      type: string
+                    - scope: resource
+                      name: k8s.pod.name
+                      type: string
+                    - scope: resource
+                      name: k8s.container.name
+                      type: string
+                    - scope: span
+                      name: http.request.method
+                      type: string
+                    - scope: span
+                      name: http.response.status_code
+                      type: int
+                    - scope: span
+                      name: url.path
+                      type: string
+                    - scope: span
+                      name: url.route
+                      type: string
+                    - scope: span
+                      name: server.address
+                      type: string
+                    - scope: span
+                      name: server.port
+                      type: int
+                    - scope: span
+                      name: http.method
+                      type: string
+                    - scope: span
+                      name: http.url
+                      type: string
+                    - scope: span
+                      name: http.route
+                      type: string
+                    - scope: span
+                      name: http.status_code
+                      type: int
             search:
                 chunk_size_bytes: 1000000
                 prefetch_trace_count: 1000
@@ -734,7 +823,49 @@ block_builder:
         v2_index_page_size_bytes: 256000
         v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns: []
+        parquet_dedicated_columns:
+            - scope: resource
+              name: k8s.cluster.name
+              type: string
+            - scope: resource
+              name: k8s.namespace.name
+              type: string
+            - scope: resource
+              name: k8s.pod.name
+              type: string
+            - scope: resource
+              name: k8s.container.name
+              type: string
+            - scope: span
+              name: http.request.method
+              type: string
+            - scope: span
+              name: http.response.status_code
+              type: int
+            - scope: span
+              name: url.path
+              type: string
+            - scope: span
+              name: url.route
+              type: string
+            - scope: span
+              name: server.address
+              type: string
+            - scope: span
+              name: server.port
+              type: int
+            - scope: span
+              name: http.method
+              type: string
+            - scope: span
+              name: http.url
+              type: string
+            - scope: span
+              name: http.route
+              type: string
+            - scope: span
+              name: http.status_code
+              type: int
     wal:
         path: /var/tempo/block-builder/traces
         v2_encoding: none
@@ -761,7 +892,49 @@ storage:
             v2_index_page_size_bytes: 256000
             v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
-            parquet_dedicated_columns: []
+            parquet_dedicated_columns:
+                - scope: resource
+                  name: k8s.cluster.name
+                  type: string
+                - scope: resource
+                  name: k8s.namespace.name
+                  type: string
+                - scope: resource
+                  name: k8s.pod.name
+                  type: string
+                - scope: resource
+                  name: k8s.container.name
+                  type: string
+                - scope: span
+                  name: http.request.method
+                  type: string
+                - scope: span
+                  name: http.response.status_code
+                  type: int
+                - scope: span
+                  name: url.path
+                  type: string
+                - scope: span
+                  name: url.route
+                  type: string
+                - scope: span
+                  name: server.address
+                  type: string
+                - scope: span
+                  name: server.port
+                  type: int
+                - scope: span
+                  name: http.method
+                  type: string
+                - scope: span
+                  name: http.url
+                  type: string
+                - scope: span
+                  name: http.route
+                  type: string
+                - scope: span
+                  name: http.status_code
+                  type: int
         search:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
@@ -856,11 +1029,15 @@ overrides:
             rate_limit_bytes: 15000000
             burst_size_bytes: 20000000
             max_traces_per_user: 10000
+            retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
         metrics_generator:
             generate_native_histograms: classic
             ingestion_time_range_slack: 0s
+            native_histogram_bucket_factor: 1.1
+            native_histogram_max_bucket_number: 100
+            native_histogram_min_reset_duration: 15m0s
         global:
             max_bytes_per_trace: 5000000
     per_tenant_override_config: ""
@@ -1011,6 +1188,7 @@ backend_scheduler:
             max_jobs_per_tenant: 1000
             min_input_blocks: 2
             max_input_blocks: 4
+            max_compaction_level: 0
             min_cycle_interval: 30s
     job_timeout: 15s
     local_work_path: /var/tempo
@@ -1103,4 +1281,147 @@ backend_worker:
         instance_addr: ""
         enable_inet6: false
         wait_active_instance_timeout: 10m0s
+    finish_on_shutdown_timeout: 30s
+live_store:
+    ring:
+        kvstore:
+            store: memberlist
+            prefix: collectors/
+            consul:
+                host: localhost:8500
+                acl_token: ""
+                http_client_timeout: 20s
+                consistent_reads: false
+                watch_rate_limit: 1
+                watch_burst_size: 1
+                cas_retry_delay: 1s
+            etcd:
+                endpoints: []
+                dial_timeout: 10s
+                max_retries: 10
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                username: ""
+                password: ""
+            multi:
+                primary: ""
+                secondary: ""
+                mirror_enabled: false
+                mirror_timeout: 2s
+        heartbeat_period: 5s
+        heartbeat_timeout: 1m0s
+        instance_id: hostname
+        instance_interface_names:
+            - eth0
+        instance_addr: ""
+        instance_port: 0
+        enable_inet6: false
+        instance_zone: ""
+    partition_ring:
+        kvstore:
+            store: memberlist
+            prefix: collectors/
+            consul:
+                host: localhost:8500
+                acl_token: ""
+                http_client_timeout: 20s
+                consistent_reads: false
+                watch_rate_limit: 1
+                watch_burst_size: 1
+                cas_retry_delay: 1s
+            etcd:
+                endpoints: []
+                dial_timeout: 10s
+                max_retries: 10
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                username: ""
+                password: ""
+            multi:
+                primary: ""
+                secondary: ""
+                mirror_enabled: false
+                mirror_timeout: 2s
+        min_partition_owners_count: 1
+        min_partition_owners_duration: 10s
+        delete_inactive_partition_after: 13h0m0s
+    metrics:
+        time_overlap_cutoff: 0.2
+    commit_interval: 5s
+    query_block_concurrency: 10
+    complete_block_timeout: 1h0m0s
+    complete_block_concurrency: 2
+    shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
+    flush_check_period: 10s
+    flush_op_timeout: 5m0s
+    max_trace_live: 30s
+    max_trace_idle: 5s
+    max_live_traces_bytes: 250000000
+    max_block_duration: 30m0s
+    max_block_bytes: 104857600
+    block_config:
+        bloom_filter_false_positive: 0.01
+        bloom_filter_shard_size_bytes: 102400
+        version: ""
+        search_encoding: snappy
+        search_page_size_bytes: 1048576
+        v2_index_downsample_bytes: 1048576
+        v2_index_page_size_bytes: 256000
+        v2_encoding: zstd
+        parquet_row_group_size_bytes: 100000000
+        parquet_dedicated_columns:
+            - scope: resource
+              name: k8s.cluster.name
+              type: string
+            - scope: resource
+              name: k8s.namespace.name
+              type: string
+            - scope: resource
+              name: k8s.pod.name
+              type: string
+            - scope: resource
+              name: k8s.container.name
+              type: string
+            - scope: span
+              name: http.request.method
+              type: string
+            - scope: span
+              name: http.response.status_code
+              type: int
+            - scope: span
+              name: url.path
+              type: string
+            - scope: span
+              name: url.route
+              type: string
+            - scope: span
+              name: server.address
+              type: string
+            - scope: span
+              name: server.port
+              type: int
+            - scope: span
+              name: http.method
+              type: string
+            - scope: span
+              name: http.url
+              type: string
+            - scope: span
+              name: http.route
+              type: string
+            - scope: span
+              name: http.status_code
+              type: int
 ```

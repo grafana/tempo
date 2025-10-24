@@ -444,7 +444,23 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				if s.EndTimeUnixNano > traceEnd {
 					traceEnd = s.EndTimeUnixNano
 				}
-				if len(s.ParentSpanId) == 0 {
+
+				var hasChildOfLink bool
+				for _, spanLink := range s.Links {
+					if bytes.Equal(s.TraceId, spanLink.TraceId) {
+						for _, attr := range spanLink.GetAttributes() {
+							if attr.Key == "opentracing.ref_type" && attr.GetValue().GetStringValue() == "child_of" {
+								hasChildOfLink = true
+								break
+							}
+						}
+						if hasChildOfLink {
+							break
+						}
+					}
+				}
+
+				if len(s.ParentSpanId) == 0 && !hasChildOfLink {
 					rootSpan = s
 					rootBatch = b
 				}
@@ -754,7 +770,7 @@ func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64) []*v1
 	return protoEvents
 }
 
-func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
+func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
 	protoTrace.ResourceSpans = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 

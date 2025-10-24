@@ -103,7 +103,7 @@ func TestEngine_Execute(t *testing.T) {
 			},
 		},
 	}
-	response, err := e.ExecuteSearch(context.Background(), req, &spanSetFetcher)
+	response, err := e.ExecuteSearch(context.Background(), req, &spanSetFetcher, false)
 
 	require.NoError(t, err)
 
@@ -560,6 +560,29 @@ func TestExamplesInEngine(t *testing.T) {
 			require.True(t, errors.As(err, &unErr))
 		})
 	}
+}
+
+func TestExecuteTagNames_InvalidQuery(t *testing.T) {
+	e := NewEngine()
+
+	invalidQuery := "{ invalid syntax }"
+	err := e.ExecuteTagNames(
+		context.Background(),
+		AttributeScopeSpan,
+		invalidQuery,
+		func(string, AttributeScope) bool {
+			return false
+		},
+		&MockTagNamesFetcher{},
+	)
+
+	require.NoError(t, err)
+}
+
+type MockTagNamesFetcher struct{}
+
+func (m *MockTagNamesFetcher) Fetch(context.Context, FetchTagsRequest, FetchTagsCallback) error {
+	return nil
 }
 
 func TestExecuteTagValues(t *testing.T) {

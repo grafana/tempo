@@ -1,55 +1,38 @@
 package frontend
 
 import (
-	"io"
 	"net/http"
-	"strings"
 	"time"
-
-	"github.com/grafana/tempo/pkg/tempopb"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
-func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string) *combiner.TraceByIDCombiner, logger log.Logger) http.RoundTripper {
+func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string, combiner.TraceRedactor) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, err := user.ExtractOrgID(req.Context())
-		if err != nil {
-			level.Error(logger).Log("msg", "trace id: failed to extract tenant id", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
+			return errResp, nil
 		}
 
 		// validate traceID
-		_, err = api.ParseTraceID(req)
+		_, err := api.ParseTraceID(req)
 		if err != nil {
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-				Header:     http.Header{},
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 
 		// validate start and end parameter
 		_, _, _, _, _, _, reqErr := api.ValidateAndSanitizeRequest(req)
 		if reqErr != nil {
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Body:       io.NopCloser(strings.NewReader(reqErr.Error())),
-				Header:     http.Header{},
-			}, nil
+			return httpInvalidRequest(reqErr), nil
 		}
 
 		// check marshalling format
@@ -66,7 +49,16 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat)
+		var traceRedactor combiner.TraceRedactor
+		if dataAccessController != nil {
+			traceRedactor, err = dataAccessController.HandleHTTPTraceByIDReq(req)
+			if err != nil {
+				level.Error(logger).Log("msg", "trace id: failed to get trace redactor", "err", err)
+				return httpInvalidRequest(err), nil
+			}
+		}
+
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -93,38 +85,25 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 }
 
 // newTraceIDV2Handler creates a http.handler for trace by id requests
-func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger) http.RoundTripper {
+func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string, combiner.TraceRedactor) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, err := user.ExtractOrgID(req.Context())
-		if err != nil {
-			level.Error(logger).Log("msg", "trace id: failed to extract tenant id", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+		tenant, errResp := extractTenant(req, logger)
+		if errResp != nil {
+			return errResp, nil
 		}
 
 		// validate traceID
-		_, err = api.ParseTraceID(req)
+		_, err := api.ParseTraceID(req)
 		if err != nil {
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-				Header:     http.Header{},
-			}, nil
+			return httpInvalidRequest(err), nil
 		}
 
 		// validate start and end parameter
 		_, _, _, _, _, _, reqErr := api.ValidateAndSanitizeRequest(req)
 		if reqErr != nil {
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Body:       io.NopCloser(strings.NewReader(reqErr.Error())),
-				Header:     http.Header{},
-			}, nil
+			return httpInvalidRequest(reqErr), nil
 		}
 
 		// check marshalling format
@@ -141,7 +120,16 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat)
+		var traceRedactor combiner.TraceRedactor
+		if dataAccessController != nil {
+			traceRedactor, err = dataAccessController.HandleHTTPTraceByIDReq(req)
+			if err != nil {
+				level.Error(logger).Log("msg", "trace id v2: failed to get trace redactor", "err", err)
+				return httpInvalidRequest(err), nil
+			}
+		}
+
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
