@@ -473,6 +473,9 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 		case pq.ByteArray, pq.FixedLenByteArray:
 		default:
 			clone = false
+			if i.interner != nil {
+				i.interner.Close()
+			}
 			i.interner = nil
 		}
 	}
