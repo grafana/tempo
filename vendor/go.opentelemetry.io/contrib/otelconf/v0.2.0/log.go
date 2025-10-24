@@ -120,7 +120,7 @@ func batchLogProcessor(blp *BatchLogRecordProcessor, exp sdklog.Exporter) (*sdkl
 func otlpHTTPLogExporter(ctx context.Context, otlpConfig *OTLP) (sdklog.Exporter, error) {
 	var opts []otlploghttp.Option
 
-	if len(otlpConfig.Endpoint) > 0 {
+	if otlpConfig.Endpoint != "" {
 		u, err := url.ParseRequestURI(otlpConfig.Endpoint)
 		if err != nil {
 			return nil, err
@@ -130,7 +130,7 @@ func otlpHTTPLogExporter(ctx context.Context, otlpConfig *OTLP) (sdklog.Exporter
 		if u.Scheme == "http" {
 			opts = append(opts, otlploghttp.WithInsecure())
 		}
-		if len(u.Path) > 0 {
+		if u.Path != "" {
 			opts = append(opts, otlploghttp.WithURLPath(u.Path))
 		}
 	}
