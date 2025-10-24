@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/dskit/runutil"
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 var (
@@ -654,7 +655,7 @@ func (s *HTTPService) SumMetrics(metricNames []string, opts ...MetricsOption) ([
 		return nil, err
 	}
 
-	var tp expfmt.TextParser
+	tp := expfmt.NewTextParser(model.UTF8Validation)
 	families, err := tp.TextToMetricFamilies(strings.NewReader(metrics))
 	if err != nil {
 		return nil, err
@@ -701,7 +702,7 @@ func (s *HTTPService) WaitRemovedMetric(metricName string, opts ...MetricsOption
 		}
 
 		// Parse metrics.
-		var tp expfmt.TextParser
+		tp := expfmt.NewTextParser(model.UTF8Validation)
 		families, err := tp.TextToMetricFamilies(strings.NewReader(metrics))
 		if err != nil {
 			return err
