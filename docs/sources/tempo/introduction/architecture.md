@@ -93,6 +93,21 @@ The compactor is also responsible for expiring data after the retention period f
 Compactors run on scheduled frequent intervals to deal with data that is not compacted and has been stored by the Ingesters.
 Compaction takes into account the data stored for specific traces to minimize search space on queries.
 
+### Backend scheduler and worker
+
+The Backend Scheduler is a forward-looking re-architecture of the compaction process, with the goal of improving the determinism and removing the duplication present in the current compaction process. The Backend Scheduler is responsible for the scheduling and tracking jobs which are assigned to Backend Workers for processing. The Scheduler component, in combination with the Worker, will eventually replace the current Compactor component.
+
+The Worker connects to the Scheduler via gRPC to receive jobs for processing. Workers are responsible for executing jobs assigned to them by the Scheduler and updating the job status back to the Scheduler. These jobs currently include compaction and retention, but will likely include other kinds of jobs in the future.
+
+The workers currently have the additional responsibility of maintaining the blocklist for all tenants, which was previously handled by the Compactor. The determination of which tenants to poll is coordinated through the ring, just as it is with the Compactor.
+
+When transitioning from the Compactor to the Backend Scheduler and Worker architecture, some considerations need to be kept in mind:
+
+- Only one scheduler should be running at a time.
+- Workers should be scaled up at the same time the Compactor is scaled to 0. This is to avoid conflicts between the two systems attempting to compact the same blocks.
+
+Since the worker is taking the role of the compactor when it comes to polling, some documentation may reference the compactor, and can instead be interpreted as the worker for environments where the worker has replaced the compactor.
+
 ### Object storage
 
 Tempo uses object storage for storing all tracing data. It supports three major object storage APIs:
