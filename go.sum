@@ -903,8 +903,8 @@ github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqri
 github.com/twmb/franz-go v1.7.0/go.mod h1:PMze0jNfNghhih2XHbkmTFykbMF5sJqmNJB31DOOzro=
 github.com/twmb/franz-go v1.20.0 h1:j+FLLIo8wuMtp4IV7ulT5MVsQyAtl/GJqFmncIq6BkU=
 github.com/twmb/franz-go v1.20.0/go.mod h1:YCnepDd4gl6vdzG03I5Wa57RnCTIC6DVEyMpDX/J8UA=
-github.com/twmb/franz-go/pkg/kadm v1.16.0 h1:STMs1t5lYR5mR974PSiwNzE5TvsosByTp+rKXLOhAjE=
-github.com/twmb/franz-go/pkg/kadm v1.16.0/go.mod h1:MUdcUtnf9ph4SFBLLA/XxE29rvLhWYLM9Ygb8dfSCvw=
+github.com/twmb/franz-go/pkg/kadm v1.17.0 h1:u9iZ83OLbFu3xLKDP83NBaGPDeBRT/2OwOH+KJG0OF8=
+github.com/twmb/franz-go/pkg/kadm v1.17.0/go.mod h1:VL9WdrYqaoVST5xRUzoWqSJN4itcTxdMrLE5Fhc2Prk=
 github.com/twmb/franz-go/pkg/kfake v0.0.0-20251020054230-5e6bc01e3872 h1:L6ia80EuVioyCXH2f74etaKwdtaST7PVMdBUiuBQfCU=
 github.com/twmb/franz-go/pkg/kfake v0.0.0-20251020054230-5e6bc01e3872/go.mod h1:UjYXdHmiWPuMHBBTSeT+Eru06ovku38W47M/T6dD6sg=
 github.com/twmb/franz-go/pkg/kmsg v1.2.0/go.mod h1:SxG/xJKhgPu25SamAq0rrucfp7lbzCpEXOC+vH/ELrY=
