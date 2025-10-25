@@ -96,13 +96,14 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 		traceQLQuery = query.Get("query")
 	}
 
-	req.SetWeight(c.weights.TraceQLSearchWeight)
+	weight := c.weights.TraceQLSearchWeight
+	req.SetWeight(weight)
 
 	if traceQLQuery == "" {
 		return
 	}
 
-	_, _, _, _, spanRequest, err := traceql.Compile(traceQLQuery)
+	rootExpr, _, _, _, spanRequest, err := traceql.Compile(traceQLQuery)
 	if err != nil || spanRequest == nil {
 		return
 	}
@@ -120,6 +121,24 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 	}
 	complexQuery := regexConditions >= c.weights.MaxRegexConditions || conditions >= c.weights.MaxTraceQLConditions
 	if complexQuery {
-		req.SetWeight(c.weights.TraceQLSearchWeight + 1)
+		weight++
 	}
+
+	// Queries with OR operations (AllConditions=false) are more expensive
+	// because they can't be optimized in the storage layer
+	if !spanRequest.AllConditions {
+		weight++
+	}
+
+	// Query that requere full trace scanning, e.g. with structural operators
+	if rootExpr != nil && rootExpr.NeedsFullTrace() {
+		weight++
+	}
+
+	// SecondPassSelectAll means selecting all attributes instead of specific ones
+	if spanRequest.SecondPassSelectAll {
+		weight++
+	}
+
+	req.SetWeight(weight)
 }
