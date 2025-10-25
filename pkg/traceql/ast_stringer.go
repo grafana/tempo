@@ -233,6 +233,10 @@ func unaryOp(op Operator, e Element) string {
 		return wrapElement(e) + " != nil"
 	}
 
+	if op == OpNotExists {
+		return wrapElement(e) + " = nil"
+	}
+
 	return op.String() + wrapElement(e)
 }
 
