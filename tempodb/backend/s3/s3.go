@@ -171,6 +171,12 @@ func getObjectOptions(rw *readerWriter) minio.GetObjectOptions {
 	}
 }
 
+func getPutObjectPartOptions(rw *readerWriter) minio.PutObjectPartOptions {
+	return minio.PutObjectPartOptions{
+		SSE: rw.sse,
+	}
+}
+
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ *backend.CacheInfo) error {
 	derivedCtx, span := tracer.Start(ctx, "s3.Write")
@@ -211,7 +217,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objectName := backend.ObjectFileName(keypath, name)
 
-	options := getPutObjectOptions(rw)
+	putObjOptions := getPutObjectOptions(rw)
 	if tracker != nil {
 		a = tracker.(appendTracker)
 	} else {
@@ -219,7 +225,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 			ctx,
 			rw.cfg.Bucket,
 			objectName,
-			options,
+			putObjOptions,
 		)
 		if err != nil {
 			return nil, err
@@ -231,6 +237,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName)
 
 	a.partNum++
+	putObjPartOptions := getPutObjectPartOptions(rw)
 	objPart, err := rw.core.PutObjectPart(
 		ctx,
 		rw.cfg.Bucket,
@@ -239,7 +246,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		a.partNum,
 		bytes.NewReader(buffer),
 		int64(len(buffer)),
-		minio.PutObjectPartOptions{},
+		putObjPartOptions,
 	)
 	if err != nil {
 		return a, fmt.Errorf("error in multipart upload: %w", err)
@@ -270,7 +277,9 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		a.objectName,
 		a.uploadID,
 		completeParts,
-		minio.PutObjectOptions{},
+		minio.PutObjectOptions{
+			ServerSideEncryption: rw.sse,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("error completing multipart upload, object: %s, obj etag: %s: %w", a.objectName, uploadInfo.ETag, err)
@@ -744,6 +753,11 @@ func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
 		}
 	case SSES3:
 		return encrypt.NewSSE(), nil
+	case SSEC:
+		if cfg.SSE.CustomerEncryptionKey == "" {
+			return nil, errors.New("SSE-C EncryptionKey is missing")
+		}
+		return encrypt.NewSSEC([]byte(cfg.SSE.CustomerEncryptionKey))
 	default:
 		return nil, errUnsupportedSSEType
 	}
