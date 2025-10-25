@@ -4,15 +4,15 @@ menuTitle: Sampling
 description: Learn how to streamline tracing data by using sampling to determine which data to keep and which to drop.
 aliases:
   - ../../../configuration/grafana-alloy/tail-sampling/ # /docs/tempo/next/configuration/grafana-alloy/tail-sampling/
+  - ../set-up-collector/tail-sampling/ # /docs/tempo/latest/set-up-for-tracing/instrument-send/tail-sampling/
 ---
 
 # Sampling
 
-Grafana Tempo is a cost-effective solution that ingests and stores traces that provide maximum observability across your application estate.
-However, sometimes constraints mean that storing all of your traces is not desirable, for example runtime or egress traffic related costs.
-There are a number of ways to lower trace volume, including varying sampling strategies.
+Sometimes constraints mean that storing all of your traces isn't desirable, for example, runtime or egress traffic related costs.
+There are a number of ways to lower trace volume, including sampling strategies.
 
-Sampling is the process of determining which traces to store (in Tempo or Grafana Cloud Traces) and which to discard. Sampling comes in two different strategy types: head and tail sampling.
+Sampling is the process of determining which traces to store and which to discard. Sampling comes in two different strategy types: head and tail sampling.
 
 Sampling functionality exists in both [Grafana Alloy](https://grafana.com/docs/alloy/) and the OpenTelemetry Collector. Alloy can collect, process, and export telemetry signals, with configuration files written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/get-started/configuration-syntax/).
 
@@ -34,8 +34,8 @@ You can use sampling with Tempo using Grafana or Grafana Cloud.
 
 - [OpenTelemetry Sampling documentation](https://opentelemetry.io/docs/concepts/sampling/)
 - Sampling in Grafana Cloud Traces with a collector: [Head sampling](https://grafana.com/docs/opentelemetry/collector/sampling/head/) and [Tail sampling](https://grafana.com/docs/opentelemetry/collector/sampling/tail/)
-- [Enable tail sampling in Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/)
-- [Sampling policies and strategies](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/policies-strategies/)
+- [Enable tail sampling in Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/tail-sampling/)
+- [Sampling policies and strategies](https://grafana.com/docs/tempo/<TEMPO_VERSION/set-up-for-tracing/instrument-send/tail-sampling/policies-strategies/)
 
 ## Sampling and telemetry correlation
 
