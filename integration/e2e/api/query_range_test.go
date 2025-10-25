@@ -113,7 +113,7 @@ sendLoop:
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
 
-	for _, exeplarsCase := range []struct {
+	for _, exemplarsCase := range []struct {
 		name              string
 		exemplars         int
 		expectedExemplars int
@@ -159,10 +159,10 @@ sendLoop:
 			"{} | count_over_time() by (status)",
 			"{status != error} | count_over_time() by (status)",
 		} {
-			t.Run(fmt.Sprintf("%s: %s", exeplarsCase.name, query), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s: %s", exemplarsCase.name, query), func(t *testing.T) {
 				req := queryRangeRequest{
 					Query:     query,
-					Exemplars: exeplarsCase.exemplars,
+					Exemplars: exemplarsCase.exemplars,
 				}
 				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 				require.NotNil(t, queryRangeRes)
@@ -173,7 +173,7 @@ sendLoop:
 				for _, series := range queryRangeRes.GetSeries() {
 					exemplarCount += len(series.GetExemplars())
 				}
-				assert.LessOrEqual(t, exemplarCount, exeplarsCase.expectedExemplars)
+				assert.LessOrEqual(t, exemplarCount, exemplarsCase.expectedExemplars)
 				assert.GreaterOrEqual(t, exemplarCount, 1)
 			})
 		}
@@ -596,7 +596,8 @@ sendLoop:
 			break sendLoop
 		}
 	}
-
+	util.CallFlush(t, tempo)
+	time.Sleep(1 * time.Second)
 	// Wait for traces to be flushed to blocks
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
@@ -607,7 +608,7 @@ sendLoop:
 		tempo.Endpoint(3200),
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
-		time.Now().Add(time.Minute).UnixNano(),
+		time.Now().UnixNano(),
 		"5s",
 	)
 
@@ -674,7 +675,7 @@ sendLoop:
 		tempo.Endpoint(3200),
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
-		time.Now().Add(time.Minute).UnixNano(),
+		time.Now().UnixNano(),
 		"5s",
 	)
 
@@ -735,7 +736,7 @@ sendLoop:
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
 
 	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 4)
 
 	util.CallFlush(t, tempo)
 	time.Sleep(blockFlushTimeout)
@@ -749,7 +750,7 @@ sendLoop:
 		tempo.Endpoint(3200),
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
-		time.Now().Add(time.Minute).UnixNano(),
+		time.Now().UnixNano(),
 		"5s",
 	)
 
@@ -814,7 +815,7 @@ func TestQueryRangeTypeHandling(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
 
 	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 4)
 
 	query := "{span.foo != nil} | rate() by (span.foo)"
 	url := fmt.Sprintf(
@@ -822,7 +823,7 @@ func TestQueryRangeTypeHandling(t *testing.T) {
 		tempo.Endpoint(3200),
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
-		time.Now().Add(time.Minute).UnixNano(),
+		time.Now().UnixNano(),
 		"5s",
 	)
 

@@ -3,6 +3,11 @@ target: all
 server:
   http_listen_port: 3200
 
+query_frontend:
+  query_end_cutoff: 0 # Include all recent data
+  search:
+    query_ingesters_until: 30m
+
 distributor:
   receivers:
     jaeger:
@@ -16,7 +21,7 @@ distributor:
 
 compactor:
   compaction:
-    block_retention: 1h            
+    block_retention: 1h
 
 overrides:
   defaults:

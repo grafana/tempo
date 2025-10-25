@@ -81,6 +81,7 @@ func TestHTTPS(t *testing.T) {
 	grpcClient, err := util.NewSearchGRPCClientWithCredentials(context.Background(), tempo.Endpoint(tempoPort), creds)
 	require.NoError(t, err)
 
+	time.Sleep(1 * time.Second)
 	now := time.Now()
-	util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-time.Hour).Unix(), now.Add(time.Hour).Unix())
+	util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-time.Hour).Unix(), now.Unix())
 }
