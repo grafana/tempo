@@ -37,6 +37,7 @@ There are three sampling methods available:
 - Adaptive sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
 - Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
 - Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
+- Fixed probabilistic sampling using `with(sample=0.xx)`.
 
 ### How adaptive sampling works
 
