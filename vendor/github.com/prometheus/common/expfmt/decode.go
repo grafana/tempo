@@ -135,7 +135,7 @@ type errDecoder struct {
 	err error
 }
 
-func (d *errDecoder) Decode(v *dto.MetricFamily) error {
+func (d *errDecoder) Decode(*dto.MetricFamily) error {
 	return d.err
 }
 
