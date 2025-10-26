@@ -1071,6 +1071,7 @@ overrides:
             rate_limit_bytes: 15000000
             burst_size_bytes: 20000000
             max_traces_per_user: 10000
+            retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
         metrics_generator:

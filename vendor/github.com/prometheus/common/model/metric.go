@@ -14,6 +14,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -77,10 +78,13 @@ const (
 	UTF8Validation
 )
 
-var (
-	_ yaml.Marshaler = UnsetValidation
-	_ fmt.Stringer   = UnsetValidation
-)
+var _ interface {
+	yaml.Marshaler
+	yaml.Unmarshaler
+	json.Marshaler
+	json.Unmarshaler
+	fmt.Stringer
+} = new(ValidationScheme)
 
 // String returns the string representation of s.
 func (s ValidationScheme) String() string {
@@ -114,17 +118,95 @@ func (s *ValidationScheme) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := unmarshal(&scheme); err != nil {
 		return err
 	}
-	switch scheme {
+	return s.Set(scheme)
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (s ValidationScheme) MarshalJSON() ([]byte, error) {
+	switch s {
+	case UnsetValidation:
+		return json.Marshal("")
+	case UTF8Validation, LegacyValidation:
+		return json.Marshal(s.String())
+	default:
+		return nil, fmt.Errorf("unhandled ValidationScheme: %d", s)
+	}
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+func (s *ValidationScheme) UnmarshalJSON(bytes []byte) error {
+	var repr string
+	if err := json.Unmarshal(bytes, &repr); err != nil {
+		return err
+	}
+	return s.Set(repr)
+}
+
+// Set implements the pflag.Value interface.
+func (s *ValidationScheme) Set(text string) error {
+	switch text {
 	case "":
 		// Don't change the value.
-	case "legacy":
+	case LegacyValidation.String():
 		*s = LegacyValidation
-	case "utf8":
+	case UTF8Validation.String():
 		*s = UTF8Validation
 	default:
-		return fmt.Errorf("unrecognized ValidationScheme: %q", scheme)
+		return fmt.Errorf("unrecognized ValidationScheme: %q", text)
 	}
 	return nil
+}
+
+// IsValidMetricName returns whether metricName is valid according to s.
+func (s ValidationScheme) IsValidMetricName(metricName string) bool {
+	switch s {
+	case LegacyValidation:
+		if len(metricName) == 0 {
+			return false
+		}
+		for i, b := range metricName {
+			if !isValidLegacyRune(b, i) {
+				return false
+			}
+		}
+		return true
+	case UTF8Validation:
+		if len(metricName) == 0 {
+			return false
+		}
+		return utf8.ValidString(metricName)
+	default:
+		panic(fmt.Sprintf("Invalid name validation scheme requested: %s", s.String()))
+	}
+}
+
+// IsValidLabelName returns whether labelName is valid according to s.
+func (s ValidationScheme) IsValidLabelName(labelName string) bool {
+	switch s {
+	case LegacyValidation:
+		if len(labelName) == 0 {
+			return false
+		}
+		for i, b := range labelName {
+			// TODO: Apply De Morgan's law. Make sure there are tests for this.
+			if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) { //nolint:staticcheck
+				return false
+			}
+		}
+		return true
+	case UTF8Validation:
+		if len(labelName) == 0 {
+			return false
+		}
+		return utf8.ValidString(labelName)
+	default:
+		panic(fmt.Sprintf("Invalid name validation scheme requested: %s", s))
+	}
+}
+
+// Type implements the pflag.Value interface.
+func (s ValidationScheme) Type() string {
+	return "validationScheme"
 }
 
 type EscapingScheme int
@@ -230,34 +312,22 @@ func (m Metric) FastFingerprint() Fingerprint {
 // IsValidMetricName returns true iff name matches the pattern of MetricNameRE
 // for legacy names, and iff it's valid UTF-8 if the UTF8Validation scheme is
 // selected.
+//
+// Deprecated: This function should not be used and might be removed in the future.
+// Use [ValidationScheme.IsValidMetricName] instead.
 func IsValidMetricName(n LabelValue) bool {
-	switch NameValidationScheme {
-	case LegacyValidation:
-		return IsValidLegacyMetricName(string(n))
-	case UTF8Validation:
-		if len(n) == 0 {
-			return false
-		}
-		return utf8.ValidString(string(n))
-	default:
-		panic(fmt.Sprintf("Invalid name validation scheme requested: %s", NameValidationScheme.String()))
-	}
+	return NameValidationScheme.IsValidMetricName(string(n))
 }
 
 // IsValidLegacyMetricName is similar to IsValidMetricName but always uses the
 // legacy validation scheme regardless of the value of NameValidationScheme.
 // This function, however, does not use MetricNameRE for the check but a much
 // faster hardcoded implementation.
+//
+// Deprecated: This function should not be used and might be removed in the future.
+// Use [LegacyValidation.IsValidMetricName] instead.
 func IsValidLegacyMetricName(n string) bool {
-	if len(n) == 0 {
-		return false
-	}
-	for i, b := range n {
-		if !isValidLegacyRune(b, i) {
-			return false
-		}
-	}
-	return true
+	return LegacyValidation.IsValidMetricName(n)
 }
 
 // EscapeMetricFamily escapes the given metric names and labels with the given

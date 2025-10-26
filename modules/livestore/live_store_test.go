@@ -419,7 +419,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	// Create metrics
 	reg := prometheus.NewRegistry()
 
-	logger := &testLogger{t}
+	logger := test.NewTestingLogger(t)
 
 	// Create LiveStore but DO NOT start it
 	liveStore, err := New(cfg, limits, logger, reg, true)

@@ -396,9 +396,10 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 	}
 
 	id := (uuid.UUID)(i.headBlock.BlockMeta().BlockID)
+	blockSize := i.headBlock.DataLength()
 	i.walBlocks[id] = i.headBlock
 
-	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String())
+	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String(), "size", blockSize)
 
 	err = i.resetHeadBlock()
 	if err != nil {

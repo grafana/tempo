@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,7 +93,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 }
 
 func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, commitInterval time.Duration, consume consumeFn) *PartitionReader {
-	l := &testLogger{t}
+	l := test.NewTestingLogger(t)
 
 	cfg := ingest.KafkaConfig{}
 	flagext.DefaultValues(&cfg)

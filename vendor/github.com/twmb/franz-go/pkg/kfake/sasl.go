@@ -11,8 +11,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/twmb/franz-go/pkg/kmsg"
 	"golang.org/x/crypto/pbkdf2"
+
+	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
 // TODO server-error-value in serverFinal
