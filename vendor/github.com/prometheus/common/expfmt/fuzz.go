@@ -32,7 +32,6 @@ import (
 func Fuzz(in []byte) int {
 	parser := NewTextParser(model.UTF8Validation)
 	_, err := parser.TextToMetricFamilies(bytes.NewReader(in))
-
 	if err != nil {
 		return 0
 	}
