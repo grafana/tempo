@@ -1043,6 +1043,7 @@ storage:
                 type: ""
                 kms_key_id: ""
                 kms_encryption_context: ""
+                encryption_key: ""
         azure:
             storage_account_name: ""
             storage_account_key: ""
@@ -1135,6 +1136,7 @@ overrides:
                     type: ""
                     kms_key_id: ""
                     kms_encryption_context: ""
+                    encryption_key: ""
             azure:
                 storage_account_name: ""
                 storage_account_key: ""
