@@ -120,7 +120,7 @@ func (b3 propagator) Inject(ctx context.Context, carrier propagation.TextMapCarr
 }
 
 // Extract extracts a context from the carrier if it contains B3 headers.
-func (b3 propagator) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
+func (propagator) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
 	var (
 		sc  trace.SpanContext
 		err error

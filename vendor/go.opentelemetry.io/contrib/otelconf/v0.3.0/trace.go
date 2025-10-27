@@ -10,8 +10,6 @@ import (
 	"net/url"
 	"time"
 
-	"google.golang.org/grpc/credentials"
-
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -19,6 +17,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
+	"google.golang.org/grpc/credentials"
 )
 
 var errInvalidSamplerConfiguration = errors.New("invalid sampler configuration")
@@ -27,9 +26,8 @@ func tracerProvider(cfg configOptions, res *resource.Resource) (trace.TracerProv
 	if cfg.opentelemetryConfig.TracerProvider == nil {
 		return noop.NewTracerProvider(), noopShutdown, nil
 	}
-	opts := []sdktrace.TracerProviderOption{
-		sdktrace.WithResource(res),
-	}
+	opts := append(cfg.tracerProviderOptions, sdktrace.WithResource(res))
+
 	var errs []error
 	for _, processor := range cfg.opentelemetryConfig.TracerProvider.Processors {
 		sp, err := spanProcessor(cfg.ctx, processor)
@@ -239,7 +237,7 @@ func otlpHTTPSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanE
 		if u.Scheme == "http" {
 			opts = append(opts, otlptracehttp.WithInsecure())
 		}
-		if len(u.Path) > 0 {
+		if u.Path != "" {
 			opts = append(opts, otlptracehttp.WithURLPath(u.Path))
 		}
 	}
