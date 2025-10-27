@@ -5,7 +5,7 @@ server:
   log_level: info
 
 query_frontend:
-  query_end_cutoff: 0 # Include all recent data
+  query_end_cutoff: -5m # Include all recent data
 
 distributor:
   receivers:
