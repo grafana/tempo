@@ -49,7 +49,7 @@ jobs:
           persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@13fb504e3bfe323c1188bf244970d94b2d336e86 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@bca48b60029f80d2ea7c1a6bd1a49ffa7915a9e3 # dockerhub-login-v1.0.1
 
       - name: docker-build-and-push
         run: |
@@ -72,7 +72,7 @@ jobs:
           persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@13fb504e3bfe323c1188bf244970d94b2d336e86 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@bca48b60029f80d2ea7c1a6bd1a49ffa7915a9e3 # dockerhub-login-v1.0.1
 
       - name: docker-manifest-create-and-push
         run: |

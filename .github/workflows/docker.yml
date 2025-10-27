@@ -62,7 +62,7 @@ jobs:
           docker build -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@13fb504e3bfe323c1188bf244970d94b2d336e86 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@bca48b60029f80d2ea7c1a6bd1a49ffa7915a9e3 # dockerhub-login-v1.0.1
 
       - name: docker-push
         run: |
@@ -88,7 +88,7 @@ jobs:
           persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@13fb504e3bfe323c1188bf244970d94b2d336e86 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@bca48b60029f80d2ea7c1a6bd1a49ffa7915a9e3 # dockerhub-login-v1.0.1
 
       - name: docker-manifest-create-and-push
         run: |
@@ -127,7 +127,7 @@ jobs:
           echo "grafana/tempo-vulture:$(./tools/image-tag)" > tags_for_cd_tempo_vulture
 
       - name: Authenticate to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@b7d33d6a98dc9cf332674c6cdebe92b8bcb05670 # login-to-gar-v0.3.0
+        uses: grafana/shared-workflows/actions/login-to-gar@bca48b60029f80d2ea7c1a6bd1a49ffa7915a9e3 # login-to-gar-v0.3.0
         id: login-to-gar
         with:
           registry: us-docker.pkg.dev
@@ -135,7 +135,7 @@ jobs:
 
       - name: Get Vault secrets
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@5d7e361bc7e0a183cde8afe9899fb7b596d2659b # get-vault-secrets-v1.2.0
+        uses: grafana/shared-workflows/actions/get-vault-secrets@bca48b60029f80d2ea7c1a6bd1a49ffa7915a9e3 # get-vault-secrets-v1.2.0
         with:
           export_env: false
           common_secrets: |
