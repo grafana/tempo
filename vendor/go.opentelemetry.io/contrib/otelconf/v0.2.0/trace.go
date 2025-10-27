@@ -89,7 +89,7 @@ func spanProcessor(ctx context.Context, processor SpanProcessor) (sdktrace.SpanP
 func otlpGRPCSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanExporter, error) {
 	var opts []otlptracegrpc.Option
 
-	if len(otlpConfig.Endpoint) > 0 {
+	if otlpConfig.Endpoint != "" {
 		u, err := url.ParseRequestURI(otlpConfig.Endpoint)
 		if err != nil {
 			return nil, err
@@ -133,7 +133,7 @@ func otlpGRPCSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanE
 func otlpHTTPSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanExporter, error) {
 	var opts []otlptracehttp.Option
 
-	if len(otlpConfig.Endpoint) > 0 {
+	if otlpConfig.Endpoint != "" {
 		u, err := url.ParseRequestURI(otlpConfig.Endpoint)
 		if err != nil {
 			return nil, err
@@ -143,7 +143,7 @@ func otlpHTTPSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanE
 		if u.Scheme == "http" {
 			opts = append(opts, otlptracehttp.WithInsecure())
 		}
-		if len(u.Path) > 0 {
+		if u.Path != "" {
 			opts = append(opts, otlptracehttp.WithURLPath(u.Path))
 		}
 	}
