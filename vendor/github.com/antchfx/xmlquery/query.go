@@ -165,6 +165,8 @@ func (x *NodeNavigator) NodeType() xpath.NodeType {
 			return xpath.AttributeNode
 		}
 		return xpath.ElementNode
+	case ProcessingInstruction: // Keep backward compatibility
+		return xpath.ElementNode
 	}
 	panic(fmt.Sprintf("unknown XML node type: %v", x.curr.Type))
 }

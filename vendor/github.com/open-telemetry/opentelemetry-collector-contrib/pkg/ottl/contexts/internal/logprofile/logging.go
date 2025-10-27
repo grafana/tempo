@@ -21,21 +21,15 @@ func getMapping(dict pprofile.ProfilesDictionary, idx int32) (mapping, error) {
 	return newMapping(dict, mTable.At(int(idx)))
 }
 
-func getLocations(dict pprofile.ProfilesDictionary, locIdxs []int32,
-	start, length int32,
-) (locations, error) {
-	if start >= int32(len(locIdxs)) {
-		return locations{}, fmt.Errorf("location start index out of bounds: %d", start)
-	}
-	if start+length > int32(len(locIdxs)) {
-		return locations{}, fmt.Errorf("location end index out of bounds: %d", start+length)
-	}
-
+func getLocations(dict pprofile.ProfilesDictionary, stackIDx int32) (locations, error) {
 	locTable := dict.LocationTable()
+	stackTable := dict.StackTable()
+
 	var joinedErr error
-	ls := make(locations, 0, length)
-	for i := range length {
-		locIdx := locIdxs[start+i]
+	locIdxs := stackTable.At(int(stackIDx)).LocationIndices()
+	ls := make(locations, 0, locIdxs.Len())
+	for i := range locIdxs.Len() {
+		locIdx := locIdxs.At(i)
 		l, err := newLocation(dict, locTable.At(int(locIdx)))
 		joinedErr = errors.Join(joinedErr, err)
 		ls = append(ls, l)
@@ -70,12 +64,13 @@ func getString(dict pprofile.ProfilesDictionary, idx int32) (string, error) {
 
 func getAttribute(dict pprofile.ProfilesDictionary, idx int32) (attribute, error) {
 	attrTable := dict.AttributeTable()
+	strTable := dict.StringTable()
 	if idx >= int32(attrTable.Len()) {
 		return attribute{}, fmt.Errorf("attribute index out of bounds: %d", idx)
 	}
 	attr := attrTable.At(int(idx))
 	// Is there a better way to marshal the value?
-	return attribute{attr.Key(), attr.Value().AsString()}, nil
+	return attribute{strTable.At(int(attr.KeyStrindex())), attr.Value().AsString()}, nil
 }
 
 type Profile struct {
@@ -86,9 +81,9 @@ type Profile struct {
 func (p Profile) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	var joinedErr error
 
-	vts, err := newValueTypes(p, p.SampleType())
+	vts, err := newValueType(p, p.SampleType())
 	joinedErr = errors.Join(joinedErr, err)
-	joinedErr = errors.Join(joinedErr, encoder.AddArray("sample_type", vts))
+	joinedErr = errors.Join(joinedErr, encoder.AddObject("sample_type", vts))
 
 	samples := p.Sample()
 	for _, s := range samples.All() {
@@ -112,10 +107,6 @@ func (p Profile) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("comments", cs))
 
-	dst, err := getString(p.Dictionary, p.DefaultSampleTypeIndex())
-	joinedErr = errors.Join(joinedErr, err)
-	encoder.AddString("default_sample_type", dst)
-
 	pid := p.ProfileID()
 	encoder.AddString("profile_id", hex.EncodeToString(pid[:]))
 	encoder.AddUint32("dropped_attributes_count", p.DroppedAttributesCount())
@@ -138,18 +129,18 @@ type ProfileSample struct {
 func (s ProfileSample) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	var joinedErr error
 
-	locs, err := getLocations(s.Dictionary, s.Profile.LocationIndices().AsRaw(), s.LocationsStartIndex(), s.LocationsLength())
+	locs, err := getLocations(s.Dictionary, s.StackIndex())
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("locations", locs))
 
-	values := newValues(s.Value())
+	values := newValues(s.Values())
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("values", values))
 
 	ats, err := newAttributes(s.Dictionary, s.AttributeIndices())
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("attributes", ats))
 
-	if s.HasLinkIndex() {
+	if s.LinkIndex() > 0 {
 		l, err := getLink(s.Dictionary, s.LinkIndex())
 		joinedErr = errors.Join(joinedErr, err)
 		joinedErr = errors.Join(joinedErr, encoder.AddObject("link", l))
@@ -159,29 +150,6 @@ func (s ProfileSample) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	joinedErr = errors.Join(joinedErr, encoder.AddArray("timestamps_unix_nano", ts))
 
 	return joinedErr
-}
-
-type valueTypes []valueType
-
-func (s valueTypes) MarshalLogArray(encoder zapcore.ArrayEncoder) error {
-	var err error
-	for _, vt := range s {
-		err = errors.Join(err, encoder.AppendObject(vt))
-	}
-	return err
-}
-
-func newValueTypes(p Profile, sampleTypes pprofile.ValueTypeSlice) (valueTypes, error) {
-	var joinedErr error
-
-	vts := make(valueTypes, 0, sampleTypes.Len())
-	for i := range sampleTypes.Len() {
-		vt, err := newValueType(p, sampleTypes.At(i))
-		joinedErr = errors.Join(joinedErr, err)
-		vts = append(vts, vt)
-	}
-
-	return vts, joinedErr
 }
 
 type valueType struct {
@@ -224,7 +192,6 @@ type location struct {
 	mapping    mapping
 	address    uint64
 	lines      lines
-	isFolded   bool
 	attributes attributes
 }
 
@@ -244,28 +211,22 @@ func newLocation(dict pprofile.ProfilesDictionary, pl pprofile.Location) (locati
 		joinedErr = errors.Join(joinedErr, err)
 	}
 	l.address = pl.Address()
-	l.isFolded = pl.IsFolded()
 
 	return l, joinedErr
 }
 
 func (l location) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddUint64("address", l.address)
-	encoder.AddBool("is_folded", l.isFolded)
 	err := encoder.AddObject("mapping", l.mapping)
 	err = errors.Join(err, encoder.AddArray("lines", l.lines))
 	return errors.Join(err, encoder.AddArray("attributes", l.attributes))
 }
 
 type mapping struct {
-	filename        string
-	memoryStart     uint64
-	memoryLimit     uint64
-	fileOffset      uint64
-	hasFunctions    bool
-	hasFilenames    bool
-	hasLineNumbers  bool
-	hasInlineFrames bool
+	filename    string
+	memoryStart uint64
+	memoryLimit uint64
+	fileOffset  uint64
 }
 
 func newMapping(dict pprofile.ProfilesDictionary, pm pprofile.Mapping) (mapping, error) {
@@ -276,10 +237,6 @@ func newMapping(dict pprofile.ProfilesDictionary, pm pprofile.Mapping) (mapping,
 	m.memoryStart = pm.MemoryStart()
 	m.memoryLimit = pm.MemoryLimit()
 	m.fileOffset = pm.FileOffset()
-	m.hasFunctions = pm.HasFunctions()
-	m.hasFilenames = pm.HasFilenames()
-	m.hasLineNumbers = pm.HasLineNumbers()
-	m.hasInlineFrames = pm.HasInlineFrames()
 
 	return m, err
 }
@@ -289,10 +246,6 @@ func (m mapping) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddUint64("memory_start", m.memoryStart)
 	encoder.AddUint64("memory_limit", m.memoryLimit)
 	encoder.AddUint64("file_offset", m.fileOffset)
-	encoder.AddBool("has_functions", m.hasFunctions)
-	encoder.AddBool("has_filenames", m.hasFilenames)
-	encoder.AddBool("has_line_numbers", m.hasLineNumbers)
-	encoder.AddBool("has_inline_frames", m.hasInlineFrames)
 	return nil
 }
 
