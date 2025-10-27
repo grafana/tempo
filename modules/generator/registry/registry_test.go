@@ -203,6 +203,39 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
+func TestManagedRegistry_maxEntities(t *testing.T) {
+	appender := &capturingAppender{}
+
+	overrides := &mockOverrides{
+		maxActiveEntities: 1,
+	}
+	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	counter1 := registry.NewCounter("metric_1")
+	counter2 := registry.NewCounter("metric_2")
+
+	entity1 := newLabelValueCombo([]string{"label"}, []string{"value-1"})
+	entity2 := newLabelValueCombo([]string{"label"}, []string{"value-2"})
+	counter1.Inc(entity1, 1.0)
+	counter2.Inc(entity1, 1.0)
+	// these series should be discarded during collection
+	counter1.Inc(entity2, 1.0)
+	counter2.Inc(entity2, 1.0)
+
+	// At this point, we will have allowed the series to be added, but they will be discarded during collection
+	assert.Equal(t, uint32(4), registry.activeSeries.Load())
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "metric_2", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "metric_2", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+	// After collection, the series should be removed
+	assert.Equal(t, uint32(2), registry.activeSeries.Load())
+}
+
 func TestManagedRegistry_disableCollection(t *testing.T) {
 	appender := &capturingAppender{}
 
@@ -352,6 +385,7 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 
 type mockOverrides struct {
 	maxActiveSeries                 uint32
+	maxActiveEntities               uint32
 	disableCollection               bool
 	generateNativeHistograms        histograms.HistogramMethod
 	nativeHistogramMaxBucketNumber  uint32
@@ -363,6 +397,10 @@ var _ Overrides = (*mockOverrides)(nil)
 
 func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(string) uint32 {
 	return m.maxActiveSeries
+}
+
+func (m *mockOverrides) MetricsGeneratorMaxActiveEntities(string) uint32 {
+	return m.maxActiveEntities
 }
 
 func (m *mockOverrides) MetricsGeneratorCollectionInterval(string) time.Duration {
@@ -516,7 +554,7 @@ func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
 	for _, m := range registry.metrics {
 		// Advance enough times to clear the sliding window
 		for i := 0; i < 5; i++ {
-			m.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
+			removeStaleSeries(m, time.Now().Add(time.Hour).UnixMilli())
 		}
 	}
 	registry.metricsMtx.RUnlock()

@@ -15,12 +15,14 @@ import (
 
 func Test_histogram(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(_ uint32) bool {
-		seriesAdded++
-		return true
+	lifecycler := &testEntityLifecycler{
+		onAddEntityFunc: func(entityHash uint64, count uint32) bool {
+			seriesAdded++
+			return true
+		},
 	}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "trace_id", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "trace_id", nil, 15*time.Minute)
 
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "trace-1", 1.0)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "trace-2", 1.0)
@@ -152,12 +154,14 @@ func Test_histogram(t *testing.T) {
 
 func Test_histogram_cantAdd(t *testing.T) {
 	canAdd := false
-	onAdd := func(count uint32) bool {
-		assert.Equal(t, uint32(5), count)
-		return canAdd
+	lifecycler := &testEntityLifecycler{
+		onAddEntityFunc: func(entityHash uint64, count uint32) bool {
+			assert.Equal(t, uint32(5), count)
+			return canAdd
+		},
 	}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", nil, 15*time.Minute)
 
 	// allow adding new series
 	canAdd = true
@@ -213,18 +217,20 @@ func Test_histogram_cantAdd(t *testing.T) {
 
 func Test_histogram_removeStaleSeries(t *testing.T) {
 	var removedSeries int
-	onRemove := func(count uint32) {
-		assert.Equal(t, uint32(5), count)
-		removedSeries++
+	lifecycler := &testEntityLifecycler{
+		onRemoveEntityFunc: func(count uint32) {
+			assert.Equal(t, uint32(5), count)
+			removedSeries++
+		},
 	}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, onRemove, "", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", nil, 15*time.Minute)
 
 	timeMs := time.Now().UnixMilli()
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
-	h.removeStaleSeries(timeMs)
+	removeStaleSeries(h, timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -258,7 +264,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
 
-	h.removeStaleSeries(timeMs)
+	removeStaleSeries(h, timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
@@ -276,7 +282,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 func Test_histogram_externalLabels(t *testing.T) {
 	extLabels := map[string]string{"external_label": "external_value"}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", extLabels, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, noopLifecycler, "", extLabels, 15*time.Minute)
 
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
@@ -307,7 +313,7 @@ func Test_histogram_externalLabels(t *testing.T) {
 }
 
 func Test_histogram_concurrencyDataRace(t *testing.T) {
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, noopLifecycler, "", nil, 15*time.Minute)
 
 	end := make(chan struct{})
 
@@ -345,7 +351,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		h.removeStaleSeries(time.Now().UnixMilli())
+		removeStaleSeries(h, time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)
@@ -353,7 +359,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_histogram_concurrencyCorrectness(t *testing.T) {
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, noopLifecycler, "", nil, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -398,7 +404,7 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 }
 
 func Test_histogram_span_multiplier(t *testing.T) {
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, noopLifecycler, "", nil, 15*time.Minute)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.5)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 5)
 
@@ -419,7 +425,7 @@ func Test_histogram_span_multiplier(t *testing.T) {
 }
 
 func Test_histogram_demandTracking(t *testing.T) {
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, noopLifecycler, "", nil, 15*time.Minute)
 
 	// Initially, demand should be 0
 	assert.Equal(t, 0, h.countSeriesDemand())
@@ -443,25 +449,27 @@ func Test_histogram_demandTracking(t *testing.T) {
 
 func Test_histogram_activeSeriesPerHistogramSerie(t *testing.T) {
 	// Test with 2 buckets (creates: sum, count, bucket1, bucket2, +Inf)
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, noopLifecycler, "", nil, 15*time.Minute)
 	assert.Equal(t, uint32(5), h.activeSeriesPerHistogramSerie(), "should be sum + count + 3 buckets")
 
 	// Test with 3 buckets
-	h2 := newHistogram("my_histogram", []float64{1.0, 2.0, 3.0}, nil, nil, "", nil, 15*time.Minute)
+	h2 := newHistogram("my_histogram", []float64{1.0, 2.0, 3.0}, noopLifecycler, "", nil, 15*time.Minute)
 	assert.Equal(t, uint32(6), h2.activeSeriesPerHistogramSerie(), "should be sum + count + 4 buckets")
 
 	// Test with no buckets (still has +Inf)
-	h3 := newHistogram("my_histogram", []float64{}, nil, nil, "", nil, 15*time.Minute)
+	h3 := newHistogram("my_histogram", []float64{}, noopLifecycler, "", nil, 15*time.Minute)
 	assert.Equal(t, uint32(3), h3.activeSeriesPerHistogramSerie(), "should be sum + count + +Inf bucket")
 }
 
 func Test_histogram_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	onAdd := func(_ uint32) bool {
-		return !limitReached
+	lifecycler := &testEntityLifecycler{
+		onAddEntityFunc: func(entityHash uint64, count uint32) bool {
+			return !limitReached
+		},
 	}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "", nil, 15*time.Minute)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", nil, 15*time.Minute)
 
 	// Add some histogram series
 	for i := 0; i < 10; i++ {

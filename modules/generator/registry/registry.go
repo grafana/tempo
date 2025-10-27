@@ -3,7 +3,9 @@ package registry
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 
+	localentitylimiter "github.com/grafana/tempo/modules/generator/localentitylimiter"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -68,9 +71,13 @@ type ManagedRegistry struct {
 	tenant         string
 	externalLabels map[string]string
 
-	metricsMtx   sync.RWMutex
-	metrics      map[string]metric
-	activeSeries atomic.Uint32
+	metricsMtx    sync.RWMutex
+	metrics       map[string]metric
+	activeSeries  atomic.Uint32
+	entityLimiter EntityLimiter
+
+	updatedSinceLastCollectionMtx sync.RWMutex
+	updatedSinceLastCollection    map[uint64]struct{}
 
 	appendable storage.Appendable
 
@@ -94,7 +101,13 @@ type metric interface {
 	countActiveSeries() int
 	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
 	countSeriesDemand() int
-	removeStaleSeries(staleTimeMs int64)
+	deleteFunc(func(entityHash uint64, lastUpdateMilli int64) bool)
+}
+
+type entityLifecycler interface {
+	onAddEntity(entityHash uint64, count uint32) bool
+	onUpdateEntity(entityHash uint64)
+	onRemoveEntity(count uint32)
 }
 
 const highestAggregationInterval = 1 * time.Minute
@@ -102,6 +115,20 @@ const highestAggregationInterval = 1 * time.Minute
 const removeStaleSeriesInterval = 5 * time.Minute
 
 var _ Registry = (*ManagedRegistry)(nil)
+
+// EntityLimiter is used to limit the number of entities that can be tracked by the registry.
+type EntityLimiter interface {
+	// TrackEntities tracks the given entities by their hash. If any entities
+	// cannot be tracked, their hashes are returned. The happy case of no
+	// limiting results in an empty response and nil error.
+	TrackEntities(ctx context.Context, tenant string, hashes []uint64) (rejected []uint64, err error)
+
+	// Prune gives the limiter a chance to perform any periodic cleanup
+	// necessary, such as removing expired entities. This method is called
+	// periodically by the registry. Note this method is optional and may be a
+	// no-op.
+	Prune(ctx context.Context)
+}
 
 // New creates a ManagedRegistry. This Registry will scrape itself, write samples into an appender
 // and remove stale series.
@@ -129,18 +156,20 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 		metrics: map[string]metric{},
 
-		appendable: appendable,
+		appendable:    appendable,
+		entityLimiter: localentitylimiter.NewLocalEntityLimiter(overrides.MetricsGeneratorMaxActiveEntities, cfg.StaleDuration),
 
-		logger:                   logger,
-		limitLogger:              tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
-		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
-		metricSeriesDemand:       metricSeriesDemand.WithLabelValues(tenant),
-		metricMaxActiveSeries:    metricMaxActiveSeries.WithLabelValues(tenant),
-		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
-		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
-		metricTotalSeriesLimited: metricTotalSeriesLimited.WithLabelValues(tenant),
-		metricTotalCollections:   metricTotalCollections.WithLabelValues(tenant),
-		metricFailedCollections:  metricFailedCollections.WithLabelValues(tenant),
+		logger:                     logger,
+		limitLogger:                tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
+		metricActiveSeries:         metricActiveSeries.WithLabelValues(tenant),
+		metricSeriesDemand:         metricSeriesDemand.WithLabelValues(tenant),
+		metricMaxActiveSeries:      metricMaxActiveSeries.WithLabelValues(tenant),
+		metricTotalSeriesAdded:     metricTotalSeriesAdded.WithLabelValues(tenant),
+		metricTotalSeriesRemoved:   metricTotalSeriesRemoved.WithLabelValues(tenant),
+		metricTotalSeriesLimited:   metricTotalSeriesLimited.WithLabelValues(tenant),
+		metricTotalCollections:     metricTotalCollections.WithLabelValues(tenant),
+		metricFailedCollections:    metricFailedCollections.WithLabelValues(tenant),
+		updatedSinceLastCollection: make(map[uint64]struct{}),
 	}
 
 	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
@@ -157,7 +186,7 @@ func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *
 }
 
 func (r *ManagedRegistry) NewCounter(name string) Counter {
-	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels, r.cfg.StaleDuration)
+	c := newCounter(name, r, r.externalLabels, r.cfg.StaleDuration)
 	r.registerMetric(c)
 	return c
 }
@@ -169,9 +198,9 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 	// are disabled, eventually the new implementation can handle all cases
 
 	if hasNativeHistograms(histogramOverride) {
-		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride, r.externalLabels, r.tenant, r.overrides, r.cfg.StaleDuration)
+		h = newNativeHistogram(name, buckets, r, traceIDLabelName, histogramOverride, r.externalLabels, r.tenant, r.overrides, r.cfg.StaleDuration)
 	} else {
-		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, r.externalLabels, r.cfg.StaleDuration)
+		h = newHistogram(name, buckets, r, traceIDLabelName, r.externalLabels, r.cfg.StaleDuration)
 	}
 
 	r.registerMetric(h)
@@ -179,7 +208,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 }
 
 func (r *ManagedRegistry) NewGauge(name string) Gauge {
-	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels, r.cfg.StaleDuration)
+	g := newGauge(name, r, r.externalLabels, r.cfg.StaleDuration)
 	r.registerMetric(g)
 	return g
 }
@@ -194,7 +223,9 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metrics[m.name()] = m
 }
 
-func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
+func (r *ManagedRegistry) onAddEntity(hash uint64, count uint32) bool {
+	r.onUpdateEntity(hash)
+
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	if maxActiveSeries != 0 && r.activeSeries.Load()+count > maxActiveSeries {
 		r.metricTotalSeriesLimited.Add(float64(count))
@@ -208,20 +239,48 @@ func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
 	return true
 }
 
-func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
-	r.activeSeries.Sub(count)
+func (r *ManagedRegistry) onUpdateEntity(hash uint64) {
+	r.updatedSinceLastCollectionMtx.Lock()
+	r.updatedSinceLastCollection[hash] = struct{}{}
+	r.updatedSinceLastCollectionMtx.Unlock()
+}
 
+func (r *ManagedRegistry) onRemoveEntity(count uint32) {
+	r.activeSeries.Sub(count)
 	r.metricTotalSeriesRemoved.Add(float64(count))
 }
 
 func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
+	r.updatedSinceLastCollectionMtx.RLock()
+	hashes := maps.Clone(r.updatedSinceLastCollection)
+	r.updatedSinceLastCollection = make(map[uint64]struct{})
+	r.updatedSinceLastCollectionMtx.RUnlock()
+
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
+
+	rejected, err := r.entityLimiter.TrackEntities(ctx, r.tenant, slices.Collect(maps.Keys(hashes)))
+	if err != nil {
+		r.limitLogger.Log("msg", "tracking entities failed", "err", err)
+	}
+
+	if len(rejected) > 0 {
+		r.limitLogger.Log("msg", "max active entities reached", "rejected", len(rejected), "updated_since_last_collection", len(hashes))
+	}
+
+	rejectedMap := make(map[uint64]struct{})
+	for _, hash := range rejected {
+		rejectedMap[hash] = struct{}{}
+	}
 
 	var activeSeries int
 	var seriesDemand int
 
 	for _, m := range r.metrics {
+		m.deleteFunc(func(hash uint64, lastUpdateMilli int64) bool {
+			_, ok := rejectedMap[hash]
+			return ok
+		})
 		seriesDemand += m.countSeriesDemand()
 		activeSeries += m.countActiveSeries()
 	}
@@ -237,7 +296,6 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 		return
 	}
 
-	var err error
 	defer func() {
 		r.metricTotalCollections.Inc()
 		if err != nil {
@@ -276,14 +334,18 @@ func (r *ManagedRegistry) collectionInterval() time.Duration {
 	return r.cfg.CollectionInterval
 }
 
-func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
+func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
+	r.entityLimiter.Prune(ctx)
+
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
 
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
 	for _, m := range r.metrics {
-		m.removeStaleSeries(timeMs)
+		m.deleteFunc(func(_ uint64, lastUpdateMilli int64) bool {
+			return lastUpdateMilli < timeMs
+		})
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())

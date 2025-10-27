@@ -19,8 +19,7 @@ type counter struct {
 	series       map[uint64]*counterSeries
 	seriesDemand *Cardinality
 
-	onAddSeries    func(count uint32) bool
-	onRemoveSeries func(count uint32)
+	lifecycler entityLifecycler
 
 	externalLabels map[string]string
 }
@@ -49,22 +48,12 @@ func (co *counterSeries) registerSeenSeries() {
 	co.firstSeries.Store(false)
 }
 
-func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *counter {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newCounter(name string, lifecycler entityLifecycler, externalLabels map[string]string, staleDuration time.Duration) *counter {
 	return &counter{
 		metricName:     name,
 		series:         make(map[uint64]*counterSeries),
 		seriesDemand:   NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSeries:    onAddSeries,
-		onRemoveSeries: onRemoveSeries,
+		lifecycler:     lifecycler,
 		externalLabels: externalLabels,
 	}
 }
@@ -82,7 +71,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 
 	c.seriesDemand.Insert(hash)
 	if ok {
-		c.updateSeries(s, value)
+		c.updateSeries(hash, s, value)
 		return
 	}
 
@@ -90,11 +79,11 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	defer c.seriesMtx.Unlock()
 
 	if existing, ok := c.series[hash]; ok {
-		c.updateSeries(existing, value)
+		c.updateSeries(hash, existing, value)
 		return
 	}
 
-	if !c.onAddSeries(1) {
+	if !c.lifecycler.onAddEntity(hash, 1) {
 		return
 	}
 
@@ -107,12 +96,13 @@ func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *co
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),
-	}
+	}, true
 }
 
-func (c *counter) updateSeries(s *counterSeries, value float64) {
+func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64) {
 	s.value.Add(value)
 	s.lastUpdated.Store(time.Now().UnixMilli())
+	c.lifecycler.onUpdateEntity(hash)
 }
 
 func (c *counter) name() string {
@@ -163,14 +153,14 @@ func (c *counter) countSeriesDemand() int {
 	return int(c.seriesDemand.Estimate())
 }
 
-func (c *counter) removeStaleSeries(staleTimeMs int64) {
+func (c *counter) deleteFunc(cond func(hash uint64, lastUpdateMilli int64) bool) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
 
 	for hash, s := range c.series {
-		if s.lastUpdated.Load() < staleTimeMs {
+		if cond(hash, s.lastUpdated.Load()) {
 			delete(c.series, hash)
-			c.onRemoveSeries(1)
+			c.lifecycler.onRemoveEntity(1)
 		}
 	}
 	c.seriesDemand.Advance()

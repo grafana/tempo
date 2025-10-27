@@ -31,8 +31,7 @@ type nativeHistogram struct {
 	series       map[uint64]*nativeHistogramSeries
 	seriesDemand *Cardinality
 
-	onAddSerie    func(count uint32) bool
-	onRemoveSerie func(count uint32)
+	lifecycler entityLifecycler
 
 	buckets []float64
 
@@ -91,16 +90,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newNativeHistogram(name string, buckets []float64, lifecycler entityLifecycler, traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
 	}
@@ -109,8 +99,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
 		seriesDemand:      NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSerie:        onAddSeries,
-		onRemoveSerie:     onRemoveSeries,
+		lifecycler:        lifecycler,
 		traceIDLabelName:  traceIDLabelName,
 		buckets:           buckets,
 		histogramOverride: histogramOverride,
@@ -135,18 +124,18 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 
 	s, ok := h.series[hash]
 	if ok {
-		h.updateSeries(s, value, traceID, multiplier)
+		h.updateSeries(hash, s, value, traceID, multiplier)
 		return
 	}
 
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+	if !h.lifecycler.onAddEntity(hash, h.activeSeriesPerHistogramSerie()) {
 		return
 	}
 
-	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
+	h.series[hash] = h.newSeries(hash, labelValueCombo, value, traceID, multiplier)
 }
 
-func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
+func (h *nativeHistogram) newSeries(hash uint64, labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
 	// Configure histogram based on mode
 	//
 	// Native-only mode sets buckets to nil, and uses the histogram.Exemplars slice as the native exemplar format.
@@ -186,7 +175,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		overridesHash: hsh,
 	}
 
-	h.updateSeries(newSeries, value, traceID, multiplier)
+	h.updateSeries(hash, newSeries, value, traceID, multiplier)
 
 	lb := newSeriesLabelsBuilder(labelValueCombo, h.externalLabels)
 
@@ -206,7 +195,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 	return newSeries
 }
 
-func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
+func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
 	// Use Prometheus native exemplar handling
 	exemplarObserver := s.promHistogram.(prometheus.ExemplarObserver)
 
@@ -218,6 +207,7 @@ func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, 
 	}
 
 	s.lastUpdated = time.Now().UnixMilli()
+	h.lifecycler.onUpdateEntity(hash)
 }
 
 func (h *nativeHistogram) name() string {
@@ -276,24 +266,23 @@ func (h *nativeHistogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
+func (h *nativeHistogram) deleteFunc(cond func(hash uint64, lastUpdateMilli int64) bool) {
 	overridesHash, _, _, _ := h.hashOverrides()
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
 	for hash, s := range h.series {
-
 		if s.overridesHash != overridesHash {
 			// The overrides have changed, so we need to recreate the series.
 			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
 			continue
 		}
 
-		if s.lastUpdated < staleTimeMs {
+		if cond(hash, s.lastUpdated) {
 			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()

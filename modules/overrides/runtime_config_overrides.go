@@ -416,6 +416,12 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveSeries(userID s
 	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
 }
 
+// MetricsGeneratorMaxEntities is the maximum amount of entities in the metrics-generator registry
+// for this tenant. Note this is a local limit enforced in every instance separately.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveEntities(userID string) uint32 {
+	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveEntities
+}
+
 // MetricsGeneratorCollectionInterval is the collection interval of the metrics-generator registry
 // for this tenant.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {
