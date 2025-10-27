@@ -5,3 +5,4 @@ metadata:
   namespace: tracing
 spec:
   labelSelector: rollout-group=live-store
+  replicas: 0
