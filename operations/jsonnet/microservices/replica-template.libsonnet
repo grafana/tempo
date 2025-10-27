@@ -21,12 +21,7 @@
     spec: {
       // HPA requires that label selector exists and is valid, but it will not be used for target type of AverageValue.
       labelSelector: label_selector,
-    } + (
-      if replicas <= 0 then {
-        replicas:: null,  // Hide replicas field.
-      } else {
-        replicas: replicas,
-      }
-    ),
+      replicas: replicas,
+    },
   },
 }
