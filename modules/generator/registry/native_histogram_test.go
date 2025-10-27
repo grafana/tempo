@@ -19,7 +19,7 @@ var testTenant = "test-tenant"
 func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 	var seriesAdded int
 	lifecycler := &testEntityLifecycler{
-		onAddEntityFunc: func(entityHash uint64, count uint32) bool {
+		onAddEntityFunc: func(_ uint64, count uint32) bool {
 			seriesAdded += int(count)
 			return true
 		},
@@ -746,7 +746,7 @@ func Test_nativeHistogram_activeSeriesPerHistogramSerie(t *testing.T) {
 func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
 	lifecycler := &testEntityLifecycler{
-		onAddEntityFunc: func(entityHash uint64, count uint32) bool {
+		onAddEntityFunc: func(uint64, uint32) bool {
 			return !limitReached
 		},
 	}

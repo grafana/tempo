@@ -21,7 +21,7 @@ func NewLocalEntityLimiter(maxEntityFunc func(tenant string) uint32, staleDurati
 	}
 }
 
-func (l *LocalEntityLimiter) TrackEntities(ctx context.Context, tenant string, hashes []uint64) (rejected []uint64, err error) {
+func (l *LocalEntityLimiter) TrackEntities(_ context.Context, tenant string, hashes []uint64) (rejected []uint64, err error) {
 	maxEntities := l.maxEntityFunc(tenant)
 	if maxEntities == 0 {
 		return nil, nil
@@ -51,7 +51,7 @@ func (l *LocalEntityLimiter) TrackEntities(ctx context.Context, tenant string, h
 	return rejected, nil
 }
 
-func (l *LocalEntityLimiter) Prune(ctx context.Context) {
+func (l *LocalEntityLimiter) Prune(context.Context) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 

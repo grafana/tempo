@@ -277,7 +277,7 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	var seriesDemand int
 
 	for _, m := range r.metrics {
-		m.deleteFunc(func(hash uint64, lastUpdateMilli int64) bool {
+		m.deleteFunc(func(hash uint64, _ int64) bool {
 			_, ok := rejectedMap[hash]
 			return ok
 		})

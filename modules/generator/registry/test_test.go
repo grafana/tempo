@@ -40,7 +40,7 @@ func (t *testEntityLifecycler) onRemoveEntity(count uint32) {
 }
 
 func removeStaleSeries(m metric, collectionTimeMs int64) {
-	m.deleteFunc(func(hash uint64, lastUpdateMilli int64) bool {
+	m.deleteFunc(func(_ uint64, lastUpdateMilli int64) bool {
 		return lastUpdateMilli < collectionTimeMs
 	})
 }

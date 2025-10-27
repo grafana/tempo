@@ -10,7 +10,7 @@ import (
 
 func TestLocalEntityLimiter_TrackEntities(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		maxFunc := func(tenant string) uint32 {
+		maxFunc := func(string) uint32 {
 			return 10
 		}
 		limiter := NewLocalEntityLimiter(maxFunc, 1*time.Hour)
