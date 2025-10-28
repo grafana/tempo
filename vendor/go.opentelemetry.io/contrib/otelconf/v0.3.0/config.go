@@ -12,15 +12,17 @@ import (
 	"fmt"
 	"os"
 
-	yaml "sigs.k8s.io/yaml/goyaml.v3"
-
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/log"
 	nooplog "go.opentelemetry.io/otel/log/noop"
 	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 const (
@@ -32,8 +34,11 @@ const (
 )
 
 type configOptions struct {
-	ctx                 context.Context
-	opentelemetryConfig OpenTelemetryConfiguration
+	ctx                   context.Context
+	opentelemetryConfig   OpenTelemetryConfiguration
+	loggerProviderOptions []sdklog.LoggerProviderOption
+	meterProviderOptions  []sdkmetric.Option
+	tracerProviderOptions []sdktrace.TracerProviderOption
 }
 
 type shutdownFunc func(context.Context) error
@@ -75,12 +80,14 @@ var noopSDK = SDK{
 	loggerProvider: nooplog.LoggerProvider{},
 	meterProvider:  noopmetric.MeterProvider{},
 	tracerProvider: nooptrace.TracerProvider{},
-	shutdown:       func(ctx context.Context) error { return nil },
+	shutdown:       func(context.Context) error { return nil },
 }
 
 // NewSDK creates SDK providers based on the configuration model.
 func NewSDK(opts ...ConfigurationOption) (SDK, error) {
-	o := configOptions{}
+	o := configOptions{
+		ctx: context.Background(),
+	}
 	for _, opt := range opts {
 		o = opt.apply(o)
 	}
@@ -143,6 +150,33 @@ func WithOpenTelemetryConfiguration(cfg OpenTelemetryConfiguration) Configuratio
 	})
 }
 
+// WithLoggerProviderOptions appends LoggerProviderOptions used for constructing
+// the LoggerProvider. OpenTelemetryConfiguration takes precedence over these options.
+func WithLoggerProviderOptions(opts ...sdklog.LoggerProviderOption) ConfigurationOption {
+	return configurationOptionFunc(func(c configOptions) configOptions {
+		c.loggerProviderOptions = append(c.loggerProviderOptions, opts...)
+		return c
+	})
+}
+
+// WithMeterProviderOptions appends metric.Options used for constructing the
+// MeterProvider. OpenTelemetryConfiguration takes precedence over these options.
+func WithMeterProviderOptions(opts ...sdkmetric.Option) ConfigurationOption {
+	return configurationOptionFunc(func(c configOptions) configOptions {
+		c.meterProviderOptions = append(c.meterProviderOptions, opts...)
+		return c
+	})
+}
+
+// WithTracerProviderOptions appends TracerProviderOptions used for constructing
+// the TracerProvider. OpenTelemetryConfiguration takes precedence over these options.
+func WithTracerProviderOptions(opts ...sdktrace.TracerProviderOption) ConfigurationOption {
+	return configurationOptionFunc(func(c configOptions) configOptions {
+		c.tracerProviderOptions = append(c.tracerProviderOptions, opts...)
+		return c
+	})
+}
+
 // ParseYAML parses a YAML configuration file into an OpenTelemetryConfiguration.
 func ParseYAML(file []byte) (*OpenTelemetryConfiguration, error) {
 	var cfg OpenTelemetryConfiguration
@@ -155,7 +189,7 @@ func ParseYAML(file []byte) (*OpenTelemetryConfiguration, error) {
 }
 
 // createTLSConfig creates a tls.Config from certificate files.
-func createTLSConfig(caCertFile *string, clientCertFile *string, clientKeyFile *string) (*tls.Config, error) {
+func createTLSConfig(caCertFile, clientCertFile, clientKeyFile *string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{}
 	if caCertFile != nil {
 		caText, err := os.ReadFile(*caCertFile)

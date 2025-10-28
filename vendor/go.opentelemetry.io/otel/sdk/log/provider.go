@@ -27,11 +27,12 @@ const (
 )
 
 type providerConfig struct {
-	resource      *resource.Resource
-	processors    []Processor
-	attrCntLim    setting[int]
-	attrValLenLim setting[int]
-	allowDupKeys  setting[bool]
+	resource       *resource.Resource
+	processors     []Processor
+	fltrProcessors []FilterProcessor
+	attrCntLim     setting[int]
+	attrValLenLim  setting[int]
+	allowDupKeys   setting[bool]
 }
 
 func newProviderConfig(opts []LoggerProviderOption) providerConfig {
@@ -64,6 +65,7 @@ type LoggerProvider struct {
 
 	resource                  *resource.Resource
 	processors                []Processor
+	fltrProcessors            []FilterProcessor
 	attributeCountLimit       int
 	attributeValueLengthLimit int
 	allowDupKeys              bool
@@ -90,6 +92,7 @@ func NewLoggerProvider(opts ...LoggerProviderOption) *LoggerProvider {
 	return &LoggerProvider{
 		resource:                  cfg.resource,
 		processors:                cfg.processors,
+		fltrProcessors:            cfg.fltrProcessors,
 		attributeCountLimit:       cfg.attrCntLim.Value,
 		attributeValueLengthLimit: cfg.attrValLenLim.Value,
 		allowDupKeys:              cfg.allowDupKeys.Value,
@@ -205,9 +208,14 @@ func WithResource(res *resource.Resource) LoggerProviderOption {
 //
 // For production, use [NewBatchProcessor] to batch log records before they are exported.
 // For testing and debugging, use [NewSimpleProcessor] to synchronously export log records.
+//
+// See [FilterProcessor] for information about how a Processor can support filtering.
 func WithProcessor(processor Processor) LoggerProviderOption {
 	return loggerProviderOptionFunc(func(cfg providerConfig) providerConfig {
 		cfg.processors = append(cfg.processors, processor)
+		if f, ok := processor.(FilterProcessor); ok {
+			cfg.fltrProcessors = append(cfg.fltrProcessors, f)
+		}
 		return cfg
 	})
 }

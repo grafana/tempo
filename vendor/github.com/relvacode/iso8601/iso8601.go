@@ -36,18 +36,26 @@ const (
 //	+01:45
 //	+0145
 func ParseISOZone(inp []byte) (*time.Location, error) {
-	if len(inp) != 1 && (len(inp) < 3 || len(inp) > 6) {
+	if len(inp) == 0 {
 		return nil, ErrZoneCharacters
 	}
+
 	var neg bool
 	switch inp[0] {
 	case 'Z', 'z':
+		if len(inp) != 1 {
+			return nil, ErrRemainingData
+		}
 		return time.UTC, nil
 	case '+':
 	case '-':
 		neg = true
 	default:
 		return nil, newUnexpectedCharacterError(inp[0])
+	}
+
+	if len(inp) < 3 || len(inp) > 6 {
+		return nil, ErrZoneCharacters
 	}
 
 	var offset int
@@ -164,7 +172,7 @@ parse:
 				return time.Time{}, err
 			}
 			break parse
-		case 'T':
+		case 'T', ' ':
 			if p != day {
 				return time.Time{}, newUnexpectedCharacterError(inp[i])
 			}

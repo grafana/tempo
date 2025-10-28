@@ -45,7 +45,7 @@ func DeserializeThrift(ctx context.Context, b []byte) ([]*zipkincore.Span, error
 	// We don't depend on the size returned by ReadListBegin to preallocate the array because it
 	// sometimes returns a nil error on bad input and provides an unreasonably large int for size
 	var spans []*zipkincore.Span
-	for i := 0; i < size; i++ {
+	for range size {
 		zs := &zipkincore.Span{}
 		err = zs.Read(ctx, transport)
 		if err != nil {

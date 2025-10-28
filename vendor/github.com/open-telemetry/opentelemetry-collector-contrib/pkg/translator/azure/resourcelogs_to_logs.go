@@ -88,7 +88,8 @@ func (r ResourceLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 
 	var resourceIDs []string
 	azureResourceLogs := make(map[string][]azureLogRecord)
-	for _, azureLog := range azureLogs.Records {
+	for i := range azureLogs.Records {
+		azureLog := azureLogs.Records[i]
 		azureResourceLogs[azureLog.ResourceID] = append(azureResourceLogs[azureLog.ResourceID], azureLog)
 		keyExists := slices.Contains(resourceIDs, azureLog.ResourceID)
 		if !keyExists {
@@ -105,7 +106,7 @@ func (r ResourceLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 		scopeLogs.Scope().SetVersion(r.Version)
 		logRecords := scopeLogs.LogRecords()
 
-		for i := 0; i < len(logs); i++ {
+		for i := range logs {
 			log := logs[i]
 			nanos, err := getTimestamp(log, r.TimeFormats...)
 			if err != nil {

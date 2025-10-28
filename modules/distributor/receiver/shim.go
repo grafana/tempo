@@ -264,8 +264,8 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		case "jaeger":
 			jaegerRecvCfg := cfg.(*jaegerreceiver.Config)
 
-			if jaegerRecvCfg.ThriftHTTP != nil {
-				jaegerRecvCfg.ThriftHTTP.IncludeMetadata = true
+			if jaegerRecvCfg.ThriftHTTP.HasValue() {
+				jaegerRecvCfg.ThriftHTTP.Get().IncludeMetadata = true
 			}
 
 			cfg = jaegerRecvCfg

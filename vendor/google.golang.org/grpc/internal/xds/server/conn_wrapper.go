@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/credentials/tls/certprovider"
 	xdsinternal "google.golang.org/grpc/internal/credentials/xds"
 	"google.golang.org/grpc/internal/transport"
+	"google.golang.org/grpc/internal/xds/xdsclient/xdsresource"
 )
 
 // connWrapper is a thin wrapper around a net.Conn returned by Accept(). It
@@ -44,7 +45,7 @@ type connWrapper struct {
 	net.Conn
 
 	// The specific filter chain picked for handling this connection.
-	filterChain *filterChain
+	filterChain *xdsresource.FilterChain
 
 	// A reference to the listenerWrapper on which this connection was accepted.
 	parent *listenerWrapper
@@ -66,7 +67,13 @@ type connWrapper struct {
 
 	// The virtual hosts with matchable routes and instantiated HTTP Filters per
 	// route, or an error.
-	urc *atomic.Pointer[usableRouteConfiguration]
+	urc *atomic.Pointer[xdsresource.UsableRouteConfiguration]
+}
+
+// UsableRouteConfiguration returns the UsableRouteConfiguration to be used for
+// server side routing.
+func (c *connWrapper) UsableRouteConfiguration() xdsresource.UsableRouteConfiguration {
+	return *c.urc.Load()
 }
 
 // SetDeadline makes a copy of the passed in deadline and forwards the call to
@@ -92,7 +99,7 @@ func (c *connWrapper) GetDeadline() time.Time {
 // configuration for this connection. This method is invoked by the
 // ServerHandshake() method of the XdsCredentials.
 func (c *connWrapper) XDSHandshakeInfo() (*xdsinternal.HandshakeInfo, error) {
-	if c.filterChain.securityCfg == nil {
+	if c.filterChain.SecurityCfg == nil {
 		// If the security config is empty, this means that the control plane
 		// did not provide any security configuration and therefore we should
 		// return an empty HandshakeInfo here so that the xdsCreds can use the
@@ -103,7 +110,7 @@ func (c *connWrapper) XDSHandshakeInfo() (*xdsinternal.HandshakeInfo, error) {
 	cpc := c.parent.xdsC.BootstrapConfig().CertProviderConfigs()
 	// Identity provider name is mandatory on the server-side, and this is
 	// enforced when the resource is received at the XDSClient layer.
-	secCfg := c.filterChain.securityCfg
+	secCfg := c.filterChain.SecurityCfg
 	ip, err := buildProviderFunc(cpc, secCfg.IdentityInstanceName, secCfg.IdentityCertName, true, false)
 	if err != nil {
 		return nil, err

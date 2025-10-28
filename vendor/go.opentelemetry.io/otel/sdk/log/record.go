@@ -27,29 +27,7 @@ var logAttrDropped = sync.OnceFunc(func() {
 	global.Warn("limit reached: dropping log Record attributes")
 })
 
-var logKeyValuePairDropped = sync.OnceFunc(func() {
-	global.Warn("key duplication: dropping key-value pair")
-})
-
-// uniquePool is a pool of unique attributes used for attributes de-duplication.
-var uniquePool = sync.Pool{
-	New: func() any { return new([]log.KeyValue) },
-}
-
-func getUnique() *[]log.KeyValue {
-	return uniquePool.Get().(*[]log.KeyValue)
-}
-
-func putUnique(v *[]log.KeyValue) {
-	// To reduce peak allocation.
-	const maxUniqueSize = 1028
-	if cap(*v) <= maxUniqueSize {
-		*v = (*v)[:0]
-		uniquePool.Put(v)
-	}
-}
-
-// indexPool is a pool of index maps used for attributes de-duplication.
+// indexPool is a pool of index maps used for de-duplication.
 var indexPool = sync.Pool{
 	New: func() any { return make(map[string]int) },
 }
@@ -61,20 +39,6 @@ func getIndex() map[string]int {
 func putIndex(index map[string]int) {
 	clear(index)
 	indexPool.Put(index)
-}
-
-// seenPool is a pool of seen keys used for maps de-duplication.
-var seenPool = sync.Pool{
-	New: func() any { return make(map[string]struct{}) },
-}
-
-func getSeen() map[string]struct{} {
-	return seenPool.Get().(map[string]struct{})
-}
-
-func putSeen(seen map[string]struct{}) {
-	clear(seen)
-	seenPool.Put(seen)
 }
 
 // Record is a log record emitted by the Logger.
@@ -136,10 +100,13 @@ type Record struct {
 }
 
 func (r *Record) addDropped(n int) {
+	logAttrDropped()
 	r.dropped += n
-	if n > 0 {
-		logAttrDropped()
-	}
+}
+
+func (r *Record) setDropped(n int) {
+	logAttrDropped()
+	r.dropped = n
 }
 
 // EventName returns the event name.
@@ -234,9 +201,7 @@ func (r *Record) AddAttributes(attrs ...log.KeyValue) {
 		var drop int
 		if !r.allowDupKeys {
 			attrs, drop = dedup(attrs)
-			if drop > 0 {
-				logKeyValuePairDropped()
-			}
+			r.setDropped(drop)
 		}
 
 		attrs, drop := head(attrs, r.attributeCountLimit)
@@ -247,38 +212,34 @@ func (r *Record) AddAttributes(attrs ...log.KeyValue) {
 	}
 
 	if !r.allowDupKeys {
-		// Use a slice from the pool to avoid modifying the original.
-		// Note, do not iterate attrs twice by just calling dedup(attrs) here.
-		unique := getUnique()
-		defer putUnique(unique)
-
 		// Used to find duplicates between attrs and existing attributes in r.
 		rIndex := r.attrIndex()
 		defer putIndex(rIndex)
 
-		// Used to find duplicates within attrs itself.
-		// The index value is the index of the element in unique.
+		// Unique attrs that need to be added to r. This uses the same underlying
+		// array as attrs.
+		//
+		// Note, do not iterate attrs twice by just calling dedup(attrs) here.
+		unique := attrs[:0]
+		// Used to find duplicates within attrs itself. The index value is the
+		// index of the element in unique.
 		uIndex := getIndex()
 		defer putIndex(uIndex)
-
-		dropped := 0
 
 		// Deduplicate attrs within the scope of all existing attributes.
 		for _, a := range attrs {
 			// Last-value-wins for any duplicates in attrs.
 			idx, found := uIndex[a.Key]
 			if found {
-				dropped++
-				logKeyValuePairDropped()
-				(*unique)[idx] = a
+				r.addDropped(1)
+				unique[idx] = a
 				continue
 			}
 
 			idx, found = rIndex[a.Key]
 			if found {
 				// New attrs overwrite any existing with the same key.
-				dropped++
-				logKeyValuePairDropped()
+				r.addDropped(1)
 				if idx < 0 {
 					r.front[-(idx + 1)] = a
 				} else {
@@ -286,15 +247,11 @@ func (r *Record) AddAttributes(attrs ...log.KeyValue) {
 				}
 			} else {
 				// Unique attribute.
-				(*unique) = append(*unique, a)
-				uIndex[a.Key] = len(*unique) - 1
+				unique = append(unique, a)
+				uIndex[a.Key] = len(unique) - 1
 			}
 		}
-
-		if dropped > 0 {
-			attrs = make([]log.KeyValue, len(*unique))
-			copy(attrs, *unique)
-		}
+		attrs = unique
 	}
 
 	if r.attributeCountLimit > 0 && n+len(attrs) > r.attributeCountLimit {
@@ -337,28 +294,24 @@ func (r *Record) addAttrs(attrs []log.KeyValue) {
 	var i int
 	for i = 0; i < len(attrs) && r.nFront < len(r.front); i++ {
 		a := attrs[i]
-		r.front[r.nFront] = r.applyAttrLimitsAndDedup(a)
+		r.front[r.nFront] = r.applyAttrLimits(a)
 		r.nFront++
 	}
 
-	// Make a copy to avoid modifying the original.
-	j := len(r.back)
+	for j, a := range attrs[i:] {
+		attrs[i+j] = r.applyAttrLimits(a)
+	}
 	r.back = slices.Grow(r.back, len(attrs[i:]))
 	r.back = append(r.back, attrs[i:]...)
-	for i, a := range r.back[j:] {
-		r.back[i+j] = r.applyAttrLimitsAndDedup(a)
-	}
 }
 
 // SetAttributes sets (and overrides) attributes to the log record.
 func (r *Record) SetAttributes(attrs ...log.KeyValue) {
 	var drop int
-	r.dropped = 0
+	r.setDropped(0)
 	if !r.allowDupKeys {
 		attrs, drop = dedup(attrs)
-		if drop > 0 {
-			logKeyValuePairDropped()
-		}
+		r.setDropped(drop)
 	}
 
 	attrs, drop = head(attrs, r.attributeCountLimit)
@@ -368,13 +321,13 @@ func (r *Record) SetAttributes(attrs ...log.KeyValue) {
 	var i int
 	for i = 0; i < len(attrs) && r.nFront < len(r.front); i++ {
 		a := attrs[i]
-		r.front[r.nFront] = r.applyAttrLimitsAndDedup(a)
+		r.front[r.nFront] = r.applyAttrLimits(a)
 		r.nFront++
 	}
 
 	r.back = slices.Clone(attrs[i:])
 	for i, a := range r.back {
-		r.back[i] = r.applyAttrLimitsAndDedup(a)
+		r.back[i] = r.applyAttrLimits(a)
 	}
 }
 
@@ -389,31 +342,20 @@ func head(kvs []log.KeyValue, n int) (out []log.KeyValue, dropped int) {
 
 // dedup deduplicates kvs front-to-back with the last value saved.
 func dedup(kvs []log.KeyValue) (unique []log.KeyValue, dropped int) {
-	if len(kvs) <= 1 {
-		return kvs, 0 // No deduplication needed.
-	}
-
 	index := getIndex()
 	defer putIndex(index)
-	u := getUnique()
-	defer putUnique(u)
+
+	unique = kvs[:0] // Use the same underlying array as kvs.
 	for _, a := range kvs {
 		idx, found := index[a.Key]
 		if found {
 			dropped++
-			(*u)[idx] = a
+			unique[idx] = a
 		} else {
-			*u = append(*u, a)
-			index[a.Key] = len(*u) - 1
+			unique = append(unique, a)
+			index[a.Key] = len(unique) - 1
 		}
 	}
-
-	if dropped == 0 {
-		return kvs, 0
-	}
-
-	unique = make([]log.KeyValue, len(*u))
-	copy(unique, *u)
 	return unique, dropped
 }
 
@@ -479,192 +421,57 @@ func (r *Record) Clone() Record {
 	return res
 }
 
-func (r *Record) applyAttrLimitsAndDedup(attr log.KeyValue) log.KeyValue {
-	attr.Value = r.applyValueLimitsAndDedup(attr.Value)
+func (r *Record) applyAttrLimits(attr log.KeyValue) log.KeyValue {
+	attr.Value = r.applyValueLimits(attr.Value)
 	return attr
 }
 
-func (r *Record) applyValueLimitsAndDedup(val log.Value) log.Value {
+func (r *Record) applyValueLimits(val log.Value) log.Value {
 	switch val.Kind() {
 	case log.KindString:
 		s := val.AsString()
-		if r.attributeValueLengthLimit >= 0 && len(s) > r.attributeValueLengthLimit {
+		if len(s) > r.attributeValueLengthLimit {
 			val = log.StringValue(truncate(r.attributeValueLengthLimit, s))
 		}
 	case log.KindSlice:
 		sl := val.AsSlice()
-
-		// First check if any limits need to be applied.
-		if slices.ContainsFunc(sl, r.needsValueLimitsOrDedup) {
-			// Create a new slice to avoid modifying the original.
-			newSl := make([]log.Value, len(sl))
-			for i, item := range sl {
-				newSl[i] = r.applyValueLimitsAndDedup(item)
-			}
-			val = log.SliceValue(newSl...)
+		for i := range sl {
+			sl[i] = r.applyValueLimits(sl[i])
 		}
-
+		val = log.SliceValue(sl...)
 	case log.KindMap:
 		kvs := val.AsMap()
-		var newKvs []log.KeyValue
-		var dropped int
-
 		if !r.allowDupKeys {
-			// Deduplicate then truncate.
-			// Do not do at the same time to avoid wasted truncation operations.
-			newKvs, dropped = dedup(kvs)
-			if dropped > 0 {
-				logKeyValuePairDropped()
-			}
-		} else {
-			newKvs = kvs
+			// Deduplicate then truncate. Do not do at the same time to avoid
+			// wasted truncation operations.
+			var dropped int
+			kvs, dropped = dedup(kvs)
+			r.addDropped(dropped)
 		}
-
-		// Check if any attribute limits need to be applied.
-		needsChange := false
-		if dropped > 0 {
-			needsChange = true // Already changed by dedup.
-		} else {
-			for _, kv := range newKvs {
-				if r.needsValueLimitsOrDedup(kv.Value) {
-					needsChange = true
-					break
-				}
-			}
+		for i := range kvs {
+			kvs[i] = r.applyAttrLimits(kvs[i])
 		}
-
-		if needsChange {
-			// Only create new slice if changes are needed.
-			if dropped == 0 {
-				// Make a copy to avoid modifying the original.
-				newKvs = make([]log.KeyValue, len(kvs))
-				copy(newKvs, kvs)
-			}
-
-			for i := range newKvs {
-				newKvs[i] = r.applyAttrLimitsAndDedup(newKvs[i])
-			}
-			val = log.MapValue(newKvs...)
-		}
+		val = log.MapValue(kvs...)
 	}
 	return val
-}
-
-// needsValueLimitsOrDedup checks if a value would be modified by applyValueLimitsAndDedup.
-func (r *Record) needsValueLimitsOrDedup(val log.Value) bool {
-	switch val.Kind() {
-	case log.KindString:
-		return r.attributeValueLengthLimit >= 0 && len(val.AsString()) > r.attributeValueLengthLimit
-	case log.KindSlice:
-		if slices.ContainsFunc(val.AsSlice(), r.needsValueLimitsOrDedup) {
-			return true
-		}
-	case log.KindMap:
-		kvs := val.AsMap()
-		if !r.allowDupKeys && len(kvs) > 1 {
-			// Check for duplicates.
-			hasDuplicates := func() bool {
-				seen := getSeen()
-				defer putSeen(seen)
-				for _, kv := range kvs {
-					if _, ok := seen[kv.Key]; ok {
-						return true
-					}
-					seen[kv.Key] = struct{}{}
-				}
-				return false
-			}()
-			if hasDuplicates {
-				return true
-			}
-		}
-		for _, kv := range kvs {
-			if r.needsValueLimitsOrDedup(kv.Value) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (r *Record) dedupeBodyCollections(val log.Value) log.Value {
 	switch val.Kind() {
 	case log.KindSlice:
 		sl := val.AsSlice()
-
-		// Check if any nested values need deduplication.
-		if slices.ContainsFunc(sl, r.needsBodyDedup) {
-			// Create a new slice to avoid modifying the original.
-			newSl := make([]log.Value, len(sl))
-			for i, item := range sl {
-				newSl[i] = r.dedupeBodyCollections(item)
-			}
-			val = log.SliceValue(newSl...)
+		for i := range sl {
+			sl[i] = r.dedupeBodyCollections(sl[i])
 		}
-
+		val = log.SliceValue(sl...)
 	case log.KindMap:
-		kvs := val.AsMap()
-		newKvs, dropped := dedup(kvs)
-
-		// Check if any nested values need deduplication.
-		needsValueChange := false
-		for _, kv := range newKvs {
-			if r.needsBodyDedup(kv.Value) {
-				needsValueChange = true
-				break
-			}
+		kvs, _ := dedup(val.AsMap())
+		for i := range kvs {
+			kvs[i].Value = r.dedupeBodyCollections(kvs[i].Value)
 		}
-
-		if dropped > 0 || needsValueChange {
-			// Only create new value if changes are needed.
-			if dropped == 0 {
-				// Make a copy to avoid modifying the original.
-				newKvs = make([]log.KeyValue, len(kvs))
-				copy(newKvs, kvs)
-			}
-
-			for i := range newKvs {
-				newKvs[i].Value = r.dedupeBodyCollections(newKvs[i].Value)
-			}
-			val = log.MapValue(newKvs...)
-		}
+		val = log.MapValue(kvs...)
 	}
 	return val
-}
-
-// needsBodyDedup checks if a value would be modified by dedupeBodyCollections.
-func (r *Record) needsBodyDedup(val log.Value) bool {
-	switch val.Kind() {
-	case log.KindSlice:
-		if slices.ContainsFunc(val.AsSlice(), r.needsBodyDedup) {
-			return true
-		}
-	case log.KindMap:
-		kvs := val.AsMap()
-		if len(kvs) > 1 {
-			// Check for duplicates.
-			hasDuplicates := func() bool {
-				seen := getSeen()
-				defer putSeen(seen)
-				for _, kv := range kvs {
-					if _, ok := seen[kv.Key]; ok {
-						return true
-					}
-					seen[kv.Key] = struct{}{}
-				}
-				return false
-			}()
-			if hasDuplicates {
-				return true
-			}
-		}
-		for _, kv := range kvs {
-			if r.needsBodyDedup(kv.Value) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // truncate returns a truncated version of s such that it contains less than

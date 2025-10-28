@@ -51,7 +51,8 @@ func getSliceToMapFunc[K any](target ottl.Getter[K], keyPath, valuePath ottl.Opt
 }
 
 func sliceToMap(v []any, keyPath, valuePath ottl.Optional[[]string]) (any, error) {
-	result := make(map[string]any, len(v))
+	m := pcommon.NewMap()
+	m.EnsureCapacity(len(v))
 	for i, elem := range v {
 		e, ok := elem.(map[string]any)
 		if !ok {
@@ -75,20 +76,19 @@ func sliceToMap(v []any, keyPath, valuePath ottl.Optional[[]string]) (any, error
 		}
 
 		if valuePath.IsEmpty() {
-			result[key] = e
+			if err := m.PutEmpty(key).FromRaw(e); err != nil {
+				return nil, fmt.Errorf("could not convert value from element: %w", err)
+			}
 			continue
 		}
 		extractedValue, err := extractValue(e, valuePath.Get())
 		if err != nil {
 			return nil, fmt.Errorf("could not extract value from element: %w", err)
 		}
-		result[key] = extractedValue
+		if err = m.PutEmpty(key).FromRaw(extractedValue); err != nil {
+			return nil, fmt.Errorf("could not convert value from element: %w", err)
+		}
 	}
-	m := pcommon.NewMap()
-	if err := m.FromRaw(result); err != nil {
-		return nil, fmt.Errorf("could not create pcommon.Map from result: %w", err)
-	}
-
 	return m, nil
 }
 

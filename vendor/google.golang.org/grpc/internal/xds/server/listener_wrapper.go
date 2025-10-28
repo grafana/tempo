@@ -33,7 +33,6 @@ import (
 	internalgrpclog "google.golang.org/grpc/internal/grpclog"
 	"google.golang.org/grpc/internal/grpcsync"
 	"google.golang.org/grpc/internal/xds/bootstrap"
-	"google.golang.org/grpc/internal/xds/clients/xdsclient"
 	"google.golang.org/grpc/internal/xds/xdsclient/xdsresource"
 )
 
@@ -59,7 +58,7 @@ type ServingModeCallback func(addr net.Addr, mode connectivity.ServingMode, err 
 // XDSClient wraps the methods on the XDSClient which are required by
 // the listenerWrapper.
 type XDSClient interface {
-	WatchResource(typeURL, resourceName string, watcher xdsclient.ResourceWatcher) (cancel func())
+	WatchResource(rType xdsresource.Type, resourceName string, watcher xdsresource.ResourceWatcher) (cancel func())
 	BootstrapConfig() *bootstrap.Config
 }
 
@@ -143,7 +142,7 @@ type listenerWrapper struct {
 	// Current serving mode.
 	mode connectivity.ServingMode
 	// Filter chain manager currently serving.
-	activeFilterChainManager *filterChainManager
+	activeFilterChainManager *xdsresource.FilterChainManager
 	// conns accepted with configuration from activeFilterChainManager.
 	conns map[*connWrapper]bool
 
@@ -153,7 +152,7 @@ type listenerWrapper struct {
 
 	// Pending filter chain manager. Will go active once rdsHandler has received
 	// all the RDS resources this filter chain manager needs.
-	pendingFilterChainManager *filterChainManager
+	pendingFilterChainManager *xdsresource.FilterChainManager
 
 	// rdsHandler is used for any dynamic RDS resources specified in a LDS
 	// update.
@@ -197,19 +196,19 @@ func (l *listenerWrapper) maybeUpdateFilterChains() {
 func (l *listenerWrapper) handleRDSUpdate(routeName string, rcu rdsWatcherUpdate) {
 	// Update any filter chains that point to this route configuration.
 	if l.activeFilterChainManager != nil {
-		for _, fc := range l.activeFilterChainManager.filterChains {
-			if fc.routeConfigName != routeName {
+		for _, fc := range l.activeFilterChainManager.FilterChains() {
+			if fc.RouteConfigName != routeName {
 				continue
 			}
 			if rcu.err != nil && rcu.data == nil { // Either NACK before update, or resource not found triggers this conditional.
-				urc := &usableRouteConfiguration{err: rcu.err}
-				urc.nodeID = l.xdsNodeID
-				fc.usableRouteConfiguration.Store(urc)
+				urc := &xdsresource.UsableRouteConfiguration{Err: rcu.err}
+				urc.NodeID = l.xdsNodeID
+				fc.UsableRouteConfiguration.Store(urc)
 				continue
 			}
-			urc := fc.constructUsableRouteConfiguration(*rcu.data)
-			urc.nodeID = l.xdsNodeID
-			fc.usableRouteConfiguration.Store(urc)
+			urc := fc.ConstructUsableRouteConfiguration(*rcu.data)
+			urc.NodeID = l.xdsNodeID
+			fc.UsableRouteConfiguration.Store(urc)
 		}
 	}
 	if l.rdsHandler.determineRouteConfigurationReady() {
@@ -222,23 +221,23 @@ func (l *listenerWrapper) handleRDSUpdate(routeName string, rcu rdsWatcherUpdate
 // route configurations, uses that, otherwise uses cached rdsHandler updates.
 // Must be called within an xDS Client Callback.
 func (l *listenerWrapper) instantiateFilterChainRoutingConfigurationsLocked() {
-	for _, fc := range l.activeFilterChainManager.filterChains {
-		if fc.inlineRouteConfig != nil {
-			urc := fc.constructUsableRouteConfiguration(*fc.inlineRouteConfig)
-			urc.nodeID = l.xdsNodeID
-			fc.usableRouteConfiguration.Store(urc) // Can't race with an RPC coming in but no harm making atomic.
+	for _, fc := range l.activeFilterChainManager.FilterChains() {
+		if fc.InlineRouteConfig != nil {
+			urc := fc.ConstructUsableRouteConfiguration(*fc.InlineRouteConfig)
+			urc.NodeID = l.xdsNodeID
+			fc.UsableRouteConfiguration.Store(urc) // Can't race with an RPC coming in but no harm making atomic.
 			continue
 		} // Inline configuration constructed once here, will remain for lifetime of filter chain.
-		rcu := l.rdsHandler.updates[fc.routeConfigName]
+		rcu := l.rdsHandler.updates[fc.RouteConfigName]
 		if rcu.err != nil && rcu.data == nil {
-			urc := &usableRouteConfiguration{err: rcu.err}
-			urc.nodeID = l.xdsNodeID
-			fc.usableRouteConfiguration.Store(urc)
+			urc := &xdsresource.UsableRouteConfiguration{Err: rcu.err}
+			urc.NodeID = l.xdsNodeID
+			fc.UsableRouteConfiguration.Store(urc)
 			continue
 		}
-		urc := fc.constructUsableRouteConfiguration(*rcu.data)
-		urc.nodeID = l.xdsNodeID
-		fc.usableRouteConfiguration.Store(urc) // Can't race with an RPC coming in but no harm making atomic.
+		urc := fc.ConstructUsableRouteConfiguration(*rcu.data)
+		urc.NodeID = l.xdsNodeID
+		fc.UsableRouteConfiguration.Store(urc) // Can't race with an RPC coming in but no harm making atomic.
 	}
 }
 
@@ -297,11 +296,11 @@ func (l *listenerWrapper) Accept() (net.Conn, error) {
 			continue
 		}
 
-		fc, err := l.activeFilterChainManager.lookup(lookupParams{
-			isUnspecifiedListener: l.isUnspecifiedAddr,
-			dstAddr:               destAddr.IP,
-			srcAddr:               srcAddr.IP,
-			srcPort:               srcAddr.Port,
+		fc, err := l.activeFilterChainManager.Lookup(xdsresource.FilterChainLookupParams{
+			IsUnspecifiedListener: l.isUnspecifiedAddr,
+			DestAddr:              destAddr.IP,
+			SourceAddr:            srcAddr.IP,
+			SourcePort:            srcAddr.Port,
 		})
 		if err != nil {
 			l.mu.Unlock()
@@ -320,7 +319,7 @@ func (l *listenerWrapper) Accept() (net.Conn, error) {
 			conn.Close()
 			continue
 		}
-		cw := &connWrapper{Conn: conn, filterChain: fc, parent: l, urc: fc.usableRouteConfiguration}
+		cw := &connWrapper{Conn: conn, filterChain: fc, parent: l, urc: fc.UsableRouteConfiguration}
 		l.conns[cw] = true
 		l.mu.Unlock()
 		return cw, nil
@@ -387,17 +386,17 @@ type ldsWatcher struct {
 	name   string
 }
 
-func (lw *ldsWatcher) ResourceChanged(update *xdsresource.ListenerUpdate, onDone func()) {
+func (lw *ldsWatcher) ResourceChanged(update *xdsresource.ListenerResourceData, onDone func()) {
 	defer onDone()
 	if lw.parent.closed.HasFired() {
 		lw.logger.Warningf("Resource %q received update: %#v after listener was closed", lw.name, update)
 		return
 	}
 	if lw.logger.V(2) {
-		lw.logger.Infof("LDS watch for resource %q received update: %#v", lw.name, update)
+		lw.logger.Infof("LDS watch for resource %q received update: %#v", lw.name, update.Resource)
 	}
 	l := lw.parent
-	ilc := update.TCPListener
+	ilc := update.Resource.InboundListenerCfg
 	// Make sure that the socket address on the received Listener resource
 	// matches the address of the net.Listener passed to us by the user. This
 	// check is done here instead of at the XDSClient layer because of the
@@ -420,9 +419,8 @@ func (lw *ldsWatcher) ResourceChanged(update *xdsresource.ListenerUpdate, onDone
 		return
 	}
 
-	fcm := newFilterChainManager(&ilc.FilterChains, &ilc.DefaultFilterChain)
-	l.pendingFilterChainManager = fcm
-	l.rdsHandler.updateRouteNamesToWatch(fcm.routeConfigNames)
+	l.pendingFilterChainManager = ilc.FilterChains
+	l.rdsHandler.updateRouteNamesToWatch(ilc.FilterChains.RouteConfigNames)
 
 	if l.rdsHandler.determineRouteConfigurationReady() {
 		l.maybeUpdateFilterChains()
