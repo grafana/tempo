@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grafana/tempo/modules/generator/cardinality"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
@@ -21,7 +22,7 @@ type gauge struct {
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx    sync.RWMutex
 	series       map[uint64]*gaugeSeries
-	seriesDemand *Cardinality
+	seriesDemand *cardinality.Cardinality
 
 	lifecycler entityLifecycler
 
@@ -48,7 +49,7 @@ func newGauge(name string, lifecycler entityLifecycler, externalLabels map[strin
 	return &gauge{
 		metricName:     name,
 		series:         make(map[uint64]*gaugeSeries),
-		seriesDemand:   NewCardinality(staleDuration, removeStaleSeriesInterval),
+		seriesDemand:   cardinality.NewCardinality(staleDuration, removeStaleSeriesInterval),
 		lifecycler:     lifecycler,
 		externalLabels: externalLabels,
 	}

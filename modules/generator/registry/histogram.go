@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grafana/tempo/modules/generator/cardinality"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
@@ -27,7 +28,7 @@ type histogram struct {
 
 	seriesMtx    sync.Mutex
 	series       map[uint64]*histogramSeries
-	seriesDemand *Cardinality
+	seriesDemand *cardinality.Cardinality
 
 	lifecycler entityLifecycler
 
@@ -88,7 +89,7 @@ func newHistogram(name string, buckets []float64, lifecycler entityLifecycler, t
 		buckets:          buckets,
 		bucketLabels:     bucketLabels,
 		series:           make(map[uint64]*histogramSeries),
-		seriesDemand:     NewCardinality(staleDuration, removeStaleSeriesInterval),
+		seriesDemand:     cardinality.NewCardinality(staleDuration, removeStaleSeriesInterval),
 		lifecycler:       lifecycler,
 		traceIDLabelName: traceIDLabelName,
 		externalLabels:   externalLabels,

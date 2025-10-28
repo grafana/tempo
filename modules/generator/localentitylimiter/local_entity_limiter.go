@@ -4,12 +4,47 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/grafana/tempo/modules/generator/cardinality"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+const removeStaleSeriesInterval = 5 * time.Minute
+
+type localEntityLimiterMetrics struct {
+	activeEntities *prometheus.GaugeVec
+	maxEntities    *prometheus.GaugeVec
+	entityDemand   *prometheus.GaugeVec
+}
+
+func newMetrics(reg prometheus.Registerer) localEntityLimiterMetrics {
+	return localEntityLimiterMetrics{
+		activeEntities: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Name:      "metrics_generator_registry_active_entities",
+			Help:      "The number of active entities in the metrics generator registry",
+		}, []string{"tenant"}),
+		maxEntities: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Name:      "metrics_generator_registry_max_active_entities",
+			Help:      "The maximum number of entities allowed to be active in the metrics generator registry",
+		}, []string{"tenant"}),
+		entityDemand: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Name:      "metrics_generator_registry_entity_demand",
+			Help:      "The estimated number of entities that would be created if the max active entities were unlimited",
+		}, []string{"tenant"}),
+	}
+}
+
+var metrics = newMetrics(prometheus.DefaultRegisterer)
 
 type LocalEntityLimiter struct {
 	mtx               sync.Mutex
 	entityLastUpdated map[uint64]time.Time
 	maxEntityFunc     func(tenant string) uint32
+	demand            *cardinality.Cardinality
 	staleDuration     time.Duration
 }
 
@@ -18,14 +53,13 @@ func NewLocalEntityLimiter(maxEntityFunc func(tenant string) uint32, staleDurati
 		maxEntityFunc:     maxEntityFunc,
 		entityLastUpdated: make(map[uint64]time.Time),
 		staleDuration:     staleDuration,
+		demand:            cardinality.NewCardinality(staleDuration, removeStaleSeriesInterval),
 	}
 }
 
 func (l *LocalEntityLimiter) TrackEntities(_ context.Context, tenant string, hashes []uint64) (rejected []uint64, err error) {
 	maxEntities := l.maxEntityFunc(tenant)
-	if maxEntities == 0 {
-		return nil, nil
-	}
+	shouldLimit := maxEntities != 0
 
 	now := time.Now()
 
@@ -33,6 +67,8 @@ func (l *LocalEntityLimiter) TrackEntities(_ context.Context, tenant string, has
 	defer l.mtx.Unlock()
 
 	for _, hash := range hashes {
+		l.demand.Insert(hash)
+
 		_, exists := l.entityLastUpdated[hash]
 
 		if exists {
@@ -40,13 +76,17 @@ func (l *LocalEntityLimiter) TrackEntities(_ context.Context, tenant string, has
 			continue
 		}
 
-		if uint32(len(l.entityLastUpdated)) >= maxEntities {
+		if shouldLimit && uint32(len(l.entityLastUpdated)) >= maxEntities {
 			rejected = append(rejected, hash)
 			continue
 		}
 
 		l.entityLastUpdated[hash] = now
 	}
+
+	metrics.activeEntities.WithLabelValues(tenant).Set(float64(len(l.entityLastUpdated)))
+	metrics.maxEntities.WithLabelValues(tenant).Set(float64(maxEntities))
+	metrics.entityDemand.WithLabelValues(tenant).Set(float64(l.demand.Estimate()))
 
 	return rejected, nil
 }
@@ -60,4 +100,6 @@ func (l *LocalEntityLimiter) Prune(context.Context) {
 			delete(l.entityLastUpdated, hash)
 		}
 	}
+
+	l.demand.Advance()
 }

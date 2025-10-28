@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grafana/tempo/modules/generator/cardinality"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
@@ -17,7 +18,7 @@ type counter struct {
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx    sync.RWMutex
 	series       map[uint64]*counterSeries
-	seriesDemand *Cardinality
+	seriesDemand *cardinality.Cardinality
 
 	lifecycler entityLifecycler
 
@@ -52,7 +53,7 @@ func newCounter(name string, lifecycler entityLifecycler, externalLabels map[str
 	return &counter{
 		metricName:     name,
 		series:         make(map[uint64]*counterSeries),
-		seriesDemand:   NewCardinality(staleDuration, removeStaleSeriesInterval),
+		seriesDemand:   cardinality.NewCardinality(staleDuration, removeStaleSeriesInterval),
 		lifecycler:     lifecycler,
 		externalLabels: externalLabels,
 	}
