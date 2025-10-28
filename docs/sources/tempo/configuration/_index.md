@@ -16,44 +16,48 @@ Instructions for configuring Tempo data sources are available in the [Grafana Cl
 The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)
-    - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
-    - [Server](#server)
-    - [Distributor](#distributor)
-        - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
-        - [gRPC compression](#grpc-compression)
-    - [Ingester](#ingester)
-        - [Ingester configuration block](#ingester-configuration-block)
-    - [Metrics-generator](#metrics-generator)
-    - [Query-frontend](#query-frontend)
-        - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
-            - [Limit the spans per spanset](#limit-the-spans-per-spanset)
-            - [Cap the maximum query length](#cap-the-maximum-query-length)
-    - [Querier](#querier)
-    - [Compactor](#compactor)
-    - [Storage](#storage)
-        - [Local storage recommendations](#local-storage-recommendations)
-        - [Storage block configuration example](#storage-block-configuration-example)
-    - [Memberlist](#memberlist)
-    - [Configuration blocks](#configuration-blocks)
-        - [Block config](#block-config)
-        - [Filter policy config](#filter-policy-config)
-            - [Filter policy](#filter-policy)
-            - [Policy match](#policy-match)
-            - [Examples](#examples)
-        - [KVStore config](#kvstore-config)
-        - [Search config](#search-config)
-        - [WAL config](#wal-config)
-    - [Overrides](#overrides)
-        - [Ingestion limits](#ingestion-limits)
-            - [Standard overrides](#standard-overrides)
-            - [Tenant-specific overrides](#tenant-specific-overrides)
-                - [Runtime overrides](#runtime-overrides)
-                - [User-configurable overrides](#user-configurable-overrides)
-            - [Override strategies](#override-strategies)
-    - [Usage-report](#usage-report)
-        - [Configure usage-reporting](#configure-usage-reporting)
-    - [Cache](#cache)
-    - [Configure authentication](#configure-authentication)
+  - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+  - [Server](#server)
+  - [Distributor](#distributor)
+    - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
+    - [gRPC compression](#grpc-compression)
+  - [Ingester](#ingester)
+    - [Ingester configuration block](#ingester-configuration-block)
+  - [Metrics-generator](#metrics-generator)
+  - [Query-frontend](#query-frontend)
+    - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
+      - [Limit the spans per spanset](#limit-the-spans-per-spanset)
+      - [Cap the maximum query length](#cap-the-maximum-query-length)
+  - [Querier](#querier)
+  - [Compactor](#compactor)
+  - [Backend scheduler](#backend-scheduler)
+  - [Backend worker](#backend-worker)
+  - [Storage](#storage)
+    - [Local storage recommendations](#local-storage-recommendations)
+    - [Storage block configuration example](#storage-block-configuration-example)
+  - [Memberlist](#memberlist)
+  - [Configuration blocks](#configuration-blocks)
+    - [Block config](#block-config)
+    - [Compaction config](#compaction-config)
+    - [Filter policy config](#filter-policy-config)
+      - [Filter policy](#filter-policy)
+      - [Policy match](#policy-match)
+      - [Examples](#examples)
+    - [GRPC client config](#grpc-client-config)
+    - [KVStore config](#kvstore-config)
+    - [Search config](#search-config)
+    - [WAL config](#wal-config)
+  - [Overrides](#overrides)
+    - [Ingestion limits](#ingestion-limits)
+      - [Standard overrides](#standard-overrides)
+      - [Tenant-specific overrides](#tenant-specific-overrides)
+        - [Runtime overrides](#runtime-overrides)
+        - [User-configurable overrides](#user-configurable-overrides)
+      - [Override strategies](#override-strategies)
+  - [Usage-report](#usage-report)
+    - [Configure usage-reporting](#configure-usage-reporting)
+  - [Cache](#cache)
+  - [Configure authentication](#configure-authentication)
 
 Additionally, you can review [TLS](network/tls/) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
@@ -902,42 +906,134 @@ compactor:
             [store: <string> | default = memberlist]
             [prefix: <string> | default = "collectors/" ]
 
+    # Refer to the Compaction block section for details
+    compaction: <Compaction config>
+```
+
+## Backend scheduler
+
+The backend scheduler is responsible for scheduling and tracking jobs which are assigned to backend workers for processing.
+Only one scheduler should be running at a time.
+
+```yaml
+backend_scheduler:
+
+  # Work cache configuration
+  work:
+
+    # How long to keep completed or failed jobs in the work cache before pruning them.
+    [prune_age: <duration> | default = 1h]
+
+    # After this duration, jobs that have not been updated are considered dead and will be reassigned.
+    [dead_job_timeout: <duration> | default = 24h]
+
+  # How often to perform maintenance tasks (pruning old jobs, checking for dead jobs, etc.)
+  [maintenance_interval: <duration> | default = 1m]
+
+  # How often to flush the work cache to backend storage
+  [backend_flush_interval: <duration> | default = 1m]
+
+  # Provider configuration for job generation
+  provider:
+
+    # Retention job configuration
+    retention:
+
+      # How often to check for blocks that need to be deleted due to retention
+      [interval: <duration> | default = 1h]
+
+    # Compaction job configuration
     compaction:
 
-        # Optional. Duration to keep blocks. Default is 14 days (336h).
-        [block_retention: <duration>]
+      # How often to measure tenant block lists and create new compaction jobs
+      [measure_interval: <duration> | default = 1m]
 
-        # Optional. Duration to keep blocks that have been compacted elsewhere. Default is 1h.
-        [compacted_block_retention: <duration>]
+      # Compaction settings
+      # Refer to the Compaction block section for details
+      compaction: <Compaction config>
 
-        # Optional. Blocks in this time window will be compacted together. Default is 1h.
-        [compaction_window: <duration>]
+      # Maximum number of compaction jobs to create per tenant
+      [max_jobs_per_tenant: <int> | default = 1000]
 
-        # Optional. Maximum number of traces in a compacted block. Default is 6 million.
-        # WARNING: Deprecated. Use max_block_bytes instead.
-        [max_compaction_objects: <int>]
+      # Minimum number of blocks required for compaction
+      [min_input_blocks: <int> | default = 2]
 
-        # Optional. Maximum size of a compacted block in bytes. Default is 100 GB.
-        [max_block_bytes: <int>]
+      # Maximum number of blocks to compact together
+      [max_input_blocks: <int> | default = 4]
 
-        # Optional. Number of tenants to process in parallel during retention. Default is 10.
-        [retention_concurrency: <int>]
+      # Maximum compaction level (0 means no limit)
+      [max_compaction_level: <int> | default = 0]
 
-        # Optional. The maximum amount of time to spend compacting a single tenant before moving to the next. Default is 5m.
-        [max_time_per_tenant: <duration>]
+      # Minimum time between compaction cycles for a tenant
+      [min_cycle_interval: <duration> | default = 30s]
 
-        # Optional. The time between compaction cycles. Default is 30s.
-        # Note: The default will be used if the value is set to 0.
-        [compaction_cycle: <duration>]
+  # How long to wait for a worker to complete a job before timing out internally
+  [job_timeout: <duration> | default = 15s]
 
-        # Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
-        [v2_in_buffer_bytes: <int>]
+  # Path to store local work cache files
+  [local_work_path: <string> | default = "/var/tempo"]
+```
 
-        # Optional. Flush data to backend when buffer is this large. Default is 20 MB.
-        [v2_out_buffer_bytes: <int>]
+## Backend worker
 
-        # Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
-        [v2_prefetch_traces_count: <int>]
+The backend worker connects to the backend scheduler to receive and process jobs.
+Workers are responsible for executing compaction and retention and other jobs, and updating the scheduler on job status.
+
+```yaml
+# gRPC client configuration for connecting to the backend scheduler
+backend_scheduler_client:
+  grpc_client_config: <GRPC client config>
+backend_worker:
+
+  # Address of the backend scheduler to connect to
+  [backend_scheduler_addr: <string>]
+
+  # Backoff configuration for retrying failed jobs
+  backoff:
+    [min_period: <duration> | default = 100ms]
+    [max_period: <duration> | default = 1m]
+    [max_retries: <int> | default = 0]
+
+  # Compaction settings
+  # Refer to the Compaction block section for details
+  compaction: <Compaction config>
+
+  # Override the default ring key used by the backend worker
+  [override_ring_key: <string> | default = "backend-worker"]
+
+  # Ring configuration for coordinating tenant polling across workers
+  ring:
+    kvstore: <KVStore config>
+
+    # Period at which to heartbeat the instance
+    # 0 disables heartbeat altogether
+    [heartbeat_period: <duration> | default = 5s]
+
+    # The heartbeat timeout, after which, the instance is skipped.
+    # 0 disables timeout.
+    [heartbeat_timeout: <duration> | default = 1m]
+
+    # Our Instance ID to register as in the ring.
+    [instance_id: <string> | default = os.Hostname()]
+
+    # Name of the network interface to read address from.
+    [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
+
+    # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
+    # Will default to the configured `instance_id` ip address,
+    # if unset, will fallback to ip reported by `instance_interface_names`
+    # (Effected by `enable_inet6`)
+    [instance_addr: <string> | default = auto(instance_id, instance_interface_names)]
+
+    # Our advertised port in the ring
+    # Defaults to the configured GRPC listing port
+    [instance_port: <int> | default = auto(listen_port)]
+
+    # Enables the registering of ipv6 addresses in the ring.
+    [enable_inet6: <bool> | default = false]
+
+  # Timeout for finishing the current job before shutting down the worker
+  [finish_on_shutdown_timeout: <duration> | default = 30s]
 ```
 
 ## Storage
@@ -1460,6 +1556,48 @@ parquet_dedicated_columns: <list of columns>
       [scope: <string>]
 ```
 
+### Compaction config
+
+The compaction configuration block is used by the compactor, backend scheduler, and backend worker.
+Refer to the [Compactor](#compactor) section for the full list of compaction configuration options.
+
+```yaml
+# Optional. Duration to keep blocks. Default is 14 days (336h).
+[block_retention: <duration>]
+
+# Optional. Duration to keep blocks that have been compacted elsewhere. Default is 1h.
+[compacted_block_retention: <duration>]
+
+# Optional. Blocks in this time window will be compacted together. Default is 1h.
+[compaction_window: <duration>]
+
+# Optional. Maximum number of traces in a compacted block. Default is 6 million.
+# WARNING: Deprecated. Use max_block_bytes instead.
+[max_compaction_objects: <int>]
+
+# Optional. Maximum size of a compacted block in bytes. Default is 100 GB.
+[max_block_bytes: <int>]
+
+# Optional. Number of tenants to process in parallel during retention. Default is 10.
+[retention_concurrency: <int>]
+
+# Optional. The maximum amount of time to spend compacting a single tenant before moving to the next. Default is 5m.
+[max_time_per_tenant: <duration>]
+
+# Optional. The time between compaction cycles. Default is 30s.
+# Note: The default will be used if the value is set to 0.
+[compaction_cycle: <duration>]
+
+# Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
+[v2_in_buffer_bytes: <int>]
+
+# Optional. Flush data to backend when buffer is this large. Default is 20 MB.
+[v2_out_buffer_bytes: <int>]
+
+# Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
+[v2_prefetch_traces_count: <int>]
+```
+
 ### Filter policy config
 
 Span filter config block
@@ -1506,7 +1644,35 @@ include:
   match_type: 'strict'
   attributes:
     - key: 'foo.bar'
-      value: 'baz'
+      value: "baz"
+```
+
+### GRPC client config
+
+```
+[max_recv_msg_size: <int> | default = 104857600]
+[max_send_msg_size: <int> | default = 104857600]
+[grpc_compression: <string> | default = "snappy"]
+[rate_limit: <float> | default = 0]
+[rate_limit_burst: <int> | default = 0]
+[backoff_on_ratelimits: <bool> | default = false]
+backoff_config:
+  [min_period: <duration> | default = 100ms]
+  [max_period: <duration> | default = 10s]
+  [max_retries: <int> | default = 10]
+[initial_stream_window_size: <int>]
+[initial_connection_window_size: <int>]
+[tls_enabled: <bool> | default = false]
+[tls_cert_path: <string>]
+[tls_key_path: <string>]
+[tls_ca_path: <string>]
+[tls_server_name: <string>]
+[tls_insecure_skip_verify: <bool> | default = false]
+[tls_cipher_suites: <string>]
+[tls_min_version: <string>]
+[connect_timeout: <duration> | default = 5s]
+[connect_backoff_base_delay: <duration> | default = 1s]
+[connect_backoff_max_delay: <duration> | default = 5s]
 ```
 
 ### KVStore config
