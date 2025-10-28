@@ -43,6 +43,8 @@ const (
 	OpExists // OpNotExists is not parseable directly in the grammar. span.foo != nil and nil != span.foo are rewritten to something like exists(span.foo). this distinguishes it from when span.foo is nil in an expression like span.foo != "bar"
 	OpIn
 	OpNotIn
+	OpRegexMatchAny
+	OpRegexMatchNone
 )
 
 func (op Operator) isBoolean() bool {
@@ -101,7 +103,7 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 			op == OpLess ||
 			op == OpLessEqual
 	case TypeStringArray:
-		if op == OpIn || op == OpNotIn {
+		if op == OpIn || op == OpNotIn || op == OpRegexMatchAny || op == OpRegexMatchNone {
 			return true
 		}
 		fallthrough // otherwise, all string operators are valid as well
@@ -208,6 +210,16 @@ func (op Operator) String() string {
 		return "&<<"
 	case OpSpansetUnionDescendant:
 		return "&>>"
+
+	// Operators IN, NOT IN, MATCH ANY, and MATCH NONE do not exist in the TraceQL syntax (only used internally)
+	case OpIn:
+		return "IN"
+	case OpNotIn:
+		return "NOT IN"
+	case OpRegexMatchAny:
+		return "MATCH ANY"
+	case OpRegexMatchNone:
+		return "MATCH NONE"
 	}
 
 	return fmt.Sprintf("operator(%d)", op)
