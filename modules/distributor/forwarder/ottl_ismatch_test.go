@@ -10,7 +10,8 @@ import (
 )
 
 func TestFilterForwarder_IsMatch(t *testing.T) {
-	// Given
+	// This test is mostly to ensure that the IsMatch is loaded correctly, there are other functions that could be affected but we want to load
+	// the standard ones. OTTL made a change with allowing custom functions which changed how standard functions are loaded.
 	traces := ptrace.NewTraces()
 	rss := traces.ResourceSpans().AppendEmpty()
 	ss := rss.ScopeSpans().AppendEmpty()
