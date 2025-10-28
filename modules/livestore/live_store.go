@@ -591,7 +591,7 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 func withInstance[T any](ctx context.Context, s *LiveStore, defaultValue *T, fn func(*instance) (*T, error)) (*T, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, err
+		return defaultValue, err
 	}
 
 	inst, found := s.getInstance(instanceID)
