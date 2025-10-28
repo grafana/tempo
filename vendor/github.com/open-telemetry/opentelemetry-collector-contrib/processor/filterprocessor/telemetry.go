@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/pipeline"
+	"go.opentelemetry.io/collector/pipeline/xpipeline"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -34,6 +35,8 @@ func newFilterTelemetry(set processor.Settings, signal pipeline.Signal) (*filter
 		counter = telemetryBuilder.ProcessorFilterLogsFiltered
 	case pipeline.SignalTraces:
 		counter = telemetryBuilder.ProcessorFilterSpansFiltered
+	case xpipeline.SignalProfiles:
+		counter = telemetryBuilder.ProcessorFilterProfilesFiltered
 	default:
 		return nil, fmt.Errorf("unsupported signal type: %v", signal)
 	}

@@ -147,6 +147,7 @@ type ancestorQuery struct {
 	name     string
 	iterator func() NodeNavigator
 	table    map[uint64]bool
+	pos      int
 
 	Self      bool
 	Input     query
@@ -164,6 +165,8 @@ func (a *ancestorQuery) Select(t iterator) NodeNavigator {
 			if node == nil {
 				return nil
 			}
+			// Reset position for a new input context node
+			a.pos = 0
 			first := true
 			node = node.Copy()
 			a.iterator = func() NodeNavigator {
@@ -186,6 +189,8 @@ func (a *ancestorQuery) Select(t iterator) NodeNavigator {
 			node_id := getHashCode(node.Copy())
 			if _, ok := a.table[node_id]; !ok {
 				a.table[node_id] = true
+				// Increase position for each matched node in current input context
+				a.pos++
 				return node
 			}
 		}
@@ -213,6 +218,13 @@ func (a *ancestorQuery) ValueType() resultType {
 
 func (a *ancestorQuery) Properties() queryProp {
 	return queryProps.Position | queryProps.Count | queryProps.Cached | queryProps.Merge | queryProps.Reverse
+}
+
+// position returns the ordinal of the current matched node within the axis
+// traversal for the current input context node. This is required so numeric
+// predicates like [1] or [2] on the ancestor axis resolve in axis order.
+func (a *ancestorQuery) position() int {
+	return a.pos
 }
 
 // attributeQuery is an XPath attribute node query.(@*)
