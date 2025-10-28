@@ -287,7 +287,10 @@ func numberFunc(arg1 query) func(query, iterator) interface{} {
 
 // stringFunc is a XPath functions string([node-set]).
 func stringFunc(arg1 query) func(query, iterator) interface{} {
-	return func(_ query, t iterator) interface{} {
+	return func(q query, t iterator) interface{} {
+		if arg1 == nil {
+			return t.Current().Value()
+		}
 		v := functionArgs(arg1).Evaluate(t)
 		return asString(t, v)
 	}
