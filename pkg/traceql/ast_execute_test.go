@@ -1768,10 +1768,11 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 
 func TestBinOp(t *testing.T) {
 	testCases := []struct {
-		op       Operator
-		lhs      Static
-		rhs      Static
-		expected Static
+		op        Operator
+		lhs       Static
+		rhs       Static
+		expected  Static
+		symmetric bool
 	}{
 		{
 			op:       OpGreater,
@@ -1779,23 +1780,112 @@ func TestBinOp(t *testing.T) {
 			rhs:      NewStaticString(""),
 			expected: StaticTrue,
 		},
+		// Comparisons of strings starting with a number were previously broken.
 		{
-			// Comparison of strings starting with a number were previously broken.
 			op:       OpGreater,
 			lhs:      NewStaticString("123"),
 			rhs:      NewStaticString(""),
 			expected: StaticTrue,
 		},
+		// Test cases for of array operations
+		{
+			op:        OpEqual,
+			lhs:       NewStaticInt(2),
+			rhs:       NewStaticIntArray([]int{1, 2, 3}),
+			expected:  StaticTrue,
+			symmetric: true,
+		},
+		{
+			op:        OpEqual,
+			lhs:       NewStaticInt(2),
+			rhs:       NewStaticStringArray([]string{"1", "2", "3"}),
+			expected:  StaticFalse,
+			symmetric: true,
+		},
+		{
+			op:        OpNotEqual,
+			lhs:       NewStaticString("1"),
+			rhs:       NewStaticStringArray([]string{"2", "3", "4"}),
+			expected:  StaticTrue,
+			symmetric: true,
+		},
+		{
+			op:        OpNotEqual,
+			lhs:       NewStaticString("3"),
+			rhs:       NewStaticStringArray([]string{"1", "2", "3"}),
+			expected:  StaticFalse,
+			symmetric: true,
+		},
+		// Test cases for of array regex operations (regex is not symmetrical, the rhs is always the regex)
+		{
+			op:       OpRegex,
+			lhs:      NewStaticString("two"),
+			rhs:      NewStaticStringArray([]string{"one", "tw.*", "three"}),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpRegex,
+			lhs:      NewStaticString("two"),
+			rhs:      NewStaticStringArray([]string{"on.*", "three", ".*four.*"}),
+			expected: StaticFalse,
+		},
+		{
+			op:       OpRegex,
+			lhs:      NewStaticStringArray([]string{"one", "two", "three"}),
+			rhs:      NewStaticString("tw.*"),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpRegex,
+			lhs:      NewStaticStringArray([]string{"one", "three", "four"}),
+			rhs:      NewStaticString("tw.*"),
+			expected: StaticFalse,
+		},
+		{
+			op:       OpRegex,
+			lhs:      NewStaticString("1.1"),
+			rhs:      NewStaticFloatArray([]float64{1.1, 2.2, 3.3}),
+			expected: StaticFalse,
+		},
+		{
+			op:       OpNotRegex,
+			lhs:      NewStaticString("one"),
+			rhs:      NewStaticStringArray([]string{"tw.*", "th.*", "fo.*"}),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpNotRegex,
+			lhs:      NewStaticString("one"),
+			rhs:      NewStaticStringArray([]string{"on.*", "tw.*", "th.*"}),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpNotRegex,
+			lhs:      NewStaticStringArray([]string{"two", "three", "four"}),
+			rhs:      NewStaticString("on.*"),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpNotRegex,
+			lhs:      NewStaticStringArray([]string{"one", "two", "three"}),
+			rhs:      NewStaticString("on.*"),
+			expected: StaticTrue,
+		},
 	}
+
 	for _, tc := range testCases {
-		b := newBinaryOperation(tc.op, tc.lhs, tc.rhs)
+		op := newBinaryOperation(tc.op, tc.lhs, tc.rhs)
 
-		// Static operations are already "compiled" away so recreate via string here.
-		text := tc.lhs.String() + " " + tc.op.String() + " " + tc.rhs.String()
-
-		actual, err := b.execute(nil)
+		actual, err := op.execute(nil)
 		require.NoError(t, err)
-		require.Equal(t, tc.expected, actual, text)
+		require.Equal(t, tc.expected, actual, fmt.Sprintf("%s %s %s", tc.lhs, tc.op, tc.rhs))
+
+		if tc.symmetric {
+			op = newBinaryOperation(tc.op, tc.rhs, tc.lhs)
+			actual, err = op.execute(nil)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual, fmt.Sprintf("%s %s %s", tc.rhs, tc.op, tc.lhs))
+		}
 	}
 }
 
