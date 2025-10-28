@@ -107,6 +107,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorRingSize                                                    int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
 	MetricsGeneratorProcessors                                                  listtomap.ListToMap              `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
 	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
+	MetricsGeneratorMaxEntities                                                 uint32                           `yaml:"metrics_generator_max_entities" json:"metrics_generator_max_entities"`
 	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
 	MetricsGeneratorGenerateNativeHistograms                                    histograms.HistogramMethod       `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
@@ -194,6 +195,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			RingSize:                 l.MetricsGeneratorRingSize,
 			Processors:               l.MetricsGeneratorProcessors,
 			MaxActiveSeries:          l.MetricsGeneratorMaxActiveSeries,
+			MaxActiveEntities:        l.MetricsGeneratorMaxEntities,
 			CollectionInterval:       l.MetricsGeneratorCollectionInterval,
 			DisableCollection:        l.MetricsGeneratorDisableCollection,
 			TraceIDLabelName:         l.MetricsGeneratorTraceIDLabelName,
