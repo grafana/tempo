@@ -263,9 +263,21 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 
 func TestDedicatedColumn_readValue(t *testing.T) {
 	attrComplete := DedicatedAttributes{
-		ptr("one"), ptr("two"), ptr("three"), ptr("four"), ptr("five"),
-		ptr("six"), ptr("seven"), ptr("eight"), ptr("nine"), ptr("ten"),
-		ptr(int64(1)), ptr(int64(2)), ptr(int64(3)), ptr(int64(4)), ptr(int64(5)),
+		String01: []string{"one"},
+		String02: []string{"two"},
+		String03: []string{"three"},
+		String04: []string{"four"},
+		String05: []string{"five"},
+		String06: []string{"six"},
+		String07: []string{"seven"},
+		String08: []string{"eight"},
+		String09: []string{"nine"},
+		String10: []string{"ten"},
+		Int01:    []int64{1},
+		Int02:    []int64{2},
+		Int03:    []int64{3},
+		Int04:    []int64{4},
+		Int05:    []int64{5},
 	}
 
 	tests := []struct {
@@ -279,6 +291,14 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 1},
 			attr:            attrComplete,
 			want:            &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
+		},
+		{
+			name:            "str array",
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2, IsArray: true},
+			attr:            attrComplete,
+			want: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "three"}}}},
+			}},
 		},
 		{
 			name:            "str nil",
@@ -297,6 +317,26 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 2},
 			attr:            attrComplete,
 			want:            &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 3}},
+		},
+		{
+			name:            "int array",
+			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3, IsArray: true},
+			attr:            attrComplete,
+			want: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 4}}}},
+			}},
+		},
+		{
+			name:            "str empty",
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2},
+			attr:            DedicatedAttributes{},
+			want:            nil,
+		},
+		{
+			name:            "int empty",
+			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3},
+			attr:            DedicatedAttributes{},
+			want:            nil,
 		},
 		{
 			name:            "int nil",
@@ -333,18 +373,48 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4},
 			value:           &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "five"}},
 			expectedWritten: true,
-			expectedAttr:    DedicatedAttributes{String05: ptr("five")},
+			expectedAttr:    DedicatedAttributes{String05: []string{"five"}},
+		},
+		{
+			name:            "string array",
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4, IsArray: true},
+			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "five"}}}},
+			}},
+			expectedWritten: true,
+			expectedAttr:    DedicatedAttributes{String05: []string{"five"}},
 		},
 		{
 			name:            "int",
 			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3},
 			value:           &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 11}},
 			expectedWritten: true,
-			expectedAttr:    DedicatedAttributes{Int04: ptr(int64(11))},
+			expectedAttr:    DedicatedAttributes{Int04: []int64{11}},
+		},
+		{
+			name:            "int array",
+			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3, IsArray: true},
+			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 11}}}},
+			}},
+			expectedWritten: true,
+			expectedAttr:    DedicatedAttributes{Int04: []int64{11}},
 		},
 		{
 			name:            "wrong type",
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 1},
+			value:           &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 2}},
+		},
+		{
+			name:            "wrong array element type",
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2, IsArray: true},
+			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
+				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
+			}},
+		},
+		{
+			name:            "not an array",
+			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3, IsArray: true},
 			value:           &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 2}},
 		},
 		{
