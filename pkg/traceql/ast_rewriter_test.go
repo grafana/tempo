@@ -13,18 +13,107 @@ func TestOrToInRewriter(t *testing.T) {
 		want  string
 	}{
 		{
+			name:  "empty",
+			query: "{ }",
+			want:  "{ true }",
+		},
+		// || to IN
+		{
 			name:  "simple or",
 			query: "{ .attr1 = `val1` || .attr1 = `val2` }",
 			want:  "{ .attr1 IN [`val1`, `val2`] }",
+		},
+		{
+			name:  "simple or ints",
+			query: "{ .attr1 = 1 || .attr1 = 2 }",
+			want:  "{ .attr1 IN [1, 2] }",
 		},
 		{
 			name:  "multiple or",
 			query: "{ .attr1 = `val1` || .attr1 = `val2` || .attr1 = `val3`}",
 			want:  "{ .attr1 IN [`val1`, `val2`, `val3`] }",
 		},
+		{
+			name:  "mixed or and",
+			query: "{ .attr1 = `val1` || .attr1 = `val2` && .attr2 = `val3`}",
+			want:  "{ (.attr1 IN [`val1`, `val2`]) && (.attr2 = `val3`) }",
+		},
+		{
+			name:  "mixed or and interleaved",
+			query: "{ .attr1 = `val1` || .attr1 = `val2` && .attr2 = `val3` || .attr1 = `val4`}",
+			want:  "{ ((.attr1 IN [`val1`, `val2`]) && (.attr2 = `val3`)) || (.attr1 = `val4`) }",
+		},
+		{
+			name:  "multiple or wrong operator",
+			query: "{ .attr1 = `val1` || .attr1 = `val2` || .attr1 != `val3`}",
+			want:  "{ (.attr1 IN [`val1`, `val2`]) || (.attr1 != `val3`) }",
+		},
+		{
+			name:  "multiple or wrong type",
+			query: "{ .attr1 = `val1` || .attr1 = `val2` || .attr1 = 1}",
+			want:  "{ (.attr1 IN [`val1`, `val2`]) || (.attr1 = 1) }",
+		},
+		// || to MATCH ANY
+		{
+			name:  "regex simple or",
+			query: "{ .attr1 =~ `val1` || .attr1 =~ `val2` }",
+			want:  "{ .attr1 MATCH ANY [`val1`, `val2`] }",
+		},
+		{
+			name:  "regex multiple or",
+			query: "{ .attr1 =~ `val1` || .attr1 =~ `val2` || .attr1 =~ `val3`}",
+			want:  "{ .attr1 MATCH ANY [`val1`, `val2`, `val3`] }",
+		},
+		{
+			name:  "regex mixed or and",
+			query: "{ .attr1 =~ `val1` || .attr1 =~ `val2` && .attr2 =~ `val3`}",
+			want:  "{ (.attr1 MATCH ANY [`val1`, `val2`]) && (.attr2 =~ `val3`) }",
+		},
+		{
+			name:  "regex mixed or and interleaved",
+			query: "{ .attr1 =~ `val1` || .attr1 =~ `val2` && .attr2 =~ `val3` || .attr1 =~ `val4`}",
+			want:  "{ ((.attr1 MATCH ANY [`val1`, `val2`]) && (.attr2 =~ `val3`)) || (.attr1 =~ `val4`) }",
+		},
+		// && to NOT IN
+		{
+			name:  "simple and",
+			query: "{ .attr1 != `val1` && .attr1 != `val2` }",
+			want:  "{ .attr1 NOT IN [`val1`, `val2`] }",
+		},
+		{
+			name:  "multiple and",
+			query: "{ .attr1 != `val1` && .attr1 != `val2` && .attr1 != `val3`}",
+			want:  "{ .attr1 NOT IN [`val1`, `val2`, `val3`] }",
+		},
+		{
+			name:  "mixed and or",
+			query: "{ .attr1 != `val1` && .attr1 != `val2` || .attr2 != `val3`}",
+			want:  "{ (.attr1 NOT IN [`val1`, `val2`]) || (.attr2 != `val3`) }",
+		},
+		{
+			name:  "multiple and wrong operator",
+			query: "{ .attr1 != `val1` && .attr1 != `val2` && .attr1 = `val3`}",
+			want:  "{ (.attr1 NOT IN [`val1`, `val2`]) && (.attr1 = `val3`) }",
+		},
+		// && to MATCH NONE
+		{
+			name:  "regex simple and",
+			query: "{ .attr1 !~ `val1` && .attr1 !~ `val2` }",
+			want:  "{ .attr1 MATCH NONE [`val1`, `val2`] }",
+		},
+		{
+			name:  "regex multiple and",
+			query: "{ .attr1 !~ `val1` && .attr1 !~ `val2` && .attr1 !~ `val3`}",
+			want:  "{ .attr1 MATCH NONE [`val1`, `val2`, `val3`] }",
+		},
+		{
+			name:  "regex mixed and or",
+			query: "{ .attr1 !~ `val1` && .attr1 !~ `val2` || .attr2 !~ `val3`}",
+			want:  "{ (.attr1 MATCH NONE [`val1`, `val2`]) || (.attr2 !~ `val3`) }",
+		},
 	}
 
-	rewriter := newOrToInRewriter()
+	rewriter := newBinaryOpToArrayOpRewriter()
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -83,13 +172,13 @@ func TestFieldExpressionRewriter_VisitOrder(t *testing.T) {
 				require.NoError(t, err)
 
 				var index int
-				rw := &fieldExpressionRewriter{func(op FieldExpression) FieldExpression {
+				rw := &binaryOpToArrayOpRewriter{rewriteFunctions: []fieldExpressionRewriteFn{func(op FieldExpression) FieldExpression {
 					if index < len(tc.visitOrder) {
 						requireMatchingFieldExpression(t, op, tc.visitOrder[index])
 					}
 					index++
 					return op
-				}}
+				}}}
 				rw.RewriteRoot(expr)
 				require.Equal(t, len(tc.visitOrder), index, "visited element count mismatch")
 			})

@@ -1,10 +1,13 @@
 package traceql
 
+import "slices"
+
 // Rewriter modifies a TraceQL AST
 type Rewriter interface {
 	RewriteRoot(*RootExpr) *RootExpr
 }
 
+// rewriteChain is a Rewriter consisting of multiple Rewriter instances
 type rewriteChain []Rewriter
 
 func (c rewriteChain) RewriteRoot(r *RootExpr) *RootExpr {
@@ -14,15 +17,31 @@ func (c rewriteChain) RewriteRoot(r *RootExpr) *RootExpr {
 	return r
 }
 
-func newOrToInRewriter() *fieldExpressionRewriter {
-	return &fieldExpressionRewriter{rewriteFn: rewriteOrToIn}
+// newBinaryOpToArrayOpRewriter creates a Rewriter that rewrites certain BinaryOperation expressions to
+// equivalent array operations in the TraceQL AST. It handles the following cases:
+// - { .a = "a" || .b = "b" }   => { .a IN ["a", "b"] }
+// - { .a != "a" && .b != "b" } => { .a NOT IN ["a", "b"] }
+// - { .a =~ "a" || .b =~ "b" } => { .a MATCH ANY ["a", "b"] }
+// - { .a !~ "a" && .b !~ "b" } => { .a MATCH NONE ["a", "b"]}
+func newBinaryOpToArrayOpRewriter() *binaryOpToArrayOpRewriter {
+	return &binaryOpToArrayOpRewriter{
+		rewriteFunctions: []fieldExpressionRewriteFn{
+			rewriteOrToIn,
+			rewriteAndToNotIn,
+			rewriteOrToMatchAny,
+			rewriteAndToMatchNone,
+		},
+	}
 }
 
-type fieldExpressionRewriter struct {
-	rewriteFn func(e FieldExpression) FieldExpression
+// fieldExpressionRewriteFn is a function that rewrites single FieldExpression implementations should not descent into subexpressions
+type fieldExpressionRewriteFn func(e FieldExpression) FieldExpression
+
+type binaryOpToArrayOpRewriter struct {
+	rewriteFunctions []fieldExpressionRewriteFn
 }
 
-func (f *fieldExpressionRewriter) RewriteRoot(r *RootExpr) *RootExpr {
+func (f *binaryOpToArrayOpRewriter) RewriteRoot(r *RootExpr) *RootExpr {
 	if r == nil {
 		return r
 	}
@@ -34,7 +53,7 @@ func (f *fieldExpressionRewriter) RewriteRoot(r *RootExpr) *RootExpr {
 	}
 }
 
-func (f *fieldExpressionRewriter) rewritePipeline(p Pipeline) Pipeline {
+func (f *binaryOpToArrayOpRewriter) rewritePipeline(p Pipeline) Pipeline {
 	elements := make([]PipelineElement, 0, len(p.Elements))
 	for _, el := range p.Elements {
 		switch el := el.(type) {
@@ -56,7 +75,7 @@ func (f *fieldExpressionRewriter) rewritePipeline(p Pipeline) Pipeline {
 	return newPipeline(elements...)
 }
 
-func (f *fieldExpressionRewriter) rewriteScalarExpression(se ScalarExpression) ScalarExpression {
+func (f *binaryOpToArrayOpRewriter) rewriteScalarExpression(se ScalarExpression) ScalarExpression {
 	switch se := se.(type) {
 	case Pipeline:
 		return f.rewritePipeline(se)
@@ -73,7 +92,7 @@ func (f *fieldExpressionRewriter) rewriteScalarExpression(se ScalarExpression) S
 	return se
 }
 
-func (f *fieldExpressionRewriter) rewriteFieldExpression(e FieldExpression) FieldExpression {
+func (f *binaryOpToArrayOpRewriter) rewriteFieldExpression(e FieldExpression) FieldExpression {
 	switch e := e.(type) {
 	case *BinaryOperation:
 		e.LHS = f.rewriteFieldExpression(e.LHS)
@@ -81,49 +100,87 @@ func (f *fieldExpressionRewriter) rewriteFieldExpression(e FieldExpression) Fiel
 	case *UnaryOperation:
 		e.Expression = f.rewriteFieldExpression(e.Expression)
 	}
-	return f.rewriteFn(e)
+
+	for _, fn := range f.rewriteFunctions {
+		e = fn(e)
+	}
+
+	return e
 }
 
+// rewriteOrToIn is a fieldExpressionRewriteFn that rewrites a single { .a = "a" || .b = "b" } to { .a IN ["a", "b"] }
 func rewriteOrToIn(e FieldExpression) FieldExpression {
+	return rewriteBinaryOperationsToArrayEquivalent(e, OpOr, OpEqual, OpIn)
+}
+
+// rewriteAndToNotIn is a fieldExpressionRewriteFn that rewrites a single { .a != "a" && .b != "b" } to { .a NOT IN ["a", "b"] }
+func rewriteAndToNotIn(e FieldExpression) FieldExpression {
+	return rewriteBinaryOperationsToArrayEquivalent(e, OpAnd, OpNotEqual, OpNotIn)
+}
+
+// rewriteOrToMatchAny is a fieldExpressionRewriteFn that rewrites a single { .a =~ "a" || .b =~ "b" } to { .a MATCH ANY ["a", "b"] }
+func rewriteOrToMatchAny(e FieldExpression) FieldExpression {
+	return rewriteBinaryOperationsToArrayEquivalent(e, OpOr, OpRegex, OpRegexMatchAny, TypeString, TypeStringArray)
+}
+
+// rewriteAndToMatchNone is a fieldExpressionRewriteFn that rewrites a single { .a !~ "a" && .b !~ "b" } to { .a MATCH NONE ["a", "b"]}
+func rewriteAndToMatchNone(e FieldExpression) FieldExpression {
+	return rewriteBinaryOperationsToArrayEquivalent(e, OpAnd, OpNotRegex, OpRegexMatchNone, TypeString, TypeStringArray)
+}
+
+
+// rewriteBinaryOperationsToArrayEquivalent rewrites binary operations to an equivalent array form
+func rewriteBinaryOperationsToArrayEquivalent(e FieldExpression, opOuter, opInner, opArray Operator, restrictTypes ...StaticType) FieldExpression {
 	opOr, ok := e.(*BinaryOperation)
-	if !ok || opOr.Op != OpOr {
+	if !ok || opOr.Op != opOuter {
 		return e
 	}
 
-	// LHS and RHS operands
+	// prepare LHS and RHS operands
 	opLHS, ok := opOr.LHS.(*BinaryOperation)
-	if !ok || (opLHS.Op != OpIn && opLHS.Op != OpEqual) {
-		return e
-	}
-	opRHS, ok := opOr.RHS.(*BinaryOperation)
-	if !ok || (opLHS.Op != OpIn && opLHS.Op != OpEqual) {
-		return e
-	}
-
-	lhsAttr, lhsVal, ok := operandsFromEqualOrIn(opLHS)
 	if !ok {
 		return e
 	}
-	rhsAttr, rhsVal, ok := operandsFromEqualOrIn(opRHS)
+	opRHS, ok := opOr.RHS.(*BinaryOperation)
+	if !ok {
+		return e
+	}
+
+	lhsAttr, lhsVal, ok := operandsFromEqualOrIn(opLHS, opInner, opArray)
+	if !ok {
+		return e
+	}
+	rhsAttr, rhsVal, ok := operandsFromEqualOrIn(opRHS, opInner, opArray)
 	if !ok || lhsAttr != rhsAttr {
 		return e
 	}
 
+	// if the types are restricted to a specific set, ensure they are valid
+	if len(restrictTypes) > 0 {
+		if !slices.Contains(restrictTypes, lhsVal.Type) {
+			return e
+		}
+		if !slices.Contains(restrictTypes, rhsVal.Type) {
+			return e
+		}
+	}
+
+	// create an equivalent array operation
 	array, ok := lhsVal.append(rhsVal)
 	if !ok {
 		return e
 	}
 
 	return &BinaryOperation{
-		Op:  OpIn,
+		Op:  opArray,
 		LHS: lhsAttr,
 		RHS: array,
 	}
 }
 
-func operandsFromEqualOrIn(exp FieldExpression) (Attribute, Static, bool) {
+func operandsFromEqualOrIn(exp FieldExpression, operators ...Operator) (Attribute, Static, bool) {
 	binOp, ok := exp.(*BinaryOperation)
-	if !ok || (binOp.Op != OpIn && binOp.Op != OpEqual) {
+	if !ok || !slices.Contains(operators, binOp.Op) {
 		return Attribute{}, StaticNil, false
 	}
 
@@ -144,10 +201,4 @@ func operandsFromEqualOrIn(exp FieldExpression) (Attribute, Static, bool) {
 	}
 
 	return attr, val, true
-}
-
-// ApplyDefaultRewrites applies all default rewrite passes.
-// TODO remove
-func ApplyDefaultRewrites(r *RootExpr) *RootExpr {
-	return r
 }
