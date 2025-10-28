@@ -108,29 +108,28 @@ func (f *binaryOpToArrayOpRewriter) rewriteFieldExpression(e FieldExpression) Fi
 	return e
 }
 
-// rewriteOrToIn is a fieldExpressionRewriteFn that rewrites a single { .a = "a" || .b = "b" } to { .a IN ["a", "b"] }
+// rewriteOrToIn is a fieldExpressionRewriteFn that rewrites a single { .a = "a" || .b = "b" } to { .a = ["a", "b"] }
 func rewriteOrToIn(e FieldExpression) FieldExpression {
-	return rewriteBinaryOperationsToArrayEquivalent(e, OpOr, OpEqual, OpIn)
+	return rewriteBinaryOperationsToArrayEquivalent(e, OpOr, OpEqual)
 }
 
-// rewriteAndToNotIn is a fieldExpressionRewriteFn that rewrites a single { .a != "a" && .b != "b" } to { .a NOT IN ["a", "b"] }
+// rewriteAndToNotIn is a fieldExpressionRewriteFn that rewrites a single { .a != "a" && .b != "b" } to { .a != ["a", "b"] }
 func rewriteAndToNotIn(e FieldExpression) FieldExpression {
-	return rewriteBinaryOperationsToArrayEquivalent(e, OpAnd, OpNotEqual, OpNotIn)
+	return rewriteBinaryOperationsToArrayEquivalent(e, OpAnd, OpNotEqual)
 }
 
-// rewriteOrToMatchAny is a fieldExpressionRewriteFn that rewrites a single { .a =~ "a" || .b =~ "b" } to { .a MATCH ANY ["a", "b"] }
+// rewriteOrToMatchAny is a fieldExpressionRewriteFn that rewrites a single { .a =~ "a" || .b =~ "b" } to { .a =~ ["a", "b"] }
 func rewriteOrToMatchAny(e FieldExpression) FieldExpression {
-	return rewriteBinaryOperationsToArrayEquivalent(e, OpOr, OpRegex, OpRegexMatchAny, TypeString, TypeStringArray)
+	return rewriteBinaryOperationsToArrayEquivalent(e, OpOr, OpRegex, TypeString, TypeStringArray)
 }
 
-// rewriteAndToMatchNone is a fieldExpressionRewriteFn that rewrites a single { .a !~ "a" && .b !~ "b" } to { .a MATCH NONE ["a", "b"]}
+// rewriteAndToMatchNone is a fieldExpressionRewriteFn that rewrites a single { .a !~ "a" && .b !~ "b" } to { .a !~ ["a", "b"]}
 func rewriteAndToMatchNone(e FieldExpression) FieldExpression {
-	return rewriteBinaryOperationsToArrayEquivalent(e, OpAnd, OpNotRegex, OpRegexMatchNone, TypeString, TypeStringArray)
+	return rewriteBinaryOperationsToArrayEquivalent(e, OpAnd, OpNotRegex, TypeString, TypeStringArray)
 }
-
 
 // rewriteBinaryOperationsToArrayEquivalent rewrites binary operations to an equivalent array form
-func rewriteBinaryOperationsToArrayEquivalent(e FieldExpression, opOuter, opInner, opArray Operator, restrictTypes ...StaticType) FieldExpression {
+func rewriteBinaryOperationsToArrayEquivalent(e FieldExpression, opOuter, opInner Operator, restrictTypes ...StaticType) FieldExpression {
 	opOr, ok := e.(*BinaryOperation)
 	if !ok || opOr.Op != opOuter {
 		return e
@@ -146,11 +145,11 @@ func rewriteBinaryOperationsToArrayEquivalent(e FieldExpression, opOuter, opInne
 		return e
 	}
 
-	lhsAttr, lhsVal, ok := operandsFromEqualOrIn(opLHS, opInner, opArray)
+	lhsAttr, lhsVal, ok := operandsFromEqualOrIn(opLHS, opInner)
 	if !ok {
 		return e
 	}
-	rhsAttr, rhsVal, ok := operandsFromEqualOrIn(opRHS, opInner, opArray)
+	rhsAttr, rhsVal, ok := operandsFromEqualOrIn(opRHS, opInner)
 	if !ok || lhsAttr != rhsAttr {
 		return e
 	}
@@ -172,15 +171,15 @@ func rewriteBinaryOperationsToArrayEquivalent(e FieldExpression, opOuter, opInne
 	}
 
 	return &BinaryOperation{
-		Op:  opArray,
+		Op:  opInner,
 		LHS: lhsAttr,
 		RHS: array,
 	}
 }
 
-func operandsFromEqualOrIn(exp FieldExpression, operators ...Operator) (Attribute, Static, bool) {
+func operandsFromEqualOrIn(exp FieldExpression, operator Operator) (Attribute, Static, bool) {
 	binOp, ok := exp.(*BinaryOperation)
-	if !ok || !slices.Contains(operators, binOp.Op) {
+	if !ok || binOp.Op != operator {
 		return Attribute{}, StaticNil, false
 	}
 

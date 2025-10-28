@@ -41,10 +41,6 @@ const (
 	OpSpansetUnionAncestor
 	OpSpansetUnionDescendant
 	OpExists // OpNotExists is not parseable directly in the grammar. span.foo != nil and nil != span.foo are rewritten to something like exists(span.foo). this distinguishes it from when span.foo is nil in an expression like span.foo != "bar"
-	OpIn
-	OpNotIn
-	OpRegexMatchAny
-	OpRegexMatchNone
 )
 
 func (op Operator) isBoolean() bool {
@@ -59,9 +55,7 @@ func (op Operator) isBoolean() bool {
 		op == OpLess ||
 		op == OpLessEqual ||
 		op == OpNot ||
-		op == OpExists ||
-		op == OpIn ||
-		op == OpNotIn
+		op == OpExists
 }
 
 func (op Operator) binaryTypesValid(lhsT StaticType, rhsT StaticType) bool {
@@ -74,22 +68,12 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 	}
 
 	switch t {
-	case TypeBooleanArray:
-		if op == OpIn || op == OpNotIn {
-			return true
-		}
-		fallthrough // otherwise, all bool operators are valid as well
-	case TypeBoolean:
+	case TypeBoolean, TypeBooleanArray:
 		return op == OpAnd ||
 			op == OpOr ||
 			op == OpEqual ||
 			op == OpNotEqual
-	case TypeFloatArray, TypeIntArray:
-		if op == OpIn || op == OpNotIn {
-			return true
-		}
-		fallthrough // otherwise, all int and float operators are valid as well
-	case TypeFloat, TypeInt, TypeDuration:
+	case TypeFloat, TypeFloatArray, TypeInt, TypeIntArray, TypeDuration:
 		return op == OpAdd ||
 			op == OpSub ||
 			op == OpMult ||
@@ -102,12 +86,7 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 			op == OpGreaterEqual ||
 			op == OpLess ||
 			op == OpLessEqual
-	case TypeStringArray:
-		if op == OpIn || op == OpNotIn || op == OpRegexMatchAny || op == OpRegexMatchNone {
-			return true
-		}
-		fallthrough // otherwise, all string operators are valid as well
-	case TypeString:
+	case TypeString, TypeStringArray:
 		return op == OpEqual ||
 			op == OpNotEqual ||
 			op == OpRegex ||
@@ -210,16 +189,6 @@ func (op Operator) String() string {
 		return "&<<"
 	case OpSpansetUnionDescendant:
 		return "&>>"
-
-	// Operators IN, NOT IN, MATCH ANY, and MATCH NONE do not exist in the TraceQL syntax (only used internally)
-	case OpIn:
-		return "IN"
-	case OpNotIn:
-		return "NOT IN"
-	case OpRegexMatchAny:
-		return "MATCH ANY"
-	case OpRegexMatchNone:
-		return "MATCH NONE"
 	}
 
 	return fmt.Sprintf("operator(%d)", op)
