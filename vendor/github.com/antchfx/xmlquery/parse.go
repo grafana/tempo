@@ -38,8 +38,32 @@ func Parse(r io.Reader) (*Node, error) {
 
 // ParseWithOptions is like parse, but with custom options
 func ParseWithOptions(r io.Reader, options ParserOptions) (*Node, error) {
+	var lineStarts []int
+	// If line numbers are requested, read all data for position tracking
+	if options.WithLineNumbers {
+		var err error
+		var data []byte
+		data, err = io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+		r = bytes.NewReader(data)
+
+		// Pre-calculate line starts
+		lineStarts = []int{0}
+		for i, b := range data {
+			if b == '\n' {
+				lineStarts = append(lineStarts, i+1)
+			}
+		}
+	}
+
 	p := createParser(r)
+	if options.WithLineNumbers {
+		p.lineStarts = lineStarts
+	}
 	options.apply(p)
+
 	var err error
 	for err == nil {
 		_, err = p.parse()
@@ -61,6 +85,7 @@ func ParseWithOptions(r io.Reader, options ParserOptions) (*Node, error) {
 		if !valid {
 			return nil, fmt.Errorf("xmlquery: invalid XML document")
 		}
+
 		return p.doc, nil
 	}
 
@@ -79,6 +104,10 @@ type parser struct {
 	reader              *cachedReader // Need to maintain a reference to the reader, so we can determine whether a node contains CDATA.
 	once                sync.Once
 	space2prefix        map[string]*xmlnsPrefix
+	currentLine         int // Track current line number during parsing
+	lastProcessedPos    int // Track how much cached data we've already processed for line counting
+
+	lineStarts []int
 }
 
 type xmlnsPrefix struct {
@@ -89,16 +118,50 @@ type xmlnsPrefix struct {
 func createParser(r io.Reader) *parser {
 	reader := newCachedReader(bufio.NewReader(r))
 	p := &parser{
-		decoder: xml.NewDecoder(reader),
-		doc:     &Node{Type: DocumentNode},
-		level:   0,
-		reader:  reader,
+		decoder:          xml.NewDecoder(reader),
+		doc:              &Node{Type: DocumentNode},
+		level:            0,
+		reader:           reader,
+		currentLine:      0,
+		lastProcessedPos: 0,
+		lineStarts:       nil,
 	}
 	if p.decoder.CharsetReader == nil {
 		p.decoder.CharsetReader = charset.NewReaderLabel
 	}
 	p.prev = p.doc
 	return p
+}
+
+// updateLineNumber scans only new cached data for newlines to update current line position
+func (p *parser) updateLineNumber() {
+	if p.lineStarts == nil {
+		return
+	}
+	offset := int(p.decoder.InputOffset())
+	for i := p.currentLine; i < len(p.lineStarts); i++ {
+		if offset > p.lineStarts[i] && p.lineStarts[i] >= p.lastProcessedPos {
+			p.currentLine = i + 1
+			break
+		}
+		if offset <= p.lineStarts[i] {
+			break
+		}
+	}
+	p.lastProcessedPos = offset
+	/*
+		cached := p.reader.CacheWithLimit(-1) // Get all cached data
+
+		// Only process data we haven't seen before
+		for i := p.lastProcessedPos; i < len(cached); i++ {
+			if cached[i] == '\n' {
+				p.currentLine++
+			}
+		}
+
+		// Update our position to avoid reprocessing this data
+		p.lastProcessedPos = len(cached)
+	*/
 }
 
 func (p *parser) parse() (*Node, error) {
@@ -111,6 +174,10 @@ func (p *parser) parse() (*Node, error) {
 		p.reader.StartCaching()
 		tok, err := p.decoder.Token()
 		p.reader.StopCaching()
+
+		// Update line number based on processed content
+		p.updateLineNumber()
+
 		if err != nil {
 			return nil, err
 		}
@@ -123,10 +190,11 @@ func (p *parser) parse() (*Node, error) {
 				attributes[0].Name = xml.Name{Local: "version"}
 				attributes[0].Value = "1.0"
 				node := &Node{
-					Type:  DeclarationNode,
-					Data:  "xml",
-					Attr:  attributes,
-					level: 1,
+					Type:       DeclarationNode,
+					Data:       "xml",
+					Attr:       attributes,
+					level:      1,
+					LineNumber: p.currentLine,
 				}
 				AddChild(p.prev, node)
 				p.level = 1
@@ -170,6 +238,7 @@ func (p *parser) parse() (*Node, error) {
 				NamespaceURI: tok.Name.Space,
 				Attr:         attributes,
 				level:        p.level,
+				LineNumber:   p.currentLine,
 			}
 
 			if p.level == p.prev.level {
@@ -250,7 +319,7 @@ func (p *parser) parse() (*Node, error) {
 			if bytes.HasPrefix(cached, []byte("<![CDATA[")) || bytes.HasPrefix(cached, []byte("![CDATA[")) {
 				nodeType = CharDataNode
 			}
-			node := &Node{Type: nodeType, Data: string(tok), level: p.level}
+			node := &Node{Type: nodeType, Data: string(tok), level: p.level, LineNumber: p.currentLine}
 			if p.level == p.prev.level {
 				AddSibling(p.prev, node)
 			} else if p.level > p.prev.level {
@@ -262,7 +331,7 @@ func (p *parser) parse() (*Node, error) {
 				AddSibling(p.prev.Parent, node)
 			}
 		case xml.Comment:
-			node := &Node{Type: CommentNode, Data: string(tok), level: p.level}
+			node := &Node{Type: CommentNode, Data: string(tok), level: p.level, LineNumber: p.currentLine}
 			if p.level == p.prev.level {
 				AddSibling(p.prev, node)
 			} else if p.level > p.prev.level {
@@ -274,10 +343,11 @@ func (p *parser) parse() (*Node, error) {
 				AddSibling(p.prev.Parent, node)
 			}
 		case xml.ProcInst: // Processing Instruction
-			if p.prev.Type != DeclarationNode {
-				p.level++
+			level := p.level
+			if p.prev.Type == DocumentNode {
+				level = p.level + 1
 			}
-			node := &Node{Type: DeclarationNode, Data: tok.Target, level: p.level}
+			node := &Node{Type: DeclarationNode, Data: tok.Target, level: level, LineNumber: p.currentLine}
 			pairs := strings.Split(string(tok.Inst), " ")
 			for _, pair := range pairs {
 				pair = strings.TrimSpace(pair)
@@ -285,19 +355,24 @@ func (p *parser) parse() (*Node, error) {
 					AddAttr(node, pair[:i], strings.Trim(pair[i+1:], `"'`))
 				}
 			}
-			if p.level == p.prev.level {
+			if tok.Target != "xml" {
+				node.Type = ProcessingInstruction
+				node.ProcInst = &ProcInstData{Target: tok.Target, Inst: strings.TrimSpace(string(tok.Inst))}
+			}
+			if level == p.prev.level {
 				AddSibling(p.prev, node)
-			} else if p.level > p.prev.level {
+			} else if level > p.prev.level {
 				AddChild(p.prev, node)
-			} else if p.level < p.prev.level {
-				for i := p.prev.level - p.level; i > 1; i-- {
+			} else if level < p.prev.level {
+				for i := p.prev.level - level; i > 1; i-- {
 					p.prev = p.prev.Parent
 				}
 				AddSibling(p.prev.Parent, node)
 			}
 			p.prev = node
+			p.level = level
 		case xml.Directive:
-			node := &Node{Type: NotationNode, Data: string(tok), level: p.level}
+			node := &Node{Type: NotationNode, Data: string(tok), level: p.level, LineNumber: p.currentLine}
 			if p.level == p.prev.level {
 				AddSibling(p.prev, node)
 			} else if p.level > p.prev.level {
