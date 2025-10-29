@@ -1659,6 +1659,8 @@ include:
 
 ### GRPC client config
 
+These settings are used to configure various gRPC clients used throughout Tempo.
+
 ```
 [max_recv_msg_size: <int> | default = 104857600]
 [max_send_msg_size: <int> | default = 104857600]
