@@ -188,11 +188,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
 
-	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
-	// set external labels
-	for name, value := range h.externalLabels {
-		lb.Set(name, value)
-	}
+	lb := newSeriesLabelsBuilder(labelValueCombo, h.externalLabels)
 
 	lb.Set(labels.MetricName, h.metricName)
 
