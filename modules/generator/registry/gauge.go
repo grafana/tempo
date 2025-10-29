@@ -114,15 +114,8 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
-	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
-	for name, value := range g.externalLabels {
-		lb.Set(name, value)
-	}
-
-	lb.Set(labels.MetricName, g.metricName)
-
 	return &gaugeSeries{
-		labels:      lb.Labels(),
+		labels:      getSeriesLabels(g.metricName, labelValueCombo, g.externalLabels),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 	}
