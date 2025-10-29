@@ -60,7 +60,7 @@ The following query scopes the attribute to the span and runs faster than an equ
 Avoid forms without a scope that force extra lookups:
 
 ```traceql
-{ http.status_code = 500 }
+{ .http.status_code = 500 }
 ```
 
 ## Access as few attributes as possible
