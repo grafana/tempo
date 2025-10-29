@@ -1562,40 +1562,50 @@ The compaction configuration block is used by the compactor, backend scheduler, 
 Refer to the [Compactor](#compactor) section for the full list of compaction configuration options.
 
 ```yaml
-# Optional. Duration to keep blocks. Default is 14 days (336h).
-[block_retention: <duration>]
+# Optional. Duration to keep blocks.
+[block_retention: <duration> | default=336h]
 
-# Optional. Duration to keep blocks that have been compacted elsewhere. Default is 1h.
-[compacted_block_retention: <duration>]
+# Optional
+# Duration to keep blocks that have been compacted elsewhere.
+[compacted_block_retention: <duration> | default=1h]
 
-# Optional. Blocks in this time window will be compacted together. Default is 1h.
-[compaction_window: <duration>]
+# Optional
+# Blocks in this time window will be compacted together.
+[compaction_window: <duration> | default=1h]
 
-# Optional. Maximum number of traces in a compacted block. Default is 6 million.
+# Optional
+# Maximum number of traces in a compacted block.
 # WARNING: Deprecated. Use max_block_bytes instead.
-[max_compaction_objects: <int>]
+[max_compaction_objects: <int> | default=6000000]
 
-# Optional. Maximum size of a compacted block in bytes. Default is 100 GB.
-[max_block_bytes: <int>]
+# Optional
+# Maximum size of a compacted block in bytes.
+[max_block_bytes: <int> | default=107374182400]
 
-# Optional. Number of tenants to process in parallel during retention. Default is 10.
-[retention_concurrency: <int>]
+# Optional
+# Number of tenants to process in parallel during retention.
+[retention_concurrency: <int> | default=10]
 
-# Optional. The maximum amount of time to spend compacting a single tenant before moving to the next. Default is 5m.
-[max_time_per_tenant: <duration>]
+# Optional
+# The maximum amount of time to spend compacting a single tenant before moving to the next.
+[max_time_per_tenant: <duration> | default=5m]
 
-# Optional. The time between compaction cycles. Default is 30s.
+# Optional
+# The time between compaction cycles.
 # Note: The default will be used if the value is set to 0.
-[compaction_cycle: <duration>]
+[compaction_cycle: <duration> | default=30s]
 
-# Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
-[v2_in_buffer_bytes: <int>]
+# Optional
+# Amount of data to buffer from input blocks.
+[v2_in_buffer_bytes: <int> | default=5242880]
 
-# Optional. Flush data to backend when buffer is this large. Default is 20 MB.
-[v2_out_buffer_bytes: <int>]
+# Optional
+# Flush data to backend when buffer is this large.
+[v2_out_buffer_bytes: <int> | default=20971520]
 
-# Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
-[v2_prefetch_traces_count: <int>]
+# Optional
+# Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
+[v2_prefetch_traces_count: <int> | default=1000]
 ```
 
 ### Filter policy config
