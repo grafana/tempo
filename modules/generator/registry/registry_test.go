@@ -66,7 +66,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 
 	counter := registry.NewCounter("my_counter")
 
-	counter.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	counter.Inc(newLabelValueCombo([]string{"label", "label"}, []string{"repeated-value", "value-1"}), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),
@@ -303,6 +303,14 @@ func TestHistogramOverridesConfig(t *testing.T) {
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
 	collectionTimeMs := time.Now().UnixMilli()
 	r.CollectMetrics(context.Background())
+
+	// Validate that there are no duplicate label names in any sample
+	for i, sample := range appender.samples {
+		if duplicateLabel, hasDuplicate := sample.l.HasDuplicateLabelNames(); hasDuplicate {
+			t.Errorf("Sample %d has duplicate label name %q. Full labels: %v",
+				i, duplicateLabel, sample.l)
+		}
+	}
 
 	// Ignore the collection time on expected samples, since we won't know when the collection will actually take place.
 	for i := range expectedSamples {
