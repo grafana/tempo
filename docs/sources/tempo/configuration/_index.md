@@ -37,16 +37,16 @@ The Tempo configuration options include:
     - [Storage block configuration example](#storage-block-configuration-example)
   - [Memberlist](#memberlist)
   - [Configuration blocks](#configuration-blocks)
-    - [Block config](#block-config)
-    - [Compaction config](#compaction-config)
-    - [Filter policy config](#filter-policy-config)
+    - [Block](#block)
+    - [Compaction](#compaction)
+    - [Filter policies](#filter-policies)
       - [Filter policy](#filter-policy)
       - [Policy match](#policy-match)
       - [Examples](#examples)
-    - [GRPC client config](#grpc-client-config)
-    - [KVStore config](#kvstore-config)
-    - [Search config](#search-config)
-    - [WAL config](#wal-config)
+    - [GRPC client](#grpc-client)
+    - [KVStore](#kvstore)
+    - [Search](#search)
+    - [WAL](#wal)
   - [Overrides](#overrides)
     - [Ingestion limits](#ingestion-limits)
       - [Standard overrides](#standard-overrides)
@@ -1510,7 +1510,7 @@ memberlist:
 
 Defines re-used configuration blocks.
 
-### Block config
+### Block
 
 ```yaml
 # block format version. options: v2, vParquet3, vParquet4
@@ -1556,10 +1556,9 @@ parquet_dedicated_columns: <list of columns>
       [scope: <string>]
 ```
 
-### Compaction config
+### Compaction
 
-The compaction configuration block is used by the compactor, backend scheduler, and backend worker.
-Refer to the [Compactor](#compactor) section for the full list of compaction configuration options.
+The `compaction` configuration block is used by the compactor, scheduler, and worker.
 
 ```yaml
 # Optional. Duration to keep blocks.
@@ -1608,9 +1607,9 @@ Refer to the [Compactor](#compactor) section for the full list of compaction con
 [v2_prefetch_traces_count: <int> | default=1000]
 ```
 
-### Filter policy config
+### Filter policies
 
-Span filter config block
+Span filter configuration policies block
 
 #### Filter policy
 
@@ -1657,7 +1656,7 @@ include:
       value: "baz"
 ```
 
-### GRPC client config
+### GRPC client
 
 These settings are used to configure various gRPC clients used throughout Tempo.
 
@@ -1687,9 +1686,9 @@ backoff_config:
 [connect_backoff_max_delay: <duration> | default = 5s]
 ```
 
-### KVStore config
+### KVStore
 
-The kvstore configuration block
+The `kvstore` configuration block
 
 ```yaml
 # Set backing store to use
@@ -1733,7 +1732,7 @@ multi:
   [mirror_timeout: <bool> | default = 2s]
 ```
 
-### Search config
+### Search
 
 ```yaml
 # Target number of bytes per GET request while scanning blocks. Default is 1MB. Reducing
@@ -1767,7 +1766,7 @@ cache_control:
     [offset_index: <bool> | default = false]
 ```
 
-### WAL config
+### WAL
 
 The storage WAL configuration block.
 
