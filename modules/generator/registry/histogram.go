@@ -146,10 +146,7 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 	// Precompute all labels for all sub-metrics upfront
 
 	// Create and populate label builder
-	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
-	for name, value := range h.externalLabels {
-		lb.Set(name, value)
-	}
+	lb := newSeriesLabelsBuilder(labelValueCombo, h.externalLabels)
 
 	// _count
 	lb.Set(labels.MetricName, h.nameCount)
