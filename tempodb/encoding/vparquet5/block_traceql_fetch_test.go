@@ -2,6 +2,7 @@ package vparquet5
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
 	"testing"
@@ -17,6 +18,47 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStuff(t *testing.T) {
+	numTraces := 1
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	block := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+	e := traceql.NewEngine()
+	f := block.FetcherFor(common.DefaultSearchOptions()).SpanFetcher()
+
+	req := &tempopb.QueryRangeRequest{
+		Query:     "{} | count_over_time() by (resource.service.name)",
+		Step:      uint64(time.Minute),
+		Start:     1,
+		End:       uint64(time.Hour.Nanoseconds()),
+		MaxSeries: 1000,
+	}
+
+	eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+	require.NoError(t, err)
+
+	err = eval.DoSpansOnly(ctx, f, 0, 0, int(req.MaxSeries))
+	require.NoError(t, err)
+
+	_ = eval.Results()
+
+	fmt.Println(eval.Results())
+}
 
 func TestBackendBlockSearchFetchSpansOnly(t *testing.T) {
 	numTraces := 1
@@ -159,6 +201,7 @@ func TestBackendBlockSearchFetchSpansOnly(t *testing.T) {
 		{"resource.foo = \"abc\"", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = "abc"}`)}, // Resource-level only
 		{"span.foo = \"def\"", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = "def"}`)},         // Span-level only
 		{".foo", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo}`)},                                   // Projection only
+
 		{"Matches either condition", makeReq(
 			parse(t, `{.foo = "baz"}`),
 			parse(t, `{.`+LabelHTTPStatusCode+` > 100}`),
@@ -386,6 +429,19 @@ func TestBackendBlockSearchFetchSpansOnly(t *testing.T) {
 func BenchmarkQueryRangeSpansOnly(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
+		//"{} | rate() with(sample=true)",
+		"{} | rate() by (span.http.status_code)",
+		"{} | rate() by (resource.service.name)",
+		"{} | rate() by (span.http.url)", // High cardinality attribute
+		"{resource.service.name=`loki-ingester`} | rate()",
+		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
+		"{status=error} | rate()",
+		"{} | quantile_over_time(duration, .99, .9, .5)",
+		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
+		"{} | histogram_over_time(duration)",
+		"{} | avg_over_time(duration) by (span.http.status_code)",
+		"{} | max_over_time(duration) by (span.http.status_code)",
+		"{} | min_over_time(duration) by (span.http.status_code)",
 	}
 
 	// For sampler debugging
@@ -397,9 +453,7 @@ func BenchmarkQueryRangeSpansOnly(b *testing.B) {
 
 	block := blockForBenchmarks(b)
 
-	f := traceql.NewSpanFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
-		return block.FetchSpansOnly(ctx, req, opts)
-	})
+	f := block.FetcherFor(opts).SpanFetcher()
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {

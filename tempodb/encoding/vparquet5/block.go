@@ -101,6 +101,6 @@ func (b *blockFetcher) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 }
 
 func (b *blockFetcher) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
-	fmt.Println("Fetcher FetchSpans")
+	// fmt.Println("Fetcher FetchSpans")
 	return b.b.FetchSpansOnly(ctx, req, b.opts)
 }

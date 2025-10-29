@@ -98,7 +98,7 @@ func create(makeIter makeIterFn,
 		return nil, nil, err
 	}
 
-	spanIters, spanOptional, err := createSpanIterators(makeIter, driver == nil, catConditions.span, allConditions, selectAll, dedicatedColumns)
+	spanDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, driver == nil, catConditions.span, allConditions, selectAll, dedicatedColumns)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -155,46 +155,51 @@ func create(makeIter makeIterFn,
 		parquetquery.WithCollector(spanCol),
 	}
 
+	// Given driver or created span drivers are always first.
+	// To get the collection level.
 	if driver != nil {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, driver, false))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, driver, false, traceql.AttributeScopeSpan))
+	}
+	if spanDriver != nil {
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, spanDriver, false, traceql.AttributeScopeSpan))
 	}
 
 	for _, iter := range traceIters {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelTrace, iter, false))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelTrace, iter, false, traceql.AttributeScopeTrace))
 	}
 	for _, iter := range resIters {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpans, iter, false))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpans, iter, false, traceql.AttributeScopeResource))
 	}
 	for _, iter := range instIters {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelInstrumentationScope, iter, false))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelInstrumentationScope, iter, false, traceql.AttributeScopeInstrumentation))
 	}
 	for _, iter := range spanIters {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, false))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, false, traceql.AttributeScopeSpan))
 	}
 	for _, iter := range eventIters {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true, traceql.AttributeScopeEvent))
 	}
 	for _, iter := range linkIters {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true, traceql.AttributeScopeLink))
 	}
 
 	for _, iter := range traceOptional {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelTrace, iter, true))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelTrace, iter, true, traceql.AttributeScopeTrace))
 	}
 	for _, iter := range resOptional {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpans, iter, true))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpans, iter, true, traceql.AttributeScopeResource))
 	}
 	for _, iter := range instOptional {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelInstrumentationScope, iter, true))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelInstrumentationScope, iter, true, traceql.AttributeScopeInstrumentation))
 	}
 	for _, iter := range spanOptional {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true, traceql.AttributeScopeSpan))
 	}
 	for _, iter := range eventOptional {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true, traceql.AttributeScopeEvent))
 	}
 	for _, iter := range linkOptional {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true, traceql.AttributeScopeLink))
 	}
 
 	iter, err := parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, nil, nil, nil, options...)
@@ -281,7 +286,7 @@ func createResourceIterators(
 				if err != nil {
 					return nil, nil, fmt.Errorf("creating predicate: %w", err)
 				}
-				optional = append(optional, makeIter(entry.columnPath, pred, cond.Attribute.Name))
+				optional = append(optional, makeIter(entry.columnPath, pred, entry.columnPath))
 				continue
 			}
 		}
@@ -332,8 +337,18 @@ func createResourceIterators(
 		optional = append(optional, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
-		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions, selectAll)
+	attrIter, err := createScopedAttributeIterator(
+		makeIter,
+		genericConditions,
+		DefinitionLevelResourceAttrs,
+		columnPathResourceAttrKey,
+		columnPathResourceAttrString,
+		columnPathResourceAttrInt,
+		columnPathResourceAttrDouble,
+		columnPathResourceAttrBool,
+		allConditions,
+		selectAll,
+		traceql.AttributeScopeResource)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -368,7 +383,7 @@ func createSpanIterators(
 	allConditions bool,
 	selectAll bool,
 	dedicatedColumns backend.DedicatedColumns,
-) (required, optional []parquetquery.Iterator, err error) {
+) (driver parquetquery.Iterator, required, optional []parquetquery.Iterator, err error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -407,7 +422,7 @@ func createSpanIterators(
 		case traceql.IntrinsicSpanID:
 			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanID, pred)
 			columnSelectAs[columnPathSpanID] = columnPathSpanID
@@ -416,7 +431,7 @@ func createSpanIterators(
 		case traceql.IntrinsicParentID:
 			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanParentSpanID, pred)
 			columnSelectAs[columnPathSpanParentSpanID] = columnPathSpanParentSpanID
@@ -425,7 +440,7 @@ func createSpanIterators(
 			// TODO - We also need to scale the operands if using lower precision.
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 
 			/*if sampler != nil {
@@ -457,7 +472,7 @@ func createSpanIterators(
 		case traceql.IntrinsicName:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanName, pred)
 			columnSelectAs[columnPathSpanName] = columnPathSpanName
@@ -466,7 +481,7 @@ func createSpanIterators(
 		case traceql.IntrinsicKind:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanKind, pred)
 			columnSelectAs[columnPathSpanKind] = columnPathSpanKind
@@ -475,7 +490,7 @@ func createSpanIterators(
 		case traceql.IntrinsicDuration:
 			pred, err := createDurationPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanDuration, pred)
 			columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
@@ -484,7 +499,7 @@ func createSpanIterators(
 		case traceql.IntrinsicStatus:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanStatusCode, pred)
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
@@ -492,7 +507,7 @@ func createSpanIterators(
 		case traceql.IntrinsicStatusMessage:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanStatusMessage, pred)
 			columnSelectAs[columnPathSpanStatusMessage] = columnPathSpanStatusMessage
@@ -516,7 +531,7 @@ func createSpanIterators(
 			// nestedSetLeftExplicit = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanNestedSetLeft, pred)
 			columnSelectAs[columnPathSpanNestedSetLeft] = columnPathSpanNestedSetLeft
@@ -525,7 +540,7 @@ func createSpanIterators(
 			// nestedSetRightExplicit = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanNestedSetRight, pred)
 			columnSelectAs[columnPathSpanNestedSetRight] = columnPathSpanNestedSetRight
@@ -534,7 +549,7 @@ func createSpanIterators(
 			// nestedSetParentExplicit = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
@@ -556,7 +571,7 @@ func createSpanIterators(
 			if typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, nil, fmt.Errorf("creating predicate: %w", err)
+					return nil, nil, nil, fmt.Errorf("creating predicate: %w", err)
 				}
 				addPredicate(c.ColumnPath, pred)
 				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
@@ -611,10 +626,20 @@ func createSpanIterators(
 		optional = append(optional, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
-		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions, selectAll)
+	attrIter, err := createScopedAttributeIterator(
+		makeIter,
+		genericConditions,
+		DefinitionLevelResourceSpansILSSpanAttrs,
+		columnPathSpanAttrKey,
+		columnPathSpanAttrString,
+		columnPathSpanAttrInt,
+		columnPathSpanAttrDouble,
+		columnPathSpanAttrBool,
+		allConditions,
+		selectAll,
+		traceql.AttributeScopeSpan)
 	if err != nil {
-		return nil, nil, fmt.Errorf("creating span attribute iterator: %w", err)
+		return nil, nil, nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
 	if attrIter != nil {
 		optional = append(optional, attrIter)
@@ -649,15 +674,21 @@ func createSpanIterators(
 	//  this spaniterator code could be tightened up
 	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
 	//  to the span attributes map in spanCollector
-	if len(required) == 0 && needDriver {
-		var pred parquetquery.Predicate
-		/*if sampler != nil {
-			pred = newSamplingPredicate(sampler, nil)
-		}*/
-		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, pred, "")}
+	if needDriver {
+		if len(required) == 0 {
+			var pred parquetquery.Predicate
+			/*if sampler != nil {
+				pred = newSamplingPredicate(sampler, nil)
+			}*/
+			driver = makeIter(columnPathSpanStatusCode, pred, "")
+		} else {
+			// use the first required iterator as the driver
+			driver = required[0]
+			required = required[1:]
+		}
 	}
 
-	return required, optional, nil
+	return driver, required, optional, nil
 }
 
 func createEventIterators(makeIter makeIterFn, conditions []traceql.Condition, allConditions bool, selectAll bool) (required, optional []parquetquery.Iterator, err error) {
@@ -683,8 +714,15 @@ func createEventIterators(makeIter makeIterFn, conditions []traceql.Condition, a
 		genericConditions = append(genericConditions, cond)
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
-		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool, allConditions, selectAll)
+	attrIter, err := createScopedAttributeIterator(
+		makeIter,
+		genericConditions,
+		DefinitionLevelResourceSpansILSSpanEventAttrs,
+		columnPathEventAttrKey,
+		columnPathEventAttrString,
+		columnPathEventAttrInt,
+		columnPathEventAttrDouble,
+		columnPathEventAttrBool, allConditions, selectAll, traceql.AttributeScopeEvent)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating event attribute iterator: %w", err)
 	}
@@ -727,8 +765,16 @@ func createLinkIterators(makeIter makeIterFn, conditions []traceql.Condition, al
 		genericConditions = append(genericConditions, cond)
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanLinkAttrs,
-		columnPathLinkAttrKey, columnPathLinkAttrString, columnPathLinkAttrInt, columnPathLinkAttrDouble, columnPathLinkAttrBool, allConditions, selectAll)
+	attrIter, err := createScopedAttributeIterator(
+		makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanLinkAttrs,
+		columnPathLinkAttrKey,
+		columnPathLinkAttrString,
+		columnPathLinkAttrInt,
+		columnPathLinkAttrDouble,
+		columnPathLinkAttrBool,
+		allConditions,
+		selectAll,
+		traceql.AttributeScopeLink)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating link attribute iterator: %w", err)
 	}
@@ -778,8 +824,18 @@ func createInstrumentationIterators(makeIter makeIterFn, conditions []traceql.Co
 		}
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelInstrumentationScopeAttrs,
-		columnPathInstrumentationAttrKey, columnPathInstrumentationAttrString, columnPathInstrumentationAttrInt, columnPathInstrumentationAttrDouble, columnPathInstrumentationAttrBool, allConditions, selectAll)
+	attrIter, err := createScopedAttributeIterator(
+		makeIter,
+		genericConditions,
+		DefinitionLevelInstrumentationScopeAttrs,
+		columnPathInstrumentationAttrKey,
+		columnPathInstrumentationAttrString,
+		columnPathInstrumentationAttrInt,
+		columnPathInstrumentationAttrDouble,
+		columnPathInstrumentationAttrBool,
+		allConditions,
+		selectAll,
+		traceql.AttributeScopeInstrumentation)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating instrumentation attribute iterator: %w", err)
 	}
@@ -795,6 +851,200 @@ func createInstrumentationIterators(makeIter makeIterFn, conditions []traceql.Co
 	}
 
 	return required, optional, nil
+}
+
+type scopedAttributeCollector struct {
+	atRes parquetquery.IteratorResult
+	at    attrVal
+
+	strBuffer   []string
+	intBuffer   []int
+	floatBuffer []float64
+	boolBuffer  []bool
+}
+
+var _ parquetquery.Collector = (*scopedAttributeCollector)(nil)
+
+func NewScopedAttributeCollector(scope traceql.AttributeScope) *scopedAttributeCollector {
+	c := &scopedAttributeCollector{}
+	c.at.a.Scope = scope
+	c.atRes.AppendOtherValue("scopedAttribute", &c.at)
+	return c
+}
+
+func (c *scopedAttributeCollector) String() string {
+	return fmt.Sprintf("scopedAttributeCollector(%s)", c.at.a.Scope)
+}
+
+func (c *scopedAttributeCollector) Reset(rowNumber parquetquery.RowNumber) {
+	c.atRes.RowNumber = rowNumber
+	c.strBuffer = c.strBuffer[:0]
+	c.intBuffer = c.intBuffer[:0]
+	c.floatBuffer = c.floatBuffer[:0]
+	c.boolBuffer = c.boolBuffer[:0]
+}
+
+func (c *scopedAttributeCollector) Collect(res *parquetquery.IteratorResult, _ any) {
+	for _, e := range res.Entries {
+		// Ignore nulls, this leaves val as the remaining found value,
+		// or nil if the key was found but no matching values
+		if e.Value.Kind() < 0 {
+			continue
+		}
+		switch e.Key {
+		case "key":
+			c.at.a.Name = unsafeToString(e.Value.Bytes())
+		case "string":
+			c.strBuffer = append(c.strBuffer, unsafeToString(e.Value.Bytes()))
+		case "int":
+			c.intBuffer = append(c.intBuffer, int(e.Value.Int64()))
+		case "float":
+			c.floatBuffer = append(c.floatBuffer, e.Value.Double())
+		case "bool":
+			c.boolBuffer = append(c.boolBuffer, e.Value.Boolean())
+		}
+	}
+}
+
+func (c *scopedAttributeCollector) Result() *parquetquery.IteratorResult {
+	// Assign value type based on length of the populated buffers.
+	switch {
+	// keep len == 1 cases first so we short-circuit early for non-array case
+	case len(c.strBuffer) == 1:
+		c.at.s = traceql.NewStaticString(c.strBuffer[0])
+	case len(c.intBuffer) == 1:
+		c.at.s = traceql.NewStaticInt(c.intBuffer[0])
+	case len(c.floatBuffer) == 1:
+		c.at.s = traceql.NewStaticFloat(c.floatBuffer[0])
+	case len(c.boolBuffer) == 1:
+		c.at.s = traceql.NewStaticBool(c.boolBuffer[0])
+	case len(c.strBuffer) > 1:
+		c.at.s = traceql.NewStaticStringArray(c.strBuffer)
+	case len(c.intBuffer) > 1:
+		c.at.s = traceql.NewStaticIntArray(c.intBuffer)
+	case len(c.floatBuffer) > 1:
+		c.at.s = traceql.NewStaticFloatArray(c.floatBuffer)
+	case len(c.boolBuffer) > 1:
+		c.at.s = traceql.NewStaticBooleanArray(c.boolBuffer)
+	}
+
+	return &c.atRes
+}
+
+func createScopedAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
+	definitionLevel int,
+	keyPath, strPath, intPath, floatPath, boolPath string,
+	allConditions bool, selectAll bool, scope traceql.AttributeScope,
+) (parquetquery.Iterator, error) {
+	if selectAll {
+		// Select all with no filtering
+		// Levels such as resource/instrumentation/span may have no attributes. When that
+		// occurs the columns are encoded as single null values, and the current attribute
+		// collector reads them as Nils.  We could skip them in the attribute collector,
+		// but this is more performant because it's at the lowest level.
+		// Alternatively, JoinIterators don't pay attention to -1 (undefined) when checking
+		// the definition level matches.  Fixing that would also work but would need wider testing first.
+		skipNils := &parquetquery.SkipNilsPredicate{}
+
+		return parquetquery.NewLeftJoinIterator(definitionLevel,
+			nil, nil, nil,
+			parquetquery.WithCollector(NewScopedAttributeCollector(scope)),
+			parquetquery.WithIterator(definitionLevel, makeIter(keyPath, skipNils, "key"), false, nil),
+			parquetquery.WithIterator(definitionLevel, makeIter(strPath, skipNils, "string"), true, nil),
+			parquetquery.WithIterator(definitionLevel, makeIter(intPath, skipNils, "int"), true, nil),
+			parquetquery.WithIterator(definitionLevel, makeIter(floatPath, skipNils, "float"), true, nil),
+			parquetquery.WithIterator(definitionLevel, makeIter(boolPath, skipNils, "bool"), true, nil),
+			parquetquery.WithPool(pqAttrPool))
+	}
+
+	var (
+		attrKeys        = []string{}
+		attrStringPreds = []parquetquery.Predicate{}
+		attrIntPreds    = []parquetquery.Predicate{}
+		attrFltPreds    = []parquetquery.Predicate{}
+		boolPreds       = []parquetquery.Predicate{}
+	)
+	for _, cond := range conditions {
+
+		attrKeys = append(attrKeys, cond.Attribute.Name)
+
+		if cond.Op == traceql.OpNone {
+			// This means we have to scan all values, we don't know what type
+			// to expect
+			attrStringPreds = append(attrStringPreds, nil)
+			attrIntPreds = append(attrIntPreds, nil)
+			attrFltPreds = append(attrFltPreds, nil)
+			boolPreds = append(boolPreds, nil)
+			continue
+		}
+
+		switch cond.Operands[0].Type {
+
+		case traceql.TypeString:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+			}
+			attrStringPreds = append(attrStringPreds, pred)
+
+		case traceql.TypeInt:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+			}
+			attrIntPreds = append(attrIntPreds, pred)
+
+		case traceql.TypeFloat:
+			pred, err := createFloatPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+			}
+			attrFltPreds = append(attrFltPreds, pred)
+
+		case traceql.TypeBoolean:
+			pred, err := createBoolPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+			}
+			boolPreds = append(boolPreds, pred)
+		}
+	}
+
+	var iters []parquetquery.Iterator
+
+	if len(attrStringPreds) > 0 {
+		iters = append(iters, makeIter(strPath, orIfNeeded(attrStringPreds), "string"))
+	}
+	if len(attrIntPreds) > 0 {
+		iters = append(iters, makeIter(intPath, orIfNeeded(attrIntPreds), "int"))
+	}
+	if len(attrFltPreds) > 0 {
+		iters = append(iters, makeIter(floatPath, orIfNeeded(attrFltPreds), "float"))
+	}
+	if len(boolPreds) > 0 {
+		iters = append(iters, makeIter(boolPath, orIfNeeded(boolPreds), "bool"))
+	}
+
+	if len(iters) == 0 {
+		// Nothing to read.
+		return nil, nil
+	}
+
+	opts := []parquetquery.LeftJoinIteratorOption{
+		parquetquery.WithIterator(definitionLevel, makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"), false, nil),
+		parquetquery.WithPool(pqAttrPool),
+		parquetquery.WithCollector(NewScopedAttributeCollector(scope)),
+	}
+	if allConditions && len(iters) == 1 {
+		// Add as required.
+		opts = append(opts, parquetquery.WithIterator(definitionLevel, iters[0], false, nil))
+	} else {
+		// Add as optional.
+		for _, iter := range iters {
+			opts = append(opts, parquetquery.WithIterator(definitionLevel, iter, true, nil))
+		}
+	}
+	return parquetquery.NewLeftJoinIterator(definitionLevel, nil, nil, nil, opts...)
 }
 
 type spanCollector2 struct {
@@ -821,14 +1071,29 @@ func NewSpanCollector2() *spanCollector2 {
 }
 
 func (c *spanCollector2) Reset(rowNumber parquetquery.RowNumber) {
-	if rowNumber[DefinitionLevelTrace] != c.at.rowNum[DefinitionLevelTrace] {
+	switch {
+	case rowNumber[DefinitionLevelTrace] != c.at.rowNum[DefinitionLevelTrace]:
+		// New trace
 		c.at.traceAttrs = c.at.traceAttrs[:0]
-	}
-
-	if rowNumber[DefinitionLevelResourceSpans] != c.at.rowNum[DefinitionLevelResourceSpans] {
+		fallthrough
+	case rowNumber[DefinitionLevelResourceSpans] != c.at.rowNum[DefinitionLevelResourceSpans]:
+		// New batch
 		c.at.resourceAttrs = c.at.resourceAttrs[:0]
-	}
-	if rowNumber[DefinitionLevelResourceSpansILSSpan] != c.at.rowNum[DefinitionLevelResourceSpansILSSpan] {
+		fallthrough
+	case rowNumber[DefinitionLevelInstrumentationScope] != c.at.rowNum[DefinitionLevelInstrumentationScope]:
+		// New instrumentation scope
+		c.at.instrumentationAttrs = c.at.instrumentationAttrs[:0]
+		fallthrough
+	case rowNumber[DefinitionLevelResourceSpansILSSpan] != c.at.rowNum[DefinitionLevelResourceSpansILSSpan]:
+		// New span
+		// Reset all fields, except preserve attribute buffers.
+		// Span-level attribute buffers are reset.
+		c.at.id = nil
+		c.at.startTimeUnixNanos = 0
+		c.at.durationNanos = 0
+		c.at.nestedSetParent = 0
+		c.at.nestedSetLeft = 0
+		c.at.nestedSetRight = 0
 		c.at.spanAttrs = c.at.spanAttrs[:0]
 		c.at.eventAttrs = c.at.eventAttrs[:0]
 		c.at.linkAttrs = c.at.linkAttrs[:0]
@@ -837,10 +1102,10 @@ func (c *spanCollector2) Reset(rowNumber parquetquery.RowNumber) {
 	c.atRes.RowNumber = rowNumber
 }
 
-func (c *spanCollector2) Collect(res *parquetquery.IteratorResult) {
+func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 	sp := &c.at
 
-	c.at.rowNum = res.RowNumber
+	// c.at.rowNum = res.RowNumber
 
 	for _, e := range res.OtherEntries {
 		switch v := e.Value.(type) {
@@ -871,6 +1136,21 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult) {
 		case *link:
 			sp.setLinkAttrs(v.attrs)
 			putLink(v)
+		case *attrVal:
+			switch v.a.Scope {
+			case traceql.AttributeScopeResource:
+				sp.resourceAttrs = append(sp.resourceAttrs, *v)
+			case traceql.AttributeScopeSpan:
+				sp.spanAttrs = append(sp.spanAttrs, *v)
+			case traceql.AttributeScopeEvent:
+				sp.eventAttrs = append(sp.eventAttrs, *v)
+			case traceql.AttributeScopeLink:
+				sp.linkAttrs = append(sp.linkAttrs, *v)
+			case traceql.AttributeScopeInstrumentation:
+				sp.instrumentationAttrs = append(sp.instrumentationAttrs, *v)
+			default:
+				panic("unhandled scopedAttribute: " + v.a.Scope.String())
+			}
 		default:
 			panic("unhandled other entry value type: " + "key:" + e.Key)
 		}
@@ -890,6 +1170,7 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult) {
 			sp.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
+			return
 		case columnPathSpanStartRounded15:
 			sp.startTimeUnixNanos = intervalMapper15Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanStartRounded60:
@@ -925,32 +1206,47 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult) {
 			if c.nestedSetRightExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+		case columnPathResourceServiceName:
+			sp.resourceAttrs = append(sp.resourceAttrs, attrVal{
+				traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
+				traceql.NewStaticString(unsafeToString(kv.Value.Bytes())),
+			})
+		case columnPathDurationNanos, columnPathStartTimeUnixNano, columnPathEndTimeUnixNano:
+			// Trace-level values.
+			// TODO
 		default:
-			if res.RowNumber[DefinitionLevelResourceSpansILSSpan] == -1 {
-				// Resource level attribute
-				switch kv.Value.Kind() {
-				case parquet.Boolean:
-					sp.resourceAttrs = append(sp.resourceAttrs, attrVal{newResAttr(kv.Key), traceql.NewStaticBool(kv.Value.Boolean())})
-				case parquet.Int32, parquet.Int64:
-					sp.resourceAttrs = append(sp.resourceAttrs, attrVal{newResAttr(kv.Key), traceql.NewStaticInt(int(kv.Value.Int64()))})
-				case parquet.Float:
-					sp.resourceAttrs = append(sp.resourceAttrs, attrVal{newResAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double())})
-				case parquet.ByteArray:
-					sp.resourceAttrs = append(sp.resourceAttrs, attrVal{newResAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
-				}
-			} else {
-				// TODO - This exists for span-level dedicated columns like http.status_code
-				// Are nils possible here?
-				switch kv.Value.Kind() {
-				case parquet.Boolean:
-					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticBool(kv.Value.Boolean()))
-				case parquet.Int32, parquet.Int64:
-					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticInt(int(kv.Value.Int64())))
-				case parquet.Float:
-					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double()))
-				case parquet.ByteArray:
-					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
-				}
+			// Decomposed attributes from dedicated columns.
+			scope := param.(traceql.AttributeScope)
+			x := attrVal{
+				a: traceql.NewScopedAttribute(scope, false, kv.Key),
+			}
+
+			switch kv.Value.Kind() {
+			case parquet.Boolean:
+				x.s = traceql.NewStaticBool(kv.Value.Boolean())
+			case parquet.Int32, parquet.Int64:
+				x.s = traceql.NewStaticInt(int(kv.Value.Int64()))
+			case parquet.Float:
+				x.s = traceql.NewStaticFloat(kv.Value.Double())
+			case parquet.ByteArray:
+				x.s = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
+			default:
+				panic("unhandled attribute value kind: " + kv.Value.Kind().String())
+			}
+
+			switch scope {
+			case traceql.AttributeScopeResource:
+				sp.resourceAttrs = append(sp.resourceAttrs, x)
+			case traceql.AttributeScopeSpan:
+				sp.spanAttrs = append(sp.spanAttrs, x)
+			case traceql.AttributeScopeEvent:
+				sp.eventAttrs = append(sp.eventAttrs, x)
+			case traceql.AttributeScopeLink:
+				sp.linkAttrs = append(sp.linkAttrs, x)
+			case traceql.AttributeScopeInstrumentation:
+				sp.instrumentationAttrs = append(sp.instrumentationAttrs, x)
+			default:
+				panic("unhandled scopedAttribute: " + scope.String())
 			}
 		}
 	}
