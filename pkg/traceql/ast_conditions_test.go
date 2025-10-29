@@ -305,27 +305,31 @@ func TestSelect_extractConditions(t *testing.T) {
 }
 
 func TestMetricsAggregate_extractConditions(t *testing.T) {
-	tests := map[string]struct {
+	tests := []struct {
+		query  string
 		first  []Condition
 		second []Condition
 		all    bool
 	}{
-		`{} | rate() by (name)`: {
+		{
 			// Empty spanset implies start time
-			[]Condition{newCondition(IntrinsicSpanStartTimeAttribute, OpNone)},
-			[]Condition{newCondition(IntrinsicNameAttribute, OpNone)},
-			true,
+			query:  `{} | rate() by (name)`,
+			first:  []Condition{newCondition(IntrinsicSpanStartTimeAttribute, OpNone)},
+			second: []Condition{newCondition(IntrinsicNameAttribute, OpNone)},
+			all:    true,
 		},
-		`{name="foo"} | rate() by (name)`: {
-			// by() clause doesn't overwrite existing condition
-			[]Condition{newCondition(IntrinsicNameAttribute, OpEqual, NewStaticString("foo"))},
-			nil,
-			true,
+		{
+			// by() clause doesn't overwrite the existing condition
+			query:  `{name="foo"} | rate() by (name)`,
+			first:  []Condition{newCondition(IntrinsicNameAttribute, OpEqual, NewStaticString("foo"))},
+			second: nil,
+			all:    true,
 		},
 	}
-	for q, tt := range tests {
-		t.Run(q, func(t *testing.T) {
-			expr, err := Parse(q)
+
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			expr, err := Parse(tt.query)
 			require.NoError(t, err)
 
 			req := &FetchSpansRequest{
@@ -336,6 +340,47 @@ func TestMetricsAggregate_extractConditions(t *testing.T) {
 			require.Equal(t, tt.first, req.Conditions)
 			require.Equal(t, tt.second, req.SecondPassConditions)
 			require.Equal(t, tt.all, req.AllConditions, "FetchSpansRequest.AllConditions")
+		})
+	}
+}
+
+func TestBinaryOperation_extractConditions(t *testing.T) {
+	tests := []struct {
+		name string
+		op   *BinaryOperation
+		want []Condition
+	}{
+		{
+			name: "string array equal",
+			op:   &BinaryOperation{Op: OpEqual, LHS: NewAttribute("attr"), RHS: NewStaticStringArray([]string{"a", "b"})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpEqual, NewStaticStringArray([]string{"a", "b"})),
+			},
+		},
+		{
+			name: "int array equal",
+			op:   &BinaryOperation{Op: OpEqual, LHS: NewAttribute("attr"), RHS: NewStaticIntArray([]int{1, 2, 3})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpEqual, NewStaticIntArray([]int{1, 2, 3})),
+			},
+		},
+		{
+			name: "string array not regex",
+			op:   &BinaryOperation{Op: OpNotRegex, LHS: NewAttribute("attr"), RHS: NewStaticStringArray([]string{"a.*", "b.*"})},
+			want: []Condition{
+				newCondition(NewAttribute("attr"), OpNotRegex, NewStaticStringArray([]string{"a.*", "b.*"})),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &FetchSpansRequest{
+				AllConditions: true,
+			}
+			tt.op.extractConditions(req)
+			require.Equal(t, tt.want, req.Conditions)
+			require.Equal(t, true, req.AllConditions, "allConditions should be true")
 		})
 	}
 }
