@@ -523,14 +523,14 @@ func (s *LiveStore) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 
 // FindTraceByID implements tempopb.Querier
 func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
-	return withInstance(ctx, s, &tempopb.TraceByIDResponse{}, func(inst *instance) (*tempopb.TraceByIDResponse, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.TraceByIDResponse, error) {
 		return inst.FindByTraceID(ctx, req.TraceID, req.AllowPartialTrace)
 	})
 }
 
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	return withInstance(ctx, s, &tempopb.SearchResponse{}, func(inst *instance) (*tempopb.SearchResponse, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
 		return inst.Search(ctx, req)
 	})
 }
@@ -542,28 +542,28 @@ func (s *LiveStore) SearchBlock(_ context.Context, _ *tempopb.SearchBlockRequest
 
 // SearchTags implements tempopb.Querier
 func (s *LiveStore) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
-	return withInstance(ctx, s, &tempopb.SearchTagsResponse{}, func(inst *instance) (*tempopb.SearchTagsResponse, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsResponse, error) {
 		return inst.SearchTags(ctx, req.Scope)
 	})
 }
 
 // SearchTagsV2 implements tempopb.Querier
 func (s *LiveStore) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
-	return withInstance(ctx, s, &tempopb.SearchTagsV2Response{}, func(inst *instance) (*tempopb.SearchTagsV2Response, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagsV2Response, error) {
 		return inst.SearchTagsV2(ctx, req)
 	})
 }
 
 // SearchTagValues implements tempopb.Querier
 func (s *LiveStore) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	return withInstance(ctx, s, &tempopb.SearchTagValuesResponse{}, func(inst *instance) (*tempopb.SearchTagValuesResponse, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesResponse, error) {
 		return inst.SearchTagValues(ctx, req)
 	})
 }
 
 // SearchTagValuesV2 implements tempopb.Querier
 func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	return withInstance(ctx, s, &tempopb.SearchTagValuesV2Response{}, func(inst *instance) (*tempopb.SearchTagValuesV2Response, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchTagValuesV2Response, error) {
 		return inst.SearchTagValuesV2(ctx, req)
 	})
 }
@@ -580,23 +580,25 @@ func (s *LiveStore) GetMetrics(_ context.Context, _ *tempopb.SpanMetricsRequest)
 
 // QueryRange implements tempopb.MetricsGeneratorServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	return withInstance(ctx, s, &tempopb.QueryRangeResponse{}, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
+	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
 		return inst.QueryRange(ctx, req)
 	})
 }
 
 // withInstance extracts the tenant ID from the context, gets the instance,
 // and calls the provided function if the instance exists. If the instance
-// doesn't exist, it returns the provided default value.
-func withInstance[T any](ctx context.Context, s *LiveStore, defaultValue *T, fn func(*instance) (*T, error)) (*T, error) {
+// doesn't exist, it returns the zero value.
+func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (*T, error)) (*T, error) {
+	var defaultValue T
+
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return defaultValue, err
+		return &defaultValue, err
 	}
 
 	inst, found := s.getInstance(instanceID)
 	if inst == nil || !found {
-		return defaultValue, nil
+		return &defaultValue, nil
 	}
 
 	return fn(inst)
