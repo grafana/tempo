@@ -164,5 +164,8 @@ func (g *gauge) deleteFunc(cond func(hash uint64, lastUpdateMilli int64) bool) {
 			g.lifecycler.onRemoveEntity(1)
 		}
 	}
+}
+
+func (g *gauge) advanceDemand() {
 	g.seriesDemand.Advance()
 }

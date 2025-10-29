@@ -102,6 +102,7 @@ type metric interface {
 	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
 	countSeriesDemand() int
 	deleteFunc(func(entityHash uint64, lastUpdateMilli int64) bool)
+	advanceDemand()
 }
 
 type entityLifecycler interface {
@@ -346,6 +347,7 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 		m.deleteFunc(func(_ uint64, lastUpdateMilli int64) bool {
 			return lastUpdateMilli < timeMs
 		})
+		m.advanceDemand()
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())

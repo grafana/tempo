@@ -164,5 +164,8 @@ func (c *counter) deleteFunc(cond func(hash uint64, lastUpdateMilli int64) bool)
 			c.lifecycler.onRemoveEntity(1)
 		}
 	}
+}
+
+func (c *counter) advanceDemand() {
 	c.seriesDemand.Advance()
 }

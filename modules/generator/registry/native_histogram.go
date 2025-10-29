@@ -286,6 +286,9 @@ func (h *nativeHistogram) deleteFunc(cond func(hash uint64, lastUpdateMilli int6
 			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
 		}
 	}
+}
+
+func (h *nativeHistogram) advanceDemand() {
 	h.seriesDemand.Advance()
 }
 

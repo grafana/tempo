@@ -111,6 +111,10 @@ func (t *testCounter) deleteFunc(func(hash uint64, lastUpdate int64) bool) {
 	panic("implement me")
 }
 
+func (t *testCounter) advanceDemand() {
+	panic("implement me")
+}
+
 func (t *testCounter) countActiveSeries() int {
 	return 0
 }
@@ -162,6 +166,10 @@ func (t *testGauge) countActiveSeries() int {
 // Test registry does not track estimates, so return 0.
 func (t *testGauge) countSeriesDemand() int { return 0 }
 
+func (t *testGauge) advanceDemand() {
+	panic("implement me")
+}
+
 type testHistogram struct {
 	nameSum            string
 	nameCount          string
@@ -205,6 +213,10 @@ func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) error {
 }
 
 func (t *testHistogram) deleteFunc(func(hash uint64, lastUpdate int64) bool) {
+	panic("implement me")
+}
+
+func (t *testHistogram) advanceDemand() {
 	panic("implement me")
 }
 

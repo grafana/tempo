@@ -358,7 +358,7 @@ func Test_gauge_demandDecay(t *testing.T) {
 
 	// Advance the cardinality tracker enough times to clear the window
 	for i := 0; i < 5; i++ {
-		removeStaleSeries(g, time.Now().Add(time.Hour).UnixMilli())
+		g.advanceDemand()
 	}
 
 	// Demand should have decreased or be zero
