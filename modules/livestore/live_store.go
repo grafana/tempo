@@ -587,16 +587,18 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 
 // withInstance extracts the tenant ID from the context, gets the instance,
 // and calls the provided function if the instance exists. If the instance
-// doesn't exist, it returns a new zero-valued instance of T.
+// doesn't exist, it returns the zero value.
 func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (*T, error)) (*T, error) {
+	var defaultValue T
+
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, err
+		return &defaultValue, err
 	}
 
 	inst, found := s.getInstance(instanceID)
 	if inst == nil || !found {
-		return new(T), nil // Call new on the Type needed.
+		return &defaultValue, nil
 	}
 
 	return fn(inst)
