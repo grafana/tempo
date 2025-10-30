@@ -289,6 +289,7 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 											case "event":
 												// just need at least one event without this attribute to pass
 												// only set found = true if we find the attribute in all events
+												require.Greater(t, len(span.Events), 0, fmt.Sprintf("span without events returned: %s", span.SpanID))
 												eventsWithAttrFound := 0
 												for _, event := range span.Events {
 													for _, attr := range event.Attrs {
@@ -299,8 +300,12 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 												}
 												if eventsWithAttrFound == len(span.Events) && len(span.Events) > 0 {
 													found = true
+													break
 												}
 											case "link":
+												// only spans with links should show up
+												require.Greater(t, len(span.Links), 0, fmt.Sprintf("span without links returned: %s", span.SpanID))
+
 												linksWithAttrFound := 0
 												for _, link := range span.Links {
 													for _, attr := range link.Attrs {
@@ -311,6 +316,7 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 												}
 												if linksWithAttrFound == len(span.Links) && len(span.Links) > 0 {
 													found = true
+													break
 												}
 											}
 										}

@@ -12,9 +12,8 @@ import (
 // NilSyncIterator copies all functions of the sync iterator with just the next() function being different
 type NilSyncIterator struct {
 	SyncIterator
-	lastRowNumberReturned           RowNumber
-	valueFound                      bool
-	scannedAtLeastOneRowAtSameLevel bool
+	lastRowNumberReturned RowNumber
+	valueFound            bool
 }
 
 var _ Iterator = (*NilSyncIterator)(nil)
@@ -24,10 +23,9 @@ func NewNilSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts
 	syncIterator := NewSyncIterator(ctx, rgs, column, opts...)
 
 	i := &NilSyncIterator{
-		SyncIterator:                    *syncIterator,
-		lastRowNumberReturned:           EmptyRowNumber(),
-		valueFound:                      false,
-		scannedAtLeastOneRowAtSameLevel: false,
+		SyncIterator:          *syncIterator,
+		lastRowNumberReturned: EmptyRowNumber(),
+		valueFound:            false,
 	}
 
 	return i
@@ -42,7 +40,7 @@ func (c *NilSyncIterator) String() string {
 }
 
 func (c *NilSyncIterator) Next() (*IteratorResult, error) {
-	rn, v, err := c.next()
+	rn, _, err := c.next()
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +48,9 @@ func (c *NilSyncIterator) Next() (*IteratorResult, error) {
 	if !rn.Valid() {
 		return nil, nil
 	}
+
+	nilValue := pq.ValueOf(nil)
+	v := &nilValue
 	return c.makeResult(rn, v), nil
 }
 
@@ -61,7 +62,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			rg, minRN, maxRN := c.popRowGroup()
 			if rg == nil {
 				// no more rows, return last row if we still haven't found the value
-				if lastValue != nil && !c.valueFound && lastRowNumber.Valid() && !EqualRowNumber(lastValue.DefinitionLevel(), c.lastRowNumberReturned, lastRowNumber) && c.scannedAtLeastOneRowAtSameLevel {
+				if lastValue != nil && !c.valueFound && lastRowNumber.Valid() && !EqualRowNumber(lastValue.DefinitionLevel(), c.lastRowNumberReturned, lastRowNumber) {
 					c.lastRowNumberReturned = lastRowNumber
 					return lastRowNumber, lastValue, nil
 				}
@@ -120,17 +121,16 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		for c.currBufN < len(c.currBuf) {
 			v := &c.currBuf[c.currBufN]
 
-			if v.RepetitionLevel() < v.DefinitionLevel() {
+			if v.RepetitionLevel() < v.DefinitionLevel() && !v.IsNull() {
 				// moving on to the next level higher than value level
 				// so if we haven't seen the value yet, it does not exist
 				// check if we've already returned this row so we can properly next()
-				if !c.valueFound && lastRowNumber.Valid() && !EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) && c.scannedAtLeastOneRowAtSameLevel {
+				if !c.valueFound && lastRowNumber.Valid() && !EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) {
 					c.lastRowNumberReturned = lastRowNumber
 					return lastRowNumber, lastValue, nil
 				}
 				// new level reset
 				c.valueFound = false
-				c.scannedAtLeastOneRowAtSameLevel = false
 			}
 
 			// Inspect all values to track the current row number,
@@ -139,8 +139,8 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.currBufN++
 			c.currPageN++
 
-			if rowNumberValidAtDefinitionLevel(c.curr, c.maxDefinitionLevel) {
-				c.scannedAtLeastOneRowAtSameLevel = true
+			if v.IsNull() {
+				continue
 			}
 
 			if c.filter != nil && c.filter.KeepValue(*v) {

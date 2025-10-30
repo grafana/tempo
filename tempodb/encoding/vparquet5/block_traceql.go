@@ -1730,7 +1730,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 		// generic attr does not exist?
 		if isNotExistSearch {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			eventIters = append(eventIters, makeNilIter(columnPathEventAttrKey, pred, columnPathEventAttrKey))
+			eventIters = append(eventIters, makeNilIter(columnPathEventAttrKey, pred, common.MakeNilAttrColumnName(traceql.AttributeScopeEvent, cond.Attribute.Name)))
 			continue
 		}
 
@@ -1811,7 +1811,7 @@ func createLinkIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.C
 
 		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			linkIters = append(linkIters, makeNilIter(columnPathLinkAttrKey, pred, columnPathLinkAttrKey))
+			linkIters = append(linkIters, makeNilIter(columnPathLinkAttrKey, pred, common.MakeNilAttrColumnName(traceql.AttributeScopeLink, cond.Attribute.Name)))
 			continue
 		}
 
@@ -2118,7 +2118,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		// check attr not exists
 		if isNotExistSearch {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, columnPathSpanAttrKey))
+			iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, common.MakeNilAttrColumnName(traceql.AttributeScopeSpan, cond.Attribute.Name)))
 			continue
 		}
 
@@ -2267,7 +2267,7 @@ func createInstrumentationIterator(makeIter, makeNilIter makeIterFn, spanIterato
 		// check attr not exists
 		if isNotExistSearch {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			iters = append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, columnPathInstrumentationAttrKey))
+			iters = append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, common.MakeNilAttrColumnName(traceql.AttributeScopeInstrumentation, cond.Attribute.Name)))
 			continue
 		}
 
@@ -2405,7 +2405,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 		// nil?
 		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, columnPathResourceAttrKey))
+			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, common.MakeNilAttrColumnName(traceql.AttributeScopeResource, cond.Attribute.Name)))
 			continue
 		}
 
@@ -3182,6 +3182,14 @@ func (c *instrumentationCollector) KeepGroup(res *parquetquery.IteratorResult) b
 				a: traceql.IntrinsicInstrumentationVersionAttribute,
 				s: traceql.NewStaticString(unsafeToString(kv.Value.Bytes())),
 			})
+		default:
+			// This is a null value, indicating the attribute doesn't exist
+			if kv.Value.IsNull() {
+				c.instrumentationAttrs = append(c.instrumentationAttrs, attrVal{
+					a: newInstrumentationAttrs(kv.Key),
+					s: traceql.NewStaticString("nil"),
+				})
+			}
 		}
 	}
 
@@ -3589,12 +3597,14 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				a: traceql.IntrinsicEventTimeSinceStartAttribute,
 				s: traceql.NewStaticDuration(time.Duration(e.Value.Int64())),
 			})
-		case columnPathEventAttrKey:
-			// nil attribute?
-			ev.attrs = append(ev.attrs, attrVal{
-				a: newEventAttr(e.Key),
-				s: traceql.NewStaticString(unsafeToString(e.Value.Bytes())),
-			})
+		default:
+			// null value indicates attribute doesn't exist
+			if e.Value.IsNull() {
+				ev.attrs = append(ev.attrs, attrVal{
+					a: newEventAttr(e.Key),
+					s: traceql.NewStaticString("nil"),
+				})
+			}
 		}
 	}
 
@@ -3680,12 +3690,14 @@ func (c *linkCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				a: traceql.NewIntrinsic(traceql.IntrinsicLinkSpanID),
 				s: traceql.NewStaticString(util.SpanIDToHexString(e.Value.Bytes())),
 			})
-		case columnPathLinkAttrKey:
-			// nil attribute?
-			l.attrs = append(l.attrs, attrVal{
-				a: newLinkAttr(e.Key),
-				s: traceql.NewStaticString(unsafeToString(e.Value.Bytes())),
-			})
+		default:
+			// null value indicates attribute doesn't exist
+			if e.Value.IsNull() {
+				l.attrs = append(l.attrs, attrVal{
+					a: newLinkAttr(e.Key),
+					s: traceql.NewStaticString("nil"),
+				})
+			}
 		}
 	}
 
