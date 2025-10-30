@@ -10,6 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testInt struct {
+	N int64 `parquet:",dict"`
+}
+
 type mockPredicate struct {
 	ret         bool
 	valCalled   bool
@@ -379,5 +383,88 @@ func BenchmarkRegexInPredicate(b *testing.B) {
 		for _, ss := range s {
 			p.KeepValue(ss)
 		}
+	}
+}
+
+func TestIntInPredicate(t *testing.T) {
+	testCases := []predicateTestCase{
+		{
+			testName: "all chunks/pages/values inspected",
+			predicate: func() Predicate {
+				var p Predicate = NewIntInPredicate([]int64{1, 3})
+				return p
+			}(),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 2,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testInt{1}))  // kept
+				require.NoError(t, w.Write(&testInt{2}))  // skipped
+				require.NoError(t, w.Write(&testInt{3}))  // kept
+				require.NoError(t, w.Write(&testInt{10})) // skipped
+			},
+		},
+		{
+			testName: "dictionary allows skipping a column chunk when no ints match",
+			predicate: func() Predicate {
+				var p Predicate = NewIntInPredicate([]int64{0, 4, 100})
+				return p
+			}(),
+			keptChunks: 0,
+			keptPages:  0,
+			keptValues: 0,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testInt{1}))
+				require.NoError(t, w.Write(&testInt{2}))
+				require.NoError(t, w.Write(&testInt{3}))
+			},
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.testName, func(t *testing.T) {
+			testPredicate(t, tC)
+		})
+	}
+}
+
+func TestIntNotInPredicate(t *testing.T) {
+	testCases := []predicateTestCase{
+		{
+			testName: "all chunks/pages/values inspected",
+			predicate: func() Predicate {
+				var p Predicate = NewIntNotInPredicate([]int64{1, 3})
+				return p
+			}(),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 2,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testInt{1})) // skipped
+				require.NoError(t, w.Write(&testInt{2})) // kept
+				require.NoError(t, w.Write(&testInt{3})) // skipped
+				require.NoError(t, w.Write(&testInt{4})) // kept
+			},
+		},
+		{
+			testName: "dictionary allows skipping a column chunk when all ints excluded",
+			predicate: func() Predicate {
+				var p Predicate = NewIntNotInPredicate([]int64{7, 8})
+				return p
+			}(),
+			keptChunks: 0,
+			keptPages:  0,
+			keptValues: 0,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testInt{7}))
+				require.NoError(t, w.Write(&testInt{8}))
+			},
+		},
+	}
+
+	for _, tC := range testCases {
+		t.Run(tC.testName, func(t *testing.T) {
+			testPredicate(t, tC)
+		})
 	}
 }

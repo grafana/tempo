@@ -1074,3 +1074,249 @@ func (p ByteNotEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
 	return !bytes.Equal(vv, p.value)
 }
+var _ Predicate = (*IntInPredicate)(nil)
+
+type IntInPredicate struct {
+	values []int64
+}
+
+func NewIntInPredicate(vals []int64) IntInPredicate {
+	return IntInPredicate{values: vals}
+}
+
+func (p IntInPredicate) String() string { return fmt.Sprintf("IntInPredicate{%v}", p.values) }
+
+func (p IntInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
+		for i := 0; i < ci.NumPages(); i++ {
+			min := ci.MinValue(i).Int64()
+			max := ci.MaxValue(i).Int64()
+			for _, v := range p.values {
+				if min <= v && v <= max {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (p IntInPredicate) KeepPage(page pq.Page) bool {
+	minV, maxV, ok := page.Bounds()
+	if ok {
+		min := minV.Int64()
+		max := maxV.Int64()
+		for _, v := range p.values {
+			if min <= v && v <= max {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (p IntInPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Int64()
+	for _, x := range p.values {
+		if vv == x {
+			return true
+		}
+	}
+	return false
+}
+var _ Predicate = (*IntNotInPredicate)(nil)
+
+type IntNotInPredicate struct {
+	values []int64
+}
+
+func NewIntNotInPredicate(vals []int64) IntNotInPredicate {
+	return IntNotInPredicate{values: vals}
+}
+
+func (p IntNotInPredicate) String() string {
+	return fmt.Sprintf("IntNotInPredicate{%v}", p.values)
+}
+
+func (p IntNotInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	return true
+}
+
+func (p IntNotInPredicate) KeepPage(page pq.Page) bool { 
+	return true
+}
+
+func (p IntNotInPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Int64()
+	for _, x := range p.values {
+		if vv == x {
+			return false
+		}
+	}
+	return true
+}
+var _ Predicate = (*FloatInPredicate)(nil)
+
+type FloatInPredicate struct {
+	values []float64
+}
+
+func NewFloatInPredicate(vals []float64) FloatInPredicate {
+	return FloatInPredicate{values: vals}
+}
+
+func (p FloatInPredicate) String() string { return fmt.Sprintf("FloatInPredicate{%v}", p.values) }
+
+func (p FloatInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
+		for i := 0; i < ci.NumPages(); i++ {
+			min := ci.MinValue(i).Double()
+			max := ci.MaxValue(i).Double()
+			for _, v := range p.values {
+				if min <= v && v <= max {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (p FloatInPredicate) KeepPage(page pq.Page) bool {
+	minV, maxV, ok := page.Bounds()
+	if ok {
+		min := minV.Double()
+		max := maxV.Double()
+		for _, v := range p.values {
+			if min <= v && v <= max {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (p FloatInPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Double()
+	for _, x := range p.values {
+		if vv == x {
+			return true
+		}
+	}
+	return false
+}
+var _ Predicate = (*FloatNotInPredicate)(nil)
+
+type FloatNotInPredicate struct {
+	values []float64
+}
+
+func NewFloatNotInPredicate(vals []float64) FloatNotInPredicate {
+	return FloatNotInPredicate{values: vals}
+}
+
+func (p FloatNotInPredicate) String() string {
+	return fmt.Sprintf("FloatNotInPredicate{%v}", p.values)
+}
+
+func (p FloatNotInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	return true
+}
+
+func (p FloatNotInPredicate) KeepPage(page pq.Page) bool { 
+	return true
+}
+
+func (p FloatNotInPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Double()
+	for _, x := range p.values {
+		if vv == x {
+			return false
+		}
+	}
+	return true
+}
+var _ Predicate = (*BoolInPredicate)(nil)
+
+type BoolInPredicate struct {
+	values []bool
+}
+
+func NewBoolInPredicate(vals []bool) BoolInPredicate {
+	return BoolInPredicate{values: vals}
+}
+
+func (p BoolInPredicate) String() string { return fmt.Sprintf("BoolInPredicate{%v}", p.values) }
+
+func (p BoolInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	return true
+}
+
+func (p BoolInPredicate) KeepPage(page pq.Page) bool {
+	return true
+}
+
+func (p BoolInPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Boolean()
+	for _, x := range p.values {
+		if vv == x {
+			return true
+		}
+	}
+	return false
+}
+var _ Predicate = (*BoolNotInPredicate)(nil)
+
+type BoolNotInPredicate struct {
+	values []bool
+}
+
+func NewBoolNotInPredicate(vals []bool) BoolNotInPredicate {
+	return BoolNotInPredicate{values: vals}
+}
+
+func (p BoolNotInPredicate) String() string {
+	return fmt.Sprintf("BoolNotInPredicate{%v}", p.values)
+}
+
+func (p BoolNotInPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	return true
+}
+
+func (p BoolNotInPredicate) KeepPage(page pq.Page) bool { 
+	return true
+}
+
+func (p BoolNotInPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Boolean()
+	for _, x := range p.values {
+		if vv == x {
+			return false
+		}
+	}
+	return true
+}
