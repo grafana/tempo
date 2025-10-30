@@ -343,7 +343,7 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
 	for _, m := range r.metrics {
-		m.removeStaleSeries(staleTimeMs)
+		m.removeStaleSeries(timeMs)
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())

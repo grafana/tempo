@@ -162,7 +162,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(staleTimeMs)
+	c.removeStaleSeries(timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -179,7 +179,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(staleTimeMs)
+	c.removeStaleSeries(timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
