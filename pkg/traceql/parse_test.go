@@ -1563,3 +1563,35 @@ func TestMetricsSecondStageErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestParseRewrites(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "no rewrites",
+			query: "{ .attr = `foo` }",
+			want:  "{ .attr = `foo` }",
+		},
+		{
+			name:  "query with rewrite",
+			query: "{ .attr = `foo` || .attr = `bar` } | rate()",
+			want:  "{ .attr = [`foo`, `bar`] } | rate()",
+		},
+		{
+			name:  "skip rewrites hint",
+			query: "{ .attr = `foo` || .attr = `bar` } | rate() with(skip_optimization=true)",
+			want:  "{ (.attr = `foo`) || (.attr = `bar`) } | rate() with(skip_optimization=true)",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := Parse(tc.query)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, actual.String())
+		})
+	}
+}
