@@ -24,13 +24,13 @@ func (b *backendBlock) FetchSpansOnly(ctx context.Context, req traceql.FetchSpan
 
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
-	iter, span, err := create(makeIter, nil, req.Conditions, req.SecondPass, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.AllConditions, false, b.meta.DedicatedColumns)
+	iter, span, err := create(makeIter, nil, req.Conditions, req.SecondPass, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.AllConditions, false, b.meta.DedicatedColumns, req.SpanSampler)
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err
 	}
 
 	if len(req.SecondPassConditions) > 0 || req.SecondPassSelectAll {
-		iter, span, err = create(makeIter, iter, req.SecondPassConditions, nil, req.StartTimeUnixNanos, req.EndTimeUnixNanos, false, req.SecondPassSelectAll, b.meta.DedicatedColumns)
+		iter, span, err = create(makeIter, iter, req.SecondPassConditions, nil, req.StartTimeUnixNanos, req.EndTimeUnixNanos, false, req.SecondPassSelectAll, b.meta.DedicatedColumns, nil)
 		if err != nil {
 			return traceql.FetchSpansOnlyResponse{}, err
 		}
@@ -74,6 +74,7 @@ func create(makeIter makeIterFn,
 	allConditions bool,
 	selectAll bool,
 	dedicatedColumns backend.DedicatedColumns,
+	sampler traceql.Sampler,
 ) (parquetquery.Iterator, *span, error) {
 	catConditions, mingledConditions, err := categorizeConditions(conditions)
 	if err != nil {
@@ -99,7 +100,7 @@ func create(makeIter makeIterFn,
 		return nil, nil, err
 	}
 
-	spanDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, driver == nil, catConditions.span, allConditions, selectAll, dedicatedColumns)
+	spanDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, driver == nil, catConditions.span, allConditions, selectAll, dedicatedColumns, sampler)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -385,6 +386,7 @@ func createSpanIterators(
 	allConditions bool,
 	selectAll bool,
 	dedicatedColumns backend.DedicatedColumns,
+	sampler traceql.Sampler,
 ) (driver parquetquery.Iterator, required, optional []parquetquery.Iterator, err error) {
 	var (
 		columnSelectAs    = map[string]string{}
@@ -445,11 +447,11 @@ func createSpanIterators(
 				return nil, nil, nil, err
 			}
 
-			/*if sampler != nil {
+			if sampler != nil {
 				pred = newSamplingPredicate(sampler, pred)
 				// Removed so that it's not used down below.
 				sampler = nil
-			}*/
+			}
 
 			// Choose the least precise column possible.
 			// The step interval must be an even multiple of the pre-rounded precision.
@@ -679,9 +681,9 @@ func createSpanIterators(
 	if needDriver {
 		if len(required) == 0 {
 			var pred parquetquery.Predicate
-			/*if sampler != nil {
+			if sampler != nil {
 				pred = newSamplingPredicate(sampler, nil)
-			}*/
+			}
 			driver = makeIter(columnPathSpanStatusCode, pred, "")
 		} else {
 			// use the first required iterator as the driver
