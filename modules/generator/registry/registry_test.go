@@ -219,20 +219,17 @@ func TestManagedRegistry_maxEntities(t *testing.T) {
 	entity2 := newLabelValueCombo([]string{"label"}, []string{"value-2"})
 	counter1.Inc(entity1, 1.0)
 	counter2.Inc(entity1, 1.0)
-	// these series should be discarded during collection
 	counter1.Inc(entity2, 1.0)
 	counter2.Inc(entity2, 1.0)
 
 	// At this point, we will have allowed the series to be added, but they will be discarded during collection
 	assert.Equal(t, uint32(4), registry.activeSeries.Load())
-	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
-		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
-		newSample(map[string]string{"__name__": "metric_2", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
-		newSample(map[string]string{"__name__": "metric_2", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
-	}
-	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+
+	// The specific series which are discarded is not guaranteed, but it should be consistent within a single entity.
+	entityCount := collectRegistryMetricsAndCountEntities(registry, appender)
+
 	// After collection, the series should be removed
+	assert.Equal(t, 1, entityCount)
 	assert.Equal(t, uint32(2), registry.activeSeries.Load())
 }
 
@@ -331,6 +328,20 @@ func TestHistogramOverridesConfig(t *testing.T) {
 			require.IsType(t, c.typeOfHistogram, tt)
 		})
 	}
+}
+
+func collectRegistryMetricsAndCountEntities(r *ManagedRegistry, appender *capturingAppender) int {
+	r.CollectMetrics(context.Background())
+
+	entityMap := make(map[uint64]struct{})
+	var hashBuf [1024]byte
+
+	for _, sample := range appender.samples {
+		hash, _ := sample.l.HashWithoutLabels(hashBuf[:0], "__name__")
+		entityMap[hash] = struct{}{}
+	}
+
+	return len(entityMap)
 }
 
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
