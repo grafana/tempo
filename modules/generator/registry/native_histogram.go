@@ -267,7 +267,7 @@ func (h *nativeHistogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *nativeHistogram) removeStaleSeries(timeMs int64) {
+func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 	overridesHash, _, _, _ := h.hashOverrides()
 
 	h.seriesMtx.Lock()
@@ -281,7 +281,7 @@ func (h *nativeHistogram) removeStaleSeries(timeMs int64) {
 			continue
 		}
 
-		if s.lastUpdated < timeMs {
+		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
 			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
 		}

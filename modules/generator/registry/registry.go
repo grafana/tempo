@@ -101,7 +101,7 @@ type metric interface {
 	countActiveSeries() int
 	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
 	countSeriesDemand() int
-	removeStaleSeries(timeMs int64)
+	removeStaleSeries(staleTimeMs int64)
 	deleteByHash(hash uint64)
 }
 
@@ -343,7 +343,7 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
 	for _, m := range r.metrics {
-		m.removeStaleSeries(timeMs)
+		m.removeStaleSeries(staleTimeMs)
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())

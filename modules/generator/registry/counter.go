@@ -154,12 +154,12 @@ func (c *counter) countSeriesDemand() int {
 	return int(c.seriesDemand.Estimate())
 }
 
-func (c *counter) removeStaleSeries(timeMs int64) {
+func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
 
 	for hash, s := range c.series {
-		if s.lastUpdated.Load() < timeMs {
+		if s.lastUpdated.Load() < staleTimeMs {
 			delete(c.series, hash)
 			c.lifecycler.onRemoveEntity(1)
 		}

@@ -265,12 +265,12 @@ func (h *histogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *histogram) removeStaleSeries(timeMs int64) {
+func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
 	for hash, s := range h.series {
-		if s.lastUpdated.Load() < timeMs {
+		if s.lastUpdated.Load() < staleTimeMs {
 			delete(h.series, hash)
 			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
 		}

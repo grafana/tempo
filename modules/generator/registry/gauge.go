@@ -154,12 +154,12 @@ func (g *gauge) countSeriesDemand() int {
 	return int(g.seriesDemand.Estimate())
 }
 
-func (g *gauge) removeStaleSeries(timeMs int64) {
+func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
 
 	for hash, s := range g.series {
-		if s.lastUpdated.Load() < timeMs {
+		if s.lastUpdated.Load() < staleTimeMs {
 			delete(g.series, hash)
 			g.lifecycler.onRemoveEntity(1)
 		}
