@@ -20,8 +20,7 @@ type Predicate interface {
 	KeepValue(pq.Value) bool
 }
 
-// StringInPredicate checks for any of the given strings.
-// Case sensitive exact byte matching
+// StringInPredicate checks for any of the given strings. Case-sensitive exact byte matching
 type StringInPredicate struct {
 	ss [][]byte
 }
@@ -55,22 +54,22 @@ func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	}
 
 	ci, err := cc.ColumnIndex()
-	if err == nil && ci != nil {
-		for _, subs := range p.ss {
-			for i := 0; i < ci.NumPages(); i++ {
-				min := ci.MinValue(i).ByteArray()
-				max := ci.MaxValue(i).ByteArray()
-				ok := bytes.Compare(min, subs) <= 0 && bytes.Compare(max, subs) >= 0
-				if ok {
-					// At least one page in this chunk matches
-					return true
-				}
-			}
-		}
-		return false
+	if err != nil || ci == nil {
+		return true // no index: keep column chunk
 	}
 
-	return true
+	for _, subs := range p.ss {
+		for i := 0; i < ci.NumPages(); i++ {
+			minVal := ci.MinValue(i).ByteArray()
+			maxVal := ci.MaxValue(i).ByteArray()
+			ok := bytes.Compare(minVal, subs) <= 0 && bytes.Compare(maxVal, subs) >= 0
+			if ok {
+				// At least one page in this chunk matches
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (p *StringInPredicate) KeepValue(v pq.Value) bool {
@@ -84,6 +83,57 @@ func (p *StringInPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *StringInPredicate) KeepPage(pq.Page) bool {
+	// todo: check bounds
+	return true
+}
+
+// StringNotInPredicate checks for any of the given strings. Case-sensitive exact byte matching
+type StringNotInPredicate struct {
+	ss [][]byte
+}
+
+var _ Predicate = (*StringNotInPredicate)(nil)
+
+func NewStringNotInPredicate(ss []string) Predicate {
+	p := &StringNotInPredicate{
+		ss: make([][]byte, len(ss)),
+	}
+	for i := range ss {
+		p.ss[i] = []byte(ss[i])
+	}
+	return p
+}
+
+func (p *StringNotInPredicate) String() string {
+	var strings string
+	for i, s := range p.ss {
+		if i > 0 {
+			strings += ", "
+		}
+		strings += string(s)
+	}
+	return fmt.Sprintf("StringNotInPredicate{%s}", strings)
+}
+
+func (p *StringNotInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
+	if d := cc.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	return true
+}
+
+func (p *StringNotInPredicate) KeepValue(v pq.Value) bool {
+	ba := v.ByteArray()
+	for _, ss := range p.ss {
+		if bytes.Equal(ba, ss) {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *StringNotInPredicate) KeepPage(pq.Page) bool {
 	// todo: check bounds
 	return true
 }
