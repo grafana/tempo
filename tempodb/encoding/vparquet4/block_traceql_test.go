@@ -150,7 +150,7 @@ func TestCreateNumericPredicate(t *testing.T) {
 
 	t.Run("it forwards errors", func(t *testing.T) {
 		_, err := createDurationPredicate(traceql.OpGreater, traceql.Operands{traceql.NewStaticBool(true)})
-		require.EqualError(t, err, `operand is not int, duration, status or kind: true`)
+		require.EqualError(t, err, `operand is not int, int array, duration, status or kind: true`)
 	})
 }
 
