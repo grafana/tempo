@@ -265,20 +265,24 @@ func (h *histogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *histogram) deleteFunc(cond func(hash uint64, lastUpdateMilli int64) bool) {
+func (h *histogram) removeStaleSeries(timeMs int64) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
 	for hash, s := range h.series {
-		if cond(hash, s.lastUpdated.Load()) {
+		if s.lastUpdated.Load() < timeMs {
 			delete(h.series, hash)
 			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
 		}
 	}
+	h.seriesDemand.Advance()
 }
 
-func (h *histogram) advanceDemand() {
-	h.seriesDemand.Advance()
+func (h *histogram) deleteByHash(hash uint64) {
+	h.seriesMtx.Lock()
+	delete(h.series, hash)
+	h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
+	h.seriesMtx.Unlock()
 }
 
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {

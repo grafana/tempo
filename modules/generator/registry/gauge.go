@@ -154,18 +154,22 @@ func (g *gauge) countSeriesDemand() int {
 	return int(g.seriesDemand.Estimate())
 }
 
-func (g *gauge) deleteFunc(cond func(hash uint64, lastUpdateMilli int64) bool) {
+func (g *gauge) removeStaleSeries(timeMs int64) {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
 
 	for hash, s := range g.series {
-		if cond(hash, s.lastUpdated.Load()) {
+		if s.lastUpdated.Load() < timeMs {
 			delete(g.series, hash)
 			g.lifecycler.onRemoveEntity(1)
 		}
 	}
+	g.seriesDemand.Advance()
 }
 
-func (g *gauge) advanceDemand() {
-	g.seriesDemand.Advance()
+func (g *gauge) deleteByHash(hash uint64) {
+	g.seriesMtx.Lock()
+	delete(g.series, hash)
+	g.lifecycler.onRemoveEntity(1)
+	g.seriesMtx.Unlock()
 }

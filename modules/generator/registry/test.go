@@ -107,11 +107,11 @@ func (t *testCounter) collectMetrics(_ storage.Appender, _ int64) error {
 	return nil
 }
 
-func (t *testCounter) deleteFunc(func(hash uint64, lastUpdate int64) bool) {
+func (t *testCounter) removeStaleSeries(timeMs int64) {
 	panic("implement me")
 }
 
-func (t *testCounter) advanceDemand() {
+func (t *testCounter) deleteByHash(hash uint64) {
 	panic("implement me")
 }
 
@@ -154,7 +154,11 @@ func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) error {
 	return nil
 }
 
-func (t *testGauge) deleteFunc(func(hash uint64, lastUpdate int64) bool) {
+func (t *testGauge) removeStaleSeries(timeMs int64) {
+	panic("implement me")
+}
+
+func (t *testGauge) deleteByHash(hash uint64) {
 	panic("implement me")
 }
 
@@ -165,10 +169,6 @@ func (t *testGauge) countActiveSeries() int {
 // countSeriesDemand is a stub to satisfy optional estimator usage in registry.
 // Test registry does not track estimates, so return 0.
 func (t *testGauge) countSeriesDemand() int { return 0 }
-
-func (t *testGauge) advanceDemand() {
-	panic("implement me")
-}
 
 type testHistogram struct {
 	nameSum            string
@@ -212,11 +212,11 @@ func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) error {
 	panic("implement me")
 }
 
-func (t *testHistogram) deleteFunc(func(hash uint64, lastUpdate int64) bool) {
+func (t *testHistogram) removeStaleSeries(timeMs int64) {
 	panic("implement me")
 }
 
-func (t *testHistogram) advanceDemand() {
+func (t *testHistogram) deleteByHash(hash uint64) {
 	panic("implement me")
 }
 

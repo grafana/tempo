@@ -39,12 +39,6 @@ func (t *testEntityLifecycler) onRemoveEntity(count uint32) {
 	t.onRemoveEntityFunc(count)
 }
 
-func removeStaleSeries(m metric, collectionTimeMs int64) {
-	m.deleteFunc(func(_ uint64, lastUpdateMilli int64) bool {
-		return lastUpdateMilli < collectionTimeMs
-	})
-}
-
 func TestTestRegistry_counter(t *testing.T) {
 	testRegistry := NewTestRegistry()
 

@@ -230,7 +230,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
-	removeStaleSeries(h, timeMs)
+	h.removeStaleSeries(timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -264,7 +264,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
 
-	removeStaleSeries(h, timeMs)
+	h.removeStaleSeries(timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
@@ -351,7 +351,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		removeStaleSeries(h, time.Now().UnixMilli())
+		h.removeStaleSeries(time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)

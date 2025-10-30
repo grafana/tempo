@@ -101,8 +101,8 @@ type metric interface {
 	countActiveSeries() int
 	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
 	countSeriesDemand() int
-	deleteFunc(func(entityHash uint64, lastUpdateMilli int64) bool)
-	advanceDemand()
+	removeStaleSeries(timeMs int64)
+	deleteByHash(hash uint64)
 }
 
 type entityLifecycler interface {
@@ -265,23 +265,22 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 		r.limitLogger.Log("msg", "tracking entities failed", "err", err)
 	}
 
-	rejectedMap := make(map[uint64]struct{})
+	numRejected := 0
 	for hash := range rejected {
-		rejectedMap[hash] = struct{}{}
+		numRejected++
+		for _, m := range r.metrics {
+			m.deleteByHash(hash)
+		}
 	}
 
-	if len(rejectedMap) > 0 {
-		r.limitLogger.Log("msg", "max active entities reached", "rejected", len(rejectedMap), "updated_since_last_collection", len(hashes))
+	if numRejected > 0 {
+		r.limitLogger.Log("msg", "max active entities reached", "rejected", numRejected, "updated_since_last_collection", len(hashes))
 	}
 
 	var activeSeries int
 	var seriesDemand int
 
 	for _, m := range r.metrics {
-		m.deleteFunc(func(hash uint64, _ int64) bool {
-			_, ok := rejectedMap[hash]
-			return ok
-		})
 		seriesDemand += m.countSeriesDemand()
 		activeSeries += m.countActiveSeries()
 	}
@@ -344,10 +343,7 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
 	for _, m := range r.metrics {
-		m.deleteFunc(func(_ uint64, lastUpdateMilli int64) bool {
-			return lastUpdateMilli < timeMs
-		})
-		m.advanceDemand()
+		m.removeStaleSeries(timeMs)
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())

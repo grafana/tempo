@@ -154,18 +154,22 @@ func (c *counter) countSeriesDemand() int {
 	return int(c.seriesDemand.Estimate())
 }
 
-func (c *counter) deleteFunc(cond func(hash uint64, lastUpdateMilli int64) bool) {
+func (c *counter) removeStaleSeries(timeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
 
 	for hash, s := range c.series {
-		if cond(hash, s.lastUpdated.Load()) {
+		if s.lastUpdated.Load() < timeMs {
 			delete(c.series, hash)
 			c.lifecycler.onRemoveEntity(1)
 		}
 	}
+	c.seriesDemand.Advance()
 }
 
-func (c *counter) advanceDemand() {
-	c.seriesDemand.Advance()
+func (c *counter) deleteByHash(hash uint64) {
+	c.seriesMtx.Lock()
+	delete(c.series, hash)
+	c.lifecycler.onRemoveEntity(1)
+	c.seriesMtx.Unlock()
 }
