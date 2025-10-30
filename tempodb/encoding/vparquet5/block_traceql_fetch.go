@@ -24,13 +24,13 @@ func (b *backendBlock) FetchSpansOnly(ctx context.Context, req traceql.FetchSpan
 
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
-	iter, span, err := create(makeIter, nil, req.Conditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.AllConditions, false, b.meta.DedicatedColumns)
+	iter, span, err := create(makeIter, nil, req.Conditions, req.SecondPass, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.AllConditions, false, b.meta.DedicatedColumns)
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err
 	}
 
 	if len(req.SecondPassConditions) > 0 || req.SecondPassSelectAll {
-		iter, span, err = create(makeIter, iter, req.SecondPassConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, false, req.SecondPassSelectAll, b.meta.DedicatedColumns)
+		iter, span, err = create(makeIter, iter, req.SecondPassConditions, nil, req.StartTimeUnixNanos, req.EndTimeUnixNanos, false, req.SecondPassSelectAll, b.meta.DedicatedColumns)
 		if err != nil {
 			return traceql.FetchSpansOnlyResponse{}, err
 		}
@@ -69,6 +69,7 @@ func (i *spanOnlyIterator) Close() {
 func create(makeIter makeIterFn,
 	driver parquetquery.Iterator,
 	conditions []traceql.Condition,
+	secondPass traceql.SecondPassFn,
 	start, end uint64,
 	allConditions bool,
 	selectAll bool,
@@ -133,6 +134,7 @@ func create(makeIter makeIterFn,
 	optional = append(optional, spanOptional...)*/
 
 	spanCol := NewSpanCollector2()
+	spanCol.secondPass = secondPass
 	switch {
 	case selectAll:
 		// We are selecting everything so don't assert any restrictions on the number of attributes.
@@ -926,6 +928,9 @@ func (c *scopedAttributeCollector) Result() *parquetquery.IteratorResult {
 		c.at.s = traceql.NewStaticFloatArray(c.floatBuffer)
 	case len(c.boolBuffer) > 1:
 		c.at.s = traceql.NewStaticBooleanArray(c.boolBuffer)
+	default:
+		// Nothing populated so it's nil.
+		c.at.s = traceql.StaticNil
 	}
 
 	return &c.atRes
@@ -1053,6 +1058,9 @@ type spanCollector2 struct {
 	nestedSetRightExplicit  bool
 	nestedSetParentExplicit bool
 
+	secondPass    traceql.SecondPassFn
+	spansetBuffer *traceql.Spanset
+
 	at    span
 	atRes parquetquery.IteratorResult
 }
@@ -1067,6 +1075,13 @@ func NewSpanCollector2() *spanCollector2 {
 	// We always return this span.
 	c := &spanCollector2{}
 	c.atRes.AppendOtherValue(otherEntrySpanKey, &c.at)
+
+	c.spansetBuffer = &traceql.Spanset{
+		Spans: make([]traceql.Span, 1),
+	}
+
+	c.spansetBuffer.Spans[0] = &c.at
+
 	return c
 }
 
@@ -1253,13 +1268,16 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 }
 
 func (c *spanCollector2) Result() *parquetquery.IteratorResult {
-	if c.minAttributes == 0 {
-		return &c.atRes
+	if c.minAttributes > 0 && c.at.attributesMatched() < c.minAttributes {
+		return nil
 	}
 
-	if c.at.attributesMatched() >= c.minAttributes {
-		return &c.atRes
+	if c.secondPass != nil {
+		out, _ := c.secondPass(c.spansetBuffer)
+		if len(out) == 0 {
+			return nil
+		}
 	}
 
-	return nil
+	return &c.atRes
 }

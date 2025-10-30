@@ -430,18 +430,18 @@ func BenchmarkQueryRangeSpansOnly(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
 		//"{} | rate() with(sample=true)",
-		"{} | rate() by (span.http.status_code)",
-		"{} | rate() by (resource.service.name)",
-		"{} | rate() by (span.http.url)", // High cardinality attribute
+		//"{} | rate() by (span.http.status_code)",
+		//"{} | rate() by (resource.service.name)",
+		//"{} | rate() by (span.http.url)", // High cardinality attribute
 		"{resource.service.name=`loki-ingester`} | rate()",
-		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
-		"{status=error} | rate()",
+		//"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
+		/*"{status=error} | rate()",
 		"{} | quantile_over_time(duration, .99, .9, .5)",
 		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",
 		"{} | max_over_time(duration) by (span.http.status_code)",
-		"{} | min_over_time(duration) by (span.http.status_code)",
+		"{ | min_over_time(duration) by (span.http.status_code)",*/
 	}
 
 	// For sampler debugging
