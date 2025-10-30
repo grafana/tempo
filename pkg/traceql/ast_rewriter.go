@@ -2,7 +2,6 @@ package traceql
 
 import "slices"
 
-
 func ApplyDefaultASTRewrites(r *RootExpr) *RootExpr {
 	chain := rewriteChain{
 		newBinaryOpToArrayOpRewriter(),

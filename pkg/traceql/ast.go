@@ -979,6 +979,21 @@ func (s Static) IntArray() ([]int, bool) {
 	return unsafe.Slice((*int)(unsafe.Pointer(&s.valBytes[0])), numInts), true
 }
 
+func (s Static) Int64Array() ([]int64, bool) {
+	if s.Type != TypeIntArray {
+		return nil, false
+	}
+
+	if s.valBytes == nil {
+		return nil, true
+	}
+	if len(s.valBytes) == 0 {
+		return []int64{}, true
+	}
+	numInts := uintptr(len(s.valBytes)) / unsafe.Sizeof(int64(0))
+	return unsafe.Slice((*int64)(unsafe.Pointer(&s.valBytes[0])), numInts), true
+}
+
 func (s Static) FloatArray() ([]float64, bool) {
 	if s.Type != TypeFloatArray {
 		return nil, false

@@ -2484,12 +2484,20 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 	switch operands[0].Type {
 	case traceql.TypeString:
 		return createStringPredicate(op, operands)
+	case traceql.TypeStringArray:
+		return createStringArrayPredicate(op, operands)
 	case traceql.TypeInt:
 		return createIntPredicate(op, operands)
+	case traceql.TypeIntArray:
+		return createIntArrayPredicate(op, operands)
 	case traceql.TypeFloat:
 		return createFloatPredicate(op, operands)
+	case traceql.TypeFloatArray:
+		return createFloatArrayPredicate(op, operands)
 	case traceql.TypeBoolean:
 		return createBoolPredicate(op, operands)
+	case traceql.TypeBooleanArray:
+		return createBoolArrayPredicate(op, operands)
 	default:
 		return nil, fmt.Errorf("cannot create predicate for operand: %v", operands[0])
 	}
@@ -2500,11 +2508,11 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return nil, nil
 	}
 
-	s := operands[0].EncodeToString(false)
 	if operands[0].Type != traceql.TypeString {
-		return nil, fmt.Errorf("operand is not string: %s", s)
+		return nil, fmt.Errorf("operand is not string: %s", operands[0])
 	}
 
+	s := operands[0].EncodeToString(false)
 	switch op {
 	case traceql.OpEqual:
 		return parquetquery.NewStringEqualPredicate([]byte(s)), nil
@@ -2524,6 +2532,30 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
 	default:
 		return nil, fmt.Errorf("operator not supported for strings: %+v", op)
+	}
+}
+
+func createStringArrayPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	strs, ok := operands[0].StringArray()
+	if !ok {
+		return nil, fmt.Errorf("operand is not a string array: %s", operands[0])
+	}
+
+	switch op {
+	case traceql.OpEqual:
+		return parquetquery.NewStringInPredicate(strs), nil
+	case traceql.OpNotEqual:
+		return parquetquery.NewStringNotInPredicate(strs), nil
+	case traceql.OpRegex:
+		return parquetquery.NewRegexInPredicate(strs)
+	case traceql.OpNotRegex:
+		return parquetquery.NewRegexNotInPredicate(strs)
+	default:
+		return nil, fmt.Errorf("operator not supported for strings arrays: %+v", op)
 	}
 }
 
@@ -2683,6 +2715,26 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	}
 }
 
+func createIntArrayPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	ints, ok := operands[0].Int64Array()
+	if !ok {
+		return nil, fmt.Errorf("operand is not an int array: %s", operands[0])
+	}
+
+	switch op {
+	case traceql.OpEqual:
+		return parquetquery.NewIntInPredicate(ints), nil
+	case traceql.OpNotEqual:
+		return parquetquery.NewIntNotInPredicate(ints), nil
+	default:
+		return nil, fmt.Errorf("operator not supported for int arrays: %+v", op)
+	}
+}
+
 func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
@@ -2713,6 +2765,26 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 	}
 }
 
+func createFloatArrayPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	floats, ok := operands[0].FloatArray()
+	if !ok {
+		return nil, fmt.Errorf("operand is not a float array: %s", operands[0])
+	}
+
+	switch op {
+	case traceql.OpEqual:
+		return parquetquery.NewFloatInPredicate(floats), nil
+	case traceql.OpNotEqual:
+		return parquetquery.NewFloatNotInPredicate(floats), nil
+	default:
+		return nil, fmt.Errorf("operator not supported for float arrays: %+v", op)
+	}
+}
+
 func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
@@ -2731,6 +2803,26 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 		return parquetquery.NewBoolNotEqualPredicate(b), nil
 	default:
 		return nil, fmt.Errorf("operator not supported for booleans: %+v", op)
+	}
+}
+
+func createBoolArrayPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	bools, ok := operands[0].BooleanArray()
+	if !ok {
+		return nil, fmt.Errorf("operand is not a boolean array: %s", operands[0])
+	}
+
+	switch op {
+	case traceql.OpEqual:
+		return parquetquery.NewBoolInPredicate(bools), nil
+	case traceql.OpNotEqual:
+		return parquetquery.NewBoolNotInPredicate(bools), nil
+	default:
+		return nil, fmt.Errorf("operator not supported for boolean arrays: %+v", op)
 	}
 }
 
@@ -2784,30 +2876,50 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		}
 
 		switch cond.Operands[0].Type {
-
 		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrStringPreds = append(attrStringPreds, pred)
-
+		case traceql.TypeStringArray:
+			pred, err := createStringArrayPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+			}
+			attrStringPreds = append(attrStringPreds, pred)
 		case traceql.TypeInt:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrIntPreds = append(attrIntPreds, pred)
-
+		case traceql.TypeIntArray:
+			pred, err := createIntArrayPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+			}
+			attrIntPreds = append(attrIntPreds, pred)
 		case traceql.TypeFloat:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrFltPreds = append(attrFltPreds, pred)
-
+		case traceql.TypeFloatArray:
+			pred, err := createFloatArrayPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+			}
+			attrFltPreds = append(attrFltPreds, pred)
 		case traceql.TypeBoolean:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+			}
+			boolPreds = append(boolPreds, pred)
+		case traceql.TypeBooleanArray:
+			pred, err := createBoolArrayPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
