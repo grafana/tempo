@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOrToInRewriter(t *testing.T) {
+func TestBinaryOpToArrayOpRewriter(t *testing.T) {
 	cases := []struct {
 		name  string
 		query string
@@ -172,7 +172,7 @@ func TestFieldExpressionRewriter_VisitOrder(t *testing.T) {
 				require.NoError(t, err)
 
 				var index int
-				rw := &binaryOpToArrayOpRewriter{rewriteFunctions: []fieldExpressionRewriteFn{func(op FieldExpression) FieldExpression {
+				rw := &fieldExpressionRewriter{rewriteFunctions: []fieldExpressionRewriteFn{func(op FieldExpression) FieldExpression {
 					if index < len(tc.visitOrder) {
 						requireMatchingFieldExpression(t, op, tc.visitOrder[index])
 					}
