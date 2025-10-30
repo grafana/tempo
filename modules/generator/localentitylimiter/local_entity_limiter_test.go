@@ -2,6 +2,7 @@ package localentitylimiter
 
 import (
 	"hash/maphash"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -34,20 +35,20 @@ func TestLocalEntityLimiter_TrackEntities(t *testing.T) {
 		}()
 
 		// First we fill the limiter
-		rejected, err := limiter.TrackEntities(t.Context(), "test", []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+		rejected, err := limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
 		require.NoError(t, err)
-		require.Empty(t, rejected)
+		require.Empty(t, slices.Collect(rejected))
 
 		// Now check that it rejects new entities
-		rejected, err = limiter.TrackEntities(t.Context(), "test", []uint64{11})
+		rejected, err = limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{11}))
 		require.NoError(t, err)
-		require.Equal(t, []uint64{11}, rejected)
+		require.Equal(t, []uint64{11}, slices.Collect(rejected))
 
 		// After half the stale duration, we update 9/10 entities to they stick around
 		time.Sleep(30 * time.Minute)
-		rejected, err = limiter.TrackEntities(t.Context(), "test", []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9})
+		rejected, err = limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{1, 2, 3, 4, 5, 6, 7, 8, 9}))
 		require.NoError(t, err)
-		require.Empty(t, rejected)
+		require.Empty(t, slices.Collect(rejected))
 
 		// After the stale duration, the entity 10 should have been removed Note
 		// we add 2 minutes here to account for any delay in starting the prune
@@ -55,14 +56,14 @@ func TestLocalEntityLimiter_TrackEntities(t *testing.T) {
 		time.Sleep(32 * time.Minute)
 
 		// Now we can admit entity 11
-		rejected, err = limiter.TrackEntities(t.Context(), "test", []uint64{11})
+		rejected, err = limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{11}))
 		require.NoError(t, err)
-		require.Empty(t, rejected)
+		require.Empty(t, slices.Collect(rejected))
 
 		// And finally, check that entity 10 is rejected
-		rejected, err = limiter.TrackEntities(t.Context(), "test", []uint64{10})
+		rejected, err = limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{10}))
 		require.NoError(t, err)
-		require.Equal(t, []uint64{10}, rejected)
+		require.Equal(t, []uint64{10}, slices.Collect(rejected))
 	})
 }
 
@@ -71,13 +72,13 @@ func TestLocalEntityLimiter_TrackEntities_NoMaxEntities(t *testing.T) {
 		return 0
 	}
 	limiter := NewLocalEntityLimiter(maxFunc, 1*time.Hour)
-	rejected, err := limiter.TrackEntities(t.Context(), "test", []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+	rejected, err := limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
 	require.NoError(t, err)
-	require.Empty(t, rejected)
+	require.Empty(t, slices.Collect(rejected))
 
-	rejected, err = limiter.TrackEntities(t.Context(), "test", []uint64{11})
+	rejected, err = limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{11}))
 	require.NoError(t, err)
-	require.Empty(t, rejected)
+	require.Empty(t, slices.Collect(rejected))
 }
 
 func TestLocalEntityLimiter_Metrics(t *testing.T) {
@@ -88,9 +89,9 @@ func TestLocalEntityLimiter_Metrics(t *testing.T) {
 		return currentLimit
 	}, 1*time.Hour)
 
-	rejected, err := limiter.TrackEntities(t.Context(), "test", []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+	rejected, err := limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
 	require.NoError(t, err)
-	require.Empty(t, rejected)
+	require.Empty(t, slices.Collect(rejected))
 
 	require.NoError(t, err)
 
@@ -106,9 +107,9 @@ func TestLocalEntityLimiter_Metrics(t *testing.T) {
 
 	currentLimit = 0
 
-	rejected, err = limiter.TrackEntities(t.Context(), "test", []uint64{11, 12, 13, 14, 15, 16, 17, 18, 19, 20})
+	rejected, err = limiter.TrackEntities(t.Context(), "test", slices.Values([]uint64{11, 12, 13, 14, 15, 16, 17, 18, 19, 20}))
 	require.NoError(t, err)
-	require.Empty(t, rejected)
+	require.Empty(t, slices.Collect(rejected))
 
 	err = testutil.CollectAndCompare(reg, strings.NewReader(`
 		# HELP tempo_metrics_generator_registry_active_entities The number of active entities in the metrics generator registry
@@ -138,9 +139,9 @@ func TestLocalEntityLimiter_Demand(t *testing.T) {
 		hashes[i] = maphash.Comparable(seed, i)
 	}
 
-	rejected, err := limiter.TrackEntities(t.Context(), "test", hashes)
+	rejected, err := limiter.TrackEntities(t.Context(), "test", slices.Values(hashes))
 	require.NoError(t, err)
-	require.NotEmpty(t, rejected)
+	require.NotEmpty(t, slices.Collect(rejected))
 
 	families, err := reg.Gather()
 	require.NoError(t, err)

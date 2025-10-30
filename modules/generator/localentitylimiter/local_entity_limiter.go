@@ -2,6 +2,7 @@ package localentitylimiter
 
 import (
 	"context"
+	"iter"
 	"sync"
 	"time"
 
@@ -57,38 +58,40 @@ func NewLocalEntityLimiter(maxEntityFunc func(tenant string) uint32, staleDurati
 	}
 }
 
-func (l *LocalEntityLimiter) TrackEntities(_ context.Context, tenant string, hashes []uint64) (rejected []uint64, err error) {
+func (l *LocalEntityLimiter) TrackEntities(_ context.Context, tenant string, hashes iter.Seq[uint64]) (rejected iter.Seq[uint64], err error) {
 	maxEntities := l.maxEntityFunc(tenant)
 	shouldLimit := maxEntities != 0
 
 	now := time.Now()
 
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
+	return func(yield func(uint64) bool) {
+		l.mtx.Lock()
+		defer l.mtx.Unlock()
 
-	for _, hash := range hashes {
-		l.demand.Insert(hash)
+		for hash := range hashes {
+			l.demand.Insert(hash)
 
-		_, exists := l.entityLastUpdated[hash]
+			_, exists := l.entityLastUpdated[hash]
 
-		if exists {
+			if exists {
+				l.entityLastUpdated[hash] = now
+				continue
+			}
+
+			if shouldLimit && uint32(len(l.entityLastUpdated)) >= maxEntities {
+				if !yield(hash) {
+					break
+				}
+				continue
+			}
+
 			l.entityLastUpdated[hash] = now
-			continue
 		}
 
-		if shouldLimit && uint32(len(l.entityLastUpdated)) >= maxEntities {
-			rejected = append(rejected, hash)
-			continue
-		}
-
-		l.entityLastUpdated[hash] = now
-	}
-
-	metrics.activeEntities.WithLabelValues(tenant).Set(float64(len(l.entityLastUpdated)))
-	metrics.maxEntities.WithLabelValues(tenant).Set(float64(maxEntities))
-	metrics.entityDemand.WithLabelValues(tenant).Set(float64(l.demand.Estimate()))
-
-	return rejected, nil
+		metrics.activeEntities.WithLabelValues(tenant).Set(float64(len(l.entityLastUpdated)))
+		metrics.maxEntities.WithLabelValues(tenant).Set(float64(maxEntities))
+		metrics.entityDemand.WithLabelValues(tenant).Set(float64(l.demand.Estimate()))
+	}, nil
 }
 
 func (l *LocalEntityLimiter) Prune(context.Context) {

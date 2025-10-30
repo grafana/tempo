@@ -3,9 +3,9 @@ package registry
 import (
 	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"os"
-	"slices"
 	"sync"
 	"time"
 
@@ -122,7 +122,7 @@ type EntityLimiter interface {
 	// TrackEntities tracks the given entities by their hash. If any entities
 	// cannot be tracked, their hashes are returned. The happy case of no
 	// limiting results in an empty response and nil error.
-	TrackEntities(ctx context.Context, tenant string, hashes []uint64) (rejected []uint64, err error)
+	TrackEntities(ctx context.Context, tenant string, hashes iter.Seq[uint64]) (rejected iter.Seq[uint64], err error)
 
 	// Prune gives the limiter a chance to perform any periodic cleanup
 	// necessary, such as removing expired entities. This method is called
@@ -254,24 +254,24 @@ func (r *ManagedRegistry) onRemoveEntity(count uint32) {
 func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	r.updatedSinceLastCollectionMtx.RLock()
 	hashes := maps.Clone(r.updatedSinceLastCollection)
-	r.updatedSinceLastCollection = make(map[uint64]struct{})
+	clear(r.updatedSinceLastCollection)
 	r.updatedSinceLastCollectionMtx.RUnlock()
 
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
 
-	rejected, err := r.entityLimiter.TrackEntities(ctx, r.tenant, slices.Collect(maps.Keys(hashes)))
+	rejected, err := r.entityLimiter.TrackEntities(ctx, r.tenant, maps.Keys(hashes))
 	if err != nil {
 		r.limitLogger.Log("msg", "tracking entities failed", "err", err)
 	}
 
-	if len(rejected) > 0 {
-		r.limitLogger.Log("msg", "max active entities reached", "rejected", len(rejected), "updated_since_last_collection", len(hashes))
+	rejectedMap := make(map[uint64]struct{})
+	for hash := range rejected {
+		rejectedMap[hash] = struct{}{}
 	}
 
-	rejectedMap := make(map[uint64]struct{})
-	for _, hash := range rejected {
-		rejectedMap[hash] = struct{}{}
+	if len(rejectedMap) > 0 {
+		r.limitLogger.Log("msg", "max active entities reached", "rejected", len(rejectedMap), "updated_since_last_collection", len(hashes))
 	}
 
 	var activeSeries int
