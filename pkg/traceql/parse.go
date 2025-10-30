@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"text/scanner"
+
+	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 func init() {
@@ -52,6 +55,8 @@ func parseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr
 	hintSkipOptimization, _ := l.expr.Hints.GetBool(HintSkipOptimization, true)
 	if astOptimization && !hintSkipOptimization {
 		l.expr = ApplyDefaultASTRewrites(l.expr)
+
+		level.Debug(log.Logger).Log("msg", "optimize AST for TraceQL query", "original", s, "optimized", l.expr.String())
 	}
 
 	return l.expr, nil
