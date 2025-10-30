@@ -97,7 +97,7 @@ func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *co
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),
-	}, true
+	}
 }
 
 func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64) {

@@ -114,15 +114,10 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 		return
 	}
 
-	newSeries, ok := h.newSeries(hash, labelValueCombo, value, traceID, multiplier)
-	if !ok {
-		return
-	}
-
-	h.series[hash] = newSeries
+	h.series[hash] = h.newSeries(hash, labelValueCombo, value, traceID, multiplier)
 }
 
-func (h *histogram) newSeries(hash uint64, labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) (*histogramSeries, bool) {
+func (h *histogram) newSeries(hash uint64, labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {
 	newSeries := &histogramSeries{
 		count:          atomic.NewFloat64(0),
 		sum:            atomic.NewFloat64(0),
@@ -160,7 +155,7 @@ func (h *histogram) newSeries(hash uint64, labelValueCombo *LabelValueCombo, val
 
 	h.updateSeries(hash, newSeries, value, traceID, multiplier)
 
-	return newSeries, true
+	return newSeries
 }
 
 func (h *histogram) updateSeries(hash uint64, s *histogramSeries, value float64, traceID string, multiplier float64) {
