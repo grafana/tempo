@@ -23,7 +23,7 @@ storage:
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
-        # Maximum number of compactors that should build the tenant index. All other components will download
+        # Maximum number of compactors or workers that should build the tenant index. All other components will download
         # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
