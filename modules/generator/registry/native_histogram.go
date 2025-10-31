@@ -32,7 +32,7 @@ type nativeHistogram struct {
 	series       map[uint64]*nativeHistogramSeries
 	seriesDemand *cardinality.Cardinality
 
-	lifecycler entityLifecycler
+	lifecycler Limiter
 
 	buckets []float64
 
@@ -91,7 +91,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, lifecycler entityLifecycler, traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
 	}
@@ -129,7 +129,7 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 		return
 	}
 
-	if !h.lifecycler.onAddEntity(hash, h.activeSeriesPerHistogramSerie()) {
+	if !h.lifecycler.OnAdd(hash, h.activeSeriesPerHistogramSerie()) {
 		return
 	}
 
@@ -208,7 +208,6 @@ func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, va
 	}
 
 	s.lastUpdated = time.Now().UnixMilli()
-	h.lifecycler.onUpdateEntity(hash)
 }
 
 func (h *nativeHistogram) name() string {
@@ -277,13 +276,13 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 		if s.overridesHash != overridesHash {
 			// The overrides have changed, so we need to recreate the series.
 			delete(h.series, hash)
-			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 			continue
 		}
 
 		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
-			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()
@@ -292,7 +291,7 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 func (h *nativeHistogram) deleteByHash(hash uint64) {
 	h.seriesMtx.Lock()
 	delete(h.series, hash)
-	h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
+	h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 	h.seriesMtx.Unlock()
 }
 

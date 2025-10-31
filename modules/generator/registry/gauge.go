@@ -24,7 +24,7 @@ type gauge struct {
 	series       map[uint64]*gaugeSeries
 	seriesDemand *cardinality.Cardinality
 
-	lifecycler entityLifecycler
+	lifecycler Limiter
 
 	externalLabels map[string]string
 }
@@ -45,7 +45,7 @@ const (
 	set = "set"
 )
 
-func newGauge(name string, lifecycler entityLifecycler, externalLabels map[string]string, staleDuration time.Duration) *gauge {
+func newGauge(name string, lifecycler Limiter, externalLabels map[string]string, staleDuration time.Duration) *gauge {
 	return &gauge{
 		metricName:     name,
 		series:         make(map[uint64]*gaugeSeries),
@@ -96,7 +96,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		return
 	}
 
-	if !g.lifecycler.onAddEntity(hash, 1) {
+	if !g.lifecycler.OnAdd(hash, 1) {
 		return
 	}
 
@@ -118,7 +118,6 @@ func (g *gauge) updateSeriesValue(hash uint64, s *gaugeSeries, value float64, op
 		s.value.Store(value)
 	}
 	s.lastUpdated.Store(time.Now().UnixMilli())
-	g.lifecycler.onUpdateEntity(hash)
 }
 
 func (g *gauge) name() string {
@@ -161,7 +160,7 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	for hash, s := range g.series {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(g.series, hash)
-			g.lifecycler.onRemoveEntity(1)
+			g.lifecycler.OnDelete(hash, 1)
 		}
 	}
 	g.seriesDemand.Advance()
@@ -170,6 +169,6 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 func (g *gauge) deleteByHash(hash uint64) {
 	g.seriesMtx.Lock()
 	delete(g.series, hash)
-	g.lifecycler.onRemoveEntity(1)
+	g.lifecycler.OnDelete(hash, 1)
 	g.seriesMtx.Unlock()
 }

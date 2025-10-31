@@ -11,10 +11,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/grafana/tempo/modules/generator/localentitylimiter"
+	"github.com/grafana/tempo/modules/generator/localserieslimiter"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -109,12 +112,21 @@ type instance struct {
 func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
+	var limitLogger = tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
+	var limiter registry.Limiter
+	switch cfg.LimiterType {
+	case LimiterTypeSeries:
+		limiter = localserieslimiter.New(overrides.MetricsGeneratorMaxActiveSeries, instanceID, limitLogger)
+	case LimiterTypeEntity:
+		limiter = localentitylimiter.New(overrides.MetricsGeneratorMaxActiveEntities, instanceID, limitLogger)
+	}
+
 	i := &instance{
 		cfg:        cfg,
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
+		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
 		wal:           wal,
 		traceWAL:      traceWAL,
 		traceQueryWAL: rf1TraceWAL,

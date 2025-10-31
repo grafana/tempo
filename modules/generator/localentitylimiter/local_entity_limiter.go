@@ -1,23 +1,22 @@
 package localentitylimiter
 
 import (
-	"context"
-	"iter"
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/cardinality"
+	"github.com/grafana/tempo/modules/generator/registry"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
-
-const removeStaleSeriesInterval = 5 * time.Minute
 
 type localEntityLimiterMetrics struct {
 	activeEntities *prometheus.GaugeVec
 	maxEntities    *prometheus.GaugeVec
 	entityDemand   *prometheus.GaugeVec
 }
+
+var _ registry.Limiter = (*LocalEntityLimiter)(nil)
 
 func newMetrics(reg prometheus.Registerer) localEntityLimiterMetrics {
 	return localEntityLimiterMetrics{
@@ -31,78 +30,70 @@ func newMetrics(reg prometheus.Registerer) localEntityLimiterMetrics {
 			Name:      "metrics_generator_registry_max_active_entities",
 			Help:      "The maximum number of entities allowed to be active in the metrics generator registry",
 		}, []string{"tenant"}),
-		entityDemand: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "tempo",
-			Name:      "metrics_generator_registry_entity_demand",
-			Help:      "The estimated number of entities that would be created if the max active entities were unlimited",
-		}, []string{"tenant"}),
 	}
 }
 
 var metrics = newMetrics(prometheus.DefaultRegisterer)
 
 type LocalEntityLimiter struct {
-	mtx               sync.Mutex
-	entityLastUpdated map[uint64]time.Time
-	maxEntityFunc     func(tenant string) uint32
-	demand            *cardinality.Cardinality
-	staleDuration     time.Duration
+	tenant               string
+	entityLastUpdated    map[uint64]uint32
+	maxEntityFunc        func(tenant string) uint32
+	staleDuration        time.Duration
+	mtx                  sync.Mutex
+	limitLogger          *tempo_log.RateLimitedLogger
+	metricActiveEntities prometheus.Gauge
+	metricMaxEntities    prometheus.Gauge
 }
 
-func NewLocalEntityLimiter(maxEntityFunc func(tenant string) uint32, staleDuration time.Duration) *LocalEntityLimiter {
+func New(maxEntityFunc func(tenant string) uint32, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalEntityLimiter {
 	return &LocalEntityLimiter{
-		maxEntityFunc:     maxEntityFunc,
-		entityLastUpdated: make(map[uint64]time.Time),
-		staleDuration:     staleDuration,
-		demand:            cardinality.NewCardinality(staleDuration, removeStaleSeriesInterval),
+		tenant:               tenant,
+		entityLastUpdated:    make(map[uint64]uint32),
+		maxEntityFunc:        maxEntityFunc,
+		limitLogger:          limitLogger,
+		metricActiveEntities: metrics.activeEntities.WithLabelValues(tenant),
+		metricMaxEntities:    metrics.maxEntities.WithLabelValues(tenant),
 	}
 }
 
-func (l *LocalEntityLimiter) TrackEntities(_ context.Context, tenant string, hashes iter.Seq[uint64]) (rejected iter.Seq[uint64], err error) {
-	maxEntities := l.maxEntityFunc(tenant)
-	shouldLimit := maxEntities != 0
-
-	now := time.Now()
-
-	return func(yield func(uint64) bool) {
-		l.mtx.Lock()
-		defer l.mtx.Unlock()
-
-		for hash := range hashes {
-			l.demand.Insert(hash)
-
-			_, exists := l.entityLastUpdated[hash]
-
-			if exists {
-				l.entityLastUpdated[hash] = now
-				continue
-			}
-
-			if shouldLimit && uint32(len(l.entityLastUpdated)) >= maxEntities {
-				if !yield(hash) {
-					break
-				}
-				continue
-			}
-
-			l.entityLastUpdated[hash] = now
-		}
-
-		metrics.activeEntities.WithLabelValues(tenant).Set(float64(len(l.entityLastUpdated)))
-		metrics.maxEntities.WithLabelValues(tenant).Set(float64(maxEntities))
-		metrics.entityDemand.WithLabelValues(tenant).Set(float64(l.demand.Estimate()))
-	}, nil
-}
-
-func (l *LocalEntityLimiter) Prune(context.Context) {
+func (l *LocalEntityLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	for hash, lastUpdated := range l.entityLastUpdated {
-		if time.Since(lastUpdated) > l.staleDuration {
-			delete(l.entityLastUpdated, hash)
+	activeSeries, ok := l.entityLastUpdated[labelHash]
+	if ok {
+		activeSeries += seriesCount
+		l.entityLastUpdated[labelHash] = activeSeries
+		return true
+	}
+
+	maxEntities := l.maxEntityFunc(l.tenant)
+	if maxEntities != 0 && uint32(len(l.entityLastUpdated))+1 > maxEntities {
+		l.limitLogger.Log("msg", "reached max active entities", "active_entities", len(l.entityLastUpdated), "max_active_entities", maxEntities)
+		return false
+	}
+
+	l.entityLastUpdated[labelHash] = seriesCount
+
+	l.metricActiveEntities.Set(float64(len(l.entityLastUpdated)))
+	l.metricMaxEntities.Set(float64(maxEntities))
+	return true
+}
+
+func (l *LocalEntityLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	activeSeries, ok := l.entityLastUpdated[labelHash]
+	if ok {
+		activeSeries -= seriesCount
+		if activeSeries <= 0 {
+			delete(l.entityLastUpdated, labelHash)
+		} else {
+			l.entityLastUpdated[labelHash] = activeSeries
 		}
 	}
 
-	l.demand.Advance()
+	l.metricActiveEntities.Set(float64(len(l.entityLastUpdated)))
 }

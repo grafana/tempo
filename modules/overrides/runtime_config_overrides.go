@@ -412,12 +412,14 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessors(userID string
 
 // MetricsGeneratorMaxActiveSeries is the maximum amount of active series in the metrics-generator
 // registry for this tenant. Note this is a local limit enforced in every instance separately.
+// Requires the generator's limiter type to be set to "series".
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
 }
 
 // MetricsGeneratorMaxEntities is the maximum amount of entities in the metrics-generator registry
 // for this tenant. Note this is a local limit enforced in every instance separately.
+// Requires the generator's limiter type to be set to "entity".
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveEntities(userID string) uint32 {
 	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveEntities
 }

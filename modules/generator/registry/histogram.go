@@ -30,7 +30,7 @@ type histogram struct {
 	series       map[uint64]*histogramSeries
 	seriesDemand *cardinality.Cardinality
 
-	lifecycler entityLifecycler
+	lifecycler Limiter
 
 	traceIDLabelName string
 }
@@ -68,7 +68,7 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, lifecycler entityLifecycler, traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
+func newHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
 	}
@@ -110,7 +110,7 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 		return
 	}
 
-	if !h.lifecycler.onAddEntity(hash, h.activeSeriesPerHistogramSerie()) {
+	if !h.lifecycler.OnAdd(hash, h.activeSeriesPerHistogramSerie()) {
 		return
 	}
 
@@ -173,8 +173,6 @@ func (h *histogram) updateSeries(hash uint64, s *histogramSeries, value float64,
 	s.exemplarValues[bucket].Store(value)
 
 	s.lastUpdated.Store(time.Now().UnixMilli())
-
-	h.lifecycler.onUpdateEntity(hash)
 }
 
 func (h *histogram) name() string {
@@ -272,7 +270,7 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 	for hash, s := range h.series {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(h.series, hash)
-			h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()
@@ -281,7 +279,7 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 func (h *histogram) deleteByHash(hash uint64) {
 	h.seriesMtx.Lock()
 	delete(h.series, hash)
-	h.lifecycler.onRemoveEntity(h.activeSeriesPerHistogramSerie())
+	h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 	h.seriesMtx.Unlock()
 }
 

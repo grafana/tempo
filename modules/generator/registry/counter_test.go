@@ -13,8 +13,8 @@ import (
 
 func Test_counter(t *testing.T) {
 	var seriesAdded int
-	lifecycler := &testEntityLifecycler{
-		onAddEntityFunc: func(uint64, uint32) bool {
+	lifecycler := &mockLimiter{
+		onAddFunc: func(uint64, uint32) bool {
 			seriesAdded++
 			return true
 		},
@@ -56,8 +56,8 @@ func Test_counter(t *testing.T) {
 
 func TestCounterDifferentLabels(t *testing.T) {
 	var seriesAdded int
-	lifecycler := &testEntityLifecycler{
-		onAddEntityFunc: func(uint64, uint32) bool {
+	lifecycler := &mockLimiter{
+		onAddFunc: func(uint64, uint32) bool {
 			seriesAdded++
 			return true
 		},
@@ -83,8 +83,8 @@ func TestCounterDifferentLabels(t *testing.T) {
 
 func Test_counter_cantAdd(t *testing.T) {
 	canAdd := false
-	lifecycler := &testEntityLifecycler{
-		onAddEntityFunc: func(_ uint64, count uint32) bool {
+	lifecycler := &mockLimiter{
+		onAddFunc: func(_ uint64, count uint32) bool {
 			assert.Equal(t, uint32(1), count)
 			return canAdd
 		},
@@ -124,8 +124,8 @@ func Test_counter_cantAdd(t *testing.T) {
 
 func Test_counter_removeStaleSeries(t *testing.T) {
 	var removedSeries int
-	lifecycler := &testEntityLifecycler{
-		onRemoveEntityFunc: func(count uint32) {
+	lifecycler := &mockLimiter{
+		onDeleteFunc: func(_ uint64, count uint32) {
 			assert.Equal(t, uint32(1), count)
 			removedSeries++
 		},
@@ -169,7 +169,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 }
 
 func Test_counter_externalLabels(t *testing.T) {
-	c := newCounter("my_counter", noopLifecycler, map[string]string{"external_label": "external_value"}, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{"external_label": "external_value"}, 15*time.Minute)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -186,7 +186,7 @@ func Test_counter_externalLabels(t *testing.T) {
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
-	c := newCounter("my_counter", noopLifecycler, map[string]string{}, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	end := make(chan struct{})
 
@@ -232,7 +232,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_counter_concurrencyCorrectness(t *testing.T) {
-	c := newCounter("my_counter", noopLifecycler, map[string]string{}, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -290,7 +290,7 @@ func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, expe
 }
 
 func Test_counter_demandTracking(t *testing.T) {
-	c := newCounter("my_counter", noopLifecycler, map[string]string{}, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	// Initially, demand should be 0
 	assert.Equal(t, 0, c.countSeriesDemand())
@@ -312,8 +312,8 @@ func Test_counter_demandTracking(t *testing.T) {
 
 func Test_counter_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	lifecycler := &testEntityLifecycler{
-		onAddEntityFunc: func(uint64, uint32) bool {
+	lifecycler := &mockLimiter{
+		onAddFunc: func(uint64, uint32) bool {
 			return !limitReached
 		},
 	}
@@ -347,7 +347,7 @@ func Test_counter_demandVsActiveSeries(t *testing.T) {
 }
 
 func Test_counter_demandDecay(t *testing.T) {
-	c := newCounter("my_counter", noopLifecycler, map[string]string{}, 15*time.Minute)
+	c := newCounter("my_counter", noopLimiter, map[string]string{}, 15*time.Minute)
 
 	// Add series
 	for i := 0; i < 40; i++ {

@@ -8,37 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testEntityLifecycler struct {
-	onAddEntityFunc    func(entityHash uint64, count uint32) bool
-	onUpdateEntityFunc func(entityHash uint64)
-	onRemoveEntityFunc func(count uint32)
-}
-
-var noopLifecycler entityLifecycler = &testEntityLifecycler{}
-
-var _ entityLifecycler = (*testEntityLifecycler)(nil)
-
-func (t *testEntityLifecycler) onAddEntity(entityHash uint64, count uint32) bool {
-	if t.onAddEntityFunc == nil {
-		return true
-	}
-	return t.onAddEntityFunc(entityHash, count)
-}
-
-func (t *testEntityLifecycler) onUpdateEntity(entityHash uint64) {
-	if t.onUpdateEntityFunc == nil {
-		return
-	}
-	t.onUpdateEntityFunc(entityHash)
-}
-
-func (t *testEntityLifecycler) onRemoveEntity(count uint32) {
-	if t.onRemoveEntityFunc == nil {
-		return
-	}
-	t.onRemoveEntityFunc(count)
-}
-
 func TestTestRegistry_counter(t *testing.T) {
 	testRegistry := NewTestRegistry()
 
