@@ -4,6 +4,7 @@ description: Configure the Grafana Alloy to work with Tempo
 weight: 550
 aliases:
   - ../../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
+  - ../../../configuration/grafana-agent/ # /docs/tempo/latest/configuration/grafana-agent/
 ---
 
 # Grafana Alloy
