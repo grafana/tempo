@@ -450,7 +450,7 @@ func TestStatic_MapKey(t *testing.T) {
 		NewStaticString(""), NewStaticString("foo"),
 		NewStaticIntArray([]int{}), NewStaticIntArray([]int{1, 2, 3}),
 		NewStaticFloatArray([]float64{}), NewStaticFloatArray([]float64{0.0}), NewStaticFloatArray([]float64{0.0, 2.0, 3.0}),
-		NewStaticStringArray([]string{}), NewStaticStringArray([]string{""}), NewStaticStringArray([]string{"foo"}),
+		NewStaticStringArray([]string{}), NewStaticStringArray([]string{""}), NewStaticStringArray([]string{"foo"}), NewStaticStringArray([]string{"f", "o", "o"}),
 		NewStaticBooleanArray([]bool{}), NewStaticBooleanArray([]bool{false}), NewStaticBooleanArray([]bool{true}),
 	}
 
@@ -463,6 +463,20 @@ func TestStatic_MapKey(t *testing.T) {
 		occurredValues[mk] = s
 
 		assert.False(t, found, "static values produce the same MapKey %s, %s", prev.String(), s.String())
+	}
+}
+
+func BenchmarkStatic_MapKey(b *testing.B) {
+	testCases := []Static{
+		NewStaticStringArray([]string{"foo", "bar"}),
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.String(), func(b *testing.B) {
+			for b.Loop() {
+				_ = tc.MapKey()
+			}
+		})
 	}
 }
 
