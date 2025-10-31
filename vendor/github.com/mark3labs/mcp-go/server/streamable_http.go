@@ -1,17 +1,21 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -68,6 +72,16 @@ func WithHeartbeatInterval(interval time.Duration) StreamableHTTPOption {
 	}
 }
 
+// WithDisableStreaming prevents the server from responding to GET requests with
+// a streaming response. Instead, it will respond with a 405 Method Not Allowed status.
+// This can be useful in scenarios where streaming is not desired or supported.
+// The default is false, meaning streaming is enabled.
+func WithDisableStreaming(disable bool) StreamableHTTPOption {
+	return func(s *StreamableHTTPServer) {
+		s.disableStreaming = disable
+	}
+}
+
 // WithHTTPContextFunc sets a function that will be called to customise the context
 // to the server using the incoming request.
 // This can be used to inject context values from headers, for example.
@@ -90,6 +104,15 @@ func WithStreamableHTTPServer(srv *http.Server) StreamableHTTPOption {
 func WithLogger(logger util.Logger) StreamableHTTPOption {
 	return func(s *StreamableHTTPServer) {
 		s.logger = logger
+	}
+}
+
+// WithTLSCert sets the TLS certificate and key files for HTTPS support.
+// Both certFile and keyFile must be provided to enable TLS.
+func WithTLSCert(certFile, keyFile string) StreamableHTTPOption {
+	return func(s *StreamableHTTPServer) {
+		s.tlsCertFile = certFile
+		s.tlsKeyFile = keyFile
 	}
 }
 
@@ -119,6 +142,7 @@ func WithLogger(logger util.Logger) StreamableHTTPOption {
 type StreamableHTTPServer struct {
 	server            *MCPServer
 	sessionTools      *sessionToolsStore
+	sessionResources  *sessionResourcesStore
 	sessionRequestIDs sync.Map // sessionId --> last requestID(*atomic.Int64)
 	activeSessions    sync.Map // sessionId --> *streamableHttpSession (for sampling responses)
 
@@ -131,6 +155,10 @@ type StreamableHTTPServer struct {
 	listenHeartbeatInterval time.Duration
 	logger                  util.Logger
 	sessionLogLevels        *sessionLogLevelsStore
+	disableStreaming        bool
+
+	tlsCertFile string
+	tlsKeyFile  string
 }
 
 // NewStreamableHTTPServer creates a new streamable-http server instance
@@ -142,6 +170,7 @@ func NewStreamableHTTPServer(server *MCPServer, opts ...StreamableHTTPOption) *S
 		endpointPath:     "/mcp",
 		sessionIdManager: &InsecureStatefulSessionIdManager{},
 		logger:           util.DefaultLogger(),
+		sessionResources: newSessionResourcesStore(),
 	}
 
 	// Apply all options
@@ -187,6 +216,19 @@ func (s *StreamableHTTPServer) Start(addr string) error {
 	}
 	srv := s.httpServer
 	s.mu.Unlock()
+
+	if s.tlsCertFile != "" || s.tlsKeyFile != "" {
+		if s.tlsCertFile == "" || s.tlsKeyFile == "" {
+			return fmt.Errorf("both TLS cert and key must be provided")
+		}
+		if _, err := os.Stat(s.tlsCertFile); err != nil {
+			return fmt.Errorf("failed to find TLS certificate file: %w", err)
+		}
+		if _, err := os.Stat(s.tlsKeyFile); err != nil {
+			return fmt.Errorf("failed to find TLS key file: %w", err)
+		}
+		return srv.ListenAndServeTLS(s.tlsCertFile, s.tlsKeyFile)
+	}
 
 	return srv.ListenAndServe()
 }
@@ -236,10 +278,18 @@ func (s *StreamableHTTPServer) handlePost(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// detect empty ping response, skip session ID validation
+	isPingResponse := jsonMessage.Method == "" && jsonMessage.ID != nil &&
+		(isJSONEmpty(jsonMessage.Result) && isJSONEmpty(jsonMessage.Error))
+
+	if isPingResponse {
+		return
+	}
+
 	// Check if this is a sampling response (has result/error but no method)
-	isSamplingResponse := jsonMessage.Method == "" && jsonMessage.ID != nil && 
+	isSamplingResponse := jsonMessage.Method == "" && jsonMessage.ID != nil &&
 		(jsonMessage.Result != nil || jsonMessage.Error != nil)
-	
+
 	isInitializeRequest := jsonMessage.Method == mcp.MethodInitialize
 
 	// Handle sampling responses separately
@@ -273,7 +323,30 @@ func (s *StreamableHTTPServer) handlePost(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	session := newStreamableHttpSession(sessionID, s.sessionTools, s.sessionLogLevels)
+	// For non-initialize requests, try to reuse existing registered session
+	var session *streamableHttpSession
+	if !isInitializeRequest {
+		if sessionValue, ok := s.server.sessions.Load(sessionID); ok {
+			if existingSession, ok := sessionValue.(*streamableHttpSession); ok {
+				session = existingSession
+			}
+		}
+	}
+
+	// Check if a persistent session exists (for sampling support), otherwise create ephemeral session
+	// Persistent sessions are created by GET (continuous listening) connections
+	if session == nil {
+		if sessionInterface, exists := s.activeSessions.Load(sessionID); exists {
+			if persistentSession, ok := sessionInterface.(*streamableHttpSession); ok {
+				session = persistentSession
+			}
+		}
+	}
+
+	// Create ephemeral session if no persistent session exists
+	if session == nil {
+		session = newStreamableHttpSession(sessionID, s.sessionTools, s.sessionResources, s.sessionLogLevels)
+	}
 
 	// Set the client context before handling the message
 	ctx := s.server.WithContext(r.Context(), session)
@@ -369,11 +442,31 @@ func (s *StreamableHTTPServer) handlePost(w http.ResponseWriter, r *http.Request
 			s.logger.Errorf("Failed to write response: %v", err)
 		}
 	}
+
+	// Register session after successful initialization
+	// Only register if not already registered (e.g., by a GET connection)
+	if isInitializeRequest && sessionID != "" {
+		if _, exists := s.server.sessions.Load(sessionID); !exists {
+			// Store in activeSessions to prevent duplicate registration from GET
+			s.activeSessions.Store(sessionID, session)
+			// Register the session with the MCPServer for notification support
+			if err := s.server.RegisterSession(ctx, session); err != nil {
+				s.logger.Errorf("Failed to register POST session: %v", err)
+				s.activeSessions.Delete(sessionID)
+				// Don't fail the request, just log the error
+			}
+		}
+	}
 }
 
 func (s *StreamableHTTPServer) handleGet(w http.ResponseWriter, r *http.Request) {
 	// get request is for listening to notifications
 	// https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#listening-for-messages-from-the-server
+	if s.disableStreaming {
+		s.logger.Infof("Rejected GET request: streaming is disabled (session: %s)", r.Header.Get(HeaderKeySessionID))
+		http.Error(w, "Streaming is disabled on this server", http.StatusMethodNotAllowed)
+		return
+	}
 
 	sessionID := r.Header.Get(HeaderKeySessionID)
 	// the specification didn't say we should validate the session id
@@ -384,16 +477,23 @@ func (s *StreamableHTTPServer) handleGet(w http.ResponseWriter, r *http.Request)
 		sessionID = uuid.New().String()
 	}
 
-	session := newStreamableHttpSession(sessionID, s.sessionTools, s.sessionLogLevels)
-	if err := s.server.RegisterSession(r.Context(), session); err != nil {
-		http.Error(w, fmt.Sprintf("Session registration failed: %v", err), http.StatusBadRequest)
-		return
+	// Get or create session atomically to prevent TOCTOU races
+	// where concurrent GETs could both create and register duplicate sessions
+	var session *streamableHttpSession
+	newSession := newStreamableHttpSession(sessionID, s.sessionTools, s.sessionResources, s.sessionLogLevels)
+	actual, loaded := s.activeSessions.LoadOrStore(sessionID, newSession)
+	session = actual.(*streamableHttpSession)
+
+	if !loaded {
+		// We created a new session, need to register it
+		if err := s.server.RegisterSession(r.Context(), session); err != nil {
+			s.activeSessions.Delete(sessionID)
+			http.Error(w, fmt.Sprintf("Session registration failed: %v", err), http.StatusBadRequest)
+			return
+		}
+		defer s.server.UnregisterSession(r.Context(), sessionID)
+		defer s.activeSessions.Delete(sessionID)
 	}
-	defer s.server.UnregisterSession(r.Context(), sessionID)
-	
-	// Register session for sampling response delivery
-	s.activeSessions.Store(sessionID, session)
-	defer s.activeSessions.Delete(sessionID)
 
 	// Set the client context before handling the message
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -431,6 +531,21 @@ func (s *StreamableHTTPServer) handleGet(w http.ResponseWriter, r *http.Request)
 						Method: string(mcp.MethodSamplingCreateMessage),
 					},
 					Params: samplingReq.request.CreateMessageParams,
+				}
+				select {
+				case writeChan <- jsonrpcRequest:
+				case <-done:
+					return
+				}
+			case elicitationReq := <-session.elicitationRequestChan:
+				// Send elicitation request to client via SSE
+				jsonrpcRequest := mcp.JSONRPCRequest{
+					JSONRPC: "2.0",
+					ID:      mcp.NewRequestId(elicitationReq.requestID),
+					Request: mcp.Request{
+						Method: string(mcp.MethodElicitationCreate),
+					},
+					Params: elicitationReq.request.Params,
 				}
 				select {
 				case writeChan <- jsonrpcRequest:
@@ -506,6 +621,7 @@ func (s *StreamableHTTPServer) handleDelete(w http.ResponseWriter, r *http.Reque
 
 	// remove the session relateddata from the sessionToolsStore
 	s.sessionTools.delete(sessionID)
+	s.sessionResources.delete(sessionID)
 	s.sessionLogLevels.delete(sessionID)
 	// remove current session's requstID information
 	s.sessionRequestIDs.Delete(sessionID)
@@ -575,13 +691,8 @@ func (s *StreamableHTTPServer) handleSamplingResponse(w http.ResponseWriter, r *
 			response.err = fmt.Errorf("sampling error %d: %s", jsonrpcError.Code, jsonrpcError.Message)
 		}
 	} else if responseMessage.Result != nil {
-		// Parse result
-		var result mcp.CreateMessageResult
-		if err := json.Unmarshal(responseMessage.Result, &result); err != nil {
-			response.err = fmt.Errorf("failed to parse sampling result: %v", err)
-		} else {
-			response.result = &result
-		}
+		// Store the result to be unmarshaled later
+		response.result = responseMessage.Result
 	} else {
 		response.err = fmt.Errorf("sampling response has neither result nor error")
 	}
@@ -690,6 +801,39 @@ func (s *sessionLogLevelsStore) delete(sessionID string) {
 	delete(s.logs, sessionID)
 }
 
+type sessionResourcesStore struct {
+	mu        sync.RWMutex
+	resources map[string]map[string]ServerResource // sessionID -> resourceURI -> resource
+}
+
+func newSessionResourcesStore() *sessionResourcesStore {
+	return &sessionResourcesStore{
+		resources: make(map[string]map[string]ServerResource),
+	}
+}
+
+func (s *sessionResourcesStore) get(sessionID string) map[string]ServerResource {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	cloned := make(map[string]ServerResource, len(s.resources[sessionID]))
+	maps.Copy(cloned, s.resources[sessionID])
+	return cloned
+}
+
+func (s *sessionResourcesStore) set(sessionID string, resources map[string]ServerResource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cloned := make(map[string]ServerResource, len(resources))
+	maps.Copy(cloned, resources)
+	s.resources[sessionID] = cloned
+}
+
+func (s *sessionResourcesStore) delete(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.resources, sessionID)
+}
+
 type sessionToolsStore struct {
 	mu    sync.RWMutex
 	tools map[string]map[string]ServerTool // sessionID -> toolName -> tool
@@ -704,13 +848,17 @@ func newSessionToolsStore() *sessionToolsStore {
 func (s *sessionToolsStore) get(sessionID string) map[string]ServerTool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.tools[sessionID]
+	cloned := make(map[string]ServerTool, len(s.tools[sessionID]))
+	maps.Copy(cloned, s.tools[sessionID])
+	return cloned
 }
 
 func (s *sessionToolsStore) set(sessionID string, tools map[string]ServerTool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.tools[sessionID] = tools
+	cloned := make(map[string]ServerTool, len(tools))
+	maps.Copy(cloned, tools)
+	s.tools[sessionID] = cloned
 }
 
 func (s *sessionToolsStore) delete(sessionID string) {
@@ -728,8 +876,15 @@ type samplingRequestItem struct {
 
 type samplingResponseItem struct {
 	requestID int64
-	result    *mcp.CreateMessageResult
+	result    json.RawMessage
 	err       error
+}
+
+// Elicitation support types for HTTP transport
+type elicitationRequestItem struct {
+	requestID int64
+	request   mcp.ElicitationRequest
+	response  chan samplingResponseItem
 }
 
 // streamableHttpSession is a session for streamable-http transport
@@ -739,22 +894,27 @@ type streamableHttpSession struct {
 	sessionID           string
 	notificationChannel chan mcp.JSONRPCNotification // server -> client notifications
 	tools               *sessionToolsStore
+	resources           *sessionResourcesStore
 	upgradeToSSE        atomic.Bool
 	logLevels           *sessionLogLevelsStore
 
 	// Sampling support for bidirectional communication
-	samplingRequestChan  chan samplingRequestItem      // server -> client sampling requests
-	samplingRequests     sync.Map                      // requestID -> pending sampling request context
-	requestIDCounter     atomic.Int64                  // for generating unique request IDs
+	samplingRequestChan    chan samplingRequestItem    // server -> client sampling requests
+	elicitationRequestChan chan elicitationRequestItem // server -> client elicitation requests
+
+	samplingRequests sync.Map     // requestID -> pending sampling request context
+	requestIDCounter atomic.Int64 // for generating unique request IDs
 }
 
-func newStreamableHttpSession(sessionID string, toolStore *sessionToolsStore, levels *sessionLogLevelsStore) *streamableHttpSession {
+func newStreamableHttpSession(sessionID string, toolStore *sessionToolsStore, resourcesStore *sessionResourcesStore, levels *sessionLogLevelsStore) *streamableHttpSession {
 	s := &streamableHttpSession{
-		sessionID:            sessionID,
-		notificationChannel:  make(chan mcp.JSONRPCNotification, 100),
-		tools:                toolStore,
-		logLevels:            levels,
-		samplingRequestChan:  make(chan samplingRequestItem, 10),
+		sessionID:              sessionID,
+		notificationChannel:    make(chan mcp.JSONRPCNotification, 100),
+		tools:                  toolStore,
+		resources:              resourcesStore,
+		logLevels:              levels,
+		samplingRequestChan:    make(chan samplingRequestItem, 10),
+		elicitationRequestChan: make(chan elicitationRequestItem, 10),
 	}
 	return s
 }
@@ -795,9 +955,18 @@ func (s *streamableHttpSession) SetSessionTools(tools map[string]ServerTool) {
 	s.tools.set(s.sessionID, tools)
 }
 
+func (s *streamableHttpSession) GetSessionResources() map[string]ServerResource {
+	return s.resources.get(s.sessionID)
+}
+
+func (s *streamableHttpSession) SetSessionResources(resources map[string]ServerResource) {
+	s.resources.set(s.sessionID, resources)
+}
+
 var (
-	_ SessionWithTools   = (*streamableHttpSession)(nil)
-	_ SessionWithLogging = (*streamableHttpSession)(nil)
+	_ SessionWithTools     = (*streamableHttpSession)(nil)
+	_ SessionWithResources = (*streamableHttpSession)(nil)
+	_ SessionWithLogging   = (*streamableHttpSession)(nil)
 )
 
 func (s *streamableHttpSession) UpgradeToSSEWhenReceiveNotification() {
@@ -810,21 +979,21 @@ var _ SessionWithStreamableHTTPConfig = (*streamableHttpSession)(nil)
 func (s *streamableHttpSession) RequestSampling(ctx context.Context, request mcp.CreateMessageRequest) (*mcp.CreateMessageResult, error) {
 	// Generate unique request ID
 	requestID := s.requestIDCounter.Add(1)
-	
+
 	// Create response channel for this specific request
 	responseChan := make(chan samplingResponseItem, 1)
-	
+
 	// Create the sampling request item
 	samplingRequest := samplingRequestItem{
 		requestID: requestID,
 		request:   request,
 		response:  responseChan,
 	}
-	
+
 	// Store the pending request
 	s.samplingRequests.Store(requestID, responseChan)
 	defer s.samplingRequests.Delete(requestID)
-	
+
 	// Send the sampling request via the channel (non-blocking)
 	select {
 	case s.samplingRequestChan <- samplingRequest:
@@ -834,20 +1003,81 @@ func (s *streamableHttpSession) RequestSampling(ctx context.Context, request mcp
 	default:
 		return nil, fmt.Errorf("sampling request queue is full - server overloaded")
 	}
-	
+
 	// Wait for response or context cancellation
 	select {
 	case response := <-responseChan:
 		if response.err != nil {
 			return nil, response.err
 		}
-		return response.result, nil
+		var result mcp.CreateMessageResult
+		if err := json.Unmarshal(response.result, &result); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal sampling response: %v", err)
+		}
+
+		// Parse content from map[string]any to proper Content type (TextContent, ImageContent, AudioContent)
+		// HTTP transport unmarshals Content as map[string]any, we need to convert it to the proper type
+		if contentMap, ok := result.Content.(map[string]any); ok {
+			content, err := mcp.ParseContent(contentMap)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse sampling response content: %w", err)
+			}
+			result.Content = content
+		}
+
+		return &result, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// RequestElicitation implements SessionWithElicitation interface for HTTP transport
+func (s *streamableHttpSession) RequestElicitation(ctx context.Context, request mcp.ElicitationRequest) (*mcp.ElicitationResult, error) {
+	// Generate unique request ID
+	requestID := s.requestIDCounter.Add(1)
+
+	// Create response channel for this specific request
+	responseChan := make(chan samplingResponseItem, 1)
+
+	// Create the sampling request item
+	elicitationRequest := elicitationRequestItem{
+		requestID: requestID,
+		request:   request,
+		response:  responseChan,
+	}
+
+	// Store the pending request
+	s.samplingRequests.Store(requestID, responseChan)
+	defer s.samplingRequests.Delete(requestID)
+
+	// Send the sampling request via the channel (non-blocking)
+	select {
+	case s.elicitationRequestChan <- elicitationRequest:
+		// Request queued successfully
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+		return nil, fmt.Errorf("elicitation request queue is full - server overloaded")
+	}
+
+	// Wait for response or context cancellation
+	select {
+	case response := <-responseChan:
+		if response.err != nil {
+			return nil, response.err
+		}
+		var result mcp.ElicitationResult
+		if err := json.Unmarshal(response.result, &result); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal elicitation response: %v", err)
+		}
+		return &result, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 }
 
 var _ SessionWithSampling = (*streamableHttpSession)(nil)
+var _ SessionWithElicitation = (*streamableHttpSession)(nil)
 
 // --- session id manager ---
 
@@ -879,29 +1109,47 @@ func (s *StatelessSessionIdManager) Terminate(sessionID string) (isNotAllowed bo
 	return false, nil
 }
 
-// InsecureStatefulSessionIdManager generate id with uuid
-// It won't validate the id indeed, so it could be fake.
+// InsecureStatefulSessionIdManager generate id with uuid and tracks active sessions.
+// It validates both format and existence of session IDs.
 // For more secure session id, use a more complex generator, like a JWT.
-type InsecureStatefulSessionIdManager struct{}
+type InsecureStatefulSessionIdManager struct {
+	sessions   sync.Map
+	terminated sync.Map
+}
 
 const idPrefix = "mcp-session-"
 
 func (s *InsecureStatefulSessionIdManager) Generate() string {
-	return idPrefix + uuid.New().String()
+	sessionID := idPrefix + uuid.New().String()
+	s.sessions.Store(sessionID, true)
+	return sessionID
 }
 
 func (s *InsecureStatefulSessionIdManager) Validate(sessionID string) (isTerminated bool, err error) {
-	// validate the session id is a valid uuid
 	if !strings.HasPrefix(sessionID, idPrefix) {
 		return false, fmt.Errorf("invalid session id: %s", sessionID)
 	}
 	if _, err := uuid.Parse(sessionID[len(idPrefix):]); err != nil {
 		return false, fmt.Errorf("invalid session id: %s", sessionID)
 	}
+	if _, exists := s.terminated.Load(sessionID); exists {
+		return true, nil
+	}
+	if _, exists := s.sessions.Load(sessionID); !exists {
+		return false, fmt.Errorf("session not found: %s", sessionID)
+	}
 	return false, nil
 }
 
 func (s *InsecureStatefulSessionIdManager) Terminate(sessionID string) (isNotAllowed bool, err error) {
+	if _, exists := s.terminated.Load(sessionID); exists {
+		return false, nil
+	}
+	if _, exists := s.sessions.Load(sessionID); !exists {
+		return false, nil
+	}
+	s.terminated.Store(sessionID, true)
+	s.sessions.Delete(sessionID)
 	return false, nil
 }
 
@@ -910,4 +1158,53 @@ func NewTestStreamableHTTPServer(server *MCPServer, opts ...StreamableHTTPOption
 	sseServer := NewStreamableHTTPServer(server, opts...)
 	testServer := httptest.NewServer(sseServer)
 	return testServer
+}
+
+// isJSONEmpty reports whether the provided JSON value is "empty":
+//   - null
+//   - empty object: {}
+//   - empty array: []
+//
+// It also treats nil/whitespace-only input as empty.
+// It does NOT treat 0, false, "" or non-empty composites as empty.
+func isJSONEmpty(data json.RawMessage) bool {
+	if len(data) == 0 {
+		return true
+	}
+
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return true
+	}
+
+	switch trimmed[0] {
+	case '{':
+		if len(trimmed) == 2 && trimmed[1] == '}' {
+			return true
+		}
+		for i := 1; i < len(trimmed); i++ {
+			if !unicode.IsSpace(rune(trimmed[i])) {
+				return trimmed[i] == '}'
+			}
+		}
+	case '[':
+		if len(trimmed) == 2 && trimmed[1] == ']' {
+			return true
+		}
+		for i := 1; i < len(trimmed); i++ {
+			if !unicode.IsSpace(rune(trimmed[i])) {
+				return trimmed[i] == ']'
+			}
+		}
+
+	case '"': // treat "" as not empty
+		return false
+
+	case 'n': // null
+		return len(trimmed) == 4 &&
+			trimmed[1] == 'u' &&
+			trimmed[2] == 'l' &&
+			trimmed[3] == 'l'
+	}
+	return false
 }
