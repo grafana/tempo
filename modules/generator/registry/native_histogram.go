@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/cardinality"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -30,7 +29,7 @@ type nativeHistogram struct {
 
 	seriesMtx    sync.Mutex
 	series       map[uint64]*nativeHistogramSeries
-	seriesDemand *cardinality.Cardinality
+	seriesDemand *Cardinality
 
 	lifecycler Limiter
 
@@ -99,7 +98,7 @@ func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, trac
 	return &nativeHistogram{
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
-		seriesDemand:      cardinality.NewCardinality(staleDuration, removeStaleSeriesInterval),
+		seriesDemand:      NewCardinality(staleDuration, removeStaleSeriesInterval),
 		lifecycler:        lifecycler,
 		traceIDLabelName:  traceIDLabelName,
 		buckets:           buckets,

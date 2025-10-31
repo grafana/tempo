@@ -13,7 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/storage"
 
-	"github.com/grafana/tempo/modules/generator/cardinality"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -50,7 +49,7 @@ type ManagedRegistry struct {
 
 	metricsMtx   sync.RWMutex
 	metrics      map[string]metric
-	entityDemand *cardinality.Cardinality
+	entityDemand *Cardinality
 	limiter      Limiter
 
 	appendable storage.Appendable
@@ -119,7 +118,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 		appendable:   appendable,
 		limiter:      limiter,
-		entityDemand: cardinality.NewCardinality(cfg.StaleDuration, removeStaleSeriesInterval),
+		entityDemand: NewCardinality(cfg.StaleDuration, removeStaleSeriesInterval),
 
 		logger:                  logger,
 		limitLogger:             tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
