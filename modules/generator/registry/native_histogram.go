@@ -31,8 +31,7 @@ type nativeHistogram struct {
 	series       map[uint64]*nativeHistogramSeries
 	seriesDemand *Cardinality
 
-	onAddSerie    func(count uint32) bool
-	onRemoveSerie func(count uint32)
+	lifecycler Limiter
 
 	buckets []float64
 
@@ -91,16 +90,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, histogramOverride HistogramMode, externalLabels map[string]string, tenant string, overrides Overrides, staleDuration time.Duration) *nativeHistogram {
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
 	}
@@ -109,8 +99,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
 		seriesDemand:      NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSerie:        onAddSeries,
-		onRemoveSerie:     onRemoveSeries,
+		lifecycler:        lifecycler,
 		traceIDLabelName:  traceIDLabelName,
 		buckets:           buckets,
 		histogramOverride: histogramOverride,
@@ -139,7 +128,7 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 		return
 	}
 
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+	if !h.lifecycler.OnAdd(hash, h.activeSeriesPerHistogramSerie()) {
 		return
 	}
 
@@ -283,17 +272,16 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 	defer h.seriesMtx.Unlock()
 
 	for hash, s := range h.series {
-
 		if s.overridesHash != overridesHash {
 			// The overrides have changed, so we need to recreate the series.
 			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 			continue
 		}
 
 		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()

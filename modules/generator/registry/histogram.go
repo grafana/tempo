@@ -29,8 +29,7 @@ type histogram struct {
 	series       map[uint64]*histogramSeries
 	seriesDemand *Cardinality
 
-	onAddSerie    func(count uint32) bool
-	onRemoveSerie func(count uint32)
+	lifecycler Limiter
 
 	traceIDLabelName string
 }
@@ -68,16 +67,7 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
 	}
@@ -99,8 +89,7 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 		bucketLabels:     bucketLabels,
 		series:           make(map[uint64]*histogramSeries),
 		seriesDemand:     NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSerie:       onAddSeries,
-		onRemoveSerie:    onRemoveSeries,
+		lifecycler:       lifecycler,
 		traceIDLabelName: traceIDLabelName,
 		externalLabels:   externalLabels,
 	}
@@ -120,7 +109,7 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 		return
 	}
 
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+	if !h.lifecycler.OnAdd(hash, h.activeSeriesPerHistogramSerie()) {
 		return
 	}
 
@@ -280,7 +269,7 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 	for hash, s := range h.series {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()

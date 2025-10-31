@@ -419,6 +419,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorRingSize:                                                    3,
 		MetricsGeneratorProcessors:                                                  makeListToMap([]string{"processor-1", "processor-2"}),
 		MetricsGeneratorMaxActiveSeries:                                             1000,
+		MetricsGeneratorMaxActiveEntities:                                           100,
 		MetricsGeneratorCollectionInterval:                                          10 * time.Second,
 		MetricsGeneratorDisableCollection:                                           false,
 		MetricsGeneratorGenerateNativeHistograms:                                    histograms.HistogramMethodNative,

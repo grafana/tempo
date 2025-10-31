@@ -19,8 +19,7 @@ type counter struct {
 	series       map[uint64]*counterSeries
 	seriesDemand *Cardinality
 
-	onAddSeries    func(count uint32) bool
-	onRemoveSeries func(count uint32)
+	lifecycler Limiter
 
 	externalLabels map[string]string
 }
@@ -49,22 +48,12 @@ func (co *counterSeries) registerSeenSeries() {
 	co.firstSeries.Store(false)
 }
 
-func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *counter {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newCounter(name string, lifecycler Limiter, externalLabels map[string]string, staleDuration time.Duration) *counter {
 	return &counter{
 		metricName:     name,
 		series:         make(map[uint64]*counterSeries),
 		seriesDemand:   NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSeries:    onAddSeries,
-		onRemoveSeries: onRemoveSeries,
+		lifecycler:     lifecycler,
 		externalLabels: externalLabels,
 	}
 }
@@ -94,7 +83,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		return
 	}
 
-	if !c.onAddSeries(1) {
+	if !c.lifecycler.OnAdd(hash, 1) {
 		return
 	}
 
@@ -170,7 +159,7 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	for hash, s := range c.series {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(c.series, hash)
-			c.onRemoveSeries(1)
+			c.lifecycler.OnDelete(hash, 1)
 		}
 	}
 	c.seriesDemand.Advance()
