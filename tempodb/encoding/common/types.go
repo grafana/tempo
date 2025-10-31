@@ -2,9 +2,12 @@ package common
 
 import (
 	"bytes"
+	"fmt"
 	"hash"
 	"hash/fnv"
 	"sort"
+
+	"github.com/grafana/tempo/pkg/traceql"
 )
 
 // This file contains types that need to be referenced by both the ./encoding and ./encoding/vX packages.
@@ -70,4 +73,8 @@ func (m *IDMap[T]) EntriesSortedByID() []IDMapEntry[T] {
 	})
 
 	return entries
+}
+
+func MakeNilAttrColumnName(scope traceql.AttributeScope, attrName string) string {
+	return fmt.Sprintf("%s.%s", scope.String(), attrName)
 }

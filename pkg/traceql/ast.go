@@ -602,7 +602,7 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 func (UnaryOperation) __fieldExpression() {}
 
 func (o UnaryOperation) impliedType() StaticType {
-	if o.Op == OpExists {
+	if o.Op == OpExists || o.Op == OpNotExists {
 		return TypeBoolean
 	}
 
