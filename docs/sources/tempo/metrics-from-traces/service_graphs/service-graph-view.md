@@ -62,7 +62,7 @@ You can also select any node in the service graph to display additional informat
 
 ### Error rate example
 
-If you want to learn more about why `cortex.Ingester` has the highest error rates.
+Let's say you want to learn more about why `cortex.Ingester` has the highest error rates.
 Selecting the second row of the Error rate column displays details about the span metrics in a new window on the right side.
 
 <p align="center"><img src="/media/docs/tempo/metrics/apm-error-rate-example.png" alt="Error rate example"></p>
