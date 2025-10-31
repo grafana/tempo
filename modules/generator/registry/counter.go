@@ -72,7 +72,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 
 	c.seriesDemand.Insert(hash)
 	if ok {
-		c.updateSeries(hash, s, value)
+		c.updateSeries(s, value)
 		return
 	}
 
@@ -80,7 +80,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	defer c.seriesMtx.Unlock()
 
 	if existing, ok := c.series[hash]; ok {
-		c.updateSeries(hash, existing, value)
+		c.updateSeries(existing, value)
 		return
 	}
 
@@ -100,7 +100,7 @@ func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *co
 	}
 }
 
-func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64) {
+func (c *counter) updateSeries(s *counterSeries, value float64) {
 	s.value.Add(value)
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }

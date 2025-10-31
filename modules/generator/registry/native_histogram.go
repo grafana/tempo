@@ -125,7 +125,7 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 
 	s, ok := h.series[hash]
 	if ok {
-		h.updateSeries(hash, s, value, traceID, multiplier)
+		h.updateSeries(s, value, traceID, multiplier)
 		return
 	}
 
@@ -133,10 +133,10 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 		return
 	}
 
-	h.series[hash] = h.newSeries(hash, labelValueCombo, value, traceID, multiplier)
+	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
 }
 
-func (h *nativeHistogram) newSeries(hash uint64, labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
+func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
 	// Configure histogram based on mode
 	//
 	// Native-only mode sets buckets to nil, and uses the histogram.Exemplars slice as the native exemplar format.
@@ -176,7 +176,7 @@ func (h *nativeHistogram) newSeries(hash uint64, labelValueCombo *LabelValueComb
 		overridesHash: hsh,
 	}
 
-	h.updateSeries(hash, newSeries, value, traceID, multiplier)
+	h.updateSeries(newSeries, value, traceID, multiplier)
 
 	lb := newSeriesLabelsBuilder(labelValueCombo, h.externalLabels)
 
@@ -196,7 +196,7 @@ func (h *nativeHistogram) newSeries(hash uint64, labelValueCombo *LabelValueComb
 	return newSeries
 }
 
-func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
+func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
 	// Use Prometheus native exemplar handling
 	exemplarObserver := s.promHistogram.(prometheus.ExemplarObserver)
 

@@ -76,23 +76,23 @@ func New(maxSeriesFunc func(tenant string) uint32, tenant string, limitLogger *t
 	}
 }
 
-func (l *LocalSeriesLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
+func (l *LocalSeriesLimiter) OnAdd(_ uint64, seriesCount uint32) bool {
 	maxSeries := l.maxSeriesFunc(l.tenant)
-	if maxSeries != 0 && l.activeSeries.Load()+uint32(seriesCount) > maxSeries {
+	if maxSeries != 0 && l.activeSeries.Load()+seriesCount > maxSeries {
 		l.metricTotalSeriesLimited.Add(float64(seriesCount))
 		l.limitLogger.Log("msg", "reached max active series", "active_series", l.activeSeries.Load(), "max_active_series", maxSeries)
 		return false
 	}
 
-	l.activeSeries.Add(uint32(seriesCount))
+	l.activeSeries.Add(seriesCount)
 	l.metricActiveSeries.Set(float64(l.activeSeries.Load()))
 	l.metricMaxActiveSeries.Set(float64(maxSeries))
 	l.metricTotalSeriesAdded.Add(float64(seriesCount))
 	return true
 }
 
-func (l *LocalSeriesLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
-	l.activeSeries.Sub(uint32(seriesCount))
+func (l *LocalSeriesLimiter) OnDelete(_ uint64, seriesCount uint32) {
+	l.activeSeries.Sub(seriesCount)
 	l.metricActiveSeries.Set(float64(l.activeSeries.Load()))
 	l.metricTotalSeriesRemoved.Add(float64(seriesCount))
 }

@@ -2,7 +2,6 @@ package localentitylimiter
 
 import (
 	"sync"
-	"time"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
@@ -13,7 +12,6 @@ import (
 type localEntityLimiterMetrics struct {
 	activeEntities *prometheus.GaugeVec
 	maxEntities    *prometheus.GaugeVec
-	entityDemand   *prometheus.GaugeVec
 }
 
 var _ registry.Limiter = (*LocalEntityLimiter)(nil)
@@ -38,9 +36,8 @@ var metrics = newMetrics(prometheus.DefaultRegisterer)
 type LocalEntityLimiter struct {
 	tenant               string
 	entityLastUpdated    map[uint64]uint32
-	maxEntityFunc        func(tenant string) uint32
-	staleDuration        time.Duration
 	mtx                  sync.Mutex
+	maxEntityFunc        func(tenant string) uint32
 	limitLogger          *tempo_log.RateLimitedLogger
 	metricActiveEntities prometheus.Gauge
 	metricMaxEntities    prometheus.Gauge

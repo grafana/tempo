@@ -237,7 +237,7 @@ func (r *ManagedRegistry) collectionInterval() time.Duration {
 	return r.cfg.CollectionInterval
 }
 
-func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
+func (r *ManagedRegistry) removeStaleSeries(context.Context) {
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
 
