@@ -1,4 +1,4 @@
-package cardinality
+package registry
 
 import (
 	"sync"
