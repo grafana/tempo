@@ -134,6 +134,71 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	}
 }
 
+func TestUserConfigOverridesAPI_invalidOrgID(t *testing.T) {
+	invalidTenant := "invalid/org"
+
+	cfg := client.Config{
+		Backend: backend.Local,
+		Local:   &local.Config{Path: t.TempDir()},
+	}
+
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	assert.NoError(t, err)
+
+	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &cfg, o, &mockValidator{})
+	require.NoError(t, err)
+
+	expectedError := "tenant ID 'invalid/org' contains unsupported character '/'"
+
+	tests := []struct {
+		name    string
+		handler func(http.ResponseWriter, *http.Request)
+		request func() *http.Request
+	}{
+		{
+			name:    "GET",
+			handler: overridesAPI.GetHandler,
+			request: func() *http.Request {
+				return prepareRequest(invalidTenant, http.MethodGet, nil)
+			},
+		},
+		{
+			name:    "POST",
+			handler: overridesAPI.PostHandler,
+			request: func() *http.Request {
+				return prepareRequest(invalidTenant, http.MethodPost, []byte("{}"))
+			},
+		},
+		{
+			name:    "PATCH",
+			handler: overridesAPI.PatchHandler,
+			request: func() *http.Request {
+				return prepareRequest(invalidTenant, http.MethodPatch, []byte("{}"))
+			},
+		},
+		{
+			name:    "DELETE",
+			handler: overridesAPI.DeleteHandler,
+			request: func() *http.Request {
+				return prepareRequest(invalidTenant, http.MethodDelete, nil)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req := tc.request()
+
+			tc.handler(w, req)
+
+			res := w.Result()
+			assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+			assert.Equal(t, expectedError+"\n", w.Body.String())
+		})
+	}
+}
+
 func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 	tenant := "my-tenant"
 
