@@ -67,6 +67,7 @@ func TestLocalEntityLimiter_Metrics(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		require.True(t, limiter.OnAdd(uint64(i), 1))
 	}
+	require.False(t, limiter.OnAdd(uint64(10), 1))
 
 	err := testutil.CollectAndCompare(reg, strings.NewReader(`
 		# HELP tempo_metrics_generator_registry_active_entities The number of active entities in the metrics generator registry
@@ -83,14 +84,35 @@ func TestLocalEntityLimiter_Metrics(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		require.True(t, limiter.OnAdd(uint64(i+10), 1))
 	}
+	limiter.OnDelete(uint64(10), 1)
 
 	err = testutil.CollectAndCompare(reg, strings.NewReader(`
 		# HELP tempo_metrics_generator_registry_active_entities The number of active entities in the metrics generator registry
 		# TYPE tempo_metrics_generator_registry_active_entities gauge
-		tempo_metrics_generator_registry_active_entities{tenant="test"} 20
+		tempo_metrics_generator_registry_active_entities{tenant="test"} 19
 		# HELP tempo_metrics_generator_registry_max_active_entities The maximum number of entities allowed to be active in the metrics generator registry
 		# TYPE tempo_metrics_generator_registry_max_active_entities gauge
 		tempo_metrics_generator_registry_max_active_entities{tenant="test"} 0
 	`), "tempo_metrics_generator_registry_active_entities", "tempo_metrics_generator_registry_max_active_entities")
 	require.NoError(t, err)
+
+	err = testutil.CollectAndCompare(reg, strings.NewReader(`
+		# HELP tempo_metrics_generator_registry_entities_limited_total The total amount of entities not created because of limits per tenant
+		# TYPE tempo_metrics_generator_registry_entities_limited_total counter
+		tempo_metrics_generator_registry_entities_limited_total{tenant="test"} 1
+	`), "tempo_metrics_generator_registry_entities_limited_total")
+	require.NoError(t, err)
+
+	err = testutil.CollectAndCompare(reg, strings.NewReader(`
+		# HELP tempo_metrics_generator_registry_entities_added_total The total amount of entities created per tenant
+		# TYPE tempo_metrics_generator_registry_entities_added_total counter
+		tempo_metrics_generator_registry_entities_added_total{tenant="test"} 20
+	`), "tempo_metrics_generator_registry_entities_added_total")
+	require.NoError(t, err)
+
+	err = testutil.CollectAndCompare(reg, strings.NewReader(`
+		# HELP tempo_metrics_generator_registry_entities_removed_total The total amount of entities removed after they have become stale per tenant
+		# TYPE tempo_metrics_generator_registry_entities_removed_total counter
+		tempo_metrics_generator_registry_entities_removed_total{tenant="test"} 1
+	`), "tempo_metrics_generator_registry_entities_removed_total")
 }
