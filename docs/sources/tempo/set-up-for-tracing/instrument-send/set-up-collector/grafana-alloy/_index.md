@@ -4,12 +4,10 @@ description: Configure the Grafana Alloy to work with Tempo
 weight: 550
 aliases:
   - ../../../configuration/grafana-alloy/ # /docs/tempo/latest/configuration/grafana-alloy/
-  - /docs/tempo/latest/configuration/grafana-agent/
+  - ../../../configuration/grafana-agent/ # /docs/tempo/latest/configuration/grafana-agent/
 ---
 
 # Grafana Alloy
-
-{{< docs/alias from="docs/tempo/latest/configuration/grafana-agent/" to="/docs/tempo/latest/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/" >}}
 
 Grafana Alloy offers native pipelines for OTel, Prometheus, Pyroscope, Loki, and many other metrics, logs, traces, and profile tools.
 In addition, you can use Alloy pipelines to do other tasks, such as configure alert rules in Loki and Mimir. Alloy is fully compatible with the OTel Collector, Prometheus Agent, and Promtail.
