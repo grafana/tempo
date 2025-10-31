@@ -24,6 +24,7 @@
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
 * [BUGFIX] Fix issues related to integer dedicated columns in vParquet5-preview2 [#5716](https://github.com/grafana/tempo/pull/5716) (@stoewer)
 * [BUGFIX] Fix: handle collisions with job and instance labels when targetInfo is enabled [#5774](https://github.com/grafana/tempo/pull/5774) (@javiermolinar)
+* [BUGFIX] Fix search by trace:id for short IDs with leading zeros [#5587](https://github.com/grafana/tempo/pull/5587) (@ruslan-mikhailov)
 
 # v2.9.0
 
