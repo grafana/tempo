@@ -2597,8 +2597,8 @@ func createDurationPredicate(op traceql.Operator, operands traceql.Operands) (pa
 		return nil, nil
 	}
 
-	if operands[0].Type == traceql.TypeFloat {
-		// The column is already indexed as int, so we need to convert the float to int
+	if operands[0].Type == traceql.TypeFloat || operands[0].Type == traceql.TypeFloatArray {
+		// The column is already indexed as int, so we need to convert the float (or float array) to int semantics
 		return createIntPredicateFromFloat(op, operands)
 	}
 
@@ -2622,57 +2622,88 @@ func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands)
 		return nil, nil
 	}
 
-	if operands[0].Type != traceql.TypeFloat {
-		return nil, fmt.Errorf("operand is not float: %s", operands[0].EncodeToString(false))
-	}
-	f := operands[0].Float()
+	switch operands[0].Type {
+	case traceql.TypeFloat:
+		f := operands[0].Float()
 
-	if math.IsNaN(f) {
-		return nil, nil
-	}
-
-	// Check if it's in [MinInt64, MaxInt64) range, and if so, see if it's an integer.
-	if float64(math.MinInt64) <= f && f < float64(math.MaxInt64) {
-		if intPart, frac := math.Modf(f); frac == 0 {
-			intOperands := traceql.Operands{traceql.NewStaticInt(int(intPart))}
-			return createIntPredicate(op, intOperands)
-		}
-	}
-
-	switch op {
-	case traceql.OpEqual:
-		return nil, nil
-	case traceql.OpNotEqual:
-		return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
-	case traceql.OpGreater, traceql.OpGreaterEqual:
-		switch {
-		case f < float64(math.MinInt64):
-			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
-		case float64(math.MaxInt64) <= f:
+		if math.IsNaN(f) {
 			return nil, nil
-		case 0 < f:
-			// "x > 10.3" -> "x >= 11"
-			return parquetquery.NewIntGreaterEqualPredicate(int64(f) + 1), nil
-		default:
-			// "x > -2.7" -> "x >= -2"
-			return parquetquery.NewIntGreaterEqualPredicate(int64(f)), nil
 		}
-	case traceql.OpLess, traceql.OpLessEqual:
-		switch {
-		case f < float64(math.MinInt64):
-			return nil, nil
-		case float64(math.MaxInt64) <= f:
-			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
-		case f < 0:
-			// "x < -2.7" -> "x <= -3"
-			return parquetquery.NewIntLessEqualPredicate(int64(f) - 1), nil
-		default:
-			// "x < 10.3" -> "x <= 10"
-			return parquetquery.NewIntLessEqualPredicate(int64(f)), nil
-		}
-	}
 
-	return nil, fmt.Errorf("operator not supported for integers: %v", op)
+		// Check if it's in [MinInt64, MaxInt64) range, and if so, see if it's an integer.
+		if float64(math.MinInt64) <= f && f < float64(math.MaxInt64) {
+			if intPart, frac := math.Modf(f); frac == 0 {
+				intOperands := traceql.Operands{traceql.NewStaticInt(int(intPart))}
+				return createIntPredicate(op, intOperands)
+			}
+		}
+
+		switch op {
+		case traceql.OpEqual:
+			return nil, nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+		case traceql.OpGreater, traceql.OpGreaterEqual:
+			switch {
+			case f < float64(math.MinInt64):
+				return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+			case float64(math.MaxInt64) <= f:
+				return nil, nil
+			case 0 < f:
+				// "x > 10.3" -> "x >= 11"
+				return parquetquery.NewIntGreaterEqualPredicate(int64(f) + 1), nil
+			default:
+				// "x > -2.7" -> "x >= -2"
+				return parquetquery.NewIntGreaterEqualPredicate(int64(f)), nil
+			}
+		case traceql.OpLess, traceql.OpLessEqual:
+			switch {
+			case f < float64(math.MinInt64):
+				return nil, nil
+			case float64(math.MaxInt64) <= f:
+				return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+			case f < 0:
+				// "x < -2.7" -> "x <= -3"
+				return parquetquery.NewIntLessEqualPredicate(int64(f) - 1), nil
+			default:
+				// "x < 10.3" -> "x <= 10"
+				return parquetquery.NewIntLessEqualPredicate(int64(f)), nil
+			}
+		default:
+			return nil, fmt.Errorf("operator not supported for floats: %+v", op)
+		}
+	case traceql.TypeFloatArray:
+		floats, _ := operands[0].FloatArray()
+		ints := make([]int64, 0, len(floats))
+		for _, f := range floats {
+			if math.IsNaN(f) {
+				continue
+			}
+
+			// Check if it's in [MinInt64, MaxInt64) range, and if so, see if it's an integer.
+			if float64(math.MinInt64) <= f && f < float64(math.MaxInt64) {
+				if intPart, frac := math.Modf(f); frac == 0 {
+					ints = append(ints, int64(intPart))
+				}
+			}
+		}
+		switch op {
+		case traceql.OpEqual:
+			if len(ints) == 0 {
+				return nil, nil
+			}
+			return parquetquery.NewIntInPredicate(ints), nil
+		case traceql.OpNotEqual:
+			if len(ints) == 0 {
+				return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+			}
+			return parquetquery.NewIntNotInPredicate(ints), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for float arrays: %+v", op)
+		}
+	default:
+		return nil, fmt.Errorf("operand is not float or float array: %s", operands[0].EncodeToString(false))
+	}
 }
 
 func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
