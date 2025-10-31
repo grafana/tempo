@@ -751,10 +751,11 @@ func (s Static) MapKey() StaticMapKey {
 		}
 
 		h := fnv.New64a()
-		_, _ = h.Write(seedBytes) // avoid collisions with values like []string{""}
 		for _, str := range s.valStrings {
-			_, _ = h.Write(unsafe.Slice(unsafe.StringData(str), len(str)))
+			_, _ = h.Write(seedBytes)
+			_, _ = h.Write([]byte(str))
 		}
+
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	default:
 		return StaticMapKey{typ: s.Type, code: s.valScalar}
