@@ -181,7 +181,6 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 }
 
 func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
-
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
 

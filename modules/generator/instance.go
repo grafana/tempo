@@ -112,7 +112,7 @@ type instance struct {
 func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
-	var limitLogger = tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
+	limitLogger := tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
 	var limiter registry.Limiter
 	switch cfg.LimiterType {
 	case LimiterTypeSeries:

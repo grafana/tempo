@@ -801,6 +801,7 @@ metrics_generator:
     codec: push-bytes
     disable_local_blocks: false
     disable_grpc: false
+    limiter_type: series
     ingest_concurrency: 16
     instance_id: hostname
 ingest:
