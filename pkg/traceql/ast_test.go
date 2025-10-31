@@ -466,6 +466,13 @@ func TestStatic_MapKey(t *testing.T) {
 	}
 }
 
+func TestStatic_StringArray_MapKey_IsUnique(t *testing.T) {
+	v1 := NewStaticStringArray([]string{"foo", "bar"})
+	v2 := NewStaticStringArray([]string{"foobar"})
+
+	assert.NotEqual(t, v1.MapKey(), v2.MapKey())
+}
+
 func TestStatic_Equals(t *testing.T) {
 	areEqual := []struct {
 		lhs, rhs Static

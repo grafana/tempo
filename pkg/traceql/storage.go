@@ -340,14 +340,25 @@ type SpansetFetcherWrapper struct {
 	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-var _ SpansetFetcher = (*SpansetFetcherWrapper)(nil)
+var (
+	_ SpansetFetcher = (*SpansetFetcherWrapper)(nil)
+	_ Fetcher        = (*SpansetFetcherWrapper)(nil)
+)
 
-func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
+func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) Fetcher {
 	return SpansetFetcherWrapper{f}
 }
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
+}
+
+func (s SpansetFetcherWrapper) SpansetFetcher() SpansetFetcher {
+	return s
+}
+
+func (s SpansetFetcherWrapper) SpanFetcher() SpanFetcher {
+	return nil
 }
 
 type SpanFetcherWrapper struct {

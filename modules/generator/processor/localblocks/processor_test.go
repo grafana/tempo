@@ -406,6 +406,12 @@ type mockBlock struct {
 	meta *backend.BlockMeta
 }
 
+func (m *mockBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
+	return traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return m.Fetch(ctx, req, opts)
+	})
+}
+
 func (m *mockBlock) FindTraceByID(context.Context, common.ID, common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	return nil, nil
 }

@@ -547,7 +547,7 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 				return b.Fetch(ctx, req, common.DefaultSearchOptions())
 			})
 
-			r, err = traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, 0, startNano, endNano, f)
+			r, err = traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, 0, startNano, endNano, f.SpansetFetcher())
 			if err != nil {
 				return nil, err
 			}

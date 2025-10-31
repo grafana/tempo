@@ -998,6 +998,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
+	if b, ok := expr.Hints.GetBool("new", true); ok {
+		me.newFetch = b
+	}
+
 	// If the request range is fully aligned to the step, then we can use lower
 	// precision data that matches the step while still returning accurate results.
 	// When the range isn't an even multiple, it means that we are on the split
@@ -1046,13 +1050,15 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 	}
 	// Setup second pass callback.  It might be optimized away
+	ssBuf := make([]*Spanset, 1)
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 		// The traceql engine isn't thread-safe.
 		// But parallelization is required for good metrics performance.
 		// So we do external locking here.
 		me.mtx.Lock()
 		defer me.mtx.Unlock()
-		return eval([]*Spanset{s})
+		ssBuf[0] = s
+		return eval(ssBuf)
 	}
 
 	optimize(storageReq)
@@ -1159,6 +1165,7 @@ type MetricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
 	needsFullTrace                  bool
+	newFetch                        bool
 	maxExemplars, exemplarCount     int
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
@@ -1183,14 +1190,14 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
 func (e *MetricsEvaluator) Do(ctx context.Context, f Fetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
-	/*if !e.needsFullTrace {
+	if !e.needsFullTrace && e.newFetch {
 		// The query can operate at a span level so attempt.
 		// This is faster. If not supported then fallback to spanset level.
 		spanFetcher := f.SpanFetcher()
 		if spanFetcher != nil {
 			return e.DoSpansOnly(ctx, spanFetcher, fetcherStart, fetcherEnd, maxSeries)
 		}
-	}*/
+	}
 
 	spanSetFetcher := f.SpansetFetcher()
 	// Make a copy of the request so we can modify it.

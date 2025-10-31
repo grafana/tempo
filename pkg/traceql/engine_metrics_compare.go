@@ -217,7 +217,7 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 	}
 
 	var (
-		top   = topN[Static]{}
+		top   = topN[StaticMapKey]{}
 		ss    = make(SeriesSet)
 		erred = make(map[Attribute]struct{})
 	)
@@ -233,15 +233,18 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 		for a, values := range data {
 			// Compute topN values for this attribute
 			top.reset()
-			for _, sc := range values {
-				top.add(sc.val, sc.counts)
+			for mk, sc := range values {
+				top.add(mk, sc.counts)
 			}
 
-			top.get(m.topN, func(v Static) {
+			name := a.String()
+
+			top.get(m.topN, func(mk StaticMapKey) {
+				sc := values[mk]
 				add(Labels{
 					prefix,
-					{Name: a.String(), Value: v},
-				}, values[v.MapKey()].counts)
+					{Name: name, Value: sc.val},
+				}, sc.counts)
 			})
 
 			if len(values) > m.topN {
@@ -250,7 +253,9 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 		}
 	}
 
+	fmt.Println("addValues baselines")
 	addValues(internalLabelTypeBaseline, m.baselines)
+	fmt.Println("addValues selections")
 	addValues(internalLabelTypeSelection, m.selections)
 
 	// Add errors for attributes that hit the limit in either area

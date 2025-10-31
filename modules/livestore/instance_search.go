@@ -47,7 +47,9 @@ const (
 type block interface {
 	common.Searcher
 	common.Finder
-	traceql.Fetcher
+	// traceql.Fetcher
+
+	FetcherFor(opts common.SearchOptions) traceql.Fetcher
 }
 
 // blockFn defines a function that processes a single block
@@ -84,7 +86,9 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 			ctx, span := tracer.Start(ctx, "process.headBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-			if err := fn(ctx, meta, i.headBlock); err != nil {
+			f := i.headBlock
+
+			if err := fn(ctx, meta, f); err != nil {
 				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
 			}
 			span.End()

@@ -3347,7 +3347,7 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	case len(c.boolBuffer) == 1:
 		val = traceql.NewStaticBool(c.boolBuffer[0])
 	case len(c.strBuffer) > 1:
-		val = traceql.NewStaticStringArray(c.strBuffer)
+		val = traceql.NewStaticStringArray(util.Clone(c.strBuffer))
 	case len(c.intBuffer) > 1:
 		val = traceql.NewStaticIntArray(c.intBuffer)
 	case len(c.floatBuffer) > 1:

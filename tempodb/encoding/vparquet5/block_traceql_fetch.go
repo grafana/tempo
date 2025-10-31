@@ -923,7 +923,7 @@ func (c *scopedAttributeCollector) Result() *parquetquery.IteratorResult {
 	case len(c.boolBuffer) == 1:
 		c.at.s = traceql.NewStaticBool(c.boolBuffer[0])
 	case len(c.strBuffer) > 1:
-		c.at.s = traceql.NewStaticStringArray(c.strBuffer)
+		c.at.s = traceql.NewStaticStringArray(util.Clone(c.strBuffer))
 	case len(c.intBuffer) > 1:
 		c.at.s = traceql.NewStaticIntArray(c.intBuffer)
 	case len(c.floatBuffer) > 1:
@@ -1248,7 +1248,11 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			case parquet.ByteArray:
 				x.s = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
 			default:
-				panic("unhandled attribute value kind: " + kv.Value.Kind().String())
+				if kv.Value.IsNull() {
+					x.s = traceql.StaticNil
+				} else {
+					panic("unhandled attribute value kind: " + kv.Value.Kind().String())
+				}
 			}
 
 			switch scope {

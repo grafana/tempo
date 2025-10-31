@@ -709,7 +709,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 					return block.Fetch(ctx, req, opts)
 				})
 
-				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f)
+				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f.SpansetFetcher())
 
 				require.NoError(b, err)
 				require.NotNil(b, r)
