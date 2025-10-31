@@ -115,4 +115,5 @@ func TestLocalEntityLimiter_Metrics(t *testing.T) {
 		# TYPE tempo_metrics_generator_registry_entities_removed_total counter
 		tempo_metrics_generator_registry_entities_removed_total{tenant="test"} 1
 	`), "tempo_metrics_generator_registry_entities_removed_total")
+	require.NoError(t, err)
 }
