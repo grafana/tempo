@@ -1676,9 +1676,9 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewStringEqualPredicate([]byte(s)), nil
+		return parquetquery.NewStringEqualPredicate(s), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewStringNotEqualPredicate([]byte(s)), nil
+		return parquetquery.NewStringNotEqualPredicate(s), nil
 	case traceql.OpRegex:
 		return parquetquery.NewRegexInPredicate([]string{s})
 	case traceql.OpNotRegex:
@@ -1720,9 +1720,9 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewStringEqualPredicate(id), nil
+		return parquetquery.NewByteEqualPredicate(id), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewStringNotEqualPredicate(id), nil
+		return parquetquery.NewByteNotEqualPredicate(id), nil
 	default:
 		return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
 	}

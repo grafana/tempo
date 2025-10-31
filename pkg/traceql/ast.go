@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"fmt"
 	"hash/fnv"
+	"iter"
 	"math"
 	"slices"
 	"strings"
@@ -886,49 +887,57 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
-type VisitFunc func(Static) bool // Return false to stop iteration
+// MustElements turn a Static into a sequence of its elements. If the Static is not an array,
+// it returns a sequence containing only itself.
+func (s Static) MustElements() iter.Seq[Static] {
+	seq, err := s.Elements()
+	if err != nil {
+		return func(yield func(Static) bool) { yield(s) }
+	}
+	return seq
+}
 
-// GetElements turns arrays into slice of Static elements to iterate over.
-func (s Static) GetElements(fn VisitFunc) error {
+// Elements turn a Static into a sequence of its elements
+func (s Static) Elements() (iter.Seq[Static], error) {
 	switch s.Type {
 	case TypeIntArray:
-		ints, _ := s.IntArray()
-		for _, n := range ints {
-			if !fn(NewStaticInt(n)) {
-				break // stop early if the callback returns false
+		return func(yield func(Static) bool) {
+			ints, _ := s.IntArray()
+			for _, n := range ints {
+				if !yield(NewStaticInt(n)) {
+					break
+				}
 			}
-		}
-		return nil
-
+		}, nil
 	case TypeFloatArray:
-		floats, _ := s.FloatArray()
-		for _, f := range floats {
-			if !fn(NewStaticFloat(f)) {
-				break
+		return func(yield func(Static) bool) {
+			floats, _ := s.FloatArray()
+			for _, f := range floats {
+				if !yield(NewStaticFloat(f)) {
+					break
+				}
 			}
-		}
-		return nil
-
+		}, nil
 	case TypeStringArray:
-		strs, _ := s.StringArray()
-		for _, str := range strs {
-			if !fn(NewStaticString(str)) {
-				break
+		return func(yield func(Static) bool) {
+			strs, _ := s.StringArray()
+			for _, str := range strs {
+				if !yield(NewStaticString(str)) {
+					break
+				}
 			}
-		}
-		return nil
-
+		}, nil
 	case TypeBooleanArray:
-		bools, _ := s.BooleanArray()
-		for _, b := range bools {
-			if !fn(NewStaticBool(b)) {
-				break
+		return func(yield func(Static) bool) {
+			bools, _ := s.BooleanArray()
+			for _, b := range bools {
+				if !yield(NewStaticBool(b)) {
+					break
+				}
 			}
-		}
-		return nil
-
+		}, nil
 	default:
-		return fmt.Errorf("unsupported type")
+		return nil, fmt.Errorf("unsupported type: array type expected")
 	}
 }
 
@@ -990,6 +999,21 @@ func (s Static) IntArray() ([]int, bool) {
 	}
 	numInts := uintptr(len(s.valBytes)) / unsafe.Sizeof(int(0))
 	return unsafe.Slice((*int)(unsafe.Pointer(&s.valBytes[0])), numInts), true
+}
+
+func (s Static) Int64Array() ([]int64, bool) {
+	if s.Type != TypeIntArray {
+		return nil, false
+	}
+
+	if s.valBytes == nil {
+		return nil, true
+	}
+	if len(s.valBytes) == 0 {
+		return []int64{}, true
+	}
+	numInts := uintptr(len(s.valBytes)) / unsafe.Sizeof(int64(0))
+	return unsafe.Slice((*int64)(unsafe.Pointer(&s.valBytes[0])), numInts), true
 }
 
 func (s Static) FloatArray() ([]float64, bool) {
@@ -1060,6 +1084,134 @@ func (s Static) divideBy(f float64) Static {
 		return NewStaticFloat(sf / f)
 	}
 	return s
+}
+
+func (s Static) append(o Static) (Static, bool) {
+	switch s.Type {
+	case TypeString:
+		values := make([]string, 0, 2)
+		values = append(values, s.EncodeToString(false))
+
+		switch o.Type {
+		case TypeString:
+			values = append(values, o.EncodeToString(false))
+		case TypeStringArray:
+			arr, _ := o.StringArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticStringArray(values), true
+	case TypeStringArray:
+		values := make([]string, 0, 2)
+		arr, _ := s.StringArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeString:
+			values = append(values, o.EncodeToString(false))
+		case TypeStringArray:
+			arr, _ = o.StringArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticStringArray(values), true
+	case TypeInt:
+		values := make([]int, 0, 2)
+		n, _ := s.Int()
+		values = append(values, n)
+
+		switch o.Type {
+		case TypeInt:
+			n, _ = o.Int()
+			values = append(values, n)
+		case TypeIntArray:
+			arr, _ := o.IntArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticIntArray(values), true
+	case TypeIntArray:
+		values := make([]int, 0, 2)
+		arr, _ := s.IntArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeInt:
+			n, _ := o.Int()
+			values = append(values, n)
+		case TypeIntArray:
+			arr, _ := o.IntArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticIntArray(values), true
+	case TypeFloat:
+		values := make([]float64, 0, 2)
+		values = append(values, s.Float())
+
+		switch o.Type {
+		case TypeFloat:
+			values = append(values, o.Float())
+		case TypeFloatArray:
+			arr, _ := o.FloatArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticFloatArray(values), true
+	case TypeFloatArray:
+		values := make([]float64, 0, 2)
+		arr, _ := s.FloatArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeFloat:
+			values = append(values, o.Float())
+		case TypeFloatArray:
+			arr, _ = o.FloatArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticFloatArray(values), true
+	case TypeBoolean:
+		values := make([]bool, 0, 2)
+		b, _ := s.Bool()
+		values = append(values, b)
+
+		switch o.Type {
+		case TypeBoolean:
+			b, _ = o.Bool()
+			values = append(values, b)
+		case TypeBooleanArray:
+			arr, _ := o.BooleanArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticBooleanArray(values), true
+	case TypeBooleanArray:
+		values := make([]bool, 0, 2)
+		arr, _ := s.BooleanArray()
+		values = append(values, arr...)
+
+		switch o.Type {
+		case TypeBoolean:
+			b, _ := o.Bool()
+			values = append(values, b)
+		case TypeBooleanArray:
+			arr, _ := o.BooleanArray()
+			values = append(values, arr...)
+		default:
+			return StaticNil, false
+		}
+		return NewStaticBooleanArray(values), true
+	}
+	return StaticNil, false
 }
 
 func (Static) referencesSpan() bool {

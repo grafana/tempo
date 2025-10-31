@@ -535,31 +535,57 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			return NewStaticNil(), errors.ErrUnsupported
 		}
 
-		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
-		arraySide := lhs
-		// to support symmetric operations
-		if rhsT.isArray() {
-			// for regex operations, TraceQL makes an assumption that RHS is the regex, and compiles it.
-			// we can support symmetric array operations by flipping the sides and executing the binary operation.
-			elemOp = &BinaryOperation{Op: getFlippedOp(o.Op), LHS: rhs, RHS: lhs}
-			arraySide = rhs
+		// find out which side is the scalar and which is the array
+		op := o.Op
+		array := rhs
+		scalar := lhs
+
+		var flipOperands bool
+		if scalar.Type.isArray() {
+			op = getFlippedOp(op)
+			array, scalar = scalar, array
+
+			// for regex operations we assume the RHS is a regex: must flip back operands later
+			if o.Op == OpRegex || o.Op == OpNotRegex {
+				flipOperands = true
+			}
 		}
 
-		var res Static
-		err := arraySide.GetElements(func(elem Static) bool {
-			elemOp.LHS = elem
-			res, err = elemOp.execute(span)
-			if err != nil {
-				return false // stop iteration early if there's an error
-			}
-			match, ok := res.Bool()
-			return !(ok && match) // stop if a match is found
-		})
+		// apply operation to each element of the array
+		elem, err := array.Elements()
 		if err != nil {
 			return NewStaticNil(), err
 		}
 
-		return res, err
+		// operators OpNotEqual and OpNotRegex have the semantics of 'not in' / 'match none': must check all elements
+		matchAll := o.Op == OpNotEqual || o.Op == OpNotRegex
+
+		var elemCount, matchCount int
+		for e := range elem {
+			elemCount++
+			elemOp := BinaryOperation{Op: op, LHS: scalar, RHS: e}
+			if flipOperands {
+				elemOp.LHS, elemOp.RHS = elemOp.RHS, elemOp.LHS
+			}
+
+			res, err := elemOp.execute(span)
+			if err != nil {
+				return NewStaticNil(), err
+			}
+
+			match, ok := res.Bool()
+			if ok && match {
+				matchCount++
+				if !matchAll {
+					break
+				}
+			}
+		}
+
+		if matchAll {
+			return NewStaticBool(matchCount == elemCount), nil
+		}
+		return NewStaticBool(matchCount > 0), err
 	}
 
 	switch o.Op {
