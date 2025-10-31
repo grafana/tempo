@@ -164,10 +164,3 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	}
 	g.seriesDemand.Advance()
 }
-
-func (g *gauge) deleteByHash(hash uint64) {
-	g.seriesMtx.Lock()
-	delete(g.series, hash)
-	g.lifecycler.OnDelete(hash, 1)
-	g.seriesMtx.Unlock()
-}

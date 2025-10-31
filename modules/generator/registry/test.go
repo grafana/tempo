@@ -111,10 +111,6 @@ func (t *testCounter) removeStaleSeries(int64) {
 	panic("implement me")
 }
 
-func (t *testCounter) deleteByHash(uint64) {
-	panic("implement me")
-}
-
 func (t *testCounter) countActiveSeries() int {
 	return 0
 }
@@ -155,10 +151,6 @@ func (t *testGauge) collectMetrics(_ storage.Appender, _ int64) error {
 }
 
 func (t *testGauge) removeStaleSeries(int64) {
-	panic("implement me")
-}
-
-func (t *testGauge) deleteByHash(uint64) {
 	panic("implement me")
 }
 
@@ -213,10 +205,6 @@ func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64) error {
 }
 
 func (t *testHistogram) removeStaleSeries(int64) {
-	panic("implement me")
-}
-
-func (t *testHistogram) deleteByHash(uint64) {
 	panic("implement me")
 }
 

@@ -164,10 +164,3 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	}
 	c.seriesDemand.Advance()
 }
-
-func (c *counter) deleteByHash(hash uint64) {
-	c.seriesMtx.Lock()
-	delete(c.series, hash)
-	c.lifecycler.OnDelete(hash, 1)
-	c.seriesMtx.Unlock()
-}

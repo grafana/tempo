@@ -287,13 +287,6 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 	h.seriesDemand.Advance()
 }
 
-func (h *nativeHistogram) deleteByHash(hash uint64) {
-	h.seriesMtx.Lock()
-	delete(h.series, hash)
-	h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
-	h.seriesMtx.Unlock()
-}
-
 func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {
 	var (
 		bucketFactor = h.overrides.MetricsGeneratorNativeHistogramBucketFactor(h.tenant)

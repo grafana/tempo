@@ -275,13 +275,6 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 	h.seriesDemand.Advance()
 }
 
-func (h *histogram) deleteByHash(hash uint64) {
-	h.seriesMtx.Lock()
-	delete(h.series, hash)
-	h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
-	h.seriesMtx.Unlock()
-}
-
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
 	// sum + count + #buckets (including +Inf)
 	return uint32(2 + len(h.buckets))
