@@ -2565,30 +2565,61 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return nil, nil
 	}
 
-	s := operands[0].EncodeToString(false)
-	if operands[0].Type != traceql.TypeString {
-		return nil, fmt.Errorf("operand is not string: %s", s)
-	}
 
-	var id []byte
-	var err error
-	if isSpan {
-		id, err = util.HexStringToSpanID(s)
-	} else {
-		id, err = util.HexStringToTraceID(s)
-	}
 
-	if err != nil {
-		return nil, nil
-	}
+	switch operands[0].Type {
+	case traceql.TypeString:
+		s := operands[0].EncodeToString(false)
 
-	switch op {
-	case traceql.OpEqual:
-		return parquetquery.NewByteEqualPredicate(id), nil
-	case traceql.OpNotEqual:
-		return parquetquery.NewByteNotEqualPredicate(id), nil
+		var id []byte
+		var err error
+		if isSpan {
+			id, err = util.HexStringToSpanID(s)
+		} else {
+			id, err = util.HexStringToTraceID(s)
+		}
+
+		if err != nil {
+			return nil, nil
+		}
+
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewByteEqualPredicate(id), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewByteNotEqualPredicate(id), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		}
+	case traceql.TypeStringArray:
+		strs, _ := operands[0].StringArray()
+		ids := make([][]byte, 0, len(strs))
+
+		for _, s := range strs {
+			var id []byte
+			var err error
+			if isSpan {
+				id, err = util.HexStringToSpanID(s)
+			} else {
+				id, err = util.HexStringToTraceID(s)
+			}
+
+			if err != nil {
+				return nil, nil
+			}
+			ids = append(ids, id)
+		}
+
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewByteInPredicate(ids), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewByteNotInPredicate(ids), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		}
 	default:
-		return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		return nil, fmt.Errorf("operand is not string or string array: %s", operands[0])
 	}
 }
 
