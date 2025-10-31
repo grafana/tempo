@@ -177,9 +177,8 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
 func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) (*combiner.SearchJobResponse, error) {
-	resp := &combiner.SearchJobResponse{
-		Shards: make([]combiner.SearchShards, 0, s.cfg.MostRecentShards+1), // +1 for the ingester shard
-	}
+	resp := &combiner.SearchJobResponse{}
+	resp.Shards = make([]combiner.SearchShards, 0, s.cfg.MostRecentShards+1) // +1 for the ingester shard
 
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {

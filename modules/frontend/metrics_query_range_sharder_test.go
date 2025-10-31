@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -134,8 +135,16 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 
 			reqCh := make(chan pipeline.Request, 10)
 
+			// Create a simple shard for testing
+			shards := []shardtracker.Shard{
+				{
+					TotalJobs:               uint32(tc.expectedBatches),
+					CompletedThroughSeconds: 1,
+				},
+			}
+
 			go func() {
-				sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, []*backend.BlockMeta{blockMeta}, targetBytesPerRequest, reqCh)
+				sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, []*backend.BlockMeta{blockMeta}, targetBytesPerRequest, shards, reqCh)
 			}()
 
 			// Collect requests

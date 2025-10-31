@@ -3,24 +3,19 @@ package combiner
 import (
 	"net/http"
 
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
-var _ PipelineResponse = (*SearchJobResponse)(nil)
+// SearchShards is an alias for shardtracker.Shard for backward compatibility.
+type SearchShards = shardtracker.Shard
 
-type SearchShards struct {
-	TotalJobs               uint32
-	CompletedThroughSeconds uint32
-}
-
+// SearchJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.
 type SearchJobResponse struct {
-	TotalBlocks int
-	TotalJobs   int
-	TotalBytes  uint64
-	Shards      []SearchShards
+	shardtracker.JobMetadata
 }
 
 func (s *SearchJobResponse) HTTPResponse() *http.Response {
@@ -35,13 +30,15 @@ func (s *SearchJobResponse) IsMetadata() bool {
 	return true
 }
 
+var _ PipelineResponse = (*SearchJobResponse)(nil)
+
 var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
 // NewSearch returns a search combiner
 func NewSearch(limit int, keepMostRecent bool) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
-	completedThroughTracker := &ShardCompletionTracker{}
+	completedThroughTracker := &shardtracker.CompletionTracker{}
 	metricsCombiner := NewSearchMetricsCombiner()
 
 	c := &genericCombiner[*tempopb.SearchResponse]{
@@ -51,7 +48,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 		combine: func(partial *tempopb.SearchResponse, final *tempopb.SearchResponse, resp PipelineResponse) error {
 			requestIdx, ok := resp.RequestData().(int)
 			if ok && keepMostRecent {
-				completedThroughTracker.addShardIdx(requestIdx)
+				completedThroughTracker.AddShardIdx(requestIdx)
 			}
 
 			for _, t := range partial.Traces {
@@ -75,7 +72,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 				metricsCombiner.CombineMetadata(sjMetrics, resp)
 
 				if keepMostRecent {
-					completedThroughTracker.addShards(sj.Shards)
+					completedThroughTracker.AddShards(sj.Shards)
 				}
 			}
 
@@ -97,7 +94,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 			metadataFn := metadataCombiner.Metadata
 			if keepMostRecent {
 				metadataFn = func() []*tempopb.TraceSearchMetadata {
-					completedThroughSeconds := completedThroughTracker.completedThroughSeconds
+					completedThroughSeconds := completedThroughTracker.CompletedThroughSeconds()
 					// if all jobs are completed then let's just return everything the combiner has
 					if diff.Metrics.CompletedJobs == diff.Metrics.TotalJobs && diff.Metrics.TotalJobs > 0 {
 						completedThroughSeconds = 1
@@ -127,7 +124,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 			return diff, nil
 		},
 		quit: func(_ *tempopb.SearchResponse) bool {
-			completedThroughSeconds := completedThroughTracker.completedThroughSeconds
+			completedThroughSeconds := completedThroughTracker.CompletedThroughSeconds()
 			// have we completed any shards?
 			if completedThroughSeconds == 0 {
 				completedThroughSeconds = traceql.TimestampNever
@@ -150,77 +147,4 @@ func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
 
 func NewTypedSearch(limit int, keepMostRecent bool) GRPCCombiner[*tempopb.SearchResponse] {
 	return NewSearch(limit, keepMostRecent).(GRPCCombiner[*tempopb.SearchResponse])
-}
-
-// ShardCompletionTracker
-type ShardCompletionTracker struct {
-	shards         []SearchShards
-	foundResponses []int
-
-	completedThroughSeconds uint32
-	curShard                int
-}
-
-func (s *ShardCompletionTracker) addShards(shards []SearchShards) uint32 {
-	if len(shards) == 0 {
-		return s.completedThroughSeconds
-	}
-
-	s.shards = shards
-
-	// grow foundResponses to match while keeping the existing values
-	if len(s.shards) > len(s.foundResponses) {
-		temp := make([]int, len(s.shards))
-		copy(temp, s.foundResponses)
-		s.foundResponses = temp
-	}
-
-	s.incrementCurShardIfComplete()
-
-	return s.completedThroughSeconds
-}
-
-// Add adds a response to the tracker and returns the allowed completedThroughSeconds
-func (s *ShardCompletionTracker) addShardIdx(shardIdx int) uint32 {
-	// we haven't received shards yet
-	if len(s.shards) == 0 {
-		// if shardIdx doesn't fit in foundResponses then alloc a new slice and copy foundResponses forward
-		if shardIdx >= len(s.foundResponses) {
-			temp := make([]int, shardIdx+1)
-			copy(temp, s.foundResponses)
-			s.foundResponses = temp
-		}
-
-		// and record this idx for when we get shards
-		s.foundResponses[shardIdx]++
-
-		return 0
-	}
-
-	//
-	if shardIdx >= len(s.foundResponses) {
-		return s.completedThroughSeconds
-	}
-
-	s.foundResponses[shardIdx]++
-	s.incrementCurShardIfComplete()
-
-	return s.completedThroughSeconds
-}
-
-// incrementCurShardIfComplete tests to see if the current shard is complete and increments it if so.
-// it does this repeatedly until it finds a shard that is not complete.
-func (s *ShardCompletionTracker) incrementCurShardIfComplete() {
-	for {
-		if s.curShard >= len(s.shards) {
-			break
-		}
-
-		if s.foundResponses[s.curShard] == int(s.shards[s.curShard].TotalJobs) {
-			s.completedThroughSeconds = s.shards[s.curShard].CompletedThroughSeconds
-			s.curShard++
-		} else {
-			break
-		}
-	}
 }

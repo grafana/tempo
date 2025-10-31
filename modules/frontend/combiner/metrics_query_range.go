@@ -3,14 +3,34 @@ package combiner
 import (
 	"fmt"
 	"math"
+	"net/http"
 	"slices"
 	"sort"
 
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
+// QueryRangeJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.
+type QueryRangeJobResponse struct {
+	shardtracker.JobMetadata
+}
+
+func (q *QueryRangeJobResponse) HTTPResponse() *http.Response {
+	return nil
+}
+
+func (q *QueryRangeJobResponse) RequestData() any {
+	return nil
+}
+
+func (q *QueryRangeJobResponse) IsMetadata() bool {
+	return true
+}
+
+var _ PipelineResponse = (*QueryRangeJobResponse)(nil)
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
 // NewQueryRange returns a query range combiner.
@@ -26,7 +46,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 		return nil, err
 	}
 
-	var prevResp *tempopb.QueryRangeResponse
+	completionTracker := &shardtracker.CompletionTracker{}
+	sentSeries := make(map[traceql.SeriesMapKey]struct{}) // track which series we've already sent
 	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
 	metricsCombiner := NewQueryRangeMetricsCombiner()
@@ -37,6 +58,18 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 		combine: func(partial *tempopb.QueryRangeResponse, _ *tempopb.QueryRangeResponse, resp PipelineResponse) error {
 			combiner.Combine(partial)
 			metricsCombiner.Combine(partial.Metrics, resp)
+
+			// Track shard completion
+			if shardIdx, ok := resp.RequestData().(int); ok {
+				completionTracker.AddShardIdx(shardIdx)
+			}
+
+			return nil
+		},
+		metadata: func(resp PipelineResponse, final *tempopb.QueryRangeResponse) error {
+			if qr, ok := resp.(*QueryRangeJobResponse); ok && qr != nil {
+				completionTracker.AddShards(qr.Shards)
+			}
 			return nil
 		},
 		finalize: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
@@ -58,6 +91,17 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			return resp, nil
 		},
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
+			// Check if any shards have completed
+			completedThrough := completionTracker.CompletedThroughSeconds()
+
+			// If no shards have completed yet, return empty response
+			if completedThrough == 0 {
+				return &tempopb.QueryRangeResponse{
+					Series:  []*tempopb.TimeSeries{},
+					Metrics: metricsCombiner.Metrics,
+				}, nil
+			}
+
 			resp := combiner.Response()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
@@ -71,16 +115,25 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 			attachExemplars(req, resp)
 
-			// compare with prev resp and only return diffs
-			diff := diffResponse(prevResp, resp)
-			// store resp for next diff
-			prevResp = resp
+			// Return only series we haven't sent yet
+			diff := &tempopb.QueryRangeResponse{
+				Series:  make([]*tempopb.TimeSeries, 0, len(resp.Series)),
+				Metrics: metricsCombiner.Metrics,
+			}
+
+			for _, series := range resp.Series {
+				seriesKey := traceql.LabelsFromProto(series.Labels).MapKey()
+				if _, sent := sentSeries[seriesKey]; !sent {
+					diff.Series = append(diff.Series, series)
+					sentSeries[seriesKey] = struct{}{}
+				}
+			}
 
 			if combiner.MaxSeriesReached() {
 				diff.Status = tempopb.PartialStatus_PARTIAL
 				diff.Message = maxSeriesReachedErrorMsg
 			}
-			diff.Metrics = metricsCombiner.Metrics
+
 			return diff, nil
 		},
 		quit: func(_ *tempopb.QueryRangeResponse) bool {
@@ -132,83 +185,6 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
 		})
 	}
-}
-
-// diffResponse takes two QueryRangeResponses and returns a new QueryRangeResponse that contains only the differences between the two.
-// it creates a completely new response, so the input responses are not modified. an in place diff would be nice for memory savings, but
-// the diffResponse is returned and marshalled into proto. if we modify an object while it's being marshalled this can cause a panic
-func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeResponse {
-	if prev == nil {
-		return curr
-	}
-
-	seriesIdx := 0
-	diff := &tempopb.QueryRangeResponse{
-		Series: make([]*tempopb.TimeSeries, 0, len(curr.Series)/2), // prealloc half of series. untuned
-	}
-
-	// series are sorted, so we can do this in a single pass
-	for _, s := range curr.Series {
-		// is this a series that's new in curr that wasn't in prev? this check assumes that
-		// a series can not be removed from the output as the input series are combined
-		if seriesIdx >= len(prev.Series) || traceql.LabelsFromProto(s.Labels).MapKey() != traceql.LabelsFromProto(prev.Series[seriesIdx].Labels).MapKey() {
-			diff.Series = append(diff.Series, s)
-			continue
-		}
-
-		diffSeries := &tempopb.TimeSeries{
-			Labels:    s.Labels,
-			Exemplars: make([]tempopb.Exemplar, 0, len(s.Exemplars)/10), // prealloc 10% of exemplars. untuned
-			Samples:   make([]tempopb.Sample, 0, len(s.Samples)/10),     // prealloc 10% of samples. untuned
-		}
-
-		// samples are sorted, so we can do this in a single pass
-		dSamplesIdx := 0
-
-		for _, sample := range s.Samples {
-			// if this sample is not in the previous response, add it to the diff
-			if dSamplesIdx >= len(prev.Series[seriesIdx].Samples) || sample.TimestampMs != prev.Series[seriesIdx].Samples[dSamplesIdx].TimestampMs {
-				diffSeries.Samples = append(diffSeries.Samples, sample)
-				continue
-			}
-
-			// if we get here, the sample is in both responses. only copy if the value is different
-			if sample.Value != prev.Series[seriesIdx].Samples[dSamplesIdx].Value {
-				diffSeries.Samples = append(diffSeries.Samples, sample)
-			}
-
-			dSamplesIdx++
-		}
-
-		// diff exemplars
-		// exemplars are sorted, so we can do this in a single pass
-		dExemplarsIdx := 0
-		for _, exemplar := range s.Exemplars {
-			// if this exemplar is not in the previous response, add it to the diff. technically two exemplars could share the same timestamp, if they do AND are sorted in opposite order of the prev response
-			// then they will just both be marshalled into the output proto. this rare case seems preferable to always checking all exemplar labels for equality
-			if dExemplarsIdx >= len(prev.Series[seriesIdx].Exemplars) || exemplar.TimestampMs != prev.Series[seriesIdx].Exemplars[dExemplarsIdx].TimestampMs {
-				diffSeries.Exemplars = append(diffSeries.Exemplars, exemplar)
-				continue
-			}
-
-			// if we get here, the exemplar is in both responses. only copy if the value is different
-			if exemplar.Value != prev.Series[seriesIdx].Exemplars[dExemplarsIdx].Value {
-				diffSeries.Exemplars = append(diffSeries.Exemplars, exemplar)
-			}
-
-			dExemplarsIdx++
-		}
-
-		if len(diffSeries.Samples) > 0 || len(diffSeries.Exemplars) > 0 {
-			diff.Series = append(diff.Series, diffSeries)
-		}
-		seriesIdx++
-	}
-
-	// no need to diff metrics, just take current
-	diff.Metrics = curr.Metrics
-
-	return diff
 }
 
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()
