@@ -160,17 +160,17 @@ jobs:
             "repo_name": "deployment_tools",
             "update_jsonnet_attribute_configs": [
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo",
                 "jsonnet_value_file": "tags_for_cd_tempo"
               },
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo_query",
                 "jsonnet_value_file": "tags_for_cd_tempo_query"
               },
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo_vulture",
                 "jsonnet_value_file": "tags_for_cd_tempo_vulture"
               }
