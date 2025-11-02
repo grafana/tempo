@@ -101,6 +101,12 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 	t := typeOf[T]()
 
 	var genWriteErr error
+	if t != nil {
+		if columnName, ok := validateColumns(dereference(t)); !ok {
+			genWriteErr = fmt.Errorf("caonnot write %v: it has columns with the same paqruet column name %q", t, columnName)
+		}
+	}
+
 	if schema == nil && t != nil {
 		schema = schemaOf(dereference(t))
 		if len(schema.Columns()) == 0 {
@@ -175,7 +181,15 @@ func makeWriteFunc[T any](t reflect.Type, schema *Schema) writeFunc[T] {
 }
 
 func (w *GenericWriter[T]) Close() error {
-	return w.base.Close()
+	if err := w.base.Close(); err != nil {
+		return err
+	}
+	// Nil out the columns slice to allow the column buffers to be garbage
+	// collected and to ensure that any subsequent use of this writer after
+	// Close will result in a clear panic rather than operating on closed
+	// resources.
+	w.columns = nil
+	return nil
 }
 
 func (w *GenericWriter[T]) Flush() error {
@@ -194,7 +208,7 @@ func (w *GenericWriter[T]) Write(rows []T) (int, error) {
 		}
 
 		for _, c := range w.base.writer.columns {
-			if c.columnBuffer.Size() >= int64(c.bufferSize) {
+			if c.columnBuffer != nil && c.columnBuffer.Size() >= int64(c.bufferSize) {
 				if err := c.Flush(); err != nil {
 					return n, err
 				}
@@ -360,6 +374,11 @@ func (w *Writer) configure(schema *Schema) {
 // Close must be called after all values were produced to the writer in order to
 // flush all buffers and write the parquet footer.
 func (w *Writer) Close() error {
+	for _, c := range w.ColumnWriters() {
+		if err := c.Close(); err != nil {
+			return err
+		}
+	}
 	if w.writer != nil {
 		return w.writer.close()
 	}
@@ -688,6 +707,7 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 			pool:               config.ColumnPageBuffers,
 			columnPath:         leaf.path,
 			columnType:         columnType,
+			originalType:       columnType,
 			columnIndex:        columnType.NewColumnIndexer(config.ColumnIndexSizeLimit),
 			columnFilter:       searchBloomFilterColumn(config.BloomFilters, leaf.path),
 			compression:        compression,
@@ -707,7 +727,8 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 			// compressed, the data pages are encoded with the hybrid
 			// RLE/Bit-Pack encoding which doesn't benefit from an extra
 			// compression layer.
-			isCompressed: isCompressed(compression) && (dataPageType != format.DataPageV2 || dictionary == nil),
+			isCompressed:       isCompressed(compression) && (dataPageType != format.DataPageV2 || dictionary == nil),
+			dictionaryMaxBytes: config.DictionaryMaxBytes,
 		}
 
 		c.header.encoder.Reset(c.header.protocol.NewWriter(&c.buffers.header))
@@ -721,6 +742,7 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 		}
 
 		c.encoding = encoding
+		c.originalEncoding = encoding
 		c.encodings = addEncoding(c.encodings, c.encoding.Encoding())
 		sortPageEncodings(c.encodings)
 
@@ -961,6 +983,11 @@ func (w *writer) writeRowGroup(rowGroupSchema *Schema, rowGroupSortingColumns []
 			}
 		}
 
+		// Skip columns with nil pageBuffer (e.g., empty struct groups with no leaf columns)
+		if c.pageBuffer == nil {
+			continue
+		}
+
 		dataPageOffset := w.writer.offset
 		c.columnChunk.MetaData.DataPageOffset = dataPageOffset
 		for j := range c.offsetIndex.PageLocations {
@@ -1085,7 +1112,7 @@ func (w *writer) writeRows(numRows int, write func(i, j int) (int, error)) (int,
 		remain := w.maxRows - w.numRows
 		length := numRows - written
 
-		if remain == 0 {
+		if remain <= 0 {
 			remain = w.maxRows
 
 			if err := w.flush(); err != nil {
@@ -1228,14 +1255,18 @@ type ColumnWriter struct {
 	pageBuffer io.ReadWriteSeeker
 	numPages   int
 
-	columnPath   columnPath
-	columnType   Type
-	columnIndex  ColumnIndexer
-	columnBuffer ColumnBuffer
-	columnFilter BloomFilterColumn
-	encoding     encoding.Encoding
-	compression  compress.Codec
-	dictionary   Dictionary
+	columnPath           columnPath
+	columnType           Type
+	originalType         Type // Original type before any encoding changes
+	columnIndex          ColumnIndexer
+	columnBuffer         ColumnBuffer
+	plainColumnBuffer    ColumnBuffer // Retained plain buffer for fallback after lazy creation
+	originalColumnBuffer ColumnBuffer // Original buffer to restore after row group flush
+	columnFilter         BloomFilterColumn
+	encoding             encoding.Encoding
+	originalEncoding     encoding.Encoding // Original encoding before any changes
+	compression          compress.Codec
+	dictionary           Dictionary
 
 	dataPageType       format.PageType
 	maxRepetitionLevel byte
@@ -1257,11 +1288,27 @@ type ColumnWriter struct {
 	isCompressed    bool
 	encodings       []format.Encoding
 
-	columnChunk *format.ColumnChunk
-	offsetIndex *format.OffsetIndex
+	columnChunk        *format.ColumnChunk
+	offsetIndex        *format.OffsetIndex
+	hasSwitchedToPlain bool  // Tracks if dictionary encoding was switched to PLAIN
+	dictionaryMaxBytes int64 // Per-column dictionary size limit
+
+	// Pooled buffers used by optional and repeated column buffers that need
+	// to be released when the writer is closed.
+	rowsBuffer             *buffer[int32]
+	repetitionLevelsBuffer *buffer[byte]
+	definitionLevelsBuffer *buffer[byte]
 }
 
 func (c *ColumnWriter) reset() {
+	if c.hasSwitchedToPlain {
+		c.columnType = c.originalType
+		c.encoding = c.originalEncoding
+		c.hasSwitchedToPlain = false
+	}
+	if c.originalColumnBuffer != nil {
+		c.columnBuffer = c.originalColumnBuffer
+	}
 	if c.columnBuffer != nil {
 		c.columnBuffer.Reset()
 	}
@@ -1307,8 +1354,29 @@ func (c *ColumnWriter) Flush() (err error) {
 		return nil
 	}
 	if c.columnBuffer.Len() > 0 {
+		// Check dictionary size limit BEFORE writing the page
+		// to decide if we should switch to PLAIN for future pages
+		var fallbackToPlain bool
+		if c.dictionary != nil && !c.hasSwitchedToPlain && c.dictionaryMaxBytes > 0 {
+			if currentDictSize := c.dictionary.Size(); currentDictSize > c.dictionaryMaxBytes {
+				fallbackToPlain = true
+			}
+		}
+
+		// Write the current buffered page (still with current encoding)
 		defer c.columnBuffer.Reset()
 		_, err = c.writeDataPage(c.columnBuffer.Page())
+		if err != nil {
+			return err
+		}
+
+		// After writing the page, convert to PLAIN for future pages if needed
+		// This avoids wasteful buffer allocation if this was the last page
+		if fallbackToPlain {
+			if err := c.fallbackDictionaryToPlain(); err != nil {
+				return fmt.Errorf("converting dictionary to plain: %w", err)
+			}
+		}
 	}
 	return err
 }
@@ -1331,6 +1399,11 @@ func (c *ColumnWriter) flushFilterPages() (err error) {
 	// When the filter was already allocated, pages have been written to it as
 	// they were seen by the column writer.
 	if len(c.filter) > 0 {
+		return nil
+	}
+
+	// Skip columns with nil pageBuffer (e.g., empty struct groups with no leaf columns)
+	if c.pageBuffer == nil {
 		return nil
 	}
 
@@ -1372,7 +1445,7 @@ func (c *ColumnWriter) flushFilterPages() (err error) {
 		pageReader = rbuf
 	}
 
-	pbuf := (*buffer)(nil)
+	pbuf := (*buffer[byte])(nil)
 	defer func() {
 		if pbuf != nil {
 			pbuf.unref()
@@ -1431,9 +1504,19 @@ func (c *ColumnWriter) newColumnBuffer() ColumnBuffer {
 	column := c.columnType.NewColumnBuffer(int(c.bufferIndex), c.columnType.EstimateNumValues(int(c.bufferSize)))
 	switch {
 	case c.maxRepetitionLevel > 0:
-		column = newRepeatedColumnBuffer(column, c.maxRepetitionLevel, c.maxDefinitionLevel, nullsGoLast)
+		// Since these buffers are pooled, we can afford to allocate a bit more memory in
+		// order to reduce the risk of needing to resize the buffer.
+		size := int(float64(column.Cap()) * 1.5)
+		c.repetitionLevelsBuffer = buffers.get(size)
+		c.definitionLevelsBuffer = buffers.get(size)
+		column = newRepeatedColumnBuffer(column, c.repetitionLevelsBuffer.data[:0], c.definitionLevelsBuffer.data[:0], c.maxRepetitionLevel, c.maxDefinitionLevel, nullsGoLast)
 	case c.maxDefinitionLevel > 0:
-		column = newOptionalColumnBuffer(column, c.maxDefinitionLevel, nullsGoLast)
+		// Since these buffers are pooled, we can afford to allocate a bit more memory in
+		// order to reduce the risk of needing to resize the buffer.
+		size := int(float64(column.Cap()) * 1.5)
+		c.rowsBuffer = int32Buffers.get(size)
+		c.definitionLevelsBuffer = buffers.get(size)
+		column = newOptionalColumnBuffer(column, c.rowsBuffer.data[:0], c.definitionLevelsBuffer.data[:0], c.maxDefinitionLevel, nullsGoLast)
 	}
 	return column
 }
@@ -1452,6 +1535,7 @@ func (c *ColumnWriter) WriteRowValues(rows []Value) (int, error) {
 		// Lazily create the row group column so we don't need to allocate it if
 		// rows are not written individually to the column.
 		c.columnBuffer = c.newColumnBuffer()
+		c.originalColumnBuffer = c.columnBuffer
 	} else {
 		startingRows = int64(c.columnBuffer.Len())
 	}
@@ -1474,6 +1558,12 @@ func (c *ColumnWriter) Close() (err error) {
 	if err := c.Flush(); err != nil {
 		return err
 	}
+	bufferUnref(c.rowsBuffer)
+	bufferUnref(c.repetitionLevelsBuffer)
+	bufferUnref(c.definitionLevelsBuffer)
+	c.rowsBuffer = nil
+	c.repetitionLevelsBuffer = nil
+	c.definitionLevelsBuffer = nil
 	c.columnBuffer = nil
 	return nil
 }
@@ -1481,6 +1571,10 @@ func (c *ColumnWriter) Close() (err error) {
 func (c *ColumnWriter) writeValues(values []Value) (numValues int, err error) {
 	if c.columnBuffer == nil {
 		c.columnBuffer = c.newColumnBuffer()
+		// Save the original dictionary-encoding buffer to restore after row group flush
+		if c.originalColumnBuffer == nil {
+			c.originalColumnBuffer = c.columnBuffer
+		}
 	}
 	return c.columnBuffer.WriteValues(values)
 }
@@ -1682,6 +1776,36 @@ func (c *ColumnWriter) writePageTo(size int64, writeTo func(io.Writer) (int64, e
 		return fmt.Errorf("writing parquet column page expected %dB but got %dB: %w", size, written, io.ErrShortWrite)
 	}
 	c.numPages++
+	return nil
+}
+
+// fallbackDictionaryToPlain switches future pages from dictionary to PLAIN encoding.
+// This is called when a column's dictionary size limit is exceeded.
+func (c *ColumnWriter) fallbackDictionaryToPlain() error {
+	// Switch to PLAIN encoding for future writes
+	// Get the underlying type without the indexed wrapper
+	if indexedType, ok := c.columnType.(*indexedType); ok {
+		c.columnType = indexedType.Type
+	}
+	if c.plainColumnBuffer == nil {
+		c.plainColumnBuffer = c.columnType.NewColumnBuffer(int(c.bufferIndex), int(c.bufferSize))
+	}
+	c.columnBuffer = c.plainColumnBuffer
+	c.encoding = &plain.Encoding{}
+	c.encodings = addEncoding(c.encodings, format.Plain)
+	// DON'T clear the dictionary reference!
+	// We need to keep it so:
+	// 1. The dictionary page can be written (required for existing dict-encoded pages)
+	// 2. Existing pages that were written with dictionary indexes can be read
+	//
+	// The hasSwitchedToPlain flag prevents new values from being added to the dictionary
+	//
+	// Note: We are NOT re-encoding existing pages. This means:
+	// - Pages written before the limit was hit will remain dictionary-encoded
+	// - Pages written after will be PLAIN-encoded
+	// - The dictionary page will still be written at row group flush
+	// - Mixed encodings in the same column chunk are valid per Parquet spec
+	c.hasSwitchedToPlain = true
 	return nil
 }
 
