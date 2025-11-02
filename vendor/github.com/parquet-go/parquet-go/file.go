@@ -944,7 +944,7 @@ func (f *FilePages) readDictionary() error {
 	return f.readDictionaryPage(header, page)
 }
 
-func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer) error {
+func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer[byte]) error {
 	if header.DictionaryPageHeader == nil {
 		return ErrMissingPageHeader
 	}
@@ -956,7 +956,7 @@ func (f *FilePages) readDictionaryPage(header *format.PageHeader, page *buffer) 
 	return nil
 }
 
-func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer) (Page, error) {
+func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer[byte]) (Page, error) {
 	if header.DataPageHeader == nil {
 		return nil, ErrMissingPageHeader
 	}
@@ -968,7 +968,7 @@ func (f *FilePages) readDataPageV1(header *format.PageHeader, page *buffer) (Pag
 	return f.chunk.column.decodeDataPageV1(DataPageHeaderV1{header.DataPageHeader}, page, f.dictionary, header.UncompressedPageSize)
 }
 
-func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer) (Page, error) {
+func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer[byte]) (Page, error) {
 	if header.DataPageHeaderV2 == nil {
 		return nil, ErrMissingPageHeader
 	}
@@ -983,7 +983,7 @@ func (f *FilePages) readDataPageV2(header *format.PageHeader, page *buffer) (Pag
 	return f.chunk.column.decodeDataPageV2(DataPageHeaderV2{header.DataPageHeaderV2}, page, f.dictionary, header.UncompressedPageSize)
 }
 
-func (f *FilePages) readPage(header *format.PageHeader, reader *bufio.Reader) (*buffer, error) {
+func (f *FilePages) readPage(header *format.PageHeader, reader *bufio.Reader) (*buffer[byte], error) {
 	page := buffers.get(int(header.CompressedPageSize))
 	defer page.unref()
 

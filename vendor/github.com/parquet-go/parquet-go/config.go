@@ -223,6 +223,7 @@ type WriterConfig struct {
 	Sorting              SortingConfig
 	SkipPageBounds       [][]string
 	Encodings            map[Kind]encoding.Encoding
+	DictionaryMaxBytes   int64
 }
 
 // DefaultWriterConfig returns a new WriterConfig value initialized with the
@@ -703,6 +704,19 @@ func DefaultEncoding(enc encoding.Encoding) WriterOption {
 		defaultEncodingFor(config, ByteArray, enc)
 		defaultEncodingFor(config, FixedLenByteArray, enc)
 	})
+}
+
+// DictionaryMaxBytes creates a configuration option which sets the maximum
+// size in bytes for each column's dictionary.
+//
+// When a column's dictionary exceeds this limit, that column will switch from
+// dictionary encoding to PLAIN encoding for the remainder of the row group.
+// Pages written before the limit was reached remain dictionary-encoded, while
+// subsequent pages use PLAIN encoding.
+//
+// A value of 0 (the default) means unlimited dictionary size.
+func DictionaryMaxBytes(size int64) WriterOption {
+	return writerOption(func(config *WriterConfig) { config.DictionaryMaxBytes = size })
 }
 
 // ColumnBufferCapacity creates a configuration option which defines the size of

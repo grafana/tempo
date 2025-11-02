@@ -238,9 +238,13 @@ func readRowsFuncOfRepeated(read readRowsFunc, repetitionDepth byte) readRowsFun
 func readRowsFuncOfGroup(node Node, columnIndex int, repetitionDepth byte) (int, readRowsFunc) {
 	fields := node.Fields()
 
+	// Empty groups (groups with no fields) are valid structural elements
+	// that don't contain column data. This function shouldn't be called in
+	// practice since empty groups have no leaf columns to read from.
 	if len(fields) == 0 {
-		return columnIndex, func(*rowGroupRows, []Row, byte) (int, error) {
-			return 0, io.EOF
+		return columnIndex, func(r *rowGroupRows, rows []Row, repetitionLevel byte) (int, error) {
+			// Return 0 since there are no columns to read
+			return 0, nil
 		}
 	}
 
