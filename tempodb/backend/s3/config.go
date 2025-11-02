@@ -87,7 +87,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.SSE.KMSEncryptionContext, util.PrefixConfig(prefix, "s3.sse.kms-encryption-context"), "", "KMS Encryption Context used for object encryption. It expects JSON formatted string.")
 	f.StringVar(&cfg.SSE.CustomerEncryptionKey, util.PrefixConfig(prefix, "s3.sse.encryption-key"), "", "SSE-C Encryption Key used for object encryption.")
 	cfg.HedgeRequestsUpTo = 2
-	cfg.PartSize = 100 * 1024 * 1024 // 100MB default, matches parquet row group size (R2 compliant, min 5MB)
 }
 
 func (cfg *Config) PathMatches(other *Config) bool {

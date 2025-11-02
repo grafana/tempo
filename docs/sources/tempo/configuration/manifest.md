@@ -1029,7 +1029,7 @@ storage:
             secret_key: ""
             session_token: ""
             insecure: false
-            part_size: 104857600
+            part_size: 0
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
             signature_v2: false
@@ -1122,7 +1122,7 @@ overrides:
                 secret_key: ""
                 session_token: ""
                 insecure: false
-                part_size: 104857600
+                part_size: 0
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
                 signature_v2: false
