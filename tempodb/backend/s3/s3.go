@@ -59,6 +59,7 @@ type appendTracker struct {
 	objectName string
 	parts      []minio.ObjectPart
 	partNum    int
+	buffer     []byte // buffer to accumulate data for R2-compliant fixed-size chunks
 }
 
 type overrideSignatureVersion struct {
@@ -232,26 +233,37 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		}
 		a.uploadID = id
 		a.objectName = objectName
+		a.buffer = make([]byte, 0, rw.cfg.PartSize)
 	}
 
-	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName)
+	a.buffer = append(a.buffer, buffer...)
 
-	a.partNum++
+	// Upload chunks of exactly PartSize bytes (R2 requirement: all parts except last must be same size)
+	chunkSize := rw.cfg.PartSize
 	putObjPartOptions := getPutObjectPartOptions(rw)
-	objPart, err := rw.core.PutObjectPart(
-		ctx,
-		rw.cfg.Bucket,
-		objectName,
-		a.uploadID,
-		a.partNum,
-		bytes.NewReader(buffer),
-		int64(len(buffer)),
-		putObjPartOptions,
-	)
-	if err != nil {
-		return a, fmt.Errorf("error in multipart upload: %w", err)
+	for uint64(len(a.buffer)) >= chunkSize {
+		chunk := a.buffer[:chunkSize]
+
+		level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName, "partNum", a.partNum+1, "chunkSize", chunkSize)
+
+		a.partNum++
+		objPart, err := rw.core.PutObjectPart(
+			ctx,
+			rw.cfg.Bucket,
+			objectName,
+			a.uploadID,
+			a.partNum,
+			bytes.NewReader(chunk),
+			int64(chunkSize),
+			putObjPartOptions,
+		)
+		if err != nil {
+			return a, fmt.Errorf("error in multipart upload: %w", err)
+		}
+		a.parts = append(a.parts, objPart)
+
+		a.buffer = a.buffer[chunkSize:]
 	}
-	a.parts = append(a.parts, objPart)
 
 	return a, nil
 }
@@ -263,6 +275,28 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	}
 
 	a := tracker.(appendTracker)
+
+	if len(a.buffer) > 0 {
+		level.Debug(rw.logger).Log("msg", "flushing final chunk to s3", "objectName", a.objectName, "partNum", a.partNum+1, "chunkSize", len(a.buffer))
+
+		a.partNum++
+		putObjPartOptions := getPutObjectPartOptions(rw)
+		objPart, err := rw.core.PutObjectPart(
+			ctx,
+			rw.cfg.Bucket,
+			a.objectName,
+			a.uploadID,
+			a.partNum,
+			bytes.NewReader(a.buffer),
+			int64(len(a.buffer)),
+			putObjPartOptions,
+		)
+		if err != nil {
+			return fmt.Errorf("error uploading final part in multipart upload: %w", err)
+		}
+		a.parts = append(a.parts, objPart)
+	}
+
 	completeParts := make([]minio.CompletePart, 0)
 	for _, p := range a.parts {
 		completeParts = append(completeParts, minio.CompletePart{
