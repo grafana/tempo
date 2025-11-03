@@ -2229,40 +2229,199 @@ func TestProcessBottomK(t *testing.T) {
 }
 
 func TestTiesInTopK(t *testing.T) {
-	input := createSeriesSet(map[string][]float64{
-		"a": {10, 5, 1},
-		"b": {10, 4, 2},
-		"c": {10, 3, 3},
-	})
-	result := processTopK(input, 3, 2)
+	t.Run("three-way tie at first position", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"a": {10, 5, 1},
+			"b": {10, 4, 2},
+			"c": {10, 3, 3},
+		})
+		result := processTopK(input, 3, 2)
 
-	// When there are ties, series are selected deterministically using
-	// alphabetical order of labels as the tiebreaker (alphabetically earlier wins).
-	// At index 0: all have value 10, so "a" and "b" are selected (alphabetically first)
-	// At index 1: top 2 are {a:5, b:4} (c:3 is excluded)
-	// At index 2: top 2 are {b:2, c:3} (a:1 is excluded)
-	expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, 5, math.NaN()})
-	expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
-	expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{math.NaN(), math.NaN(), 3})
+		// When there are ties, series are selected deterministically using
+		// alphabetical order of labels as the tiebreaker (alphabetically earlier wins).
+		// At index 0: all have value 10, so "a" and "b" are selected (alphabetically first)
+		// At index 1: top 2 are {a:5, b:4} (c:3 is excluded)
+		// At index 2: top 2 are {b:2, c:3} (a:1 is excluded)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, 5, math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{math.NaN(), math.NaN(), 3})
+	})
+
+	t.Run("all values tied", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"x": {5, 5, 5},
+			"y": {5, 5, 5},
+			"z": {5, 5, 5},
+		})
+		result := processTopK(input, 3, 2)
+
+		// All values are equal (5), so topk should consistently select "x" and "y" (alphabetically first)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "x").MapKey()].Values, []float64{5, 5, 5})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "y").MapKey()].Values, []float64{5, 5, 5})
+		// "z" should be excluded at all positions
+		_, exists := result[LabelsFromArgs("label", "z").MapKey()]
+		require.False(t, exists, "series z should not be in result")
+	})
+
+	t.Run("partial ties with different values", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"alpha": {100, 50, 50},
+			"beta":  {100, 50, 40},
+			"gamma": {90, 50, 30},
+			"delta": {80, 40, 20},
+		})
+		result := processTopK(input, 3, 2)
+
+		// At index 0: top 2 are {alpha:100, beta:100} (tied at top, alphabetically first)
+		// At index 1: top 2 are {alpha:50, beta:50} (three-way tie at 50, alphabetically first two)
+		// At index 2: top 2 are {alpha:50, beta:40} (alpha:50 is highest, beta:40 is second)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "alpha").MapKey()].Values, []float64{100, 50, 50})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "beta").MapKey()].Values, []float64{100, 50, 40})
+		// gamma and delta should not be in the result (all NaN)
+		_, exists := result[LabelsFromArgs("label", "gamma").MapKey()]
+		require.False(t, exists, "series gamma should not be in result")
+		_, exists = result[LabelsFromArgs("label", "delta").MapKey()]
+		require.False(t, exists, "series delta should not be in result")
+	})
+
+	t.Run("k=1 with ties", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"service1": {100, 80, 60},
+			"service2": {100, 70, 60},
+			"service3": {90, 60, 60},
+		})
+		result := processTopK(input, 3, 1)
+
+		// With k=1, only one series should be selected at each position
+		// At index 0: top 1 is {service1:100} (tied with service2, but alphabetically first)
+		// At index 1: top 1 is {service1:80} (highest value)
+		// At index 2: top 1 is {service1:60} (three-way tie, alphabetically first)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "service1").MapKey()].Values, []float64{100, 80, 60})
+		_, exists := result[LabelsFromArgs("label", "service2").MapKey()]
+		require.False(t, exists, "series service2 should not be in result")
+		_, exists = result[LabelsFromArgs("label", "service3").MapKey()]
+		require.False(t, exists, "series service3 should not be in result")
+	})
+
+	t.Run("ties with NaN values", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"m": {math.NaN(), 10, 10},
+			"n": {10, 10, math.NaN()},
+			"o": {10, math.NaN(), 10},
+		})
+		result := processTopK(input, 3, 2)
+
+		// NaN values should be ignored, ties broken alphabetically
+		// At index 0: top 2 are {n:10, o:10} (m has NaN, alphabetically first two with values)
+		// At index 1: top 2 are {m:10, n:10} (o has NaN, alphabetically first two with values)
+		// At index 2: top 2 are {m:10, o:10} (n has NaN, alphabetically first two with values)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "m").MapKey()].Values, []float64{math.NaN(), 10, 10})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "n").MapKey()].Values, []float64{10, 10, math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "o").MapKey()].Values, []float64{10, math.NaN(), 10})
+	})
 }
 
 func TestTiesInBottomK(t *testing.T) {
-	input := createSeriesSet(map[string][]float64{
-		"a": {10, 5, 1},
-		"b": {10, 4, 2},
-		"c": {10, 3, 3},
-	})
-	result := processBottomK(input, 3, 2)
+	t.Run("three-way tie at first position", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"a": {10, 5, 1},
+			"b": {10, 4, 2},
+			"c": {10, 3, 3},
+		})
+		result := processBottomK(input, 3, 2)
 
-	// When there are ties, series are selected deterministically using
-	// alphabetical order of labels as the tiebreaker.
-	// With reversed comparison, bottomk selects alphabetically later series when tied.
-	// At index 0: all have value 10, so "b" and "c" are selected (alphabetically later)
-	// At index 1: bottom 2 are {c:3, b:4} (a:5 is excluded)
-	// At index 2: bottom 2 are {a:1, b:2} (c:3 is excluded)
-	expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{math.NaN(), math.NaN(), 1})
-	expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
-	expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, 3, math.NaN()})
+		// When there are ties, series are selected deterministically using
+		// alphabetical order of labels as the tiebreaker.
+		// With reversed comparison, bottomk selects alphabetically later series when tied.
+		// At index 0: all have value 10, so "b" and "c" are selected (alphabetically later)
+		// At index 1: bottom 2 are {c:3, b:4} (a:5 is excluded)
+		// At index 2: bottom 2 are {a:1, b:2} (c:3 is excluded)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{math.NaN(), math.NaN(), 1})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, 3, math.NaN()})
+	})
+
+	t.Run("all values tied", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"x": {5, 5, 5},
+			"y": {5, 5, 5},
+			"z": {5, 5, 5},
+		})
+		result := processBottomK(input, 3, 2)
+
+		// All values are equal (5), so bottomk should consistently select "y" and "z" (alphabetically later)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "y").MapKey()].Values, []float64{5, 5, 5})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "z").MapKey()].Values, []float64{5, 5, 5})
+		// "x" should be excluded at all positions
+		_, exists := result[LabelsFromArgs("label", "x").MapKey()]
+		require.False(t, exists, "series x should not be in result")
+	})
+
+	t.Run("partial ties with different values", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"alpha": {10, 20, 30},
+			"beta":  {10, 20, 40},
+			"gamma": {10, 20, 50},
+			"delta": {20, 30, 60},
+		})
+		result := processBottomK(input, 3, 2)
+
+		// At index 0: bottom 2 are {beta:10, gamma:10} (three-way tie at 10, alphabetically later two)
+		// At index 1: bottom 2 are {beta:20, gamma:20} (three-way tie at 20, alphabetically later two)
+		// At index 2: bottom 2 are {alpha:30, beta:40} (alpha:30 is lowest, beta:40 is second lowest)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "alpha").MapKey()].Values, []float64{math.NaN(), math.NaN(), 30})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "beta").MapKey()].Values, []float64{10, 20, 40})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "gamma").MapKey()].Values, []float64{10, 20, math.NaN()})
+		// delta should not be in the result (all NaN)
+		_, exists := result[LabelsFromArgs("label", "delta").MapKey()]
+		require.False(t, exists, "series delta should not be in result")
+	})
+
+	t.Run("k=1 with ties", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"service1": {10, 20, 30},
+			"service2": {10, 25, 30},
+			"service3": {15, 30, 30},
+		})
+		result := processBottomK(input, 3, 1)
+
+		// With k=1, only one series should be selected at each position
+		// At index 0: bottom 1 is {service2:10} (tied with service1, but alphabetically later)
+		// At index 1: bottom 1 is {service1:20} (lowest value)
+		// At index 2: bottom 1 is {service3:30} (three-way tie, alphabetically later)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "service1").MapKey()].Values, []float64{math.NaN(), 20, math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "service2").MapKey()].Values, []float64{10, math.NaN(), math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "service3").MapKey()].Values, []float64{math.NaN(), math.NaN(), 30})
+	})
+
+	t.Run("ties with NaN values", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"m": {math.NaN(), 5, 5},
+			"n": {5, 5, math.NaN()},
+			"o": {5, math.NaN(), 5},
+		})
+		result := processBottomK(input, 3, 2)
+
+		// NaN values should be ignored, ties broken alphabetically (later for bottomk)
+		// At index 0: bottom 2 are {n:5, o:5} (m has NaN, alphabetically later two with values)
+		// At index 1: bottom 2 are {m:5, n:5} (o has NaN, alphabetically later two with values)
+		// At index 2: bottom 2 are {m:5, o:5} (n has NaN, alphabetically later two with values)
+		expectSeriesValues(t, result[LabelsFromArgs("label", "m").MapKey()].Values, []float64{math.NaN(), 5, 5})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "n").MapKey()].Values, []float64{5, 5, math.NaN()})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "o").MapKey()].Values, []float64{5, math.NaN(), 5})
+	})
+
+	t.Run("edge case with larger k than series", func(t *testing.T) {
+		input := createSeriesSet(map[string][]float64{
+			"a": {1, 2, 3},
+			"b": {1, 2, 3},
+		})
+		result := processBottomK(input, 3, 5)
+
+		// k=5 is larger than the number of series (2), so all series should be included
+		expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{1, 2, 3})
+		expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{1, 2, 3})
+	})
 }
 
 func TestHistogramAggregator(t *testing.T) {
