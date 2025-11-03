@@ -68,90 +68,45 @@ func TestCompareSeriesMapKey(t *testing.T) {
 	}
 }
 
-func TestCompareSeriesValues(t *testing.T) {
-	key1 := SeriesMapKey{{Name: "aaa", Value: NewStaticString("bar").MapKey()}}
-	key2 := SeriesMapKey{{Name: "bbb", Value: NewStaticString("bar").MapKey()}}
+func TestDataPointGreaterThan(t *testing.T) {
+	key := SeriesMapKey{{Name: "foo", Value: NewStaticString("bar").MapKey()}}
+	keyEarlier := SeriesMapKey{{Name: "aaa", Value: NewStaticString("bar").MapKey()}}
 
 	tests := []struct {
 		name     string
 		a        seriesValue
 		b        seriesValue
-		expected int
-	}{
-		{
-			name:     "a less than b",
-			a:        seriesValue{key: key1, value: 1.0},
-			b:        seriesValue{key: key1, value: 2.0},
-			expected: -1,
-		},
-		{
-			name:     "a greater than b",
-			a:        seriesValue{key: key1, value: 2.0},
-			b:        seriesValue{key: key1, value: 1.0},
-			expected: 1,
-		},
-		{
-			name:     "equal values, equal keys",
-			a:        seriesValue{key: key1, value: 1.0},
-			b:        seriesValue{key: key1, value: 1.0},
-			expected: 0,
-		},
-		{
-			name:     "equal values, different keys - tiebreaker",
-			a:        seriesValue{key: key1, value: 1.0},
-			b:        seriesValue{key: key2, value: 1.0},
-			expected: -1, // key1 < key2 alphabetically
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := compareSeriesValues(tt.a, tt.b)
-			require.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestDataPointGreaterThan(t *testing.T) {
-	key := SeriesMapKey{{Name: "foo", Value: NewStaticString("bar").MapKey()}}
-	keyEarlier := SeriesMapKey{{Name: "aaa", Value: NewStaticString("bar").MapKey()}}
-	val := seriesValue{key: key, value: 5.0}
-
-	tests := []struct {
-		name     string
-		newValue float64
-		newKey   SeriesMapKey
 		expected bool
 	}{
 		{
-			name:     "new value greater",
-			newValue: 10.0,
-			newKey:   key,
+			name:     "a value greater than b",
+			a:        seriesValue{key: key, value: 10.0},
+			b:        seriesValue{key: key, value: 5.0},
 			expected: true,
 		},
 		{
-			name:     "new value less",
-			newValue: 1.0,
-			newKey:   key,
+			name:     "a value less than b",
+			a:        seriesValue{key: key, value: 1.0},
+			b:        seriesValue{key: key, value: 5.0},
 			expected: false,
 		},
 		{
-			name:     "equal value, equal key",
-			newValue: 5.0,
-			newKey:   key,
+			name:     "equal values, equal keys",
+			a:        seriesValue{key: key, value: 5.0},
+			b:        seriesValue{key: key, value: 5.0},
 			expected: false,
 		},
 		{
-			name:     "equal value, alphabetically earlier key",
-			newValue: 5.0,
-			newKey:   keyEarlier,
+			name:     "equal values, a key alphabetically earlier than b",
+			a:        seriesValue{key: keyEarlier, value: 5.0},
+			b:        seriesValue{key: key, value: 5.0},
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := dataPointGreaterThan(tt.newValue, tt.newKey, val)
+			result := dataPointGreaterThan(tt.a, tt.b)
 			require.Equal(t, tt.expected, result)
 		})
 	}
@@ -160,43 +115,42 @@ func TestDataPointGreaterThan(t *testing.T) {
 func TestDataPointLessThan(t *testing.T) {
 	key := SeriesMapKey{{Name: "foo", Value: NewStaticString("bar").MapKey()}}
 	keyEarlier := SeriesMapKey{{Name: "aaa", Value: NewStaticString("bar").MapKey()}}
-	val := seriesValue{key: key, value: 5.0}
 
 	tests := []struct {
 		name     string
-		newValue float64
-		newKey   SeriesMapKey
+		a        seriesValue
+		b        seriesValue
 		expected bool
 	}{
 		{
-			name:     "new value less",
-			newValue: 1.0,
-			newKey:   key,
+			name:     "a value less than b",
+			a:        seriesValue{key: key, value: 1.0},
+			b:        seriesValue{key: key, value: 5.0},
 			expected: true,
 		},
 		{
-			name:     "new value greater",
-			newValue: 10.0,
-			newKey:   key,
+			name:     "a value greater than b",
+			a:        seriesValue{key: key, value: 10.0},
+			b:        seriesValue{key: key, value: 5.0},
 			expected: false,
 		},
 		{
-			name:     "equal value, equal key",
-			newValue: 5.0,
-			newKey:   key,
+			name:     "equal values, equal keys",
+			a:        seriesValue{key: key, value: 5.0},
+			b:        seriesValue{key: key, value: 5.0},
 			expected: false,
 		},
 		{
-			name:     "equal value, alphabetically earlier key",
-			newValue: 5.0,
-			newKey:   keyEarlier,
+			name:     "equal values, a key alphabetically earlier than b",
+			a:        seriesValue{key: keyEarlier, value: 5.0},
+			b:        seriesValue{key: key, value: 5.0},
 			expected: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := dataPointLessThan(tt.newValue, tt.newKey, val)
+			result := dataPointLessThan(tt.a, tt.b)
 			require.Equal(t, tt.expected, result)
 		})
 	}

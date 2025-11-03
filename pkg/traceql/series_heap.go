@@ -36,30 +36,24 @@ func compareSeriesMapKey(a, b SeriesMapKey) int {
 	return 0
 }
 
-// compareSeriesValues compares two seriesValue structs with deterministic tiebreaking.
-// Returns -1 if a < b, 0 if a == b, 1 if a > b
-// When values are equal, uses series key comparison as tiebreaker.
-func compareSeriesValues(a, b seriesValue) int {
-	if a.value < b.value {
-		return -1
-	}
-	if a.value > b.value {
-		return 1
-	}
-	// Values are equal, use key as tiebreaker
-	return compareSeriesMapKey(a.key, b.key)
-}
-
 // dataPointGreaterThan returns true if the new value should replace the smallest in a topk heap.
 // This happens when the new value is greater, or equal but alphabetically earlier.
-func dataPointGreaterThan(newValue float64, newKey SeriesMapKey, val seriesValue) bool {
-	return compareSeriesValues(seriesValue{key: newKey, value: newValue}, val) > 0
+func dataPointGreaterThan(a, b seriesValue) bool {
+	if a.value == b.value {
+		return compareSeriesMapKey(a.key, b.key) > 0
+	}
+
+	return a.value > b.value
 }
 
 // dataPointLessThan returns true if the new value should replace the largest in a bottomk heap.
 // This happens when the new value is smaller, or equal but alphabetically earlier.
-func dataPointLessThan(newValue float64, newKey SeriesMapKey, val seriesValue) bool {
-	return compareSeriesValues(seriesValue{key: newKey, value: newValue}, val) < 0
+func dataPointLessThan(a, b seriesValue) bool {
+	if a.value == b.value {
+		return compareSeriesMapKey(a.key, b.key) < 0
+	}
+
+	return a.value < b.value
 }
 
 // seriesHeap implements a min-heap of seriesValue
@@ -68,7 +62,7 @@ type seriesHeap []seriesValue
 func (h seriesHeap) Len() int { return len(h) }
 
 func (h seriesHeap) Less(i, j int) bool {
-	return compareSeriesValues(h[i], h[j]) < 0
+	return dataPointLessThan(h[i], h[j])
 }
 
 func (h seriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
@@ -91,7 +85,7 @@ type reverseSeriesHeap []seriesValue
 func (h reverseSeriesHeap) Len() int { return len(h) }
 
 func (h reverseSeriesHeap) Less(i, j int) bool {
-	return compareSeriesValues(h[i], h[j]) > 0
+	return dataPointGreaterThan(h[i], h[j])
 }
 
 func (h reverseSeriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }

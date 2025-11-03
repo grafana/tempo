@@ -2004,7 +2004,7 @@ func processTopK(input SeriesSet, valueLength, limit int) SeriesSet {
 			// If new value is greater than smallest in heap, replace it
 			// For ties (equal values), use series key comparison to maintain determinism
 			smallest := (*h)[0]
-			if dataPointGreaterThan(value, key, smallest) {
+			if dataPointGreaterThan(seriesValue{key: key, value: value}, smallest) {
 				heap.Pop(h)
 				heap.Push(h, seriesValue{
 					key:   key,
@@ -2059,7 +2059,7 @@ func processBottomK(input SeriesSet, valueLength, limit int) SeriesSet {
 			// If new value is less than largest in heap, replace it
 			// For ties (equal values), use series key comparison to maintain determinism
 			largest := (*h)[0]
-			if dataPointLessThan(value, key, largest) {
+			if dataPointLessThan(seriesValue{key: key, value: value}, largest) {
 				heap.Pop(h)
 				heap.Push(h, seriesValue{
 					key:   key,
