@@ -2435,23 +2435,6 @@ func expectSeriesSet(t *testing.T, expected, result SeriesSet) {
 	}
 }
 
-func checkEqualForTies(t *testing.T, result, expected []float64) {
-	for i := range result {
-		switch i {
-		// at index 0, we have a tie so it can be sometimes NaN
-		case 0:
-			require.True(t, math.IsNaN(result[0]) || result[0] == expected[0],
-				"index 0: expected NaN or %v, got %v", expected[0], result[0])
-		default:
-			if math.IsNaN(expected[i]) {
-				require.True(t, math.IsNaN(result[i]), "index %d: expected NaN, got %v", i, result[i])
-			} else {
-				require.Equal(t, expected[i], result[i], "index %d: expected %v", i, expected[i])
-			}
-		}
-	}
-}
-
 func expectSeriesValues(t *testing.T, result, expected []float64) {
 	require.Len(t, result, len(expected))
 	for i := range result {
