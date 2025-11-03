@@ -12,11 +12,14 @@ type seriesValue struct {
 // Returns -1 if a < b, 0 if a == b, 1 if a > b
 func compareSeriesMapKey(a, b SeriesMapKey) int {
 	for i := range a {
-		// Compare label names first
-		if cmp := strings.Compare(a[i].Name, b[i].Name); cmp != 0 {
-			return cmp
+		// labels should be in the same order so we should really only have to compare value strings here.
+		// doing the resut of comparisons for safety.
+		if cmp := strings.Compare(a[i].Value.str, b[i].Value.str); cmp != 0 {
+			return cmp * -1 // reverse the order b/c we want topk to return alphabetically earlier first
 		}
-		// Then compare values
+		if cmp := strings.Compare(a[i].Name, b[i].Name); cmp != 0 {
+			return cmp * -1
+		}
 		if a[i].Value.typ != b[i].Value.typ {
 			if a[i].Value.typ < b[i].Value.typ {
 				return -1
@@ -28,9 +31,6 @@ func compareSeriesMapKey(a, b SeriesMapKey) int {
 				return -1
 			}
 			return 1
-		}
-		if cmp := strings.Compare(a[i].Value.str, b[i].Value.str); cmp != 0 {
-			return cmp
 		}
 	}
 	return 0

@@ -2237,13 +2237,13 @@ func TestTiesInTopK(t *testing.T) {
 	result := processTopK(input, 3, 2)
 
 	// When there are ties, series are selected deterministically using
-	// alphabetical order of labels as the tiebreaker.
+	// alphabetical order of labels as the tiebreaker (alphabetically earlier wins).
 	// At index 0: all have value 10, so "a" and "b" are selected (alphabetically first)
 	// At index 1: top 2 are {a:5, b:4} (c:3 is excluded)
 	// At index 2: top 2 are {b:2, c:3} (a:1 is excluded)
-	expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{math.NaN(), 5, math.NaN()})
+	expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, 5, math.NaN()})
 	expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
-	expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, math.NaN(), 3})
+	expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{math.NaN(), math.NaN(), 3})
 }
 
 func TestTiesInBottomK(t *testing.T) {
@@ -2256,12 +2256,13 @@ func TestTiesInBottomK(t *testing.T) {
 
 	// When there are ties, series are selected deterministically using
 	// alphabetical order of labels as the tiebreaker.
-	// At index 0: all have value 10, so "a" and "b" are selected (alphabetically first)
-	// At index 1: bottom 2 are {b:4, c:3} (a:5 is excluded)
+	// With reversed comparison, bottomk selects alphabetically later series when tied.
+	// At index 0: all have value 10, so "b" and "c" are selected (alphabetically later)
+	// At index 1: bottom 2 are {c:3, b:4} (a:5 is excluded)
 	// At index 2: bottom 2 are {a:1, b:2} (c:3 is excluded)
-	expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, math.NaN(), 1})
+	expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{math.NaN(), math.NaN(), 1})
 	expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
-	expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{math.NaN(), 3, math.NaN()})
+	expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, 3, math.NaN()})
 }
 
 func TestHistogramAggregator(t *testing.T) {

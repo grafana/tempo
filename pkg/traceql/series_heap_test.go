@@ -31,7 +31,7 @@ func TestCompareSeriesMapKey(t *testing.T) {
 			b: SeriesMapKey{
 				{Name: "bbb", Value: NewStaticString("bar").MapKey()},
 			},
-			expected: -1,
+			expected: 1, // reversed: aaa comes before bbb alphabetically, but comparison is reversed
 		},
 		{
 			name: "different label values",
@@ -41,7 +41,7 @@ func TestCompareSeriesMapKey(t *testing.T) {
 			b: SeriesMapKey{
 				{Name: "foo", Value: NewStaticString("bbb").MapKey()},
 			},
-			expected: -1,
+			expected: 1, // reversed: aaa comes before bbb alphabetically, but comparison is reversed
 		},
 		{
 			name: "different types",
@@ -51,7 +51,7 @@ func TestCompareSeriesMapKey(t *testing.T) {
 			b: SeriesMapKey{
 				{Name: "foo", Value: NewStaticString("1").MapKey()},
 			},
-			expected: -1, // int type < string type
+			expected: 1, // reversed: string comparison takes precedence and is reversed
 		},
 	}
 
@@ -100,7 +100,7 @@ func TestDataPointGreaterThan(t *testing.T) {
 			name:     "equal values, a key alphabetically earlier than b",
 			a:        seriesValue{key: keyEarlier, value: 5.0},
 			b:        seriesValue{key: key, value: 5.0},
-			expected: false,
+			expected: true, // reversed: alphabetically earlier key now compares as greater
 		},
 	}
 
@@ -144,7 +144,7 @@ func TestDataPointLessThan(t *testing.T) {
 			name:     "equal values, a key alphabetically earlier than b",
 			a:        seriesValue{key: keyEarlier, value: 5.0},
 			b:        seriesValue{key: key, value: 5.0},
-			expected: true,
+			expected: false, // reversed: alphabetically earlier key now compares as greater, not less
 		},
 	}
 
