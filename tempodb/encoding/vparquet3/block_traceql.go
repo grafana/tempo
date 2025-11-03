@@ -1635,7 +1635,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, primaryIter parquetque
 			// = nil ?
 			if isNotExistSearch {
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(entry.columnPath, pred, entry.columnPath))
+				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
 				continue
 			}
 
