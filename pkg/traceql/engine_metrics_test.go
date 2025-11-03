@@ -2236,13 +2236,14 @@ func TestTiesInTopK(t *testing.T) {
 	})
 	result := processTopK(input, 3, 2)
 
-	// because of ties, we can have different result at index 0
-	// "a" can be [10, 5, NaN] OR [NaN, 5, NaN]
-	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
-	// "c" can be [10, NaN, 3] OR [NaN, NaN, 3]
-	checkEqualForTies(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, 5, math.NaN()})
-	checkEqualForTies(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
-	checkEqualForTies(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, math.NaN(), 3})
+	// When there are ties, series are selected deterministically using
+	// alphabetical order of labels as the tiebreaker.
+	// At index 0: all have value 10, so "a" and "b" are selected (alphabetically first)
+	// At index 1: top 2 are {a:5, b:4} (c:3 is excluded)
+	// At index 2: top 2 are {b:2, c:3} (a:1 is excluded)
+	expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, 5, math.NaN()})
+	expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
+	expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{math.NaN(), math.NaN(), 3})
 }
 
 func TestTiesInBottomK(t *testing.T) {
@@ -2253,13 +2254,14 @@ func TestTiesInBottomK(t *testing.T) {
 	})
 	result := processBottomK(input, 3, 2)
 
-	// because of ties, we can have different result at index 0
-	// "a" can be [10, NaN, 1] OR [NaN, NaN, 1]
-	// "b" can be [10, 4, 2] OR [NaN, 4, 2]
-	// "c" can be [10, 3, NaN] OR [NaN, 3, NaN]
-	checkEqualForTies(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, math.NaN(), 1})
-	checkEqualForTies(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
-	checkEqualForTies(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{10, 3, math.NaN()})
+	// When there are ties, series are selected deterministically using
+	// alphabetical order of labels as the tiebreaker.
+	// At index 0: all have value 10, so "a" and "b" are selected (alphabetically first)
+	// At index 1: bottom 2 are {b:4, c:3} (a:5 is excluded)
+	// At index 2: bottom 2 are {a:1, b:2} (c:3 is excluded)
+	expectSeriesValues(t, result[LabelsFromArgs("label", "a").MapKey()].Values, []float64{10, math.NaN(), 1})
+	expectSeriesValues(t, result[LabelsFromArgs("label", "b").MapKey()].Values, []float64{10, 4, 2})
+	expectSeriesValues(t, result[LabelsFromArgs("label", "c").MapKey()].Values, []float64{math.NaN(), 3, math.NaN()})
 }
 
 func TestHistogramAggregator(t *testing.T) {
@@ -2446,6 +2448,17 @@ func checkEqualForTies(t *testing.T, result, expected []float64) {
 			} else {
 				require.Equal(t, expected[i], result[i], "index %d: expected %v", i, expected[i])
 			}
+		}
+	}
+}
+
+func expectSeriesValues(t *testing.T, result, expected []float64) {
+	require.Len(t, result, len(expected))
+	for i := range result {
+		if math.IsNaN(expected[i]) {
+			require.True(t, math.IsNaN(result[i]), "index %d: expected NaN, got %v", i, result[i])
+		} else {
+			require.Equal(t, expected[i], result[i], "index %d: expected %v, got %v", i, expected[i], result[i])
 		}
 	}
 }
