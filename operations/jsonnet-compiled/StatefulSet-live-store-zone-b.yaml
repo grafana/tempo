@@ -19,6 +19,7 @@ metadata:
   namespace: tracing
 spec:
   podManagementPolicy: Parallel
+  replicas: 0
   selector:
     matchLabels:
       name: live-store-zone-b

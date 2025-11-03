@@ -106,7 +106,6 @@ func TestFetchTagNames(t *testing.T) {
 		},
 	}
 
-	strPtr := func(s string) *string { return &s }
 	tr := &Trace{
 		TraceID:         test.ValidTraceID(nil),
 		RootServiceName: "tr",
@@ -120,7 +119,7 @@ func TestFetchTagNames(t *testing.T) {
 						{Key: "resource-same", Value: []string{"foo"}},
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: strPtr("dedicated-01"),
+						String01: []string{"dedicated-01"},
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -143,7 +142,7 @@ func TestFetchTagNames(t *testing.T) {
 									{Key: "span-same", Value: []string{"foo"}},     // generic
 								},
 								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-01-01"),
+									String01: []string{"dedicated-01-01"},
 								},
 								Events: []Event{
 									{
@@ -170,7 +169,7 @@ func TestFetchTagNames(t *testing.T) {
 									{Key: "generic-01-02", Value: []string{"foo"}}, // generic
 								},
 								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-01-02"),
+									String01: []string{"dedicated-01-02"},
 								},
 							},
 						},
@@ -185,7 +184,7 @@ func TestFetchTagNames(t *testing.T) {
 						{Key: "resource-same", Value: []string{"foo"}},
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: strPtr("dedicated-02"),
+						String01: []string{"dedicated-02"},
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -208,7 +207,7 @@ func TestFetchTagNames(t *testing.T) {
 									{Key: "span-same", Value: []string{"foo"}},     // generic
 								},
 								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-02-01"),
+									String01: []string{"dedicated-02-01"},
 								},
 								Events: []Event{
 									{

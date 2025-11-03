@@ -43,6 +43,7 @@ type TelemetryBuilder struct {
 	KafkaReceiverRecordsDelay                metric.Float64Histogram
 	KafkaReceiverUnmarshalFailedLogRecords   metric.Int64Counter
 	KafkaReceiverUnmarshalFailedMetricPoints metric.Int64Counter
+	KafkaReceiverUnmarshalFailedProfiles     metric.Int64Counter
 	KafkaReceiverUnmarshalFailedSpans        metric.Int64Counter
 }
 
@@ -77,13 +78,13 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	var err, errs error
 	builder.KafkaBrokerClosed, err = builder.meter.Int64Counter(
 		"otelcol_kafka_broker_closed",
-		metric.WithDescription("The total number of connections closed."),
+		metric.WithDescription("The total number of connections closed. [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaBrokerConnects, err = builder.meter.Int64Counter(
 		"otelcol_kafka_broker_connects",
-		metric.WithDescription("The total number of connections opened."),
+		metric.WithDescription("The total number of connections opened. [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
@@ -95,26 +96,26 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	errs = errors.Join(errs, err)
 	builder.KafkaBrokerThrottlingLatency, err = builder.meter.Float64Histogram(
 		"otelcol_kafka_broker_throttling_latency",
-		metric.WithDescription("The throttling latency in seconds imposed by the broker when receiving records."),
+		metric.WithDescription("The throttling latency in seconds imposed by the broker when receiving records. [development]"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries([]float64{0, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100}...),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverBytes, err = builder.meter.Int64Counter(
 		"otelcol_kafka_receiver_bytes",
-		metric.WithDescription("The size in bytes of received records seen by the broker."),
+		metric.WithDescription("The size in bytes of received records seen by the broker. [development]"),
 		metric.WithUnit("By"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverBytesUncompressed, err = builder.meter.Int64Counter(
 		"otelcol_kafka_receiver_bytes_uncompressed",
-		metric.WithDescription("The uncompressed size in bytes of received records seen by the client."),
+		metric.WithDescription("The uncompressed size in bytes of received records seen by the client. [development]"),
 		metric.WithUnit("By"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverCurrentOffset, err = builder.meter.Int64Gauge(
 		"otelcol_kafka_receiver_current_offset",
-		metric.WithDescription("Current message offset"),
+		metric.WithDescription("Current message offset [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
@@ -132,57 +133,63 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverOffsetLag, err = builder.meter.Int64Gauge(
 		"otelcol_kafka_receiver_offset_lag",
-		metric.WithDescription("Current offset lag"),
+		metric.WithDescription("Current offset lag [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverPartitionClose, err = builder.meter.Int64Counter(
 		"otelcol_kafka_receiver_partition_close",
-		metric.WithDescription("Number of finished partitions"),
+		metric.WithDescription("Number of finished partitions [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverPartitionStart, err = builder.meter.Int64Counter(
 		"otelcol_kafka_receiver_partition_start",
-		metric.WithDescription("Number of started partitions"),
+		metric.WithDescription("Number of started partitions [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverReadLatency, err = builder.meter.Float64Histogram(
 		"otelcol_kafka_receiver_read_latency",
-		metric.WithDescription("The time it took in seconds to receive a batch of records."),
+		metric.WithDescription("The time it took in seconds to receive a batch of records. [development]"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries([]float64{0, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100}...),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverRecords, err = builder.meter.Int64Counter(
 		"otelcol_kafka_receiver_records",
-		metric.WithDescription("The number of received records."),
+		metric.WithDescription("The number of received records. [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverRecordsDelay, err = builder.meter.Float64Histogram(
 		"otelcol_kafka_receiver_records_delay",
-		metric.WithDescription("The time in seconds between producing and receiving a batch of records."),
+		metric.WithDescription("The time in seconds between producing and receiving a batch of records. [development]"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries([]float64{0, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000}...),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverUnmarshalFailedLogRecords, err = builder.meter.Int64Counter(
 		"otelcol_kafka_receiver_unmarshal_failed_log_records",
-		metric.WithDescription("Number of log records failed to be unmarshaled"),
+		metric.WithDescription("Number of log records failed to be unmarshaled [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverUnmarshalFailedMetricPoints, err = builder.meter.Int64Counter(
 		"otelcol_kafka_receiver_unmarshal_failed_metric_points",
-		metric.WithDescription("Number of metric points failed to be unmarshaled"),
+		metric.WithDescription("Number of metric points failed to be unmarshaled [development]"),
+		metric.WithUnit("1"),
+	)
+	errs = errors.Join(errs, err)
+	builder.KafkaReceiverUnmarshalFailedProfiles, err = builder.meter.Int64Counter(
+		"otelcol_kafka_receiver_unmarshal_failed_profiles",
+		metric.WithDescription("Number of profiles failed to be unmarshaled [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
 	builder.KafkaReceiverUnmarshalFailedSpans, err = builder.meter.Int64Counter(
 		"otelcol_kafka_receiver_unmarshal_failed_spans",
-		metric.WithDescription("Number of spans failed to be unmarshaled"),
+		metric.WithDescription("Number of spans failed to be unmarshaled [development]"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)

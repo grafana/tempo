@@ -68,3 +68,4 @@ ingest:
 querier:
   frontend_worker:
     frontend_address: query-frontend:9095
+  query_live_store: true
