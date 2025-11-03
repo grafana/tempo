@@ -682,7 +682,8 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		return NewStaticBool(static.Type != TypeNil), nil
 	}
 	if o.Op == OpNotExists {
-		return NewStaticBool(static.Type == TypeNil), nil
+		staticNilString := NewStaticString("nil")
+		return NewStaticBool(static.Equals(&staticNilString)), nil
 	}
 
 	return NewStaticNil(), fmt.Errorf("UnaryOperation has invalid operator %v", o.Op)

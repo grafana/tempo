@@ -1662,7 +1662,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, primaryIter parquetque
 			// = nil ?
 			if isNotExistSearch {
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, c.ColumnPath))
+				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
 				continue
 			}
 
@@ -1682,7 +1682,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, primaryIter parquetque
 		// check attr not exists
 		if isNotExistSearch {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, common.MakeNilAttrColumnName(traceql.AttributeScopeSpan, cond.Attribute.Name)))
+			iters = append(iters, makeNilIter(columnPathSpanAttrKey, pred, cond.Attribute.Name))
 			continue
 		}
 
@@ -1805,6 +1805,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, spanIterator parqu
 	}
 
 	for _, cond := range conditions {
+		isNotExistSearch := len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists
 
 		// Well-known selector?
 		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
@@ -1819,13 +1820,13 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, spanIterator parqu
 			if entry.columnPath == columnPathResourceServiceName && cond.Op == traceql.OpNotExists {
 				// well known attr with default of "" instead of nil
 				pred := parquetquery.NewStringEqualPredicate([]byte(""))
-				iters = append(iters, makeIter(entry.columnPath, pred, entry.columnPath))
+				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
 				continue
 			}
 
-			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			if isNotExistSearch {
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(entry.columnPath, pred, entry.columnPath))
+				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
 				continue
 			}
 
@@ -1849,9 +1850,9 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, spanIterator parqu
 			}
 
 			// = nil ?
-			if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			if isNotExistSearch {
 				pred := parquetquery.NewNilValuePredicate()
-				iters = append(iters, makeIter(c.ColumnPath, pred, c.ColumnPath))
+				iters = append(iters, makeIter(c.ColumnPath, pred, cond.Attribute.Name))
 				continue
 			}
 
@@ -1869,9 +1870,9 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, spanIterator parqu
 		}
 
 		// generic attr does not exist?
-		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+		if isNotExistSearch {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
-			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, common.MakeNilAttrColumnName(traceql.AttributeScopeResource, cond.Attribute.Name)))
+			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, cond.Attribute.Name))
 			continue
 		}
 
