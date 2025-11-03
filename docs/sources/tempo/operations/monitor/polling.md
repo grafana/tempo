@@ -19,7 +19,7 @@ The remaining components will only read the tenant index, and fall back to a ful
 
 For both the read and write of the tenant index, the update is performed once each `blocklist_poll` duration.
 
-The index is written in two formats: both a gzip'ed JSON located at `/<tenant>/index.json.gz` and a zstd compressed proto encoded object located at `/<tenant/index.pb.zst`. Only the proto object is read, falling back to the JSON if the proto does not exist, which should only happen as part of the transition to the new format. These indexes contain an entry for every block and compacted block for the tenant.
+The index is written in two formats: both a `gzip` compressed JSON located at `/<tenant>/index.json.gz` and a zstd compressed proto encoded object located at `/<tenant/index.pb.zst`. Only the proto object is read, falling back to the JSON if the proto does not exist, which should only happen as part of the transition to the new format. These indexes contain an entry for every block and compacted block for the tenant.
 
 Due to this behavior, a given poller will always have an out-of-date blocklist.
 During normal operation, the index will be stale by at most twice the configured `blocklist_poll`. An index which is out of date by greater than the `blocklist_poll` duration and will affect which blocks are queryable, and poller configuration adjustments may need to be made in order to keep up with the size of the blocklist.
