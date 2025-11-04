@@ -368,7 +368,7 @@ func createDistinctSpanIterator(
 			}
 
 			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
+			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -389,7 +389,7 @@ func createDistinctSpanIterator(
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -467,7 +467,7 @@ func createDistinctAttributeIterator(
 		var keyIter, valIter parquetquery.Iterator
 
 		switch cond.Operands[0].Type {
-		case traceql.TypeString:
+		case traceql.TypeString, traceql.TypeStringArray:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -475,7 +475,7 @@ func createDistinctAttributeIterator(
 			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
 			valIter = makeIter(strPath, pred, selectAs("string", cond.Attribute))
 
-		case traceql.TypeInt:
+		case traceql.TypeInt, traceql.TypeIntArray:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -483,7 +483,7 @@ func createDistinctAttributeIterator(
 			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
 			valIter = makeIter(intPath, pred, selectAs("int", cond.Attribute))
 
-		case traceql.TypeFloat:
+		case traceql.TypeFloat, traceql.TypeFloatArray:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -491,7 +491,7 @@ func createDistinctAttributeIterator(
 			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
 			valIter = makeIter(floatPath, pred, selectAs("float", cond.Attribute))
 
-		case traceql.TypeBoolean:
+		case traceql.TypeBoolean, traceql.TypeBooleanArray:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -616,7 +616,7 @@ func createDistinctResourceIterator(
 			}
 
 			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
+			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -640,7 +640,7 @@ func createDistinctResourceIterator(
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
