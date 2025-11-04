@@ -5,6 +5,8 @@
 * [FEATURE] Add `tempo_metrics_generator_registry_active_series_demand_estimate` that estimates metrics-generator active series demand even when the active series limit is reached [#5710](https://github.com/grafana/tempo/pull/5710) (@carles-grafana)
 * [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605) (@davidham)
 * [FEATURE] New block encoding vParquet5-preview3 replacing well-known attributes with dedicated column defaults. This format is in development and breaking changes are expected before final release. [#5696](https://github.com/grafana/tempo/pull/5696) (@stoewer)
+* [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605)
+* [FEATURE] Add query_end_cutoff setting to clamp near-“now” queries (default 30s) for consistent Tempo results [#5682](https://github.com/grafana/tempo/pull/5682) (@javiermolinar)
 * [FEATURE] New block encoding vParquet5-preview4 with array support for dedicated columns. This is a preview, breaking changes are expected. [#5760](https://github.com/grafana/tempo/pull/5760) (@stoewer)
 * [FEATURE] Add SSE-C encryption support to S3 backend [#5789](https://github.com/grafana/tempo/pull/5789) (@steffsas)
 * [ENHANCEMENT] docs: Add explicit notes about authentication [#5735](https://github.com/grafana/tempo/pull/5735) (@electron0zero)
