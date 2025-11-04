@@ -433,24 +433,26 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		case OpLessEqual:
 			return NewStaticBool(strings.Compare(lhsS, rhsS) <= 0), nil
 		case OpRegex:
-			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, true)
+			if len(o.compiledExpressions) == 0 {
+				compiled, err := regexp.NewRegexp([]string{rhsS}, true)
 				if err != nil {
 					return NewStaticNil(), err
 				}
+				o.compiledExpressions = append(o.compiledExpressions, compiled)
 			}
 
-			matched := o.compiledExpression.MatchString(lhsS)
+			matched := o.compiledExpressions[0].MatchString(lhsS)
 			return NewStaticBool(matched), err
 		case OpNotRegex:
-			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, false)
+			if len(o.compiledExpressions) == 0 {
+				compiled, err := regexp.NewRegexp([]string{rhsS}, false)
 				if err != nil {
 					return NewStaticNil(), err
 				}
+				o.compiledExpressions = append(o.compiledExpressions, compiled)
 			}
 
-			matched := o.compiledExpression.MatchString(lhsS)
+			matched := o.compiledExpressions[0].MatchString(lhsS)
 			return NewStaticBool(matched), err
 		default:
 		}
@@ -568,9 +570,19 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 				elemOp.LHS, elemOp.RHS = elemOp.RHS, elemOp.LHS
 			}
 
+			// reuses the compiled regex if it's already been compiled
+			if len(o.compiledExpressions) >= elemCount {
+				elemOp.compiledExpressions = []*regexp.Regexp{o.compiledExpressions[elemCount-1]}
+			}
+
 			res, err := elemOp.execute(span)
 			if err != nil {
 				return NewStaticNil(), err
+			}
+
+			// save compiled regex if it wasn't already saved and compiled regex for previous elements exist
+			if len(elemOp.compiledExpressions) == 1 && len(o.compiledExpressions) == elemCount-1 {
+				o.compiledExpressions = append(o.compiledExpressions, elemOp.compiledExpressions[0])
 			}
 
 			match, ok := res.Bool()
