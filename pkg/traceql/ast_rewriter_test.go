@@ -189,18 +189,18 @@ func TestFieldExpressionRewriter_VisitOrder(t *testing.T) {
 // requireMatchingFieldExpression compares field expressions for equality, without descending into subexpressions
 func requireMatchingFieldExpression(t *testing.T, a, b FieldExpression) {
 	t.Helper()
-	switch a := a.(type) {
+	switch opA := a.(type) {
 	case *BinaryOperation:
-		if b, ok := b.(*BinaryOperation); ok {
-			require.Equal(t, a.Op, b.Op)
+		if opB, ok := b.(*BinaryOperation); ok {
+			require.Equal(t, opA.Op, opB.Op)
 		} else {
-			require.Fail(t, "expected BinaryOperation, got %T", b)
+			require.Fail(t, "expected BinaryOperation, got %T", opB)
 		}
 	case *UnaryOperation:
-		if b, ok := b.(*UnaryOperation); ok {
-			require.Equal(t, a.Op, b.Op)
+		if opB, ok := b.(*UnaryOperation); ok {
+			require.Equal(t, opA.Op, opB.Op)
 		} else {
-			require.Fail(t, "expected BinaryOperation, got %T", b)
+			require.Fail(t, "expected BinaryOperation, got %T", opB)
 		}
 	default:
 		require.Equal(t, a, b)
