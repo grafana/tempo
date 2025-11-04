@@ -2565,8 +2565,6 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return nil, nil
 	}
 
-
-
 	switch operands[0].Type {
 	case traceql.TypeString:
 		s := operands[0].EncodeToString(false)
