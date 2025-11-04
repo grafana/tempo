@@ -1,5 +1,5 @@
 ---
-title: Learn about Trace structure and TraceQL
+title: Learn about trace structure and TraceQL
 menuTitle: Learn about trace structure and TraceQL
 description: Learn about trace structure and TraceQL queries.
 weight: 250
@@ -8,7 +8,7 @@ keywords:
   - TraceQL
 ---
 
-# Learn aboutTrace structure and TraceQL
+# Learn about trace structure and TraceQL
 
 [//]: # "Shared content for best practices for traces"
 [//]: # "This content is located in /tempo/docs/sources/shared/trace-structure.md"
