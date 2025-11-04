@@ -22,6 +22,7 @@
 * [ENHANCEMENT] Add metric for tracking added latency to write requests [#5781](https://github.com/grafana/tempo/pull/5781) (@mapno)
 * [ENHANCEMENT] Improve error message when overrides fail to parse [#5787](https://github.com/grafana/tempo/pull/5787) (@mapno)
 * [ENHANCEMENT] Increase weight for heavy TraceQL queries [#5782](https://github.com/grafana/tempo/pull/5782) (@ruslan-mikhailov)
+* [ENHANCEMENT] Add TraceQL support for nonexistential attribute queries [#4950](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
 * [ENHANCEMENT] Add partition ownership metric to live-store [#5815](https://github.com/grafana/tempo/pull/5815) (@javiermolinar, @mapno)
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
