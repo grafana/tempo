@@ -1576,9 +1576,24 @@ func TestParseRewrites(t *testing.T) {
 			want:  "{ .attr = `foo` }",
 		},
 		{
-			name:  "query with rewrite",
+			name:  "query with rewrite OR",
 			query: "{ .attr = `foo` || .attr = `bar` } | rate()",
 			want:  "{ .attr = [`foo`, `bar`] } | rate()",
+		},
+		{
+			name:  "query with rewrite AND",
+			query: "{ .attr != `foo` && .attr != `bar` }",
+			want:  "{ .attr != [`foo`, `bar`] }",
+		},
+		{
+			name:  "query with rewrite OR regex",
+			query: "{ .attr =~ `foo` || .attr =~ `bar` }",
+			want:  "{ .attr =~ [`foo`, `bar`] }",
+		},
+		{
+			name:  "query with rewrite AND regex",
+			query: "{ .attr !~ `foo` && .attr !~ `bar` }",
+			want:  "{ .attr !~ [`foo`, `bar`] }",
 		},
 		{
 			name:  "skip rewrites hint",
