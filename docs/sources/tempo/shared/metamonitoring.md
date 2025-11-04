@@ -189,7 +189,7 @@ The ‘Tempo Operational’ dashboard shows read (query) information:
 The rules and alerts need to be installed into your Mimir or Prometheus instance.
 To do this in Prometheus, refer to the [recording rules](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/) and [alerting rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/) documentation.
 
-For Mimir, you can use `[mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/)` to upload [rule](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/#rules) and [alert](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/#alertmanager) configuration.
+For Mimir, you can use [mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/) to upload [rule](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/#rules) and [alert](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/#alertmanager) configuration.
 Using a default installation of Mimir used as the metrics store for the Alloy configuration, you might run the following:
 
 ```bash
