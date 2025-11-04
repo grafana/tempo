@@ -87,12 +87,8 @@ func (r *PartitionReader) running(ctx context.Context) error {
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
 
-	r.wg.Go(func() {
-		r.commitLoop(ctx)
-	})
-	r.wg.Go(func() {
-		r.ownershipLoop(ctx)
-	})
+	r.wg.Go(func() { r.commitLoop(ctx) })
+	r.metrics.ownedPartition.WithLabelValues(strconv.Itoa(int(r.partitionID)), r.consumerGroup).Set(1)
 
 	for ctx.Err() == nil {
 		fetches := r.client.PollFetches(ctx)
@@ -127,6 +123,8 @@ func (r *PartitionReader) storeOffsetForCommit(ctx context.Context, offset *kadm
 func (r *PartitionReader) stop(error) error {
 	level.Info(r.logger).Log("msg", "stopping partition reader")
 
+	r.metrics.ownedPartition.WithLabelValues(strconv.Itoa(int(r.partitionID)), r.consumerGroup).Set(0)
+
 	r.wg.Wait()
 
 	r.client.Close()
@@ -157,25 +155,6 @@ func (r *PartitionReader) commitLoop(ctx context.Context) {
 			return
 		case <-t.C:
 			lastCommittedOffset = r.commitHighWatermark(ctx, lastCommittedOffset)
-		}
-	}
-}
-
-func (r *PartitionReader) ownershipLoop(ctx context.Context) {
-	t := time.NewTicker(15 * time.Second)
-	defer t.Stop()
-
-	partition := fmt.Sprint(r.partitionID)
-	// initial set
-	r.metrics.ownedPartition.WithLabelValues(partition, r.consumerGroup).Set(1)
-
-	for {
-		select {
-		case <-ctx.Done():
-			r.metrics.ownedPartition.WithLabelValues(partition, r.consumerGroup).Set(0)
-			return
-		case <-t.C:
-			r.metrics.ownedPartition.WithLabelValues(partition, r.consumerGroup).Set(1)
 		}
 	}
 }
