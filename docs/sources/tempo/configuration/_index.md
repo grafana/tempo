@@ -57,6 +57,10 @@ The Tempo configuration options include:
 
 Additionally, you can review [TLS](network/tls/) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
+{{< admonition type="tip" >}}
+Throughout the configuration, the `duration` values support the following units: `ns`, `us` (or `µs`), `ms`, `s`, `m`, `h`. See the [Go time package](https://pkg.go.dev/time#ParseDuration) for more information.
+{{< /admonition >}}
+
 ## Use environment variables in the configuration
 
 You can use environment variable references in the configuration file to set values that need to be configurable during deployment. To do this, pass `-config.expand-env=true` and use:
