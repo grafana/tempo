@@ -473,7 +473,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		ingesterRings,
 		t.cfg.GeneratorClient,
 		t.readRings[ringMetricsGenerator],
-		t.cfg.PartitionRingLiveStore,
+		t.cfg.Querier.QueryLiveStore,
 		t.cfg.LiveStoreClient,
 		t.readRings[ringLiveStore],
 		t.partitionRing,

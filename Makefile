@@ -356,6 +356,10 @@ docs-test:
 	docker pull ${DOCS_IMAGE}
 	docker run -v ${PWD}/docs/sources/tempo:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
 
+.PHONY: generate-manifest
+generate-manifest:  ## Generate manifest.md file
+	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
+
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
 jsonnet: tools-image ## Generate jsonnet
@@ -374,10 +378,6 @@ tempo-mixin: tools-image
 
 tempo-mixin-check: tools-image
 	$(TOOLS_CMD) make -C operations/tempo-mixin check
-
-.PHONY: generate-manifest
-generate-manifest:
-	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
 
 # Import fragments
 include build/tools.mk

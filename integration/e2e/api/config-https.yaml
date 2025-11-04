@@ -1,6 +1,13 @@
 target: all
 stream_over_http_enabled: true
 
+query_frontend:
+  query_end_cutoff: -1m # Include all recent data
+  search:
+    ingester_shards: 1
+  metrics:
+    max_response_series: 3
+
 server:
   http_listen_port: 3200
   tls_cipher_suites: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384

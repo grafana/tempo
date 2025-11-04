@@ -4,27 +4,25 @@ menuTitle: Use polling to monitor backend status
 description: Monitor backend status for Tempo using polling.
 weight: 30
 aliases:
-- /docs/tempo/operations/polling
-- ../polling
+  - /docs/tempo/operations/polling
+  - ../polling
 ---
 
 # Use polling to monitor the backend status
 
-Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are currently
-only two components that need this knowledge and, consequently, only two that poll the backend: compactors
-and queriers.
+Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are only
+only a few components that need this knowledge: compactors, schedulers, workers, queriers and query-frontends.
 
-To reduce calls to the backend, only a small subset of compactors actually list all blocks and build
-what's called a tenant index.
-The tenant index is a gzip'ed JSON file located at `/<tenant>/index.json.gz` containing
-an entry for every block and compacted block for that tenant.
-This is done once every `blocklist_poll` duration.
+To reduce calls to the backend, only the compactors and workers perform a "full" poll against the backend and update the tenant indexes. This process lists all blocks for a given tenant and determines their state. The ring is used to split the work of writing the tenant indexes for all tenants.
 
-All other compactors and all queriers then rely on downloading this file, unzipping it and using the contained list.
-Again, this is done once every `blocklist_poll` duration.
+The remaining components will only read the tenant index, and fall back to a full poll only if the index is too far out of date.
 
-Due to this behavior, a given compactor or querier often have an out-of-date blocklist.
-During normal operation, it will stale by at most twice the configured `blocklist_poll`.
+For both the read and write of the tenant index, the update is performed once each `blocklist_poll` duration.
+
+The index is written in two formats: both a `gzip` compressed JSON located at `/<tenant>/index.json.gz` and a zstd compressed proto encoded object located at `/<tenant/index.pb.zst`. Only the proto object is read, falling back to the JSON if the proto does not exist, which should only happen as part of the transition to the new format. These indexes contain an entry for every block and compacted block for the tenant.
+
+Due to this behavior, a given poller will always have an out-of-date blocklist.
+During normal operation, the index will be stale by at most twice the configured `blocklist_poll`. An index which is out of date by greater than the `blocklist_poll` duration and will affect which blocks are queryable, and poller configuration adjustments may need to be made in order to keep up with the size of the blocklist.
 
 {{< admonition type="note" >}}
 For details about configuring polling, refer to [polling configuration](../../../configuration/polling/).

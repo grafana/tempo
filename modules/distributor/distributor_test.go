@@ -2442,3 +2442,87 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 	_, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
 	require.NoError(t, err)
 }
+
+func TestRetryInfoEnabled(t *testing.T) {
+	tests := []struct {
+		name                          string
+		retryAfterOnResourceExhausted time.Duration
+		overrideRetryInfoEnabled      bool
+		expectedResult                bool
+		expectError                   bool
+		ctx                           context.Context
+	}{
+		{
+			name:                          "cluster level disabled with 0",
+			retryAfterOnResourceExhausted: 0,
+			overrideRetryInfoEnabled:      false,
+			expectedResult:                false, // disabled because retryAfterOnResourceExhausted is <= 0
+			expectError:                   false,
+			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
+		},
+		{
+			name:                          "cluster level disabled with -1",
+			retryAfterOnResourceExhausted: -1,
+			overrideRetryInfoEnabled:      false,
+			expectedResult:                false, // disabled because retryAfterOnResourceExhausted is <= 0
+			expectError:                   false,
+			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
+		},
+		{
+			name:                          "cluster level disabled, override enabled",
+			retryAfterOnResourceExhausted: 0,
+			overrideRetryInfoEnabled:      true,
+			expectedResult:                false, // cluster level disable, it takes priority over overrides
+			expectError:                   false,
+			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
+		},
+		{
+			name:                          "cluster level enabled, override disabled",
+			retryAfterOnResourceExhausted: 10 * time.Second,
+			overrideRetryInfoEnabled:      false,
+			expectedResult:                false, // disabled because disabled in overrides
+			expectError:                   false,
+			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
+		},
+		{
+			name:                          "cluster level enabled, override enabled",
+			retryAfterOnResourceExhausted: 10 * time.Second,
+			overrideRetryInfoEnabled:      true,
+			expectedResult:                true, // should be true because overrides is enabled.
+			expectError:                   false,
+			ctx:                           user.InjectOrgID(context.Background(), "test-tenant"),
+		},
+		{
+			name:                          "error extracting org ID",
+			retryAfterOnResourceExhausted: 10 * time.Second,
+			overrideRetryInfoEnabled:      false,
+			expectedResult:                false, // invalid org id, return false
+			expectError:                   true,
+			ctx:                           context.Background(), // no org ID
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			limits := overrides.Config{
+				Defaults: overrides.Overrides{
+					Ingestion: overrides.IngestionOverrides{
+						RetryInfoEnabled: tt.overrideRetryInfoEnabled,
+					},
+				},
+			}
+
+			d, _ := prepare(t, limits, nil)
+			d.cfg.RetryAfterOnResourceExhausted = tt.retryAfterOnResourceExhausted
+
+			result, err := d.RetryInfoEnabled(tt.ctx)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedResult, result)
+			}
+		})
+	}
+}

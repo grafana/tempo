@@ -83,7 +83,7 @@ func (r *RetryableError) Error() string {
 // https://github.com/open-telemetry/opentelemetry-collector/blob/d7b49df5d9e922df6ce56ad4b64ee1c79f9dbdbe/exporter/otlpexporter/otlp.go#L172
 // The otel collector considers some errors retryable and other not. "ResourceExhausted" is special in that it requires a
 // RetryInfo detail along with the error code
-func wrapErrorIfRetryable(err error, dur *durationpb.Duration) error {
+func wrapErrorIfRetryable(err error, dur *durationpb.Duration, enabled bool) error {
 	if dur == nil {
 		return err
 	}
@@ -94,6 +94,11 @@ func wrapErrorIfRetryable(err error, dur *durationpb.Duration) error {
 	}
 
 	if s.Code() != codes.ResourceExhausted {
+		return err
+	}
+
+	// If retryInfo is NOT enabled, return error as is.
+	if !enabled {
 		return err
 	}
 
@@ -110,6 +115,7 @@ func wrapErrorIfRetryable(err error, dur *durationpb.Duration) error {
 
 type TracesPusher interface {
 	PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error)
+	RetryInfoEnabled(ctx context.Context) (bool, error)
 }
 
 var _ services.Service = (*receiversShim)(nil)
@@ -269,8 +275,8 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		case "jaeger":
 			jaegerRecvCfg := cfg.(*jaegerreceiver.Config)
 
-			if jaegerRecvCfg.ThriftHTTP != nil {
-				jaegerRecvCfg.ThriftHTTP.IncludeMetadata = true
+			if jaegerRecvCfg.ThriftHTTP.HasValue() {
+				jaegerRecvCfg.ThriftHTTP.Get().IncludeMetadata = true
 			}
 
 			cfg = jaegerRecvCfg
@@ -351,7 +357,11 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	if err != nil {
 		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		err = wrapErrorIfRetryable(err, r.retryDelay)
+		retryInfoEnabled, e := r.pusher.RetryInfoEnabled(ctx)
+		if e != nil {
+			return e
+		}
+		err = wrapErrorIfRetryable(err, r.retryDelay, retryInfoEnabled)
 	}
 
 	return err

@@ -102,15 +102,8 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 }
 
 func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
-	lb := labels.NewBuilder(getLabelsFromValueCombo(labelValueCombo))
-	for name, value := range c.externalLabels {
-		lb.Set(name, value)
-	}
-
-	lb.Set(labels.MetricName, c.metricName)
-
 	return &counterSeries{
-		labels:      lb.Labels(),
+		labels:      getSeriesLabels(c.metricName, labelValueCombo, c.externalLabels),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),

@@ -10,9 +10,9 @@ import (
 )
 
 // UnmarshalYAML implements yaml.Unmarshaler.
-func (j *AttributeNameValueType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (j *AttributeNameValueType) UnmarshalYAML(unmarshal func(any) error) error {
 	var v struct {
-		Value interface{}
+		Value any
 	}
 	if err := unmarshal(&v.Value); err != nil {
 		return err
@@ -32,8 +32,8 @@ func (j *AttributeNameValueType) UnmarshalYAML(unmarshal func(interface{}) error
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler.
-func (j *NameStringValuePair) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var raw map[string]interface{}
+func (j *NameStringValuePair) UnmarshalYAML(unmarshal func(any) error) error {
+	var raw map[string]any
 	if err := unmarshal(&raw); err != nil {
 		return err
 	}
@@ -59,8 +59,8 @@ func (j *NameStringValuePair) UnmarshalYAML(unmarshal func(interface{}) error) e
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler.
-func (j *LanguageSpecificInstrumentation) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var raw map[string]interface{}
+func (j *LanguageSpecificInstrumentation) UnmarshalYAML(unmarshal func(any) error) error {
+	var raw map[string]any
 	if err := unmarshal(&raw); err != nil {
 		return err
 	}

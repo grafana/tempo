@@ -215,3 +215,12 @@ func (t *testHistogram) countActiveSeries() int {
 // countSeriesDemand is a stub to satisfy optional estimator usage in registry.
 // Test registry does not track estimates, so return 0.
 func (t *testHistogram) countSeriesDemand() int { return 0 }
+
+func getLabelsFromValueCombo(labelValueCombo *LabelValueCombo) labels.Labels {
+	lbls := labelValueCombo.getLabelPair()
+	lb := make([]labels.Label, len(lbls.names))
+	for i := range lbls.names {
+		lb[i] = labels.Label{Name: lbls.names[i], Value: lbls.values[i]}
+	}
+	return labels.New(lb...)
+}
