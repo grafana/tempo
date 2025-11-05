@@ -11,8 +11,6 @@ import (
 )
 
 const (
-	Name = "span-metrics"
-
 	dimService       = "service"
 	dimSpanName      = "span_name"
 	dimSpanKind      = "span_kind"

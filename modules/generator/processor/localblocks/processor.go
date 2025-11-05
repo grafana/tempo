@@ -145,7 +145,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 }
 
 func (*Processor) Name() string {
-	return Name
+	return gen.LocalBlocksName
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {

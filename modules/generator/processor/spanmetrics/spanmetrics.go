@@ -2,11 +2,10 @@ package spanmetrics
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"time"
-	"unicode/utf8"
 
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/util/strutil"
 
@@ -29,8 +28,6 @@ const (
 	targetInfo            = "traces_target_info"
 )
 
-type sanitizeFn func(string) string
-
 type Processor struct {
 	Cfg Config
 
@@ -52,35 +49,27 @@ type Processor struct {
 }
 
 func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
-	labels := make([]string, 0, 4+len(cfg.Dimensions))
+	var intrinsicLabels []string
 
 	if cfg.IntrinsicDimensions.Service {
-		labels = append(labels, dimService)
+		intrinsicLabels = append(intrinsicLabels, dimService)
 	}
 	if cfg.IntrinsicDimensions.SpanName {
-		labels = append(labels, dimSpanName)
+		intrinsicLabels = append(intrinsicLabels, dimSpanName)
 	}
 	if cfg.IntrinsicDimensions.SpanKind {
-		labels = append(labels, dimSpanKind)
+		intrinsicLabels = append(intrinsicLabels, dimSpanKind)
 	}
 	if cfg.IntrinsicDimensions.StatusCode {
-		labels = append(labels, dimStatusCode)
+		intrinsicLabels = append(intrinsicLabels, dimStatusCode)
 	}
 	if cfg.IntrinsicDimensions.StatusMessage {
-		labels = append(labels, dimStatusMessage)
+		intrinsicLabels = append(intrinsicLabels, dimStatusMessage)
 	}
 
 	c := reclaimable.New(strutil.SanitizeLabelName, 10000)
 
-	for _, d := range cfg.Dimensions {
-		labels = append(labels, sanitizeLabelNameWithCollisions(d, intrinsicLabels, c.Get))
-	}
-
-	for _, m := range cfg.DimensionMappings {
-		labels = append(labels, sanitizeLabelNameWithCollisions(m.Name, intrinsicLabels, c.Get))
-	}
-
-	err := validateUTF8LabelValues(labels)
+	labels, err := validation.ValidateDimensions(cfg.Dimensions, intrinsicLabels, cfg.DimensionMappings, c.Get)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +105,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 }
 
 func (p *Processor) Name() string {
-	return Name
+	return gen.SpanMetricsName
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
@@ -213,7 +202,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	err := validateUTF8LabelValues(labelValues)
+	err := validation.ValidateUTF8LabelValues(labelValues)
 	if err != nil {
 		p.invalidUTF8Counter.Inc()
 		return
@@ -261,16 +250,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func validateUTF8LabelValues(v []string) error {
-	for _, value := range v {
-		if !utf8.ValidString(value) {
-			return fmt.Errorf("invalid utf8 string: %s", value)
-		}
-	}
-	return nil
-}
-
-func getTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude []string, sanitizeFn sanitizeFn) {
+func getTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude []string, sanitizeFn validation.SanitizeFn) {
 	// TODO allocate with known length, or take new params for existing buffers
 	*keys = (*keys)[:0]
 	*values = (*values)[:0]
@@ -284,20 +264,9 @@ func getTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 			continue
 		}
 		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !slices.Contains(exclude, key) {
-			*keys = append(*keys, sanitizeLabelNameWithCollisions(key, targetInfoIntrinsicLabels, sanitizeFn))
+			*keys = append(*keys, validation.SanitizeLabelNameWithCollisions(key, targetInfoIntrinsicLabels, sanitizeFn))
 			value := tempo_util.StringifyAnyValue(attrs.Value)
 			*values = append(*values, value)
 		}
 	}
-}
-
-func sanitizeLabelNameWithCollisions(name string, dimensions []string, sansanitizeFn sanitizeFn) string {
-	sanitized := sansanitizeFn(name)
-
-	// check if same label as intrinsics
-	if slices.Contains(dimensions, sanitized) {
-		return "__" + sanitized
-	}
-
-	return sanitized
 }

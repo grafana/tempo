@@ -150,7 +150,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) ge
 }
 
 func (p *Processor) Name() string {
-	return Name
+	return gen.ServiceGraphsName
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {

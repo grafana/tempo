@@ -4,14 +4,13 @@ import (
 	"context"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 const (
-	Name = "host-info"
-
 	hostInfoMetric     = "traces_host_info"
 	hostIdentifierAttr = "grafana_host_id"
 	hostSourceAttr     = "host_source"
@@ -28,7 +27,7 @@ type Processor struct {
 }
 
 func (p *Processor) Name() string {
-	return Name
+	return processor.HostInfoName
 }
 
 func (p *Processor) findHostIdentifier(resourceSpans *v1.ResourceSpans) (string, string) {

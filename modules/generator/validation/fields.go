@@ -5,22 +5,20 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/localblocks"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/prometheus/common/model"
 )
 
 var SupportedProcessors = []string{
-	servicegraphs.Name,
-	spanmetrics.Name,
-	localblocks.Name,
-	spanmetrics.Count.String(),
-	spanmetrics.Latency.String(),
-	spanmetrics.Size.String(),
-	hostinfo.Name,
+	processor.ServiceGraphsName,
+	processor.SpanMetricsName,
+	processor.LocalBlocksName,
+	processor.SpanMetricsCountName,
+	processor.SpanMetricsLatencyName,
+	processor.SpanMetricsSizeName,
+	processor.HostInfoName,
 }
 
 var SupportedProcessorsSet map[string]struct{}
@@ -78,4 +76,21 @@ func ValidateHostInfoMetricName(metricName string) error {
 		return errors.New("metric_name is invalid")
 	}
 	return nil
+}
+
+func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimensionMappings []sharedconfig.DimensionMappings, sanitizeFn SanitizeFn) ([]string, error) {
+	var labels []string
+	for _, d := range dimensions {
+		labels = append(labels, SanitizeLabelNameWithCollisions(d, intrinsicDimensions, sanitizeFn))
+	}
+
+	for _, m := range dimensionMappings {
+		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicDimensions, sanitizeFn))
+	}
+
+	err := ValidateUTF8LabelValues(labels)
+	if err != nil {
+		return nil, err
+	}
+	return labels, nil
 }
