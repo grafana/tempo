@@ -49,27 +49,27 @@ type Processor struct {
 }
 
 func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
-	var intrinsicLabels []string
+	var configuredIntrinsicDimensions []string
 
 	if cfg.IntrinsicDimensions.Service {
-		intrinsicLabels = append(intrinsicLabels, dimService)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimService)
 	}
 	if cfg.IntrinsicDimensions.SpanName {
-		intrinsicLabels = append(intrinsicLabels, dimSpanName)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimSpanName)
 	}
 	if cfg.IntrinsicDimensions.SpanKind {
-		intrinsicLabels = append(intrinsicLabels, dimSpanKind)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimSpanKind)
 	}
 	if cfg.IntrinsicDimensions.StatusCode {
-		intrinsicLabels = append(intrinsicLabels, dimStatusCode)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimStatusCode)
 	}
 	if cfg.IntrinsicDimensions.StatusMessage {
-		intrinsicLabels = append(intrinsicLabels, dimStatusMessage)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimStatusMessage)
 	}
 
 	c := reclaimable.New(strutil.SanitizeLabelName, 10000)
 
-	labels, err := validation.ValidateDimensions(cfg.Dimensions, intrinsicLabels, cfg.DimensionMappings, c.Get)
+	labels, err := validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
 	if err != nil {
 		return nil, err
 	}
@@ -191,12 +191,12 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	// add job label only if job is not blank and target_info is enabled
 	if jobName != "" && p.Cfg.EnableTargetInfo {
-		labels = append(labels, dimJob)
+		labels = append(labels, gen.DimJob)
 		labelValues = append(labelValues, jobName)
 	}
 	//  add instance label only if instance is not blank and enabled and target_info is enabled
 	if instanceID != "" && p.Cfg.EnableTargetInfo && p.Cfg.EnableInstanceLabel {
-		labels = append(labels, dimInstance)
+		labels = append(labels, gen.DimInstance)
 		labelValues = append(labelValues, instanceID)
 	}
 
@@ -231,12 +231,12 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 		// add joblabel to target info only if job is not blank
 		if jobName != "" {
-			targetInfoLabels = append(targetInfoLabels, dimJob)
+			targetInfoLabels = append(targetInfoLabels, gen.DimJob)
 			targetInfoLabelValues = append(targetInfoLabelValues, jobName)
 		}
 		//  add instance label to target info only if instance is not blank and enabled
 		if instanceID != "" && p.Cfg.EnableInstanceLabel {
-			targetInfoLabels = append(targetInfoLabels, dimInstance)
+			targetInfoLabels = append(targetInfoLabels, gen.DimInstance)
 			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
 		}
 

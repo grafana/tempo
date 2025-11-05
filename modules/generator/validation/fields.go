@@ -21,6 +21,8 @@ var SupportedProcessors = []string{
 	processor.HostInfoName,
 }
 
+var SupportedIntrinsicDimensions = []string{processor.DimService, processor.DimSpanName, processor.DimSpanKind, processor.DimStatusCode, processor.DimStatusMessage}
+
 var SupportedProcessorsSet map[string]struct{}
 
 var SupportedHistogramModesSet map[string]struct{}
@@ -80,12 +82,13 @@ func ValidateHostInfoMetricName(metricName string) error {
 
 func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimensionMappings []sharedconfig.DimensionMappings, sanitizeFn SanitizeFn) ([]string, error) {
 	var labels []string
+	labels = append(labels, intrinsicDimensions...)
 	for _, d := range dimensions {
-		labels = append(labels, SanitizeLabelNameWithCollisions(d, intrinsicDimensions, sanitizeFn))
+		labels = append(labels, SanitizeLabelNameWithCollisions(d, SupportedIntrinsicDimensions, sanitizeFn))
 	}
 
 	for _, m := range dimensionMappings {
-		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicDimensions, sanitizeFn))
+		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, SupportedIntrinsicDimensions, sanitizeFn))
 	}
 
 	err := ValidateUTF8LabelValues(labels)
