@@ -72,7 +72,7 @@ func ValidateHostInfoHostIdentifiers(hostIdentifiers []string) error {
 }
 
 func ValidateHostInfoMetricName(metricName string) error {
-	if !model.IsValidMetricName(model.LabelValue(metricName)) {
+	if !model.UTF8Validation.IsValidLabelName(metricName) {
 		return errors.New("metric_name is invalid")
 	}
 	return nil
