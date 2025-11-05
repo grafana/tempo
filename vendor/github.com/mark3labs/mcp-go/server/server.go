@@ -2,10 +2,12 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"sync"
@@ -42,6 +44,9 @@ type ToolHandlerFunc func(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 // ToolHandlerMiddleware is a middleware function that wraps a ToolHandlerFunc.
 type ToolHandlerMiddleware func(ToolHandlerFunc) ToolHandlerFunc
+
+// ResourceHandlerMiddleware is a middleware function that wraps a ResourceHandlerFunc.
+type ResourceHandlerMiddleware func(ResourceHandlerFunc) ResourceHandlerFunc
 
 // ToolFilterFunc is a function that filters tools based on context, typically using session information.
 type ToolFilterFunc func(ctx context.Context, tools []mcp.Tool) []mcp.Tool
@@ -121,14 +126,7 @@ func (e *requestError) ToJSONRPCError() mcp.JSONRPCError {
 	return mcp.JSONRPCError{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(e.id),
-		Error: struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-			Data    any    `json:"data,omitempty"`
-		}{
-			Code:    e.code,
-			Message: e.err.Error(),
-		},
+		Error:   mcp.NewJSONRPCErrorDetails(e.code, e.err.Error(), nil),
 	}
 }
 
@@ -144,28 +142,30 @@ type NotificationHandlerFunc func(ctx context.Context, notification mcp.JSONRPCN
 type MCPServer struct {
 	// Separate mutexes for different resource types
 	resourcesMu            sync.RWMutex
+	resourceMiddlewareMu   sync.RWMutex
 	promptsMu              sync.RWMutex
 	toolsMu                sync.RWMutex
-	middlewareMu           sync.RWMutex
+	toolMiddlewareMu       sync.RWMutex
 	notificationHandlersMu sync.RWMutex
 	capabilitiesMu         sync.RWMutex
 	toolFiltersMu          sync.RWMutex
 
-	name                   string
-	version                string
-	instructions           string
-	resources              map[string]resourceEntry
-	resourceTemplates      map[string]resourceTemplateEntry
-	prompts                map[string]mcp.Prompt
-	promptHandlers         map[string]PromptHandlerFunc
-	tools                  map[string]ServerTool
-	toolHandlerMiddlewares []ToolHandlerMiddleware
-	toolFilters            []ToolFilterFunc
-	notificationHandlers   map[string]NotificationHandlerFunc
-	capabilities           serverCapabilities
-	paginationLimit        *int
-	sessions               sync.Map
-	hooks                  *Hooks
+	name                       string
+	version                    string
+	instructions               string
+	resources                  map[string]resourceEntry
+	resourceTemplates          map[string]resourceTemplateEntry
+	prompts                    map[string]mcp.Prompt
+	promptHandlers             map[string]PromptHandlerFunc
+	tools                      map[string]ServerTool
+	toolHandlerMiddlewares     []ToolHandlerMiddleware
+	resourceHandlerMiddlewares []ResourceHandlerMiddleware
+	toolFilters                []ToolFilterFunc
+	notificationHandlers       map[string]NotificationHandlerFunc
+	capabilities               serverCapabilities
+	paginationLimit            *int
+	sessions                   sync.Map
+	hooks                      *Hooks
 }
 
 // WithPaginationLimit sets the pagination limit for the server.
@@ -177,11 +177,13 @@ func WithPaginationLimit(limit int) ServerOption {
 
 // serverCapabilities defines the supported features of the MCP server
 type serverCapabilities struct {
-	tools     *toolCapabilities
-	resources *resourceCapabilities
-	prompts   *promptCapabilities
-	logging   *bool
-	sampling  *bool
+	tools       *toolCapabilities
+	resources   *resourceCapabilities
+	prompts     *promptCapabilities
+	logging     *bool
+	sampling    *bool
+	elicitation *bool
+	roots       *bool
 }
 
 // resourceCapabilities defines the supported resource-related features
@@ -217,10 +219,40 @@ func WithToolHandlerMiddleware(
 	toolHandlerMiddleware ToolHandlerMiddleware,
 ) ServerOption {
 	return func(s *MCPServer) {
-		s.middlewareMu.Lock()
+		s.toolMiddlewareMu.Lock()
 		s.toolHandlerMiddlewares = append(s.toolHandlerMiddlewares, toolHandlerMiddleware)
-		s.middlewareMu.Unlock()
+		s.toolMiddlewareMu.Unlock()
 	}
+}
+
+// WithResourceHandlerMiddleware allows adding a middleware for the
+// resource handler call chain.
+func WithResourceHandlerMiddleware(
+	resourceHandlerMiddleware ResourceHandlerMiddleware,
+) ServerOption {
+	return func(s *MCPServer) {
+		s.resourceMiddlewareMu.Lock()
+		s.resourceHandlerMiddlewares = append(s.resourceHandlerMiddlewares, resourceHandlerMiddleware)
+		s.resourceMiddlewareMu.Unlock()
+	}
+}
+
+// WithResourceRecovery adds a middleware that recovers from panics in resource handlers.
+func WithResourceRecovery() ServerOption {
+	return WithResourceHandlerMiddleware(func(next ResourceHandlerFunc) ResourceHandlerFunc {
+		return func(ctx context.Context, request mcp.ReadResourceRequest) (result []mcp.ResourceContents, err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					err = fmt.Errorf(
+						"panic recovered in %s resource handler: %v",
+						request.Params.URI,
+						r,
+					)
+				}
+			}()
+			return next(ctx, request)
+		}
+	})
 }
 
 // WithToolFilter adds a filter function that will be applied to tools before they are returned in list_tools
@@ -288,6 +320,20 @@ func WithLogging() ServerOption {
 	}
 }
 
+// WithElicitation enables elicitation capabilities for the server
+func WithElicitation() ServerOption {
+	return func(s *MCPServer) {
+		s.capabilities.elicitation = mcp.ToBoolPtr(true)
+	}
+}
+
+// WithRoots returns a ServerOption that enables the roots capability on the MCPServer
+func WithRoots() ServerOption {
+	return func(s *MCPServer) {
+		s.capabilities.roots = mcp.ToBoolPtr(true)
+	}
+}
+
 // WithInstructions sets the server instructions for the client returned in the initialize response
 func WithInstructions(instructions string) ServerOption {
 	return func(s *MCPServer) {
@@ -301,14 +347,16 @@ func NewMCPServer(
 	opts ...ServerOption,
 ) *MCPServer {
 	s := &MCPServer{
-		resources:            make(map[string]resourceEntry),
-		resourceTemplates:    make(map[string]resourceTemplateEntry),
-		prompts:              make(map[string]mcp.Prompt),
-		promptHandlers:       make(map[string]PromptHandlerFunc),
-		tools:                make(map[string]ServerTool),
-		name:                 name,
-		version:              version,
-		notificationHandlers: make(map[string]NotificationHandlerFunc),
+		resources:                  make(map[string]resourceEntry),
+		resourceTemplates:          make(map[string]resourceTemplateEntry),
+		prompts:                    make(map[string]mcp.Prompt),
+		promptHandlers:             make(map[string]PromptHandlerFunc),
+		tools:                      make(map[string]ServerTool),
+		toolHandlerMiddlewares:     make([]ToolHandlerMiddleware, 0),
+		resourceHandlerMiddlewares: make([]ResourceHandlerMiddleware, 0),
+		name:                       name,
+		version:                    version,
+		notificationHandlers:       make(map[string]NotificationHandlerFunc),
 		capabilities: serverCapabilities{
 			tools:     nil,
 			resources: nil,
@@ -363,6 +411,24 @@ func (s *MCPServer) AddResource(
 	handler ResourceHandlerFunc,
 ) {
 	s.AddResources(ServerResource{Resource: resource, Handler: handler})
+}
+
+// DeleteResources removes resources from the server
+func (s *MCPServer) DeleteResources(uris ...string) {
+	s.resourcesMu.Lock()
+	var exists bool
+	for _, uri := range uris {
+		if _, ok := s.resources[uri]; ok {
+			delete(s.resources, uri)
+			exists = true
+		}
+	}
+	s.resourcesMu.Unlock()
+
+	// Send notification to all initialized sessions if listChanged capability is enabled and we actually remove a resource
+	if exists && s.capabilities.resources != nil && s.capabilities.resources.listChanged {
+		s.SendNotificationToAllClients(mcp.MethodNotificationResourcesListChanged, nil)
+	}
 }
 
 // RemoveResource removes a resource from the server
@@ -537,6 +603,30 @@ func (s *MCPServer) SetTools(tools ...ServerTool) {
 	s.AddTools(tools...)
 }
 
+// GetTool retrieves the specified tool
+func (s *MCPServer) GetTool(toolName string) *ServerTool {
+	s.toolsMu.RLock()
+	defer s.toolsMu.RUnlock()
+	if tool, ok := s.tools[toolName]; ok {
+		return &tool
+	}
+	return nil
+}
+
+func (s *MCPServer) ListTools() map[string]*ServerTool {
+	s.toolsMu.RLock()
+	defer s.toolsMu.RUnlock()
+	if len(s.tools) == 0 {
+		return nil
+	}
+	// Create a copy to prevent external modification
+	toolsCopy := make(map[string]*ServerTool, len(s.tools))
+	for name, tool := range s.tools {
+		toolsCopy[name] = &tool
+	}
+	return toolsCopy
+}
+
 // DeleteTools removes tools from the server
 func (s *MCPServer) DeleteTools(names ...string) {
 	s.toolsMu.Lock()
@@ -608,6 +698,14 @@ func (s *MCPServer) handleInitialize(
 
 	if s.capabilities.sampling != nil && *s.capabilities.sampling {
 		capabilities.Sampling = &struct{}{}
+	}
+
+	if s.capabilities.elicitation != nil && *s.capabilities.elicitation {
+		capabilities.Elicitation = &struct{}{}
+	}
+
+	if s.capabilities.roots != nil && *s.capabilities.roots {
+		capabilities.Roots = &struct{}{}
 	}
 
 	result := mcp.InitializeResult{
@@ -742,21 +840,36 @@ func (s *MCPServer) handleListResources(
 	request mcp.ListResourcesRequest,
 ) (*mcp.ListResourcesResult, *requestError) {
 	s.resourcesMu.RLock()
-	resources := make([]mcp.Resource, 0, len(s.resources))
-	for _, entry := range s.resources {
-		resources = append(resources, entry.resource)
+	resourceMap := make(map[string]mcp.Resource, len(s.resources))
+	for uri, entry := range s.resources {
+		resourceMap[uri] = entry.resource
 	}
 	s.resourcesMu.RUnlock()
 
+	// Check if there are session-specific resources
+	session := ClientSessionFromContext(ctx)
+	if session != nil {
+		if sessionWithResources, ok := session.(SessionWithResources); ok {
+			if sessionResources := sessionWithResources.GetSessionResources(); sessionResources != nil {
+				// Merge session-specific resources with global resources
+				for uri, serverResource := range sessionResources {
+					resourceMap[uri] = serverResource.Resource
+				}
+			}
+		}
+	}
+
 	// Sort the resources by name
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].Name < resources[j].Name
+	resourcesList := slices.SortedFunc(maps.Values(resourceMap), func(a, b mcp.Resource) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
+
+	// Apply pagination
 	resourcesToReturn, nextCursor, err := listByPagination(
 		ctx,
 		s,
 		request.Params.Cursor,
-		resources,
+		resourcesList,
 	)
 	if err != nil {
 		return nil, &requestError{
@@ -779,12 +892,34 @@ func (s *MCPServer) handleListResourceTemplates(
 	id any,
 	request mcp.ListResourceTemplatesRequest,
 ) (*mcp.ListResourceTemplatesResult, *requestError) {
+	// Get global templates
 	s.resourcesMu.RLock()
-	templates := make([]mcp.ResourceTemplate, 0, len(s.resourceTemplates))
-	for _, entry := range s.resourceTemplates {
-		templates = append(templates, entry.template)
+	templateMap := make(map[string]mcp.ResourceTemplate, len(s.resourceTemplates))
+	for uri, entry := range s.resourceTemplates {
+		templateMap[uri] = entry.template
 	}
 	s.resourcesMu.RUnlock()
+
+	// Check if there are session-specific resource templates
+	session := ClientSessionFromContext(ctx)
+	if session != nil {
+		if sessionWithTemplates, ok := session.(SessionWithResourceTemplates); ok {
+			if sessionTemplates := sessionWithTemplates.GetSessionResourceTemplates(); sessionTemplates != nil {
+				// Merge session-specific templates with global templates
+				// Session templates override global ones
+				for uriTemplate, serverTemplate := range sessionTemplates {
+					templateMap[uriTemplate] = serverTemplate.Template
+				}
+			}
+		}
+	}
+
+	// Convert map to slice for sorting and pagination
+	templates := make([]mcp.ResourceTemplate, 0, len(templateMap))
+	for _, template := range templateMap {
+		templates = append(templates, template)
+	}
+
 	sort.Slice(templates, func(i, j int) bool {
 		return templates[i].Name < templates[j].Name
 	})
@@ -816,11 +951,47 @@ func (s *MCPServer) handleReadResource(
 	request mcp.ReadResourceRequest,
 ) (*mcp.ReadResourceResult, *requestError) {
 	s.resourcesMu.RLock()
+
+	// First check session-specific resources
+	var handler ResourceHandlerFunc
+	var ok bool
+
+	session := ClientSessionFromContext(ctx)
+	if session != nil {
+		if sessionWithResources, typeAssertOk := session.(SessionWithResources); typeAssertOk {
+			if sessionResources := sessionWithResources.GetSessionResources(); sessionResources != nil {
+				resource, sessionOk := sessionResources[request.Params.URI]
+				if sessionOk {
+					handler = resource.Handler
+					ok = true
+				}
+			}
+		}
+	}
+
+	// If not found in session tools, check global tools
+	if !ok {
+		globalResource, rok := s.resources[request.Params.URI]
+		if rok {
+			handler = globalResource.handler
+			ok = true
+		}
+	}
+
 	// First try direct resource handlers
-	if entry, ok := s.resources[request.Params.URI]; ok {
-		handler := entry.handler
+	if ok {
 		s.resourcesMu.RUnlock()
-		contents, err := handler(ctx, request)
+
+		finalHandler := handler
+		s.resourceMiddlewareMu.RLock()
+		mw := s.resourceHandlerMiddlewares
+		// Apply middlewares in reverse order
+		for i := len(mw) - 1; i >= 0; i-- {
+			finalHandler = mw[i](finalHandler)
+		}
+		s.resourceMiddlewareMu.RUnlock()
+
+		contents, err := finalHandler(ctx, request)
 		if err != nil {
 			return nil, &requestError{
 				id:   id,
@@ -834,24 +1005,64 @@ func (s *MCPServer) handleReadResource(
 	// If no direct handler found, try matching against templates
 	var matchedHandler ResourceTemplateHandlerFunc
 	var matched bool
-	for _, entry := range s.resourceTemplates {
-		template := entry.template
-		if matchesTemplate(request.Params.URI, template.URITemplate) {
-			matchedHandler = entry.handler
-			matched = true
-			matchedVars := template.URITemplate.Match(request.Params.URI)
-			// Convert matched variables to a map
-			request.Params.Arguments = make(map[string]any, len(matchedVars))
-			for name, value := range matchedVars {
-				request.Params.Arguments[name] = value.V
+
+	// First check session templates if available
+	if session != nil {
+		if sessionWithTemplates, ok := session.(SessionWithResourceTemplates); ok {
+			sessionTemplates := sessionWithTemplates.GetSessionResourceTemplates()
+			for _, serverTemplate := range sessionTemplates {
+				if serverTemplate.Template.URITemplate == nil {
+					continue
+				}
+				if matchesTemplate(request.Params.URI, serverTemplate.Template.URITemplate) {
+					matchedHandler = serverTemplate.Handler
+					matched = true
+					matchedVars := serverTemplate.Template.URITemplate.Match(request.Params.URI)
+					// Convert matched variables to a map
+					request.Params.Arguments = make(map[string]any, len(matchedVars))
+					for name, value := range matchedVars {
+						request.Params.Arguments[name] = value.V
+					}
+					break
+				}
 			}
-			break
+		}
+	}
+
+	// If not found in session templates, check global templates
+	if !matched {
+		for _, entry := range s.resourceTemplates {
+			template := entry.template
+			if template.URITemplate == nil {
+				continue
+			}
+			if matchesTemplate(request.Params.URI, template.URITemplate) {
+				matchedHandler = entry.handler
+				matched = true
+				matchedVars := template.URITemplate.Match(request.Params.URI)
+				// Convert matched variables to a map
+				request.Params.Arguments = make(map[string]any, len(matchedVars))
+				for name, value := range matchedVars {
+					request.Params.Arguments[name] = value.V
+				}
+				break
+			}
 		}
 	}
 	s.resourcesMu.RUnlock()
 
 	if matched {
-		contents, err := matchedHandler(ctx, request)
+		// If a match is found, then we have a final handler and can
+		// apply middlewares.
+		s.resourceMiddlewareMu.RLock()
+		finalHandler := ResourceHandlerFunc(matchedHandler)
+		mw := s.resourceHandlerMiddlewares
+		// Apply middlewares in reverse order
+		for i := len(mw) - 1; i >= 0; i-- {
+			finalHandler = mw[i](finalHandler)
+		}
+		s.resourceMiddlewareMu.RUnlock()
+		contents, err := finalHandler(ctx, request)
 		if err != nil {
 			return nil, &requestError{
 				id:   id,
@@ -1074,14 +1285,14 @@ func (s *MCPServer) handleToolCall(
 
 	finalHandler := tool.Handler
 
-	s.middlewareMu.RLock()
+	s.toolMiddlewareMu.RLock()
 	mw := s.toolHandlerMiddlewares
 
 	// Apply middlewares in reverse order
 	for i := len(mw) - 1; i >= 0; i-- {
 		finalHandler = mw[i](finalHandler)
 	}
-	s.middlewareMu.RUnlock()
+	s.toolMiddlewareMu.RUnlock()
 
 	result, err := finalHandler(ctx, request)
 	if err != nil {
@@ -1110,11 +1321,7 @@ func (s *MCPServer) handleNotification(
 }
 
 func createResponse(id any, result any) mcp.JSONRPCMessage {
-	return mcp.JSONRPCResponse{
-		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      mcp.NewRequestId(id),
-		Result:  result,
-	}
+	return mcp.NewJSONRPCResultResponse(mcp.NewRequestId(id), result)
 }
 
 func createErrorResponse(
@@ -1125,13 +1332,6 @@ func createErrorResponse(
 	return mcp.JSONRPCError{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(id),
-		Error: struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-			Data    any    `json:"data,omitempty"`
-		}{
-			Code:    code,
-			Message: message,
-		},
+		Error:   mcp.NewJSONRPCErrorDetails(code, message, nil),
 	}
 }
