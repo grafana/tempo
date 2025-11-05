@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"maps"
 	"math"
 	"math/rand"
 	"net"
@@ -359,6 +360,8 @@ func (cl *Client) OptValues(opt any) []any {
 		return []any{cfg.decompressor}
 	case namefn(ConsumeRegex):
 		return []any{cfg.regex}
+	case namefn(ConsumeExcludeTopics):
+		return []any{slices.Collect(maps.Keys(cfg.excludeTopics))}
 	case namefn(ConsumeStartOffset):
 		return []any{cfg.startOffset}
 	case namefn(ConsumeResetOffset):
@@ -425,6 +428,8 @@ func (cl *Client) OptValues(opt any) []any {
 		return []any{cfg.onLost}
 	case namefn(OnPartitionsRevoked):
 		return []any{cfg.onRevoked}
+	case namefn(OnPartitionsCallbackBlocked):
+		return []any{cfg.onBlocked}
 	case namefn(RebalanceTimeout):
 		return []any{cfg.rebalanceTimeout}
 	case namefn(RequireStableFetchOffsets):
@@ -1296,7 +1301,10 @@ func (cl *Client) Request(ctx context.Context, req kmsg.Request) (kmsg.Response,
 // set to true. This function cannot be used to request topics via TopicID;
 // the direct topic name must be used.
 func (cl *Client) RequestCachedMetadata(ctx context.Context, req *kmsg.MetadataRequest, limit time.Duration) (*kmsg.MetadataResponse, error) {
-	topics := make([]string, 0, len(req.Topics))
+	var topics []string
+	if req.Topics != nil {
+		topics = make([]string, 0, len(req.Topics))
+	}
 	for _, t := range req.Topics {
 		if t.Topic == nil || *t.Topic == "" {
 			return nil, errors.New("unable to request cached metadata with a missing topic name (topic IDs are not supported)")
@@ -2652,7 +2660,7 @@ func (cl *Client) maybeDeleteMappedMetadata(unknownTopic bool, ts ...string) (sh
 func (cl *Client) fetchCachedMappedMetadata(limit time.Duration, ts ...string) (map[string]mappedMetadataTopic, []string) {
 	cl.mappedMetaMu.Lock()
 	defer cl.mappedMetaMu.Unlock()
-	if cl.mappedMeta == nil {
+	if len(cl.mappedMeta) == 0 {
 		return nil, ts
 	}
 	cached := make(map[string]mappedMetadataTopic)
@@ -2682,7 +2690,12 @@ func (cl *Client) fetchMappedMetadata(ctx context.Context, topics []string, useC
 	needed := topics
 	if useCache {
 		intoMapped, needed = cl.fetchCachedMappedMetadata(limit, topics...)
-		if len(needed) == 0 {
+		// If intoMapped is nil, we have no cached topics at all and
+		// need to force a metadata load to satisfy broker/controller
+		// aspects of the metadata response. We have either never
+		// issued a metadata request, or the cached data (of no topics)
+		// could be super old. Cache age is only tracked per topic.
+		if intoMapped != nil && len(needed) == 0 {
 			return intoMapped, nil
 		}
 	}
@@ -2690,7 +2703,7 @@ func (cl *Client) fetchMappedMetadata(ctx context.Context, topics []string, useC
 		intoMapped = make(map[string]mappedMetadataTopic)
 	}
 
-	_, _, err := cl.fetchMetadataForTopics(ctx, false, needed, intoMapped)
+	_, _, err := cl.fetchMetadataForTopics(ctx, topics == nil, needed, intoMapped)
 	return intoMapped, err
 }
 
