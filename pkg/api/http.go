@@ -127,8 +127,8 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	return ParseSearchRequestWithDefault(r, defaultSpansPerSpanSet)
 }
 
-// ParseSearchRequestWithDefault takes  an http.Request and decodes query params to create a tempopb.SearchRequest
-// using theprovided default value for SpansPerSpanSet when not specifid in the request
+// ParseSearchRequestWithDefault takes an http.Request and decodes query params to create a tempopb.SearchRequest
+// using the provided default value for SpansPerSpanSet when not specified in the request
 func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint32) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:            map[string]string{},
@@ -646,7 +646,7 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	if searchReq.MinDurationMs != 0 {
 		qb.addParam(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
 	}
-	// Always add spsss parameter even if 0 (which means unlimited)
+	// Always add spans_per_span_set parameter even if 0 (which means unlimited)
 	qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
 
 	if len(searchReq.Query) > 0 {
