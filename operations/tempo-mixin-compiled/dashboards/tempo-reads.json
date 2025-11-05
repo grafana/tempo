@@ -489,7 +489,7 @@
 
      ],
      "spaceLength": 10,
-     "span": 6,
+     "span": 4,
      "stack": true,
      "steppedLine": false,
      "targets": [
@@ -574,7 +574,7 @@
 
      ],
      "spaceLength": 10,
-     "span": 6,
+     "span": 4,
      "stack": false,
      "steppedLine": false,
      "targets": [
@@ -645,6 +645,111 @@
        "show": false
       }
      ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 7,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_querier_worker_request_executed_total_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__rate_interval])) by (le,route)) * 1e3",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{route}} 99th",
+       "refId": "A",
+       "step": 10
+      },
+      {
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_querier_worker_request_executed_total_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__rate_interval])) by (le,route)) * 1e3",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{route}} 50th",
+       "refId": "B",
+       "step": 10
+      },
+      {
+       "expr": "sum(rate(tempo_querier_worker_request_executed_total_sum{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__rate_interval])) by (route) * 1e3 / sum(rate(tempo_querier_worker_request_executed_total_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__rate_interval])) by (route)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{route}} Average",
+       "refId": "C",
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Requests Executed",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "ms",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
     }
    ],
    "repeat": null,
@@ -675,7 +780,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 7,
+     "id": 8,
      "legend": {
       "avg": false,
       "current": false,
@@ -760,7 +865,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 8,
+     "id": 9,
      "legend": {
       "avg": false,
       "current": false,
@@ -885,7 +990,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 9,
+     "id": 10,
      "legend": {
       "avg": false,
       "current": false,
@@ -970,7 +1075,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 10,
+     "id": 11,
      "legend": {
       "avg": false,
       "current": false,
@@ -1075,7 +1180,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 11,
+     "id": 12,
      "legend": {
       "avg": false,
       "current": false,
@@ -1160,7 +1265,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 12,
+     "id": 13,
      "legend": {
       "avg": false,
       "current": false,
@@ -1278,7 +1383,7 @@
       ]
      },
      "fill": 10,
-     "id": 13,
+     "id": 14,
      "linewidth": 0,
      "links": [
 
@@ -1336,7 +1441,7 @@
       ]
      },
      "fill": 10,
-     "id": 14,
+     "id": 15,
      "linewidth": 0,
      "links": [
 
@@ -1393,7 +1498,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 15,
+     "id": 16,
      "legend": {
       "avg": false,
       "current": false,
@@ -1478,7 +1583,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 16,
+     "id": 17,
      "legend": {
       "avg": false,
       "current": false,
@@ -1603,7 +1708,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 10,
-     "id": 17,
+     "id": 18,
      "legend": {
       "avg": false,
       "current": false,
@@ -1688,7 +1793,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 18,
+     "id": 19,
      "legend": {
       "avg": false,
       "current": false,

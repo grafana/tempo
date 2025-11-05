@@ -89,7 +89,7 @@ dashboard_utils {
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.querier)),
         )
-      )  
+      )
       .addRow(
         g.row('Compactor')
         .addPanel(
