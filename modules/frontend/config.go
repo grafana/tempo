@@ -88,16 +88,17 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.ResponseConsumers = 10
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
-			QueryBackendAfter:     15 * time.Minute,
-			QueryIngestersUntil:   30 * time.Minute,
-			DefaultLimit:          20,
-			MaxLimit:              0,
-			MaxDuration:           168 * time.Hour, // 1 week
-			ConcurrentRequests:    defaultConcurrentRequests,
-			TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			MostRecentShards:      defaultMostRecentShards,
-			IngesterShards:        3,
-			MaxSpansPerSpanSet:    100,
+			QueryBackendAfter:      15 * time.Minute,
+			QueryIngestersUntil:    30 * time.Minute,
+			DefaultLimit:           20,
+			MaxLimit:               0,
+			MaxDuration:            168 * time.Hour, // 1 week
+			ConcurrentRequests:     defaultConcurrentRequests,
+			TargetBytesPerRequest:  defaultTargetBytesPerRequest,
+			MostRecentShards:       defaultMostRecentShards,
+			IngesterShards:         3,
+			DefaultSpansPerSpanSet: 3,
+			MaxSpansPerSpanSet:     100,
 		},
 		SLO: slo,
 	}

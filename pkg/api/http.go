@@ -124,6 +124,12 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 
 // ParseSearchRequest takes an http.Request and decodes query params to create a tempopb.SearchRequest
 func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
+	return ParseSearchRequestWithDefault(r, defaultSpansPerSpanSet)
+}
+
+// ParseSearchRequestWithDefault takes  an http.Request and decodes query params to create a tempopb.SearchRequest
+// using theprovided default value for SpansPerSpanSet when not specifid in the request
+func ParseSearchRequestWithDefault(r *http.Request, defaultSpansPerSpanSet uint32) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:            map[string]string{},
 		SpansPerSpanSet: defaultSpansPerSpanSet,
@@ -235,8 +241,8 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid spss: %w", err)
 		}
-		if spansPerSpanSet <= 0 {
-			return nil, errors.New("invalid spss: must be a positive number")
+		if spansPerSpanSet < 0 {
+			return nil, errors.New("invalid spss: must be a non-negative number")
 		}
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
 	}
@@ -640,9 +646,8 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	if searchReq.MinDurationMs != 0 {
 		qb.addParam(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
 	}
-	if searchReq.SpansPerSpanSet != 0 {
-		qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
-	}
+	// Always add spsss parameter even if 0 (which means unlimited)
+	qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
 
 	if len(searchReq.Query) > 0 {
 		qb.addParam(urlParamQuery, searchReq.Query)
