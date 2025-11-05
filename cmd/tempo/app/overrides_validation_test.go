@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/forwarder"
-	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -144,7 +144,7 @@ func Test_overridesValidator(t *testing.T) {
 					},
 				},
 			},
-			expErr: fmt.Sprintf("metrics_generator.processor \"span-span\" is not a known processor, valid values: %v", generator.SupportedProcessors),
+			expErr: fmt.Sprintf("metrics_generator.processor \"span-span\" is not a known processor, valid values: %v", validation.SupportedProcessors),
 		},
 		{
 			name: "filter policies",

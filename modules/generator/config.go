@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -144,7 +145,10 @@ func (cfg *ProcessorConfig) Validate() error {
 	if err := cfg.LocalBlocks.Validate(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := cfg.HostInfo.Validate(); err != nil {
+	if err := validation.ValidateHostInfoHostIdentifiers(cfg.HostInfo.HostIdentifiers); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validation.ValidateHostInfoMetricName(cfg.HostInfo.MetricName); err != nil {
 		errs = append(errs, err)
 	}
 

@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -31,16 +32,6 @@ import (
 )
 
 var (
-	SupportedProcessors = []string{
-		servicegraphs.Name,
-		spanmetrics.Name,
-		localblocks.Name,
-		spanmetrics.Count.String(),
-		spanmetrics.Latency.String(),
-		spanmetrics.Size.String(),
-		hostinfo.Name,
-	}
-
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_active_processors",
@@ -307,7 +298,7 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			}
 		default:
 			level.Error(i.logger).Log(
-				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
+				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(validation.SupportedProcessors, ", ")),
 				"processorName", processorName,
 			)
 			err = fmt.Errorf("unknown processor %s", processorName)
@@ -358,7 +349,7 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		}
 	default:
 		level.Error(i.logger).Log(
-			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
+			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(validation.SupportedProcessors, ", ")),
 			"processorName", processorName,
 		)
 		return fmt.Errorf("unknown processor %s", processorName)
@@ -396,7 +387,7 @@ func (i *instance) removeProcessor(processorName string) {
 
 // updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
 func (i *instance) updateProcessorMetrics() {
-	for _, processorName := range SupportedProcessors {
+	for _, processorName := range validation.SupportedProcessors {
 		isPresent := 0.0
 		if _, ok := i.processors[processorName]; ok {
 			isPresent = 1.0
