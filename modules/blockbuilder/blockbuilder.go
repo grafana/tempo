@@ -292,7 +292,7 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 
 		laggiestPartition := ps[0]
 		if laggiestPartition.lastRecordTs.IsZero() {
-			return b.cfg.ConsumeCycleDuration, nil
+			return b.cfg.ConsumeCycleDuration, errors.New("partition has no last record timestamp")
 		}
 
 		lagTime := time.Since(laggiestPartition.lastRecordTs)
@@ -451,7 +451,7 @@ outer:
 		span.AddEvent("no data")
 		// No data means we are caught up
 		ingest.SetPartitionLagSeconds(group, ps.partition, 0)
-		return time.Time{}, commitOffsetAtEnd, nil
+		return time.Now(), commitOffsetAtEnd, nil
 	}
 
 	// Record lag at the end of the consumption
