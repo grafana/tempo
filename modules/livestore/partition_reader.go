@@ -84,11 +84,11 @@ func (r *PartitionReader) running(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch last committed offset: %w", err)
 	}
 
-	r.wg.Add(1)
-	go r.commitLoop(ctx)
-
 	r.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{r.topic: {r.partitionID: offset}})
 	defer r.client.RemoveConsumePartitions(map[string][]int32{r.topic: {r.partitionID}})
+
+	r.wg.Go(func() { r.commitLoop(ctx) })
+	r.metrics.ownedPartition.WithLabelValues(strconv.Itoa(int(r.partitionID)), r.consumerGroup).Set(1)
 
 	for ctx.Err() == nil {
 		fetches := r.client.PollFetches(ctx)
@@ -123,6 +123,8 @@ func (r *PartitionReader) storeOffsetForCommit(ctx context.Context, offset *kadm
 func (r *PartitionReader) stop(error) error {
 	level.Info(r.logger).Log("msg", "stopping partition reader")
 
+	r.metrics.ownedPartition.WithLabelValues(strconv.Itoa(int(r.partitionID)), r.consumerGroup).Set(0)
+
 	r.wg.Wait()
 
 	r.client.Close()
@@ -131,8 +133,6 @@ func (r *PartitionReader) stop(error) error {
 }
 
 func (r *PartitionReader) commitLoop(ctx context.Context) {
-	defer r.wg.Done()
-
 	if r.commitInterval == 0 { // Sync commits
 		return
 	}
@@ -285,6 +285,7 @@ func (r *PartitionReader) commitOffset(ctx context.Context, offset kadm.Offset) 
 type partitionReaderMetrics struct {
 	receiveDelay    prometheus.Histogram
 	recordsPerFetch prometheus.Histogram
+	ownedPartition  *prometheus.GaugeVec
 	kprom           *kprom.Metrics
 }
 
@@ -303,6 +304,12 @@ func newPartitionReaderMetrics(partitionID int32, reg prometheus.Registerer) par
 			Buckets:                     prometheus.ExponentialBuckets(1, 2, 15),
 			NativeHistogramBucketFactor: 1.1,
 		}),
+		ownedPartition: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Subsystem: "live_store",
+			Name:      "partition_owned",
+			Help:      "1 if this consumer currently owns the partition.",
+		}, []string{"partition", "zone"}),
 		kprom: kprom.NewMetrics("tempo_ingest_storage_reader",
 			kprom.Registerer(prometheus.WrapRegistererWith(prometheus.Labels{"partition": strconv.Itoa(int(partitionID))}, reg)),
 			// Do not export the client ID, because we use it to specify options to the backend.

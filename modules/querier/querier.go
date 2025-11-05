@@ -485,7 +485,9 @@ func (q *Querier) forGivenGenerators(ctx context.Context, f forEachGeneratorFn) 
 	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
 	defer span.End()
 
-	if q.queryPartitionRing {
+	recentDataTarget := extractRecentDataTarget(ctx)
+
+	if q.queryPartitionRing || recentDataTarget == "live-store" {
 		rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
 		if err != nil {
 			return nil, fmt.Errorf("error finding partition ring replicas: %w", err)

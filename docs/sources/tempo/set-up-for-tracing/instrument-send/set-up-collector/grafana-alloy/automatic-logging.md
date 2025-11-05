@@ -1,11 +1,12 @@
 ---
-title: 'Automatic logging: Trace discovery through logs'
+title: "Automatic logging: Trace discovery through logs"
 description: Automatic logging provides an easy and fast way of getting trace discovery through logs.
 menuTitle: Automatic logging
 weight: 200
 aliases:
-- ../../../../grafana-alloy/automatic-logging/ # /docs/tempo/next/grafana-alloy/automatic-logging/
-- ../../../../configuration/grafana-alloy/automatic-logging/ # /docs/tempo/latest/configuration/grafana-alloy/automatic-logging/
+  - ../../../../grafana-alloy/automatic-logging/ # /docs/tempo/latest/grafana-alloy/automatic-logging/
+  - ../../../../configuration/grafana-alloy/automatic-logging/ # /docs/tempo/latest/configuration/grafana-alloy/automatic-logging/
+  - ../../../../configuration/grafana-agent/automatic-logging/ # /docs/tempo/latest/configuration/grafana-agent/automatic-logging/
 ---
 
 # Automatic logging: Trace discovery through logs

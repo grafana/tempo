@@ -8,14 +8,13 @@ import (
 	"context"
 	"errors"
 
-	yaml "sigs.k8s.io/yaml/goyaml.v3"
-
 	"go.opentelemetry.io/otel/log"
 	nooplog "go.opentelemetry.io/otel/log/noop"
 	"go.opentelemetry.io/otel/metric"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 const (
@@ -70,7 +69,7 @@ var noopSDK = SDK{
 	loggerProvider: nooplog.LoggerProvider{},
 	meterProvider:  noopmetric.MeterProvider{},
 	tracerProvider: nooptrace.TracerProvider{},
-	shutdown:       func(ctx context.Context) error { return nil },
+	shutdown:       func(context.Context) error { return nil },
 }
 
 // NewSDK creates SDK providers based on the configuration model.

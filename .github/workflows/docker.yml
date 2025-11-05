@@ -62,7 +62,7 @@ jobs:
           docker build -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@13fb504e3bfe323c1188bf244970d94b2d336e86 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@ae92934a14a48b94494dbc06d74a81d47fe08a40 # dockerhub-login-v1.0.1
 
       - name: docker-push
         run: |
@@ -88,7 +88,7 @@ jobs:
           persist-credentials: false
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@13fb504e3bfe323c1188bf244970d94b2d336e86 # dockerhub-login-v1.0.1
+        uses: grafana/shared-workflows/actions/dockerhub-login@ae92934a14a48b94494dbc06d74a81d47fe08a40 # dockerhub-login-v1.0.1
 
       - name: docker-manifest-create-and-push
         run: |
@@ -127,7 +127,7 @@ jobs:
           echo "grafana/tempo-vulture:$(./tools/image-tag)" > tags_for_cd_tempo_vulture
 
       - name: Authenticate to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@b7d33d6a98dc9cf332674c6cdebe92b8bcb05670 # login-to-gar-v0.3.0
+        uses: grafana/shared-workflows/actions/login-to-gar@ae92934a14a48b94494dbc06d74a81d47fe08a40 # login-to-gar-v0.3.0
         id: login-to-gar
         with:
           registry: us-docker.pkg.dev
@@ -135,7 +135,7 @@ jobs:
 
       - name: Get Vault secrets
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@5d7e361bc7e0a183cde8afe9899fb7b596d2659b # get-vault-secrets-v1.2.0
+        uses: grafana/shared-workflows/actions/get-vault-secrets@ae92934a14a48b94494dbc06d74a81d47fe08a40 # get-vault-secrets-v1.2.0
         with:
           export_env: false
           common_secrets: |
@@ -160,17 +160,17 @@ jobs:
             "repo_name": "deployment_tools",
             "update_jsonnet_attribute_configs": [
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo",
                 "jsonnet_value_file": "tags_for_cd_tempo"
               },
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo_query",
                 "jsonnet_value_file": "tags_for_cd_tempo_query"
               },
               {
-                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "file_path": "ksonnet/environments/tempo/dev-us-east-0.tempo-dev-02/images.libsonnet",
                 "jsonnet_key": "tempo_vulture",
                 "jsonnet_value_file": "tags_for_cd_tempo_vulture"
               }

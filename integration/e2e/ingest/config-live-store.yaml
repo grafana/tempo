@@ -7,11 +7,7 @@ server:
 
 query_frontend:
   rf1_after: "2025-01-01T00:00:00Z"
-  search:
-    query_backend_after: 10m
-    query_ingesters_until: 10m
-  metrics:
-    query_backend_after: 10m
+  query_end_cutoff: -5m # Include all recent data
 
 distributor:
   ingester_write_path_enabled: false
@@ -67,8 +63,9 @@ ingest:
   enabled: true
   kafka:
     address: kafka:9092
-    topic:   tempo-ingest
+    topic: tempo-ingest
 
 querier:
   frontend_worker:
     frontend_address: query-frontend:9095
+  query_live_store: true

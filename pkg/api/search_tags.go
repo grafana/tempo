@@ -490,8 +490,12 @@ func BuildSearchTagsRequest(req *http.Request, searchReq *tempopb.SearchTagsRequ
 	}
 
 	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	if searchReq.Start != 0 {
+		qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	}
+	if searchReq.End != 0 {
+		qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	}
 	qb.addParam(urlParamScope, searchReq.Scope)
 	qb.addParam(urlParamQuery, searchReq.Query)
 
@@ -541,8 +545,12 @@ func BuildSearchTagValuesRequest(req *http.Request, searchReq *tempopb.SearchTag
 	}
 
 	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	if searchReq.Start != 0 {
+		qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	}
+	if searchReq.End != 0 {
+		qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	}
 	qb.addParam(urlParamQuery, searchReq.Query)
 
 	req.URL.RawQuery = qb.query()

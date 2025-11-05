@@ -33,6 +33,7 @@ type SearchSharderConfig struct {
 	DefaultLimit          uint32        `yaml:"default_result_limit"`
 	MaxLimit              uint32        `yaml:"max_result_limit"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
+  // QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`

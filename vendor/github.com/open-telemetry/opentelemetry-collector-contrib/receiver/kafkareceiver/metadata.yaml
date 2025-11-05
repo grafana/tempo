@@ -4,11 +4,12 @@ status:
   class: receiver
   stability:
     beta: [metrics, logs, traces]
+    development: [profiles]
   distributions:
-  - core
-  - contrib
+    - core
+    - contrib
   codeowners:
-    active: [pavolloffay, MovieStoreGuy, axw]
+    active: [pavolloffay, MovieStoreGuy, axw, paulojmdias]
 
 # TODO: Update the receiver to pass the tests
 tests:
@@ -19,12 +20,6 @@ tests:
         - github.com/twmb/franz-go/pkg/kfake.(*group).manage
 
 attributes:
-  topic:
-    description: The Kafka topic.
-    type: string
-  partition:
-    description: The Kafka topic partition.
-    type: int
   node_id:
     description: The Kafka node ID.
     type: int
@@ -32,29 +27,39 @@ attributes:
     description: The operation outcome.
     type: string
     enum: [success, failure]
+  partition:
+    description: The Kafka topic partition.
+    type: int
+  topic:
+    description: The Kafka topic.
+    type: string
 
 telemetry:
   metrics:
-    kafka_broker_connects:
-      enabled: true
-      description: The total number of connections opened.
-      extended_documentation: Only produced when franz-go is enabled.
-      optional: true
-      unit: "1"
-      sum:
-        value_type: int
-        monotonic: true
-      attributes: [node_id, outcome]
     kafka_broker_closed:
       enabled: true
       description: The total number of connections closed.
       extended_documentation: Only produced when franz-go is enabled.
       optional: true
+      stability:
+        level: development
       unit: "1"
       sum:
         value_type: int
         monotonic: true
       attributes: [node_id]
+    kafka_broker_connects:
+      enabled: true
+      description: The total number of connections opened.
+      extended_documentation: Only produced when franz-go is enabled.
+      optional: true
+      stability:
+        level: development
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [node_id, outcome]
     kafka_broker_throttling_duration:
       enabled: true
       stability:
@@ -73,11 +78,56 @@ telemetry:
       description: The throttling latency in seconds imposed by the broker when receiving records.
       extended_documentation: Only produced when franz-go is enabled.
       optional: true
+      stability:
+        level: development
       unit: s
       histogram:
         value_type: double
         bucket_boundaries: [0, 0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500, 0.750, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100]
       attributes: [node_id]
+    kafka_receiver_bytes:
+      enabled: true
+      description: The size in bytes of received records seen by the broker.
+      extended_documentation: Only produced when franz-go is enabled.
+      optional: true
+      stability:
+        level: development
+      unit: By
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [node_id, topic, partition, outcome]
+    kafka_receiver_bytes_uncompressed:
+      enabled: true
+      description: The uncompressed size in bytes of received records seen by the client.
+      stability:
+        level: development
+      unit: By
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [node_id, topic, partition, outcome]
+    kafka_receiver_current_offset:
+      enabled: true
+      description: Current message offset
+      stability:
+        level: development
+      unit: "1"
+      gauge:
+        value_type: int
+      attributes: [topic, partition]
+    kafka_receiver_latency:
+      enabled: true
+      stability:
+        level: deprecated
+      description: The time it took in ms to receive a batch of messages.
+      extended_documentation: Only produced when franz-go is enabled. Deprecated in favor of kafka_receiver_read_latency.
+      unit: ms
+      histogram:
+        value_type: int
+      attributes: [node_id, topic, partition, outcome]
+      warnings:
+        if_enabled: This metric is deprecated in favor of kafka_receiver_read_latency and will be removed soon.
     kafka_receiver_messages:
       enabled: true
       stability:
@@ -91,52 +141,53 @@ telemetry:
       attributes: [node_id, topic, partition, outcome]
       warnings:
         if_enabled: This metric is deprecated in favor of kafka_receiver_records and will be removed soon.
-    kafka_receiver_records:
+    kafka_receiver_offset_lag:
       enabled: true
-      description: The number of received records.
+      description: Current offset lag
+      stability:
+        level: development
+      unit: "1"
+      gauge:
+        value_type: int
+      attributes: [topic, partition]
+    kafka_receiver_partition_close:
+      enabled: true
+      description: Number of finished partitions
+      stability:
+        level: development
       unit: "1"
       sum:
         value_type: int
         monotonic: true
-      attributes: [node_id, topic, partition, outcome]
-    kafka_receiver_bytes:
+    kafka_receiver_partition_start:
       enabled: true
-      description: The size in bytes of received records seen by the broker.
-      extended_documentation: Only produced when franz-go is enabled.
-      optional: true
-      unit: By
-      sum:
-        value_type: int
-        monotonic: true
-      attributes: [node_id, topic, partition, outcome]
-    kafka_receiver_bytes_uncompressed:
-      enabled: true
-      description: The uncompressed size in bytes of received records seen by the client.
-      unit: By
-      sum:
-        value_type: int
-        monotonic: true
-      attributes: [node_id, topic, partition, outcome]
-    kafka_receiver_latency:
-      enabled: true
+      description: Number of started partitions
       stability:
-        level: deprecated
-      description: The time it took in ms to receive a batch of messages.
-      extended_documentation: Only produced when franz-go is enabled. Deprecated in favor of kafka_receiver_read_latency.
-      unit: ms
-      histogram:
+        level: development
+      unit: "1"
+      sum:
         value_type: int
-      attributes: [node_id, topic, partition, outcome]
-      warnings:
-        if_enabled: This metric is deprecated in favor of kafka_receiver_read_latency and will be removed soon.
+        monotonic: true
     kafka_receiver_read_latency:
       enabled: true
       description: The time it took in seconds to receive a batch of records.
       extended_documentation: Only produced when franz-go is enabled.
+      stability:
+        level: development
       unit: s
       histogram:
         value_type: double
         bucket_boundaries: [0, 0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500, 0.750, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100]
+      attributes: [node_id, topic, partition, outcome]
+    kafka_receiver_records:
+      enabled: true
+      description: The number of received records.
+      stability:
+        level: development
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
       attributes: [node_id, topic, partition, outcome]
     kafka_receiver_records_delay:
       enabled: true
@@ -147,50 +198,38 @@ telemetry:
         Note that this metric may slow down high-volume consuming.
         Only produced when franz-go is enabled.
         This metric is reported with an assumption that the exporter and the receiver clocks are synchronized.
+      stability:
+        level: development
       unit: s
       histogram:
         value_type: double
         bucket_boundaries: [0, 0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500, 0.750, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000]
       attributes: [topic, partition]
-    kafka_receiver_current_offset:
-      enabled: true
-      description: Current message offset
-      unit: "1"
-      gauge:
-        value_type: int
-      attributes: [topic, partition]
-    kafka_receiver_offset_lag:
-      enabled: true
-      description: Current offset lag
-      unit: "1"
-      gauge:
-        value_type: int
-      attributes: [topic, partition]
-    kafka_receiver_partition_start:
-      enabled: true
-      description: Number of started partitions
-      unit: "1"
-      sum:
-        value_type: int
-        monotonic: true
-    kafka_receiver_partition_close:
-      enabled: true
-      description: Number of finished partitions
-      unit: "1"
-      sum:
-        value_type: int
-        monotonic: true
-    kafka_receiver_unmarshal_failed_metric_points:
-      enabled: true
-      description: Number of metric points failed to be unmarshaled
-      unit: "1"
-      sum:
-        value_type: int
-        monotonic: true
-      attributes: [topic, partition]
     kafka_receiver_unmarshal_failed_log_records:
       enabled: true
       description: Number of log records failed to be unmarshaled
+      stability:
+        level: development
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [topic, partition]
+    kafka_receiver_unmarshal_failed_metric_points:
+      enabled: true
+      description: Number of metric points failed to be unmarshaled
+      stability:
+        level: development
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+      attributes: [topic, partition]
+    kafka_receiver_unmarshal_failed_profiles:
+      enabled: true
+      description: Number of profiles failed to be unmarshaled
+      stability:
+        level: development
       unit: "1"
       sum:
         value_type: int
@@ -199,6 +238,8 @@ telemetry:
     kafka_receiver_unmarshal_failed_spans:
       enabled: true
       description: Number of spans failed to be unmarshaled
+      stability:
+        level: development
       unit: "1"
       sum:
         value_type: int

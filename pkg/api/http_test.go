@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
+	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -657,10 +658,11 @@ func Test_parseTimestamp(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name    string
-		value   string
-		def     time.Time
-		want    time.Time
+		name  string
+		value string
+		def   time.Time
+		want  time.Time
+
 		wantErr bool
 	}{
 		{"default", "", now, now, false},
@@ -678,47 +680,42 @@ func Test_parseTimestamp(t *testing.T) {
 				t.Errorf("parseTimestamp() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseTimestamp() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, got, tt.want, fmt.Sprintf("parseTimestamp() = %v, want %v", got, tt.want))
 		})
 	}
 }
 
+func TestQueryRangeRoundtripEmpty(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Step: uint64(time.Second), // you can't actually roundtrip an empty query b/c Build/Parse will force a default step
+	}
+
+	jsonBytes, err := json.Marshal(req.DedicatedColumns)
+	require.NoError(t, err)
+
+	httpReq := BuildQueryRangeRequest(nil, req, string(jsonBytes))
+	actualReq, err := ParseQueryRangeRequest(httpReq)
+	require.NoError(t, err)
+	assert.True(t, actualReq.Start != 0)
+	assert.True(t, actualReq.End != 0)
+}
+
 func TestQueryRangeRoundtrip(t *testing.T) {
-	tcs := []struct {
-		name string
-		req  *tempopb.QueryRangeRequest
-	}{
-		{
-			name: "empty",
-			req: &tempopb.QueryRangeRequest{
-				Step: uint64(time.Second), // you can't actually roundtrip an empty query b/c Build/Parse will force a default step
-			},
-		},
-		{
-			name: "not empty!",
-			req: &tempopb.QueryRangeRequest{
-				Query:     "{ foo = `bar` }",
-				Start:     uint64(24 * time.Hour),
-				End:       uint64(25 * time.Hour),
-				Step:      uint64(30 * time.Second),
-				QueryMode: "foo",
-			},
-		},
+	req := &tempopb.QueryRangeRequest{
+		Query:     "{ foo = `bar` }",
+		Start:     uint64(24 * time.Hour),
+		End:       uint64(25 * time.Hour),
+		Step:      uint64(30 * time.Second),
+		QueryMode: "foo",
 	}
 
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			jsonBytes, err := json.Marshal(tc.req.DedicatedColumns)
-			require.NoError(t, err)
+	jsonBytes, err := json.Marshal(req.DedicatedColumns)
+	require.NoError(t, err)
 
-			httpReq := BuildQueryRangeRequest(nil, tc.req, string(jsonBytes))
-			actualReq, err := ParseQueryRangeRequest(httpReq)
-			require.NoError(t, err)
-			assert.Equal(t, tc.req, actualReq)
-		})
-	}
+	httpReq := BuildQueryRangeRequest(nil, req, string(jsonBytes))
+	actualReq, err := ParseQueryRangeRequest(httpReq)
+	require.NoError(t, err)
+	assert.Equal(t, req, actualReq)
 }
 
 func Test_determineBounds(t *testing.T) {
@@ -858,6 +855,140 @@ func Test_determineBounds(t *testing.T) {
 			}
 			assert.Equalf(t, tt.start, got, "determineBounds(%v, %v, %v, %v)", tt.args.now, tt.args.startString, tt.args.endString, tt.args.sinceString)
 			assert.Equalf(t, tt.end, got1, "determineBounds(%v, %v, %v, %v)", tt.args.now, tt.args.startString, tt.args.endString, tt.args.sinceString)
+		})
+	}
+}
+
+func makeReq(params map[string]string) *http.Request {
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	q := req.URL.Query()
+	for k, v := range params {
+		q.Set(k, v)
+	}
+	req.URL.RawQuery = q.Encode()
+	return req
+}
+
+func TestClampDateRangeReq(t *testing.T) {
+	defStart := time.Hour
+	endBuffer := 5 * time.Minute
+	refNow := time.Date(2023, 10, 15, 12, 0, 0, 0, time.Local)
+
+	// Since parameter tests
+	sinceTests := []struct {
+		name        string
+		params      map[string]string
+		expectedErr string
+		sinceDur    time.Duration
+	}{
+		{"valid 1h", map[string]string{"since": "1h"}, "", time.Hour},
+		{"ignored start+end", map[string]string{"since": "2h", "start": "1697360400", "end": "1697364000"}, "", 2 * time.Hour},
+		{"invalid format", map[string]string{"since": "invalid"}, "could not parse 'since' parameter", 0},
+	}
+
+	for _, tt := range sinceTests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				time.Sleep(time.Until(refNow)) // Setting time.now to refNow
+				req := makeReq(tt.params)
+				start, end, err := ClampDateRangeReq(req, defStart, endBuffer)
+
+				if tt.expectedErr != "" {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tt.expectedErr)
+					return
+				}
+
+				require.NoError(t, err)
+
+				expectedEnd := refNow.Add(-endBuffer)
+				expectedStart := expectedEnd.Add(-tt.sinceDur)
+				assert.Equal(t, expectedStart, start)
+				assert.Equal(t, expectedEnd, end)
+			})
+		})
+	}
+
+	// Default no-params test
+	t.Run("default no parameters", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			time.Sleep(time.Until(refNow)) // Setting time.now to refNow
+			req := makeReq(nil)
+			start, end, err := ClampDateRangeReq(req, defStart, endBuffer)
+			require.NoError(t, err)
+
+			assert.Equal(t, refNow.Add(-defStart), start)
+			assert.Equal(t, refNow.Add(-endBuffer), end)
+		})
+	})
+
+	// Start/end validation tests
+	testsStartEndValidation := []struct {
+		name   string
+		params map[string]string
+		err    string
+	}{
+		{"only start", map[string]string{"start": "1697360400"}, "only one of start and end provided"},
+		{"only end", map[string]string{"end": "1697364000"}, "only one of start and end provided"},
+		{"start empty", map[string]string{"start": "", "end": "1697364000"}, "only one of start and end provided"},
+		{"end empty", map[string]string{"start": "1697360400", "end": ""}, "only one of start and end provided"},
+	}
+
+	for _, tt := range testsStartEndValidation {
+		t.Run(tt.name, func(t *testing.T) {
+			req := makeReq(tt.params)
+			_, _, err := ClampDateRangeReq(req, defStart, endBuffer)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.err)
+		})
+	}
+
+	validEnd := refNow.Add(-endBuffer * 2)
+	// End time clamping tests
+	testsEndClamping := []struct {
+		name          string
+		params        map[string]string
+		expectedStart time.Time
+		expectedEnd   time.Time
+	}{
+		{"end clamped", map[string]string{"start": "1697360400", "end": "9999999999"}, time.Unix(1697360400, 0), refNow.Add(-endBuffer)},
+		{"end not clamped", map[string]string{"start": "1000000000", "end": strconv.FormatInt(validEnd.Unix(), 10)}, time.Unix(1000000000, 0), validEnd},
+	}
+
+	for _, tt := range testsEndClamping {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				time.Sleep(time.Until(refNow)) // Setting time.now to refNow
+				req := makeReq(tt.params)
+				start, end, err := ClampDateRangeReq(req, defStart, endBuffer)
+				require.NoError(t, err)
+
+				assert.Equal(t, tt.expectedStart, start)
+				assert.WithinDuration(t, tt.expectedEnd, end, time.Second)
+			})
+		})
+	}
+
+	// Invalid timestamp parsing tests
+	testsInvalidParsing := []struct {
+		name   string
+		params map[string]string
+		err    string
+	}{
+		{"invalid start", map[string]string{"start": "invalid", "end": "1697364000"}, "could not parse 'start' parameter"},
+		{"invalid end", map[string]string{"start": "1697360400", "end": "invalid"}, "could not parse 'end' parameter"},
+		// {"start wrong length", map[string]string{"start": "123456", "end": "1697364000"}, "could not parse 'start' parameter"},
+		// {"end wrong length", map[string]string{"start": "1697360400", "end": "123456789012345"}, "could not parse 'end' parameter"},
+	}
+
+	for _, tt := range testsInvalidParsing {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				req := makeReq(tt.params)
+				_, _, err := ClampDateRangeReq(req, defStart, endBuffer)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.err)
+			})
 		})
 	}
 }

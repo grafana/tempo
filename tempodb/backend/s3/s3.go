@@ -59,6 +59,7 @@ type appendTracker struct {
 	objectName string
 	parts      []minio.ObjectPart
 	partNum    int
+	buffer     []byte // buffer to accumulate data for R2-compliant fixed-size chunks
 }
 
 type overrideSignatureVersion struct {
@@ -171,6 +172,12 @@ func getObjectOptions(rw *readerWriter) minio.GetObjectOptions {
 	}
 }
 
+func getPutObjectPartOptions(rw *readerWriter) minio.PutObjectPartOptions {
+	return minio.PutObjectPartOptions{
+		SSE: rw.sse,
+	}
+}
+
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ *backend.CacheInfo) error {
 	derivedCtx, span := tracer.Start(ctx, "s3.Write")
@@ -211,7 +218,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objectName := backend.ObjectFileName(keypath, name)
 
-	options := getPutObjectOptions(rw)
+	putObjOptions := getPutObjectOptions(rw)
 	if tracker != nil {
 		a = tracker.(appendTracker)
 	} else {
@@ -219,7 +226,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 			ctx,
 			rw.cfg.Bucket,
 			objectName,
-			options,
+			putObjOptions,
 		)
 		if err != nil {
 			return nil, err
@@ -228,23 +235,56 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		a.objectName = objectName
 	}
 
-	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName)
+	// PartSize == 0: Preserve old behavior (immediate upload without buffering)
+	// PartSize > 0: Enable R2-compliant chunking with uniform part sizes
+	if rw.cfg.PartSize == 0 {
+		level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName)
 
-	a.partNum++
-	objPart, err := rw.core.PutObjectPart(
-		ctx,
-		rw.cfg.Bucket,
-		objectName,
-		a.uploadID,
-		a.partNum,
-		bytes.NewReader(buffer),
-		int64(len(buffer)),
-		minio.PutObjectPartOptions{},
-	)
-	if err != nil {
-		return a, fmt.Errorf("error in multipart upload: %w", err)
+		a.partNum++
+		putObjPartOptions := getPutObjectPartOptions(rw)
+		objPart, err := rw.core.PutObjectPart(
+			ctx,
+			rw.cfg.Bucket,
+			objectName,
+			a.uploadID,
+			a.partNum,
+			bytes.NewReader(buffer),
+			int64(len(buffer)),
+			putObjPartOptions,
+		)
+		if err != nil {
+			return a, fmt.Errorf("error in multipart upload: %w", err)
+		}
+		a.parts = append(a.parts, objPart)
+	} else {
+		a.buffer = append(a.buffer, buffer...)
+
+		chunkSize := rw.cfg.PartSize
+		putObjPartOptions := getPutObjectPartOptions(rw)
+		for uint64(len(a.buffer)) >= chunkSize {
+			chunk := a.buffer[:chunkSize]
+
+			level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName, "partNum", a.partNum+1, "chunkSize", chunkSize)
+
+			a.partNum++
+			objPart, err := rw.core.PutObjectPart(
+				ctx,
+				rw.cfg.Bucket,
+				objectName,
+				a.uploadID,
+				a.partNum,
+				bytes.NewReader(chunk),
+				int64(chunkSize),
+				putObjPartOptions,
+			)
+			if err != nil {
+				return a, fmt.Errorf("error in multipart upload: %w", err)
+			}
+			a.parts = append(a.parts, objPart)
+
+			a.buffer = a.buffer[chunkSize:]
+		}
 	}
-	a.parts = append(a.parts, objPart)
 
 	return a, nil
 }
@@ -256,6 +296,29 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	}
 
 	a := tracker.(appendTracker)
+
+	// Only flush buffer if using new chunking behavior (PartSize > 0)
+	if rw.cfg.PartSize > 0 && len(a.buffer) > 0 {
+		level.Debug(rw.logger).Log("msg", "flushing final chunk to s3", "objectName", a.objectName, "partNum", a.partNum+1, "chunkSize", len(a.buffer))
+
+		a.partNum++
+		putObjPartOptions := getPutObjectPartOptions(rw)
+		objPart, err := rw.core.PutObjectPart(
+			ctx,
+			rw.cfg.Bucket,
+			a.objectName,
+			a.uploadID,
+			a.partNum,
+			bytes.NewReader(a.buffer),
+			int64(len(a.buffer)),
+			putObjPartOptions,
+		)
+		if err != nil {
+			return fmt.Errorf("error uploading final part in multipart upload: %w", err)
+		}
+		a.parts = append(a.parts, objPart)
+	}
+
 	completeParts := make([]minio.CompletePart, 0)
 	for _, p := range a.parts {
 		completeParts = append(completeParts, minio.CompletePart{
@@ -270,7 +333,9 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		a.objectName,
 		a.uploadID,
 		completeParts,
-		minio.PutObjectOptions{},
+		minio.PutObjectOptions{
+			ServerSideEncryption: rw.sse,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("error completing multipart upload, object: %s, obj etag: %s: %w", a.objectName, uploadInfo.ETag, err)
@@ -744,6 +809,11 @@ func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
 		}
 	case SSES3:
 		return encrypt.NewSSE(), nil
+	case SSEC:
+		if cfg.SSE.CustomerEncryptionKey == "" {
+			return nil, errors.New("SSE-C EncryptionKey is missing")
+		}
+		return encrypt.NewSSEC([]byte(cfg.SSE.CustomerEncryptionKey))
 	default:
 		return nil, errUnsupportedSSEType
 	}

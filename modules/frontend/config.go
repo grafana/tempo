@@ -42,6 +42,9 @@ type Config struct {
 
 	// RF1After specifies the time after which RF1 logic is applied.
 	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
+
+	// QueryEndCutoff prevents querying incomplete recent data.
+	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
 }
 
 type MCPServerConfig struct {
