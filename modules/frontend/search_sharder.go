@@ -37,6 +37,7 @@ type SearchSharderConfig struct {
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
 	MostRecentShards      int           `yaml:"most_recent_shards,omitempty"`
+	DefaultSpansPerSpanSet uint32       `yaml:"default_spans_per_span_set,omitempty"`
 	MaxSpansPerSpanSet    uint32        `yaml:"max_spans_per_span_set,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
@@ -73,7 +74,9 @@ func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg Sea
 func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	r := pipelineRequest.HTTPRequest()
 
-	searchReq, err := api.ParseSearchRequest(r)
+	// Use configured default (defaults to 3 if not set in config)
+	// If default_spans_per_span_set=0 is explicitly configured, it means unlimited (return all matching spans)
+	searchReq, err := api.ParseSearchRequestWithDefault(r, s.cfg.DefaultSpansPerSpanSet)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
@@ -98,6 +101,9 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", maxDuration, searchReq.Start, searchReq.End)), nil
 	}
 
+	// Validate SpansPerSpanSet against MaxSpansPerSpanSet
+	// If MaxSpansPerSpanSet is 0, it means unlimited spans are allowed
+	// If MaxSpansPerSpanSet is non-zero, enforce the limit
 	if s.cfg.MaxSpansPerSpanSet != 0 && searchReq.SpansPerSpanSet > s.cfg.MaxSpansPerSpanSet {
 		return pipeline.NewBadRequest(fmt.Errorf("spans per span set exceeds %d. received %d", s.cfg.MaxSpansPerSpanSet, searchReq.SpansPerSpanSet)), nil
 	}
