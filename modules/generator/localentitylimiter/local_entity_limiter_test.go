@@ -43,6 +43,19 @@ func TestLocalEntityLimiter_OnDelete(t *testing.T) {
 	require.True(t, limiter.OnAdd(2, 1))
 }
 
+func TestLocalEntityLimiter_OverflowOnDelete(t *testing.T) {
+	// This test is to guard against accidental overflow. This is a programming
+	// error, but we should be defensive anyway.
+	maxFunc := func(string) uint32 {
+		return 1
+	}
+	limitLogger := tempo_log.NewRateLimitedLogger(1, log.NewNopLogger())
+	limiter := New(maxFunc, "test", limitLogger)
+	require.True(t, limiter.OnAdd(1, 1))
+	limiter.OnDelete(1, 3)
+	require.True(t, limiter.OnAdd(2, 1))
+}
+
 func TestLocalEntityLimiter_TrackEntities_NoMaxEntities(t *testing.T) {
 	maxFunc := func(string) uint32 {
 		return 0

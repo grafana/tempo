@@ -52,11 +52,11 @@ func newMetrics(reg prometheus.Registerer) localEntityLimiterMetrics {
 var metrics = newMetrics(prometheus.DefaultRegisterer)
 
 type LocalEntityLimiter struct {
-	tenant            string
-	entityLastUpdated map[uint64]uint32
-	mtx               sync.Mutex
-	maxEntityFunc     func(tenant string) uint32
-	limitLogger       *tempo_log.RateLimitedLogger
+	tenant             string
+	entityActiveSeries map[uint64]uint32
+	mtx                sync.Mutex
+	maxEntityFunc      func(tenant string) uint32
+	limitLogger        *tempo_log.RateLimitedLogger
 
 	metricTotalEntitiesLimited prometheus.Counter
 	metricActiveEntities       prometheus.Gauge
@@ -67,10 +67,10 @@ type LocalEntityLimiter struct {
 
 func New(maxEntityFunc func(tenant string) uint32, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalEntityLimiter {
 	return &LocalEntityLimiter{
-		tenant:            tenant,
-		entityLastUpdated: make(map[uint64]uint32),
-		maxEntityFunc:     maxEntityFunc,
-		limitLogger:       limitLogger,
+		tenant:             tenant,
+		entityActiveSeries: make(map[uint64]uint32),
+		maxEntityFunc:      maxEntityFunc,
+		limitLogger:        limitLogger,
 
 		metricTotalEntitiesLimited: metrics.totalEntitiesLimited.WithLabelValues(tenant),
 		metricActiveEntities:       metrics.activeEntities.WithLabelValues(tenant),
@@ -84,23 +84,23 @@ func (l *LocalEntityLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	activeSeries, ok := l.entityLastUpdated[labelHash]
+	activeSeries, ok := l.entityActiveSeries[labelHash]
 	if ok {
 		activeSeries += seriesCount
-		l.entityLastUpdated[labelHash] = activeSeries
+		l.entityActiveSeries[labelHash] = activeSeries
 		return true
 	}
 
 	maxEntities := l.maxEntityFunc(l.tenant)
-	if maxEntities != 0 && uint32(len(l.entityLastUpdated))+1 > maxEntities {
-		l.limitLogger.Log("msg", "reached max active entities", "active_entities", len(l.entityLastUpdated), "max_active_entities", maxEntities)
+	if maxEntities != 0 && uint32(len(l.entityActiveSeries))+1 > maxEntities {
+		l.limitLogger.Log("msg", "reached max active entities", "active_entities", len(l.entityActiveSeries), "max_active_entities", maxEntities)
 		l.metricTotalEntitiesLimited.Add(float64(1))
 		return false
 	}
 
-	l.entityLastUpdated[labelHash] = seriesCount
+	l.entityActiveSeries[labelHash] = seriesCount
 
-	l.metricActiveEntities.Set(float64(len(l.entityLastUpdated)))
+	l.metricActiveEntities.Set(float64(len(l.entityActiveSeries)))
 	l.metricMaxActiveEntities.Set(float64(maxEntities))
 	l.metricTotalEntitiesAdded.Add(float64(1))
 	return true
@@ -110,16 +110,23 @@ func (l *LocalEntityLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	activeSeries, ok := l.entityLastUpdated[labelHash]
-	if ok {
-		activeSeries -= seriesCount
-		if activeSeries <= 0 {
-			delete(l.entityLastUpdated, labelHash)
-		} else {
-			l.entityLastUpdated[labelHash] = activeSeries
-		}
+	activeSeries, ok := l.entityActiveSeries[labelHash]
+	if !ok {
+		return
 	}
 
-	l.metricActiveEntities.Set(float64(len(l.entityLastUpdated)))
-	l.metricTotalEntitiesRemoved.Add(float64(seriesCount))
+	// Guard against accidental overflow. This is a programming error, but we
+	// should be defensive.
+	if seriesCount > activeSeries {
+		seriesCount = activeSeries
+	}
+	activeSeries -= seriesCount
+	if activeSeries == 0 {
+		delete(l.entityActiveSeries, labelHash)
+	} else {
+		l.entityActiveSeries[labelHash] = activeSeries
+	}
+
+	l.metricActiveEntities.Set(float64(len(l.entityActiveSeries)))
+	l.metricTotalEntitiesRemoved.Add(1)
 }

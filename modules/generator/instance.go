@@ -119,6 +119,8 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		limiter = localserieslimiter.New(overrides.MetricsGeneratorMaxActiveSeries, instanceID, limitLogger)
 	case LimiterTypeEntity:
 		limiter = localentitylimiter.New(overrides.MetricsGeneratorMaxActiveEntities, instanceID, limitLogger)
+	default:
+		return nil, fmt.Errorf("invalid limiter type: %s", cfg.LimiterType)
 	}
 
 	i := &instance{

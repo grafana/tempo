@@ -582,6 +582,12 @@ metrics_generator:
         # The maximum length of label values. Label values exceeding this limit will be truncated.
         [max_label_value_length: <int> | default = 2048]
 
+    # Type of limiter to use for controlling metrics-generator memory usage.
+    # Options: "series" (default) or "entity".
+    # - "series": Limits the total number of active metric series. Use with max_active_series override.
+    # - "entity": Limits the number of unique label combinations (entities). Use with max_active_entities override.
+    [limiter_type: <string> | default = "series"]
+
     # Configuration block for the Write Ahead Log (WAL)
     traces_storage: <WAL config>
 
@@ -1755,7 +1761,16 @@ overrides:
       # If the limit is reached, no new series will be added but existing series will still be
       # updated. The amount of limited series can be observed with the metric
       #   tempo_metrics_generator_registry_series_limited_total
+      # This setting only applies when limiter_type is set to "series" (the default).
       [max_active_series: <int>]
+
+      # Maximum number of active entities (unique label combinations) in the registry, per instance
+      # of the metrics-generator. A value of 0 disables this check.
+      # If the limit is reached, no new entities will be added but existing entities will still be
+      # updated. The amount of limited entities can be observed with the metric
+      #   tempo_metrics_generator_registry_entities_limited_total
+      # This setting only applies when limiter_type is set to "entity".
+      [max_active_entities: <int>]
 
       # Per-user configuration of the collection interval. A value of 0 means the global default is
       # used set in the metrics_generator config block.
