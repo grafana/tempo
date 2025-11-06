@@ -130,6 +130,45 @@ func TestBinaryOpToArrayOpRewriter(t *testing.T) {
 			want:     "{ (.attr1 !~ [`val1`, `val2`]) || (.attr2 !~ `val3`) }",
 			optCount: 1,
 		},
+		// reverse operands
+		{
+			name:     "reversed or",
+			query:    "{ `val1` = .a || `val2` = .a }",
+			want:     "{ .a = [`val1`, `val2`] }",
+			optCount: 1,
+		},
+		{
+			name:     "mixed or",
+			query:    "{ `val1` = .a || .a = `val2` }",
+			want:     "{ .a = [`val1`, `val2`] }",
+			optCount: 1,
+		},
+		{
+			name:     "reversed int or",
+			query:    "{ 1 = .a || 2 = .a }",
+			want:     "{ .a = [1, 2] }",
+			optCount: 1,
+		},
+		// spanset filter
+		{
+			name:     "left spanset filter",
+			query:    "{ .a = `val1` || .a = `val2` } >> { }",
+			want:     "({ .a = [`val1`, `val2`] }) >> ({ true })",
+			optCount: 1,
+		},
+		{
+			name:     "right spanset filter",
+			query:    "{ } >> { .a = `val1` || .a = `val2` }",
+			want:     "({ true }) >> ({ .a = [`val1`, `val2`] })",
+			optCount: 1,
+		},
+		// scope mismatch
+		{
+			name:     "scoped attribute mismatch",
+			query:    "{ .a = `val1` || resource.a = `val2` }",
+			want:     "{ (.a = `val1`) || (resource.a = `val2`) }",
+			optCount: 0,
+		},
 	}
 
 	rewriter := newBinaryOpToArrayOpRewriter()
