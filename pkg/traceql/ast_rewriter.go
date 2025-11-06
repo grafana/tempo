@@ -42,7 +42,7 @@ func newBinaryOpToArrayOpRewriter() *fieldExpressionRewriter {
 }
 
 // fieldExpressionRewriteFn is a function that rewrites single FieldExpression implementations should not descent into subexpressions.
-type fieldExpressionRewriteFn func(e FieldExpression) FieldExpression
+type fieldExpressionRewriteFn func(FieldExpression) (FieldExpression, int)
 
 // fieldExpressionRewriter is an ASTRewriter that descends into PipelineElement. The rewriter traverses all FieldExpression
 // in Post Order and applies available fieldExpressionRewriteFn functions.
@@ -55,153 +55,186 @@ func (f *fieldExpressionRewriter) RewriteRoot(r *RootExpr) *RootExpr {
 	if r == nil {
 		return r
 	}
+
+	pipeline, rwCount := f.rewritePipeline(r.Pipeline)
+
 	return &RootExpr{
-		Pipeline:           f.rewritePipeline(r.Pipeline),
+		Pipeline:           pipeline,
 		MetricsPipeline:    r.MetricsPipeline,
 		MetricsSecondStage: r.MetricsSecondStage,
 		Hints:              r.Hints,
+		OptimizationCount:  r.OptimizationCount + rwCount,
 	}
 }
 
-func (f *fieldExpressionRewriter) rewritePipeline(p Pipeline) Pipeline {
+func (f *fieldExpressionRewriter) rewritePipeline(p Pipeline) (Pipeline, int) {
+	var rwCount int
+
 	elements := make([]PipelineElement, 0, len(p.Elements))
-	for _, el := range p.Elements {
-		switch el := el.(type) {
+	for _, elem := range p.Elements {
+		switch elem := elem.(type) {
 		case *SpansetFilter:
-			if el == nil {
+			if elem == nil {
 				continue
 			}
-			elements = append(elements, newSpansetFilter(f.rewriteFieldExpression(el.Expression)))
+			fe, n := f.rewriteFieldExpression(elem.Expression)
+			elements = append(elements, newSpansetFilter(fe))
+			rwCount += n
 		case ScalarFilter:
-			elements = append(elements, newScalarFilter(el.Op, f.rewriteScalarExpression(el.LHS), f.rewriteScalarExpression(el.RHS)))
+			lhs, n := f.rewriteScalarExpression(elem.LHS)
+			rwCount += n
+			rhs, n := f.rewriteScalarExpression(elem.RHS)
+			rwCount += n
+			elements = append(elements, newScalarFilter(elem.Op, lhs, rhs))
 		case GroupOperation:
-			elements = append(elements, newGroupOperation(f.rewriteFieldExpression(el.Expression)))
+			fe, n := f.rewriteFieldExpression(elem.Expression)
+			rwCount += n
+			elements = append(elements, newGroupOperation(fe))
 		case Pipeline:
-			elements = append(elements, f.rewritePipeline(el))
+			fe, n := f.rewritePipeline(elem)
+			rwCount += n
+			elements = append(elements, fe)
 		default:
-			elements = append(elements, el)
+			elements = append(elements, elem)
 		}
 	}
-	return newPipeline(elements...)
+
+	return newPipeline(elements...), rwCount
 }
 
-func (f *fieldExpressionRewriter) rewriteScalarExpression(se ScalarExpression) ScalarExpression {
+func (f *fieldExpressionRewriter) rewriteScalarExpression(se ScalarExpression) (ScalarExpression, int) {
 	switch se := se.(type) {
 	case Pipeline:
 		return f.rewritePipeline(se)
 	case ScalarOperation:
-		return newScalarOperation(se.Op, f.rewriteScalarExpression(se.LHS), f.rewriteScalarExpression(se.RHS))
+		var rwCount int
+		lhs, n := f.rewriteScalarExpression(se.LHS)
+		rwCount += n
+		rhs, n := f.rewriteScalarExpression(se.RHS)
+		rwCount += n
+		return newScalarOperation(se.Op, lhs, rhs), rwCount
 	case Aggregate:
-		return newAggregate(se.op, f.rewriteFieldExpression(se.e))
+		fe, n := f.rewriteFieldExpression(se.e)
+		return newAggregate(se.op, fe), n
 	case Static:
-		s := f.rewriteFieldExpression(se)
-		if s, ok := s.(Static); ok {
-			return s
+		fe, n := f.rewriteFieldExpression(se)
+		if s, ok := fe.(Static); ok {
+			return s, n
 		}
 	}
-	return se
+	return se, 0
 }
 
-func (f *fieldExpressionRewriter) rewriteFieldExpression(e FieldExpression) FieldExpression {
-	switch e := e.(type) {
+func (f *fieldExpressionRewriter) rewriteFieldExpression(fe FieldExpression) (FieldExpression, int) {
+	var rwCount int
+
+	switch fe := fe.(type) {
 	case *BinaryOperation:
-		e.LHS = f.rewriteFieldExpression(e.LHS)
-		e.RHS = f.rewriteFieldExpression(e.RHS)
+		lhs, n := f.rewriteFieldExpression(fe.LHS)
+		rwCount += n
+		fe.LHS = lhs
+		rhs, n := f.rewriteFieldExpression(fe.RHS)
+		rwCount += n
+		fe.RHS = rhs
 	case *UnaryOperation:
-		e.Expression = f.rewriteFieldExpression(e.Expression)
+		e, n := f.rewriteFieldExpression(fe.Expression)
+		fe.Expression = e
+		rwCount += n
 	}
 
 	for _, fn := range f.rewriteFunctions {
-		e = fn(e)
+		e, n := fn(fe)
+		fe = e
+		rwCount += n
 	}
 
-	return e
+	return fe, rwCount
 }
 
 // rewriteOrToIn is a fieldExpressionRewriteFn that rewrites a single { .a = "a" || .b = "b" } to { .a = ["a", "b"] }
-func rewriteOrToIn(e FieldExpression) FieldExpression {
-	return rewriteBinaryOperationsToArrayEquivalent(e, OpOr, OpEqual)
+func rewriteOrToIn(fe FieldExpression) (FieldExpression, int) {
+	return rewriteBinaryOperationsToArrayEquivalent(fe, OpOr, OpEqual)
 }
 
 // rewriteAndToNotIn is a fieldExpressionRewriteFn that rewrites a single { .a != "a" && .b != "b" } to { .a != ["a", "b"] }
-func rewriteAndToNotIn(e FieldExpression) FieldExpression {
-	return rewriteBinaryOperationsToArrayEquivalent(e, OpAnd, OpNotEqual)
+func rewriteAndToNotIn(fe FieldExpression) (FieldExpression, int) {
+	return rewriteBinaryOperationsToArrayEquivalent(fe, OpAnd, OpNotEqual)
 }
 
 // rewriteOrToMatchAny is a fieldExpressionRewriteFn that rewrites a single { .a =~ "a" || .b =~ "b" } to { .a =~ ["a", "b"] }
-func rewriteOrToMatchAny(e FieldExpression) FieldExpression {
-	return rewriteBinaryOperationsToArrayEquivalent(e, OpOr, OpRegex, TypeString, TypeStringArray)
+func rewriteOrToMatchAny(fe FieldExpression) (FieldExpression, int) {
+	return rewriteBinaryOperationsToArrayEquivalent(fe, OpOr, OpRegex, TypeString, TypeStringArray)
 }
 
 // rewriteAndToMatchNone is a fieldExpressionRewriteFn that rewrites a single { .a !~ "a" && .b !~ "b" } to { .a !~ ["a", "b"]}
-func rewriteAndToMatchNone(e FieldExpression) FieldExpression {
-	return rewriteBinaryOperationsToArrayEquivalent(e, OpAnd, OpNotRegex, TypeString, TypeStringArray)
+func rewriteAndToMatchNone(fe FieldExpression) (FieldExpression, int) {
+	return rewriteBinaryOperationsToArrayEquivalent(fe, OpAnd, OpNotRegex, TypeString, TypeStringArray)
 }
 
 // rewriteBinaryOperationsToArrayEquivalent rewrites binary operations to an equivalent array form
-func rewriteBinaryOperationsToArrayEquivalent(e FieldExpression, opOuter, opInner Operator, restrictTypes ...StaticType) FieldExpression {
-	opOr, ok := e.(*BinaryOperation)
+func rewriteBinaryOperationsToArrayEquivalent(fe FieldExpression, opOuter, opInner Operator, restrictTypes ...StaticType) (FieldExpression, int) {
+	opOr, ok := fe.(*BinaryOperation)
 	if !ok || opOr.Op != opOuter {
-		return e
+		return fe, 0
 	}
 
 	// prepare LHS and RHS operands
 	opLHS, ok := opOr.LHS.(*BinaryOperation)
 	if !ok {
-		return e
+		return fe, 0
 	}
 	opRHS, ok := opOr.RHS.(*BinaryOperation)
 	if !ok {
-		return e
+		return fe, 0
 	}
 
-	lhsAttr, lhsVal, ok := getOperandsFromBinaryOperation(opLHS, opInner)
+	attrLHS, valLHS, ok := getOperandsFromBinaryOperation(opLHS, opInner)
 	if !ok {
-		return e
+		return fe, 0
 	}
-	rhsAttr, rhsVal, ok := getOperandsFromBinaryOperation(opRHS, opInner)
-	if !ok || lhsAttr != rhsAttr {
-		return e
+	attrRHS, valRHS, ok := getOperandsFromBinaryOperation(opRHS, opInner)
+	if !ok || attrLHS != attrRHS {
+		return fe, 0
 	}
 
 	// if the types are restricted to a specific set, ensure they are valid
 	if len(restrictTypes) > 0 {
-		if !slices.Contains(restrictTypes, lhsVal.Type) {
-			return e
+		if !slices.Contains(restrictTypes, valLHS.Type) {
+			return fe, 0
 		}
-		if !slices.Contains(restrictTypes, rhsVal.Type) {
-			return e
+		if !slices.Contains(restrictTypes, valRHS.Type) {
+			return fe, 0
 		}
 	}
 
 	// create an equivalent array operation
-	array, ok := lhsVal.append(rhsVal)
+	array, ok := valLHS.append(valRHS)
 	if !ok {
-		return e
+		return fe, 0
 	}
 
 	return &BinaryOperation{
 		Op:  opInner,
-		LHS: lhsAttr,
+		LHS: attrLHS,
 		RHS: array,
-	}
+	}, 1
 }
 
 func getOperandsFromBinaryOperation(exp FieldExpression, operator Operator) (Attribute, Static, bool) {
-	binOp, ok := exp.(*BinaryOperation)
-	if !ok || binOp.Op != operator {
+	op, ok := exp.(*BinaryOperation)
+	if !ok || op.Op != operator {
 		return Attribute{}, StaticNil, false
 	}
 
-	rhs := binOp.RHS
+	rhs := op.RHS
 
-	attr, ok := binOp.LHS.(Attribute)
+	attr, ok := op.LHS.(Attribute)
 	if !ok {
-		attr, ok = binOp.RHS.(Attribute)
+		attr, ok = op.RHS.(Attribute)
 		if !ok {
 			return Attribute{}, StaticNil, false
 		}
-		rhs = binOp.LHS
+		rhs = op.LHS
 	}
 
 	val, ok := rhs.(Static)

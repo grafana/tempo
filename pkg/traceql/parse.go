@@ -55,8 +55,7 @@ func parseWithOptimizationOption(s string, astOptimization bool) (expr *RootExpr
 	hintSkipOptimization, _ := l.expr.Hints.GetBool(HintSkipOptimization, true)
 	if astOptimization && !hintSkipOptimization {
 		l.expr = ApplyDefaultASTRewrites(l.expr)
-
-		level.Debug(log.Logger).Log("msg", "optimize AST for TraceQL query", "original", s, "optimized", l.expr.String())
+		level.Debug(log.Logger).Log("msg", "optimize AST for TraceQL query", "query", s, "optimizedQuery", l.expr.String(), "optimizationCount", l.expr.OptimizationCount)
 	}
 
 	return l.expr, nil
