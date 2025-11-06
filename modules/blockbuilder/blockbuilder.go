@@ -299,6 +299,11 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 		if lagTime < b.cfg.ConsumeCycleDuration {
 			return b.cfg.ConsumeCycleDuration - lagTime, nil
 		}
+		// If we don't know exact offset, we need to start over on next cycle to fetch offsets again.
+		// This can happen when pull timeouted or the consumer had no lag.
+		if laggiestPartition.commitOffset == commitOffsetAtEnd {
+			return 0, nil
+		}
 		lastRecordTs, lastRecordOffset, err := b.consumePartition(ctx, laggiestPartition)
 		if err != nil {
 			return 0, err

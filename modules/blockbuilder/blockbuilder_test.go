@@ -1110,6 +1110,7 @@ func (s *slowStore) unlock() {
 // - committed offsets equal number of sent records.
 // The test highly coupled with the blockbuilder implementation. In case it stuck
 // due to channel, it is advised to debug consume cycle step by step.
+// If the test hangs, it is most likely because storage received unexpected writes.
 func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
@@ -1122,7 +1123,7 @@ func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
 	ch := make(chan struct{})
 	store := &slowStore{Store: newStore(ctx, t), wait: ch}
 	cfg := blockbuilderConfig(t, address, []int32{0, 1})
-	cfg.ConsumeCycleDuration = 7 * time.Second
+	cfg.ConsumeCycleDuration = time.Second
 	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
 		0: {Id: 0, State: ring.PartitionActive},
 		1: {Id: 1, State: ring.PartitionActive},
@@ -1190,7 +1191,11 @@ func TestBlockbuilder_PartitionWithNoLag(t *testing.T) {
 	_, address := testkafka.CreateCluster(t, 2, testTopic)
 
 	// Setup block-builder
-	store := newStore(ctx, t)
+	storageWrites := atomic.NewInt32(0)
+	store := newStoreWrapper(newStore(ctx, t), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
+		storageWrites.Inc()
+		return store.WriteBlock(ctx, block)
+	})
 	cfg := blockbuilderConfig(t, address, []int32{0, 1})
 	cfg.ConsumeCycleDuration = cycleDuration
 	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
@@ -1250,4 +1255,5 @@ func TestBlockbuilder_PartitionWithNoLag(t *testing.T) {
 		require.True(t, ok, "partition %d should have a committed offset", partition)
 		assert.Equal(t, expectedCount, offset.At, "partition %d should have correct committed offset", partition)
 	}
+	assert.Equal(t, int32(2), storageWrites.Load(), "unexpected number of storage writes")
 }
