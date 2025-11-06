@@ -18,6 +18,8 @@ keywords:
 
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
 
+TraceQL metrics queries let you
+
 [TraceQL](http://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/) supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`,
 `histogram_over_time`, and `compare` functions. These methods can be appended to any TraceQL query to calculate and
 return the desired metrics like:
@@ -39,38 +41,17 @@ Read on for a full listing of functions and examples.
 
 These functions can be added as an operator at the end of any TraceQL query.
 
-`rate`
-: Calculates the number of matching spans per second.
-
-`count_over_time`
-: Counts the number of matching spans per time interval (refer to the [
-`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs)).
-
-`sum_over_time`
-: Sums the value for the specified attribute across all matching spans per time interval (refer to the [
-`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs)).
-
-`min_over_time`
-: Returns the minimum value for the specified attribute across all matching spans per time interval (refer to the [
-`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
-
-`max_over_time`
-: Returns the maximum value for the specified attribute across all matching spans per time interval (refer to the [
-`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
-
-`avg_over_time`
-: Returns the average value for the specified attribute across all matching spans per time interval (refer to the [
-`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
-
-`quantile_over_time`
-: The quantile of the values in the specified interval.
-
-`histogram_over_time`
-: Evaluate frequency distribution over time. Example: `histogram_over_time(duration) by (span.foo)`.
-
-`compare`
-: Used to split the stream of spans into two groups: a selection and a baseline. The function returns time-series for
-all attributes found on the spans to highlight the differences between the two groups.
+| Function                                                                                        | Description                                                                                        | Parameters/attributes                                               |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [`rate()`](#the-rate-function)                                                                  | Calculates the number of matching spans per second.                                                |                                                                     |
+| [`count_over_time()`](#the-count_over_time-function)                                            | Counts the number of matching spans per time interval.                                             | `step`                                                              |
+| [`sum_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Sums the value for the specified attribute across all matching spans per time interval.            | numeric attribute                                                   |
+| [`min_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the minimum value for the specified attribute across all matching spans per time interval. | numeric attribute                                                   |
+| [`max_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the maximum value for the specified attribute across all matching spans per time interval. | numeric attribute                                                   |
+| [`avg_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the average value for the specified attribute across all matching spans per time interval. | numeric attribute                                                   |
+| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)             | The quantile of the values in the specified interval.                                              | numeric attribute; one or more quantiles                            |
+| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)            | Evaluate frequency distribution over time.                                                         | numeric attribute                                                   |
+| [`compare()`](#the-compare-function)                                                            | Splits spans into selection and baseline groups and highlights attribute differences.              | `filter`; `topN` (default 10); `startTS`, `endTS` (both or neither) |
 
 ## The `rate` function
 
@@ -241,7 +222,11 @@ As a further example, imagine a custom attribute like `span.temperature`.
 You could use a similar query to know what the 50th percentile and 95th percentile temperatures were across all your
 spans.
 
-## `topk` and `bottomk` functions
+## Multi-stage metrics queries
+
+Multi-stage metrics queries are queries that turn your spans into metrics and then perform additional operations on those metrics.
+
+### `topk` and `bottomk` functions
 
 TraceQL supports the `topk` and `bottomk` functions that let you aggregate and process TraceQL metrics.
 These functions are similar to their equivalent PromQL functions. For example:
@@ -274,7 +259,7 @@ Because it's evaluated at each data point, you'll get the top series for each da
 
 ## The `compare` function
 
-The `compare` function is used to split a set of spans into two groups: a selection and a baseline.
+The `compare` function splits a set of spans into two groups: a selection and a baseline.
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
 
 This powerful function is best understood by using the [**Comparison** tab in Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/analyze-tracing-data/#use-the-comparison-tab).
@@ -336,12 +321,12 @@ This example means the attribute `resource.cluster` had too many values.
 { __meta_error="__too_many_values__", resource.cluster=<nil> }
 ```
 
-## Adaptive sampling
+## Data sampling
 
 TraceQL metrics queries support sampling to optimize performance and control sampling behavior.
 There are three sampling methods available:
 
-- Adaptive sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
+- Dynamic sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
 - Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
 - Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
 
@@ -351,7 +336,7 @@ Refer to the [TraceQL metrics sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from
 Sampling hints only work with TraceQL metrics queries (those using functions like `rate()`, `count_over_time()`, etc.).
 {{< /admonition >}}
 
-### Adaptive sampling: `with(sample=true)`
+### Dynamic sampling: `with(sample=true)`
 
 Automatically determines optimal sampling strategy based on query selectivity and data volume.
 
