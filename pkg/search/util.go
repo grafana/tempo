@@ -54,16 +54,27 @@ func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 	return nil
 }
 
+// keep this list in sync with pkg/traceql/enum_attributes.go
 func GetVirtualIntrinsicValues() []string {
 	return []string{
 		traceql.IntrinsicDuration.String(),
-		traceql.IntrinsicKind.String(),
 		traceql.IntrinsicName.String(),
 		traceql.IntrinsicStatus.String(),
 		traceql.IntrinsicStatusMessage.String(),
-		traceql.IntrinsicTraceDuration.String(),
+		traceql.IntrinsicKind.String(),
 		traceql.IntrinsicTraceRootService.String(),
 		traceql.IntrinsicTraceRootSpan.String(),
+		traceql.IntrinsicTraceDuration.String(),
+		traceql.IntrinsicEventName.String(),
+		traceql.IntrinsicEventTimeSinceStart.String(),
+		traceql.IntrinsicLinkSpanID.String(),
+		traceql.IntrinsicLinkTraceID.String(),
+		traceql.IntrinsicInstrumentationName.String(),
+		traceql.IntrinsicInstrumentationVersion.String(),
+
+		traceql.IntrinsicTraceID.String(),
+		traceql.IntrinsicSpanID.String(),
+		traceql.IntrinsicParentID.String(),
 		traceql.ScopedIntrinsicSpanStatus.String(),
 		traceql.ScopedIntrinsicSpanStatusMessage.String(),
 		traceql.ScopedIntrinsicSpanDuration.String(),
@@ -72,10 +83,7 @@ func GetVirtualIntrinsicValues() []string {
 		traceql.ScopedIntrinsicTraceRootName.String(),
 		traceql.ScopedIntrinsicTraceRootService.String(),
 		traceql.ScopedIntrinsicTraceDuration.String(),
-		traceql.IntrinsicEventName.String(),
-		traceql.IntrinsicEventTimeSinceStart.String(),
-		traceql.IntrinsicInstrumentationName.String(),
-		traceql.IntrinsicInstrumentationVersion.String(),
+
 		/* these are technically intrinsics that can be requested, but they are not generally of interest to a user
 		   typing a query. for simplicity and clarity we are leaving them out of autocomplete
 			IntrinsicNestedSetLeft

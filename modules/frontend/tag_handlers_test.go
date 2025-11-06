@@ -222,7 +222,7 @@ func TestSearchTagsV2Intrinsics(t *testing.T) {
 					{
 						// Only a subset of intrinsic tags will fit
 						Name: api.ParamScopeIntrinsic,
-						Tags: search.GetVirtualIntrinsicValues()[0:10],
+						Tags: search.GetVirtualIntrinsicValues()[0:9],
 					},
 				},
 			},
