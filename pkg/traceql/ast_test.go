@@ -1140,3 +1140,67 @@ func TestNeedsFullTrace(t *testing.T) {
 		})
 	}
 }
+
+func TestNewBinaryOperation_TraceIDNormalization(t *testing.T) {
+	traceIDAttr := NewIntrinsic(IntrinsicTraceID)
+	op := OpEqual
+
+	tests := []struct {
+		name       string
+		expression FieldExpression
+		expected   FieldExpression
+	}{
+		{
+			name:       "with leading zeros",
+			expression: NewStaticString("0000123"),
+			expected:   NewStaticString("123"),
+		},
+		{
+			name:       "no leading zeros",
+			expression: NewStaticString("123456789abcdef123456789abcdef"),
+			expected:   NewStaticString("123456789abcdef123456789abcdef"),
+		},
+		{
+			name:       "int",
+			expression: NewStaticInt(123),
+			expected:   NewStaticInt(123),
+		},
+		{
+			name:       "float",
+			expression: NewStaticFloat(123.0),
+			expected:   NewStaticFloat(123.0),
+		},
+	}
+
+	for _, tc := range []struct {
+		name    string
+		reverse bool
+	}{
+		{name: "trace:id = value", reverse: false},
+		{name: "value = trace:id", reverse: true},
+	} {
+		for _, tt := range tests {
+			t.Run(tc.name+" "+tt.name, func(t *testing.T) {
+				var lhs FieldExpression = traceIDAttr
+				rhs := tt.expression
+				var expectedLHS FieldExpression = traceIDAttr
+				expectedRHS := tt.expected
+
+				if tc.reverse {
+					lhs = tt.expression
+					rhs = traceIDAttr
+					expectedLHS = tt.expected
+					expectedRHS = traceIDAttr
+				}
+
+				binop := newBinaryOperation(op, lhs, rhs)
+
+				// Verify the result is a BinaryOperation
+				require.IsType(t, &BinaryOperation{}, binop)
+				actualBinop := binop.(*BinaryOperation)
+				assert.Equal(t, expectedLHS, actualBinop.LHS)
+				assert.Equal(t, expectedRHS, actualBinop.RHS)
+			})
+		}
+	}
+}

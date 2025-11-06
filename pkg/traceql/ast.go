@@ -8,6 +8,7 @@ import (
 	"iter"
 	"math"
 	"slices"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -520,6 +521,17 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 		RHS: rhs,
 	}
 
+	if attr, ok := lhs.(Attribute); ok && attr.Intrinsic == IntrinsicTraceID {
+		if static, ok := rhs.(Static); ok {
+			binop.RHS = normalizeTraceIDOperand(static)
+		}
+	}
+	if attr, ok := rhs.(Attribute); ok && attr.Intrinsic == IntrinsicTraceID {
+		if static, ok := lhs.(Static); ok {
+			binop.LHS = normalizeTraceIDOperand(static)
+		}
+	}
+
 	// AST rewrite for simplification
 	if !binop.referencesSpan() && binop.validate() == nil {
 		if simplified, err := binop.execute(nil); err == nil {
@@ -532,6 +544,16 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 	}
 
 	return binop
+}
+
+// normalizeTraceIDOperand normalizes a Static operand for trace ID
+func normalizeTraceIDOperand(operand Static) Static {
+	if operand.Type != TypeString {
+		return operand
+	}
+	traceID := operand.EncodeToString(false)
+	traceID = strings.TrimLeft(traceID, "0")
+	return NewStaticString(traceID)
 }
 
 // nolint: revive
@@ -581,7 +603,7 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 func (UnaryOperation) __fieldExpression() {}
 
 func (o UnaryOperation) impliedType() StaticType {
-	if o.Op == OpExists {
+	if o.Op == OpExists || o.Op == OpNotExists {
 		return TypeBoolean
 	}
 

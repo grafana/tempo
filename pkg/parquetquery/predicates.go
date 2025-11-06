@@ -550,3 +550,62 @@ func (m *CallbackPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { return m.
 func (m *CallbackPredicate) KeepPage(pq.Page) bool { return m.cb() }
 
 func (m *CallbackPredicate) KeepValue(pq.Value) bool { return m.cb() }
+
+var _ Predicate = (*NilValuePredicate)(nil)
+
+type NilValuePredicate struct{}
+
+func NewNilValuePredicate() NilValuePredicate {
+	return NilValuePredicate{}
+}
+
+func (p NilValuePredicate) String() string {
+	return "NilValuePredicate{}"
+}
+
+func (p NilValuePredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
+		for i := range ci.NumPages() {
+			if ci.NullCount(i) > 0 {
+				// At least one page in this chunk matches
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func (p NilValuePredicate) KeepPage(page pq.Page) bool {
+	return page.NumNulls() > 0
+}
+
+func (p NilValuePredicate) KeepValue(v pq.Value) bool {
+	return v.IsNull()
+}
+
+type IncludeNilStringEqualPredicate struct {
+	value []byte
+}
+
+func NewIncludeNilStringEqualPredicate(val []byte) IncludeNilStringEqualPredicate {
+	return IncludeNilStringEqualPredicate{value: val}
+}
+
+func (p IncludeNilStringEqualPredicate) String() string {
+	return "IncludeNilStringEqualPredicate{}"
+}
+
+func (p IncludeNilStringEqualPredicate) KeepColumnChunk(_ *ColumnChunkHelper) bool {
+	return true
+}
+
+func (p IncludeNilStringEqualPredicate) KeepPage(_ pq.Page) bool {
+	return true
+}
+
+func (p IncludeNilStringEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return bytes.Equal(vv, p.value)
+}

@@ -1890,7 +1890,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	// Ensure operand is bool
 	b, ok := operands[0].Bool()
 	if !ok {
-		return nil, fmt.Errorf("oparand is not bool: %+v", operands[0].EncodeToString(false))
+		return nil, fmt.Errorf("operand is not bool: %+v", operands[0].EncodeToString(false))
 	}
 
 	switch op {

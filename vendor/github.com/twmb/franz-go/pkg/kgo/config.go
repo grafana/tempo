@@ -19,6 +19,12 @@ import (
 	"github.com/twmb/franz-go/pkg/sasl"
 )
 
+////////////////////////////////////////////////////////
+// NOTE:                                              //
+// NOTE: Make sure new configs are added to OptValues //
+// NOTE:                                              //
+////////////////////////////////////////////////////////
+
 // Opt is an option to configure a client.
 type Opt interface {
 	apply(*cfg)
@@ -1960,7 +1966,7 @@ func AutoCommitMarks() GroupOpt {
 // when closing. This allows for the client to restart with the same instance
 // ID and rejoin the group to avoid a rebalance. It is strongly recommended to
 // increase the session timeout enough to allow time for the restart (remember
-// that the default session timeout is 10s).
+// that the default session timeout is 45s).
 //
 // To actually leave the group, you must use an external admin command that
 // issues a leave group request on behalf of this instance ID (see kcl), or you

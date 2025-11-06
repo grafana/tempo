@@ -178,6 +178,7 @@ valid:
   - '{ nil != nil }'
   - '{ nil = nil }'
   - '{ .foo != nil }'
+  - '{ name != nil }'
 
 # parse_fails throw an error when parsing
 parse_fails:
@@ -250,11 +251,6 @@ parse_fails:
   - '{} | bottomk(10) with(sample=0.1)'
   - '{} | rate() | topk(-1)'
   - '{} | rate() | bottomk(-1)'
-  - '{ parent = nil }'
-  - '{ -parent = nil }'
-  - '{ !parent = nil }'
-    # nil - will be valid when supported
-  - '{ .foo = nil }'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
