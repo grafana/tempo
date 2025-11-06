@@ -90,6 +90,12 @@ func (f *fieldExpressionRewriter) rewritePipeline(p Pipeline) (Pipeline, int) {
 			fe, n := f.rewriteFieldExpression(elem.Expression)
 			rwCount += n
 			elements = append(elements, newGroupOperation(fe))
+		case SpansetOperation:
+			lhs, n := f.rewriteSpansetExpression(elem.LHS)
+			rwCount += n
+			rhs, n := f.rewriteSpansetExpression(elem.RHS)
+			rwCount += n
+			elements = append(elements, newSpansetOperation(elem.Op, lhs, rhs))
 		case Pipeline:
 			fe, n := f.rewritePipeline(elem)
 			rwCount += n
@@ -102,17 +108,37 @@ func (f *fieldExpressionRewriter) rewritePipeline(p Pipeline) (Pipeline, int) {
 	return newPipeline(elements...), rwCount
 }
 
+func (f *fieldExpressionRewriter) rewriteSpansetExpression(se SpansetExpression) (SpansetExpression, int) {
+	switch se := se.(type) {
+	case *SpansetFilter:
+		if se == nil {
+			return se, 0
+		}
+		fe, n := f.rewriteFieldExpression(se.Expression)
+		return newSpansetFilter(fe), n
+	case ScalarFilter:
+		lhs, n1 := f.rewriteScalarExpression(se.LHS)
+		rhs, n2 := f.rewriteScalarExpression(se.RHS)
+		return newScalarFilter(se.Op, lhs, rhs), n1 + n2
+	case SpansetOperation:
+		lhs, n1 := f.rewriteSpansetExpression(se.LHS)
+		rhs, n2 := f.rewriteSpansetExpression(se.RHS)
+		return newSpansetOperation(se.Op, lhs, rhs), n1 + n2
+	case Pipeline:
+		return f.rewritePipeline(se)
+	}
+
+	return se, 0
+}
+
 func (f *fieldExpressionRewriter) rewriteScalarExpression(se ScalarExpression) (ScalarExpression, int) {
 	switch se := se.(type) {
 	case Pipeline:
 		return f.rewritePipeline(se)
 	case ScalarOperation:
-		var rwCount int
-		lhs, n := f.rewriteScalarExpression(se.LHS)
-		rwCount += n
-		rhs, n := f.rewriteScalarExpression(se.RHS)
-		rwCount += n
-		return newScalarOperation(se.Op, lhs, rhs), rwCount
+		lhs, n1 := f.rewriteScalarExpression(se.LHS)
+		rhs, n2 := f.rewriteScalarExpression(se.RHS)
+		return newScalarOperation(se.Op, lhs, rhs), n1 + n2
 	case Aggregate:
 		fe, n := f.rewriteFieldExpression(se.e)
 		return newAggregate(se.op, fe), n
@@ -128,18 +154,17 @@ func (f *fieldExpressionRewriter) rewriteScalarExpression(se ScalarExpression) (
 func (f *fieldExpressionRewriter) rewriteFieldExpression(fe FieldExpression) (FieldExpression, int) {
 	var rwCount int
 
-	switch fe := fe.(type) {
+	switch e := fe.(type) {
 	case *BinaryOperation:
-		lhs, n := f.rewriteFieldExpression(fe.LHS)
+		lhs, n := f.rewriteFieldExpression(e.LHS)
 		rwCount += n
-		fe.LHS = lhs
-		rhs, n := f.rewriteFieldExpression(fe.RHS)
+		rhs, n := f.rewriteFieldExpression(e.RHS)
 		rwCount += n
-		fe.RHS = rhs
+		fe = newBinaryOperation(e.Op, lhs, rhs)
 	case *UnaryOperation:
-		e, n := f.rewriteFieldExpression(fe.Expression)
-		fe.Expression = e
+		exp, n := f.rewriteFieldExpression(e.Expression)
 		rwCount += n
+		fe = newUnaryOperation(e.Op, exp)
 	}
 
 	for _, fn := range f.rewriteFunctions {
@@ -213,11 +238,7 @@ func rewriteBinaryOperationsToArrayEquivalent(fe FieldExpression, opOuter, opInn
 		return fe, 0
 	}
 
-	return &BinaryOperation{
-		Op:  opInner,
-		LHS: attrLHS,
-		RHS: array,
-	}, 1
+	return newBinaryOperation(opInner, attrLHS, array), 1
 }
 
 func getOperandsFromBinaryOperation(exp FieldExpression, operator Operator) (Attribute, Static, bool) {
