@@ -358,4 +358,3 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	sort(actualFinal)
 	require.Equal(t, expectedFinal, actualFinal)
 }
-
