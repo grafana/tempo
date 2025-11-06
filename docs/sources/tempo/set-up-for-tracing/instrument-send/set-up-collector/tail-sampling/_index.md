@@ -4,6 +4,7 @@ menuTitle: Sampling
 description: Learn how to streamline tracing data by using sampling to determine which data to keep and which to drop.
 aliases:
   - ../../../configuration/grafana-alloy/tail-sampling/ # /docs/tempo/next/configuration/grafana-alloy/tail-sampling/
+  - ../../../configuration/grafana-agent/tail-sampling/ # /docs/tempo/latest/configuration/grafana-agent/tail-sampling/
 ---
 
 # Sampling

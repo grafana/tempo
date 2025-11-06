@@ -491,15 +491,17 @@ func TestSearchTags(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
+	start := time.Now().Add(-5 * time.Second)
+	end := time.Now().Add(-5 * time.Second)
 	// Assert no more on the ingester
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{}}, 0, 0)
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{}}, start.Unix(), end.Unix())
 
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
 	// Assert tags on storage backend
 	now := time.Now()
-	start := now.Add(-2 * time.Hour)
-	end := now.Add(2 * time.Hour)
+	start = now.Add(-2 * time.Hour)
+	end = now.Add(2 * time.Hour)
 	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, start.Unix(), end.Unix())
 }
 
@@ -532,13 +534,15 @@ func TestSearchTagValues(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
 	// Assert no more on the ingester
-	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{}}, 0, 0)
+	start := time.Now().Add(-5 * time.Second)
+	end := time.Now().Add(-5 * time.Second)
+	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{}}, start.Unix(), end.Unix())
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
 	// Assert tags on storage backen
 	now := time.Now()
-	start := now.Add(-2 * time.Hour)
-	end := now.Add(2 * time.Hour)
+	start = now.Add(-2 * time.Hour)
+	end = now.Add(2 * time.Hour)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, start.Unix(), end.Unix())
 }
 
