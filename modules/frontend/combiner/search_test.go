@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -16,49 +14,57 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func TestSearchProgressShouldQuitAny(t *testing.T) {
+func TestSearchProgressShouldQuitAnyJSON(t *testing.T) {
+	testSearchProgressShouldQuitAny(t, "application/json")
+}
+
+func TestSearchProgressShouldQuitAnyProtobuf(t *testing.T) {
+	testSearchProgressShouldQuitAny(t, "application/protobuf")
+}
+
+func testSearchProgressShouldQuitAny(t *testing.T, marshalingFormat string) {
 	// new combiner should not quit
-	c := NewSearch(0, false)
+	c := NewSearch(0, false, marshalingFormat)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewSearch(0, false)
-	err := c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 500))
+	c = NewSearch(0, false, marshalingFormat)
+	err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 500, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewSearch(0, false)
-	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 429))
+	c = NewSearch(0, false, marshalingFormat)
+	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 429, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewSearch(0, false)
+	c = NewSearch(0, false, marshalingFormat)
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// under limit should not quit
-	c = NewSearch(2, false)
-	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
+	c = NewSearch(2, false, marshalingFormat)
+	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: "1",
 			},
 		},
-	}, 200))
+	}, 200, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// over limit should quit
-	c = NewSearch(1, false)
-	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
+	c = NewSearch(1, false, marshalingFormat)
+	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: "1",
@@ -67,55 +73,63 @@ func TestSearchProgressShouldQuitAny(t *testing.T) {
 				TraceID: "2",
 			},
 		},
-	}, 200))
+	}, 200, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 }
 
-func TestSearchProgressShouldQuitMostRecent(t *testing.T) {
+func TestSearchProgressShouldQuitMostRecentJSON(t *testing.T) {
+	testSearchProgressShouldQuitMostRecent(t, "application/json")
+}
+
+func TestSearchProgressShouldQuitMostRecentProtobuf(t *testing.T) {
+	testSearchProgressShouldQuitMostRecent(t, "application/protobuf")
+}
+
+func testSearchProgressShouldQuitMostRecent(t *testing.T, marshalingFormat string) {
 	// new combiner should not quit
-	c := NewSearch(0, true)
+	c := NewSearch(0, true, marshalingFormat)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewSearch(0, true)
-	err := c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 500))
+	c = NewSearch(0, true, marshalingFormat)
+	err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 500, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewSearch(0, true)
-	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 429))
+	c = NewSearch(0, true, marshalingFormat)
+	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 429, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewSearch(0, true)
+	c = NewSearch(0, true, marshalingFormat)
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// under limit should not quit
-	c = NewSearch(2, true)
-	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
+	c = NewSearch(2, true, marshalingFormat)
+	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: "1",
 			},
 		},
-	}, 200))
+	}, 200, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// over limit but no search job response, should not quit
-	c = NewSearch(1, true)
-	err = c.AddResponse(toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+	c = NewSearch(1, true, marshalingFormat)
+	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:           "1",
@@ -126,7 +140,7 @@ func TestSearchProgressShouldQuitMostRecent(t *testing.T) {
 				StartTimeUnixNano: uint64(200 * time.Second),
 			},
 		},
-	}, 200, 0)) // 0 is the shard index
+	}, 200, 0, marshalingFormat)) // 0 is the shard index
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
@@ -154,26 +168,34 @@ func TestSearchProgressShouldQuitMostRecent(t *testing.T) {
 	require.False(t, should)
 
 	// add complete the second shard. quit should be true b/c completed through is 150, our limit is one and we have a trace at 200
-	err = c.AddResponse(toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:           "3",
 				StartTimeUnixNano: uint64(50 * time.Second),
 			},
 		},
-	}, 200, 1)) // 1 is the shard index
+	}, 200, 1, marshalingFormat)) // 1 is the shard index
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 }
 
-func TestSearchCombinesResults(t *testing.T) {
+func TestSearchCombinesResultsJSON(t *testing.T) {
+	testSearchCombinesResults(t, "application/json")
+}
+
+func TestSearchCombinesResultsProtobuf(t *testing.T) {
+	testSearchCombinesResults(t, "application/protobuf")
+}
+
+func testSearchCombinesResults(t *testing.T, marshalingFormat string) {
 	for _, keepMostRecent := range []bool{true, false} {
 		start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
 		traceID := "traceID"
 
-		c := NewSearch(10, keepMostRecent)
-		sr := toHTTPResponse(t, &tempopb.SearchResponse{
+		c := NewSearch(10, keepMostRecent, marshalingFormat)
+		sr := toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 			Traces: []*tempopb.TraceSearchMetadata{
 				{
 					TraceID:           traceID,
@@ -192,7 +214,7 @@ func TestSearchCombinesResults(t *testing.T) {
 				}, // 1 hour after start and shorter duration
 			},
 			Metrics: &tempopb.SearchMetrics{},
-		}, 200)
+		}, 200, nil, marshalingFormat)
 		err := c.AddResponse(sr)
 		require.NoError(t, err)
 
@@ -220,7 +242,15 @@ func TestSearchCombinesResults(t *testing.T) {
 	}
 }
 
-func TestSearchResponseCombiner(t *testing.T) {
+func TestSearchResponseCombinerJSON(t *testing.T) {
+	testSearchResponseCombiner(t, "application/json")
+}
+
+func TestSearchResponseCombinerProtobuf(t *testing.T) {
+	testSearchResponseCombiner(t, "application/protobuf")
+}
+
+func testSearchResponseCombiner(t *testing.T, marshalingFormat string) {
 	for _, keepMostRecent := range []bool{true, false} {
 		tests := []struct {
 			name      string
@@ -234,8 +264,8 @@ func TestSearchResponseCombiner(t *testing.T) {
 		}{
 			{
 				name:           "empty returns",
-				response1:      toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-				response2:      toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				response1:      toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
+				response2:      toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
 				expectedStatus: 200,
 				expectedResponse: &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{},
@@ -246,50 +276,50 @@ func TestSearchResponseCombiner(t *testing.T) {
 			},
 			{
 				name:              "404+200",
-				response1:         toHTTPResponse(t, nil, 404),
-				response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				response1:         toHTTPResponseWithFormat(t, nil, 404, nil, marshalingFormat),
+				response2:         toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
 				expectedStatus:    404,
 				expectedGRPCError: status.Error(codes.NotFound, ""),
 			},
 			{
 				name:              "200+400",
-				response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-				response2:         toHTTPResponse(t, nil, 400),
+				response1:         toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
+				response2:         toHTTPResponseWithFormat(t, nil, 400, nil, marshalingFormat),
 				expectedStatus:    400,
 				expectedGRPCError: status.Error(codes.InvalidArgument, ""),
 			},
 			{
 				name:              "200+429",
-				response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-				response2:         toHTTPResponse(t, nil, 429),
+				response1:         toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
+				response2:         toHTTPResponseWithFormat(t, nil, 429, nil, marshalingFormat),
 				expectedStatus:    429,
 				expectedGRPCError: status.Error(codes.ResourceExhausted, ""),
 			},
 			{
 				name:              "500+404",
-				response1:         toHTTPResponse(t, nil, 500),
-				response2:         toHTTPResponse(t, nil, 404),
+				response1:         toHTTPResponseWithFormat(t, nil, 500, nil, marshalingFormat),
+				response2:         toHTTPResponseWithFormat(t, nil, 404, nil, marshalingFormat),
 				expectedStatus:    500,
 				expectedGRPCError: status.Error(codes.Internal, ""),
 			},
 			{
 				name:              "404+500 - first bad response wins",
-				response1:         toHTTPResponse(t, nil, 404),
-				response2:         toHTTPResponse(t, nil, 500),
+				response1:         toHTTPResponseWithFormat(t, nil, 404, nil, marshalingFormat),
+				response2:         toHTTPResponseWithFormat(t, nil, 500, nil, marshalingFormat),
 				expectedStatus:    404,
 				expectedGRPCError: status.Error(codes.NotFound, ""),
 			},
 			{
 				name:              "500+200",
-				response1:         toHTTPResponse(t, nil, 500),
-				response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				response1:         toHTTPResponseWithFormat(t, nil, 500, nil, marshalingFormat),
+				response2:         toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
 				expectedStatus:    500,
 				expectedGRPCError: status.Error(codes.Internal, ""),
 			},
 			{
 				name:              "200+500",
-				response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-				response2:         toHTTPResponse(t, nil, 500),
+				response1:         toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
+				response2:         toHTTPResponseWithFormat(t, nil, 500, nil, marshalingFormat),
 				expectedStatus:    500,
 				expectedGRPCError: status.Error(codes.Internal, ""),
 			},
@@ -300,7 +330,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 					TotalJobs:   10,
 					TotalBytes:  15,
 				},
-				response2: toHTTPResponse(t, &tempopb.SearchResponse{
+				response2: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
 						{
 							TraceID:           "5678",
@@ -311,7 +341,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 						InspectedTraces: 5,
 						InspectedBytes:  7,
 					},
-				}, 200),
+				}, 200, nil, marshalingFormat),
 				expectedStatus: 200,
 				expectedResponse: &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
@@ -333,7 +363,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 			},
 			{
 				name: "200+200",
-				response1: toHTTPResponse(t, &tempopb.SearchResponse{
+				response1: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
 						{
 							TraceID:           "1234",
@@ -345,8 +375,8 @@ func TestSearchResponseCombiner(t *testing.T) {
 						TotalBlocks:     2,
 						InspectedBytes:  3,
 					},
-				}, 200),
-				response2: toHTTPResponse(t, &tempopb.SearchResponse{
+				}, 200, nil, marshalingFormat),
+				response2: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
 						{
 							TraceID:           "5678",
@@ -358,7 +388,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 						TotalBlocks:     6,
 						InspectedBytes:  7,
 					},
-				}, 200),
+				}, 200, nil, marshalingFormat),
 				expectedStatus: 200,
 				expectedResponse: &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
@@ -384,7 +414,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				combiner := NewTypedSearch(20, keepMostRecent)
+				combiner := NewTypedSearch(20, keepMostRecent, marshalingFormat)
 
 				err := combiner.AddResponse(tc.response1)
 				require.NoError(t, err)
@@ -403,7 +433,15 @@ func TestSearchResponseCombiner(t *testing.T) {
 	}
 }
 
-func TestCombinerShards(t *testing.T) {
+func TestCombinerShardsJSON(t *testing.T) {
+	testCombinerShards(t, "application/json")
+}
+
+func TestCombinerShardsProtobuf(t *testing.T) {
+	testCombinerShards(t, "application/protobuf")
+}
+
+func testCombinerShards(t *testing.T, marshalingFormat string) {
 	tests := []struct {
 		name             string
 		pipelineResponse PipelineResponse
@@ -457,7 +495,7 @@ func TestCombinerShards(t *testing.T) {
 		},
 		{
 			name: "add response results",
-			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
 						TraceID:           "450",
@@ -474,7 +512,7 @@ func TestCombinerShards(t *testing.T) {
 					InspectedTraces: 1,
 					InspectedBytes:  2,
 				},
-			}, 200, 0), // shard 0
+			}, 200, 0, marshalingFormat), // shard 0
 			expected: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{}, // no traces b/c only one job has finished and the first shard has 2 jobs
 				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
@@ -489,7 +527,7 @@ func TestCombinerShards(t *testing.T) {
 		},
 		{
 			name: "add second job to finish the first shard and get one result",
-			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
 						TraceID:           "350",
@@ -501,7 +539,7 @@ func TestCombinerShards(t *testing.T) {
 					InspectedTraces: 1,
 					InspectedBytes:  2,
 				},
-			}, 200, 0), // shard 0,
+			}, 200, 0, marshalingFormat), // shard 0,
 			expected: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
@@ -522,7 +560,7 @@ func TestCombinerShards(t *testing.T) {
 		},
 		{
 			name: "update response results",
-			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
 						TraceID:           "550",
@@ -535,7 +573,7 @@ func TestCombinerShards(t *testing.T) {
 					InspectedTraces: 1,
 					InspectedBytes:  2,
 				},
-			}, 200, 1), // complete shard 1
+			}, 200, 1, marshalingFormat), // complete shard 1
 			expected: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{ // included b/c updated
@@ -562,7 +600,7 @@ func TestCombinerShards(t *testing.T) {
 		},
 		{
 			name: "skip a shard and see no change",
-			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
 						TraceID:           "50",
@@ -574,7 +612,7 @@ func TestCombinerShards(t *testing.T) {
 					InspectedTraces: 1,
 					InspectedBytes:  2,
 				},
-			}, 200, 3), // complete shard 3,
+			}, 200, 3, marshalingFormat), // complete shard 3,
 			expected: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{}, // no traces b/c we skipped shard 2 and we can't include results from 3 until 2 is done
 				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
@@ -589,13 +627,13 @@ func TestCombinerShards(t *testing.T) {
 		},
 		{
 			name: "fill in shard 2 and see results",
-			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 1,
 					InspectedBytes:  2,
 				},
-			}, 200, 2), // complete shard 2,
+			}, 200, 2, marshalingFormat), // complete shard 2,
 			expected: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
@@ -616,13 +654,13 @@ func TestCombinerShards(t *testing.T) {
 		},
 		{
 			name: "complete all shards which dumps all results",
-			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 1,
 					InspectedBytes:  2,
 				},
-			}, 200, 4), // complete shard 4,
+			}, 200, 4, marshalingFormat), // complete shard 4,
 			expected: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
@@ -645,7 +683,7 @@ func TestCombinerShards(t *testing.T) {
 
 	// apply tests one at a time to the combiner and check expected results
 
-	combiner := NewTypedSearch(5, true)
+	combiner := NewTypedSearch(5, true, marshalingFormat)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.pipelineResponse != nil {
@@ -840,32 +878,4 @@ func TestCompletionTracker(t *testing.T) {
 			require.Equal(t, int(tc.exp), int(ct))
 		})
 	}
-}
-
-func toHTTPResponseWithResponseData(t *testing.T, pb proto.Message, statusCode int, responseData any) PipelineResponse {
-	var body string
-
-	if pb != nil {
-		var err error
-		m := jsonpb.Marshaler{}
-		body, err = m.MarshalToString(pb)
-		require.NoError(t, err)
-	}
-
-	return &testPipelineResponse{
-		responseData: responseData,
-		r: &http.Response{
-			Body:       io.NopCloser(strings.NewReader(body)),
-			StatusCode: statusCode,
-		},
-	}
-}
-
-func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) PipelineResponse {
-	return toHTTPResponseWithResponseData(t, pb, statusCode, nil)
-}
-
-func fromHTTPResponse(t *testing.T, r *http.Response, pb proto.Message) {
-	err := jsonpb.Unmarshal(r.Body, pb)
-	require.NoError(t, err)
 }

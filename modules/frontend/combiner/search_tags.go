@@ -1,7 +1,6 @@
 package combiner
 
 import (
-	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -11,7 +10,7 @@ var (
 	_ GRPCCombiner[*tempopb.SearchTagsV2Response] = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
 )
 
-func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) Combiner {
+func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat string) Combiner {
 	d := collector.NewDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold)
 	metricsCombiner := NewMetadataMetricsCombiner()
 
@@ -47,11 +46,11 @@ func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold
 			return response, nil
 		},
 	}
-	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	initHTTPCombiner(c, marshalingFormat)
 	return c
 }
 
-func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) Combiner {
+func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat string) Combiner {
 	// Distinct collector map to collect scopes and scope values
 	distinctValues := collector.NewScopedDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold)
 	metricsCombiner := NewMetadataMetricsCombiner()
@@ -105,14 +104,14 @@ func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThresho
 			return response, nil
 		},
 	}
-	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	initHTTPCombiner(c, marshalingFormat)
 	return c
 }
 
-func NewTypedSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) GRPCCombiner[*tempopb.SearchTagsResponse] {
-	return NewSearchTags(maxDataBytes, maxTagsPerScope, staleValueThreshold).(GRPCCombiner[*tempopb.SearchTagsResponse])
+func NewTypedSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat string) GRPCCombiner[*tempopb.SearchTagsResponse] {
+	return NewSearchTags(maxDataBytes, maxTagsPerScope, staleValueThreshold, marshalingFormat).(GRPCCombiner[*tempopb.SearchTagsResponse])
 }
 
-func NewTypedSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) GRPCCombiner[*tempopb.SearchTagsV2Response] {
-	return NewSearchTagsV2(maxDataBytes, maxTagsPerScope, staleValueThreshold).(GRPCCombiner[*tempopb.SearchTagsV2Response])
+func NewTypedSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat string) GRPCCombiner[*tempopb.SearchTagsV2Response] {
+	return NewSearchTagsV2(maxDataBytes, maxTagsPerScope, staleValueThreshold, marshalingFormat).(GRPCCombiner[*tempopb.SearchTagsV2Response])
 }

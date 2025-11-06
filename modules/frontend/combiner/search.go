@@ -3,7 +3,6 @@ package combiner
 import (
 	"net/http"
 
-	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -38,7 +37,7 @@ func (s *SearchJobResponse) IsMetadata() bool {
 var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
 // NewSearch returns a search combiner
-func NewSearch(limit int, keepMostRecent bool) Combiner {
+func NewSearch(limit int, keepMostRecent bool, marshalingFormat string) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
 	completedThroughTracker := &ShardCompletionTracker{}
@@ -136,7 +135,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 			return metadataCombiner.IsCompleteFor(completedThroughSeconds)
 		},
 	}
-	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	initHTTPCombiner(c, marshalingFormat)
 	return c
 }
 
@@ -148,8 +147,8 @@ func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
 	}
 }
 
-func NewTypedSearch(limit int, keepMostRecent bool) GRPCCombiner[*tempopb.SearchResponse] {
-	return NewSearch(limit, keepMostRecent).(GRPCCombiner[*tempopb.SearchResponse])
+func NewTypedSearch(limit int, keepMostRecent bool, marshalingFormat string) GRPCCombiner[*tempopb.SearchResponse] {
+	return NewSearch(limit, keepMostRecent, marshalingFormat).(GRPCCombiner[*tempopb.SearchResponse])
 }
 
 // ShardCompletionTracker

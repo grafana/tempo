@@ -54,7 +54,10 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()
 
-		comb, err := newCombiner(req, cfg.Search.Sharder)
+		// Use protobuf for internal queries by default
+		marshallingFormat := api.HeaderAcceptProtobuf
+
+		comb, err := newCombiner(req, cfg.Search.Sharder, marshallingFormat)
 		if err != nil {
 			level.Error(logger).Log("msg", "search streaming: could not create combiner", "err", err)
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -106,7 +109,10 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 			return httpInvalidRequest(err), nil
 		}
 
-		comb, err := newCombiner(searchReq, cfg.Search.Sharder)
+		// check marshalling format
+		marshallingFormat := marshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+
+		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat)
 		if err != nil {
 			level.Error(logger).Log("msg", "search: could not create combiner", "err", err)
 			return httpInvalidRequest(err), nil
@@ -133,7 +139,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	})
 }
 
-func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
+func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshalingFormat string) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
 	limit, err := adjustLimit(req.Limit, cfg.DefaultLimit, cfg.MaxLimit)
 	if err != nil {
 		return nil, err
@@ -152,7 +158,7 @@ func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig) (combiner.
 		}
 	}
 
-	return combiner.NewTypedSearch(int(limit), mostRecent), nil
+	return combiner.NewTypedSearch(int(limit), mostRecent, marshalingFormat), nil
 }
 
 // adjusts the limit based on provided config
