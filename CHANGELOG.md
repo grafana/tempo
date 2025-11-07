@@ -25,6 +25,7 @@
 * [ENHANCEMENT] Add TraceQL support for nonexistential attribute queries [#4950](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
 * [ENHANCEMENT] Add partition ownership metric to live-store [#5815](https://github.com/grafana/tempo/pull/5815) (@javiermolinar, @mapno)
 * [ENHANCEMENT] Update list of intrinsics returned by search tags endpoint [#5857](https://github.com/grafana/tempo/pull/5857) (@andreasgerstmayr)
+* [ENHANCEMENT] Add support for application/protobuf in frontend endpoints [#5865](https://github.com/grafana/tempo/pull/5865) (@oleg-kozliuk-grafana)
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
 * [BUGFIX] Fix issues related to integer dedicated columns in vParquet5-preview2 [#5716](https://github.com/grafana/tempo/pull/5716) (@stoewer)
