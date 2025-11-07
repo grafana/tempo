@@ -5,13 +5,14 @@ import (
 
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 )
 
-func NewTypedTraceByIDV2(maxBytes int, marshalingFormat string, traceRedactor TraceRedactor) GRPCCombiner[*tempopb.TraceByIDResponse] {
+func NewTypedTraceByIDV2(maxBytes int, marshalingFormat util.MarshallingFormat, traceRedactor TraceRedactor) GRPCCombiner[*tempopb.TraceByIDResponse] {
 	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor).(GRPCCombiner[*tempopb.TraceByIDResponse])
 }
 
-func NewTraceByIDV2(maxBytes int, marshalingFormat string, traceRedactor TraceRedactor) Combiner {
+func NewTraceByIDV2(maxBytes int, marshalingFormat util.MarshallingFormat, traceRedactor TraceRedactor) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
 	metricsCombiner := NewTraceByIDMetricsCombiner()

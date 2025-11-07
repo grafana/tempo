@@ -10,19 +10,20 @@ import (
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
 func TestSearchProgressShouldQuitAnyJSON(t *testing.T) {
-	testSearchProgressShouldQuitAny(t, "application/json")
+	testSearchProgressShouldQuitAny(t, util.MarshallingFormatJSON)
 }
 
 func TestSearchProgressShouldQuitAnyProtobuf(t *testing.T) {
-	testSearchProgressShouldQuitAny(t, "application/protobuf")
+	testSearchProgressShouldQuitAny(t, util.MarshallingFormatProtobuf)
 }
 
-func testSearchProgressShouldQuitAny(t *testing.T, marshalingFormat string) {
+func testSearchProgressShouldQuitAny(t *testing.T, marshalingFormat util.MarshallingFormat) {
 	// new combiner should not quit
 	c := NewSearch(0, false, marshalingFormat)
 	should := c.ShouldQuit()
@@ -80,14 +81,14 @@ func testSearchProgressShouldQuitAny(t *testing.T, marshalingFormat string) {
 }
 
 func TestSearchProgressShouldQuitMostRecentJSON(t *testing.T) {
-	testSearchProgressShouldQuitMostRecent(t, "application/json")
+	testSearchProgressShouldQuitMostRecent(t, util.MarshallingFormatJSON)
 }
 
 func TestSearchProgressShouldQuitMostRecentProtobuf(t *testing.T) {
-	testSearchProgressShouldQuitMostRecent(t, "application/protobuf")
+	testSearchProgressShouldQuitMostRecent(t, util.MarshallingFormatProtobuf)
 }
 
-func testSearchProgressShouldQuitMostRecent(t *testing.T, marshalingFormat string) {
+func testSearchProgressShouldQuitMostRecent(t *testing.T, marshalingFormat util.MarshallingFormat) {
 	// new combiner should not quit
 	c := NewSearch(0, true, marshalingFormat)
 	should := c.ShouldQuit()
@@ -182,14 +183,14 @@ func testSearchProgressShouldQuitMostRecent(t *testing.T, marshalingFormat strin
 }
 
 func TestSearchCombinesResultsJSON(t *testing.T) {
-	testSearchCombinesResults(t, "application/json")
+	testSearchCombinesResults(t, util.MarshallingFormatJSON)
 }
 
 func TestSearchCombinesResultsProtobuf(t *testing.T) {
-	testSearchCombinesResults(t, "application/protobuf")
+	testSearchCombinesResults(t, util.MarshallingFormatProtobuf)
 }
 
-func testSearchCombinesResults(t *testing.T, marshalingFormat string) {
+func testSearchCombinesResults(t *testing.T, marshalingFormat util.MarshallingFormat) {
 	for _, keepMostRecent := range []bool{true, false} {
 		start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
 		traceID := "traceID"
@@ -243,14 +244,14 @@ func testSearchCombinesResults(t *testing.T, marshalingFormat string) {
 }
 
 func TestSearchResponseCombinerJSON(t *testing.T) {
-	testSearchResponseCombiner(t, "application/json")
+	testSearchResponseCombiner(t, util.MarshallingFormatJSON)
 }
 
 func TestSearchResponseCombinerProtobuf(t *testing.T) {
-	testSearchResponseCombiner(t, "application/protobuf")
+	testSearchResponseCombiner(t, util.MarshallingFormatProtobuf)
 }
 
-func testSearchResponseCombiner(t *testing.T, marshalingFormat string) {
+func testSearchResponseCombiner(t *testing.T, marshalingFormat util.MarshallingFormat) {
 	for _, keepMostRecent := range []bool{true, false} {
 		tests := []struct {
 			name      string
@@ -434,14 +435,14 @@ func testSearchResponseCombiner(t *testing.T, marshalingFormat string) {
 }
 
 func TestCombinerShardsJSON(t *testing.T) {
-	testCombinerShards(t, "application/json")
+	testCombinerShards(t, util.MarshallingFormatJSON)
 }
 
 func TestCombinerShardsProtobuf(t *testing.T) {
-	testCombinerShards(t, "application/protobuf")
+	testCombinerShards(t, util.MarshallingFormatProtobuf)
 }
 
-func testCombinerShards(t *testing.T, marshalingFormat string) {
+func testCombinerShards(t *testing.T, marshalingFormat util.MarshallingFormat) {
 	tests := []struct {
 		name             string
 		pipelineResponse PipelineResponse

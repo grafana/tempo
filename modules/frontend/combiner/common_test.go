@@ -287,12 +287,12 @@ func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {
 }
 
 // Helper functions for creating test responses with different marshaling formats
-func toHTTPResponseWithFormat(t *testing.T, pb proto.Message, statusCode int, responseData any, format string) PipelineResponse {
+func toHTTPResponseWithFormat(t *testing.T, pb proto.Message, statusCode int, responseData any, format util.MarshallingFormat) PipelineResponse {
 	var body []byte
 	var err error
 
 	if pb != nil {
-		if format == api.HeaderAcceptProtobuf {
+		if format == util.MarshallingFormatProtobuf {
 			body, err = proto.Marshal(pb)
 			require.NoError(t, err)
 		} else {
@@ -309,7 +309,7 @@ func toHTTPResponseWithFormat(t *testing.T, pb proto.Message, statusCode int, re
 			Body:       io.NopCloser(strings.NewReader(string(body))),
 			StatusCode: statusCode,
 			Header: http.Header{
-				api.HeaderContentType: {format},
+				api.HeaderContentType: {string(format)},
 			},
 		},
 	}

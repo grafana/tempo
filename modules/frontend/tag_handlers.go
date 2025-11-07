@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"google.golang.org/grpc/codes"
 )
 
@@ -56,7 +57,7 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 		}
 
 		// Use protobuf for internal queries by default
-		marshallingFormat := api.HeaderAcceptProtobuf
+		marshallingFormat := util.MarshallingFormatProtobuf
 
 		var finalResponse *tempopb.SearchTagsResponse
 		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, marshallingFormat)
@@ -114,7 +115,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 
 		// Use protobuf for internal queries by default
-		marshallingFormat := api.HeaderAcceptProtobuf
+		marshallingFormat := util.MarshallingFormatProtobuf
 
 		var finalResponse *tempopb.SearchTagsV2Response
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, marshallingFormat)
@@ -185,7 +186,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		}
 
 		// Use protobuf for internal queries by default
-		marshallingFormat := api.HeaderAcceptProtobuf
+		marshallingFormat := util.MarshallingFormatProtobuf
 
 		var finalResponse *tempopb.SearchTagValuesResponse
 		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, marshallingFormat)
@@ -233,7 +234,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 			return err
 		}
 		// Use protobuf for internal queries by default
-		marshallingFormat := api.HeaderAcceptProtobuf
+		marshallingFormat := util.MarshallingFormatProtobuf
 
 		var finalResponse *tempopb.SearchTagValuesV2Response
 		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, marshallingFormat)
@@ -278,7 +279,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 
 		// check marshalling format
-		marshallingFormat := marshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := util.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, marshallingFormat)
@@ -336,7 +337,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 
 		// check marshalling format
-		marshallingFormat := marshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := util.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, marshallingFormat)
@@ -402,7 +403,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 		tagName := extractTagName(req.URL.Path, tagNameRegexV1)
 
 		// check marshalling format
-		marshallingFormat := marshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := util.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, marshallingFormat)
@@ -447,7 +448,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		tagName := extractTagName(req.URL.Path, tagNameRegexV2)
 
 		// check marshalling format
-		marshallingFormat := marshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := util.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, marshallingFormat)
@@ -602,15 +603,4 @@ func extractTagName(path string, pattern *regexp.Regexp) string {
 		return matches[1]
 	}
 	return ""
-}
-
-// marshalingFormatFromAcceptHeader extracts the marshaling format from the Accept header
-// It properly handles multiple media types and quality values
-func marshalingFormatFromAcceptHeader(acceptHeader string) string {
-	// Check if protobuf is requested (handles multiple values, quality params, etc.)
-	if strings.Contains(acceptHeader, api.HeaderAcceptProtobuf) {
-		return api.HeaderAcceptProtobuf
-	}
-	// Default to JSON
-	return api.HeaderAcceptJSON
 }

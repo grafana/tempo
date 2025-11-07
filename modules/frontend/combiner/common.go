@@ -49,9 +49,9 @@ type genericCombiner[T TResponse] struct {
 }
 
 // Init an HTTP combiner with default values. The marshaling format dictates how the response will be marshaled, including the Content-type header.
-func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat string) {
+func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat util.MarshallingFormat) {
 	c.httpStatusCode = 200
-	c.httpMarshalingFormat = marshalingFormat
+	c.httpMarshalingFormat = string(marshalingFormat)
 }
 
 // AddResponse is used to add a http response to the combiner.

@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
@@ -55,7 +56,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		start := time.Now()
 
 		// Use protobuf for internal queries by default
-		marshallingFormat := api.HeaderAcceptProtobuf
+		marshallingFormat := util.MarshallingFormatProtobuf
 
 		comb, err := newCombiner(req, cfg.Search.Sharder, marshallingFormat)
 		if err != nil {
@@ -110,7 +111,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		}
 
 		// check marshalling format
-		marshallingFormat := marshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := util.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
 
 		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat)
 		if err != nil {
@@ -139,7 +140,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	})
 }
 
-func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshalingFormat string) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
+func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshalingFormat util.MarshallingFormat) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
 	limit, err := adjustLimit(req.Limit, cfg.DefaultLimit, cfg.MaxLimit)
 	if err != nil {
 		return nil, err
