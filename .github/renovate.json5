@@ -1,0 +1,49 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices"],
+  "timezone": "UTC",
+  "schedule": ["before 4am on monday"],
+  "prConcurrentLimit": 5,
+  "ignoreDeps": [],
+  "separateMajorMinor": true,
+  "separateMultipleMajor": true,
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Group OpenTelemetry OTEL updates",
+      "matchManagers": ["gomod"],
+      "matchPackagePatterns": ["^go\\.opentelemetry\\.io/otel"],
+      "groupName": "opentelemetry-otel"
+    },
+    {
+      "description": "Group OpenTelemetry Contrib updates",
+      "matchManagers": ["gomod"],
+      "matchPackagePatterns": [
+        "^go\\.opentelemetry\\.io/contrib",
+        "^github\\.com/open-telemetry/opentelemetry-collector-contrib"
+      ],
+      "groupName": "opentelemetry-contrib"
+    },
+    {
+      "description": "Group OpenTelemetry Collector updates",
+      "matchManagers": ["gomod"],
+      "matchPackagePatterns": ["^go\\.opentelemetry\\.io/collector"],
+      "groupName": "opentelemetry-collector"
+    },
+    {
+      "description": "Group k8s.io updates",
+      "matchManagers": ["gomod"],
+      "matchPackagePatterns": ["^k8s\\.io/"],
+      "groupName": "k8s.io"
+    },
+    {
+      "description": "Group Docker updates",
+      "matchManagers": ["dockerfile"],
+      "groupName": "docker"
+    }
+  ]
+}
