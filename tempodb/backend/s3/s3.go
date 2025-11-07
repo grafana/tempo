@@ -636,7 +636,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
 	options := getObjectOptions(rw)
 	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, options)
-	if err != nil && minio.ToErrorResponse(err).Code == "NoSuchKey" {
+	if err != nil && minio.ToErrorResponse(err).Code == minio.NoSuchKey {
 		return nil, minio.ObjectInfo{}, backend.ErrDoesNotExist
 	} else if err != nil {
 		return nil, minio.ObjectInfo{}, fmt.Errorf("error fetching object from s3 backend: %w", err)
@@ -771,7 +771,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 }
 
 func readError(err error) error {
-	if err != nil && minio.ToErrorResponse(err).Code == "NoSuchKey" {
+	if err != nil && minio.ToErrorResponse(err).Code == minio.NoSuchKey {
 		return backend.ErrDoesNotExist
 	}
 	return err
