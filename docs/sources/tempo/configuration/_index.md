@@ -1954,6 +1954,7 @@ overrides:
 
       # Per-user configuration of the trace-id label name. This value will be used as name for the label to store the
       # trace ID of exemplars in generated metrics. If not set, the default value "traceID" will be used.
+      # Note it is different to the OTEL convention: https://opentelemetry.io/docs/specs/otel/compatibility/prometheus_and_openmetrics/#exemplars
       [trace_id_label_name: <string> | default = "traceID"]
 
       # This option only allows spans with end time that occur within the configured duration to be
