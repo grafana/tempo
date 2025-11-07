@@ -478,8 +478,18 @@ func TestSearchTags(t *testing.T) {
 	batch := util.MakeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// Wait for the traces to be written to the WAL and searchable
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(tempoPort))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
+
+	// wait for trace to be written to the WAL
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+
 	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
 
 	util.CallFlush(t, tempo)
@@ -521,8 +531,18 @@ func TestSearchTagValues(t *testing.T) {
 	batch := util.MakeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// Wait for the traces to be written to the WAL and searchable
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(tempoPort))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
+
+	// wait for trace to be written to the WAL
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
 
 	util.CallFlush(t, tempo)
