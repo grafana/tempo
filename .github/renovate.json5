@@ -1,49 +1,71 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices"],
-  "timezone": "UTC",
-  "schedule": ["before 4am on monday"],
-  "prConcurrentLimit": 20,
-  "ignoreDeps": [],
-  "separateMajorMinor": true,
-  "separateMultipleMajor": true,
-  "packageRules": [
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:best-practices',
+  ],
+  timezone: 'UTC',
+  schedule: [
+    'before 4am on monday',
+  ],
+  prConcurrentLimit: 20,
+  ignoreDeps: [],
+  separateMajorMinor: true,
+  separateMultipleMajor: true,
+  packageRules: [
     {
-      "description": "Group all GitHub Actions updates",
-      "matchManagers": ["github-actions"],
-      "groupName": "github-actions"
-    },
-    {
-      "description": "Group OpenTelemetry OTEL updates",
-      "matchManagers": ["gomod"],
-      "matchPackagePatterns": ["^go\\.opentelemetry\\.io/otel"],
-      "groupName": "opentelemetry-otel"
-    },
-    {
-      "description": "Group OpenTelemetry Contrib updates",
-      "matchManagers": ["gomod"],
-      "matchPackagePatterns": [
-        "^go\\.opentelemetry\\.io/contrib",
-        "^github\\.com/open-telemetry/opentelemetry-collector-contrib"
+      description: 'Group all GitHub Actions updates',
+      matchManagers: [
+        'github-actions',
       ],
-      "groupName": "opentelemetry-contrib"
+      groupName: 'github-actions',
     },
     {
-      "description": "Group OpenTelemetry Collector updates",
-      "matchManagers": ["gomod"],
-      "matchPackagePatterns": ["^go\\.opentelemetry\\.io/collector"],
-      "groupName": "opentelemetry-collector"
+      description: 'Group OpenTelemetry OTEL updates',
+      matchManagers: [
+        'gomod',
+      ],
+      groupName: 'opentelemetry-otel',
+      matchPackageNames: [
+        '/^go\\.opentelemetry\\.io/otel/',
+      ],
     },
     {
-      "description": "Group k8s.io updates",
-      "matchManagers": ["gomod"],
-      "matchPackagePatterns": ["^k8s\\.io/"],
-      "groupName": "k8s.io"
+      description: 'Group OpenTelemetry Contrib updates',
+      matchManagers: [
+        'gomod',
+      ],
+      groupName: 'opentelemetry-contrib',
+      matchPackageNames: [
+        '/^go\\.opentelemetry\\.io/contrib/',
+        '/^github\\.com/open-telemetry/opentelemetry-collector-contrib/',
+      ],
     },
     {
-      "description": "Group Docker updates",
-      "matchManagers": ["dockerfile"],
-      "groupName": "docker"
-    }
-  ]
+      description: 'Group OpenTelemetry Collector updates',
+      matchManagers: [
+        'gomod',
+      ],
+      groupName: 'opentelemetry-collector',
+      matchPackageNames: [
+        '/^go\\.opentelemetry\\.io/collector/',
+      ],
+    },
+    {
+      description: 'Group k8s.io updates',
+      matchManagers: [
+        'gomod',
+      ],
+      groupName: 'k8s.io',
+      matchPackageNames: [
+        '/^k8s\\.io//',
+      ],
+    },
+    {
+      description: 'Group Docker updates',
+      matchManagers: [
+        'dockerfile',
+      ],
+      groupName: 'docker',
+    },
+  ],
 }
