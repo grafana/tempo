@@ -102,7 +102,7 @@ func TestInitHttpCombiner(t *testing.T) {
 	combiner := newTestCombiner()
 
 	require.Equal(t, 200, combiner.httpStatusCode)
-	require.Equal(t, api.HeaderAcceptJSON, combiner.httpMarshalingFormat)
+	require.Equal(t, util.MarshallingFormatJSON, combiner.httpMarshalingFormat)
 }
 
 func TestGenericCombiner(t *testing.T) {
@@ -282,7 +282,7 @@ func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {
 			}, nil
 		},
 	}
-	initHTTPCombiner(gc, api.HeaderAcceptJSON)
+	initHTTPCombiner(gc, util.MarshallingFormatJSON)
 	return gc
 }
 
