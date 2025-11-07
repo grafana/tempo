@@ -3,7 +3,7 @@
   "extends": ["config:best-practices"],
   "timezone": "UTC",
   "schedule": ["before 4am on monday"],
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 20,
   "ignoreDeps": [],
   "separateMajorMinor": true,
   "separateMultipleMajor": true,
