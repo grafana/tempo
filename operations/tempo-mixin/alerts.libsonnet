@@ -188,7 +188,7 @@
               severity: 'critical',
             },
             annotations: {
-              message: 'Tempo block list length is up 40 percent over the last 7 days.  Consider scaling compactors.',
+              message: 'Tempo block list length is up 40 percent over the last 7 days. Consider scaling compactors.',
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockListRisingQuickly',
             },
           },
@@ -331,7 +331,7 @@
               severity: 'warning',
             },
             annotations: {
-              message: 'Tempo ingest partition {{ $labels.partition }} for live store  {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
+              message: 'Tempo ingest partition {{ $labels.partition }} for live store {{ $labels.group }} is lagging by more than %d seconds in {{ $labels.%s }}/{{ $labels.namespace }}.' % [$._config.alerts.live_store_partition_lag_critical_seconds, $._config.per_cluster_label],
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag',
             },
           },
