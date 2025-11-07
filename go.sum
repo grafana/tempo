@@ -418,8 +418,8 @@ github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+
 github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/zI+bUmuGM=
 github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 h1:JeSE6pjso5THxAzdVpqr6/geYxZytqFMBCOtn/ujyeo=
 github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674/go.mod h1:r4w70xmWCQKmi1ONH4KIaBptdivuRPyosB9RmPlGEwA=
-github.com/grafana/dskit v0.0.0-20251024134516-10fce42ed131 h1:UjyZmrkKx+sVCdSXqc5rbIjLilFO6Si7ED8dV36CAHw=
-github.com/grafana/dskit v0.0.0-20251024134516-10fce42ed131/go.mod h1:4att0nkXGqVtpAXofibCPjQlek1nYJcCnxOI94m7o1g=
+github.com/grafana/dskit v0.0.0-20251031165806-a6f15387939b h1:emF9smY95B6vesfGGJ+jG8Q7TKLrVB/Fw12ikahlZEo=
+github.com/grafana/dskit v0.0.0-20251031165806-a6f15387939b/go.mod h1:4att0nkXGqVtpAXofibCPjQlek1nYJcCnxOI94m7o1g=
 github.com/grafana/e2e v0.1.2-0.20250825134630-3cea6f657739 h1:74hHXvOG42Y87T7jO7naPB5sZpwO3TDGTFiUL48s2Yc=
 github.com/grafana/e2e v0.1.2-0.20250825134630-3cea6f657739/go.mod h1:9bciABa7gW4B3t12C9vpgk54NeeoOZ+1DLsUnOAf+8Y=
 github.com/grafana/gomemcache v0.0.0-20251008140118-65a671e12fdf h1:4fN03UTf6i7wZbLfxL+L/jAIiAxoThFi4rb9//SoGlY=
