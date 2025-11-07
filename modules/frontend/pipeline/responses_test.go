@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -304,7 +305,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				bridge := &pipelineBridge{
 					next: tc.finalRT(cancel),
 				}
-				httpCollector := NewHTTPCollector(sharder{next: bridge}, 0, combiner.NewSearch(0, false, "application/json"))
+				httpCollector := NewHTTPCollector(sharder{next: bridge}, 0, combiner.NewSearch(0, false, api.HeaderAcceptJSON))
 
 				_, _ = httpCollector.RoundTrip(req)
 
@@ -326,7 +327,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				bridge := &pipelineBridge{
 					next: tc.finalRT(cancel),
 				}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](sharder{next: bridge}, 0, combiner.NewTypedSearch(0, false, "application/json"), func(_ *tempopb.SearchResponse) error { return nil })
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](sharder{next: bridge}, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON), func(_ *tempopb.SearchResponse) error { return nil })
 
 				_ = grpcCollector.RoundTrip(req)
 
@@ -350,7 +351,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				}
 
 				s := sharder{next: sharder{next: bridge}, funcSharder: true}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0, false, "application/json"), func(_ *tempopb.SearchResponse) error { return nil })
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON), func(_ *tempopb.SearchResponse) error { return nil })
 
 				_ = grpcCollector.RoundTrip(req)
 
@@ -373,7 +374,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				}
 
 				s := sharder{next: sharder{next: bridge, funcSharder: true}}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0, false, "application/json"), func(_ *tempopb.SearchResponse) error { return nil })
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0, false, api.HeaderAcceptJSON), func(_ *tempopb.SearchResponse) error { return nil })
 
 				_ = grpcCollector.RoundTrip(req)
 
