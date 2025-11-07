@@ -1324,47 +1324,47 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 // is properly used when no spss parameter is provided in the request
 func TestDefaultSpansPerSpanSet(t *testing.T) {
 	tests := []struct {
-		name                   string
-		configDefault          uint32
-		requestSpss            string // empty means no spss param
-		expectedSpss           uint32
-		expectError            bool
-		maxSpansPerSpanSet     uint32
+		name               string
+		configDefault      uint32
+		requestSpss        string // empty means no spss param
+		expectedSpss       uint32
+		expectError        bool
+		maxSpansPerSpanSet uint32
 	}{
 		{
-			name:                   "use configured default when no spss param",
-			configDefault:          10,
-			requestSpss:            "",
-			expectedSpss:           10,
-			maxSpansPerSpanSet:     100,
+			name:               "use configured default when no spss param",
+			configDefault:      10,
+			requestSpss:        "",
+			expectedSpss:       10,
+			maxSpansPerSpanSet: 100,
 		},
 		{
-			name:                   "use zero as configured default (unlimited)",
-			configDefault:          0,
-			requestSpss:            "",
-			expectedSpss:           0, // 0 means unlimited when explicitly configured
-			maxSpansPerSpanSet:     0,
+			name:               "use zero as configured default (unlimited)",
+			configDefault:      0,
+			requestSpss:        "",
+			expectedSpss:       0, // 0 means unlimited when explicitly configured
+			maxSpansPerSpanSet: 0,
 		},
 		{
-			name:                   "override configured default with request param",
-			configDefault:          10,
-			requestSpss:            "5",
-			expectedSpss:           5,
-			maxSpansPerSpanSet:     100,
+			name:               "override configured default with request param",
+			configDefault:      10,
+			requestSpss:        "5",
+			expectedSpss:       5,
+			maxSpansPerSpanSet: 100,
 		},
 		{
-			name:                   "spss=0 in URL means unlimited when max=0",
-			configDefault:          10,
-			requestSpss:            "0",
-			expectedSpss:           0, // 0 means unlimited, not "return 0 spans"
-			maxSpansPerSpanSet:     0, // max=0 means unlimited allowed
+			name:               "spss=0 in URL means unlimited when max=0",
+			configDefault:      10,
+			requestSpss:        "0",
+			expectedSpss:       0, // 0 means unlimited, not "return 0 spans"
+			maxSpansPerSpanSet: 0, // max=0 means unlimited allowed
 		},
 		{
-			name:                   "respect max_spans_per_span_set=0 (unlimited)",
-			configDefault:          10,
-			requestSpss:            "1000",
-			expectedSpss:           1000,
-			maxSpansPerSpanSet:     0, // 0 means unlimited
+			name:               "respect max_spans_per_span_set=0 (unlimited)",
+			configDefault:      10,
+			requestSpss:        "1000",
+			expectedSpss:       1000,
+			maxSpansPerSpanSet: 0, // 0 means unlimited
 		},
 	}
 
