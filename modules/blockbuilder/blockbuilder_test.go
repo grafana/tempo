@@ -897,7 +897,11 @@ type ownEverythingSharder struct{}
 func (o *ownEverythingSharder) Owns(string) bool { return true }
 
 func newStore(ctx context.Context, t testing.TB) storage.Store {
-	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t), false)
+	store := newStoreWithLogger(ctx, t, test.NewTestingLogger(t), false)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), store))
+	})
+	return store
 }
 
 func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipNoCompactBlocks bool) storage.Store {
