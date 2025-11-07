@@ -36,7 +36,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		}
 
 		// check marshalling format
-		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// enforce all communication internal to Tempo to be in protobuf bytes
 		req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
@@ -104,7 +104,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		}
 
 		// check marshalling format
-		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// enforce all communication internal to Tempo to be in protobuf bytes
 		req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)

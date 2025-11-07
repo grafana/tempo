@@ -267,7 +267,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 
 		// check marshalling format
-		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, marshallingFormat)
@@ -325,7 +325,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 
 		// check marshalling format
-		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, marshallingFormat)
@@ -391,7 +391,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 		tagName := extractTagName(req.URL.Path, tagNameRegexV1)
 
 		// check marshalling format
-		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, marshallingFormat)
@@ -436,7 +436,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		tagName := extractTagName(req.URL.Path, tagNameRegexV2)
 
 		// check marshalling format
-		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, marshallingFormat)

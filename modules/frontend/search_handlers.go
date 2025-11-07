@@ -107,7 +107,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		}
 
 		// check marshalling format
-		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat)
 		if err != nil {
