@@ -22,30 +22,6 @@ import (
 
 const messageSizeLargerErrFmt = "received message larger than max (%d vs %d)"
 
-const (
-	headerAcceptProtobuf = "application/protobuf"
-	headerAcceptJSON     = "application/json"
-)
-
-// MarshallingFormat represents the format used for marshalling HTTP responses
-type MarshallingFormat string
-
-const (
-	MarshallingFormatProtobuf MarshallingFormat = headerAcceptProtobuf
-	MarshallingFormatJSON     MarshallingFormat = headerAcceptJSON
-)
-
-// MarshalingFormatFromAcceptHeader extracts the marshaling format from the Accept header
-// It properly handles multiple media types and quality values
-func MarshalingFormatFromAcceptHeader(acceptHeader string) MarshallingFormat {
-	// Check if protobuf is requested (handles multiple values, quality params, etc.)
-	if strings.Contains(acceptHeader, headerAcceptProtobuf) {
-		return MarshallingFormatProtobuf
-	}
-	// Default to JSON
-	return MarshallingFormatJSON
-}
-
 // IsRequestBodyTooLarge returns true if the error is "http: request body too large".
 func IsRequestBodyTooLarge(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "http: request body too large")

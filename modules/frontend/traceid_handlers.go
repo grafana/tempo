@@ -11,11 +11,10 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
-func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, string, combiner.TraceRedactor) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -37,7 +36,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		}
 
 		// check marshalling format
-		marshallingFormat := util.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
 
 		// enforce all communication internal to Tempo to be in protobuf bytes
 		req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
@@ -56,7 +55,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			}
 		}
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), string(marshallingFormat), traceRedactor)
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -83,7 +82,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 }
 
 // newTraceIDV2Handler creates a http.handler for trace by id requests
-func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, util.MarshallingFormat, combiner.TraceRedactor) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -105,7 +104,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		}
 
 		// check marshalling format
-		marshallingFormat := util.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
+		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header.Get(api.HeaderAccept))
 
 		// enforce all communication internal to Tempo to be in protobuf bytes
 		req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)

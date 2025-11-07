@@ -5,24 +5,24 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTagsCombinerJSON(t *testing.T) {
-	testTagsCombiner(t, util.MarshallingFormatJSON)
+	testTagsCombiner(t, api.MarshallingFormatJSON)
 }
 
 func TestTagsCombinerProtobuf(t *testing.T) {
-	testTagsCombiner(t, util.MarshallingFormatProtobuf)
+	testTagsCombiner(t, api.MarshallingFormatProtobuf)
 }
 
-func testTagsCombiner(t *testing.T, marshalingFormat util.MarshallingFormat) {
+func testTagsCombiner(t *testing.T, marshalingFormat api.MarshallingFormat) {
 	tests := []struct {
 		name               string
-		factory            func(int, uint32, uint32, util.MarshallingFormat) Combiner
+		factory            func(int, uint32, uint32, api.MarshallingFormat) Combiner
 		limitBytes         int
 		maxTagsValues      uint32
 		maxCacheHits       uint32
@@ -254,14 +254,14 @@ func metrics(message proto.Message) *tempopb.MetadataMetrics {
 }
 
 func TestTagsGRPCCombinerJSON(t *testing.T) {
-	testTagsGRPCCombiner(t, util.MarshallingFormatJSON)
+	testTagsGRPCCombiner(t, api.MarshallingFormatJSON)
 }
 
 func TestTagsGRPCCombinerProtobuf(t *testing.T) {
-	testTagsGRPCCombiner(t, util.MarshallingFormatProtobuf)
+	testTagsGRPCCombiner(t, api.MarshallingFormatProtobuf)
 }
 
-func testTagsGRPCCombiner(t *testing.T, format util.MarshallingFormat) {
+func testTagsGRPCCombiner(t *testing.T, format api.MarshallingFormat) {
 	c := NewTypedSearchTags(0, 0, 0, format)
 	res1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -272,14 +272,14 @@ func testTagsGRPCCombiner(t *testing.T, format util.MarshallingFormat) {
 }
 
 func TestTagsV2GRPCCombinerJSON(t *testing.T) {
-	testTagsV2GRPCCombiner(t, util.MarshallingFormatJSON)
+	testTagsV2GRPCCombiner(t, api.MarshallingFormatJSON)
 }
 
 func TestTagsV2GRPCCombinerProtobuf(t *testing.T) {
-	testTagsV2GRPCCombiner(t, util.MarshallingFormatProtobuf)
+	testTagsV2GRPCCombiner(t, api.MarshallingFormatProtobuf)
 }
 
-func testTagsV2GRPCCombiner(t *testing.T, format util.MarshallingFormat) {
+func testTagsV2GRPCCombiner(t *testing.T, format api.MarshallingFormat) {
 	c := NewTypedSearchTagsV2(0, 0, 0, format)
 	res1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1", "tag2"}}, {Name: "scope2", Tags: []string{"tag3"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -297,14 +297,14 @@ func testTagsV2GRPCCombiner(t *testing.T, format util.MarshallingFormat) {
 }
 
 func TestTagValuesGRPCCombinerJSON(t *testing.T) {
-	testTagValuesGRPCCombiner(t, util.MarshallingFormatJSON)
+	testTagValuesGRPCCombiner(t, api.MarshallingFormatJSON)
 }
 
 func TestTagValuesGRPCCombinerProtobuf(t *testing.T) {
-	testTagValuesGRPCCombiner(t, util.MarshallingFormatProtobuf)
+	testTagValuesGRPCCombiner(t, api.MarshallingFormatProtobuf)
 }
 
-func testTagValuesGRPCCombiner(t *testing.T, format util.MarshallingFormat) {
+func testTagValuesGRPCCombiner(t *testing.T, format api.MarshallingFormat) {
 	c := NewTypedSearchTagValues(0, 0, 0, format)
 	res1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -315,14 +315,14 @@ func testTagValuesGRPCCombiner(t *testing.T, format util.MarshallingFormat) {
 }
 
 func TestTagValuesV2GRPCCombinerJSON(t *testing.T) {
-	testTagValuesV2GRPCCombiner(t, util.MarshallingFormatJSON)
+	testTagValuesV2GRPCCombiner(t, api.MarshallingFormatJSON)
 }
 
 func TestTagValuesV2GRPCCombinerProtobuf(t *testing.T) {
-	testTagValuesV2GRPCCombiner(t, util.MarshallingFormatProtobuf)
+	testTagValuesV2GRPCCombiner(t, api.MarshallingFormatProtobuf)
 }
 
-func testTagValuesV2GRPCCombiner(t *testing.T, format util.MarshallingFormat) {
+func testTagValuesV2GRPCCombiner(t *testing.T, format api.MarshallingFormat) {
 	c := NewTypedSearchTagValuesV2(0, 0, 0, format)
 	res1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}, {Value: "v2", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -336,7 +336,7 @@ func testTagValuesV2GRPCCombiner(t *testing.T, format util.MarshallingFormat) {
 	}, format)
 }
 
-func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], result1 T, result2 T, diff1 T, diff2 T, expectedFinal T, sort func(T), format util.MarshallingFormat) {
+func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], result1 T, result2 T, diff1 T, diff2 T, expectedFinal T, sort func(T), format api.MarshallingFormat) {
 	err := combiner.AddResponse(toHTTPResponseWithFormat(t, result1, 200, nil, format))
 	require.NoError(t, err)
 

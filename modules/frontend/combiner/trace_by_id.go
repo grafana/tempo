@@ -24,7 +24,7 @@ type TraceByIDCombiner struct {
 	mu sync.Mutex
 
 	c           *trace.Combiner
-	contentType string
+	contentType api.MarshallingFormat
 
 	code          int
 	statusMessage string
@@ -39,7 +39,7 @@ type TraceByIDCombiner struct {
 // - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
 // - runs the zipkin dedupe logic on the fully combined trace
 // - encode the returned trace as either json or proto depending on the request
-func NewTraceByID(maxBytes int, contentType string, traceRedactor TraceRedactor) Combiner {
+func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor) Combiner {
 	return &TraceByIDCombiner{
 		c:               trace.NewCombiner(maxBytes, false),
 		code:            http.StatusNotFound,
@@ -49,7 +49,7 @@ func NewTraceByID(maxBytes int, contentType string, traceRedactor TraceRedactor)
 	}
 }
 
-func NewTypedTraceByID(maxBytes int, contentType string, traceRedactor TraceRedactor) *TraceByIDCombiner {
+func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor) *TraceByIDCombiner {
 	return NewTraceByID(maxBytes, contentType, traceRedactor).(*TraceByIDCombiner)
 }
 
@@ -136,7 +136,7 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	var buff []byte
 	var err error
 
-	if c.contentType == api.HeaderAcceptProtobuf {
+	if c.contentType == api.MarshallingFormatProtobuf {
 		buff, err = proto.Marshal(traceResult)
 	} else {
 		buff, err = tempopb.MarshalToJSONV1(traceResult)
@@ -148,7 +148,7 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
-			api.HeaderContentType: {c.contentType},
+			api.HeaderContentType: {string(c.contentType)},
 		},
 		Body:          io.NopCloser(bytes.NewReader(buff)),
 		ContentLength: int64(len(buff)),

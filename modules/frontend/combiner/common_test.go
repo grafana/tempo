@@ -102,7 +102,7 @@ func TestInitHttpCombiner(t *testing.T) {
 	combiner := newTestCombiner()
 
 	require.Equal(t, 200, combiner.httpStatusCode)
-	require.Equal(t, util.MarshallingFormatJSON, combiner.httpMarshalingFormat)
+	require.Equal(t, api.MarshallingFormatJSON, combiner.httpMarshalingFormat)
 }
 
 func TestGenericCombiner(t *testing.T) {
@@ -282,17 +282,17 @@ func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {
 			}, nil
 		},
 	}
-	initHTTPCombiner(gc, util.MarshallingFormatJSON)
+	initHTTPCombiner(gc, api.MarshallingFormatJSON)
 	return gc
 }
 
 // Helper functions for creating test responses with different marshaling formats
-func toHTTPResponseWithFormat(t *testing.T, pb proto.Message, statusCode int, responseData any, format util.MarshallingFormat) PipelineResponse {
+func toHTTPResponseWithFormat(t *testing.T, pb proto.Message, statusCode int, responseData any, format api.MarshallingFormat) PipelineResponse {
 	var body []byte
 	var err error
 
 	if pb != nil {
-		if format == util.MarshallingFormatProtobuf {
+		if format == api.MarshallingFormatProtobuf {
 			body, err = proto.Marshal(pb)
 			require.NoError(t, err)
 		} else {
