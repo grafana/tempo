@@ -755,10 +755,10 @@ func (s Static) MapKey() StaticMapKey {
 		}
 
 		h := xxhash.New()
-		h.Write(seedBytes)
+		_, _ = h.Write(seedBytes)
 		for _, str := range s.valStrings {
-			h.Write([]byte(str))
-			h.Write(separatorByte)
+			_, _ = h.Write([]byte(str))
+			_, _ = h.Write(separatorByte)
 		}
 
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
