@@ -326,7 +326,7 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 
 func TestReadError(t *testing.T) {
 	errA := minio.ErrorResponse{
-		Code: s3.ErrCodeNoSuchKey,
+		Code: minio.NoSuchKey,
 	}
 	errB := readError(errA)
 	assert.Equal(t, backend.ErrDoesNotExist, errB)
