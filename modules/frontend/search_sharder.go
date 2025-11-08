@@ -105,7 +105,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	// Validate SpansPerSpanSet against MaxSpansPerSpanSet
 	// If MaxSpansPerSpanSet is 0, it means unlimited spans are allowed
 	// If MaxSpansPerSpanSet is non-zero, enforce the limit
-	if s.cfg.MaxSpansPerSpanSet != 0 && searchReq.SpansPerSpanSet > s.cfg.MaxSpansPerSpanSet {
+	if s.cfg.MaxSpansPerSpanSet >= 0 && searchReq.SpansPerSpanSet > s.cfg.MaxSpansPerSpanSet {
 		return pipeline.NewBadRequest(fmt.Errorf("spans per span set exceeds %d. received %d", s.cfg.MaxSpansPerSpanSet, searchReq.SpansPerSpanSet)), nil
 	}
 
