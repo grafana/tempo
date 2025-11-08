@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
-	"hash/fnv"
 	"math"
 	"slices"
 	"time"
 	"unsafe"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/grafana/tempo/pkg/regexp"
 )
 
@@ -725,7 +725,11 @@ func NewStaticBooleanArray(b []bool) Static {
 	}
 }
 
-var seedBytes = []byte{204, 38, 247, 160, 15, 37, 67, 77}
+var (
+	seedBytes = []byte{204, 38, 247, 160, 15, 37, 67, 77}
+	// separatorByte is a byte that cannot occur in valid UTF-8 sequences
+	separatorByte = []byte{255}
+)
 
 func (s Static) MapKey() StaticMapKey {
 	switch s.Type {
@@ -742,7 +746,7 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		h := fnv.New64a()
+		h := xxhash.New()
 		_, _ = h.Write(s.valBytes)
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	case TypeStringArray:
@@ -750,10 +754,11 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		h := fnv.New64a()
+		h := xxhash.New()
+		h.Write(seedBytes)
 		for _, str := range s.valStrings {
-			_, _ = h.Write(seedBytes)
-			_, _ = h.Write([]byte(str))
+			h.Write([]byte(str))
+			h.Write(separatorByte)
 		}
 
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
