@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/storage v1.57.1
 	github.com/alecthomas/kong v1.12.1
 	github.com/alicebob/miniredis/v2 v2.35.0
-	github.com/aws/aws-sdk-go v1.55.7
+	github.com/aws/aws-sdk-go v1.55.8
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cristalhq/hedgedhttp v0.9.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
