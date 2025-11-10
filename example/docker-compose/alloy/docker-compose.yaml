@@ -36,7 +36,7 @@ services:
 
   # And put them in a Grafana Alloy pipeline...
   alloy:
-    image: grafana/alloy:v1.3.1
+    image: grafana/alloy:v1.11.3@sha256:8c7256f412feb9f5f48f9f6f9394dc97ca887f63dea9304f347970ecc1787669
     volumes:
       - ../shared/config.alloy:/etc/alloy/config.alloy
     command:
