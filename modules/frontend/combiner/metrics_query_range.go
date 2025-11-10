@@ -47,7 +47,6 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 	}
 
 	completionTracker := &shardtracker.CompletionTracker{}
-	sentSeries := make(map[traceql.SeriesMapKey]struct{}) // track which series we've already sent
 	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
 	metricsCombiner := NewQueryRangeMetricsCombiner()
@@ -67,7 +66,15 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			return nil
 		},
 		metadata: func(resp PipelineResponse, final *tempopb.QueryRangeResponse) error {
+			// jpe - set metadata on the final response?
 			if qr, ok := resp.(*QueryRangeJobResponse); ok && qr != nil {
+				qrMetrics := &tempopb.SearchMetrics{
+					TotalBlocks:     uint32(qr.TotalBlocks), //nolint:gosec
+					TotalJobs:       uint32(qr.TotalJobs),   //nolint:gosec
+					TotalBlockBytes: qr.TotalBytes,
+				}
+				metricsCombiner.Combine(qrMetrics, resp)
+
 				completionTracker.AddShards(qr.Shards)
 			}
 			return nil
@@ -101,12 +108,12 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 					Metrics: metricsCombiner.Metrics,
 				}, nil
 			}
-
 			resp := combiner.Response()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
 
+			// jpe do the below completedThrough trimming before this logic?
 			sortResponse(resp)
 			if combiner.MaxSeriesReached() {
 				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
@@ -115,26 +122,33 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 			attachExemplars(req, resp)
 
-			// Return only series we haven't sent yet
-			diff := &tempopb.QueryRangeResponse{
-				Series:  make([]*tempopb.TimeSeries, 0, len(resp.Series)),
-				Metrics: metricsCombiner.Metrics,
+			// Find first sample and exemplar more recent than completedThrough and send everything after it
+			if metricsCombiner.Metrics.CompletedJobs == metricsCombiner.Metrics.TotalJobs && metricsCombiner.Metrics.TotalJobs > 0 { // jpe - why is this needed?
+				completedThrough = 1
 			}
 
+			// jpe: todo: track "lastCompletedThrough" and only send what's necessary. on the final response send all
+			completedThroughMs := int64(completedThrough) * 1000
 			for _, series := range resp.Series {
-				seriesKey := traceql.LabelsFromProto(series.Labels).MapKey()
-				if _, sent := sentSeries[seriesKey]; !sent {
-					diff.Series = append(diff.Series, series)
-					sentSeries[seriesKey] = struct{}{}
+				idx := 0
+				for idx < len(series.Samples) && series.Samples[idx].TimestampMs <= completedThroughMs {
+					idx++
 				}
+				series.Samples = series.Samples[idx:]
+
+				idx = 0
+				for idx < len(series.Exemplars) && series.Exemplars[idx].TimestampMs <= completedThroughMs {
+					idx++
+				}
+				series.Exemplars = series.Exemplars[idx:]
 			}
 
 			if combiner.MaxSeriesReached() {
-				diff.Status = tempopb.PartialStatus_PARTIAL
-				diff.Message = maxSeriesReachedErrorMsg
+				resp.Status = tempopb.PartialStatus_PARTIAL
+				resp.Message = maxSeriesReachedErrorMsg
 			}
 
-			return diff, nil
+			return resp, nil
 		},
 		quit: func(_ *tempopb.QueryRangeResponse) bool {
 			return combiner.MaxSeriesReached()

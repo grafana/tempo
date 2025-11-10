@@ -32,7 +32,7 @@ type CompletionTracker struct {
 // AddShards initializes or updates the shard information in the tracker.
 // This should be called when job metadata arrives from the sharder.
 // Returns the current completedThroughSeconds value.
-func (c *CompletionTracker) AddShards(shards []Shard) uint32 {
+func (c *CompletionTracker) AddShards(shards []Shard) uint32 { // jpe - have this add metadata. include the logic where completedJobs = totalJobs means completedThroughSeconds = 1?
 	if len(shards) == 0 {
 		return c.completedThroughSeconds
 	}
@@ -92,6 +92,7 @@ func (c *CompletionTracker) CompletedThroughSeconds() uint32 {
 func (c *CompletionTracker) incrementCurShardIfComplete() {
 	for {
 		if c.curShard >= len(c.shards) {
+			c.completedThroughSeconds = 1 // jpe - correct?
 			break
 		}
 

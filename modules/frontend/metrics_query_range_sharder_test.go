@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -23,7 +22,8 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 	sharder := &queryRangeSharder{
 		logger: log.NewNopLogger(),
 		cfg: QueryRangeSharderConfig{
-			MaxExemplars: 100,
+			MaxExemplars:     100,
+			MostRecentShards: defaultMostRecentShards,
 		},
 	}
 	tenantID := "test-tenant"
@@ -42,7 +42,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      100,
 			blockSize:         uint64(targetBytesPerRequest),
 			exemplars:         5,
-			expectedExemplars: 6, // 5 * 1.2
+			expectedExemplars: 5, // exemplars per request
 			expectedBatches:   1,
 		},
 		{
@@ -50,7 +50,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      100,
 			blockSize:         uint64(2 * targetBytesPerRequest),
 			exemplars:         5,
-			expectedExemplars: 6, // 5 * 1.2
+			expectedExemplars: 10, // 5 exemplars * 2 batches
 			expectedBatches:   2,
 		},
 		{
@@ -58,7 +58,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      10000,
 			blockSize:         50000,
 			exemplars:         10,
-			expectedExemplars: 50, // 1 per each batch
+			expectedExemplars: 500, // 10 exemplars * 50 batches
 			expectedBatches:   50,
 		},
 		{
@@ -66,7 +66,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      uint32(targetBytesPerRequest),
 			blockSize:         uint64(targetBytesPerRequest),
 			exemplars:         10,
-			expectedExemplars: 12, // 10 * 1.2
+			expectedExemplars: 10, // 10 exemplars * 1 batch
 			expectedBatches:   1,
 		},
 		{
@@ -74,7 +74,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      500,
 			blockSize:         50000,
 			exemplars:         20,
-			expectedExemplars: 50, // 1 per each batch
+			expectedExemplars: 1000, // 20 exemplars * 50 batches
 			expectedBatches:   50,
 		},
 		{
@@ -82,7 +82,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      10,
 			blockSize:         100,
 			exemplars:         1,
-			expectedExemplars: 2, // 1 * 1.2 -> rounded up to 2
+			expectedExemplars: 1, // 1 exemplar * 1 batch
 			expectedBatches:   1,
 		},
 		{
@@ -90,7 +90,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      1,
 			blockSize:         uint64(2 * targetBytesPerRequest),
 			exemplars:         1,
-			expectedExemplars: 2, // 1 * 1.2 -> rounded up to 2
+			expectedExemplars: 1, // 1 exemplar * 1 batch
 			expectedBatches:   1,
 		},
 		{
@@ -98,7 +98,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      1,
 			blockSize:         uint64(1.5 * float64(targetBytesPerRequest)),
 			exemplars:         1,
-			expectedExemplars: 2, // 1 * 1.2 -> rounded up to 2
+			expectedExemplars: 1, // 1 exemplar * 1 batch
 			expectedBatches:   1,
 		},
 		{
@@ -106,7 +106,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      2,
 			blockSize:         uint64(2 * targetBytesPerRequest),
 			exemplars:         1,
-			expectedExemplars: 2, // 1 * 1.2 -> rounded up to 2
+			expectedExemplars: 2, // 1 exemplar * 2 batches
 			expectedBatches:   2,
 		},
 	}
@@ -133,18 +133,13 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 				EndTime:      time.Now(),
 			}
 
-			reqCh := make(chan pipeline.Request, 10)
+			reqCh := make(chan pipeline.Request, 100)
 
-			// Create a simple shard for testing
-			shards := []shardtracker.Shard{
-				{
-					TotalJobs:               uint32(tc.expectedBatches),
-					CompletedThroughSeconds: 1,
-				},
-			}
+			blocks := []*backend.BlockMeta{blockMeta}
+			blockIter := backendJobsFunc(blocks, targetBytesPerRequest, defaultMostRecentShards, uint32(searchReq.End))
 
 			go func() {
-				sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, []*backend.BlockMeta{blockMeta}, targetBytesPerRequest, shards, reqCh)
+				sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, blockIter, reqCh)
 			}()
 
 			// Collect requests
@@ -182,111 +177,6 @@ func extractExemplarsValue(t *testing.T, uri string) int {
 	require.NoError(t, err, "Should be able to parse exemplars value")
 
 	return exemplarsValue
-}
-
-func TestExemplarsPerShard(t *testing.T) {
-	s := &queryRangeSharder{}
-
-	createBlockMeta := func(durationSeconds int) *backend.BlockMeta {
-		now := time.Now()
-		return &backend.BlockMeta{
-			BlockID:   backend.MustParse(uuid.NewString()),
-			StartTime: now.Add(-time.Duration(durationSeconds) * time.Second),
-			EndTime:   now,
-		}
-	}
-
-	testCases := []struct {
-		name           string
-		metas          []*backend.BlockMeta
-		limit          uint32
-		expectedResult []uint32
-	}{
-		{
-			name:           "limit is zero",
-			metas:          []*backend.BlockMeta{createBlockMeta(60)},
-			limit:          0,
-			expectedResult: []uint32{0},
-		},
-		{
-			name:           "metas is empty",
-			metas:          []*backend.BlockMeta{},
-			limit:          100,
-			expectedResult: []uint32{},
-		},
-		{
-			name: "proportional distribution based on duration",
-			metas: []*backend.BlockMeta{
-				createBlockMeta(90),
-				createBlockMeta(10),
-			},
-			limit:          100,
-			expectedResult: []uint32{108, 12}, // 90*1.2 = 108, 10*1.2 = 12
-		},
-		{
-			name: "at least one exemplar per valid block",
-			metas: []*backend.BlockMeta{
-				createBlockMeta(1000), // large block
-				createBlockMeta(1),    // very small block
-			},
-			limit:          10,
-			expectedResult: []uint32{12, 1}, // First gets 9*1.2, second gets at least 1
-		},
-		{
-			name: "mixed valid and invalid blocks",
-			metas: []*backend.BlockMeta{
-				createBlockMeta(60),
-				createBlockMeta(-60), // invalid block
-				createBlockMeta(60),
-			},
-			limit:          100,
-			expectedResult: []uint32{60, 0, 60},
-		},
-		{
-			name: "only invalid blocks",
-			metas: []*backend.BlockMeta{
-				createBlockMeta(-60),
-				createBlockMeta(-60),
-			},
-			limit:          100,
-			expectedResult: []uint32{0, 0},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := s.exemplarsPerShard(tc.metas, tc.limit)
-			assert.Equal(t, tc.expectedResult, result)
-		})
-	}
-}
-
-func FuzzExemplarsPerShard(f *testing.F) {
-	f.Add(uint32(100), uint32(60)) // limit = 100, duration = 60s
-	f.Add(uint32(0), uint32(30))   // limit = 0, duration = 30s
-	f.Add(uint32(1000), uint32(0)) // limit = 1000, duration = 0s
-
-	s := &queryRangeSharder{}
-
-	f.Fuzz(func(t *testing.T, limit uint32, value uint32) {
-		now := time.Now()
-		metas := []*backend.BlockMeta{
-			{
-				BlockID:   backend.MustParse(uuid.NewString()),
-				StartTime: now.Add(-time.Duration(value) * time.Second),
-				EndTime:   now,
-			},
-		}
-
-		result := s.exemplarsPerShard(metas, limit)
-		require.Len(t, result, 1, "result should have one element")
-
-		if limit == 0 || value == 0 {
-			assert.Equal(t, uint32(0), result[0], "result should be 0")
-		} else {
-			assert.Greater(t, result[0], uint32(0), "result should be greater than 0")
-		}
-	})
 }
 
 // nolint: gosec // G115
