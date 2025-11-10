@@ -18,7 +18,10 @@ keywords:
 
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
 
-TraceQL metrics queries let you
+TraceQL metrics query functions are aggregate operators that can be appended to any TraceQL span selector to compute time-series metrics directly from trace data.
+You can answer questions about system behavior by aggregating trace data on-the-fly.
+
+## Available functions
 
 [TraceQL](http://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/) supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`,
 `histogram_over_time`, and `compare` functions. These methods can be appended to any TraceQL query to calculate and
@@ -35,31 +38,31 @@ after a metrics query like:
 {} | rate() by (resource.service.name) | topk(10)
 ```
 
-Read on for a full listing of functions and examples.
-
-## Available functions
-
 These functions can be added as an operator at the end of any TraceQL query.
 
-| Function                                                                                        | Description                                                                                        | Parameters/attributes                                               |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| [`rate()`](#the-rate-function)                                                                  | Calculates the number of matching spans per second.                                                |                                                                     |
-| [`count_over_time()`](#the-count_over_time-function)                                            | Counts the number of matching spans per time interval.                                             | `step`                                                              |
-| [`sum_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Sums the value for the specified attribute across all matching spans per time interval.            | numeric attribute                                                   |
-| [`min_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the minimum value for the specified attribute across all matching spans per time interval. | numeric attribute                                                   |
-| [`max_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the maximum value for the specified attribute across all matching spans per time interval. | numeric attribute                                                   |
-| [`avg_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the average value for the specified attribute across all matching spans per time interval. | numeric attribute                                                   |
-| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)             | The quantile of the values in the specified interval.                                              | numeric attribute; one or more quantiles                            |
-| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)            | Evaluate frequency distribution over time.                                                         | numeric attribute                                                   |
-| [`compare()`](#the-compare-function)                                                            | Splits spans into selection and baseline groups and highlights attribute differences.              | `filter`; `topN` (default 10); `startTS`, `endTS` (both or neither) |
+| Function                                                                                        | Description                                                              | Parameters/attributes |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------- |
+| [`rate()`](#the-rate-function)                                                                  | Calculates the number of matching spans per second.                      |                       |
+| [`count_over_time()`](#the-count_over_time-function)                                            | Counts the number of matching spans per time interval.                   |
+| `step`                                                                                          |
+| [`sum_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Sums the                                                                 |
+| value for the specified attribute across all matching spans per time interval.                  | numeric attribute                                                        |
+| [`min_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the                                                              |
+| minimum value for the specified attribute across all matching spans per time interval.          | numeric attribute                                                        |
+| [`max_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the                                                              |
+| maximum value for the specified attribute across all matching spans per time interval.          | numeric attribute                                                        |
+| [`avg_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the                                                              |
+| average value for the specified attribute across all matching spans per time interval.          | numeric attribute                                                        |
+| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)             | The quantile of the                                                      |
+| values in the specified interval.                                                               | numeric attribute; one or more quantiles                                 |
+| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)            | Evaluate frequency                                                       |
+| distribution over time.                                                                         | numeric attribute                                                        |
+| [`compare()`](#the-compare-function)                                                            | Splits spans into selection and baseline groups and highlights attribute |
+| differences.                                                                                    | `filter`; `topN` (default 10); `startTS`, `endTS` (both or neither)      |
 
-## The `rate` function
+## The `rate` functions
 
 The `rate` function calculates the number of matching spans per second that match the given span selectors.
-
-### Parameters
-
-None.
 
 ### Examples
 
@@ -107,7 +110,6 @@ By default, `step` automatically chooses a dynamic value based on the query star
 Any value used for `step` needs to include a duration value, such as `30s` for `s`econds or `1m` for `m`inutes.
 
 You can configure this parameter using Grafana Explore or using the Tempo API.
-Refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics) for information about using the API.
 
 To check or change the `step` value using Grafana Explore:
 
@@ -127,32 +129,26 @@ there are 10 `"GET /:endpoint"` spans with status code 200 and 15 `"GET /:endpoi
 
 ```
 
-## The `sum_over_time`, `min_over_time`, `max_over_time`, and `avg_over_time` functions
+## Over-time functions
 
-The `sum_over_time()` lets you aggregate numerical values by computing the sum value of them.
+The over-time functions let you aggregate numerical values across matching spans per time interval.
+The time interval that these functions compute over is set by the `step` parameter.
+
+For more information, refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
+
+These functions accept the numerical field that you want to calculate the maximum of.
+
+### The `sum_over_time` function
+
+The `sum_over_time()` function lets you aggregate numerical values by computing the sum value of them.
 The time interval that the sum is computed over is set by the `step` parameter.
+
+### The `min_over_time` function
 
 The `min_over_time()` function lets you aggregate numerical attributes by calculating their minimum value.
 For example, you could choose to calculate the minimum duration of a group of spans, or you could choose to calculate
 the minimum value of a custom attribute you've attached to your spans, like `span.shopping.cart.entries`.
 The time interval that the minimum is computed over is set by the `step` parameter.
-
-The `max_over_time()` lets you aggregate numerical values by computing the maximum value of them, such as the all
-important span duration.
-The time interval that the maximum is computed over is set by the `step` parameter.
-
-The `avg_over_time()` function lets you aggregate numerical values by computing the maximum value of them, such as the
-all important span duration.
-The time interval that the maximum is computer over is set by the `step` parameter.
-
-For more information, refer to the [
-`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
-
-### Parameters
-
-Numerical field that you want to calculate the minimum, maximum, or average of.
-
-### Examples
 
 This example computes the minimum duration for each `http.target` of all spans named `"GET /:endpoint"`.
 Any numerical attribute on the span is fair game.
@@ -167,6 +163,12 @@ This example computes the minimum status code value of all spans named `"GET /:e
 { name = "GET /:endpoint" } | min_over_time(span.http.status_code)
 ```
 
+### The `max_over_time` function
+
+The `max_over_time()` function lets you aggregate numerical values by computing the maximum value of them, such as the all
+important span duration.
+The time interval that the maximum is computed over is set by the `step` parameter.
+
 This example computes the maximum duration for each `http.target` of all spans named `"GET /:endpoint"`.
 
 ```
@@ -176,6 +178,12 @@ This example computes the maximum duration for each `http.target` of all spans n
 ```
 { name = "GET /:endpoint" } | max_over_time(span.http.response.size)
 ```
+
+### The `avg_over_time` function
+
+The `avg_over_time()` function lets you aggregate numerical values by computing the average value of them, such as the all
+important span duration.
+The time interval that the average is computed over is set by the `step` parameter.
 
 This example computes the average duration for each `http.status_code` of all spans named `"GET /:endpoint"`.
 
