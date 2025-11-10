@@ -127,7 +127,7 @@ jobs:
           echo "grafana/tempo-vulture:$(./tools/image-tag)" > tags_for_cd_tempo_vulture
 
       - name: Authenticate to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@b7d33d6a98dc9cf332674c6cdebe92b8bcb05670 # login-to-gar-v0.3.0
+        uses: grafana/shared-workflows/actions/login-to-gar@c7ad5f57693ac858c698d95783685a9cbfd91223 # login-to-gar/v1.0.1
         id: login-to-gar
         with:
           registry: us-docker.pkg.dev
