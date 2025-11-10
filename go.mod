@@ -96,7 +96,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.133.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.138.0
 	github.com/parquet-go/parquet-go v0.25.2-0.20250911172247-41fe9a8fbd81
-	github.com/twmb/franz-go v1.20.1
+	github.com/twmb/franz-go v1.20.3
 	github.com/twmb/franz-go/pkg/kadm v1.17.1
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20251020054230-5e6bc01e3872
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0
