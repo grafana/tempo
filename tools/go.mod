@@ -10,7 +10,7 @@ require (
 	github.com/psampaz/go-mod-outdated v0.9.0
 	golang.org/x/tools v0.38.0
 	gotest.tools/gotestsum v1.12.1
-	mvdan.cc/gofumpt v0.8.0
+	mvdan.cc/gofumpt v0.9.2
 )
 
 require (
