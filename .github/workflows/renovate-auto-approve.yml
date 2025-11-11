@@ -5,17 +5,16 @@ on:
       - opened
       - reopened
 
-permissions: {}
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
 
 jobs:
   auto-approve:
     # skip it in all forks, only run in grafana/tempo
     if: github.repository == 'grafana/tempo' && github.actor == 'renovate-sh-app[bot]'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-      pull-requests: write
     steps:
       - name: Get Github App secrets from vault
         id: get-secrets
