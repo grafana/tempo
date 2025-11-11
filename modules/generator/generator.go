@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -28,6 +27,7 @@ import (
 	objStorage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/validation"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -268,7 +268,7 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	ctx, span := tracer.Start(ctx, "generator.PushSpans")
 	defer span.End()
 
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +416,7 @@ func (g *Generator) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 }
 
 func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +431,7 @@ func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 }
 
 func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}

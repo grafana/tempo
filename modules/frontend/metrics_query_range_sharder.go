@@ -11,7 +11,6 @@ import (
 	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grafana/dskit/user"
 	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -88,7 +88,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, ch, nil, s.next), nil
 	}
 
-	tenantID, err := user.ExtractOrgID(ctx)
+	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
