@@ -105,7 +105,6 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 }
 
 func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
-	t.Skip("enable this after fixing the test data")
 	rawR, _, _, err := local.New(&local.Config{
 		Path: "./test-data",
 	})
