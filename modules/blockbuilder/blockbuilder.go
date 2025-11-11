@@ -292,12 +292,17 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 
 		laggiestPartition := ps[0]
 		if laggiestPartition.lastRecordTs.IsZero() {
-			return b.cfg.ConsumeCycleDuration, nil
+			return b.cfg.ConsumeCycleDuration, errors.New("partition has no last record timestamp")
 		}
 
 		lagTime := time.Since(laggiestPartition.lastRecordTs)
 		if lagTime < b.cfg.ConsumeCycleDuration {
 			return b.cfg.ConsumeCycleDuration - lagTime, nil
+		}
+		// If we don't know exact offset, we need to start over on next cycle to fetch offsets again.
+		// This can happen when pull timeouted or the consumer had no lag.
+		if laggiestPartition.commitOffset == commitOffsetAtEnd {
+			return 0, nil
 		}
 		lastRecordTs, lastRecordOffset, err := b.consumePartition(ctx, laggiestPartition)
 		if err != nil {
@@ -451,7 +456,7 @@ outer:
 		span.AddEvent("no data")
 		// No data means we are caught up
 		ingest.SetPartitionLagSeconds(group, ps.partition, 0)
-		return time.Time{}, commitOffsetAtEnd, nil
+		return time.Now(), commitOffsetAtEnd, nil
 	}
 
 	// Record lag at the end of the consumption

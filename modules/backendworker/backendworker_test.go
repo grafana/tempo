@@ -186,6 +186,10 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 
 	s.EnablePolling(ctx, &ownsEverythingSharder{}, false)
 
+	t.Cleanup(func() {
+		s.StopAsync()
+		require.NoError(t, s.AwaitTerminated(context.Background()))
+	})
 	return s
 }
 
