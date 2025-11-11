@@ -9,6 +9,9 @@ type tenantValidatorRoundTripper struct {
 	next AsyncRoundTripper[combiner.PipelineResponse]
 }
 
+// NewTenantValidatorMiddleware returns a middleware that validates the tenant ID in requests.
+// It assumes there's only one tenant ID per request, otherwise it returns an error.
+// For this reason it must run after the multiTenantMiddleware.
 func NewTenantValidatorMiddleware() AsyncMiddleware[combiner.PipelineResponse] {
 	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
 		return &tenantValidatorRoundTripper{next: next}
