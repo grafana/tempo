@@ -139,7 +139,7 @@ func (s Static) EncodeToString(quotes bool) string {
 func arrayToString[T any](array []T, quoted bool) string {
 	tmpl := "%v"
 	if quoted {
-		tmpl = `"%v"`
+		tmpl = "`%v`"
 	}
 
 	var s strings.Builder

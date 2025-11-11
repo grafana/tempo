@@ -433,24 +433,26 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		case OpLessEqual:
 			return NewStaticBool(strings.Compare(lhsS, rhsS) <= 0), nil
 		case OpRegex:
-			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, true)
+			if len(o.compiledExpressions) == 0 {
+				compiled, err := regexp.NewRegexp([]string{rhsS}, true)
 				if err != nil {
 					return NewStaticNil(), err
 				}
+				o.compiledExpressions = append(o.compiledExpressions, compiled)
 			}
 
-			matched := o.compiledExpression.MatchString(lhsS)
+			matched := o.compiledExpressions[0].MatchString(lhsS)
 			return NewStaticBool(matched), err
 		case OpNotRegex:
-			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, false)
+			if len(o.compiledExpressions) == 0 {
+				compiled, err := regexp.NewRegexp([]string{rhsS}, false)
 				if err != nil {
 					return NewStaticNil(), err
 				}
+				o.compiledExpressions = append(o.compiledExpressions, compiled)
 			}
 
-			matched := o.compiledExpression.MatchString(lhsS)
+			matched := o.compiledExpressions[0].MatchString(lhsS)
 			return NewStaticBool(matched), err
 		default:
 		}
@@ -535,31 +537,67 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			return NewStaticNil(), errors.ErrUnsupported
 		}
 
-		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
-		arraySide := lhs
-		// to support symmetric operations
-		if rhsT.isArray() {
-			// for regex operations, TraceQL makes an assumption that RHS is the regex, and compiles it.
-			// we can support symmetric array operations by flipping the sides and executing the binary operation.
-			elemOp = &BinaryOperation{Op: getFlippedOp(o.Op), LHS: rhs, RHS: lhs}
-			arraySide = rhs
+		// find out which side is the scalar and which is the array
+		op := o.Op
+		array := rhs
+		scalar := lhs
+
+		var flipOperands bool
+		if scalar.Type.isArray() {
+			op = getFlippedOp(op)
+			array, scalar = scalar, array
+
+			// for regex operations we assume the RHS is a regex: must flip back operands later
+			if o.Op == OpRegex || o.Op == OpNotRegex {
+				flipOperands = true
+			}
 		}
 
-		var res Static
-		err := arraySide.GetElements(func(elem Static) bool {
-			elemOp.LHS = elem
-			res, err = elemOp.execute(span)
-			if err != nil {
-				return false // stop iteration early if there's an error
-			}
-			match, ok := res.Bool()
-			return !(ok && match) // stop if a match is found
-		})
+		// apply operation to each element of the array
+		elem, err := array.Elements()
 		if err != nil {
 			return NewStaticNil(), err
 		}
 
-		return res, err
+		// operators OpNotEqual and OpNotRegex have the semantics of 'not in' / 'match none': must check all elements
+		matchAll := o.Op == OpNotEqual || o.Op == OpNotRegex
+
+		var elemCount, matchCount int
+		for e := range elem {
+			elemCount++
+			elemOp := BinaryOperation{Op: op, LHS: scalar, RHS: e}
+			if flipOperands {
+				elemOp.LHS, elemOp.RHS = elemOp.RHS, elemOp.LHS
+			}
+
+			// reuses the compiled regex if it's already been compiled
+			if len(o.compiledExpressions) >= elemCount {
+				elemOp.compiledExpressions = []*regexp.Regexp{o.compiledExpressions[elemCount-1]}
+			}
+
+			res, err := elemOp.execute(span)
+			if err != nil {
+				return NewStaticNil(), err
+			}
+
+			// save compiled regex if it wasn't already saved and compiled regex for previous elements exist
+			if len(elemOp.compiledExpressions) == 1 && len(o.compiledExpressions) == elemCount-1 {
+				o.compiledExpressions = append(o.compiledExpressions, elemOp.compiledExpressions[0])
+			}
+
+			match, ok := res.Bool()
+			if ok && match {
+				matchCount++
+				if !matchAll {
+					break
+				}
+			}
+		}
+
+		if matchAll {
+			return NewStaticBool(matchCount == elemCount), nil
+		}
+		return NewStaticBool(matchCount > 0), err
 	}
 
 	switch o.Op {

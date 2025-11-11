@@ -533,7 +533,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 	testCases := []evalTC{
 		// string arrays
 		{
-			"{ .foo = `bar` }", // match string array
+			"{ .foo = `bar` }", // string in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
@@ -547,7 +547,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo = `bar` || .bat = `baz` }", // match string array with or
+			"{ .foo = `bar` || .bat = `baz` }", // string in array with or
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
@@ -561,21 +561,22 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo != `baz` }", // match string array not equal
+			"{ .foo != `baz` }", // string not in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
 					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"baz"})}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "one"})}},
 				}},
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "one"})}},
 				}},
 			},
 		},
 		{
-			"{ .foo =~ `ba.*` }", // match string array with regex
+			"{ .foo =~ `ba.*` }", // string match any in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
@@ -591,7 +592,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo !~ `ba.*` }", // regex non-matching
+			"{ .foo !~ `ba.*` }", // string match none in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
@@ -601,14 +602,13 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
 					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"cat"})}},
 				}},
 			},
 		},
 		// int arrays
 		{
-			"{ .foo = 2 }", // match int array
+			"{ .foo = 2 }", // int in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
@@ -622,24 +622,22 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo != 3 }", // match int array not equal
+			"{ .foo != 3 }", // int not in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
 					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 4})}},
-					// this is filtered out as expected??
 					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 3})}},
 				}},
 			},
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 4})}},
 				}},
 			},
 		},
 		{
-			"{ .foo = 2.5 }", // match float array
+			"{ .foo = 2.5 }", // float in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 2.5})}},
@@ -653,7 +651,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo = 3.14 }", // match another float array
+			"{ .foo = 3.14 }", // float in array array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{3.14, 6.28})}},
@@ -667,7 +665,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo > 1 }", // match int array greater than
+			"{ .foo > 1 }", // float > 1 in aray
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
@@ -681,7 +679,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo >= 1 }", // match int array greater equal than
+			"{ .foo >= 1 }", // float >= 1 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
@@ -697,7 +695,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo < 2 }", // match int array less than
+			"{ .foo < 2 }", // float < 2 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 3})}},
@@ -711,7 +709,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo <= 2 }", // match int array less than equal
+			"{ .foo <= 2 }", // float <= 2 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 3})}},
@@ -728,7 +726,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 		},
 		// match float arrays
 		{
-			"{ .foo != 2.5 }", // match float array not equal
+			"{ .foo != 2.5 }", // float not in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 3.0})}},
@@ -739,12 +737,11 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 3.0})}},
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.5, 4.0})}},
 				}},
 			},
 		},
 		{
-			"{ .foo < 2.0 }", // match float array less than
+			"{ .foo < 2.0 }", // float < 2.0 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 3.0})}},
@@ -758,7 +755,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo <= 2.0 }", // match float array less than
+			"{ .foo <= 2.0 }", // float <= 2.0 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 3.0})}},
@@ -774,7 +771,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo > 2.5 }", // match float array greater than
+			"{ .foo > 2.5 }", // float > 2.5 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 3.0})}},
@@ -788,7 +785,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo >= 2.5 }", // match float array greater than
+			"{ .foo >= 2.5 }", // float >= 2.5 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 3.0})}},
@@ -805,7 +802,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 		},
 		// match bool arrays
 		{
-			"{ .foo = true }", // match boolean array
+			"{ .foo = true }", // boolean in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
@@ -819,21 +816,21 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo = false }", // match another boolean array
+			"{ .foo = false }", // boolean in array
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
 					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, true})}},
 				}},
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
 				}},
 			},
 		},
 		{
-			"{ .foo != true }", // match boolean array not equal to true
+			"{ .foo != true }", // boolean not in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
@@ -844,12 +841,11 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
 				}},
 			},
 		},
 		{
-			"{ .foo = !true }", // match boolean array not equal to true
+			"{ .foo = !true }", // negated boolean in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
@@ -926,7 +922,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 	testCases := []evalTC{
 		// string arrays
 		{
-			"{ `bar` = .foo }", // Symmetric match for string array
+			"{ `bar` = .foo }", // symmetric: string in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
@@ -939,52 +935,22 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ `baz` != .foo }", // Symmetric not equal for string array
+			"{ `baz` != .foo }", // symmetric: string not in array
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "foo"})}},
 					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"baz"})}},
 				}},
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
-				}},
-			},
-		},
-		{
-			"{ `ba.*` =~ .foo }", // Symmetric regex match for string array
-			[]*Spanset{
-				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
-					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"cat", "dog"})}},
-				}},
-			},
-			[]*Spanset{
-				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
-				}},
-			},
-		},
-		{
-			"{ `ba.*` !~ .foo }", // Symmetric regex non-match for string array
-			[]*Spanset{
-				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
-				}},
-			},
-			[]*Spanset{
-				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "foo"})}},
 				}},
 			},
 		},
 		// int arrays
 		{
-			"{ 2 = .foo }", // Symmetric match for int array
+			"{ 2 = .foo }", // symmetric: int not in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
@@ -997,7 +963,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ 3 != .foo }", // Symmetric not equal for int array
+			"{ 3 != .foo }", // symmetric: in not in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
@@ -1008,12 +974,11 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 4})}},
 				}},
 			},
 		},
 		{
-			"{ 2 < .foo }", // Symmetric less-than for int array
+			"{ 2 < .foo }", // symmetric: int > 2 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 2})}},
@@ -1029,7 +994,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ 2 <= .foo }", // Symmetric less-than equal for int array
+			"{ 2 <= .foo }", // symmetric: in >= 2 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 2})}},
@@ -1045,7 +1010,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ 3 > .foo }", // Symmetric grater-than for int array
+			"{ 3 > .foo }", // symmetric: in < 3 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 3})}},
@@ -1059,7 +1024,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ 3 >= .foo }", // Symmetric grater-than-equal for int array
+			"{ 3 >= .foo }", // symmetric: in <= 3 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 3})}},
@@ -1078,7 +1043,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 		},
 		// match float arrays
 		{
-			"{ 2.5 = .foo }", // Symmetric match for float array
+			"{ 2.5 = .foo }", // symmetric: float in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 2.5})}},
@@ -1092,7 +1057,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ 3.14 != .foo }", // Symmetric not equal for float array
+			"{ 3.14 != .foo }", // symmetric: float not in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.23, 4.56})}},
@@ -1103,12 +1068,11 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.23, 4.56})}},
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{3.14, 6.28})}},
 				}},
 			},
 		},
 		{
-			"{ 2.0 > .foo }", // Symmetric grater-than for float array
+			"{ 2.0 > .foo }", // symmetric: float < 2.0 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 4.0})}},
@@ -1122,7 +1086,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ 2.0 >= .foo }", // Symmetric grater-than-equal for float array
+			"{ 2.0 >= .foo }", // symmetric: float <= 2.0 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 4.0})}},
@@ -1138,7 +1102,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ 3.5 < .foo }", // Symmetric less-than for float array
+			"{ 3.5 < .foo }", // symmetric: float > 3.5 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 3.5})}},
@@ -1154,7 +1118,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ 3.5 <= .foo }", // Symmetric less-than-equal for float array
+			"{ 3.5 <= .foo }", // symmetric: float >= 3.5 in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 3.5})}},
@@ -1173,7 +1137,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 		},
 		// match bool arrays
 		{
-			"{ true = .foo }", // Symmetric match for boolean array
+			"{ true = .foo }", // symmetric: boolean in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
@@ -1186,7 +1150,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ false != .foo }", // Symmetric not equal for boolean array
+			"{ false != .foo }", // symmetric: boolean not in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
@@ -1196,13 +1160,12 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
 					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, true})}},
 				}},
 			},
 		},
 		{
-			"{ !false = .foo }", // Symmetric not equal for boolean array
+			"{ !false = .foo }", // symmetric: negated boolean in array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
@@ -1768,10 +1731,11 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 
 func TestBinOp(t *testing.T) {
 	testCases := []struct {
-		op       Operator
-		lhs      Static
-		rhs      Static
-		expected Static
+		op        Operator
+		lhs       Static
+		rhs       Static
+		expected  Static
+		symmetric bool
 	}{
 		{
 			op:       OpGreater,
@@ -1779,23 +1743,112 @@ func TestBinOp(t *testing.T) {
 			rhs:      NewStaticString(""),
 			expected: StaticTrue,
 		},
+		// Comparisons of strings starting with a number were previously broken.
 		{
-			// Comparison of strings starting with a number were previously broken.
 			op:       OpGreater,
 			lhs:      NewStaticString("123"),
 			rhs:      NewStaticString(""),
 			expected: StaticTrue,
 		},
+		// Test cases for of array operations
+		{
+			op:        OpEqual,
+			lhs:       NewStaticInt(2),
+			rhs:       NewStaticIntArray([]int{1, 2, 3}),
+			expected:  StaticTrue,
+			symmetric: true,
+		},
+		{
+			op:        OpEqual,
+			lhs:       NewStaticInt(2),
+			rhs:       NewStaticStringArray([]string{"1", "2", "3"}),
+			expected:  StaticFalse,
+			symmetric: true,
+		},
+		{
+			op:        OpNotEqual,
+			lhs:       NewStaticString("1"),
+			rhs:       NewStaticStringArray([]string{"2", "3", "4"}),
+			expected:  StaticTrue,
+			symmetric: true,
+		},
+		{
+			op:        OpNotEqual,
+			lhs:       NewStaticString("3"),
+			rhs:       NewStaticStringArray([]string{"1", "2", "3"}),
+			expected:  StaticFalse,
+			symmetric: true,
+		},
+		// Test cases for of array regex operations (regex is not symmetrical, the rhs is always the regex)
+		{
+			op:       OpRegex,
+			lhs:      NewStaticString("two"),
+			rhs:      NewStaticStringArray([]string{"one", "tw.*", "three"}),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpRegex,
+			lhs:      NewStaticString("two"),
+			rhs:      NewStaticStringArray([]string{"on.*", "three", ".*four.*"}),
+			expected: StaticFalse,
+		},
+		{
+			op:       OpRegex,
+			lhs:      NewStaticStringArray([]string{"one", "two", "three"}),
+			rhs:      NewStaticString("tw.*"),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpRegex,
+			lhs:      NewStaticStringArray([]string{"one", "three", "four"}),
+			rhs:      NewStaticString("tw.*"),
+			expected: StaticFalse,
+		},
+		{
+			op:       OpRegex,
+			lhs:      NewStaticString("1.1"),
+			rhs:      NewStaticFloatArray([]float64{1.1, 2.2, 3.3}),
+			expected: StaticFalse,
+		},
+		{
+			op:       OpNotRegex,
+			lhs:      NewStaticString("one"),
+			rhs:      NewStaticStringArray([]string{"tw.*", "th.*", "fo.*"}),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpNotRegex,
+			lhs:      NewStaticString("one"),
+			rhs:      NewStaticStringArray([]string{"on.*", "tw.*", "th.*"}),
+			expected: StaticFalse,
+		},
+		{
+			op:       OpNotRegex,
+			lhs:      NewStaticStringArray([]string{"two", "three", "four"}),
+			rhs:      NewStaticString("on.*"),
+			expected: StaticTrue,
+		},
+		{
+			op:       OpNotRegex,
+			lhs:      NewStaticStringArray([]string{"one", "two", "three"}),
+			rhs:      NewStaticString("on.*"),
+			expected: StaticFalse,
+		},
 	}
+
 	for _, tc := range testCases {
-		b := newBinaryOperation(tc.op, tc.lhs, tc.rhs)
+		op := newBinaryOperation(tc.op, tc.lhs, tc.rhs)
 
-		// Static operations are already "compiled" away so recreate via string here.
-		text := tc.lhs.String() + " " + tc.op.String() + " " + tc.rhs.String()
-
-		actual, err := b.execute(nil)
+		actual, err := op.execute(nil)
 		require.NoError(t, err)
-		require.Equal(t, tc.expected, actual, text)
+		require.Equal(t, tc.expected, actual, fmt.Sprintf("%s %s %s", tc.lhs, tc.op, tc.rhs))
+
+		if tc.symmetric {
+			op = newBinaryOperation(tc.op, tc.rhs, tc.lhs)
+			actual, err = op.execute(nil)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual, fmt.Sprintf("%s %s %s", tc.rhs, tc.op, tc.lhs))
+		}
 	}
 }
 
