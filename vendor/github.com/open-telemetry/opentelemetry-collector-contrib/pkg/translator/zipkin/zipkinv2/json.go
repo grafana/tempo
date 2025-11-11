@@ -12,7 +12,7 @@ import (
 )
 
 type jsonUnmarshaler struct {
-	toTranslator ToTranslator
+	toTranslator toTranslator
 }
 
 // UnmarshalTraces from JSON bytes.
@@ -26,7 +26,7 @@ func (j jsonUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 
 // NewJSONTracesUnmarshaler returns an unmarshaler for JSON bytes.
 func NewJSONTracesUnmarshaler(parseStringTags bool) ptrace.Unmarshaler {
-	return jsonUnmarshaler{toTranslator: ToTranslator{ParseStringTags: parseStringTags}}
+	return jsonUnmarshaler{toTranslator: toTranslator{ParseStringTags: parseStringTags}}
 }
 
 // NewJSONTracesMarshaler returns a marshaler to JSON bytes.

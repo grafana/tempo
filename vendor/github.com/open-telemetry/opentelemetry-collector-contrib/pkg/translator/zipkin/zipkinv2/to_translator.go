@@ -27,14 +27,14 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin"
 )
 
-// ToTranslator converts from Zipkin data model to pdata.
-type ToTranslator struct {
+// toTranslator converts from Zipkin data model to pdata.
+type toTranslator struct {
 	// ParseStringTags should be set to true if tags should be converted to numbers when possible.
 	ParseStringTags bool
 }
 
 // ToTraces translates Zipkin v2 spans into ptrace.Traces.
-func (t ToTranslator) ToTraces(zipkinSpans []*zipkinmodel.SpanModel) (ptrace.Traces, error) {
+func (t toTranslator) ToTraces(zipkinSpans []*zipkinmodel.SpanModel) (ptrace.Traces, error) {
 	traceData := ptrace.NewTraces()
 	if len(zipkinSpans) == 0 {
 		return traceData, nil

@@ -13,7 +13,7 @@ type protobufUnmarshaler struct {
 	// the "X-B3-Flags" header is set to 1 on the request.
 	debugWasSet bool
 
-	toTranslator ToTranslator
+	toTranslator toTranslator
 }
 
 // UnmarshalTraces from protobuf bytes.
@@ -29,7 +29,7 @@ func (p protobufUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) 
 func NewProtobufTracesUnmarshaler(debugWasSet, parseStringTags bool) ptrace.Unmarshaler {
 	return protobufUnmarshaler{
 		debugWasSet:  debugWasSet,
-		toTranslator: ToTranslator{ParseStringTags: parseStringTags},
+		toTranslator: toTranslator{ParseStringTags: parseStringTags},
 	}
 }
 

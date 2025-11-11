@@ -17,12 +17,14 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofile"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
 )
 
 type filterProfileProcessor struct {
-	skipExpr  expr.BoolExpr[ottlprofile.TransformContext]
-	telemetry *filterTelemetry
-	logger    *zap.Logger
+	skipResourceExpr expr.BoolExpr[ottlresource.TransformContext]
+	skipProfileExpr  expr.BoolExpr[ottlprofile.TransformContext]
+	telemetry        *filterTelemetry
+	logger           *zap.Logger
 }
 
 func newFilterProfilesProcessor(set processor.Settings, cfg *Config) (*filterProfileProcessor, error) {
@@ -36,13 +38,18 @@ func newFilterProfilesProcessor(set processor.Settings, cfg *Config) (*filterPro
 	}
 	fpp.telemetry = fpt
 
-	if cfg.Profiles.ProfileConditions != nil {
-		skipExpr, errBoolExpr := filterottl.NewBoolExprForProfile(cfg.Profiles.ProfileConditions, cfg.profileFunctions, cfg.ErrorMode, set.TelemetrySettings)
-		if errBoolExpr != nil {
-			return nil, errBoolExpr
+	if cfg.Profiles.ResourceConditions != nil {
+		fpp.skipResourceExpr, err = filterottl.NewBoolExprForResource(cfg.Profiles.ResourceConditions, cfg.resourceFunctions, cfg.ErrorMode, set.TelemetrySettings)
+		if err != nil {
+			return nil, err
 		}
-		fpp.skipExpr = skipExpr
-		return fpp, nil
+	}
+
+	if cfg.Profiles.ProfileConditions != nil {
+		fpp.skipProfileExpr, err = filterottl.NewBoolExprForProfile(cfg.Profiles.ProfileConditions, cfg.profileFunctions, cfg.ErrorMode, set.TelemetrySettings)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return fpp, nil
@@ -50,7 +57,7 @@ func newFilterProfilesProcessor(set processor.Settings, cfg *Config) (*filterPro
 
 // processProfiles filters the given profile based off the filterSampleProcessor's filters.
 func (fpp *filterProfileProcessor) processProfiles(ctx context.Context, pd pprofile.Profiles) (pprofile.Profiles, error) {
-	if fpp.skipExpr == nil {
+	if fpp.skipResourceExpr == nil && fpp.skipProfileExpr == nil {
 		return pd, nil
 	}
 
@@ -60,10 +67,23 @@ func (fpp *filterProfileProcessor) processProfiles(ctx context.Context, pd pprof
 	var errors error
 	pd.ResourceProfiles().RemoveIf(func(rp pprofile.ResourceProfiles) bool {
 		resource := rp.Resource()
+		if fpp.skipResourceExpr != nil {
+			skip, err := fpp.skipResourceExpr.Eval(ctx, ottlresource.NewTransformContext(resource, rp))
+			if err != nil {
+				errors = multierr.Append(errors, err)
+				return false
+			}
+			if skip {
+				return true
+			}
+		}
+		if fpp.skipProfileExpr == nil {
+			return rp.ScopeProfiles().Len() == 0
+		}
 		rp.ScopeProfiles().RemoveIf(func(sp pprofile.ScopeProfiles) bool {
 			scope := sp.Scope()
 			sp.Profiles().RemoveIf(func(profile pprofile.Profile) bool {
-				skip, err := fpp.skipExpr.Eval(ctx, ottlprofile.NewTransformContext(profile, dic, scope, resource, sp, rp))
+				skip, err := fpp.skipProfileExpr.Eval(ctx, ottlprofile.NewTransformContext(profile, dic, scope, resource, sp, rp))
 				if err != nil {
 					errors = multierr.Append(errors, err)
 					return false
