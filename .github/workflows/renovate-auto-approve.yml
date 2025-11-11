@@ -13,7 +13,7 @@ permissions:
 jobs:
   auto-approve:
     # skip it in all forks, only run in grafana/tempo
-    if: github.repository == 'grafana/tempo' && github.actor == 'renovate-sh-app[bot]'
+    if: github.repository == 'grafana/tempo' && github.actor_id == '219655108' # renovate-sh-app[bot]
     runs-on: ubuntu-latest
     steps:
       - name: Get Github App secrets from vault
