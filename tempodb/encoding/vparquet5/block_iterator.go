@@ -34,7 +34,7 @@ func (b *backendBlock) openForIteration(ctx context.Context) (*parquet.File, *pa
 		return nil, nil, err
 	}
 
-	r := parquet.NewReader(pf, parquet.SchemaOf(&Trace{}))
+	r := parquet.NewReader(pf, pf.Schema())
 	return pf, r, nil
 }
 

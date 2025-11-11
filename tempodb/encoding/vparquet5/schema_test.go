@@ -159,6 +159,7 @@ func TestFieldsAreCleared(t *testing.T) {
 						},
 					}},
 				}},
+				SpanCount: 1,
 			}},
 		}},
 	}
@@ -387,6 +388,7 @@ func TestTraceToParquet(t *testing.T) {
 								String05: []string{"dedicated-span-attr-value-5"},
 							},
 						}},
+						SpanCount: 1,
 					}},
 				}},
 			},
@@ -482,6 +484,7 @@ func TestTraceToParquet(t *testing.T) {
 								},
 							},
 						},
+						SpanCount: 3,
 					}},
 				}},
 			},
@@ -591,6 +594,7 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetRight: 9,
 							},
 						},
+						SpanCount: 3,
 					}},
 				}, {
 					Resource: Resource{
@@ -617,6 +621,7 @@ func TestTraceToParquet(t *testing.T) {
 								StatusCode:     int(v1_trace.Status_STATUS_CODE_ERROR),
 							},
 						},
+						SpanCount: 2,
 					}},
 				}},
 			},
@@ -720,6 +725,7 @@ func TestTraceToParquet(t *testing.T) {
 								}},
 							},
 						},
+						SpanCount: 2,
 					}},
 				}},
 			},
@@ -988,7 +994,7 @@ func traceEqual(t *testing.T, expected, actual *Trace, messages ...interface{}) 
 	sortAttributes(actual)
 
 	if !cmp.Equal(expected, actual, cmpopts.EquateEmpty()) {
-		t.Log(cmp.Diff(expected, actual))
+		t.Log(cmp.Diff(expected, actual, cmpopts.EquateEmpty()))
 		assert.Fail(t, "expected and actual are not equal", messages...)
 	}
 }
