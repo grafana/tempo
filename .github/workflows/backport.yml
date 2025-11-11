@@ -1,15 +1,15 @@
-# This checks merged PRs for labels like "backport release-x.y"
-# and opens a new PR backporting the same commit to the release branch.
-# This workflow also runs when the PR is labeled or opened, but will
-# will only check a few things and detect that the PR is not yet merged.
+# This workflow checks the provided PR and creates backport PRs for each target branch
+# based on the "backport <release>" labels present on the provided PR.
 # At this time only squashed PRs are supported since the cherry-pick
 # command does not include "-m <n>" arg required for merge commits.
-name: Backport PR Creator
+name: Backport PR
 on:
-  pull_request:
-    types:
-      - closed
-      - labeled
+  workflow_dispatch:
+   inputs:
+      pr_number:
+        description: 'PR number to backport'
+        required: true
+        type: number
 
 permissions: {}
 
@@ -49,8 +49,8 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: tempo
       - name: Run backport
-        uses: ./actions/backport
+        uses: grafana/grafana-github-actions-go/backport@main
         with:
           token: ${{ steps.app-token.outputs.token }}
           labelsToAdd: "backport"
-          title: "[{{base}}] {{originalTitle}}"
+          pr_number: ${{ github.event.inputs.pr_number }}
