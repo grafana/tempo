@@ -914,6 +914,7 @@ const (
 	columnPathResourceAttrBool        = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
 	columnPathResourceServiceName     = "rs.list.element.Resource.ServiceName"
 
+	columnPathScopeSpanSpanCount        = "rs.list.element.ss.list.element.SpanCount"
 	columnPathInstrumentationName       = "rs.list.element.ss.list.element.Scope.Name"
 	columnPathInstrumentationVersion    = "rs.list.element.ss.list.element.Scope.Version"
 	columnPathInstrumentationAttrKey    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Key"
