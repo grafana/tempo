@@ -10,9 +10,6 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
-// SearchShards is an alias for shardtracker.Shard for backward compatibility.
-type SearchShards = shardtracker.Shard
-
 // SearchJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.
 type SearchJobResponse struct {
 	shardtracker.JobMetadata

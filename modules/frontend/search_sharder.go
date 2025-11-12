@@ -161,7 +161,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 		resp.TotalJobs += jobs
 		resp.TotalBytes += sz
 
-		resp.Shards = append(resp.Shards, combiner.SearchShards{
+		resp.Shards = append(resp.Shards, shardtracker.Shard{
 			TotalJobs:               uint32(jobs),
 			CompletedThroughSeconds: completedThroughTime,
 		})
@@ -178,13 +178,13 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // unexpectedly changing the passed searchReq.
 func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) (*combiner.SearchJobResponse, error) {
 	resp := &combiner.SearchJobResponse{}
-	resp.Shards = make([]combiner.SearchShards, 0, s.cfg.MostRecentShards+1) // +1 for the ingester shard
+	resp.Shards = make([]shardtracker.Shard, 0, s.cfg.MostRecentShards+1) // +1 for the ingester shard
 
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		// one shard that covers all time
 		resp.TotalJobs = 1
-		resp.Shards = append(resp.Shards, combiner.SearchShards{
+		resp.Shards = append(resp.Shards, shardtracker.Shard{
 			TotalJobs:               1,
 			CompletedThroughSeconds: 1,
 		})
@@ -254,7 +254,7 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 	//  for ingester requests to complete before moving on to the backend requests
 	ingesterJobs := len(reqCh)
 	resp.TotalJobs = ingesterJobs
-	resp.Shards = append(resp.Shards, combiner.SearchShards{
+	resp.Shards = append(resp.Shards, shardtracker.Shard{
 		TotalJobs:               uint32(ingesterJobs),
 		CompletedThroughSeconds: shardtracker.TimestampNever,
 	})
