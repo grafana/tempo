@@ -40,25 +40,17 @@ after a metrics query like:
 
 These functions can be added as an operator at the end of any TraceQL query.
 
-| Function                                                                                        | Description                                                              | Parameters/attributes |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------- |
-| [`rate()`](#the-rate-function)                                                                  | Calculates the number of matching spans per second.                      |                       |
-| [`count_over_time()`](#the-count_over_time-function)                                            | Counts the number of matching spans per time interval.                   |
-| `step`                                                                                          |
-| [`sum_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Sums the                                                                 |
-| value for the specified attribute across all matching spans per time interval.                  | numeric attribute                                                        |
-| [`min_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the                                                              |
-| minimum value for the specified attribute across all matching spans per time interval.          | numeric attribute                                                        |
-| [`max_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the                                                              |
-| maximum value for the specified attribute across all matching spans per time interval.          | numeric attribute                                                        |
-| [`avg_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the                                                              |
-| average value for the specified attribute across all matching spans per time interval.          | numeric attribute                                                        |
-| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)             | The quantile of the                                                      |
-| values in the specified interval.                                                               | numeric attribute; one or more quantiles                                 |
-| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)            | Evaluate frequency                                                       |
-| distribution over time.                                                                         | numeric attribute                                                        |
-| [`compare()`](#the-compare-function)                                                            | Splits spans into selection and baseline groups and highlights attribute |
-| differences.                                                                                    | `filter`; `topN` (default 10); `startTS`, `endTS` (both or neither)      |
+| Function                                                                                        | Description                                                                                        | Parameters/attributes                                               |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [`rate()`](#the-rate-function)                                                                  | Calculates the number of matching spans per second.                                                |                                                                     |
+| [`count_over_time()`](#the-count_over_time-function)                                            | Counts the number of matching spans per time interval.                                             | `step`                                                              |
+| [`sum_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Sums the value for the specified attribute across all matching spans per time interval.            | `numeric attribute`                                                 |
+| [`min_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the minimum value for the specified attribute across all matching spans per time interval. | `numeric attribute`                                                 |
+| [`max_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the maximum value for the specified attribute across all matching spans per time interval. | `numeric attribute`                                                 |
+| [`avg_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the average value for the specified attribute across all matching spans per time interval. | `numeric attribute`                                                 |
+| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)             | The quantile of the values in the specified interval.                                              | `numeric attribute`; one or more quantiles                          |
+| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)            | Evaluate frequency distribution over time.                                                         | `numeric attribute`                                                 |
+| [`compare()`](#the-compare-function)                                                            | Splits spans into selection and baseline groups and highlights attribute differences.              | `filter`; `topN` (default 10); `startTS`, `endTS` (both or neither) |
 
 ## The `rate` functions
 
