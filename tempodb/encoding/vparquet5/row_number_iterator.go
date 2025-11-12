@@ -52,6 +52,14 @@ type virtualRowNumberIterator struct {
 	rowsLef int32
 }
 
+func newVirtualRowNumberIterator(iter pq.Iterator, definitionLevel int) *virtualRowNumberIterator {
+	return &virtualRowNumberIterator{
+		iter:            iter,
+		definitionLevel: definitionLevel,
+		at:              pq.IteratorResult{RowNumber: pq.EmptyRowNumber()},
+	}
+}
+
 func (v *virtualRowNumberIterator) String() string {
 	return "virtualRowNumberIterator()"
 }

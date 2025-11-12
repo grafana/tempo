@@ -42,20 +42,27 @@ func TestVirtualRowNumberIterator_Next(t *testing.T) {
 	pf := makeTestFile(t, traces)
 	makeIterator := makeIterFunc(context.Background(), pf.RowGroups(), pf)
 
-	iter := virtualRowNumberIterator{
-		iter:            makeIterator(columnPathScopeSpanSpanCount, nil, "spanCount"),
-		definitionLevel: DefinitionLevelResourceSpansILSSpan,
-	}
+	expectIter := makeIterator(columnPathSpanStatusCode, nil, "statusCode") // actual iterator over spans as comparison
+
+	iter := newVirtualRowNumberIterator(makeIterator(columnPathScopeSpanSpanCount, nil, "spanCount"), DefinitionLevelResourceSpansILSSpan)
 
 	for _, expRowNumber := range rowNumbers {
 		res, err := iter.Next()
 		require.NoError(t, err)
 		require.Equal(t, expRowNumber, res.RowNumber)
+
+		exp, err := expectIter.Next()
+		require.NoError(t, err)
+		require.Equal(t, exp.RowNumber, res.RowNumber)
 	}
 
 	res, err := iter.Next()
 	require.NoError(t, err)
 	require.Nil(t, res)
+
+	exp, err := expectIter.Next()
+	require.NoError(t, err)
+	require.Nil(t, exp)
 }
 
 func TestVirtualRowNumberIterator_SeekTo(t *testing.T) {
@@ -108,15 +115,14 @@ func TestVirtualRowNumberIterator_SeekTo(t *testing.T) {
 	pf := makeTestFile(t, traces)
 	makeIterator := makeIterFunc(context.Background(), pf.RowGroups(), pf)
 
-	expectIter := makeIterator(columnPathSpanStatusCode, nil, "statusCode")
-	iter := virtualRowNumberIterator{
-		iter:            makeIterator(columnPathScopeSpanSpanCount, nil, "spanCount"),
-		definitionLevel: DefinitionLevelResourceSpansILSSpan,
-	}
+	expectIter := makeIterator(columnPathSpanStatusCode, nil, "statusCode") // actual iterator over spans as comparison
+
+	iter := newVirtualRowNumberIterator(makeIterator(columnPathScopeSpanSpanCount, nil, "spanCount"), DefinitionLevelResourceSpansILSSpan)
 
 	for _, seekPos := range seekPositions {
 		res, err := iter.SeekTo(seekPos.seekRow, seekPos.seekLevel)
 		require.NoError(t, err)
+		require.Equal(t, seekPos.expectedRow, res.RowNumber)
 
 		exp, err := expectIter.SeekTo(seekPos.seekRow, seekPos.seekLevel)
 		require.NoError(t, err)
@@ -124,6 +130,7 @@ func TestVirtualRowNumberIterator_SeekTo(t *testing.T) {
 
 		res, err = iter.Next()
 		require.NoError(t, err)
+		require.Equal(t, seekPos.expectedNext, res.RowNumber)
 
 		exp, err = expectIter.Next()
 		require.NoError(t, err)
