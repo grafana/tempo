@@ -780,3 +780,104 @@ func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	assert.Greater(t, demand, expectedDemand-10, "demand should track all attempted series")
 	assert.Greater(t, demand, h.countActiveSeries(), "demand should exceed active series")
 }
+
+func Test_nativeHistogram_onUpdate(t *testing.T) {
+	// Test BOTH mode (classic + native)
+	t.Run("both_mode", func(t *testing.T) {
+		var seriesUpdated int
+		lifecycler := &mockLimiter{
+			onAddFunc: func(_ uint64, count uint32) bool {
+				// BOTH mode with 2 buckets: sum, count, bucket1, bucket2, +Inf, native = 6
+				assert.Equal(t, uint32(6), count)
+				return true
+			},
+			onUpdateFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(6), count)
+				seriesUpdated++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		// Add initial series (first observation triggers both OnAdd and OnUpdate)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+
+		initialUpdates := seriesUpdated
+		assert.Equal(t, 2, initialUpdates, "First observations should trigger OnUpdate")
+
+		// Update existing series
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		assert.Equal(t, initialUpdates+1, seriesUpdated)
+
+		// Update both series
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
+		assert.Equal(t, initialUpdates+3, seriesUpdated)
+	})
+
+	// Test NATIVE mode only
+	t.Run("native_mode", func(t *testing.T) {
+		var seriesUpdated int
+		lifecycler := &mockLimiter{
+			onAddFunc: func(_ uint64, count uint32) bool {
+				// NATIVE mode: only 1 native histogram series
+				assert.Equal(t, uint32(1), count)
+				return true
+			},
+			onUpdateFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(1), count)
+				seriesUpdated++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		// Add initial series (first observation triggers both OnAdd and OnUpdate)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+
+		initialUpdates := seriesUpdated
+		assert.Equal(t, 1, initialUpdates, "First observation should trigger OnUpdate")
+
+		// Update existing series multiple times
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		assert.Equal(t, initialUpdates+1, seriesUpdated)
+
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		assert.Equal(t, initialUpdates+2, seriesUpdated)
+
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.5, "", 1.0)
+		assert.Equal(t, initialUpdates+3, seriesUpdated)
+	})
+
+	// Test CLASSIC mode
+	t.Run("classic_mode", func(t *testing.T) {
+		var seriesUpdated int
+		lifecycler := &mockLimiter{
+			onAddFunc: func(_ uint64, count uint32) bool {
+				// CLASSIC mode with 2 buckets: sum, count, bucket1, bucket2, +Inf = 5
+				assert.Equal(t, uint32(5), count)
+				return true
+			},
+			onUpdateFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(5), count)
+				seriesUpdated++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeClassic, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		// Add initial series (first observation triggers both OnAdd and OnUpdate)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+
+		initialUpdates := seriesUpdated
+		assert.Equal(t, 1, initialUpdates, "First observation should trigger OnUpdate")
+
+		// Update existing series
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		assert.Equal(t, initialUpdates+1, seriesUpdated)
+
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		assert.Equal(t, initialUpdates+2, seriesUpdated)
+	})
+}

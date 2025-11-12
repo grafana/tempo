@@ -91,6 +91,10 @@ func (l *LocalSeriesLimiter) OnAdd(_ uint64, seriesCount uint32) bool {
 	return true
 }
 
+func (l *LocalSeriesLimiter) OnUpdate(uint64, uint32) {
+	// No-op, we rely on OnDelete to clean up the series
+}
+
 func (l *LocalSeriesLimiter) OnDelete(_ uint64, seriesCount uint32) {
 	l.activeSeries.Sub(seriesCount)
 	l.metricActiveSeries.Set(float64(l.activeSeries.Load()))

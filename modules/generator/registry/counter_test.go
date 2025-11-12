@@ -367,3 +367,34 @@ func Test_counter_demandDecay(t *testing.T) {
 	finalDemand := c.countSeriesDemand()
 	assert.LessOrEqual(t, finalDemand, initialDemand/2, "demand should significantly decay")
 }
+
+func Test_counter_onUpdate(t *testing.T) {
+	var seriesUpdated int
+	lifecycler := &mockLimiter{
+		onAddFunc: func(uint64, uint32) bool {
+			return true
+		},
+		onUpdateFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			seriesUpdated++
+		},
+	}
+
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
+
+	// Add initial series
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+
+	// No updates yet (new series don't trigger OnUpdate)
+	assert.Equal(t, 0, seriesUpdated)
+
+	// Update existing series
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	assert.Equal(t, 1, seriesUpdated)
+
+	// Update both series
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 3.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 4.0)
+	assert.Equal(t, 3, seriesUpdated)
+}

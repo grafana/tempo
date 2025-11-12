@@ -84,6 +84,9 @@ type Limiter interface {
 	// OnAdd is called when a new entity is created. It returns true if the entity can be created, false otherwise.
 	// LabelHash is a hash of all non-constant labels.
 	OnAdd(labelHash uint64, seriesCount uint32) bool
+	// OnUpdate is called when an entity is updated.
+	// LabelHash is a hash of all non-constant labels.
+	OnUpdate(labelHash uint64, seriesCount uint32)
 	// OnDelete is called when an entity is deleted.
 	// LabelHash is a hash of all non-constant labels.
 	OnDelete(labelHash uint64, seriesCount uint32)
@@ -140,8 +143,22 @@ func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *
 	return newLabelValueComboWithMax(labels, values, r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength)
 }
 
+func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32) bool {
+	r.entityDemand.Insert(labelHash)
+	return r.limiter.OnAdd(labelHash, seriesCount)
+}
+
+func (r *ManagedRegistry) OnUpdate(labelHash uint64, seriesCount uint32) {
+	r.entityDemand.Insert(labelHash)
+	r.limiter.OnUpdate(labelHash, seriesCount)
+}
+
+func (r *ManagedRegistry) OnDelete(labelHash uint64, seriesCount uint32) {
+	r.limiter.OnDelete(labelHash, seriesCount)
+}
+
 func (r *ManagedRegistry) NewCounter(name string) Counter {
-	c := newCounter(name, r.limiter, r.externalLabels, r.cfg.StaleDuration)
+	c := newCounter(name, r, r.externalLabels, r.cfg.StaleDuration)
 	r.registerMetric(c)
 	return c
 }
@@ -153,9 +170,9 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 	// are disabled, eventually the new implementation can handle all cases
 
 	if hasNativeHistograms(histogramOverride) {
-		h = newNativeHistogram(name, buckets, r.limiter, traceIDLabelName, histogramOverride, r.externalLabels, r.tenant, r.overrides, r.cfg.StaleDuration)
+		h = newNativeHistogram(name, buckets, r, traceIDLabelName, histogramOverride, r.externalLabels, r.tenant, r.overrides, r.cfg.StaleDuration)
 	} else {
-		h = newHistogram(name, buckets, r.limiter, traceIDLabelName, r.externalLabels, r.cfg.StaleDuration)
+		h = newHistogram(name, buckets, r, traceIDLabelName, r.externalLabels, r.cfg.StaleDuration)
 	}
 
 	r.registerMetric(h)
@@ -163,7 +180,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 }
 
 func (r *ManagedRegistry) NewGauge(name string) Gauge {
-	g := newGauge(name, r.limiter, r.externalLabels, r.cfg.StaleDuration)
+	g := newGauge(name, r, r.externalLabels, r.cfg.StaleDuration)
 	r.registerMetric(g)
 	return g
 }

@@ -105,7 +105,7 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 
 	s, ok := h.series[hash]
 	if ok {
-		h.updateSeries(s, value, traceID, multiplier)
+		h.updateSeries(hash, s, value, traceID, multiplier)
 		return
 	}
 
@@ -152,12 +152,12 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 		newSeries.bucketLabels = append(newSeries.bucketLabels, lb.Labels())
 	}
 
-	h.updateSeries(newSeries, value, traceID, multiplier)
+	h.updateSeries(labelValueCombo.getHash(), newSeries, value, traceID, multiplier)
 
 	return newSeries
 }
 
-func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID string, multiplier float64) {
+func (h *histogram) updateSeries(hash uint64, s *histogramSeries, value float64, traceID string, multiplier float64) {
 	s.count.Add(1 * multiplier)
 	s.sum.Add(value * multiplier)
 
@@ -172,6 +172,7 @@ func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID stri
 	s.exemplarValues[bucket].Store(value)
 
 	s.lastUpdated.Store(time.Now().UnixMilli())
+	h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
 }
 
 func (h *histogram) name() string {

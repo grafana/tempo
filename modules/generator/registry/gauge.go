@@ -80,7 +80,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(s, value, operation)
+		g.updateSeriesValue(hash, s, value, operation)
 		return
 	}
 
@@ -91,7 +91,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(existing, value, operation)
+		g.updateSeriesValue(hash, existing, value, operation)
 		return
 	}
 
@@ -110,13 +110,14 @@ func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaug
 	}
 }
 
-func (g *gauge) updateSeriesValue(s *gaugeSeries, value float64, operation string) {
+func (g *gauge) updateSeriesValue(hash uint64, s *gaugeSeries, value float64, operation string) {
 	if operation == add {
 		s.value.Add(value)
 	} else {
 		s.value.Store(value)
 	}
 	s.lastUpdated.Store(time.Now().UnixMilli())
+	g.lifecycler.OnUpdate(hash, 1)
 }
 
 func (g *gauge) name() string {

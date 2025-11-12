@@ -365,3 +365,38 @@ func Test_gauge_demandDecay(t *testing.T) {
 	finalDemand := g.countSeriesDemand()
 	assert.LessOrEqual(t, finalDemand, initialDemand/2, "demand should significantly decay")
 }
+
+func Test_gauge_onUpdate(t *testing.T) {
+	var seriesUpdated int
+	lifecycler := &mockLimiter{
+		onAddFunc: func(uint64, uint32) bool {
+			return true
+		},
+		onUpdateFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			seriesUpdated++
+		},
+	}
+
+	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
+
+	// Add initial series
+	g.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	g.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 5.0)
+
+	// No updates yet (new series don't trigger OnUpdate)
+	assert.Equal(t, 0, seriesUpdated)
+
+	// Update existing series with Inc
+	g.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0)
+	assert.Equal(t, 1, seriesUpdated)
+
+	// Update existing series with Set
+	g.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 10.0)
+	assert.Equal(t, 2, seriesUpdated)
+
+	// Update both series
+	g.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	g.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 15.0)
+	assert.Equal(t, 4, seriesUpdated)
+}

@@ -106,6 +106,10 @@ func (l *LocalEntityLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
 	return true
 }
 
+func (l *LocalEntityLimiter) OnUpdate(uint64, uint32) {
+	// No-op, we rely on OnDelete to clean up
+}
+
 func (l *LocalEntityLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()

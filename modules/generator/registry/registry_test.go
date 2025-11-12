@@ -634,3 +634,142 @@ func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
 	// Demand should have decreased significantly or be zero
 	assert.Less(t, finalDemand, initialDemand, "demand should decay after advancing the window")
 }
+
+func TestManagedRegistry_entityDemandTracking(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+
+	// Add series with unique label combinations (entities)
+	for i := 0; i < 100; i++ {
+		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lvc, 1.0)
+	}
+
+	// Collect metrics to update demand tracking
+	registry.CollectMetrics(context.Background())
+
+	// Check entity demand estimate
+	entityDemand := registry.entityDemand.Estimate()
+
+	// HLL with precision 10 has ~3.25% error, so we allow 10% tolerance
+	// We expect ~100 entities since each label combo is unique
+	diff := float64(entityDemand-100) / 100.0
+	assert.Less(t, math.Abs(diff), 0.1, "entity demand estimate should be within 10%% of actual entities")
+	assert.Greater(t, entityDemand, uint64(80), "entity demand should show most entities")
+}
+
+func TestManagedRegistry_entityDemandExceedsMax(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	rejectLimiter := &mockLimiter{
+		onAddFunc: func(uint64, uint32) bool {
+			return false
+		},
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), rejectLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+
+	// Add series which should all be rejected
+	for i := 0; i < 100; i++ {
+		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lvc, 1.0)
+	}
+
+	// Collect metrics
+	registry.CollectMetrics(context.Background())
+
+	// Active series should be 0 since all were rejected
+	activeSeries := registry.activeSeries()
+	assert.Equal(t, uint32(0), activeSeries)
+
+	// Entity demand tracking should NOT show attempted entities since OnUpdate is only called for accepted entities
+	entityDemand := registry.entityDemand.Estimate()
+
+	// HLL with precision 10 has ~3.25% error, so we allow 10% tolerance
+	// We expect ~100 entities since each label combo is unique
+	diff := float64(entityDemand-100) / 100.0
+	assert.Less(t, math.Abs(diff), 0.1, "entity demand estimate should be within 10%% of actual entities")
+	assert.Greater(t, entityDemand, uint64(80), "entity demand should show most entities")
+}
+
+func TestManagedRegistry_entityDemandDecaysOverTime(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+
+	// Add entities
+	for i := 0; i < 50; i++ {
+		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lvc, 1.0)
+	}
+
+	registry.CollectMetrics(context.Background())
+
+	// Get initial entity demand
+	initialEntityDemand := registry.entityDemand.Estimate()
+	assert.Greater(t, initialEntityDemand, uint64(0), "initial entity demand should be non-zero")
+
+	// Advance the entity demand cardinality tracker multiple times to evict old data
+	for i := 0; i < int(removeStaleSeriesInterval/time.Minute)+1; i++ {
+		registry.entityDemand.Advance()
+	}
+
+	registry.CollectMetrics(context.Background())
+
+	// Get demand after decay
+	finalEntityDemand := registry.entityDemand.Estimate()
+
+	// Demand should have decreased significantly or be zero
+	assert.Less(t, finalEntityDemand, initialEntityDemand, "entity demand should decay after advancing the window")
+}
+
+func TestManagedRegistry_entityDemandWithMultipleMetrics(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter1 := registry.NewCounter("counter_1")
+	counter2 := registry.NewCounter("counter_2")
+	histogram := registry.NewHistogram("histogram_1", []float64{1.0, 2.0}, HistogramModeClassic)
+
+	// Add the same entity across multiple metrics
+	// Since entity demand is based on label hash (not metric name), same labels should count as one entity
+	for i := 0; i < 50; i++ {
+		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter1.Inc(lvc, 1.0)
+		counter2.Inc(lvc, 2.0)
+		histogram.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+	}
+
+	registry.CollectMetrics(context.Background())
+
+	// Entity demand should be ~50, not 150, since same label combinations are used across metrics
+	entityDemand := registry.entityDemand.Estimate()
+
+	// Allow for HLL estimation error
+	diff := float64(entityDemand-50) / 50.0
+	assert.Less(t, math.Abs(diff), 0.15, "entity demand should be ~50 since same entities used across metrics")
+	assert.Less(t, entityDemand, uint64(70), "entity demand should not triple-count entities across metrics")
+}
