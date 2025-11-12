@@ -53,4 +53,6 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           labelsToAdd: "backport"
+          repo_owner: grafana
+          repo_name: tempo
           pr_number: ${{ github.event.inputs.pr_number }}
