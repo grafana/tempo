@@ -73,7 +73,7 @@ type Ingester struct {
 	local        *local.Backend
 	replayJitter bool // this var exists so tests can remove jitter
 
-	flushQueues     *flushqueues.ExclusiveQueues
+	flushQueues     *flushqueues.ExclusiveQueues[*flushOp]
 	flushQueuesDone sync.WaitGroup
 
 	// manages synchronous behavior with startCutToWal
@@ -97,7 +97,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 		cfg:          cfg,
 		instances:    map[string]*instance{},
 		store:        store,
-		flushQueues:  flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
+		flushQueues:  flushqueues.New[*flushOp](cfg.ConcurrentFlushes, metricFlushQueueLength),
 		replayJitter: true,
 		overrides:    overrides,
 

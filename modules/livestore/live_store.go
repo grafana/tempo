@@ -123,7 +123,7 @@ type LiveStore struct {
 	ctx             context.Context // context for the service. all background processes should exit if this is cancelled
 	cancel          func()
 	wg              sync.WaitGroup
-	completeQueues  *flushqueues.ExclusiveQueues
+	completeQueues  *flushqueues.ExclusiveQueues[*completeOp]
 	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
 	lagCancel       context.CancelFunc
 }
@@ -140,7 +140,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		cancel:          cancel,
 		instances:       make(map[string]*instance),
 		overrides:       overridesService,
-		completeQueues:  flushqueues.New(cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
+		completeQueues:  flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete: make(chan struct{}),
 	}
 
