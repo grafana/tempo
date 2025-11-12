@@ -20,15 +20,14 @@ func (i simpleItem) Key() string {
 }
 
 func TestPriorityQueueBasic(t *testing.T) {
-	queue := NewPriorityQueue(nil)
+	queue := NewPriorityQueue[simpleItem](nil)
 	assert.Equal(t, 0, queue.Length(), "Expected length = 0")
 
-	_, err := queue.Enqueue(simpleItem(1))
+	_, err := queue.Enqueue(1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, queue.Length(), "Expected length = 1")
 
-	i, ok := queue.Dequeue().(simpleItem)
-	assert.True(t, ok, "Expected cast to succeed")
+	i := queue.Dequeue()
 	assert.Equal(t, simpleItem(1), i, "Expected to dequeue simpleItem(1)")
 
 	queue.Close()
@@ -36,39 +35,39 @@ func TestPriorityQueueBasic(t *testing.T) {
 }
 
 func TestPriorityQueuePriorities(t *testing.T) {
-	queue := NewPriorityQueue(nil)
+	queue := NewPriorityQueue[simpleItem](nil)
 
-	_, err := queue.Enqueue(simpleItem(1))
+	_, err := queue.Enqueue(1)
 	assert.NoError(t, err)
 
-	_, err = queue.Enqueue(simpleItem(2))
+	_, err = queue.Enqueue(2)
 	assert.NoError(t, err)
 
-	assert.Equal(t, simpleItem(2), queue.Dequeue().(simpleItem), "Expected to dequeue simpleItem(2)")
-	assert.Equal(t, simpleItem(1), queue.Dequeue().(simpleItem), "Expected to dequeue simpleItem(1)")
+	assert.Equal(t, simpleItem(2), queue.Dequeue(), "Expected to dequeue simpleItem(2)")
+	assert.Equal(t, simpleItem(1), queue.Dequeue(), "Expected to dequeue simpleItem(1)")
 
 	queue.Close()
 	assert.Nil(t, queue.Dequeue(), "Expect nil dequeue")
 }
 
 func TestPriorityQueuePriorities2(t *testing.T) {
-	queue := NewPriorityQueue(nil)
+	queue := NewPriorityQueue[simpleItem](nil)
 
-	_, err := queue.Enqueue(simpleItem(2))
+	_, err := queue.Enqueue(2)
 	assert.NoError(t, err)
 
-	_, err = queue.Enqueue(simpleItem(1))
+	_, err = queue.Enqueue(1)
 	assert.NoError(t, err)
 
-	assert.Equal(t, simpleItem(2), queue.Dequeue().(simpleItem), "Expected to dequeue simpleItem(2)")
-	assert.Equal(t, simpleItem(1), queue.Dequeue().(simpleItem), "Expected to dequeue simpleItem(1)")
+	assert.Equal(t, simpleItem(2), queue.Dequeue(), "Expected to dequeue simpleItem(2)")
+	assert.Equal(t, simpleItem(1), queue.Dequeue(), "Expected to dequeue simpleItem(1)")
 
 	queue.Close()
 	assert.Nil(t, queue.Dequeue(), "Expect nil dequeue")
 }
 
 func TestPriorityQueueWait(t *testing.T) {
-	queue := NewPriorityQueue(nil)
+	queue := NewPriorityQueue[simpleItem](nil)
 
 	done := make(chan struct{})
 	go func() {

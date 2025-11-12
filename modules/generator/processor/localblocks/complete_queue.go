@@ -27,7 +27,7 @@ var (
 	// completeQueue is a shared priority queue that handles completing WAL blocks.
 	// The queue provides backoff and retry capabilities for failed operations
 	// The queue is shared across all processor instances to control concurrency.
-	completeQueue     *flushqueues.PriorityQueue
+	completeQueue     *flushqueues.PriorityQueue[*completeOp]
 	completeQueueMtx  = sync.Mutex{}
 	completeQueueRefs = 0
 )
@@ -82,7 +82,7 @@ func startCompleteQueue(concurrency uint) {
 
 	completeQueueRefs++
 	if completeQueueRefs == 1 {
-		completeQueue = flushqueues.NewPriorityQueue(metricCompleteQueueLength)
+		completeQueue = flushqueues.NewPriorityQueue[*completeOp](metricCompleteQueueLength)
 		for i := uint(0); i < concurrency; i++ {
 			go completeLoop(completeQueue)
 		}
@@ -101,15 +101,14 @@ func stopCompleteQueue() {
 	}
 }
 
-func completeLoop(q *flushqueues.PriorityQueue) {
+func completeLoop(q *flushqueues.PriorityQueue[*completeOp]) {
 	for {
-		o := q.Dequeue()
-		if o == nil {
+		op := q.Dequeue()
+		if op == nil {
 			// Queue is closed.
 			return
 		}
 
-		op := o.(*completeOp)
 		op.attempts++
 
 		// The context is used to detect processors that have been shutdown.
