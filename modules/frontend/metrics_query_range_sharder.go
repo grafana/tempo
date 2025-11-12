@@ -179,7 +179,6 @@ func (s *queryRangeSharder) exemplarsCutoff(req tempopb.QueryRangeRequest, cutof
 }
 
 func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request, jobMetadata *combiner.QueryRangeJobResponse) {
-
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)

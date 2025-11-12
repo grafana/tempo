@@ -139,19 +139,19 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			blockIter := backendJobsFunc(blocks, targetBytesPerRequest, defaultMostRecentShards, uint32(searchReq.End))
 
 			go func() {
-			// Calculate total duration for exemplar distribution
-			var totalDurationNanos int64
-			for _, b := range blocks {
-				if !b.EndTime.Before(b.StartTime) {
-					totalDurationNanos += b.EndTime.UnixNano() - b.StartTime.UnixNano()
+				// Calculate total duration for exemplar distribution
+				var totalDurationNanos int64
+				for _, b := range blocks {
+					if !b.EndTime.Before(b.StartTime) {
+						totalDurationNanos += b.EndTime.UnixNano() - b.StartTime.UnixNano()
+					}
 				}
-			}
 
-			getExemplarsForBlock := func(m *backend.BlockMeta) uint32 {
-				return sharder.exemplarsForBlock(m, searchReq.Exemplars, totalDurationNanos)
-			}
+				getExemplarsForBlock := func(m *backend.BlockMeta) uint32 {
+					return sharder.exemplarsForBlock(m, searchReq.Exemplars, totalDurationNanos)
+				}
 
-			sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, 0, blockIter, reqCh, getExemplarsForBlock)
+				sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, 0, blockIter, reqCh, getExemplarsForBlock)
 			}()
 
 			// Collect requests
