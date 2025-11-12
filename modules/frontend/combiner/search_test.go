@@ -10,6 +10,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
@@ -133,19 +134,21 @@ func TestSearchProgressShouldQuitMostRecent(t *testing.T) {
 
 	// send shards. should not quit b/c completed through is 300
 	err = c.AddResponse(&SearchJobResponse{
-		TotalJobs: 3,
-		Shards: []SearchShards{
-			{
-				TotalJobs:               1,
-				CompletedThroughSeconds: 300,
-			},
-			{
-				TotalJobs:               1,
-				CompletedThroughSeconds: 150,
-			},
-			{
-				TotalJobs:               1,
-				CompletedThroughSeconds: 50,
+		JobMetadata: shardtracker.JobMetadata{
+			TotalJobs: 3,
+			Shards: []shardtracker.Shard{
+				{
+					TotalJobs:               1,
+					CompletedThroughSeconds: 300,
+				},
+				{
+					TotalJobs:               1,
+					CompletedThroughSeconds: 150,
+				},
+				{
+					TotalJobs:               1,
+					CompletedThroughSeconds: 50,
+				},
 			},
 		},
 	})
@@ -296,9 +299,11 @@ func TestSearchResponseCombiner(t *testing.T) {
 			{
 				name: "respects total blocks message",
 				response1: &SearchJobResponse{
-					TotalBlocks: 5,
-					TotalJobs:   10,
-					TotalBytes:  15,
+					JobMetadata: shardtracker.JobMetadata{
+						TotalBlocks: 5,
+						TotalJobs:   10,
+						TotalBytes:  15,
+					},
 				},
 				response2: toHTTPResponse(t, &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
@@ -420,29 +425,31 @@ func TestCombinerShards(t *testing.T) {
 		{
 			name: "add job metadata",
 			pipelineResponse: &SearchJobResponse{
-				TotalBlocks: 5,
-				TotalJobs:   6,
-				TotalBytes:  15,
-				Shards: []SearchShards{ // 5 shards, 2 jobs each. starting at 500 seconds and walking back 100 seconds each
-					{
-						TotalJobs:               2,
-						CompletedThroughSeconds: 500,
-					},
-					{
-						TotalJobs:               1,
-						CompletedThroughSeconds: 400,
-					},
-					{
-						TotalJobs:               1,
-						CompletedThroughSeconds: 300,
-					},
-					{
-						TotalJobs:               1,
-						CompletedThroughSeconds: 200,
-					},
-					{
-						TotalJobs:               1,
-						CompletedThroughSeconds: 100,
+				JobMetadata: shardtracker.JobMetadata{
+					TotalBlocks: 5,
+					TotalJobs:   6,
+					TotalBytes:  15,
+					Shards: []shardtracker.Shard{ // 5 shards, 2 jobs each. starting at 500 seconds and walking back 100 seconds each
+						{
+							TotalJobs:               2,
+							CompletedThroughSeconds: 500,
+						},
+						{
+							TotalJobs:               1,
+							CompletedThroughSeconds: 400,
+						},
+						{
+							TotalJobs:               1,
+							CompletedThroughSeconds: 300,
+						},
+						{
+							TotalJobs:               1,
+							CompletedThroughSeconds: 200,
+						},
+						{
+							TotalJobs:               1,
+							CompletedThroughSeconds: 100,
+						},
 					},
 				},
 			},
@@ -656,188 +663,6 @@ func TestCombinerShards(t *testing.T) {
 			resp, err := combiner.GRPCDiff()
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, resp)
-		})
-	}
-}
-
-func TestCompletionTracker(t *testing.T) {
-	tcs := []struct {
-		name   string
-		add    []int // -1 means send shards
-		shards []SearchShards
-		exp    uint32
-	}{
-		// shards only
-		{
-			name: "shards only",
-			add:  []int{-1},
-			shards: []SearchShards{
-				{
-					TotalJobs:               1,
-					CompletedThroughSeconds: 100,
-				},
-			},
-			exp: 0,
-		},
-		// indexes only
-		{
-			name: "indexes only",
-			add:  []int{1, 0, 1, 3, 2, 0, 1, 1},
-			shards: []SearchShards{
-				{
-					TotalJobs:               1,
-					CompletedThroughSeconds: 100,
-				},
-			},
-			exp: 0,
-		},
-		// first shard complete, shards first
-		{
-			name: "first shard complete, shards first",
-			add:  []int{-1, 0},
-			shards: []SearchShards{
-				{
-					TotalJobs:               1,
-					CompletedThroughSeconds: 100,
-				},
-			},
-			exp: 100,
-		},
-		// first shard complete, index first
-		{
-			name: "first shard complete, index first",
-			add:  []int{0, -1},
-			shards: []SearchShards{
-				{
-					TotalJobs:               1,
-					CompletedThroughSeconds: 100,
-				},
-			},
-			exp: 100,
-		},
-		// shards received at various times
-		{
-			name: "shards received at various times",
-			add:  []int{-1, 0, 0, 1, 1},
-			shards: []SearchShards{
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 100,
-				},
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 200,
-				},
-			},
-			exp: 200,
-		},
-		{
-			name: "shards received at various times",
-			add:  []int{0, -1, 0, 1, 1},
-			shards: []SearchShards{
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 100,
-				},
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 200,
-				},
-			},
-			exp: 200,
-		},
-		{
-			name: "shards received at various times",
-			add:  []int{0, 0, 1, -1, 1},
-			shards: []SearchShards{
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 100,
-				},
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 200,
-				},
-			},
-			exp: 200,
-		},
-		{
-			name: "shards received at various times",
-			add:  []int{0, 0, 1, 1, -1},
-			shards: []SearchShards{
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 100,
-				},
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 200,
-				},
-			},
-			exp: 200,
-		},
-		// bad data received
-		{
-			name: "bad data received last",
-			add:  []int{-1, 0, 0, 2},
-			shards: []SearchShards{
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 100,
-				},
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 200,
-				},
-			},
-			exp: 100,
-		},
-		{
-			name: "bad data immediately after shards",
-			add:  []int{-1, 2, 0, 0},
-			shards: []SearchShards{
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 100,
-				},
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 200,
-				},
-			},
-			exp: 100,
-		},
-		{
-			name: "bad data immediately before shards",
-			add:  []int{0, 0, 2, -1},
-			shards: []SearchShards{
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 100,
-				},
-				{
-					TotalJobs:               2,
-					CompletedThroughSeconds: 200,
-				},
-			},
-			exp: 100,
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			tracker := &ShardCompletionTracker{}
-
-			ct := uint32(0)
-			for _, sc := range tc.add {
-				if sc == -1 {
-					ct = tracker.addShards(tc.shards)
-					continue
-				}
-
-				ct = tracker.addShardIdx(sc)
-			}
-			require.Equal(t, int(tc.exp), int(ct))
 		})
 	}
 }

@@ -50,6 +50,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
 	metricsCombiner := NewQueryRangeMetricsCombiner()
+	lastCompletedThrough := shardtracker.TimestampNever
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.QueryRangeResponse { return &tempopb.QueryRangeResponse{} },
@@ -66,7 +67,6 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			return nil
 		},
 		metadata: func(resp PipelineResponse, final *tempopb.QueryRangeResponse) error {
-			// jpe - set metadata on the final response?
 			if qr, ok := resp.(*QueryRangeJobResponse); ok && qr != nil {
 				qrMetrics := &tempopb.SearchMetrics{
 					TotalBlocks:     uint32(qr.TotalBlocks), //nolint:gosec
@@ -101,52 +101,36 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			// Check if any shards have completed
 			completedThrough := completionTracker.CompletedThroughSeconds()
 
-			// If no shards have completed yet, return empty response
-			if completedThrough == 0 {
+			// If no shards have completed yet or the completedThrough is the same as the lastCompletedThrough, return empty response
+			if completedThrough == shardtracker.TimestampUnknown || completedThrough == lastCompletedThrough {
 				return &tempopb.QueryRangeResponse{
 					Series:  []*tempopb.TimeSeries{},
 					Metrics: metricsCombiner.Metrics,
 				}, nil
 			}
+
 			resp := combiner.Response()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
 
-			// jpe do the below completedThrough trimming before this logic?
+			// only trim the response if we're not at the end of the stream. for the final response, we'll send all the data.
+			if completedThrough != shardtracker.TimestampAlways {
+				trimSeriesToCompletedWindow(resp.Series, lastCompletedThrough, completedThrough)
+			}
+
+			// Update lastCompletedThrough for next diff
+			lastCompletedThrough = completedThrough
+
 			sortResponse(resp)
 			if combiner.MaxSeriesReached() {
 				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
 				// it's possible that the last response pushed us over the max series limit.
 				resp.Series = resp.Series[:maxSeries]
-			}
-			attachExemplars(req, resp)
-
-			// Find first sample and exemplar more recent than completedThrough and send everything after it
-			if metricsCombiner.Metrics.CompletedJobs == metricsCombiner.Metrics.TotalJobs && metricsCombiner.Metrics.TotalJobs > 0 { // jpe - why is this needed?
-				completedThrough = 1
-			}
-
-			// jpe: todo: track "lastCompletedThrough" and only send what's necessary. on the final response send all
-			completedThroughMs := int64(completedThrough) * 1000
-			for _, series := range resp.Series {
-				idx := 0
-				for idx < len(series.Samples) && series.Samples[idx].TimestampMs <= completedThroughMs {
-					idx++
-				}
-				series.Samples = series.Samples[idx:]
-
-				idx = 0
-				for idx < len(series.Exemplars) && series.Exemplars[idx].TimestampMs <= completedThroughMs {
-					idx++
-				}
-				series.Exemplars = series.Exemplars[idx:]
-			}
-
-			if combiner.MaxSeriesReached() {
 				resp.Status = tempopb.PartialStatus_PARTIAL
 				resp.Message = maxSeriesReachedErrorMsg
 			}
+			attachExemplars(req, resp)
 
 			return resp, nil
 		},
@@ -166,6 +150,40 @@ func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCComb
 		return nil, err
 	}
 	return c.(GRPCCombiner[*tempopb.QueryRangeResponse]), nil
+}
+
+// trimSeriesToCompletedWindow filters series samples and exemplars to only include
+// data points between lastCompletedThroughSeconds (exclusive) and completedThroughSeconds (inclusive).
+// This is used during streaming to return only new data that has been completed since the last diff.
+func trimSeriesToCompletedWindow(series []*tempopb.TimeSeries, lastCompletedThroughSeconds, completedThroughSeconds uint32) {
+	lastCompletedThroughMs := int64(lastCompletedThroughSeconds) * 1000
+	completedThroughMs := int64(completedThroughSeconds) * 1000
+
+	for _, s := range series {
+		// Filter samples to the completed window
+		// Find first sample > lastCompletedThrough (skip already sent data)
+		startIdx := 0
+		for startIdx < len(s.Samples) && s.Samples[startIdx].TimestampMs <= completedThroughMs {
+			startIdx++
+		}
+		// Find first sample > completedThrough (keep only newly completed data)
+		endIdx := startIdx
+		for endIdx < len(s.Samples) && s.Samples[endIdx].TimestampMs <= lastCompletedThroughMs {
+			endIdx++
+		}
+		s.Samples = s.Samples[startIdx:endIdx]
+
+		// Filter exemplars to the completed window
+		startIdx = 0
+		for startIdx < len(s.Exemplars) && s.Exemplars[startIdx].TimestampMs <= completedThroughMs {
+			startIdx++
+		}
+		endIdx = startIdx
+		for endIdx < len(s.Exemplars) && s.Exemplars[endIdx].TimestampMs <= lastCompletedThroughMs {
+			endIdx++
+		}
+		s.Exemplars = s.Exemplars[startIdx:endIdx]
+	}
 }
 
 func sortResponse(res *tempopb.QueryRangeResponse) {

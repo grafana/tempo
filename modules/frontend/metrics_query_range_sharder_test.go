@@ -22,8 +22,8 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 	sharder := &queryRangeSharder{
 		logger: log.NewNopLogger(),
 		cfg: QueryRangeSharderConfig{
-			MaxExemplars:     100,
-			MostRecentShards: defaultMostRecentShards,
+			MaxExemplars:    100,
+			StreamingShards: defaultMostRecentShards,
 		},
 	}
 	tenantID := "test-tenant"
@@ -139,7 +139,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			blockIter := backendJobsFunc(blocks, targetBytesPerRequest, defaultMostRecentShards, uint32(searchReq.End))
 
 			go func() {
-				sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, blockIter, reqCh)
+				sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, 0, blockIter, reqCh)
 			}()
 
 			// Collect requests

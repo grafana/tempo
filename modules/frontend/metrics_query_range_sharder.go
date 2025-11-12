@@ -26,6 +26,10 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+const (
+	defaultStreamingShards = 200
+)
+
 type queryRangeSharder struct {
 	next        pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	reader      tempodb.Reader
@@ -44,7 +48,7 @@ type QueryRangeSharderConfig struct {
 	Interval          time.Duration `yaml:"interval,omitempty"`
 	MaxExemplars      int           `yaml:"max_exemplars,omitempty"`
 	MaxResponseSeries int           `yaml:"max_response_series,omitempty"`
-	MostRecentShards  int           `yaml:"most_recent_shards,omitempty"` // jpe -rename. not most recent
+	StreamingShards   int           `yaml:"streaming_shards,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
@@ -211,9 +215,9 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	jobMetadata.TotalBlocks = len(blocks)
 
 	// Group blocks into shards
-	maxShards := s.cfg.MostRecentShards
+	maxShards := s.cfg.StreamingShards
 	if maxShards <= 0 {
-		maxShards = defaultMostRecentShards
+		maxShards = defaultStreamingShards
 	}
 
 	firstShardIdx := len(jobMetadata.Shards)
@@ -301,13 +305,6 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	})
 }
 
-func max(a, b uint32) uint32 { // jpe - gru?
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) (pipeline.Request, *combiner.QueryRangeJobResponse) {
 	jobMetadata := &combiner.QueryRangeJobResponse{}
 
@@ -332,7 +329,7 @@ func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Re
 	jobMetadata.TotalJobs = 1
 	jobMetadata.Shards = append(jobMetadata.Shards, shardtracker.Shard{
 		TotalJobs:               1,
-		CompletedThroughSeconds: math.MaxUint32,
+		CompletedThroughSeconds: shardtracker.TimestampNever,
 	})
 
 	subR.SetResponseData(0) // generator requests are always shard 0

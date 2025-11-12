@@ -809,6 +809,10 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
+        # The number of shards to use when streaming metrics queries back to the user. A shard must be fully completed before
+        # the results are returned to the user. More shards results in a more granular effect at the cost of additional bookkeeping.
+        [streaming_shards: <int> | default = 200]
+
 ```
 
 ### Limit query size to improve performance and stability

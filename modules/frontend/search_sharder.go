@@ -3,7 +3,6 @@ package frontend
 import (
 	"context"
 	"fmt"
-	"math"
 	"net/http"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -256,7 +256,7 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 	resp.TotalJobs = ingesterJobs
 	resp.Shards = append(resp.Shards, combiner.SearchShards{
 		TotalJobs:               uint32(ingesterJobs),
-		CompletedThroughSeconds: math.MaxUint32,
+		CompletedThroughSeconds: shardtracker.TimestampNever,
 	})
 
 	return resp, nil

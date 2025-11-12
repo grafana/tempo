@@ -26,7 +26,7 @@ func (mc *SearchMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, resp
 	}
 }
 
-func (mc *SearchMetricsCombiner) CombineMetadata(newMetrics *tempopb.SearchMetrics, _ PipelineResponse) { // jpe - remove PipelineResponse parameter?
+func (mc *SearchMetricsCombiner) CombineMetadata(newMetrics *tempopb.SearchMetrics, _ PipelineResponse) {
 	// These "Total" metrics are calculated by the frontend in the sharder.
 	// TotalBlockBytes is the total bytes of all blocks considered for the search, irrelevant of the cache.
 	// InspectedBytes is the total bytes actually read in the Parquet files, calculated by the queriers and conditional to the response being cached.

@@ -406,6 +406,7 @@ query_frontend:
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
+        streaming_shards: 200
         max_intervals: 10000
     multi_tenant_queries_enabled: true
     response_consumers: 10

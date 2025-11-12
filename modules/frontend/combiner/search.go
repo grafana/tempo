@@ -95,13 +95,9 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 			if keepMostRecent {
 				metadataFn = func() []*tempopb.TraceSearchMetadata {
 					completedThroughSeconds := completedThroughTracker.CompletedThroughSeconds()
-					// if all jobs are completed then let's just return everything the combiner has
-					if diff.Metrics.CompletedJobs == diff.Metrics.TotalJobs && diff.Metrics.TotalJobs > 0 {
-						completedThroughSeconds = 1
-					}
 
 					// if we've not completed any shards, then return nothing
-					if completedThroughSeconds == 0 {
+					if completedThroughSeconds == shardtracker.TimestampUnknown {
 						return nil
 					}
 
@@ -126,7 +122,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 		quit: func(_ *tempopb.SearchResponse) bool {
 			completedThroughSeconds := completedThroughTracker.CompletedThroughSeconds()
 			// have we completed any shards?
-			if completedThroughSeconds == 0 {
+			if completedThroughSeconds == shardtracker.TimestampUnknown {
 				completedThroughSeconds = traceql.TimestampNever
 			}
 
