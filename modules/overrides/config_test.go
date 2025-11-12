@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
@@ -149,6 +150,9 @@ metrics_generator_processor_local_blocks_flush_check_period: 11s
 metrics_generator_processor_local_blocks_trace_idle_period: 12s
 metrics_generator_processor_local_blocks_complete_block_timeout: 13s
 metrics_generator_generate_native_histograms: true
+metrics_generator_native_histogram_bucket_factor: 1.1
+metrics_generator_native_histogram_max_bucket_number: 100
+metrics_generator_native_histogram_min_reset_duration: 15m
 block_retention: 14s
 max_bytes_per_tag_values_query: 15
 max_blocks_per_tag_values_query: 16
@@ -195,6 +199,9 @@ defaults:
       queue_size: 6
       workers: 7
     generate_native_histograms: true
+    native_histogram_bucket_factor: 1.1
+    native_histogram_max_bucket_number: 100
+    native_histogram_min_reset_duration: 15m
     processor:
       service_graphs:
         histogram_buckets:
@@ -402,6 +409,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		IngestionTenantShardSize:   3,
 		IngestionMaxAttributeBytes: 1000,
 		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
+		IngestionRetryInfoEnabled:  true,
 
 		MaxLocalTracesPerUser:  1000,
 		MaxGlobalTracesPerUser: 2000,
@@ -413,7 +421,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorMaxActiveSeries:                                             1000,
 		MetricsGeneratorCollectionInterval:                                          10 * time.Second,
 		MetricsGeneratorDisableCollection:                                           false,
-		MetricsGeneratorGenerateNativeHistograms:                                    HistogramMethodNative,
+		MetricsGeneratorGenerateNativeHistograms:                                    histograms.HistogramMethodNative,
 		MetricsGeneratorTraceIDLabelName:                                            "trace_id",
 		MetricsGeneratorForwarderQueueSize:                                          100,
 		MetricsGeneratorForwarderWorkers:                                            5,
@@ -452,6 +460,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		},
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             boolPtr(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
+		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                100,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:             10 * time.Minute,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                1024 * 1024,
@@ -461,6 +470,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                 []string{"host-id-1", "host-id-2"},
 		MetricsGeneratorProcessorHostInfoMetricName:                      "host_info",
 		MetricsGeneratorIngestionSlack:                                   1 * time.Minute,
+		MetricsGeneratorNativeHistogramBucketFactor:                      1.5,
+		MetricsGeneratorNativeHistogramMaxBucketNumber:                   200,
+		MetricsGeneratorNativeHistogramMinResetDuration:                  10 * time.Minute,
 
 		BlockRetention:     model.Duration(7 * 24 * time.Hour),
 		CompactionDisabled: true,

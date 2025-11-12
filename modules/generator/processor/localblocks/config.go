@@ -10,10 +10,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-const (
-	Name = "local-blocks"
-)
-
 type Config struct {
 	Block                *common.BlockConfig   `yaml:"block"`
 	Search               *tempodb.SearchConfig `yaml:"search"`

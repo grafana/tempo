@@ -39,7 +39,7 @@ func newFilterLogsProcessor(set processor.Settings, cfg *Config) (*filterLogProc
 	flp.telemetry = fpt
 
 	if cfg.Logs.LogConditions != nil {
-		skipExpr, errBoolExpr := filterottl.NewBoolExprForLog(cfg.Logs.LogConditions, filterottl.StandardLogFuncs(), cfg.ErrorMode, set.TelemetrySettings)
+		skipExpr, errBoolExpr := filterottl.NewBoolExprForLog(cfg.Logs.LogConditions, cfg.logFunctions, cfg.ErrorMode, set.TelemetrySettings)
 		if errBoolExpr != nil {
 			return nil, errBoolExpr
 		}

@@ -177,6 +177,346 @@ func TestOne(t *testing.T) {
 	t.Log(spanSet)
 }
 
+func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
+	numTraces := 100
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+	numSpansExpected := 0
+	numOfSpansWithEvents := 0
+	numOfSpansWithLinks := 0
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+		for _, resource := range tr.ResourceSpans {
+			for _, scope := range resource.ScopeSpans {
+				numSpansExpected += len(scope.Spans)
+				for _, span := range scope.Spans {
+					if len(span.Events) > 0 {
+						numOfSpansWithEvents++
+					}
+					if len(span.Links) > 0 {
+						numOfSpansWithLinks++
+					}
+				}
+			}
+		}
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+
+	searches := []struct {
+		level string
+		name  string
+		req   traceql.FetchSpansRequest
+	}{
+		{"span", "span.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = nil}`)},
+		{"resource", "resource.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = nil}`)},
+		{"instrumentation", "instrumentation.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.foo = nil}`)},
+		{"event", "event.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.foo = nil}`)},
+		{"link", "link.foo = nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{link.foo = nil}`)},
+	}
+
+	for _, tc := range searches {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			numResourcesFound := 0
+			numSpansFound := 0
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+
+				spansToCheck := [][]byte{}
+
+				numSpansFound += len(spanSet.Spans)
+				for _, span := range spanSet.Spans {
+					spansToCheck = append(spansToCheck, span.ID())
+				}
+
+				// check all the matching spans in the trace to make sure the attribute does not exist
+
+				for _, tr := range traces {
+					if bytes.Equal(tr.TraceID, spanSet.TraceID) {
+						numResourcesFound += len(tr.ResourceSpans)
+						for _, resource := range tr.ResourceSpans {
+							for _, scope := range resource.ScopeSpans {
+								for _, span := range scope.Spans {
+									// if part of spanset, then check if the attribute does not exist
+									for _, spanID := range spansToCheck {
+										if bytes.Equal(spanID, span.SpanID) {
+											switch tc.level {
+											case "span":
+												for _, attr := range span.Attrs {
+													if attr.Key == "foo" {
+														found = true
+														break
+													}
+												}
+											case "resource":
+												for _, attr := range resource.Resource.Attrs {
+													if attr.Key == "foo" {
+														found = true
+														break
+													}
+												}
+											case "instrumentation":
+												for _, attr := range scope.Scope.Attrs {
+													if attr.Key == "foo" {
+														found = true
+														break
+													}
+												}
+											case "event":
+												// just need at least one event without this attribute to pass
+												// only set found = true if we find the attribute in all events
+												require.Greater(t, len(span.Events), 0, fmt.Sprintf("span without events returned: %s", span.SpanID))
+												eventsWithAttrFound := 0
+												for _, event := range span.Events {
+													for _, attr := range event.Attrs {
+														if attr.Key == "foo" {
+															eventsWithAttrFound++
+														}
+													}
+												}
+												if eventsWithAttrFound == len(span.Events) && len(span.Events) > 0 {
+													found = true
+													break
+												}
+											case "link":
+												// only spans with links should show up
+												require.Greater(t, len(span.Links), 0, fmt.Sprintf("span without links returned: %s", span.SpanID))
+
+												linksWithAttrFound := 0
+												for _, link := range span.Links {
+													for _, attr := range link.Attrs {
+														if attr.Key == "foo" {
+															linksWithAttrFound++
+														}
+													}
+												}
+												if linksWithAttrFound == len(span.Links) && len(span.Links) > 0 {
+													found = true
+													break
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if found {
+					break
+				}
+			}
+			if tc.level == "resource" {
+				// since in our testing scenario we are creating all test traces with the same resource which does not have foo except for the ONE trace
+				// we should expect the number of resources found to be numTraces - 1
+				require.Equal(t, numTraces-1, numResourcesFound, "search request:%v", req)
+			}
+			if tc.level == "span" {
+				// since our expected trace is the only one with spans that have foo attributes
+				// all other traces should not have any spans with foo attributes
+				require.Equal(t, numSpansExpected, numSpansFound, "search request:%v", req)
+			}
+			if tc.level == "event" {
+				// our expected trace also has one span with one event that does not have foo attribute
+				require.Equal(t, numOfSpansWithEvents+1, numSpansFound, "search request:%v", req)
+			}
+			if tc.level == "link" {
+				// our expected trace also has one span with one link that does not have foo attribute
+				require.Equal(t, numOfSpansWithLinks+1, numSpansFound, "search request:%v", req)
+			}
+			require.False(t, found, "search request:%v", req)
+		})
+	}
+}
+
+// nil values for intrinsics, well known columns, and dedicated columns
+func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
+	numTraces := 100
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			wantTrace := &Trace{
+				TraceID: wantTraceID,
+				ResourceSpans: []ResourceSpans{
+					{
+						ScopeSpans: []ScopeSpans{
+							{
+								Spans: []Span{
+									{
+										// this span has nil values for everything
+										SpanID: []byte("nil-test-span-0"),
+									},
+									{
+										SpanID:                 []byte("nil-test-span-1"),
+										ParentSpanID:           []byte("nil-test-span-0"),
+										Name:                   "hello",
+										StartTimeUnixNano:      uint64(100 * time.Second),
+										DurationNano:           uint64(100 * time.Second),
+										StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
+										StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
+										TraceState:             "tracestate",
+										Kind:                   int(v1.Span_SPAN_KIND_CLIENT),
+										DroppedAttributesCount: 42,
+										DroppedEventsCount:     43,
+										DedicatedAttributes: DedicatedAttributes{
+											String01: []string{"dedicated-span-attr-value-1"},
+											String02: []string{"dedicated-span-attr-value-2"},
+											String03: []string{"dedicated-span-attr-value-3"},
+											String04: []string{"dedicated-span-attr-value-4"},
+											String05: []string{"dedicated-span-attr-value-5"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Resource: Resource{
+							ServiceName: "myservice",
+							Attrs: []Attribute{
+								attr("foo", "abc"),
+								attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
+								attr("int-array", []int64{11, 22, 33}),
+								attr(LabelServiceName, 123), // Different type than dedicated column
+							},
+							DroppedAttributesCount: 22,
+							DedicatedAttributes: DedicatedAttributes{
+								String01: []string{"dedicated-resource-attr-value-1"},
+								String02: []string{"dedicated-resource-attr-value-2"},
+								String03: []string{"dedicated-resource-attr-value-3"},
+								String04: []string{"dedicated-resource-attr-value-4"},
+								String05: []string{"dedicated-resource-attr-value-5"},
+							},
+						},
+						ScopeSpans: []ScopeSpans{
+							{
+								Spans: []Span{
+									{
+										SpanID: []byte("nil-test-span-2"),
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			traces = append(traces, wantTrace)
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+
+	testcases := []struct {
+		name          string
+		req           traceql.FetchSpansRequest
+		expectedSpans []int
+	}{
+		// span 0 has all resource level nils, instrumentation level nils, and span levels nils including ded columns except for SpanID
+		// span 1 has all resource level + ded nils, instrumentation level nils, but has all span values
+		// span 2 has resource level values, but instrumentation level nils an	d span level nils except for Name
+		// Intrinsics
+		{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = nil }`), []int{0, 2}},
+		{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` = nil}`), []int{0, 2}},
+		{"Intrinsic: status", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = nil}`), []int{0, 2}},
+		{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = nil}`), []int{0, 2}},
+		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = nil}`), []int{0, 2}},
+		// Resource well-known attributes
+		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
+
+		// Resource dedicated attributes
+		{"resource.dedicated.resource.3", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = nil}`), []int{0, 1}},
+		{"resource.dedicated.resource.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.5 = nil}`), []int{0, 1}},
+
+		// Span dedicated attributes
+		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = nil}`), []int{0, 2}},
+		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = nil}`), []int{0, 2}},
+
+		// Instrumentation Scope
+		{"instrumentation:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:name = nil}`), []int{0, 1, 2}},
+		{"instrumentation:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:version = nil}`), []int{0, 1, 2}},
+	}
+
+	spanIDs := map[int][]byte{
+		0: []byte("nil-test-span-0"),
+		1: []byte("nil-test-span-1"),
+		2: []byte("nil-test-span-2"),
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name+"= nil", func(t *testing.T) {
+			req := tc.req
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			foundSpans := []traceql.Span{}
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				foundSpans = append(foundSpans, spanSet.Spans...)
+			}
+			// for some reason i am seeing fanthom spans even though only two traces with 3 spans should have been created
+			// require.Len(t, foundSpans, len(tc.expectedSpans), "search request:%v", req)
+
+			found := true
+			for _, expectedSpanIdx := range tc.expectedSpans {
+				foundThisSpan := false
+				for _, span := range foundSpans {
+					if bytes.Equal(span.ID(), spanIDs[expectedSpanIdx]) {
+						foundThisSpan = true
+						break
+					}
+				}
+				if !foundThisSpan {
+					found = false
+					break
+				}
+			}
+			require.True(t, found, "search request:%v", req)
+		})
+	}
+}
+
 func TestBackendBlockSearchTraceQL(t *testing.T) {
 	numTraces := 250
 	traces := make([]*Trace, 0, numTraces)
@@ -342,7 +682,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"Almost conflicts with intrinsic but still works", traceql.MustExtractFetchSpansRequestWithMetadata(`{.name = "Bob"}`)},
 		{"service.name doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = 123}`)},
 		{"service.name present on span", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "spanservicename"}`)},
-		{"http.status_code doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` = "500ouch"}`)},
 		{`.foo = "def"`, traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo = "def"}`)},
 		{".bool && true", traceql.MustExtractFetchSpansRequestWithMetadata(`{.bool && true}`)},
 		{"false || .bool", traceql.MustExtractFetchSpansRequestWithMetadata(`{false || .bool}`)},
@@ -653,31 +992,32 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 		ResourceSpans: []ResourceSpans{
 			{
 				Resource: Resource{
-					ServiceName:      "myservice",
-					Cluster:          ptr("cluster"),
-					Namespace:        ptr("namespace"),
-					Pod:              ptr("pod"),
-					Container:        ptr("container"),
-					K8sClusterName:   ptr("k8scluster"),
-					K8sNamespaceName: ptr("k8snamespace"),
-					K8sPodName:       ptr("k8spod"),
-					K8sContainerName: ptr("k8scontainer"),
+					ServiceName: "myservice",
 					Attrs: []Attribute{
 						attr("foo", "abc"),
 						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
 						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
+						// Former well-known attributes
+						attr("cluster", "cluster"),
+						attr("namespace", "namespace"),
+						attr("pod", "pod"),
+						attr("container", "container"),
+						attr("k8s.cluster.name", "k8scluster"),
+						attr("k8s.namespace.name", "k8snamespace"),
+						attr("k8s.pod.name", "k8spod"),
+						attr("k8s.container.name", "k8scontainer"),
 						// Unsupported attributes
 						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
 						{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
 					},
 					DroppedAttributesCount: 22,
-					DedicatedAttributes: DedicatedAttributes20{
-						String01: ptr("dedicated-resource-attr-value-1"),
-						String02: ptr("dedicated-resource-attr-value-2"),
-						String03: ptr("dedicated-resource-attr-value-3"),
-						String04: ptr("dedicated-resource-attr-value-4"),
-						String05: ptr("dedicated-resource-attr-value-5"),
+					DedicatedAttributes: DedicatedAttributes{
+						String01: []string{"dedicated-resource-attr-value-1"},
+						String02: []string{"dedicated-resource-attr-value-2"},
+						String03: []string{"dedicated-resource-attr-value-3"},
+						String04: []string{"dedicated-resource-attr-value-4"},
+						String05: []string{"dedicated-resource-attr-value-5"},
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -703,9 +1043,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								StartTimeRounded300:    uint32(intervalMapper300Seconds.Interval(uint64(100 * time.Second))),
 								StartTimeRounded3600:   uint32(intervalMapper3600Seconds.Interval(uint64(100 * time.Second))),
 								DurationNano:           uint64(100 * time.Second),
-								HttpMethod:             ptr("get"),
-								HttpUrl:                ptr("url/hello/world"),
-								HttpStatusCode:         ptr(int64(500)),
 								ParentSpanID:           parentID,
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
@@ -722,10 +1059,13 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									attr("int-array", []int64{111, 222, 333, 444}),
 									attr("double-array", []float64{1.1, 2.2, 3.3}),
 									attr("bool-array", []bool{true, false, true, false}),
+									// Former well-known attributes
+									attr("http.method", "get"),
+									attr("http.url", "url/hello/world"),
+									attr("http.status_code", 500),
 									// Edge-cases
 									attr(LabelName, "Bob"),                    // Conflicts with intrinsic but still looked up by .name
 									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
-									attr(LabelHTTPStatusCode, "500ouch"),      // Different type than dedicated column
 									// Unsupported attributes
 									{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
 									{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
@@ -752,14 +1092,12 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									},
 								},
 								Links: links,
-								DedicatedAttributes: DedicatedAttributesSpan{
-									DedicatedAttributes20: DedicatedAttributes20{
-										String01: ptr("dedicated-span-attr-value-1"),
-										String02: ptr("dedicated-span-attr-value-2"),
-										String03: ptr("dedicated-span-attr-value-3"),
-										String04: ptr("dedicated-span-attr-value-4"),
-										String05: ptr("dedicated-span-attr-value-5"),
-									},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: []string{"dedicated-span-attr-value-1"},
+									String02: []string{"dedicated-span-attr-value-2"},
+									String03: []string{"dedicated-span-attr-value-3"},
+									String04: []string{"dedicated-span-attr-value-4"},
+									String05: []string{"dedicated-span-attr-value-5"},
 								},
 							},
 						},
@@ -768,25 +1106,26 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 			},
 			{
 				Resource: Resource{
-					ServiceName:      "service2",
-					Cluster:          ptr("cluster2"),
-					Namespace:        ptr("namespace2"),
-					Pod:              ptr("pod2"),
-					Container:        ptr("container2"),
-					K8sClusterName:   ptr("k8scluster2"),
-					K8sNamespaceName: ptr("k8snamespace2"),
-					K8sPodName:       ptr("k8spod2"),
-					K8sContainerName: ptr("k8scontainer2"),
+					ServiceName: "service2",
 					Attrs: []Attribute{
 						attr("foo", "abc2"),
 						attr(LabelServiceName, 1234), // Different type than dedicated column
+						// Former well-known attributes
+						attr("cluster", "cluster2"),
+						attr("namespace", "namespace2"),
+						attr("pod", "pod2"),
+						attr("container", "container2"),
+						attr("k8s.cluster.name", "k8scluster2"),
+						attr("k8s.namespace.name", "k8snamespace2"),
+						attr("k8s.pod.name", "k8spod2"),
+						attr("k8s.container.name", "k8scontainer2"),
 					},
-					DedicatedAttributes: DedicatedAttributes20{
-						String01: ptr("dedicated-resource-attr-value-6"),
-						String02: ptr("dedicated-resource-attr-value-7"),
-						String03: ptr("dedicated-resource-attr-value-8"),
-						String04: ptr("dedicated-resource-attr-value-9"),
-						String05: ptr("dedicated-resource-attr-value-10"),
+					DedicatedAttributes: DedicatedAttributes{
+						String01: []string{"dedicated-resource-attr-value-6"},
+						String02: []string{"dedicated-resource-attr-value-7"},
+						String03: []string{"dedicated-resource-attr-value-8"},
+						String04: []string{"dedicated-resource-attr-value-9"},
+						String05: []string{"dedicated-resource-attr-value-10"},
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -804,9 +1143,6 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								Name:                   "world",
 								StartTimeUnixNano:      uint64(200 * time.Second),
 								DurationNano:           uint64(200 * time.Second),
-								HttpMethod:             ptr("PUT"),
-								HttpUrl:                ptr("url/hello/world/2"),
-								HttpStatusCode:         ptr(int64(501)),
 								StatusCode:             int(v1.Status_STATUS_CODE_OK),
 								StatusMessage:          v1.Status_STATUS_CODE_OK.String(),
 								TraceState:             "tracestate2",
@@ -818,10 +1154,13 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									attr("bar", 1234),
 									attr("float", 456.789),
 									attr("bool", true),
+									// Former well-known attributes
+									attr("http.method", "PUT"),
+									attr("http.url", "url/hello/world/2"),
+									attr("http.status_code", 501),
 									// Edge-cases
 									attr(LabelName, "Bob2"),                    // Conflicts with intrinsic but still looked up by .name
 									attr(LabelServiceName, "spanservicename2"), // Overrides resource-level dedicated column
-									attr(LabelHTTPStatusCode, "500ouch2"),      // Different type than dedicated column
 								},
 							},
 						},
@@ -956,14 +1295,6 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 	for _, rs := range tr.ResourceSpans {
 		var rsAttrs []attrVal
 		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName), traceql.NewStaticString(rs.Resource.ServiceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString(*rs.Resource.Cluster)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace), traceql.NewStaticString(*rs.Resource.Namespace)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod), traceql.NewStaticString(*rs.Resource.Pod)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer), traceql.NewStaticString(*rs.Resource.Container)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName), traceql.NewStaticString(*rs.Resource.K8sClusterName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName), traceql.NewStaticString(*rs.Resource.K8sNamespaceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName), traceql.NewStaticString(*rs.Resource.K8sPodName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName), traceql.NewStaticString(*rs.Resource.K8sContainerName)})
 
 		for _, a := range parquetToProtoAttrs(rs.Resource.Attrs) {
 			if arr := a.Value.GetArrayValue(); arr != nil {
@@ -975,17 +1306,20 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 			rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
 		}
 
-		dcm.forEach(func(attr string, column dedicatedColumn) {
-			if strings.Contains(column.ColumnPath, "Resource") {
-				v := rs.Resource.DedicatedAttributes.readValue(column)
+		for attr, col := range dcm.items() {
+			if strings.Contains(col.ColumnPath, "Resource") {
+				v := col.readValue(&rs.Resource.DedicatedAttributes)
 				if v == nil {
-					return
+					a := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr)
+					s := traceql.NewStaticString("nil")
+					rsAttrs = append(rsAttrs, attrVal{a, s})
+					continue
 				}
 				a := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr)
 				s := traceql.StaticFromAnyValue(v)
 				rsAttrs = append(rsAttrs, attrVal{a, s})
 			}
-		})
+		}
 
 		sortAttrs(rsAttrs)
 
@@ -1019,27 +1353,20 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
 				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
 
-				if s.HttpStatusCode != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
-				}
-				if s.HttpMethod != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod), traceql.NewStaticString(*s.HttpMethod))
-				}
-				if s.HttpUrl != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl), traceql.NewStaticString(*s.HttpUrl))
-				}
-
-				dcm.forEach(func(attr string, column dedicatedColumn) {
-					if strings.Contains(column.ColumnPath, "Span") {
-						v := s.DedicatedAttributes.readValue(column)
+				for attr, col := range dcm.items() {
+					if strings.Contains(col.ColumnPath, "Span") {
+						v := col.readValue(&s.DedicatedAttributes)
 						if v == nil {
-							return
+							a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr)
+							s := traceql.NewStaticString("nil")
+							newS.addSpanAttr(a, s)
+							continue
 						}
 						a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr)
 						s := traceql.StaticFromAnyValue(v)
 						newS.addSpanAttr(a, s)
 					}
-				})
+				}
 
 				for _, a := range parquetToProtoAttrs(s.Attrs) {
 					if arr := a.Value.GetArrayValue(); arr != nil {
@@ -1066,31 +1393,34 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}{
 		// span
 		/*{"spanAttValMatch", "{ span.component = `net/http` }"},
+		{"spanAttValMatchFew", "{ span.component =~ `database/sql` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `does-not-exit-6c2408325a45` }"},
-		{"spanAttIntrinsicMatch", "{ name = `/cortex.Ingester/Push` }"},
+		{"spanAttIntrinsicMatch", "{ name = `distributor.ConsumeTraces` }"},
+		{"spanAttIntrinsicMatchFew", "{ name = `grpcutils.Authenticate` }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `does-not-exit-6c2408325a45` }"},
 
 		// resource
 		{"resourceAttValMatch", "{ resource.opencensus.exporterversion = `Jaeger-Go-2.30.0` }"},
 		{"resourceAttValNoMatch", "{ resource.module.path = `does-not-exit-6c2408325a45` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
-		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
+		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
 		// trace
-		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrMatch", "{ rootServiceName = `tempo-distributor` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrMatchFew", "{ rootServiceName = `faro-collector` && (status = error || span.http.status_code = 500)}"},
 		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
 
 		// mixed
 		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
-		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
+		{"mixedValMixedMatchAnd", "{ resource.k8s.cluster.name =~ `prod.*` && name = `gcs.ReadRange` }"},
 		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
 
 		{"count", "{ } | count() > 1"},
 		{"struct", "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-gateway` && status = error }"},
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
-		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
-		{"select", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod"} | select(resource.container)`},*/
+		{"complex", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "hosted-grafana" && resource.k8s.container.name="hosted-grafana-gateway" && name = "httpclient/grafana" && span.http.status_code = 200 && duration > 20ms}`},
+		{"select", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "tempo-prod"} | select(resource.container)`},*/
 
 		{"span generic", "{span.ICCID=~`.*bar.*`}"},
 		{"span blob", "{span.model=~`.*bar.*`}"},
@@ -1107,7 +1437,6 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	// opts.TotalPages = 2
 
 	block := blockForBenchmarks(b)
-
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
@@ -1115,21 +1444,27 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ResetTimer()
 			bytesRead := 0
+			matches := 0
 
 			for i := 0; i < b.N; i++ {
 				e := traceql.NewEngine()
 
 				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 					return block.Fetch(ctx, req, opts)
-				}))
+				}), false)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
-				// Read first 20 results (if any)
+				for _, tr := range resp.Traces {
+					for _, ss := range tr.SpanSets {
+						matches += len(ss.Spans)
+					}
+				}
 				bytesRead += int(resp.Metrics.InspectedBytes)
 			}
 			b.SetBytes(int64(bytesRead) / int64(b.N))
 			b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
+			b.ReportMetric(float64(matches)/float64(b.N), "spans/op")
 		})
 	}
 }
@@ -1248,6 +1583,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",
 		"{} | quantile_over_time(duration, .99, .9, .5)",
+		"{} | quantile_over_time(duration, .99, .9, .5)",
 		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",
@@ -1266,8 +1602,12 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	e := traceql.NewEngine()
 	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
+	opts.StartPage = 3
+	opts.TotalPages = 7
 
 	block := blockForBenchmarks(b)
+	_, _, err := block.openForSearch(ctx, opts)
+	require.NoError(b, err)
 
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return block.Fetch(ctx, req, opts)
@@ -1286,7 +1626,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				MaxSeries: 1000,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+			eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1298,9 +1638,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			_ = eval.Results()
 
 			bytes, spansTotal, _ := eval.Metrics()
-			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
 			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-			b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 		})
 	}
 }

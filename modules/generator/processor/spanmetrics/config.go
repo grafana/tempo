@@ -4,25 +4,15 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name = "span-metrics"
-
-	dimService       = "service"
-	dimSpanName      = "span_name"
-	dimSpanKind      = "span_kind"
-	dimStatusCode    = "status_code"
-	dimStatusMessage = "status_message"
-	dimJob           = "job"
-	dimInstance      = "instance"
-)
-
-var intrinsicLabels = []string{dimService, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage}
+var targetInfoIntrinsicLabels = append(validation.SupportedIntrinsicDimensions, processor.DimJob, processor.DimInstance)
 
 type Config struct {
 	// Buckets for latency histogram in seconds.
@@ -58,6 +48,9 @@ type Config struct {
 
 	// Allow user to specify labels they want to drop from target_info
 	TargetInfoExcludedDimensions []string `yaml:"target_info_excluded_dimensions"`
+
+	// Allow user to disable instance label from all span metrics series
+	EnableInstanceLabel bool `yaml:"enable_instance_label"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -71,6 +64,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Subprocessors[Latency] = true
 	cfg.Subprocessors[Count] = true
 	cfg.Subprocessors[Size] = true
+	cfg.EnableInstanceLabel = true
 }
 
 type IntrinsicDimensions struct {
@@ -84,15 +78,15 @@ type IntrinsicDimensions struct {
 func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
 	for label, active := range dimensions {
 		switch label {
-		case dimService:
+		case processor.DimService:
 			ic.Service = active
-		case dimSpanName:
+		case processor.DimSpanName:
 			ic.SpanName = active
-		case dimSpanKind:
+		case processor.DimSpanKind:
 			ic.SpanKind = active
-		case dimStatusCode:
+		case processor.DimStatusCode:
 			ic.StatusCode = active
-		case dimStatusMessage:
+		case processor.DimStatusMessage:
 			ic.StatusMessage = active
 		default:
 			return fmt.Errorf("%s is not a valid intrinsic dimension", label)

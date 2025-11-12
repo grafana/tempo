@@ -11,11 +11,9 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -29,6 +27,7 @@ import (
 	objStorage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/validation"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -195,22 +194,9 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 			return fmt.Errorf("failed to create kafka reader client: %w", err)
 		}
 
-		boff := backoff.New(ctx, backoff.Config{
-			MinBackoff: 100 * time.Millisecond,
-			MaxBackoff: time.Minute, // If there is a network hiccup, we prefer to wait longer retrying, than fail the service.
-			MaxRetries: 10,
-		})
-
-		for boff.Ongoing() {
-			err := g.kafkaClient.Ping(ctx)
-			if err == nil {
-				break
-			}
-			level.Warn(g.logger).Log("msg", "ping kafka; will retry", "err", err)
-			boff.Wait()
-		}
-		if err := boff.ErrCause(); err != nil {
-			return fmt.Errorf("failed to ping kafka: %w", err)
+		err = ingest.WaitForKafkaBroker(ctx, g.kafkaClient.Client, g.logger)
+		if err != nil {
+			return fmt.Errorf("failed to start metrics generator: %w", err)
 		}
 
 		g.kafkaAdm = kadm.NewClient(g.kafkaClient.Client)
@@ -282,7 +268,7 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	ctx, span := tracer.Start(ctx, "generator.PushSpans")
 	defer span.End()
 
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +416,7 @@ func (g *Generator) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *
 }
 
 func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +431,7 @@ func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 }
 
 func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,9 @@ data:
         lifecycler:
             ring:
                 replication_factor: 3
+    live_store:
+        partition_ring:
+            delete_inactive_partition_after: 35m
     memberlist:
         abort_if_cluster_join_fails: false
         bind_port: 7946

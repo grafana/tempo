@@ -267,6 +267,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		expectedEnableTargetInfo             map[string]bool
 		expectedDimensionMappings            map[string][]sharedconfig.DimensionMappings
 		expectedTargetInfoExcludedDimensions map[string][]string
+		expectedEnableInstanceLabel          map[string]bool
 	}{
 		{
 			name: "limits only",
@@ -282,6 +283,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 									Join:        "/",
 								},
 							},
+							EnableInstanceLabel: boolPtr(false),
 						},
 					},
 				},
@@ -303,6 +305,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 					},
 				},
 			},
+			expectedEnableInstanceLabel: map[string]bool{"user1": false, "user2": false},
 		},
 		{
 			name:          "basic Overrides",
@@ -321,6 +324,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 											Join:        "/",
 										},
 									},
+									EnableInstanceLabel: boolPtr(false),
 								},
 							},
 						},
@@ -338,6 +342,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				},
 				"user2": nil,
 			},
+			expectedEnableInstanceLabel: map[string]bool{"user1": false, "user2": true},
 		},
 		{
 			name: "wildcard override",
@@ -424,6 +429,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			expectedTargetInfoExcludedDimensions: map[string][]string{
 				"user1": {"some-label"},
 			},
+			expectedEnableInstanceLabel: map[string]bool{"user1": true, "user2": true},
 		},
 	}
 
@@ -443,6 +449,11 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 
 			for user, expectedVal := range tt.expectedTargetInfoExcludedDimensions {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(user))
+			}
+
+			for user, expectedVal := range tt.expectedEnableInstanceLabel {
+				EnableInstanceLabelValue, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(user)
+				assert.Equal(t, expectedVal, EnableInstanceLabelValue)
 			}
 
 			err := services.StopAndAwaitTerminated(context.TODO(), overrides)
@@ -607,6 +618,69 @@ overrides:
 	}
 
 	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
+}
+
+func TestNativeHistogramOverrides(t *testing.T) {
+	tests := []struct {
+		name                            string
+		defaultLimits                   Overrides
+		perTenantOverrides              *perTenantOverrides
+		nativeHistogramBucketFactor     float64
+		nativeHistogramMaxBucketNumber  uint32
+		nativeHistogramMinResetDuration time.Duration
+	}{
+		{
+			name: "defaults only",
+			defaultLimits: Overrides{
+				MetricsGenerator: MetricsGeneratorOverrides{
+					NativeHistogramBucketFactor:     1.5,
+					NativeHistogramMaxBucketNumber:  20,
+					NativeHistogramMinResetDuration: 5 * time.Minute,
+				},
+			},
+			nativeHistogramBucketFactor:     1.5,
+			nativeHistogramMaxBucketNumber:  20,
+			nativeHistogramMinResetDuration: 5 * time.Minute,
+		},
+		{
+			name: "defaults only",
+			defaultLimits: Overrides{
+				MetricsGenerator: MetricsGeneratorOverrides{
+					NativeHistogramBucketFactor:     1.5,
+					NativeHistogramMaxBucketNumber:  20,
+					NativeHistogramMinResetDuration: 5 * time.Minute,
+				},
+			},
+			perTenantOverrides: &perTenantOverrides{
+				TenantLimits: map[string]*Overrides{
+					"user1": {
+						MetricsGenerator: MetricsGeneratorOverrides{
+							NativeHistogramBucketFactor:     2.0,
+							NativeHistogramMaxBucketNumber:  30,
+							NativeHistogramMinResetDuration: 10 * time.Minute,
+						},
+					},
+				},
+			},
+			nativeHistogramBucketFactor:     2.0,
+			nativeHistogramMaxBucketNumber:  30,
+			nativeHistogramMinResetDuration: 10 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, toYamlBytes(t, tt.perTenantOverrides))
+			defer cleanup()
+
+			assert.Equal(t, tt.nativeHistogramBucketFactor, overrides.MetricsGeneratorNativeHistogramBucketFactor("user1"))
+			assert.Equal(t, tt.nativeHistogramMaxBucketNumber, overrides.MetricsGeneratorNativeHistogramMaxBucketNumber("user1"))
+			assert.Equal(t, tt.nativeHistogramMinResetDuration, overrides.MetricsGeneratorNativeHistogramMinResetDuration("user1"))
+
+			err := services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
+		})
+	}
 }
 
 func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Overrides, perTenantOverrides []byte) (Service, func()) {

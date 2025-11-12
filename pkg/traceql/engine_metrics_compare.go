@@ -217,13 +217,13 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 	}
 
 	var (
-		top   = topN[Static]{}
+		top   = topN[StaticMapKey]{}
 		ss    = make(SeriesSet)
 		erred = make(map[Attribute]struct{})
 	)
 
 	add := func(ls Labels, counts []float64) {
-		ss[ls.String()] = TimeSeries{
+		ss[ls.MapKey()] = TimeSeries{
 			Labels: ls,
 			Values: counts,
 		}
@@ -231,17 +231,20 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 
 	addValues := func(prefix Label, data map[Attribute]map[StaticMapKey]*staticWithCounts) {
 		for a, values := range data {
+			name := a.String()
+
 			// Compute topN values for this attribute
 			top.reset()
-			for _, sc := range values {
-				top.add(sc.val, sc.counts)
+			for mk, sc := range values {
+				top.add(mk, sc.counts)
 			}
 
-			top.get(m.topN, func(v Static) {
+			top.get(m.topN, func(mk StaticMapKey) {
+				sc := values[mk]
 				add(Labels{
 					prefix,
-					{Name: a.String(), Value: v},
-				}, values[v.MapKey()].counts)
+					{Name: name, Value: sc.val},
+				}, sc.counts)
 			})
 
 			if len(values) > m.topN {
@@ -280,9 +283,10 @@ func (m *MetricsCompare) result(multiplier float64) SeriesSet {
 				prefix,
 				{Name: l.Name},
 			}
-			if ts, ok := ss[seriesLabels.String()]; ok {
+			key := seriesLabels.MapKey()
+			if ts, ok := ss[key]; ok {
 				ts.Exemplars = append(ts.Exemplars, e)
-				ss[seriesLabels.String()] = ts
+				ss[key] = ts
 			}
 		}
 	}
@@ -477,7 +481,7 @@ func (b *BaselineAggregator) Results() SeriesSet {
 			prefix,
 			{Name: name, Value: value},
 		}
-		output[ls.String()] = TimeSeries{
+		output[ls.MapKey()] = TimeSeries{
 			Labels:    ls,
 			Values:    samples,
 			Exemplars: exemplars,

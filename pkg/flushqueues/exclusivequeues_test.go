@@ -27,7 +27,7 @@ func TestExclusiveQueues(t *testing.T) {
 		Name:      "testersons",
 	})
 
-	q := New(1, gauge)
+	q := New[mockOp](1, gauge)
 	op := mockOp{
 		key: "not unique",
 	}
@@ -87,7 +87,7 @@ func TestMultipleQueues(t *testing.T) {
 
 	totalQueues := 10
 	totalItems := 10
-	q := New(totalQueues, gauge)
+	q := New[mockOp](totalQueues, gauge)
 
 	// add stuff to the queue and confirm the length matches expected
 	for i := 0; i < totalItems; i++ {

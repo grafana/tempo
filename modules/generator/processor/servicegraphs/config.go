@@ -8,10 +8,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	Name = "service-graphs"
-)
-
 type Config struct {
 	// Wait is the value to wait for an edge to be completed
 	Wait time.Duration `yaml:"wait"`

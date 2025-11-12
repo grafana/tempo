@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -155,19 +156,22 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 // createWALBlock creates a new appendable block
 func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+	newMeta := &backend.BlockMeta{
+		Version:           VersionString,
+		BlockID:           meta.BlockID,
+		TenantID:          meta.TenantID,
+		ReplicationFactor: meta.ReplicationFactor,
+		// remove ignored attributes from dedicated columns
+		DedicatedColumns: filterDedicatedColumns(meta.DedicatedColumns),
+	}
+
 	b := &walBlock{
-		meta: &backend.BlockMeta{
-			Version:           VersionString,
-			BlockID:           meta.BlockID,
-			TenantID:          meta.TenantID,
-			DedicatedColumns:  meta.DedicatedColumns,
-			ReplicationFactor: meta.ReplicationFactor,
-		},
+		meta:           newMeta,
 		path:           filepath,
 		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
-		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
-		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
+		dedcolsRes:     dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeResource),
+		dedcolsSpan:    dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
 	}
 
 	// build folder
@@ -372,7 +376,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 
 // TODO: potentially add validation to wal blocks and use in the wal replay code in the ingester.
 func (b *walBlock) Validate(context.Context) error {
-	return common.ErrUnsupported
+	return util.ErrUnsupported
 }
 
 func (b *walBlock) filepathOf(page int) string {

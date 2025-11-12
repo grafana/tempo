@@ -194,24 +194,64 @@ func LabelsFromProto(ls []v1.KeyValue) Labels {
 	return out
 }
 
+func LabelsFromArgs(args ...any) Labels {
+	if len(args)%2 != 0 {
+		panic("LabelsFromArgs must be called with an even number of arguments")
+	}
+
+	out := make(Labels, 0, len(args)/2)
+
+	for i := 0; i < len(args); i += 2 {
+		name := args[i].(string)
+		var val Static
+		switch arg := args[i+1].(type) {
+		case string:
+			val = NewStaticString(arg)
+		case int:
+			val = NewStaticInt(arg)
+		case float64:
+			val = NewStaticFloat(arg)
+		default:
+			panic(fmt.Sprintf("LabelsFromArgs type not yet supported: %T", arg))
+
+		}
+
+		out = append(out, Label{Name: name, Value: val})
+	}
+
+	return out
+}
+
+func (ls Labels) Has(name string) bool {
+	for _, l := range ls {
+		if l.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // String returns the prometheus-formatted version of the labels. Which is downcasting
 // the typed TraceQL values to strings, with some special casing.
 func (ls Labels) String() string {
-	promLabels := labels.NewBuilder(nil)
+	promLabels := labels.NewBuilder(labels.EmptyLabels())
 	for _, l := range ls {
 		var promValue string
-		switch {
-		case l.Value.Type == TypeNil:
+		switch l.Value.Type {
+		case TypeNil:
 			promValue = "<nil>"
-		case l.Value.Type == TypeString:
+		case TypeString:
 			s := l.Value.EncodeToString(false)
-			if s == "nil" {
+			switch s {
+			case "nil":
 				promValue = "<nil>"
-			} else if s == "" {
+			case "":
 				promValue = "<empty>"
-			} else {
+			default:
 				promValue = s
 			}
+		case TypeInt:
+			promValue = "int(" + l.Value.EncodeToString(false) + ")"
 		default:
 			promValue = l.Value.EncodeToString(false)
 		}
@@ -219,6 +259,14 @@ func (ls Labels) String() string {
 	}
 
 	return promLabels.Labels().String()
+}
+
+func (ls Labels) MapKey() SeriesMapKey {
+	key := SeriesMapKey{}
+	for i := range ls {
+		key[i] = SeriesMapLabel{Name: ls[i].Name, Value: ls[i].Value.MapKey()}
+	}
+	return key
 }
 
 type Exemplar struct {
@@ -233,15 +281,22 @@ type TimeSeries struct {
 	Exemplars []Exemplar
 }
 
+type SeriesMapLabel struct {
+	Name  string
+	Value StaticMapKey
+}
+
+type SeriesMapKey [maxGroupBys]SeriesMapLabel
+
 // SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
 // text description: {x="a",y="b"} for convenience.
-type SeriesSet map[string]TimeSeries
+type SeriesSet map[SeriesMapKey]TimeSeries
 
 func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
 	mapper := NewIntervalMapperFromReq(req)
 	resp := make([]*tempopb.TimeSeries, 0, len(set))
 
-	for promLabels, s := range set {
+	for _, s := range set {
 		labels := make([]commonv1proto.KeyValue, 0, len(s.Labels))
 		for _, label := range s.Labels {
 			labels = append(labels,
@@ -301,10 +356,9 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 		}
 
 		ss := &tempopb.TimeSeries{
-			PromLabels: promLabels,
-			Labels:     labels,
-			Samples:    samples,
-			Exemplars:  exemplars,
+			Labels:    labels,
+			Samples:   samples,
+			Exemplars: exemplars,
 		}
 
 		resp = append(resp, ss)
@@ -747,7 +801,7 @@ func (g *GroupingAggregator[F, S]) Length() int {
 //
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
-func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, string) {
+func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, SeriesMapKey) {
 	labels := make(Labels, 0, len(g.by)+1)
 	for i := range g.by {
 		if vals[i].Type == TypeNil {
@@ -764,16 +818,16 @@ func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 		labels = append(labels, Label{g.by[0].String(), NewStaticNil()})
 	}
 
-	return labels, labels.String()
+	return labels, labels.MapKey()
 }
 
 func (g *GroupingAggregator[F, S]) Series() SeriesSet {
 	ss := SeriesSet{}
 
 	for _, s := range g.series {
-		labels, promLabels := g.labelsFor(s.vals)
+		labels, key := g.labelsFor(s.vals)
 
-		ss[promLabels] = TimeSeries{
+		ss[key] = TimeSeries{
 			Labels:    labels,
 			Values:    s.agg.Samples(),
 			Exemplars: s.agg.Exemplars(),
@@ -813,10 +867,11 @@ func (u *UngroupedAggregator) Length() int {
 // fill in a placeholder metric name with the name of the aggregation.
 // rate() => {__name__=rate}
 func (u *UngroupedAggregator) Series() SeriesSet {
-	l := labels.FromStrings(labels.MetricName, u.name)
+	labels := LabelsFromArgs(labels.MetricName, u.name)
+
 	return SeriesSet{
-		l.String(): {
-			Labels:    []Label{{labels.MetricName, NewStaticString(u.name)}},
+		labels.MapKey(): {
+			Labels:    labels,
 			Values:    u.innerAgg.Samples(),
 			Exemplars: u.innerAgg.Exemplars(),
 		},
@@ -1386,10 +1441,12 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 	nan := math.Float64frombits(normalNaN)
 
 	for _, ts := range in {
-		existing, ok := b.ss[ts.PromLabels]
+		// Convert proto labels to traceql labels
+		labels, _ := convertProtoLabelsToTraceQL(ts.Labels, false)
+		key := labels.MapKey()
+
+		existing, ok := b.ss[key]
 		if !ok {
-			// Convert proto labels to traceql labels
-			labels, _ := convertProtoLabelsToTraceQL(ts.Labels, false)
 
 			existing = TimeSeries{
 				Labels:    labels,
@@ -1402,7 +1459,7 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 				}
 			}
 
-			b.ss[ts.PromLabels] = existing
+			b.ss[key] = existing
 		}
 
 		for _, sample := range ts.Samples {
@@ -1414,7 +1471,7 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 
 		b.aggregateExemplars(ts, &existing)
 
-		b.ss[ts.PromLabels] = existing
+		b.ss[key] = existing
 	}
 }
 
@@ -1732,7 +1789,6 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			// Append label for the quantile
 			labels := append((Labels)(nil), in.labels...)
 			labels = append(labels, Label{"p", NewStaticFloat(q)})
-			s := labels.String()
 
 			ts := TimeSeries{
 				Labels: labels,
@@ -1756,7 +1812,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 				}
 			}
 
-			results[s] = ts
+			results[labels.MapKey()] = ts
 		}
 	}
 
@@ -1946,8 +2002,9 @@ func processTopK(input SeriesSet, valueLength, limit int) SeriesSet {
 			}
 
 			// If new value is greater than smallest in heap, replace it
+			// For ties (equal values), use series key comparison to maintain determinism
 			smallest := (*h)[0]
-			if value > smallest.value {
+			if dataPointGreaterThan(seriesValue{key: key, value: value}, smallest) {
 				heap.Pop(h)
 				heap.Push(h, seriesValue{
 					key:   key,
@@ -2000,8 +2057,9 @@ func processBottomK(input SeriesSet, valueLength, limit int) SeriesSet {
 			}
 
 			// If new value is less than largest in heap, replace it
+			// For ties (equal values), use series key comparison to maintain determinism
 			largest := (*h)[0]
-			if value < largest.value {
+			if dataPointLessThan(seriesValue{key: key, value: value}, largest) {
 				heap.Pop(h)
 				heap.Push(h, seriesValue{
 					key:   key,
@@ -2025,7 +2083,7 @@ func processBottomK(input SeriesSet, valueLength, limit int) SeriesSet {
 
 // initSeriesInResult ensures that a series exists in the result map, and
 // initializes it with NaN values if it doesn't exist in the result set.
-func initSeriesInResult(result SeriesSet, key string, input SeriesSet, valueLength int) {
+func initSeriesInResult(result SeriesSet, key SeriesMapKey, input SeriesSet, valueLength int) {
 	if _, exists := result[key]; exists {
 		// series already exists, no need to initialize
 		return

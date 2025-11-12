@@ -3,7 +3,7 @@ package generator
 import (
 	"time"
 
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -11,6 +11,9 @@ import (
 
 type mockOverrides struct {
 	processors                                         map[string]struct{}
+	nativeHistogramMaxBucketNumber                     uint32
+	nativeHistogramBucketFactor                        float64
+	nativeHistogramMinResetDuration                    time.Duration
 	serviceGraphsHistogramBuckets                      []float64
 	serviceGraphsDimensions                            []string
 	serviceGraphsPeerAttributes                        []string
@@ -24,6 +27,7 @@ type mockOverrides struct {
 	spanMetricsDimensionMappings                       []sharedconfig.DimensionMappings
 	spanMetricsEnableTargetInfo                        *bool
 	spanMetricsTargetInfoExcludedDimensions            []string
+	spanMetricsEnableInstanceLabel                     *bool
 	localBlocksMaxLiveTraces                           uint64
 	localBlocksMaxBlockDuration                        time.Duration
 	localBlocksMaxBlockBytes                           uint64
@@ -34,7 +38,7 @@ type mockOverrides struct {
 	maxLocalTraces                                     int
 	maxBytesPerTrace                                   int
 	unsafeQueryHints                                   bool
-	nativeHistograms                                   overrides.HistogramMethod
+	nativeHistograms                                   histograms.HistogramMethod
 	hostInfoHostIdentifiers                            []string
 	hostInfoMetricName                                 string
 }
@@ -61,7 +65,7 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return false
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) overrides.HistogramMethod {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) histograms.HistogramMethod {
 	return m.nativeHistograms
 }
 
@@ -130,6 +134,18 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(st
 	return m.spanMetricsDimensionMappings
 }
 
+func (m *mockOverrides) MetricsGeneratorNativeHistogramBucketFactor(string) float64 {
+	return m.nativeHistogramBucketFactor
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) uint32 {
+	return m.nativeHistogramMaxBucketNumber
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
+	return m.nativeHistogramMinResetDuration
+}
+
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(string) (bool, bool) {
 	spanMetricsEnableTargetInfo := m.spanMetricsEnableTargetInfo
@@ -161,6 +177,14 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeL
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(string) []string {
 	return m.spanMetricsTargetInfoExcludedDimensions
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(string) (bool, bool) {
+	EnableInstanceLabel := m.spanMetricsEnableInstanceLabel
+	if EnableInstanceLabel != nil {
+		return *EnableInstanceLabel, true
+	}
+	return true, false // default to true if not set
 }
 
 func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {

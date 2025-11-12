@@ -19,6 +19,10 @@ Tempo can be deployed in a number of ways, depending on your needs and environme
 
 You can also use Docker to deploy Tempo using [the Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose).
 
+{{< admonition type="note" >}}
+Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details
+{{< /admonition >}}
+
 ## Deploy locally
 
 Monolithic mode (single binary) is commonly used for a local installation, testing, or small-scale deployments.

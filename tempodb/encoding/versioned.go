@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/unsupported"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
@@ -26,6 +28,8 @@ type VersionedEncoding interface {
 	// NewCompactor creates a Compactor that can be used to combine blocks of this
 	// encoding. It is expected to use internal details for efficiency.
 	NewCompactor(common.CompactionOptions) common.Compactor
+
+	CompactionSupported() bool
 
 	// CreateBlock with the given attributes and trace contents.
 	// BlockMeta is used as a container for many options. Required fields:
@@ -76,6 +80,9 @@ func FromVersion(v string) (VersionedEncoding, error) {
 	case vparquet5.VersionString:
 		return vparquet5.Encoding{}, nil
 	default:
+		if strings.Contains(v, "preview") {
+			return unsupported.Encoding{}, nil
+		}
 		return nil, fmt.Errorf("%s is not a valid block version", v)
 	}
 }

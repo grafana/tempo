@@ -116,10 +116,16 @@ message DedicatedColumn {
   }
   enum Type {
     STRING = 0;
+    INT = 1;
+  }
+  enum Option {
+    NONE = 0;
+    ARRAY = 1;
   }
   Scope scope = 3;
   string name = 2;
   Type type = 1;
+  Option options = 4; // bitmask representing multiple options
 }
 
 message SearchResponse {
@@ -420,14 +426,14 @@ message QueryInstantResponse {
 }
 
 message InstantSeries {
+  // Prevent reuse of obsolete fields by ID or name (json marshaling)
+  reserved 3;
+  reserved "prom_labels";
+
   // Series labels containing name and value. Data-type aware.
   repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
 
   double value = 2;
-
-  // prom_labels are a flattened string-only version of the typed labels.
-  // They are used internally and may differ from official prometheus conventions.
-  string prom_labels = 3;
 }
 
 message QueryRangeRequest {
@@ -478,15 +484,15 @@ message Sample {
 }
 
 message TimeSeries {
+  // Prevent reuse of obsolete fields by ID or name (json marshaling)
+  reserved 3;
+  reserved "prom_labels";
+  
   // Series labels containing name and value. Data-type aware.
   repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
 
   // Sorted by time, oldest sample first.
   repeated Sample samples = 2 [(gogoproto.nullable) = false];
-
-  // prom_labels are a flattened string-only version of the typed labels.
-  // They are used internally and may differ from official prometheus conventions.
-  string prom_labels = 3;
 
   // Exemplars are optional and can be empty.
   // Sorted by time, oldest exemplar first.

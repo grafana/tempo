@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -43,6 +42,21 @@ import (
 )
 
 var tracer = otel.Tracer("modules/querier")
+
+type contextKey string
+
+const recentDataTargetContextKey contextKey = "recent-data-target"
+
+func extractRecentDataTarget(ctx context.Context) string {
+	if val := ctx.Value(recentDataTargetContextKey); val != nil {
+		return val.(string)
+	}
+	return ""
+}
+
+func injectRecentDataTarget(ctx context.Context, target string) context.Context {
+	return context.WithValue(ctx, recentDataTargetContextKey, target)
+}
 
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
@@ -242,7 +256,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.New("invalid trace id")
 	}
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
@@ -363,7 +377,9 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 		return nil, ctx.Err()
 	}
 
-	if q.queryPartitionRing {
+	recentDataTarget := extractRecentDataTarget(ctx)
+
+	if q.queryPartitionRing || recentDataTarget == "live-store" {
 		// todo: note that on this path we ignore getReplicationSet. can we integrate it into the partition ring query
 		// or should we remove the QueryRelevantIngesters config option that only applied to find trace by id
 		rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
@@ -468,7 +484,9 @@ func (q *Querier) forGivenGenerators(ctx context.Context, f forEachGeneratorFn) 
 	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
 	defer span.End()
 
-	if q.queryPartitionRing {
+	recentDataTarget := extractRecentDataTarget(ctx)
+
+	if q.queryPartitionRing || recentDataTarget == "live-store" {
 		rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
 		if err != nil {
 			return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
@@ -510,7 +528,7 @@ func (q *Querier) forGivenGenerators(ctx context.Context, f forEachGeneratorFn) 
 }
 
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchRecent: %w", err)
 	}
@@ -562,7 +580,7 @@ func (q *Querier) SearchTagValuesBlocksV2(ctx context.Context, req *tempopb.Sear
 }
 
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
@@ -604,7 +622,7 @@ outer:
 }
 
 func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
-	orgID, err := user.ExtractOrgID(ctx)
+	orgID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
@@ -657,7 +675,7 @@ outer:
 }
 
 func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
@@ -705,7 +723,7 @@ outer:
 }
 
 func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
@@ -838,7 +856,7 @@ func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue
 
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-	tenantID, err := user.ExtractOrgID(ctx)
+	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
@@ -881,7 +899,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 			return q.store.Fetch(ctx, meta, req, opts)
 		})
 
-		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher)
+		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, q.limits.UnsafeQueryHints(tenantID))
 	}
 
 	return q.store.Search(ctx, meta, req.SearchReq, opts)
@@ -894,7 +912,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return &tempopb.SearchTagsV2Response{}, nil
 	}
 
-	tenantID, err := user.ExtractOrgID(ctx)
+	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
@@ -975,7 +993,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 }
 
 func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
-	tenantID, err := user.ExtractOrgID(ctx)
+	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
@@ -1021,7 +1039,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 }
 
 func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	tenantID, err := user.ExtractOrgID(ctx)
+	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}

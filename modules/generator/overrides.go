@@ -6,6 +6,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -15,7 +16,7 @@ type metricsGeneratorOverrides interface {
 	registry.Overrides
 	storage.Overrides
 
-	MetricsGeneratorGenerateNativeHistograms(userID string) overrides.HistogramMethod
+	MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod
 	MetricsGeneratorIngestionSlack(userID string) time.Duration
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
@@ -37,6 +38,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool)
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
+	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
 	DedicatedColumns(userID string) backend.DedicatedColumns

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
-	"github.com/grafana/dskit/user"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -17,6 +16,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -33,11 +33,12 @@ type SearchSharderConfig struct {
 	DefaultLimit          uint32        `yaml:"default_result_limit"`
 	MaxLimit              uint32        `yaml:"max_result_limit"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
-	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
-	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
-	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
-	MostRecentShards      int           `yaml:"most_recent_shards,omitempty"`
-	MaxSpansPerSpanSet    uint32        `yaml:"max_spans_per_span_set,omitempty"`
+	// QueryBackendAfter determines when to query backend storage vs ingesters only.
+	QueryBackendAfter   time.Duration `yaml:"query_backend_after,omitempty"`
+	QueryIngestersUntil time.Duration `yaml:"query_ingesters_until,omitempty"`
+	IngesterShards      int           `yaml:"ingester_shards,omitempty"`
+	MostRecentShards    int           `yaml:"most_recent_shards,omitempty"`
+	MaxSpansPerSpanSet  uint32        `yaml:"max_spans_per_span_set,omitempty"`
 
 	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
 	// or determined at runtime based on search request parameters.
@@ -85,7 +86,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 
 	requestCtx := r.Context()
-	tenantID, err := user.ExtractOrgID(requestCtx)
+	tenantID, err := validation.ExtractValidTenantID(requestCtx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}

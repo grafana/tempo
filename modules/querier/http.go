@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -43,6 +44,8 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	// validate request
 	blockStart, blockEnd, queryMode, timeStart, timeEnd, rf1After, err := api.ValidateAndSanitizeRequest(r)
@@ -95,6 +98,8 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
+
 	// validate request
 	blockStart, blockEnd, queryMode, timeStart, timeEnd, rf1After, err := api.ValidateAndSanitizeRequest(r)
 	if err != nil {
@@ -132,6 +137,8 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
+
+	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchHandler")
 	defer span.End()
@@ -180,6 +187,8 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
+	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
+
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
 
@@ -216,6 +225,8 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
+
+	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
@@ -256,6 +267,8 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
+	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
+
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
 	defer span.End()
 
@@ -294,6 +307,8 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
+
+	ctx = injectRecentDataTarget(ctx, api.ParseRecentDataTargetHeader(r))
 
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesV2Handler")
 	defer span.End()
@@ -363,7 +378,8 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracer.Start(ctx, "Querier.QueryRangeHandler")
 	defer span.End()
 
-	errHandler := func(ctx context.Context, span oteltrace.Span, err error) {
+	// Special error handling to update the span.
+	defer func() {
 		if errors.Is(err, context.Canceled) {
 			// todo: context is also canceled when we hit the query timeout. research what the behavior is
 			// ignore this error. we regularly cancel context once queries are complete
@@ -379,22 +395,10 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			span.RecordError(err)
 		}
-	}
-
-	defer func() {
-		errHandler(ctx, span, err)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writeFormattedContentForRequest(w, r, resp, span)
 	}()
 
 	req, err := api.ParseQueryRangeRequest(r)
 	if err != nil {
-		errHandler(ctx, span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -405,18 +409,16 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err = q.QueryRange(ctx, req)
 	if err != nil {
-		errHandler(ctx, span, err)
+		handleError(w, err)
 		return
-	}
-	// This is to prevent a panic marshaling nil
-	if resp == nil {
-		resp = &tempopb.QueryRangeResponse{}
 	}
 
 	if resp != nil && resp.Metrics != nil {
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(resp.Metrics.InspectedBytes)))
 		span.SetAttributes(attribute.Int64("inspectedSpans", int64(resp.Metrics.InspectedSpans)))
 	}
+
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func handleError(w http.ResponseWriter, err error) {
@@ -441,6 +443,16 @@ func handleError(w http.ResponseWriter, err error) {
 }
 
 func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span oteltrace.Span) {
+	// Check for both explicit nil and typed nil pointers (e.g., (*tempopb.SearchResponse)(nil))
+	// A typed nil pointer is not equal to nil when passed as an interface, so we need reflection
+	if m == nil || (reflect.ValueOf(m).Kind() == reflect.Ptr && reflect.ValueOf(m).IsNil()) {
+		http.Error(w, "internal error: nil response", http.StatusInternalServerError)
+		if span != nil {
+			span.RecordError(fmt.Errorf("nil response in writeFormattedContentForRequest"))
+		}
+		return
+	}
+
 	switch req.Header.Get(api.HeaderAccept) {
 	case api.HeaderAcceptProtobuf:
 		b, err := proto.Marshal(m)

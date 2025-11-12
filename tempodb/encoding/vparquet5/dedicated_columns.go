@@ -1,11 +1,13 @@
 package vparquet5
 
 import (
+	"iter"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// Column paths for spare dedicated attribute columns
+// DedicatedResourceColumnPaths makes paths for spare dedicated attribute columns available
 var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.DedicatedColumnType][]string{
 	backend.DedicatedColumnScopeResource: {
 		backend.DedicatedColumnTypeString: {
@@ -19,7 +21,7 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.Resource.DedicatedAttributes.String08",
 			"rs.list.element.Resource.DedicatedAttributes.String09",
 			"rs.list.element.Resource.DedicatedAttributes.String10",
-			"rs.list.element.Resource.DedicatedAttributes.String11",
+			/*"rs.list.element.Resource.DedicatedAttributes.String11",
 			"rs.list.element.Resource.DedicatedAttributes.String12",
 			"rs.list.element.Resource.DedicatedAttributes.String13",
 			"rs.list.element.Resource.DedicatedAttributes.String14",
@@ -28,7 +30,14 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.Resource.DedicatedAttributes.String17",
 			"rs.list.element.Resource.DedicatedAttributes.String18",
 			"rs.list.element.Resource.DedicatedAttributes.String19",
-			"rs.list.element.Resource.DedicatedAttributes.String20",
+			"rs.list.element.Resource.DedicatedAttributes.String20",*/
+		},
+		backend.DedicatedColumnTypeInt: {
+			"rs.list.element.Resource.DedicatedAttributes.Int01",
+			"rs.list.element.Resource.DedicatedAttributes.Int02",
+			"rs.list.element.Resource.DedicatedAttributes.Int03",
+			"rs.list.element.Resource.DedicatedAttributes.Int04",
+			"rs.list.element.Resource.DedicatedAttributes.Int05",
 		},
 	},
 	backend.DedicatedColumnScopeSpan: {
@@ -43,7 +52,7 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String11",
+			/*"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String11",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String12",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String13",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String14",
@@ -52,7 +61,14 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String17",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String18",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String19",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String20",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String20",*/
+		},
+		backend.DedicatedColumnTypeInt: {
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int01",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int02",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int03",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int04",
+			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int05",
 		},
 	},
 	backend.DedicatedColumnScopeEvent: {
@@ -68,227 +84,99 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 
 type dedicatedColumn struct {
 	Type        backend.DedicatedColumnType
-	Flags       uint8
 	ColumnPath  string
 	ColumnIndex int
+	IsArray     bool
+	IsBlob      bool
 }
 
-func (dc dedicatedColumn) Blob() bool {
-	return dc.Flags&uint8(backend.DedicatedColumnFlagBlob) != 0
-}
+func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
+	var val *v1.AnyValue
 
-func (attrs DedicatedAttributes5) readValue(dc dedicatedColumn) *v1.AnyValue {
 	switch dc.Type {
 	case backend.DedicatedColumnTypeString:
-		var strVal *string
 		switch dc.ColumnIndex {
 		case 0:
-			strVal = attrs.String01
+			val = dedicatedColStrToAnyValue(attrs.String01, dc.IsArray)
 		case 1:
-			strVal = attrs.String02
+			val = dedicatedColStrToAnyValue(attrs.String02, dc.IsArray)
 		case 2:
-			strVal = attrs.String03
+			val = dedicatedColStrToAnyValue(attrs.String03, dc.IsArray)
 		case 3:
-			strVal = attrs.String04
+			val = dedicatedColStrToAnyValue(attrs.String04, dc.IsArray)
 		case 4:
-			strVal = attrs.String05
-		}
-
-		if strVal != nil {
-			return &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: *strVal}}
-		}
-	}
-
-	return nil
-}
-
-func (attrs DedicatedAttributes20) readValue(dc dedicatedColumn) *v1.AnyValue {
-	switch dc.Type {
-	case backend.DedicatedColumnTypeString:
-		var strVal *string
-		switch dc.ColumnIndex {
-		case 0:
-			strVal = attrs.String01
-		case 1:
-			strVal = attrs.String02
-		case 2:
-			strVal = attrs.String03
-		case 3:
-			strVal = attrs.String04
-		case 4:
-			strVal = attrs.String05
+			val = dedicatedColStrToAnyValue(attrs.String05, dc.IsArray)
 		case 5:
-			strVal = attrs.String06
+			val = dedicatedColStrToAnyValue(attrs.String06, dc.IsArray)
 		case 6:
-			strVal = attrs.String07
+			val = dedicatedColStrToAnyValue(attrs.String07, dc.IsArray)
 		case 7:
-			strVal = attrs.String08
+			val = dedicatedColStrToAnyValue(attrs.String08, dc.IsArray)
 		case 8:
-			strVal = attrs.String09
+			val = dedicatedColStrToAnyValue(attrs.String09, dc.IsArray)
 		case 9:
-			strVal = attrs.String10
-		case 10:
-			strVal = attrs.String11
-		case 11:
-			strVal = attrs.String12
-		case 12:
-			strVal = attrs.String13
-		case 13:
-			strVal = attrs.String14
-		case 14:
-			strVal = attrs.String15
-		case 15:
-			strVal = attrs.String16
-		case 16:
-			strVal = attrs.String17
-		case 17:
-			strVal = attrs.String18
-		case 18:
-			strVal = attrs.String19
-		case 19:
-			strVal = attrs.String20
-
+			val = dedicatedColStrToAnyValue(attrs.String10, dc.IsArray)
 		}
-		if strVal == nil {
-			return nil
-		}
-		return &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: *strVal}}
-	default:
-		return nil
-	}
-}
-
-func (attrs *DedicatedAttributesSpan) readValue(dc dedicatedColumn) *v1.AnyValue {
-	switch dc.Type {
-	case backend.DedicatedColumnTypeString:
-		return attrs.DedicatedAttributes20.readValue(dc)
-	}
-	return nil
-}
-
-func (attrs *DedicatedAttributesEvent) readValue(dc dedicatedColumn) *v1.AnyValue {
-	switch dc.Type {
-	case backend.DedicatedColumnTypeString:
-		return attrs.DedicatedAttributes5.readValue(dc)
-	}
-	return nil
-}
-
-func (attrs *DedicatedAttributes5) writeValue(dc dedicatedColumn, value *v1.AnyValue) bool {
-	switch dc.Type {
-	case backend.DedicatedColumnTypeString:
-		strVal, ok := value.Value.(*v1.AnyValue_StringValue)
-		if !ok {
-			return false
-		}
+	case backend.DedicatedColumnTypeInt:
 		switch dc.ColumnIndex {
 		case 0:
-			attrs.String01 = &strVal.StringValue
-			return true
+			val = dedicatedColIntToAnyValue(attrs.Int01, dc.IsArray)
 		case 1:
-			attrs.String02 = &strVal.StringValue
-			return true
+			val = dedicatedColIntToAnyValue(attrs.Int02, dc.IsArray)
 		case 2:
-			attrs.String03 = &strVal.StringValue
-			return true
+			val = dedicatedColIntToAnyValue(attrs.Int03, dc.IsArray)
 		case 3:
-			attrs.String04 = &strVal.StringValue
-			return true
+			val = dedicatedColIntToAnyValue(attrs.Int04, dc.IsArray)
 		case 4:
-			attrs.String05 = &strVal.StringValue
-			return true
+			val = dedicatedColIntToAnyValue(attrs.Int05, dc.IsArray)
 		}
 	}
-	return false
+
+	return val
 }
 
-func (attrs *DedicatedAttributes20) writeValue(dc dedicatedColumn, value *v1.AnyValue) bool {
+func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyValue) bool {
+	var written bool
+
 	switch dc.Type {
 	case backend.DedicatedColumnTypeString:
-		strVal, ok := value.Value.(*v1.AnyValue_StringValue)
-		if !ok {
-			return false
-		}
 		switch dc.ColumnIndex {
 		case 0:
-			attrs.String01 = &strVal.StringValue
-			return true
+			attrs.String01, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String01)
 		case 1:
-			attrs.String02 = &strVal.StringValue
-			return true
+			attrs.String02, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String02)
 		case 2:
-			attrs.String03 = &strVal.StringValue
-			return true
+			attrs.String03, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String03)
 		case 3:
-			attrs.String04 = &strVal.StringValue
-			return true
+			attrs.String04, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String04)
 		case 4:
-			attrs.String05 = &strVal.StringValue
-			return true
+			attrs.String05, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String05)
 		case 5:
-			attrs.String06 = &strVal.StringValue
-			return true
+			attrs.String06, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String06)
 		case 6:
-			attrs.String07 = &strVal.StringValue
-			return true
+			attrs.String07, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String07)
 		case 7:
-			attrs.String08 = &strVal.StringValue
-			return true
+			attrs.String08, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String08)
 		case 8:
-			attrs.String09 = &strVal.StringValue
-			return true
+			attrs.String09, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String09)
 		case 9:
-			attrs.String10 = &strVal.StringValue
-			return true
-		case 10:
-			attrs.String11 = &strVal.StringValue
-			return true
-		case 11:
-			attrs.String12 = &strVal.StringValue
-			return true
-		case 12:
-			attrs.String13 = &strVal.StringValue
-			return true
-		case 13:
-			attrs.String14 = &strVal.StringValue
-			return true
-		case 14:
-			attrs.String15 = &strVal.StringValue
-			return true
-		case 15:
-			attrs.String16 = &strVal.StringValue
-			return true
-		case 16:
-			attrs.String17 = &strVal.StringValue
-			return true
-		case 17:
-			attrs.String18 = &strVal.StringValue
-			return true
-		case 18:
-			attrs.String19 = &strVal.StringValue
-			return true
-		case 19:
-			attrs.String20 = &strVal.StringValue
-			return true
+			attrs.String10, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String10)
+		}
+	case backend.DedicatedColumnTypeInt:
+		switch dc.ColumnIndex {
+		case 0:
+			attrs.Int01, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int01)
+		case 1:
+			attrs.Int02, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int02)
+		case 2:
+			attrs.Int03, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int03)
+		case 3:
+			attrs.Int04, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int04)
+		case 4:
+			attrs.Int05, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int05)
 		}
 	}
-	return false
-}
-
-func (attrs *DedicatedAttributesSpan) writeValue(dc dedicatedColumn, value *v1.AnyValue) bool {
-	switch dc.Type {
-	case backend.DedicatedColumnTypeString:
-		return attrs.DedicatedAttributes20.writeValue(dc, value)
-	}
-	return false
-}
-
-func (attrs *DedicatedAttributesEvent) writeValue(dc dedicatedColumn, value *v1.AnyValue) bool {
-	switch dc.Type {
-	case backend.DedicatedColumnTypeString:
-		return attrs.DedicatedAttributes5.writeValue(dc, value)
-	}
-	return false
+	return written
 }
 
 func newDedicatedColumnMapping(size int) dedicatedColumnMapping {
@@ -315,17 +203,14 @@ func (dm *dedicatedColumnMapping) get(attr string) (dedicatedColumn, bool) {
 	return col, ok
 }
 
-func (dm *dedicatedColumnMapping) forEach(callback func(attr string, column dedicatedColumn)) {
-	for _, k := range dm.keys {
-		callback(k, dm.mapping[k])
+func (dm *dedicatedColumnMapping) items() iter.Seq2[string, dedicatedColumn] {
+	return func(yield func(string, dedicatedColumn) bool) {
+		for _, k := range dm.keys {
+			if !yield(k, dm.mapping[k]) {
+				return
+			}
+		}
 	}
-}
-
-func (dm *dedicatedColumnMapping) Blob(index int) bool {
-	if index >= 0 && index < len(dm.keys) {
-		return dm.mapping[dm.keys[index]].Blob()
-	}
-	return false
 }
 
 var allScopes = []backend.DedicatedColumnScope{backend.DedicatedColumnScopeResource, backend.DedicatedColumnScopeSpan}
@@ -360,15 +245,147 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 				continue // skip if there are not enough spare columns
 			}
 
-			mapping.put(c.Name, dedicatedColumn{
+			dc := dedicatedColumn{
 				Type:        c.Type,
-				Flags:       c.Flags,
 				ColumnPath:  spareColumnPaths[i],
 				ColumnIndex: i,
-			})
+			}
+
+			for _, opt := range c.Options {
+				switch opt {
+				case backend.DedicatedColumnOptionArray:
+					dc.IsArray = true
+				case backend.DedicatedColumnOptionBlob:
+					dc.IsBlob = true
+				}
+			}
+
+			mapping.put(c.Name, dc)
 			indexByType[c.Type]++
 		}
 	}
 
 	return mapping
+}
+
+func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
+	filtered := make(backend.DedicatedColumns, 0, len(columns))
+	for _, c := range columns {
+		if isIgnoredDedicatedColumn(&c) {
+			continue
+		}
+		filtered = append(filtered, c)
+	}
+	return filtered
+}
+
+func isIgnoredDedicatedColumn(dc *backend.DedicatedColumn) bool {
+	if _, found := DedicatedResourceColumnPaths[dc.Scope][dc.Type]; !found {
+		return true // unsupported scope or type
+	}
+	return false
+}
+
+func anyValueToDedicatedColStr(value *v1.AnyValue, isArray bool, buf []string) ([]string, bool) {
+	buf = buf[:0]
+	if !isArray {
+		value, ok := value.Value.(*v1.AnyValue_StringValue)
+		if !ok || value == nil {
+			return nil, false
+		}
+		buf = append(buf, value.StringValue)
+	} else {
+		value, ok := value.Value.(*v1.AnyValue_ArrayValue)
+		if !ok || value == nil {
+			return nil, false
+		}
+
+		for _, v := range value.ArrayValue.Values {
+			v, ok := v.Value.(*v1.AnyValue_StringValue)
+			if !ok || v == nil {
+				return nil, false
+			}
+			buf = append(buf, v.StringValue)
+		}
+	}
+	return buf, true
+}
+
+func dedicatedColStrToAnyValue(v []string, isArray bool) *v1.AnyValue {
+	if !isArray && len(v) == 1 {
+		return &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: v[0]}}
+	}
+
+	values := make([]*v1.AnyValue, 0, len(v))
+	switch len(v) {
+	case 0:
+		return nil
+	case 1:
+		values = append(values, &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: v[0]}})
+	default:
+		// allocate v1.Any* values in batches
+		allocAny := make([]v1.AnyValue, len(v))
+		allocStr := make([]v1.AnyValue_StringValue, len(v))
+		for i, s := range v {
+			anyS := &allocStr[i]
+			anyS.StringValue = s
+			anyV := &allocAny[i]
+			anyV.Value = anyS
+
+			values = append(values, anyV)
+		}
+	}
+	return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}}
+}
+
+func anyValueToDedicatedColInt(value *v1.AnyValue, isArray bool, buf []int64) ([]int64, bool) {
+	buf = buf[:0]
+	if !isArray {
+		value, ok := value.Value.(*v1.AnyValue_IntValue)
+		if !ok || value == nil {
+			return nil, false
+		}
+		buf = append(buf, value.IntValue)
+	} else {
+		value, ok := value.Value.(*v1.AnyValue_ArrayValue)
+		if !ok || value == nil {
+			return nil, false
+		}
+
+		for _, v := range value.ArrayValue.Values {
+			v, ok := v.Value.(*v1.AnyValue_IntValue)
+			if !ok || v == nil {
+				return nil, false
+			}
+			buf = append(buf, v.IntValue)
+		}
+	}
+	return buf, true
+}
+
+func dedicatedColIntToAnyValue(v []int64, isArray bool) *v1.AnyValue {
+	if !isArray && len(v) == 1 {
+		return &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: v[0]}}
+	}
+
+	values := make([]*v1.AnyValue, 0, len(v))
+	switch len(v) {
+	case 0:
+		return nil
+	case 1:
+		values = append(values, &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: v[0]}})
+	default:
+		// allocate v1.Any* values in batches
+		allocAny := make([]v1.AnyValue, len(v))
+		allocInt := make([]v1.AnyValue_IntValue, len(v))
+		for i, n := range v {
+			anyS := &allocInt[i]
+			anyS.IntValue = n
+			anyV := &allocAny[i]
+			anyV.Value = anyS
+
+			values = append(values, anyV)
+		}
+	}
+	return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}}
 }

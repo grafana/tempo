@@ -257,9 +257,6 @@ func TestTraceToParquet(t *testing.T) {
 							SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 							Attributes: []*v1.KeyValue{
 								{Key: "span.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "aaa"}}},
-								{Key: "http.method", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "POST"}}},
-								{Key: "http.url", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "https://example.com"}}},
-								{Key: "http.status_code", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 201}}},
 								{Key: "dedicated.span.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-1"}}},
 								{Key: "dedicated.span.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-2"}}},
 								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
@@ -292,6 +289,9 @@ func TestTraceToParquet(t *testing.T) {
 										{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
 									},
 								}}}},
+								{Key: "http.method", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "POST"}}},
+								{Key: "http.url", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "https://example.com"}}},
+								{Key: "http.status_code", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 201}}},
 								{Key: "span.unsupported.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
@@ -323,28 +323,28 @@ func TestTraceToParquet(t *testing.T) {
 				},
 				ResourceSpans: []ResourceSpans{{
 					Resource: Resource{
-						ServiceName:      "service-a",
-						Cluster:          ptr("cluster-a"),
-						Namespace:        ptr("namespace-a"),
-						Pod:              ptr("pod-a"),
-						Container:        ptr("container-a"),
-						K8sClusterName:   ptr("k8s-cluster-a"),
-						K8sNamespaceName: ptr("k8s-namespace-a"),
-						K8sPodName:       ptr("k8s-pod-a"),
-						K8sContainerName: ptr("k8s-container-a"),
+						ServiceName: "service-a",
 						Attrs: []Attribute{
 							attr("res.attr", 123),
 							attr("res.string.array", []string{"one", "two", "three"}),
 							attr("res.int.array", []int64{1, 2}),
 							attr("res.double.array", []float64{1.1, 2.2, 3.3}),
 							attr("res.bool.array", []bool{true, false, true, true}),
+							attr("cluster", "cluster-a"),
+							attr("namespace", "namespace-a"),
+							attr("pod", "pod-a"),
+							attr("container", "container-a"),
+							attr("k8s.cluster.name", "k8s-cluster-a"),
+							attr("k8s.namespace.name", "k8s-namespace-a"),
+							attr("k8s.pod.name", "k8s-pod-a"),
+							attr("k8s.container.name", "k8s-container-a"),
 						},
-						DedicatedAttributes: DedicatedAttributes20{
-							String01: ptr("dedicated-resource-attr-value-1"),
-							String02: ptr("dedicated-resource-attr-value-2"),
-							String03: ptr("dedicated-resource-attr-value-3"),
-							String04: ptr("dedicated-resource-attr-value-4"),
-							String05: ptr("dedicated-resource-attr-value-5"),
+						DedicatedAttributes: DedicatedAttributes{
+							String01: []string{"dedicated-resource-attr-value-1"},
+							String02: []string{"dedicated-resource-attr-value-2"},
+							String03: []string{"dedicated-resource-attr-value-3"},
+							String04: []string{"dedicated-resource-attr-value-4"},
+							String05: []string{"dedicated-resource-attr-value-5"},
 						},
 					},
 					ScopeSpans: []ScopeSpans{{
@@ -366,27 +366,25 @@ func TestTraceToParquet(t *testing.T) {
 							NestedSetLeft:  1,
 							NestedSetRight: 2,
 							ParentID:       -1,
-							HttpMethod:     ptr("POST"),
-							HttpUrl:        ptr("https://example.com"),
-							HttpStatusCode: ptr(int64(201)),
 							Attrs: []Attribute{
 								attr("span.attr", "aaa"),
 								attr("span.string.array", []string{"one", "two"}),
 								attr("span.int.array", []int64{1, 2, 3}),
 								attr("span.double.array", []float64{1.1, 2.2}),
 								attr("span.bool.array", []bool{true, false, true, false}),
+								attr("http.method", "POST"),
+								attr("http.url", "https://example.com"),
+								attr("http.status_code", 201),
 								{Key: "span.unsupported.array", ValueUnsupported: ptr("{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}"), IsArray: false},
 								{Key: "span.unsupported.kvlist", ValueUnsupported: ptr("{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}"), IsArray: false},
 							},
 							DroppedAttributesCount: 0,
-							DedicatedAttributes: DedicatedAttributesSpan{
-								DedicatedAttributes20: DedicatedAttributes20{
-									String01: ptr("dedicated-span-attr-value-1"),
-									String02: ptr("dedicated-span-attr-value-2"),
-									String03: ptr("dedicated-span-attr-value-3"),
-									String04: ptr("dedicated-span-attr-value-4"),
-									String05: ptr("dedicated-span-attr-value-5"),
-								},
+							DedicatedAttributes: DedicatedAttributes{
+								String01: []string{"dedicated-span-attr-value-1"},
+								String02: []string{"dedicated-span-attr-value-2"},
+								String03: []string{"dedicated-span-attr-value-3"},
+								String04: []string{"dedicated-span-attr-value-4"},
+								String05: []string{"dedicated-span-attr-value-5"},
 							},
 						}},
 					}},
@@ -1006,5 +1004,199 @@ func sortAttributes(t *Trace) {
 				return ss.Scope.Attrs[i].Key < ss.Scope.Attrs[j].Key
 			})
 		}
+	}
+}
+
+func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
+	traceID := common.ID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+
+	tsc := []struct {
+		name             string
+		trace            *tempopb.Trace
+		expectedRootName string
+	}{
+		{
+			name: "root span with a child-of link",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:   "not-root-span",
+										SpanId: []byte{0x02},
+										Links: []*v1_trace.Span_Link{
+											{
+												Attributes: []*v1.KeyValue{
+													{
+														Key: "opentracing.ref_type",
+														Value: &v1.AnyValue{
+															Value: &v1.AnyValue_StringValue{StringValue: "child_of"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name:   "root-span",
+										SpanId: []byte{0x01},
+									},
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x03},
+										ParentSpanId: []byte{0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "root-span",
+		},
+		{
+			name: "root span without child-of link",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:   "root-span",
+										SpanId: []byte{0x01},
+									},
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x02},
+										ParentSpanId: []byte{0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "root-span",
+		},
+		{
+			name: "span link different trace id",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:    "not-root-span",
+										TraceId: traceID,
+										SpanId:  []byte{0x02},
+										Links: []*v1_trace.Span_Link{
+											{
+												TraceId: []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+												Attributes: []*v1.KeyValue{
+													{
+														Key: "opentracing.ref_type",
+														Value: &v1.AnyValue{
+															Value: &v1.AnyValue_StringValue{StringValue: "child_of"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name:    "root-span",
+										SpanId:  []byte{0x01},
+										TraceId: traceID,
+									},
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x03},
+										ParentSpanId: []byte{0x01},
+										TraceId:      traceID,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "root-span",
+		},
+		{
+			name: "no root span",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x02},
+										ParentSpanId: []byte{0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "",
+		},
+		{
+			name: "no spans",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource:   &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{},
+					},
+				},
+			},
+			expectedRootName: "",
+		},
+		{
+			name: "span with parent but no root",
+			trace: &tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{},
+						ScopeSpans: []*v1_trace.ScopeSpans{
+							{
+								Scope: &v1.InstrumentationScope{},
+								Spans: []*v1_trace.Span{
+									{
+										Name:         "child-span",
+										SpanId:       []byte{0x02},
+										ParentSpanId: []byte{0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRootName: "",
+		},
+	}
+
+	for _, tt := range tsc {
+		t.Run(tt.name, func(t *testing.T) {
+			meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
+			parquetTrace, _ := traceToParquet(&meta, traceID, tt.trace, nil)
+			assert.Equal(t, tt.expectedRootName, parquetTrace.RootSpanName)
+		})
 	}
 }

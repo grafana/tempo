@@ -105,12 +105,10 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 			traceql.NewStaticString("Bob2"),
 		}},
 
-		// Mixed types
+		// Former well-known column
 		{traceql.MustParseIdentifier(".http.status_code"), []traceql.Static{
 			traceql.NewStaticInt(500),
 			traceql.NewStaticInt(501),
-			traceql.NewStaticString("500ouch"),
-			traceql.NewStaticString("500ouch2"),
 		}},
 
 		// Trace-level special

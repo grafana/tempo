@@ -8,6 +8,7 @@ import (
 
 	util2 "github.com/grafana/tempo/integration/util"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 
 	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,9 @@ func TestEncodings(t *testing.T) {
 	const repeatedSearchCount = 10
 
 	for _, enc := range encoding.AllEncodings() {
+		if enc.Version() == vparquet2.VersionString {
+			continue // vParquet2 is deprecated
+		}
 		t.Run(enc.Version(), func(t *testing.T) {
 			s, err := e2e.NewScenario("tempo_e2e")
 			require.NoError(t, err)
@@ -85,7 +89,7 @@ func TestEncodings(t *testing.T) {
 			if enc.Version() != v2.VersionString {
 				// search for trace in backend multiple times with different attributes to make sure
 				// we search with different scopes and with attributes from dedicated columns
-				for i := 0; i < repeatedSearchCount; i++ {
+				for range repeatedSearchCount {
 					util2.SearchAndAssertTrace(t, apiClient, info)
 					util2.SearchTraceQLAndAssertTrace(t, apiClient, info)
 				}
@@ -118,7 +122,7 @@ func TestEncodings(t *testing.T) {
 			// search for trace in backend multiple times with different attributes to make sure
 			// we search with different scopes and with attributes from dedicated columns
 			now := time.Now()
-			for i := 0; i < repeatedSearchCount; i++ {
+			for range repeatedSearchCount {
 				// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 				util2.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 				// find the trace with streaming. using the http server b/c that's what Grafana will do

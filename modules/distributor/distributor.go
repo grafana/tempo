@@ -134,12 +134,6 @@ var (
 		Name:      "kafka_write_bytes_total",
 		Help:      "The total number of bytes written to kafka",
 	}, []string{"partition"})
-	metricKafkaAppends = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "kafka_appends_total",
-		Help:      "The total number of appends sent to kafka",
-	}, []string{"partition", "status"})
 
 	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
 	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
@@ -402,12 +396,12 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 }
 
 func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID string, spanCount, tracesSize int, err error) {
-	user, e := user.ExtractOrgID(ctx)
+	orgID, e := validation.ExtractValidTenantID(ctx)
 	if e != nil {
-		return "", 0, 0, e
+		return "", 0, 0, status.Error(codes.InvalidArgument, e.Error())
 	}
 
-	return user, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
+	return orgID, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
 }
 
 // PushTraces pushes a batch of traces
@@ -680,7 +674,6 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		for _, result := range produceResults {
 			if result.Err != nil {
 				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err, "tenant", userID)
-				metricKafkaAppends.WithLabelValues(partitionLabel, "fail").Inc()
 			} else {
 				count++
 				sizeBytes += len(result.Record.Value)
@@ -689,7 +682,6 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		if count > 0 {
 			metricKafkaWriteBytesTotal.WithLabelValues(partitionLabel).Add(float64(sizeBytes))
-			metricKafkaAppends.WithLabelValues(partitionLabel, "success").Add(float64(count))
 		}
 
 		_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)
@@ -795,7 +787,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				}
 
 				// increase span count for trace
-				existingTrace.spanCount = existingTrace.spanCount + 1
+				existingTrace.spanCount++
 
 				// Count spans with timestamps in the future
 				if end > currentTime {
@@ -1050,4 +1042,19 @@ func (d *Distributor) getMaxAttributeBytes(userID string) int {
 	}
 
 	return d.cfg.MaxAttributeBytes
+}
+
+func (d *Distributor) RetryInfoEnabled(ctx context.Context) (bool, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// if disabled at cluster level, just return false
+	if d.cfg.RetryAfterOnResourceExhausted <= 0 {
+		return false, nil
+	}
+
+	// cluster level is enabled, check per-tenant override and respect that.
+	return d.overrides.IngestionRetryInfoEnabled(userID), nil
 }

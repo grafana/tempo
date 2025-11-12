@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"sort"
@@ -10,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +66,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 
 	counter := registry.NewCounter("my_counter")
 
-	counter.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	counter.Inc(newLabelValueCombo([]string{"label", "label"}, []string{"repeated-value", "value-1"}), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),
@@ -303,6 +304,14 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 	collectionTimeMs := time.Now().UnixMilli()
 	r.CollectMetrics(context.Background())
 
+	// Validate that there are no duplicate label names in any sample
+	for i, sample := range appender.samples {
+		if duplicateLabel, hasDuplicate := sample.l.HasDuplicateLabelNames(); hasDuplicate {
+			t.Errorf("Sample %d has duplicate label name %q. Full labels: %v",
+				i, duplicateLabel, sample.l)
+		}
+	}
+
 	// Ignore the collection time on expected samples, since we won't know when the collection will actually take place.
 	for i := range expectedSamples {
 		expectedSamples[i].t = collectionTimeMs
@@ -342,9 +351,12 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 }
 
 type mockOverrides struct {
-	maxActiveSeries          uint32
-	disableCollection        bool
-	generateNativeHistograms overrides.HistogramMethod
+	maxActiveSeries                 uint32
+	disableCollection               bool
+	generateNativeHistograms        histograms.HistogramMethod
+	nativeHistogramMaxBucketNumber  uint32
+	nativeHistogramBucketFactor     float64
+	nativeHistogramMinResetDuration time.Duration
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -361,7 +373,7 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return m.disableCollection
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) overrides.HistogramMethod {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) histograms.HistogramMethod {
 	return m.generateNativeHistograms
 }
 
@@ -369,7 +381,156 @@ func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {
 	return ""
 }
 
+func (m *mockOverrides) MetricsGeneratorNativeHistogramBucketFactor(string) float64 {
+	return m.nativeHistogramBucketFactor
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) uint32 {
+	return m.nativeHistogramMaxBucketNumber
+}
+
+func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
+	return m.nativeHistogramMinResetDuration
+}
+
 func mustGetHostname() string {
 	hostname, _ := os.Hostname()
 	return hostname
+}
+
+func TestManagedRegistry_demandTracking(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+
+	// Add series with unique label combinations
+	for i := 0; i < 100; i++ {
+		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lvc, 1.0)
+	}
+
+	// Collect metrics to update demand tracking
+	registry.CollectMetrics(context.Background())
+
+	// Check that active series matches expected
+	activeSeries := registry.activeSeries.Load()
+	assert.Equal(t, uint32(100), activeSeries)
+
+	// Access the internal metrics to verify demand tracking
+	// The demand should be approximately equal to active series (within HLL error)
+	var totalDemand int
+	registry.metricsMtx.RLock()
+	for _, m := range registry.metrics {
+		totalDemand += m.countSeriesDemand()
+	}
+	registry.metricsMtx.RUnlock()
+
+	// HLL with precision 10 has ~3.25% error, so we allow 10% tolerance
+	diff := float64(totalDemand-int(activeSeries)) / float64(activeSeries)
+	assert.Less(t, math.Abs(diff), 0.1, "demand estimate should be within 10%% of actual series")
+}
+
+func TestManagedRegistry_demandExceedsMax(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	overrides := &mockOverrides{
+		maxActiveSeries: 50,
+	}
+	registry := New(cfg, overrides, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+
+	// Add series up to the limit
+	for i := 0; i < 50; i++ {
+		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lvc, 1.0)
+	}
+
+	// Attempt to add more series (these should be rejected)
+	for i := 50; i < 100; i++ {
+		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lvc, 1.0)
+	}
+
+	// Collect metrics
+	registry.CollectMetrics(context.Background())
+
+	// Active series should be capped at max
+	activeSeries := registry.activeSeries.Load()
+	assert.Equal(t, uint32(50), activeSeries)
+
+	// Demand tracking should show all attempted series (including rejected ones)
+	var totalDemand int
+	registry.metricsMtx.RLock()
+	for _, m := range registry.metrics {
+		totalDemand += m.countSeriesDemand()
+	}
+	registry.metricsMtx.RUnlock()
+
+	// Demand should be higher than active series since we tried to add 100 series
+	assert.Greater(t, totalDemand, int(activeSeries), "demand should track all attempted series")
+	assert.Greater(t, totalDemand, 80, "demand should show most of the 100 attempted series")
+}
+
+func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 15 * time.Minute,
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+
+	// Add series
+	for i := 0; i < 50; i++ {
+		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lvc, 1.0)
+	}
+
+	registry.CollectMetrics(context.Background())
+
+	// Get initial demand
+	var initialDemand int
+	registry.metricsMtx.RLock()
+	for _, m := range registry.metrics {
+		initialDemand += m.countSeriesDemand()
+	}
+	registry.metricsMtx.RUnlock()
+
+	assert.Greater(t, initialDemand, 0, "initial demand should be non-zero")
+
+	// Advance the cardinality tracker multiple times to evict old data
+	registry.metricsMtx.RLock()
+	for _, m := range registry.metrics {
+		// Advance enough times to clear the sliding window
+		for i := 0; i < 5; i++ {
+			m.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
+		}
+	}
+	registry.metricsMtx.RUnlock()
+
+	registry.CollectMetrics(context.Background())
+
+	// Get demand after decay
+	var finalDemand int
+	registry.metricsMtx.RLock()
+	for _, m := range registry.metrics {
+		finalDemand += m.countSeriesDemand()
+	}
+	registry.metricsMtx.RUnlock()
+
+	// Demand should have decreased significantly or be zero
+	assert.Less(t, finalDemand, initialDemand, "demand should decay after advancing the window")
 }

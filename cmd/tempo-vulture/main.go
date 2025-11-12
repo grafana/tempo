@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -44,9 +45,13 @@ var (
 	tempoRecentTracesCutoffDuration time.Duration
 	tempoPushTLS                    bool
 
-	rf1After time.Time
+	rf1After             time.Time
+	tempoQueryLiveStores bool
+	logger               *zap.Logger
 
-	logger *zap.Logger
+	validationMode    bool
+	validationCycles  int
+	validationTimeout time.Duration
 )
 
 type traceMetrics struct {
@@ -79,6 +84,7 @@ type vultureConfiguration struct {
 	tempoRetentionDuration          time.Duration
 	tempoRecentTracesCutoffDuration time.Duration
 	tempoPushTLS                    bool
+	tempoQueryLiveStores            bool
 }
 
 var _ flag.Value = (*timeVar)(nil)
@@ -90,7 +96,7 @@ type timeVar struct {
 func newTimeVar(t *time.Time) *timeVar { return &timeVar{t: t} }
 
 func (v timeVar) String() string {
-	return (*v.t).Format(time.RFC3339)
+	return v.t.Format(time.RFC3339)
 }
 
 func (v timeVar) Set(s string) error {
@@ -123,7 +129,13 @@ func init() {
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 	flag.DurationVar(&tempoRecentTracesCutoffDuration, "tempo-recent-traces-backoff-duration", 14*time.Minute, "Cutoff between recent and old traces query checks")
 
+	// Validation mode flags
+	flag.BoolVar(&validationMode, "validation-mode", false, "Run in validation mode: execute a fixed number of cycles and exit with status code")
+	flag.IntVar(&validationCycles, "validation-cycles", 3, "Number of write/read cycles to perform in validation mode")
+	flag.DurationVar(&validationTimeout, "validation-timeout", 5*time.Minute, "Maximum time to run validation mode before timing out")
+
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
+	flag.BoolVar(&tempoQueryLiveStores, "tempo-query-livestore", false, "When to query live stores")
 }
 
 func main() {
@@ -148,6 +160,7 @@ func main() {
 		tempoRetentionDuration:          tempoRetentionDuration,
 		tempoRecentTracesCutoffDuration: tempoRecentTracesCutoffDuration,
 		tempoPushTLS:                    tempoPushTLS,
+		tempoQueryLiveStores:            tempoQueryLiveStores,
 	}
 	pushEndpoint, err := getGRPCEndpoint(vultureConfig.tempoPushURL)
 	if err != nil {
@@ -155,13 +168,11 @@ func main() {
 	}
 
 	logger.Info("Tempo Vulture starting", zap.String("tempoQueryURL", vultureConfig.tempoQueryURL), zap.String("tempoPushURL", pushEndpoint))
-
 	jaegerClient, err := utilpkg.NewJaegerToOTLPExporter(pushEndpoint)
+	httpClient := createHTTPClient(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID, vultureConfig.tempoQueryLiveStores)
 	if err != nil {
 		panic(err)
 	}
-
-	httpClient := httpclient.New(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID)
 
 	if !rf1After.IsZero() {
 		httpClient.SetQueryParam(api.URLParamRF1After, rf1After.Format(time.RFC3339))
@@ -186,17 +197,29 @@ func main() {
 			oldest = startTime
 		}
 		newStart, ts = selectPastTimestamp(oldest, now, interval, vultureConfig.tempoRetentionDuration, r)
-		return
+		return newStart, ts, skip
 	}
 
 	selectOldTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
 		newest := now.Add(-vultureConfig.tempoRecentTracesCutoffDuration)
 		if newest.Before(startTime) { // if vulture's just started and no traces to query
 			skip = true
-			return
+			return newStart, ts, skip
 		}
 		newStart, ts = selectPastTimestamp(startTime, newest, interval, vultureConfig.tempoRetentionDuration, r)
-		return
+		return newStart, ts, skip
+	}
+
+	if os.Getenv(TempoAccessPolicyToken) != "" && !validationMode {
+		logger.Warn(fmt.Sprintf("%s is set but validationMode is false. This variable should only be necessary in validationMode.", TempoAccessPolicyToken))
+	}
+
+	// Check if we're running in validation mode
+	if validationMode {
+		ctx, cancel := context.WithTimeout(context.Background(), validationTimeout)
+		exitCode := RunValidationMode(ctx, vultureConfig, pushEndpoint, logger)
+		cancel()
+		os.Exit(exitCode)
 	}
 
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
@@ -225,6 +248,12 @@ func main() {
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+}
+
+func createHTTPClient(queryURL string, orgID string, queryLiveStores bool) *httpclient.Client {
+	httpClient := httpclient.New(queryURL, orgID)
+	httpClient.QueryLiveStores = queryLiveStores
+	return httpClient
 }
 
 func getGRPCEndpoint(endpoint string) (string, error) {
@@ -295,7 +324,7 @@ func doWrite(jaegerClient util.JaegerClient, tickerWrite *time.Ticker, interval 
 
 			logger.Info("sending trace")
 
-			err := info.EmitBatches(jaegerClient)
+			err := info.EmitBatches(context.Background(), jaegerClient)
 			if err != nil {
 				metricErrorTotal.Inc()
 			}
@@ -330,7 +359,7 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 		)
 		logger.Info("sending trace")
 
-		err := info.EmitBatches(client)
+		err := info.EmitBatches(context.Background(), client)
 		if err != nil {
 			logger.Error("failed to queue batches",
 				zap.Error(err),
@@ -446,15 +475,15 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 	return newStart.Round(interval), ts.Round(interval)
 }
 
-func generateRandomInt(min, max int64, r *rand.Rand) int64 {
-	min++
+func generateRandomInt(minVal, maxVal int64, r *rand.Rand) int64 {
+	minVal++
 	var duration int64
 	duration = 1
 	// This is to prevent a panic when min == max since subtracting them will end in a negative number
-	if min < max {
-		duration = max - min
+	if minVal < maxVal {
+		duration = maxVal - minVal
 	}
-	number := min + r.Int63n(duration)
+	number := minVal + r.Int63n(duration)
 	return number
 }
 
@@ -508,7 +537,7 @@ func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vulture
 	//  around the seed.
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
-	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	resp, err := client.SearchWithRange(context.Background(), fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -587,7 +616,7 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 	logger.Info("querying Tempo trace")
 
 	// We want to define a time range to reduce the number of lookups
-	trace, err := client.QueryTraceWithRange(hexID, start, end)
+	trace, err := client.QueryTraceWithRange(context.Background(), hexID, start, end)
 	if err != nil {
 		if errors.Is(err, util.ErrTraceNotFound) {
 			tm.notFoundByID++

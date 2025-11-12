@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
-	"hash/fnv"
 	"math"
 	"slices"
+	"strings"
 	"time"
 	"unsafe"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/grafana/tempo/pkg/regexp"
 )
 
@@ -18,7 +19,7 @@ type Element interface {
 	validate() error
 }
 
-type pipelineElement interface {
+type PipelineElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
 	evaluate([]*Spanset) ([]*Spanset, error)
@@ -52,7 +53,7 @@ func NeedsFullTrace(e ...Element) bool {
 			// Example: {} | count() > 123
 			return true
 		case ScalarFilter:
-			if NeedsFullTrace(x.lhs, x.rhs) {
+			if NeedsFullTrace(x.LHS, x.RHS) {
 				return true
 			}
 		}
@@ -70,7 +71,7 @@ func (r *RootExpr) NeedsFullTrace() bool {
 	return false
 }
 
-func newRootExpr(e pipelineElement) *RootExpr {
+func newRootExpr(e PipelineElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -81,7 +82,7 @@ func newRootExpr(e pipelineElement) *RootExpr {
 	}
 }
 
-func newRootExprWithMetrics(e pipelineElement, m firstStageElement) *RootExpr {
+func newRootExprWithMetrics(e PipelineElement, m firstStageElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -93,7 +94,7 @@ func newRootExprWithMetrics(e pipelineElement, m firstStageElement) *RootExpr {
 	}
 }
 
-func newRootExprWithMetricsTwoStage(e pipelineElement, m1 firstStageElement, m2 secondStageElement) *RootExpr {
+func newRootExprWithMetricsTwoStage(e PipelineElement, m1 firstStageElement, m2 secondStageElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -159,7 +160,7 @@ func (r *RootExpr) IsNoop() bool {
 // **********************
 
 type Pipeline struct {
-	Elements []pipelineElement
+	Elements []PipelineElement
 }
 
 // nolint: revive
@@ -168,13 +169,13 @@ func (Pipeline) __scalarExpression() {}
 // nolint: revive
 func (Pipeline) __spansetExpression() {}
 
-func newPipeline(i ...pipelineElement) Pipeline {
+func newPipeline(i ...PipelineElement) Pipeline {
 	return Pipeline{
 		Elements: i,
 	}
 }
 
-func (p Pipeline) addItem(i pipelineElement) Pipeline {
+func (p Pipeline) addItem(i PipelineElement) Pipeline {
 	p.Elements = append(p.Elements, i)
 	return p
 }
@@ -211,7 +212,7 @@ func (p Pipeline) extractConditions(req *FetchSpansRequest) {
 	}
 }
 
-func extractToSecondPass(req *FetchSpansRequest, element pipelineElement) {
+func extractToSecondPass(req *FetchSpansRequest, element PipelineElement) {
 	req2 := &FetchSpansRequest{}
 	element.extractConditions(req2)
 
@@ -286,7 +287,7 @@ func newSelectOperation(exprs []Attribute) SelectOperation {
 // Scalars
 // **********************
 type ScalarExpression interface {
-	// pipelineElement
+	// PipelineElement
 	Element
 	typedExpression
 	__scalarExpression()
@@ -365,7 +366,7 @@ func (a Aggregate) extractConditions(request *FetchSpansRequest) {
 // Spansets
 // **********************
 type SpansetExpression interface {
-	pipelineElement
+	PipelineElement
 	__spansetExpression()
 }
 
@@ -466,16 +467,16 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 }
 
 type ScalarFilter struct {
-	op  Operator
-	lhs ScalarExpression
-	rhs ScalarExpression
+	Op  Operator
+	LHS ScalarExpression
+	RHS ScalarExpression
 }
 
 func newScalarFilter(op Operator, lhs, rhs ScalarExpression) ScalarFilter {
 	return ScalarFilter{
-		op:  op,
-		lhs: lhs,
-		rhs: rhs,
+		Op:  op,
+		LHS: lhs,
+		RHS: rhs,
 	}
 }
 
@@ -483,8 +484,8 @@ func newScalarFilter(op Operator, lhs, rhs ScalarExpression) ScalarFilter {
 func (ScalarFilter) __spansetExpression() {}
 
 func (f ScalarFilter) extractConditions(request *FetchSpansRequest) {
-	f.lhs.extractConditions(request)
-	f.rhs.extractConditions(request)
+	f.LHS.extractConditions(request)
+	f.RHS.extractConditions(request)
 }
 
 // **********************
@@ -519,6 +520,17 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 		RHS: rhs,
 	}
 
+	if attr, ok := lhs.(Attribute); ok && attr.Intrinsic == IntrinsicTraceID {
+		if static, ok := rhs.(Static); ok {
+			binop.RHS = normalizeTraceIDOperand(static)
+		}
+	}
+	if attr, ok := rhs.(Attribute); ok && attr.Intrinsic == IntrinsicTraceID {
+		if static, ok := lhs.(Static); ok {
+			binop.LHS = normalizeTraceIDOperand(static)
+		}
+	}
+
 	// AST rewrite for simplification
 	if !binop.referencesSpan() && binop.validate() == nil {
 		if simplified, err := binop.execute(nil); err == nil {
@@ -531,6 +543,16 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 	}
 
 	return binop
+}
+
+// normalizeTraceIDOperand normalizes a Static operand for trace ID
+func normalizeTraceIDOperand(operand Static) Static {
+	if operand.Type != TypeString {
+		return operand
+	}
+	traceID := operand.EncodeToString(false)
+	traceID = strings.TrimLeft(traceID, "0")
+	return NewStaticString(traceID)
 }
 
 // nolint: revive
@@ -580,7 +602,7 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 func (UnaryOperation) __fieldExpression() {}
 
 func (o UnaryOperation) impliedType() StaticType {
-	if o.Op == OpExists {
+	if o.Op == OpExists || o.Op == OpNotExists {
 		return TypeBoolean
 	}
 
@@ -725,7 +747,11 @@ func NewStaticBooleanArray(b []bool) Static {
 	}
 }
 
-var seedBytes = []byte{204, 38, 247, 160, 15, 37, 67, 77}
+var (
+	seedBytes = []byte{204, 38, 247, 160, 15, 37, 67, 77}
+	// separatorByte is a byte that cannot occur in valid UTF-8 sequences
+	separatorByte = []byte{255}
+)
 
 func (s Static) MapKey() StaticMapKey {
 	switch s.Type {
@@ -742,7 +768,7 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		h := fnv.New64a()
+		h := xxhash.New()
 		_, _ = h.Write(s.valBytes)
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	case TypeStringArray:
@@ -750,11 +776,13 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		h := fnv.New64a()
-		_, _ = h.Write(seedBytes) // avoid collisions with values like []string{""}
+		h := xxhash.New()
+		_, _ = h.Write(seedBytes)
 		for _, str := range s.valStrings {
-			_, _ = h.Write(unsafe.Slice(unsafe.StringData(str), len(str)))
+			_, _ = h.Write([]byte(str))
+			_, _ = h.Write(separatorByte)
 		}
+
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	default:
 		return StaticMapKey{typ: s.Type, code: s.valScalar}
@@ -1156,11 +1184,11 @@ func NewIntrinsic(n Intrinsic) Attribute {
 }
 
 var (
-	_ pipelineElement = (*Pipeline)(nil)
-	_ pipelineElement = (*Aggregate)(nil)
-	_ pipelineElement = (*SpansetOperation)(nil)
-	_ pipelineElement = (*SpansetFilter)(nil)
-	_ pipelineElement = (*CoalesceOperation)(nil)
-	_ pipelineElement = (*ScalarFilter)(nil)
-	_ pipelineElement = (*GroupOperation)(nil)
+	_ PipelineElement = (*Pipeline)(nil)
+	_ PipelineElement = (*Aggregate)(nil)
+	_ PipelineElement = (*SpansetOperation)(nil)
+	_ PipelineElement = (*SpansetFilter)(nil)
+	_ PipelineElement = (*CoalesceOperation)(nil)
+	_ PipelineElement = (*ScalarFilter)(nil)
+	_ PipelineElement = (*GroupOperation)(nil)
 )

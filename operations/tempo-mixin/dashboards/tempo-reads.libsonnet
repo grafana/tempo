@@ -38,6 +38,10 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
         )
+        .addPanel(
+          $.panel('Requests Executed') +
+          $.latencyPanel('tempo_querier_worker_request_executed_total', '{%s,route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
+        )
       )
       .addRow(
         g.row('Ingester')
@@ -48,6 +52,56 @@ dashboard_utils {
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Querier/.*"}' % $.jobMatcher($._config.jobs.ingester), additional_grouping='route')
+        )
+      )
+      .addRow(
+        g.row('Livestore')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"/tempopb.Querier/.*"}' % $.containerMatcher($._config.jobs.live_store))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Querier/.*"}' % $.containerMatcher($._config.jobs.live_store), additional_grouping='route')
+        )
+        .addPanel(
+          $.panel('Pending Queue Length') +
+          $.queryPanel(
+            'tempo_live_store_complete_queue_length{%s}' % $.podMatcher('live-store-zone.*'), '{{pod}}'
+          )
+        )
+        .addPanel(
+          $.panel('Completed Blocks') +
+          $.queryPanel('sum by(pod) (rate(tempo_live_store_blocks_completed_total{%s}[$__rate_interval]))' % $.containerMatcher($._config.jobs.live_store), '{{pod}}')
+        )
+      )
+      .addRow(
+        $.row('Livestore Partitions')
+        .addPanel(
+          $.timeseriesPanel('Lag of records by partition') +
+          $.panelDescription(
+            'Kafka lag by partition records',
+            'Overview of the lag by partition in records.',
+          ) +
+          $.queryPanel(
+            'max(tempo_ingest_group_partition_lag{%(job)s}) by (partition,group)' % { job: $.jobMatcher('live-store-zone.*') }, '{{partition}}'
+          ) +
+          $.stack
+          +
+          { fieldConfig+: { defaults+: { unit: 'short' } } },
+        )
+        .addPanel(
+          $.timeseriesPanel('Lag by partition (sec)') +
+          $.panelDescription(
+            'Kafka lag by partition in seconds',
+            'Overview of the lag by partition in seconds.',
+          ) +
+          $.queryPanel(
+            'max(tempo_ingest_group_partition_lag_seconds{%(job)s}) by (partition,group)' % { job: $.jobMatcher('live-store-zone.*') }, '{{partition}}'
+          ) +
+          $.stack
+          +
+          { fieldConfig+: { defaults+: { unit: 's' } } },
         )
       )
       .addRow(

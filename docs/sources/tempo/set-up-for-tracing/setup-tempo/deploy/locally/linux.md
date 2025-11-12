@@ -45,7 +45,7 @@ Tempo supports using the local filesystem as the backend for trace storage as we
 This is not recommended for production deployments. This guide focuses on setup with an object storage.
 
 This example uses [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) on the AWS `us-east-1` region as your object store.
-If you plan on using a different region or object storage service, update the storage fields in the configuration file below. Currently, the supported object storage backends are AWS S3, other S3-compliant object stores, and Google Cloud’s GCS.
+If you plan on using a different region or object storage service, update the storage fields in the configuration file below. Currently, the supported object storage backends are [AWS S3](https://aws.amazon.com/), other S3-compliant object stores like [Minio](https://min.io/),[Azure](https://azure.microsoft.com), and [Google Cloud Storage](https://cloud.google.com/).
 
 After you have provisioned an object storage backend, create the bucket `grafana-traces-data`.
 The buckets will be referenced in the configuration file of this guide.
@@ -253,7 +253,7 @@ Docker compose uses an internal networking bridge to connect all of the defined 
    ```
    NAME             	IMAGE                                   	COMMAND              	SERVICE         	CREATED         	STATUS          	PORTS
    local-grafana-1  	grafana/grafana:9.3.2                   	"/run.sh"            	grafana         	2 minutes ago   	Up 3 seconds    	0.0.0.0:3000->3000/tcp, :::3000->3000/tcp
-   local-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.2   "/k6-tracing run /ex…"   k6-tracing      	2 minutes ago   	Up 2 seconds
+   local-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.9   "/k6-tracing run /ex…"   k6-tracing      	2 minutes ago   	Up 2 seconds
    local-prometheus-1   prom/prometheus:latest                  	"/bin/prometheus --c…"   prometheus      	2 minutes ago   	Up 2 seconds    	0.0.0.0:9090->9090/tcp, :::9090->9090/tcp
    ```
 

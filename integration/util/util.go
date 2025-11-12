@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -46,11 +47,13 @@ import (
 )
 
 const (
-	image           = "tempo:latest"
-	debugImage      = "tempo-debug:latest"
-	queryImage      = "tempo-query:latest"
-	jaegerImage     = "jaegertracing/jaeger-query:1.64.0"
-	prometheusImage = "prom/prometheus:latest"
+	image               = "tempo:latest"
+	debugImage          = "tempo-debug:latest"
+	queryImage          = "tempo-query:latest"
+	jaegerImage         = "jaegertracing/jaeger-query:1.64.0"
+	prometheusImage     = "prom/prometheus:latest"
+	xScopeOrgIDHeader   = "x-scope-orgid"
+	authorizationHeader = "authorization"
 )
 
 // GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
@@ -402,16 +405,28 @@ func TempoBackoff() backoff.Config {
 	}
 }
 
-func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
+func NewOtelGRPCExporterWithAuth(endpoint, orgID, basicAuthToken string, useTLS bool) (exporter.Traces, error) {
 	factory := otlpexporter.NewFactory()
 	exporterCfg := factory.CreateDefaultConfig()
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
+
+	// Configure headers for authentication (gRPC metadata format)
+	headers := make(map[string]configopaque.String)
+	if orgID != "" {
+		headers[xScopeOrgIDHeader] = configopaque.String(orgID)
+	}
+	if basicAuthToken != "" {
+		headers[authorizationHeader] = configopaque.String("Basic " + basicAuthToken)
+	}
+
 	otlpCfg.ClientConfig = configgrpc.ClientConfig{
 		Endpoint: endpoint,
 		TLS: configtls.ClientConfig{
-			Insecure: true,
+			Insecure: !useTLS,
 		},
+		Headers: headers,
 	}
+
 	// Disable retries to get immediate error feedback
 	otlpCfg.RetryConfig.Enabled = false
 	// Disable queueing
@@ -438,6 +453,10 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 		return nil, err
 	}
 	return te, nil
+}
+
+func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
+	return NewOtelGRPCExporterWithAuth(endpoint, "", "", false)
 }
 
 func NewSearchGRPCClient(ctx context.Context, endpoint string) (tempopb.StreamingQuerierClient, error) {
@@ -531,7 +550,7 @@ func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 
 	// verify trace can be found using attribute and time range
-	resp, err := client.SearchWithRange(attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
+	resp, err := client.SearchWithRange(context.Background(), attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
 	require.NoError(t, err)
 
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
@@ -540,13 +559,8 @@ func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
 func SearchAndAsserTagsBackend(t *testing.T, client *httpclient.Client, start, end int64) {
-	// There are no tags in recent data
-	resp, err := client.SearchTags()
-	require.NoError(t, err)
-	require.Equal(t, 0, len(resp.TagNames))
-
 	// There are additional tags in the backend
-	resp, err = client.SearchTagsWithRange(start, end)
+	resp, err := client.SearchTagsWithRange(start, end)
 	require.NoError(t, err)
 	require.True(t, len(resp.TagNames) > 0)
 }
@@ -576,7 +590,7 @@ func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, sp
 
 	traceIDLow := rand.Int63()
 	traceIDHigh := rand.Int63()
-	for i := 0; i < n; i++ {
+	for range n {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    traceIDLow,
 			TraceIdHigh:   traceIDHigh,
@@ -585,7 +599,7 @@ func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, sp
 			OperationName: name,
 			References:    nil,
 			Flags:         0,
-			StartTime:     time.Now().UnixNano() / 1000, // microsecconds
+			StartTime:     time.Now().Add(-3*time.Second).UnixNano() / 1000, // microsecconds
 			Duration:      1,
 			Tags: []*thrift.Tag{
 				{
@@ -720,12 +734,16 @@ type JaegerToOTLPExporter struct {
 	exporter exporter.Traces
 }
 
-func NewJaegerToOTLPExporter(endpoint string) (*JaegerToOTLPExporter, error) {
-	exp, err := NewOtelGRPCExporter(endpoint)
+func NewJaegerToOTLPExporterWithAuth(endpoint, orgID, basicAuthToken string, useTLS bool) (*JaegerToOTLPExporter, error) {
+	exp, err := NewOtelGRPCExporterWithAuth(endpoint, orgID, basicAuthToken, useTLS)
 	if err != nil {
 		return nil, err
 	}
 	return &JaegerToOTLPExporter{exporter: exp}, nil
+}
+
+func NewJaegerToOTLPExporter(endpoint string) (*JaegerToOTLPExporter, error) {
+	return NewJaegerToOTLPExporterWithAuth(endpoint, "", "", false)
 }
 
 // EmitBatch converts a Jaeger Thrift batch to OpenTelemetry traces format

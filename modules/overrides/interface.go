@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -34,6 +35,7 @@ type Interface interface {
 	MaxGlobalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int
 	IngestionArtificialDelay(userID string) (time.Duration, bool)
+	IngestionRetryInfoEnabled(userID string) bool
 	MaxCompactionRange(userID string) time.Duration
 	Forwarders(userID string) []string
 	MaxBytesPerTagValuesQuery(userID string) int
@@ -48,7 +50,7 @@ type Interface interface {
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
-	MetricsGeneratorGenerateNativeHistograms(userID string) HistogramMethod
+	MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod
 	MetricsGenerationTraceIDLabelName(userID string) string
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
@@ -72,8 +74,12 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool) // returns (enabled, isSet)
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool)                // returns (enabled, isSet)
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
+	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
+	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
+	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
+	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration
 	BlockRetention(userID string) time.Duration
 	CompactionDisabled(userID string) bool
 	MaxSearchDuration(userID string) time.Duration

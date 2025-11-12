@@ -488,11 +488,15 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,
 			},
+			QueryEndCutoff: 0,
 			Search: SearchConfig{
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
+					QueryIngestersUntil:   100 * time.Hour,
+					QueryBackendAfter:     100 * time.Hour,
+					IngesterShards:        1,
 				},
 				SLO: testSLOcfg,
 			},
@@ -535,11 +539,15 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,
 			},
+			QueryEndCutoff: 0,
 			Search: SearchConfig{
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
+					QueryIngestersUntil:   100 * time.Hour,
+					QueryBackendAfter:     100 * time.Hour,
+					IngesterShards:        1,
 				},
 				SLO: testSLOcfg,
 			},
@@ -866,12 +874,17 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,
 			},
+			QueryEndCutoff: 0,
 			Search: SearchConfig{
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					MostRecentShards:      defaultMostRecentShards,
+					QueryBackendAfter:     30 * time.Minute,
+					QueryIngestersUntil:   30 * time.Minute,
+					IngesterShards:        1,
 				},
+
 				SLO: testSLOcfg,
 			},
 			Metrics: MetricsConfig{
@@ -879,6 +892,7 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              1 * time.Second,
+					QueryBackendAfter:     30 * time.Minute,
 				},
 				SLO: testSLOcfg,
 			},
@@ -894,7 +908,7 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 	o, err := overrides.NewOverrides(*overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	f, err := New(*cfg, next, o, rdr, cacheProvider, "", fakeHTTPAuthMiddleware, log.NewNopLogger(), nil)
+	f, err := New(*cfg, next, o, rdr, cacheProvider, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	require.NoError(t, err)
 
 	return f

@@ -63,6 +63,7 @@ func AttributeScopeFromString(s string) AttributeScope {
 
 type Intrinsic int8
 
+// keep the intrinsics in sync with GetVirtualIntrinsicValues() in pkg/search/util.go
 const (
 	IntrinsicNone Intrinsic = iota
 	IntrinsicDuration

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
+	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
@@ -112,7 +113,7 @@ sendLoop:
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
 
-	for _, exeplarsCase := range []struct {
+	for _, exemplarsCase := range []struct {
 		name              string
 		exemplars         int
 		expectedExemplars int
@@ -158,10 +159,10 @@ sendLoop:
 			"{} | count_over_time() by (status)",
 			"{status != error} | count_over_time() by (status)",
 		} {
-			t.Run(fmt.Sprintf("%s: %s", exeplarsCase.name, query), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s: %s", exemplarsCase.name, query), func(t *testing.T) {
 				req := queryRangeRequest{
 					Query:     query,
-					Exemplars: exeplarsCase.exemplars,
+					Exemplars: exemplarsCase.exemplars,
 				}
 				queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), req)
 				require.NotNil(t, queryRangeRes)
@@ -172,7 +173,7 @@ sendLoop:
 				for _, series := range queryRangeRes.GetSeries() {
 					exemplarCount += len(series.GetExemplars())
 				}
-				assert.LessOrEqual(t, exemplarCount, exeplarsCase.expectedExemplars)
+				assert.LessOrEqual(t, exemplarCount, exemplarsCase.expectedExemplars)
 				assert.GreaterOrEqual(t, exemplarCount, 1)
 			})
 		}
@@ -595,7 +596,8 @@ sendLoop:
 			break sendLoop
 		}
 	}
-
+	util.CallFlush(t, tempo)
+	time.Sleep(1 * time.Second)
 	// Wait for traces to be flushed to blocks
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
@@ -606,7 +608,7 @@ sendLoop:
 		tempo.Endpoint(3200),
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
-		time.Now().Add(time.Minute).UnixNano(),
+		time.Now().UnixNano(),
 		"5s",
 	)
 
@@ -616,10 +618,9 @@ sendLoop:
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	// Read body and print it
+	// Read body
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	fmt.Println(string(body))
 
 	queryRangeRes := &tempopb.QueryRangeResponse{}
 	readBody := strings.NewReader(string(body))
@@ -674,7 +675,7 @@ sendLoop:
 		tempo.Endpoint(3200),
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
-		time.Now().Add(time.Minute).UnixNano(),
+		time.Now().UnixNano(),
 		"5s",
 	)
 
@@ -684,10 +685,9 @@ sendLoop:
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	// Read body and print it
+	// Read body
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	fmt.Println(string(body))
 
 	queryRangeRes := &tempopb.QueryRangeResponse{}
 	readBody := strings.NewReader(string(body))
@@ -736,7 +736,7 @@ sendLoop:
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
 
 	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 4)
 
 	util.CallFlush(t, tempo)
 	time.Sleep(blockFlushTimeout)
@@ -750,7 +750,7 @@ sendLoop:
 		tempo.Endpoint(3200),
 		url.QueryEscape(query),
 		time.Now().Add(-5*time.Minute).UnixNano(),
-		time.Now().Add(time.Minute).UnixNano(),
+		time.Now().UnixNano(),
 		"5s",
 	)
 
@@ -760,10 +760,9 @@ sendLoop:
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	// Read body and print it
+	// Read body
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	fmt.Println(string(body))
 
 	queryRangeRes := &tempopb.QueryRangeResponse{}
 	readBody := strings.NewReader(string(body))
@@ -774,6 +773,83 @@ sendLoop:
 	// max series is disabled so we should get a complete response with all series
 	require.Equal(t, tempopb.PartialStatus_COMPLETE, queryRangeRes.GetStatus())
 	require.Equal(t, spanCount, len(queryRangeRes.GetSeries()))
+}
+
+func TestQueryRangeTypeHandling(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	s, err := e2e.NewScenario("tempo_e2e_query_range_type_handling")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configQueryRangeMaxSeriesDisabledQuerier, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	jaegerClient, err := util.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
+	require.NoError(t, err)
+	require.NotNil(t, jaegerClient)
+
+	// Emit spans where the attribute names but the values are
+	// string and int with the same textual representation.
+	t1 := util.MakeThriftBatch()
+	t1.Spans[0].Tags = append(t1.Spans[0].Tags, &jaeger.Tag{
+		Key:   "foo",
+		VType: jaeger.TagType_STRING,
+		VStr:  strptr("123"),
+	})
+	require.NoError(t, jaegerClient.EmitBatch(ctx, t1))
+
+	t2 := util.MakeThriftBatch()
+	t2.Spans[0].Tags = append(t2.Spans[0].Tags, &jaeger.Tag{
+		Key:   "foo",
+		VType: jaeger.TagType_LONG,
+		VLong: int64ptr(123),
+	})
+	require.NoError(t, jaegerClient.EmitBatch(ctx, t2))
+
+	// Wait for traces to be flushed to blocks
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_spans_total"}, e2e.WaitMissingMetrics))
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_processor_local_blocks_cut_blocks"}, e2e.WaitMissingMetrics))
+
+	// Wait for the traces to be written to the WAL
+	time.Sleep(time.Second * 4)
+
+	query := "{span.foo != nil} | rate() by (span.foo)"
+	url := fmt.Sprintf(
+		"http://%s/api/metrics/query_range?q=%s&start=%d&end=%d&step=%s",
+		tempo.Endpoint(3200),
+		url.QueryEscape(query),
+		time.Now().Add(-5*time.Minute).UnixNano(),
+		time.Now().UnixNano(),
+		"5s",
+	)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	// Read body
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	queryRangeRes := &tempopb.QueryRangeResponse{}
+	readBody := strings.NewReader(string(body))
+	err = new(jsonpb.Unmarshaler).Unmarshal(readBody, queryRangeRes)
+	require.NoError(t, err)
+	require.NotNil(t, queryRangeRes)
+
+	// max series is disabled so we should get a complete response with all series
+	require.Equal(t, tempopb.PartialStatus_COMPLETE, queryRangeRes.GetStatus())
+
+	// Should get 2 series:
+	// foo="123"
+	// foo=int(123)
+	require.Equal(t, 2, len(queryRangeRes.GetSeries()))
 }
 
 func callInstantQuery(t *testing.T, endpoint string, req queryRangeRequest) tempopb.QueryInstantResponse {
@@ -835,4 +911,12 @@ func buildURL(host, endpoint string, req queryRangeRequest) string {
 		req.Step,
 		req.Exemplars,
 	)
+}
+
+func strptr(s string) *string {
+	return &s
+}
+
+func int64ptr(i int64) *int64 {
+	return &i
 }

@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const (
@@ -74,11 +75,10 @@ func (s *LiveStore) runInBackground(fn func()) {
 
 func (s *LiveStore) globalCompleteLoop(idx int) {
 	for {
-		o := s.completeQueues.Dequeue(idx)
-		if o == nil {
+		op := s.completeQueues.Dequeue(idx)
+		if op == nil {
 			return // queue is closed
 		}
-		op := o.(*completeOp)
 		op.attempts++
 
 		if op.attempts > maxFlushAttempts {
@@ -156,14 +156,31 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 	}
 }
 
-func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID) error {
-	return s.enqueueOp(&completeOp{
+func (s *LiveStore) enqueueCompleteOp(tenantID string, blockID uuid.UUID, jitter bool) error {
+	op := &completeOp{
 		tenantID: tenantID,
 		blockID:  blockID,
 		// Initial priority and backoff
 		at: time.Now(),
 		bo: initialBackoff,
-	})
+	}
+
+	if jitter {
+		return s.enqueueOpWithJitter(op)
+	}
+
+	return s.enqueueOp(op)
+}
+
+func (s *LiveStore) enqueueOpWithJitter(op *completeOp) error {
+	delay := time.Duration(rand.Int64N(10_000) * int64(time.Millisecond)) //gosec:disable G404 — It doesn't require strong randomness
+	go func() {
+		time.Sleep(delay)
+		if err := s.enqueueOp(op); err != nil {
+			level.Error(s.logger).Log("msg", "failed to enqueue block", "tenant", op.tenantID, "block", op.blockID, "err", err)
+		}
+	}()
+	return nil
 }
 
 func (s *LiveStore) enqueueOp(op *completeOp) error {
@@ -208,7 +225,7 @@ func (s *LiveStore) reloadBlocks() error {
 			inst.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
 
 			level.Info(s.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
-			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID)); err != nil {
+			if err := s.enqueueCompleteOp(meta.TenantID, uuid.UUID(meta.BlockID), true); err != nil {
 				return fmt.Errorf("failed to enqueue wal block for completion for tenant %s: %w", meta.TenantID, err)
 			}
 
@@ -275,7 +292,7 @@ func (s *LiveStore) reloadBlocks() error {
 			}
 
 			err = blk.Validate(ctx)
-			if err != nil && !errors.Is(err, common.ErrUnsupported) {
+			if err != nil && !errors.Is(err, util.ErrUnsupported) {
 				level.Error(s.logger).Log("msg", "local block failed validation, dropping", "block", id.String(), "error", err)
 
 				err = l.ClearBlock(id, tenant)

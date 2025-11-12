@@ -20,6 +20,10 @@ type Config struct {
 	PartitionRing ingester.PartitionRingConfig `yaml:"partition_ring" category:"experimental"`
 	Metrics       MetricsConfig                `yaml:"metrics"`
 
+	// CommitInterval configures how often the partition reader commits to kafka
+	// 0s means synchronous commits
+	CommitInterval time.Duration `yaml:"commit_interval"`
+
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestConfig ingest.Config `yaml:"-"`
 
@@ -29,6 +33,9 @@ type Config struct {
 	QueryBlockConcurrency    uint          `yaml:"query_block_concurrency,omitempty"`
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
+
+	// ShutdownMarkerDir is the path to the shutdown marker directory
+	ShutdownMarkerDir string `yaml:"shutdown_marker_dir"`
 
 	// Timing configuration
 	InstanceFlushPeriod   time.Duration `yaml:"flush_check_period"`
@@ -63,7 +70,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// Set defaults for new fields
 	cfg.CompleteBlockTimeout = defaultCompleteBlockTimeout
 	cfg.QueryBlockConcurrency = 10
-	cfg.CompleteBlockConcurrency = 4
+	cfg.CompleteBlockConcurrency = 2
 	cfg.Metrics.TimeOverlapCutoff = 0.2
 
 	// Set defaults for timing configuration (based on ingester defaults)
@@ -73,7 +80,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxTraceIdle = 5 * time.Second
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
 	cfg.MaxBlockDuration = 30 * time.Minute
-	cfg.MaxBlockBytes = 500 * 1024 * 1024
+	cfg.MaxBlockBytes = 100 * 1024 * 1024
+
+	cfg.CommitInterval = 5 * time.Second
 
 	// Initialize block config with defaults
 	cfg.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
@@ -86,6 +95,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.WAL.RegisterFlags(f) // WAL config has no flags, only defaults
 	cfg.WAL.Version = encoding.DefaultEncoding().Version()
 	f.StringVar(&cfg.WAL.Filepath, prefix+".wal.path", "/var/tempo/live-store/traces", "Path at which store WAL blocks.")
+	f.StringVar(&cfg.ShutdownMarkerDir, prefix+".shutdown_marker_dir", "/var/tempo/live-store/shutdown-marker", "Path to the shutdown marker directory.")
 }
 
 func (cfg *Config) Validate() error {

@@ -31,7 +31,6 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 		},
 		Series: []*tempopb.TimeSeries{
 			{
-				PromLabels: "foo",
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -87,7 +86,6 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 		},
 		Series: []*tempopb.TimeSeries{
 			{
-				PromLabels: "foo",
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -132,7 +130,6 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 		},
 		Series: []*tempopb.TimeSeries{
 			{
-				PromLabels: "foo",
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -213,7 +210,6 @@ func TestQueryRangeHandlerV2MaxSeries(t *testing.T) {
 		},
 		Series: []*tempopb.TimeSeries{
 			{
-				PromLabels: "foo",
 				Labels: []v1.KeyValue{
 					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 				},
@@ -228,9 +224,7 @@ func TestQueryRangeHandlerV2MaxSeries(t *testing.T) {
 					},
 				},
 			},
-
 			{
-				PromLabels: "abc",
 				Labels: []v1.KeyValue{
 					{Key: "abc", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "xyz"}}},
 				},
@@ -314,7 +308,6 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 				},
 				Series: []*tempopb.TimeSeries{
 					{
-						PromLabels: "foo",
 						Labels: []v1.KeyValue{
 							{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
 						},

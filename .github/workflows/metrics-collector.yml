@@ -17,14 +17,14 @@ jobs:
     steps:
       - name: Get Github App secrets from vault
         id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@a37de51f3d713a30a9e4b21bcdfbd38170020593 #get-vault-secrets 1.2.0
+        uses: grafana/shared-workflows/actions/get-vault-secrets@2d5a0678eb32b0fd6655b4f7a3a7ec72eaf530ca #get-vault-secrets 1.2.0
         with:
           export_env: false
           repo_secrets: |
             APP_ID=tempo-ci-app:app-id
             PRIVATE_KEY=tempo-ci-app:private-key
       - name: Get app token
-        uses: actions/create-github-app-token@0f859bf9e69e887678d5bbfbee594437cb440ffe # v2.1.0
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
         id: get-github-app-token
         with:
           app-id: ${{ fromJSON(steps.get-secrets.outputs.secrets).APP_ID }}
@@ -32,7 +32,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: tempo
       - name: Checkout Actions
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           repository: "grafana/grafana-github-actions"
           path: ./actions

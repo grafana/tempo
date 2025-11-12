@@ -63,6 +63,8 @@ metrics_generator:
   [processors: <list of strings>]
   [collection_interval: <duration>]
   [disable_collection: <bool> | default = false]
+  [generate_native_histograms: <classic|native|both> | default = classic]
+  [native_histogram_max_bucket_number: <int> | default = 100]
 
   processor:
 
@@ -88,10 +90,12 @@ metrics_generator:
       ]
       [enable_target_info: <bool>]
       [target_info_excluded_dimensions: <list of string>]
+      [enable_instance_label: <bool>]
+      [enable_virtual_node_label: <string>]
 
     host_info:
-      [metric_name: <string>]
       [host_identifiers: <list of string>]
+      [metric_name: <string>]
 ```
 
 ## API

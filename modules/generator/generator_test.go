@@ -14,9 +14,11 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -38,7 +40,7 @@ func TestGeneratorSpanMetrics_subprocessorConcurrency(t *testing.T) {
 		Defaults: overrides.Overrides{
 			MetricsGenerator: overrides.MetricsGeneratorOverrides{
 				Processors: map[string]struct{}{
-					spanmetrics.Name: {},
+					processor.SpanMetricsName: {},
 				},
 				CollectionInterval: 2 * time.Second,
 			},
@@ -54,7 +56,7 @@ overrides:
       collection_interval: 1s
       processors:
         - %s
-`, user1, spanmetrics.Name)), 0o700))
+`, user1, processor.SpanMetricsName)), 0o700))
 
 	o, err := overrides.NewOverrides(overridesConfig, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -120,7 +122,7 @@ func verifySubprocessors(t *testing.T, instance *instance, expected map[spanmetr
 
 	require.Len(t, instance.processors, 1)
 
-	processor, ok := instance.processors[spanmetrics.Name]
+	processor, ok := instance.processors[processor.SpanMetricsName]
 	require.True(t, ok)
 
 	require.Equal(t, len(processor.(*spanmetrics.Processor).Cfg.Subprocessors), len(expected))
@@ -242,7 +244,7 @@ func BenchmarkCollect(b *testing.B) {
 			spanMetricsDimensions:                   []string{"k8s.cluster.name", "k8s.namespace.name"},
 			spanMetricsEnableTargetInfo:             boolPtr(true),
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
-			nativeHistograms:                        overrides.HistogramMethodBoth,
+			nativeHistograms:                        histograms.HistogramMethodBoth,
 		}
 	)
 

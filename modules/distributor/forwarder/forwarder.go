@@ -91,12 +91,12 @@ func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) 
 		},
 		BuildInfo: component.BuildInfo{},
 	}
-	fpCfg := &filterprocessor.Config{
-		ErrorMode: ottl.IgnoreError,
-		Traces: filterprocessor.TraceFilters{
-			SpanConditions:      cfg.Traces.SpanConditions,
-			SpanEventConditions: cfg.Traces.SpanEventConditions,
-		},
+	// Use CreateDefaultConfig to get a Config with OTTL functions properly initialized
+	fpCfg := factory.CreateDefaultConfig().(*filterprocessor.Config)
+	fpCfg.ErrorMode = ottl.IgnoreError
+	fpCfg.Traces = filterprocessor.TraceFilters{
+		SpanConditions:      cfg.Traces.SpanConditions,
+		SpanEventConditions: cfg.Traces.SpanEventConditions,
 	}
 	fp, err := factory.CreateTraces(context.Background(), set, fpCfg, consumerToForwarderAdapter{forwarder: next})
 	if err != nil {

@@ -91,6 +91,10 @@ func (o ScalarOperation) validate() error {
 		return err
 	}
 
+	if o.Op == OpNotExists || o.Op == OpExists {
+		return fmt.Errorf("illegal operation for the given type: %s", o.String())
+	}
+
 	lhsT := o.LHS.impliedType()
 	rhsT := o.RHS.impliedType()
 	if !lhsT.isMatchingOperand(rhsT) {
@@ -137,6 +141,10 @@ func (o SpansetOperation) validate() error {
 		return err
 	}
 
+	if o.Op == OpNotExists || o.Op == OpExists {
+		return fmt.Errorf("illegal operation for the given type: %s", o.String())
+	}
+
 	return o.RHS.validate()
 }
 
@@ -154,31 +162,31 @@ func (f SpansetFilter) validate() error {
 }
 
 func (f ScalarFilter) validate() error {
-	if err := f.lhs.validate(); err != nil {
+	if err := f.LHS.validate(); err != nil {
 		return err
 	}
-	if err := f.rhs.validate(); err != nil {
+	if err := f.RHS.validate(); err != nil {
 		return err
 	}
 
-	lhsT := f.lhs.impliedType()
-	rhsT := f.rhs.impliedType()
+	lhsT := f.LHS.impliedType()
+	rhsT := f.RHS.impliedType()
 	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", f.String())
 	}
 
-	if !f.op.binaryTypesValid(lhsT, rhsT) {
+	if !f.Op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", f.String())
 	}
 
 	// Only supported expression types
-	switch f.lhs.(type) {
+	switch f.LHS.(type) {
 	case Aggregate:
 	default:
 		return newUnsupportedError("scalar filter lhs of type (%v)")
 	}
 
-	switch f.rhs.(type) {
+	switch f.RHS.(type) {
 	case Static:
 	default:
 		return newUnsupportedError("scalar filter rhs of type (%v)")
@@ -198,12 +206,12 @@ func (o *BinaryOperation) validate() error {
 	lhsT := o.LHS.impliedType()
 	rhsT := o.RHS.impliedType()
 
-	if !lhsT.isMatchingOperand(rhsT) {
-		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
+	if o.Op == OpNotExists || o.Op == OpExists {
+		return fmt.Errorf("illegal operation for the given type: %s", o.String())
 	}
 
-	if rhsT == TypeNil && o.Op == OpEqual {
-		return newUnsupportedError("{.a = nil}")
+	if !lhsT.isMatchingOperand(rhsT) {
+		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
@@ -212,7 +220,16 @@ func (o *BinaryOperation) validate() error {
 
 	// if this is a regex operator confirm the RHS is a valid regex
 	if o.Op == OpRegex || o.Op == OpNotRegex {
-		_, err := regexp.Compile(o.RHS.String())
+		// Ensure that we validate against the raw/unquoted string when possible.
+		// When RHS is a hardcoded string in the query which is compiled to a Static.
+		var text string
+		if static, ok := o.RHS.(Static); ok {
+			text = static.EncodeToString(false)
+		} else {
+			text = o.RHS.String()
+		}
+
+		_, err := regexp.Compile(text)
 		if err != nil {
 			return fmt.Errorf("invalid regex: %s", o.RHS.String())
 		}

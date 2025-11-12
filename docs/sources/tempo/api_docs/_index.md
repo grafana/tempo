@@ -26,35 +26,37 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 
 <!-- vale Grafana.Spelling = NO -->
 
-| API                                                                                   | Service                                   | Type | Endpoint                                                |
-| ------------------------------------------------------------------------------------- | ----------------------------------------- | ---- | ------------------------------------------------------- |
-| [Readiness probe](#readiness-probe)                                                   | _All services_                            | HTTP | `GET /ready`                                            |
-| [Metrics](#metrics)                                                                   | _All services_                            | HTTP | `GET /metrics`                                          |
-| [Pprof](#pprof)                                                                       | _All services_                            | HTTP | `GET /debug/pprof`                                      |
-| [Ingest traces](#ingest)                                                              | Distributor                               | -    | See section for details                                 |
-| [Querying traces by id](#query)                                                       | Query-frontend                            | HTTP | `GET /api/traces/<traceID>`                             |
-| [Querying traces by id V2](#query-v2)                                                 | Query-frontend                            | HTTP | `GET /api/v2/traces/<traceID>`                          |
-| [Searching traces](#search)                                                           | Query-frontend                            | HTTP | `GET /api/search?<params>`                              |
-| [Search tag names](#search-tags)                                                      | Query-frontend                            | HTTP | `GET /api/search/tags`                                  |
-| [Search tag names V2](#search-tags-v2)                                                | Query-frontend                            | HTTP | `GET /api/v2/search/tags`                               |
-| [Search tag values](#search-tag-values)                                               | Query-frontend                            | HTTP | `GET /api/search/tag/<tag>/values`                      |
-| [Search tag values V2](#search-tag-values-v2)                                         | Query-frontend                            | HTTP | `GET /api/v2/search/tag/<tag>/values`                   |
-| [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                          |
-| [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                |
-| [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                         |
-| [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                  |
-| Memberlist                                                                            | Distributor, Ingester, Querier, Compactor | HTTP | `GET /memberlist`                                       |
-| [Flush](#flush)                                                                       | Ingester                                  | HTTP | `GET,POST /flush`                                       |
-| [Shutdown](#shutdown)                                                                 | Ingester                                  | HTTP | `GET,POST /shutdown`                                    |
-| [Prepare partition downscale](#prepare-partition-downscale)                           | Ingester                                  | HTTP | `GET,POST,DELETE /ingester/prepare-partition-downscale` |
-| [Usage Metrics](#usage-metrics)                                                       | Distributor                               | HTTP | `GET /usage_metrics`                                    |
-| [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                 |
-| [Ingesters ring status](#ingesters-ring-status)                                       | Distributor, Querier                      | HTTP | `GET /ingester/ring`                                    |
-| [Metrics-generator ring status](#metrics-generator-ring-status) (\*)                  | Distributor                               | HTTP | `GET /metrics-generator/ring`                           |
-| [Compactor ring status](#compactor-ring-status)                                       | Compactor                                 | HTTP | `GET /compactor/ring`                                   |
-| [Status](#status)                                                                     | Status                                    | HTTP | `GET /status`                                           |
-| [List build information](#list-build-information)                                     | Status                                    | HTTP | `GET /api/status/buildinfo`                             |
-| [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (\*) | MCP                                       |      | `/api/mcp`                                              |
+| API                                                                                   | Service                                   | Type | Endpoint                                                  |
+| ------------------------------------------------------------------------------------- | ----------------------------------------- | ---- | --------------------------------------------------------- |
+| [Readiness probe](#readiness-probe)                                                   | _All services_                            | HTTP | `GET /ready`                                              |
+| [Metrics](#metrics)                                                                   | _All services_                            | HTTP | `GET /metrics`                                            |
+| [Pprof](#pprof)                                                                       | _All services_                            | HTTP | `GET /debug/pprof`                                        |
+| [Ingest traces](#ingest)                                                              | Distributor                               | -    | See section for details                                   |
+| [Querying traces by id](#query)                                                       | Query-frontend                            | HTTP | `GET /api/traces/<traceID>`                               |
+| [Querying traces by id V2](#query-v2)                                                 | Query-frontend                            | HTTP | `GET /api/v2/traces/<traceID>`                            |
+| [Searching traces](#search)                                                           | Query-frontend                            | HTTP | `GET /api/search?<params>`                                |
+| [Search tag names](#search-tags)                                                      | Query-frontend                            | HTTP | `GET /api/search/tags`                                    |
+| [Search tag names V2](#search-tags-v2)                                                | Query-frontend                            | HTTP | `GET /api/v2/search/tags`                                 |
+| [Search tag values](#search-tag-values)                                               | Query-frontend                            | HTTP | `GET /api/search/tag/<tag>/values`                        |
+| [Search tag values V2](#search-tag-values-v2)                                         | Query-frontend                            | HTTP | `GET /api/v2/search/tag/<tag>/values`                     |
+| [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
+| [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
+| [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
+| [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
+| Memberlist                                                                            | Distributor, Ingester, Querier, Compactor | HTTP | `GET /memberlist`                                         |
+| [Flush](#flush)                                                                       | Ingester                                  | HTTP | `GET,POST /flush`                                         |
+| [Shutdown](#shutdown)                                                                 | Ingester                                  | HTTP | `GET,POST /shutdown`                                      |
+| [Prepare partition downscale](#prepare-partition-downscale)                           | Ingester                                  | HTTP | `GET,POST,DELETE /ingester/prepare-partition-downscale`   |
+| [Prepare live store partition downscale](#prepare-live-store-partition-downscale)     | Live store                                | HTTP | `GET,POST,DELETE /live-store/prepare-partition-downscale` |
+| [Prepare live store downscale](#prepare-live-store-downscale)                         | Live store                                | HTTP | `POST,DELETE /live-store/prepare-downscale`               |
+| [Usage Metrics](#usage-metrics)                                                       | Distributor                               | HTTP | `GET /usage_metrics`                                      |
+| [Distributor ring status](#distributor-ring-status) (\*)                              | Distributor                               | HTTP | `GET /distributor/ring`                                   |
+| [Ingesters ring status](#ingesters-ring-status)                                       | Distributor, Querier                      | HTTP | `GET /ingester/ring`                                      |
+| [Metrics-generator ring status](#metrics-generator-ring-status) (\*)                  | Distributor                               | HTTP | `GET /metrics-generator/ring`                             |
+| [Compactor ring status](#compactor-ring-status)                                       | Compactor                                 | HTTP | `GET /compactor/ring`                                     |
+| [Status](#status)                                                                     | Status                                    | HTTP | `GET /status`                                             |
+| [List build information](#list-build-information)                                     | Status                                    | HTTP | `GET /api/status/buildinfo`                               |
+| [MCP Server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server) (\*) | MCP                                       |      | `/api/mcp`                                                |
 
 _(\*) This endpoint isn't always available, check the specific section for more details._
 
@@ -99,8 +101,7 @@ For more information, refer to the official documentation of [pprof](https://gol
 ### Ingest
 
 The Tempo distributor uses the OpenTelemetry Collector receivers as a foundation to ingest trace data.
-These APIs are meant to be consumed by the corresponding client SDK or pipeline component, such as Grafana
-Agent, OpenTelemetry Collector, or Jaeger Agent.
+These APIs are meant to be consumed by the corresponding client SDK or pipeline component, such as Grafana Alloy, OpenTelemetry Collector, or Jaeger Agent.
 
 | Protocol      | Type           | Docs                                                                       |
 | ------------- | -------------- | -------------------------------------------------------------------------- |
@@ -153,7 +154,7 @@ Parameters:
   Default = `00000000-0000-0000-0000-000000000000`
   Example: `blockStart=12345678-0000-0000-1235-000001240000`
 - `blockEnd = (GUID)`
-  Specifies the blockID finish boundary. If specified, the querier only searches blocks with IDs < blockEnd.
+  Specifies the blockID finish boundary. If specified, the querier only searches blocks with IDs < `blockEnd`.
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
 - `start = (unix epoch seconds)`
@@ -759,7 +760,33 @@ A `POST` call switches this ingester's partition to the `INACTIVE` state, if it 
 
 A `DELETE` call sets the partition back from the `INACTIVE` to the `ACTIVE` state.
 
-If the ingester is not configured to use ingest-storage, any call to this endpoint fails.
+### Prepare live store downscale
+
+```
+POST,DELETE /live-store/prepare-downscale
+```
+
+This endpoint prepares the live store for downscaling by configuring whether it should remove itself from the ring on shutdown.
+
+A `GET` call returns set if the live-store is prepared for downscale, unset otherwise.
+
+A `POST` call enables prepare downscale mode (remove the live store from the ring owners on shutdown). The partition must be in `INACTIVE` state.
+
+A `DELETE` call disables prepare downscale mode (do not remove the live store from the ring owners on shutdown).
+
+### Prepare live store partition downscale
+
+```
+GET,POST,DELETE /live-store/prepare-partition-downscale
+```
+
+This endpoint prepares the live store's partition for downscaling by setting it to the `INACTIVE` state.
+
+A `GET` call to this endpoint returns a timestamp of when the partition was switched to the `INACTIVE` state, or 0, if the partition is not in the `INACTIVE` state.
+
+A `POST` call switches this live store's partition to the `INACTIVE` state, if it isn't `INACTIVE` already, and returns the timestamp of when the switch to the `INACTIVE` state occurred.
+
+A `DELETE` call sets the partition back from the `INACTIVE` to the `ACTIVE` state.
 
 ### Usage metrics
 

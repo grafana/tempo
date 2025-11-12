@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -31,6 +29,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -210,12 +209,12 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			// and engine.ExecuteSearch is parsing the query for each block
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return b.Fetch(ctx, req, opts)
-			}))
+			}), i.overrides.UnsafeQueryHints(i.tenantID))
 		} else {
 			resp, err = b.Search(ctx, req, opts)
 		}
 
-		if errors.Is(err, common.ErrUnsupported) {
+		if errors.Is(err, util.ErrUnsupported) {
 			level.Warn(i.logger).Log("msg", "block does not support search", "blockID", blockMeta.BlockID)
 			return nil
 		}
@@ -283,7 +282,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	ctx, span := tracer.Start(ctx, "instance.SearchTagsV2")
 	defer span.End()
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +323,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 				distinctValues.Collect(scope.String(), t)
 			}, mc.Add, common.DefaultSearchOptions())
 
-			if err != nil && !errors.Is(err, common.ErrUnsupported) {
+			if err != nil && !errors.Is(err, util.ErrUnsupported) {
 				return err
 			}
 
@@ -369,7 +368,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 }
 
 func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +401,7 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 
 		inspectedBlocks++
 		err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, mc.Add, common.DefaultSearchOptions())
-		if err != nil && !errors.Is(err, common.ErrUnsupported) {
+		if err != nil && !errors.Is(err, util.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
 		}
 
@@ -426,7 +425,7 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 }
 
 func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -577,12 +576,18 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	return resp, nil
 }
 
-func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.TraceByIDResponse, error) {
+func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowPartialTrace bool) (*tempopb.TraceByIDResponse, error) {
 	var (
 		metricsMtx sync.Mutex
 		metrics    = tempopb.TraceByIDMetrics{}
-		combiner   = trace.NewCombiner(math.MaxInt64, true)
+		maxBytes   = i.overrides.MaxBytesPerTrace(i.tenantID)
+		searchOpts = common.DefaultSearchOptions()
+		combiner   = trace.NewCombiner(maxBytes, allowPartialTrace)
 	)
+
+	if !allowPartialTrace {
+		searchOpts = common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+	}
 
 	// Check live traces first
 	i.liveTracesMtx.Lock()
@@ -600,7 +605,7 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte) (*tempopb.
 	i.liveTracesMtx.Unlock()
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
-		trace, err := b.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+		trace, err := b.FindTraceByID(ctx, traceID, searchOpts)
 		if err != nil {
 			return err
 		}

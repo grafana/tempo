@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util"
@@ -342,6 +343,10 @@ func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) 
 	return 0, false
 }
 
+func (o *runtimeConfigOverridesManager) IngestionRetryInfoEnabled(userID string) bool {
+	return o.getOverridesForUser(userID).Ingestion.RetryInfoEnabled
+}
+
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
 func (o *runtimeConfigOverridesManager) MaxBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).Global.MaxBytesPerTrace
@@ -422,8 +427,29 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorDisableCollection(userID
 	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
 }
 
-func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) HistogramMethod {
+func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod {
 	return o.getOverridesForUser(userID).MetricsGenerator.GenerateNativeHistograms
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramBucketFactor(userID string) float64 {
+	if factor := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramBucketFactor; factor != 0.0 {
+		return factor
+	}
+	return o.defaultLimits.MetricsGenerator.NativeHistogramBucketFactor
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32 {
+	if num := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMaxBucketNumber; num != 0 {
+		return num
+	}
+	return o.defaultLimits.MetricsGenerator.NativeHistogramMaxBucketNumber
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration {
+	if dur := o.getOverridesForUser(userID).MetricsGenerator.NativeHistogramMinResetDuration; dur != 0 {
+		return dur
+	}
+	return o.defaultLimits.MetricsGenerator.NativeHistogramMinResetDuration
 }
 
 // MetricsGenerationTraceIDLabelName is the label name used for the trace ID in metrics.
@@ -550,6 +576,14 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksComp
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool) {
+	EnableInstanceLabel := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel
+	if EnableInstanceLabel != nil {
+		return *EnableInstanceLabel, true
+	}
+	return true, false // default to true
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {

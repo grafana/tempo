@@ -113,7 +113,7 @@ Docker compose uses an internal networking bridge to connect all of the defined 
    ```
    NAME             	IMAGE                                   	COMMAND              	SERVICE         	CREATED         	STATUS          	PORTS
    local-grafana-1  	grafana/grafana:9.3.2                   	"/run.sh"            	grafana         	2 minutes ago   	Up 3 seconds    	0.0.0.0:3000->3000/tcp, :::3000->3000/tcp
-   local-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.2   "/k6-tracing run /ex…"   k6-tracing      	2 minutes ago   	Up 2 seconds
+   local-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.9   "/k6-tracing run /ex…"   k6-tracing      	2 minutes ago   	Up 2 seconds
    local-prometheus-1   prom/prometheus:latest                  	"/bin/prometheus --c…"   prometheus      	2 minutes ago   	Up 2 seconds    	0.0.0.0:9090->9090/tcp, :::9090->9090/tcp
    ```
 

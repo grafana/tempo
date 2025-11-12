@@ -211,9 +211,9 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 	// TODO we solve this gap where pipeline elements and scalar binary
 	// operations meet in a generic way. For now we only support well-defined
 	// case: aggregate binop static
-	switch l := f.lhs.(type) {
+	switch l := f.LHS.(type) {
 	case Aggregate:
-		switch r := f.rhs.(type) {
+		switch r := f.RHS.(type) {
 		case Static:
 			input, err = l.evaluate(input)
 			if err != nil {
@@ -221,7 +221,7 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 			}
 
 			for _, ss := range input {
-				res, err := binOp(f.op, ss.Scalar, r)
+				res, err := binOp(f.Op, ss.Scalar, r)
 				if err != nil {
 					return nil, fmt.Errorf("scalar filter (%v) failed: %v", f, err)
 				}
@@ -231,11 +231,11 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 			}
 
 		default:
-			return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.lhs)
+			return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.LHS)
 		}
 
 	default:
-		return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.lhs)
+		return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.LHS)
 	}
 
 	return output, nil
@@ -419,34 +419,38 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	if lhsT == TypeString && rhsT == TypeString {
+		// All operations are done on raw unquoted values.
+		lhsS := lhs.EncodeToString(false)
+		rhsS := rhs.EncodeToString(false)
+
 		switch o.Op {
 		case OpGreater:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) > 0), nil
+			return NewStaticBool(strings.Compare(lhsS, rhsS) > 0), nil
 		case OpGreaterEqual:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) >= 0), nil
+			return NewStaticBool(strings.Compare(lhsS, rhsS) >= 0), nil
 		case OpLess:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) < 0), nil
+			return NewStaticBool(strings.Compare(lhsS, rhsS) < 0), nil
 		case OpLessEqual:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) <= 0), nil
+			return NewStaticBool(strings.Compare(lhsS, rhsS) <= 0), nil
 		case OpRegex:
 			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhs.EncodeToString(false)}, true)
+				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, true)
 				if err != nil {
 					return NewStaticNil(), err
 				}
 			}
 
-			matched := o.compiledExpression.MatchString(lhs.EncodeToString(false))
+			matched := o.compiledExpression.MatchString(lhsS)
 			return NewStaticBool(matched), err
 		case OpNotRegex:
 			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.NewRegexp([]string{rhs.EncodeToString(false)}, false)
+				o.compiledExpression, err = regexp.NewRegexp([]string{rhsS}, false)
 				if err != nil {
 					return NewStaticNil(), err
 				}
 			}
 
-			matched := o.compiledExpression.MatchString(lhs.EncodeToString(false))
+			matched := o.compiledExpression.MatchString(lhsS)
 			return NewStaticBool(matched), err
 		default:
 		}
@@ -676,6 +680,10 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 	}
 	if o.Op == OpExists {
 		return NewStaticBool(static.Type != TypeNil), nil
+	}
+	if o.Op == OpNotExists {
+		staticNilString := NewStaticString("nil")
+		return NewStaticBool(static.Equals(&staticNilString)), nil
 	}
 
 	return NewStaticNil(), fmt.Errorf("UnaryOperation has invalid operator %v", o.Op)

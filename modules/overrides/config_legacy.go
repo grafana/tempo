@@ -3,6 +3,7 @@ package overrides
 import (
 	"time"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 
@@ -22,6 +23,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxGlobalTracesPerUser:     c.Ingestion.MaxGlobalTracesPerUser,
 		IngestionMaxAttributeBytes: c.Ingestion.MaxAttributeBytes,
 		IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
+		IngestionRetryInfoEnabled:  c.Ingestion.RetryInfoEnabled,
 
 		Forwarders: c.Forwarders,
 
@@ -48,6 +50,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsDimensionMappings:                       c.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:                        c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
+		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                           c.MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:                        c.MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                           c.MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes,
@@ -57,6 +60,9 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
 		MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
 		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
+		MetricsGeneratorNativeHistogramBucketFactor:                                 c.MetricsGenerator.NativeHistogramBucketFactor,
+		MetricsGeneratorNativeHistogramMaxBucketNumber:                              c.MetricsGenerator.NativeHistogramMaxBucketNumber,
+		MetricsGeneratorNativeHistogramMinResetDuration:                             c.MetricsGenerator.NativeHistogramMinResetDuration,
 
 		BlockRetention:     c.Compaction.BlockRetention,
 		CompactionWindow:   c.Compaction.CompactionWindow,
@@ -88,6 +94,7 @@ type LegacyOverrides struct {
 	IngestionTenantShardSize   int            `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
 	IngestionMaxAttributeBytes int            `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
 	IngestionArtificialDelay   *time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
+	IngestionRetryInfoEnabled  bool           `yaml:"ingestion_retry_info_enabled" json:"ingestion_retry_info_enabled"`
 
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
@@ -102,7 +109,10 @@ type LegacyOverrides struct {
 	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
-	MetricsGeneratorGenerateNativeHistograms                                    HistogramMethod                  `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
+	MetricsGeneratorGenerateNativeHistograms                                    histograms.HistogramMethod       `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
+	MetricsGeneratorNativeHistogramBucketFactor                                 float64                          `yaml:"metrics_generator_native_histogram_bucket_factor,omitempty" json:"metrics_generator_native_histogram_bucket_factor,omitempty"`
+	MetricsGeneratorNativeHistogramMaxBucketNumber                              uint32                           `yaml:"metrics_generator_native_histogram_max_bucket_number,omitempty" json:"metrics_generator_native_histogram_max_bucket_number,omitempty"`
+	MetricsGeneratorNativeHistogramMinResetDuration                             time.Duration                    `yaml:"metrics_generator_native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 	MetricsGeneratorTraceIDLabelName                                            string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
@@ -120,6 +130,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings                       []sharedconfig.DimensionMappings `yaml:"metrics_generator_processor_span_metrics_dimension_mappings" json:"metrics_generator_processor_span_metrics_dimension_mapings"`
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo                        *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
+	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
 	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
 	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration                        time.Duration                    `yaml:"metrics_generator_processor_local_blocks_max_block_duration" json:"metrics_generator_processor_local_blocks_max_block_duration"`
 	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_block_bytes" json:"metrics_generator_processor_local_blocks_max_block_bytes"`
@@ -165,6 +176,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			TenantShardSize:        l.IngestionTenantShardSize,
 			MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
 			ArtificialDelay:        l.IngestionArtificialDelay,
+			RetryInfoEnabled:       l.IngestionRetryInfoEnabled,
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
@@ -209,6 +221,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					DimensionMappings:            l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
 					EnableTargetInfo:             l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
 					TargetInfoExcludedDimensions: l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
+					EnableInstanceLabel:          l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
 				},
 				LocalBlocks: LocalBlocksOverrides{
 					MaxLiveTraces:        l.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces,
@@ -223,6 +236,9 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					MetricName:      l.MetricsGeneratorProcessorHostInfoMetricName,
 				},
 			},
+			NativeHistogramBucketFactor:     l.MetricsGeneratorNativeHistogramBucketFactor,
+			NativeHistogramMaxBucketNumber:  l.MetricsGeneratorNativeHistogramMaxBucketNumber,
+			NativeHistogramMinResetDuration: l.MetricsGeneratorNativeHistogramMinResetDuration,
 		},
 		Forwarders: l.Forwarders,
 		Global: GlobalOverrides{

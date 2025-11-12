@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 )
@@ -13,9 +14,11 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 	return &client.Limits{
 		Forwarders: strArrPtr(overrides.Forwarders(userID)),
 		MetricsGenerator: client.LimitsMetricsGenerator{
-			Processors:         overrides.MetricsGeneratorProcessors(userID),
-			DisableCollection:  boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
-			CollectionInterval: timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
+			Processors:                     overrides.MetricsGeneratorProcessors(userID),
+			DisableCollection:              boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
+			CollectionInterval:             timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
+			GenerateNativeHistograms:       histogramModePtr(overrides.MetricsGeneratorGenerateNativeHistograms(userID)),
+			NativeHistogramMaxBucketNumber: uint32Ptr(overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)),
 			Processor: client.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
@@ -32,6 +35,10 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					FilterPolicies:               filterPoliciesPtr(overrides.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)),
 					HistogramBuckets:             floatArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID)),
 					TargetInfoExcludedDimensions: strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)),
+					EnableInstanceLabel: func() *bool {
+						val, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID)
+						return boolPtr(val)
+					}(),
 				},
 				HostInfo: client.LimitsMetricGeneratorProcessorHostInfo{
 					HostIdentifiers: strArrPtr(overrides.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)),
@@ -64,4 +71,12 @@ func floatArrPtr(f []float64) *[]float64 {
 
 func filterPoliciesPtr(p []config.FilterPolicy) *[]config.FilterPolicy {
 	return &p
+}
+
+func histogramModePtr(h histograms.HistogramMethod) *histograms.HistogramMethod {
+	return &h
+}
+
+func uint32Ptr(u uint32) *uint32 {
+	return &u
 }
