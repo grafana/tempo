@@ -131,6 +131,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				resp.Message = maxSeriesReachedErrorMsg
 			}
 			attachExemplars(req, resp)
+			resp.Metrics = metricsCombiner.Metrics
 
 			return resp, nil
 		},
