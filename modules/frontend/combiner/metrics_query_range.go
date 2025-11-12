@@ -30,8 +30,10 @@ func (q *QueryRangeJobResponse) IsMetadata() bool {
 	return true
 }
 
-var _ PipelineResponse = (*QueryRangeJobResponse)(nil)
-var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
+var (
+	_ PipelineResponse                          = (*QueryRangeJobResponse)(nil)
+	_ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
+)
 
 // NewQueryRange returns a query range combiner.
 func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner, error) {
