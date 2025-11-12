@@ -31,7 +31,7 @@ func TestPriorityQueueBasic(t *testing.T) {
 	assert.Equal(t, simpleItem(1), i, "Expected to dequeue simpleItem(1)")
 
 	queue.Close()
-	assert.Nil(t, queue.Dequeue(), "Expect nil dequeue")
+	assert.Zero(t, queue.Dequeue(), "Expect zero value dequeue")
 }
 
 func TestPriorityQueuePriorities(t *testing.T) {
@@ -47,7 +47,7 @@ func TestPriorityQueuePriorities(t *testing.T) {
 	assert.Equal(t, simpleItem(1), queue.Dequeue(), "Expected to dequeue simpleItem(1)")
 
 	queue.Close()
-	assert.Nil(t, queue.Dequeue(), "Expect nil dequeue")
+	assert.Zero(t, queue.Dequeue(), "Expect zero value dequeue")
 }
 
 func TestPriorityQueuePriorities2(t *testing.T) {
@@ -63,7 +63,7 @@ func TestPriorityQueuePriorities2(t *testing.T) {
 	assert.Equal(t, simpleItem(1), queue.Dequeue(), "Expected to dequeue simpleItem(1)")
 
 	queue.Close()
-	assert.Nil(t, queue.Dequeue(), "Expect nil dequeue")
+	assert.Zero(t, queue.Dequeue(), "Expect zero value dequeue")
 }
 
 func TestPriorityQueueWait(t *testing.T) {
@@ -71,7 +71,7 @@ func TestPriorityQueueWait(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		assert.Nil(t, queue.Dequeue(), "Expect nil dequeue")
+		assert.Zero(t, queue.Dequeue(), "Expect zero value dequeue")
 		close(done)
 	}()
 
