@@ -17,14 +17,14 @@ jobs:
       id-token: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           persist-credentials: false
-      - uses: grafana/writers-toolkit/publish-technical-documentation@f3a94170b240b67204e3407a8b026484c7e23947
+      - uses: grafana/writers-toolkit/publish-technical-documentation@9724cc57a57ea7ffd19458315ae6fb540f45160c
         with:
           source_directory: docs/sources/tempo
           website_directory: content/docs/tempo/next
-      - uses: grafana/writers-toolkit/publish-technical-documentation@f3a94170b240b67204e3407a8b026484c7e23947
+      - uses: grafana/writers-toolkit/publish-technical-documentation@9724cc57a57ea7ffd19458315ae6fb540f45160c
         with:
           source_directory: docs/sources/helm-charts/tempo-distributed
           website_directory: content/docs/helm-charts/tempo-distributed/next

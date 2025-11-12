@@ -396,12 +396,12 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 }
 
 func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID string, spanCount, tracesSize int, err error) {
-	user, e := user.ExtractOrgID(ctx)
+	orgID, e := validation.ExtractValidTenantID(ctx)
 	if e != nil {
-		return "", 0, 0, e
+		return "", 0, 0, status.Error(codes.InvalidArgument, e.Error())
 	}
 
-	return user, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
+	return orgID, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
 }
 
 // PushTraces pushes a batch of traces
@@ -1042,4 +1042,19 @@ func (d *Distributor) getMaxAttributeBytes(userID string) int {
 	}
 
 	return d.cfg.MaxAttributeBytes
+}
+
+func (d *Distributor) RetryInfoEnabled(ctx context.Context) (bool, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// if disabled at cluster level, just return false
+	if d.cfg.RetryAfterOnResourceExhausted <= 0 {
+		return false, nil
+	}
+
+	// cluster level is enabled, check per-tenant override and respect that.
+	return d.overrides.IngestionRetryInfoEnabled(userID), nil
 }

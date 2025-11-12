@@ -3,7 +3,7 @@ services:
   # Tempo runs as user 10001, and docker compose creates the volume as root.
   # As such, we need to chown the volume in order for Tempo to start correctly.
   init:
-    image: &tempoImage grafana/tempo:latest
+    image: busybox:latest
     user: root
     entrypoint:
       - "chown"
@@ -13,7 +13,7 @@ services:
       - ./tempo-data:/var/tempo
 
   tempo:
-    image: *tempoImage
+    image: grafana/tempo:latest
     command: [ "-multitenancy.enabled=true", "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ../shared/tempo.yaml:/etc/tempo.yaml
@@ -26,7 +26,7 @@ services:
 
   # Generate fake traces...
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.7
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
     environment:
       - ENDPOINT=otel-collector:4317
     restart: always
@@ -53,7 +53,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:12.0.0
+    image: grafana/grafana:12.2.1@sha256:35c41e0fd0295f5d0ee5db7e780cf33506abfaf47686196f825364889dee878b
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

@@ -119,7 +119,7 @@ The time interval that the count is computed over is set by the `step` parameter
 
 ### The `step` parameter
 
-Ths `step` parameter defines the granularity of the returned time-series.
+The `step` parameter defines the granularity of the returned time-series.
 For example, `step=15s` returns a data point every 15s within the time range.
 By default, `step` automatically chooses a dynamic value based on the query start time and end time.
 
@@ -334,4 +334,43 @@ This example means the attribute `resource.cluster` had too many values.
 
 ```
 { __meta_error="__too_many_values__", resource.cluster=<nil> }
+```
+
+## Adaptive sampling
+
+TraceQL metrics queries support sampling to optimize performance and control sampling behavior.
+There are three sampling methods available:
+
+- Adaptive sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
+- Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
+- Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
+
+Refer to the [TraceQL metrics sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/sampling-guide/) documentation for more information.
+
+{{< admonition  type="note" >}}
+Sampling hints only work with TraceQL metrics queries (those using functions like `rate()`, `count_over_time()`, etc.).
+{{< /admonition >}}
+
+### Adaptive sampling: `with(sample=true)`
+
+Automatically determines optimal sampling strategy based on query selectivity and data volume.
+
+```
+{ resource.service.name="frontend" } | rate() with(sample=true)
+```
+
+#### Fixed span sampling: `with(span_sample=0.xx)`
+
+Samples a fixed percentage of spans for span-level aggregations.
+
+```
+{ status=error } | count_over_time() with(span_sample=0.1)
+```
+
+#### Fixed trace sampling: `with(trace_sample=0.xx)`
+
+Samples a fixed percentage of traces for trace-level aggregations.
+
+```
+{ } | count() by (resource.service.name) with(trace_sample=0.05)
 ```

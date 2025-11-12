@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"testing"
@@ -19,7 +20,7 @@ func Test_histogram(t *testing.T) {
 		return true
 	}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "trace_id", nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "trace_id", nil, 15*time.Minute)
 
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "trace-1", 1.0)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "trace-2", 1.0)
@@ -156,7 +157,7 @@ func Test_histogram_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "", nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "", nil, 15*time.Minute)
 
 	// allow adding new series
 	canAdd = true
@@ -217,7 +218,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, onRemove, "", nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, onRemove, "", nil, 15*time.Minute)
 
 	timeMs := time.Now().UnixMilli()
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
@@ -275,7 +276,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 func Test_histogram_externalLabels(t *testing.T) {
 	extLabels := map[string]string{"external_label": "external_value"}
 
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", extLabels)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", extLabels, 15*time.Minute)
 
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
@@ -306,7 +307,7 @@ func Test_histogram_externalLabels(t *testing.T) {
 }
 
 func Test_histogram_concurrencyDataRace(t *testing.T) {
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
 
 	end := make(chan struct{})
 
@@ -339,7 +340,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := h.collectMetrics(&noopAppender{}, 0)
+		err := h.collectMetrics(&noopAppender{}, 0)
 		assert.NoError(t, err)
 	})
 
@@ -352,7 +353,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_histogram_concurrencyCorrectness(t *testing.T) {
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -397,7 +398,7 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 }
 
 func Test_histogram_span_multiplier(t *testing.T) {
-	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.5)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 5)
 
@@ -415,4 +416,77 @@ func Test_histogram_span_multiplier(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 6.5),
 	}
 	collectMetricAndAssert(t, h, collectionTimeMs, 5, expectedSamples, nil)
+}
+
+func Test_histogram_demandTracking(t *testing.T) {
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
+
+	// Initially, demand should be 0
+	assert.Equal(t, 0, h.countSeriesDemand())
+
+	// Add some histogram series (each histogram creates multiple series)
+	for i := 0; i < 20; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+	}
+
+	// Demand should be approximately 20 histogram series * 5 (sum, count, 3 buckets) = 100 total series
+	// Within HLL error
+	demand := h.countSeriesDemand()
+	assert.Greater(t, demand, 80, "demand should be close to 100")
+	assert.Less(t, demand, 120, "demand should be close to 100")
+
+	// Active series should exactly match 20 * 5
+	expectedActive := 20 * int(h.activeSeriesPerHistogramSerie())
+	assert.Equal(t, expectedActive, h.countActiveSeries())
+}
+
+func Test_histogram_activeSeriesPerHistogramSerie(t *testing.T) {
+	// Test with 2 buckets (creates: sum, count, bucket1, bucket2, +Inf)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", nil, 15*time.Minute)
+	assert.Equal(t, uint32(5), h.activeSeriesPerHistogramSerie(), "should be sum + count + 3 buckets")
+
+	// Test with 3 buckets
+	h2 := newHistogram("my_histogram", []float64{1.0, 2.0, 3.0}, nil, nil, "", nil, 15*time.Minute)
+	assert.Equal(t, uint32(6), h2.activeSeriesPerHistogramSerie(), "should be sum + count + 4 buckets")
+
+	// Test with no buckets (still has +Inf)
+	h3 := newHistogram("my_histogram", []float64{}, nil, nil, "", nil, 15*time.Minute)
+	assert.Equal(t, uint32(3), h3.activeSeriesPerHistogramSerie(), "should be sum + count + +Inf bucket")
+}
+
+func Test_histogram_demandVsActiveSeries(t *testing.T) {
+	limitReached := false
+	onAdd := func(_ uint32) bool {
+		return !limitReached
+	}
+
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "", nil, 15*time.Minute)
+
+	// Add some histogram series
+	for i := 0; i < 10; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+	}
+
+	expectedActive := 10 * int(h.activeSeriesPerHistogramSerie())
+	assert.Equal(t, expectedActive, h.countActiveSeries())
+
+	// Hit the limit
+	limitReached = true
+
+	// Try to add more series (they should be rejected)
+	for i := 10; i < 20; i++ {
+		lvc := newLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		h.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+	}
+
+	// Active series should not have increased
+	assert.Equal(t, expectedActive, h.countActiveSeries())
+
+	// But demand should show all attempted series
+	demand := h.countSeriesDemand()
+	expectedDemand := 20 * int(h.activeSeriesPerHistogramSerie())
+	assert.Greater(t, demand, expectedDemand-20, "demand should track all attempted series")
+	assert.Greater(t, demand, h.countActiveSeries(), "demand should exceed active series")
 }

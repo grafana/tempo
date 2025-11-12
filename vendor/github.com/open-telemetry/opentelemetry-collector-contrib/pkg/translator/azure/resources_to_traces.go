@@ -89,7 +89,8 @@ func (r TracesUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 	spans := scopeSpans.Spans()
 
 	resourceID := ""
-	for _, azureTrace := range azureTraces.Records {
+	for i := range azureTraces.Records {
+		azureTrace := &azureTraces.Records[i]
 		if resourceID == "" && azureTrace.ResourceID != "" {
 			resourceID = azureTrace.ResourceID
 		}

@@ -28,6 +28,11 @@ var (
 		Name:      "metrics_generator_registry_max_active_series",
 		Help:      "The maximum active series per tenant",
 	}, []string{"tenant"})
+	metricSeriesDemand = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_active_series_demand_estimate",
+		Help:      "The active series demand estimate per tenant",
+	}, []string{"tenant"})
 	metricTotalSeriesAdded = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_series_added_total",
@@ -69,10 +74,12 @@ type ManagedRegistry struct {
 
 	appendable storage.Appendable
 
-	logger                   log.Logger
-	limitLogger              *tempo_log.RateLimitedLogger
-	metricActiveSeries       prometheus.Gauge
-	metricMaxActiveSeries    prometheus.Gauge
+	logger                log.Logger
+	limitLogger           *tempo_log.RateLimitedLogger
+	metricActiveSeries    prometheus.Gauge
+	metricMaxActiveSeries prometheus.Gauge
+	metricSeriesDemand    prometheus.Gauge
+
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
@@ -83,11 +90,16 @@ type ManagedRegistry struct {
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	name() string
-	collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error)
+	collectMetrics(appender storage.Appender, timeMs int64) error
+	countActiveSeries() int
+	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
+	countSeriesDemand() int
 	removeStaleSeries(staleTimeMs int64)
 }
 
 const highestAggregationInterval = 1 * time.Minute
+
+const removeStaleSeriesInterval = 5 * time.Minute
 
 var _ Registry = (*ManagedRegistry)(nil)
 
@@ -122,6 +134,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		logger:                   logger,
 		limitLogger:              tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
 		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
+		metricSeriesDemand:       metricSeriesDemand.WithLabelValues(tenant),
 		metricMaxActiveSeries:    metricMaxActiveSeries.WithLabelValues(tenant),
 		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
@@ -131,7 +144,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	}
 
 	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
-	go job(instanceCtx, r.removeStaleSeries, constantInterval(5*time.Minute))
+	go job(instanceCtx, r.removeStaleSeries, constantInterval(removeStaleSeriesInterval))
 
 	return r
 }
@@ -144,7 +157,7 @@ func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *
 }
 
 func (r *ManagedRegistry) NewCounter(name string) Counter {
-	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
+	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels, r.cfg.StaleDuration)
 	r.registerMetric(c)
 	return c
 }
@@ -156,9 +169,9 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 	// are disabled, eventually the new implementation can handle all cases
 
 	if hasNativeHistograms(histogramOverride) {
-		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride, r.externalLabels, r.tenant, r.overrides)
+		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride, r.externalLabels, r.tenant, r.overrides, r.cfg.StaleDuration)
 	} else {
-		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, r.externalLabels)
+		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, r.externalLabels, r.cfg.StaleDuration)
 	}
 
 	r.registerMetric(h)
@@ -166,7 +179,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 }
 
 func (r *ManagedRegistry) NewGauge(name string) Gauge {
-	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
+	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels, r.cfg.StaleDuration)
 	r.registerMetric(g)
 	return g
 }
@@ -184,7 +197,7 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	if maxActiveSeries != 0 && r.activeSeries.Load()+count > maxActiveSeries {
-		r.metricTotalSeriesLimited.Inc()
+		r.metricTotalSeriesLimited.Add(float64(count))
 		r.limitLogger.Log("msg", "reached max active series", "active_series", r.activeSeries.Load(), "max_active_series", maxActiveSeries)
 		return false
 	}
@@ -192,7 +205,6 @@ func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
 	r.activeSeries.Add(count)
 
 	r.metricTotalSeriesAdded.Add(float64(count))
-	r.metricActiveSeries.Add(float64(count))
 	return true
 }
 
@@ -200,16 +212,30 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 	r.activeSeries.Sub(count)
 
 	r.metricTotalSeriesRemoved.Add(float64(count))
-	r.metricActiveSeries.Sub(float64(count))
 }
 
 func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
+	r.metricsMtx.RLock()
+	defer r.metricsMtx.RUnlock()
+
+	var activeSeries int
+	var seriesDemand int
+
+	for _, m := range r.metrics {
+		seriesDemand += m.countSeriesDemand()
+		activeSeries += m.countActiveSeries()
+	}
+
+	r.activeSeries.Store(uint32(activeSeries))
+	r.metricActiveSeries.Set(float64(activeSeries))
+	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
+	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
+
+	r.metricSeriesDemand.Set(float64(seriesDemand))
+
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
 		return
 	}
-
-	r.metricsMtx.RLock()
-	defer r.metricsMtx.RUnlock()
 
 	var err error
 	defer func() {
@@ -220,25 +246,14 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 		}
 	}()
 
-	var activeSeries uint32
-
 	appender := r.appendable.Appender(ctx)
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs)
-		if err != nil {
+		if err = m.collectMetrics(appender, collectionTimeMs); err != nil {
 			return
 		}
-		activeSeries += uint32(active)
 	}
-
-	// set active series in case there is drift
-	r.activeSeries.Store(activeSeries)
-	r.metricActiveSeries.Set(float64(activeSeries))
-
-	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
-	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 
 	// Try to avoid committing after we have started the shutdown process.
 	if ctx.Err() != nil { // shutdown
@@ -251,8 +266,6 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	if err != nil {
 		return
 	}
-
-	level.Info(r.logger).Log("msg", "collecting metrics", "active_series", activeSeries)
 }
 
 func (r *ManagedRegistry) collectionInterval() time.Duration {

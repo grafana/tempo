@@ -13,12 +13,20 @@ import (
 	"go.uber.org/zap/zapcore"
 	google_grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/cmd/tempo-query/jaeger/storage_v1"
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
+	"github.com/grafana/tempo/pkg/gogocodec"
 )
+
+func init() {
+	// Required because the trace_id field in GetTraceRequest of storage.pb.go uses customtype, which doesn't work with grpc 1.38.0+.
+	// gogocodec provides a workaround, see pkg/gogocodec/gogocodec.go for more information.
+	encoding.RegisterCodec(gogocodec.NewCodec())
+}
 
 func main() {
 	config := zap.NewProductionEncoderConfig()

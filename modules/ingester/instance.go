@@ -287,6 +287,10 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 		}
 
 		completingBlock := i.headBlock
+		blockID := (uuid.UUID)(completingBlock.BlockMeta().BlockID)
+		blockSize := completingBlock.DataLength()
+
+		level.Info(i.logger).Log("msg", "head block cut", "block", blockID, "size", blockSize)
 
 		// Now that we are adding a new block take the blocks mutex.
 		// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
@@ -304,7 +308,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		return (uuid.UUID)(completingBlock.BlockMeta().BlockID), nil
+		return blockID, nil
 	}
 
 	return uuid.Nil, nil

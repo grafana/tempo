@@ -2,8 +2,8 @@ package backend
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -20,6 +20,12 @@ type DedicatedColumnType string
 // 'resource' and 'span'.
 type DedicatedColumnScope string
 
+// DedicatedColumnOption is a string option applied to a dedicated column
+type DedicatedColumnOption string
+
+// DedicatedColumnOptions is a list of options applied to a dedicated column
+type DedicatedColumnOptions []DedicatedColumnOption
+
 const (
 	DedicatedColumnTypeString DedicatedColumnType = "string"
 	DedicatedColumnTypeInt    DedicatedColumnType = "int"
@@ -27,12 +33,16 @@ const (
 	DedicatedColumnScopeResource DedicatedColumnScope = "resource"
 	DedicatedColumnScopeSpan     DedicatedColumnScope = "span"
 
+	DedicatedColumnOptionArray DedicatedColumnOption = "array"
+
 	DefaultDedicatedColumnType  = DedicatedColumnTypeString
 	DefaultDedicatedColumnScope = DedicatedColumnScopeSpan
-
-	maxSupportedSpanColumns     = 10
-	maxSupportedResourceColumns = 10
 )
+
+var maxSupportedColumns = map[DedicatedColumnType]map[DedicatedColumnScope]int{
+	DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 10, DedicatedColumnScopeResource: 10},
+	DedicatedColumnTypeInt:    {DedicatedColumnScopeSpan: 5, DedicatedColumnScopeResource: 5},
+}
 
 func DedicatedColumnTypeFromTempopb(t tempopb.DedicatedColumn_Type) (DedicatedColumnType, error) {
 	switch t {
@@ -89,11 +99,56 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 	}
 }
 
+func DedicatedColumnOptionsFromTempopb(o tempopb.DedicatedColumn_Option) DedicatedColumnOptions {
+	var options DedicatedColumnOptions
+	if o&tempopb.DedicatedColumn_ARRAY != 0 {
+		options = append(options, DedicatedColumnOptionArray)
+	}
+	return options
+}
+
+func (o DedicatedColumnOptions) ToTempopb() (tempopb.DedicatedColumn_Option, error) {
+	var optionsMask tempopb.DedicatedColumn_Option
+	for _, opt := range o {
+		switch opt {
+		case DedicatedColumnOptionArray:
+			optionsMask |= tempopb.DedicatedColumn_ARRAY
+		default:
+			return 0, fmt.Errorf("invalid value for dedicated column option '%v'", opt)
+		}
+	}
+	return optionsMask, nil
+}
+
 const (
 	DefaultReplicationFactor          = 0 // Replication factor for blocks from the ingester. This is the default value to indicate RF3.
 	MetricsGeneratorReplicationFactor = 1
 	LiveStoreReplicationFactor        = MetricsGeneratorReplicationFactor
 )
+
+var defaultDedicatedColumns = DedicatedColumns{
+	// resource
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.cluster.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.namespace.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.pod.name"},
+	{Scope: DedicatedColumnScopeResource, Type: DedicatedColumnTypeString, Name: "k8s.container.name"},
+	// span
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.request.method"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "http.response.status_code"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "url.path"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "url.route"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "server.address"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "server.port"},
+	// legacy
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.method"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.url"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "http.route"},
+	{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeInt, Name: "http.status_code"},
+}
+
+func DefaultDedicatedColumns() DedicatedColumns {
+	return slices.Clone(defaultDedicatedColumns)
+}
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
 // be stored in a dedicated column instead of the generic attribute column.
@@ -104,6 +159,8 @@ type DedicatedColumn struct {
 	Name string `yaml:"name" json:"n"`
 	// The Type of attribute value
 	Type DedicatedColumnType `yaml:"type" json:"t,omitempty"`
+	// The Options applied to the dedicated attribute column
+	Options DedicatedColumnOptions `yaml:"options" json:"o,omitempty"`
 }
 
 func (dc *DedicatedColumn) MarshalJSON() ([]byte, error) {
@@ -139,10 +196,10 @@ func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 type DedicatedColumns []DedicatedColumn
 
 func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
-	// Get the pre-unmarshalled data if available.
-	v := getDedicatedColumns(string(b))
-	if v != nil {
-		*dcs = *v
+	// get the pre-unmarshalled data if available
+	v, ok := getDedicatedColumnsFromCache(b)
+	if ok && v != nil {
+		*dcs = v
 		return nil
 	}
 
@@ -152,8 +209,7 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	putDedicatedColumns(string(b), dcs)
-
+	putDedicatedColumnsToCache(b, *dcs)
 	return nil
 }
 
@@ -212,10 +268,13 @@ func DedicatedColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (Dedica
 			return nil, fmt.Errorf("unable to convert dedicated column '%s': %w", c.Name, err)
 		}
 
+		options := DedicatedColumnOptionsFromTempopb(c.Options)
+
 		cols = append(cols, DedicatedColumn{
-			Scope: scope,
-			Name:  c.Name,
-			Type:  typ,
+			Scope:   scope,
+			Name:    c.Name,
+			Type:    typ,
+			Options: options,
 		})
 	}
 
@@ -236,10 +295,16 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 			return nil, fmt.Errorf("unable to convert dedicated column '%s': %w", c.Name, err)
 		}
 
+		options, err := c.Options.ToTempopb()
+		if err != nil {
+			return nil, fmt.Errorf("unable to convert dedicated column '%s': %w", c.Name, err)
+		}
+
 		tempopbCols = append(tempopbCols, &tempopb.DedicatedColumn{
-			Scope: scope,
-			Name:  c.Name,
-			Type:  typ,
+			Scope:   scope,
+			Name:    c.Name,
+			Type:    typ,
+			Options: options,
 		})
 	}
 
@@ -247,40 +312,55 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 }
 
 func (dcs DedicatedColumns) Validate() error {
-	var countSpan, countRes int
-	for _, dc := range dcs {
-		err := dc.Validate()
-		if err != nil {
-			return err
-		}
-		switch dc.Scope {
-		case DedicatedColumnScopeSpan:
-			countSpan++
-		case DedicatedColumnScopeResource:
-			countRes++
-		}
-	}
-	if countSpan > maxSupportedSpanColumns {
-		return fmt.Errorf("number of dedicated columns with scope 'span' must be <= %d but was %d", maxSupportedSpanColumns, countSpan)
-	}
-	if countRes > maxSupportedResourceColumns {
-		return fmt.Errorf("number of dedicated columns with scope 'resource' must be <= %d but was %d", maxSupportedResourceColumns, countRes)
-	}
-	return nil
-}
+	columnCount := map[DedicatedColumnType]map[DedicatedColumnScope]int{}
+	nameCount := map[DedicatedColumnScope]map[string]struct{}{}
 
-func (dc *DedicatedColumn) Validate() error {
-	if dc.Name == "" {
-		return errors.New("dedicated column invalid: name must not be empty")
+	for _, dc := range dcs {
+		if dc.Name == "" {
+			return fmt.Errorf("invalid dedicated attribute columns: empty name")
+		}
+
+		// check for duplicate names
+		if names, ok := nameCount[dc.Scope]; !ok {
+			nameCount[dc.Scope] = map[string]struct{}{dc.Name: {}}
+		} else {
+			if _, duplicate := names[dc.Name]; duplicate {
+				return fmt.Errorf("invalid dedicated attribute columns: duplicate name '%s' for scope '%s'", dc.Name, dc.Scope)
+			}
+			names[dc.Name] = struct{}{}
+		}
+
+		// count columns by type and scope
+		if scopes, ok := columnCount[dc.Type]; !ok {
+			columnCount[dc.Type] = map[DedicatedColumnScope]int{dc.Scope: 1}
+		} else {
+			scopes[dc.Scope]++
+		}
+
+		for _, opt := range dc.Options {
+			if opt != DedicatedColumnOptionArray {
+				return fmt.Errorf("invalid dedicated attribute columns: invalid option '%s'", opt)
+			}
+		}
 	}
-	_, err := dc.Type.ToTempopb()
-	if err != nil {
-		return fmt.Errorf("dedicated column '%s' invalid: %w", dc.Name, err)
+
+	// check max number of columns by type and scope
+	for typ, scopes := range columnCount {
+		for scope, count := range scopes {
+			supportedScopes, ok := maxSupportedColumns[typ]
+			if !ok {
+				return fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column type '%s'", typ)
+			}
+			maxCount, ok := supportedScopes[scope]
+			if !ok {
+				return fmt.Errorf("invalid dedicated attribute columns: unsupported dedicated column scope '%s'", scope)
+			}
+			if count > maxCount {
+				return fmt.Errorf("invalid dedicated attribute columns: number of columns with type '%s' and scope '%s' must be <= %d but was %d", typ, scope, maxCount, count)
+			}
+		}
 	}
-	_, err = dc.Scope.ToTempopb()
-	if err != nil {
-		return fmt.Errorf("dedicated column '%s' invalid: %w", dc.Name, err)
-	}
+
 	return nil
 }
 
@@ -299,6 +379,10 @@ func (dcs DedicatedColumns) Hash() uint64 {
 		_, _ = h.WriteString(c.Name)
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(string(c.Type))
+		for _, opt := range c.Options {
+			_, _ = h.Write(separatorByte)
+			_, _ = h.WriteString(string(opt))
+		}
 	}
 	return h.Sum64()
 }

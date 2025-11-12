@@ -33,6 +33,12 @@ grafana {
   jobMatcher(job)::
     $._config.per_cluster_label + '=~"$cluster", job=~"($namespace)' + $._config.namespace_selector_separator + '%s"' % job,
 
+  podMatcher(pod)::
+    $._config.per_cluster_label + '=~"$cluster", pod=~"' + '%s"' % pod,
+
+  containerMatcher(container)::
+    $._config.per_cluster_label + '=~"$cluster", container="' + '%s"' % container,
+
   queryPanel(queries, legends, legendLink=null)::
     super.queryPanel(queries, legends, legendLink) + {
       targets: [
@@ -110,7 +116,7 @@ grafana {
     $._config.per_cluster_label + '=~"$cluster", namespace=~"$namespace"',
 
   containerCPUUsagePanel(title, containerName)::
-    $.panel(title) +
+    $.timeseriesPanel(title) +
     $.queryPanel([
       'sum by(pod) (rate(container_cpu_usage_seconds_total{%s,container=~"%s"}[$__rate_interval]))' % [$.namespaceMatcher(), containerName],
       'min(container_spec_cpu_quota{%s,container=~"%s"} / container_spec_cpu_period{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName, $.namespaceMatcher(), containerName],
@@ -132,7 +138,7 @@ grafana {
     },
 
   containerMemoryWorkingSetPanel(title, containerName)::
-    $.panel(title) +
+    $.timeseriesPanel(title) +
     $.queryPanel([
       'sum by(pod) (container_memory_working_set_bytes{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName],
       'min(container_spec_memory_limit_bytes{%s,container=~"%s"} > 0)' % [$.namespaceMatcher(), containerName],
@@ -155,7 +161,7 @@ grafana {
     },
 
   goHeapInUsePanel(title, job)::
-    $.panel(title) +
+    $.timeseriesPanel(title) +
     $.queryPanel('sum by(instance) (go_memstats_heap_inuse_bytes{%s})' % job, '{{instance}}') +
     { yaxes: $.yaxes('bytes') },
 

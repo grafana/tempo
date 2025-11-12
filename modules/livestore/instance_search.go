@@ -20,7 +20,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -30,6 +29,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -209,7 +209,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			// and engine.ExecuteSearch is parsing the query for each block
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return b.Fetch(ctx, req, opts)
-			}))
+			}), i.overrides.UnsafeQueryHints(i.tenantID))
 		} else {
 			resp, err = b.Search(ctx, req, opts)
 		}
@@ -282,7 +282,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	ctx, span := tracer.Start(ctx, "instance.SearchTagsV2")
 	defer span.End()
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -368,7 +368,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 }
 
 func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +425,7 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 }
 
 func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}

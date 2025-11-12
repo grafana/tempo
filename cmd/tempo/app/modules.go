@@ -473,7 +473,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		ingesterRings,
 		t.cfg.GeneratorClient,
 		t.readRings[ringMetricsGenerator],
-		t.cfg.PartitionRingLiveStore,
+		t.cfg.Querier.QueryLiveStore,
 		t.cfg.LiveStoreClient,
 		t.readRings[ringLiveStore],
 		t.partitionRing,
@@ -807,10 +807,12 @@ func (t *App) initLiveStore() (services.Service, error) {
 	tempopb.RegisterQuerierServer(t.Server.GRPC(), t.liveStore)
 	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.liveStore)
 
-	// TODO: Support downscaling
-	// t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
-	// 	Path("/live-store/prepare-partition-downscale").
-	// 	Handler(http.HandlerFunc(t.liveStore.PreparePartitionDownscaleHandler))
+	t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
+		Path("/live-store/prepare-partition-downscale").
+		Handler(http.HandlerFunc(t.liveStore.PreparePartitionDownscaleHandler))
+	t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
+		Path("/live-store/prepare-downscale").
+		Handler(http.HandlerFunc(t.liveStore.PrepareDownscaleHandler))
 
 	return t.liveStore, nil
 }

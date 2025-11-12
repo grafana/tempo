@@ -93,6 +93,9 @@ minio + metrics + load + kafka + tempo {
         topic: 'tempo-ingest',
       },
     },
+    querier+: {
+      query_live_store: true,
+    },
     block_builder+: {
       consume_cycle_duration: '30s',
       assigned_partitions: {

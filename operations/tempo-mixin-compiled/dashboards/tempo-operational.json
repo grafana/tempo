@@ -155,7 +155,7 @@
      "pluginVersion": "11.5.2",
      "targets": [
       {
-       "expr": "rate(go_gc_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])",
+       "expr": "rate(go_gc_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])",
        "interval": "",
        "legendFormat": "{{pod}}",
        "refId": "A"
@@ -253,7 +253,7 @@
      "pluginVersion": "11.5.2",
      "targets": [
       {
-       "expr": "go_memstats_heap_inuse_bytes{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "expr": "go_memstats_heap_inuse_bytes{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}",
        "interval": "",
        "legendFormat": "{{pod}}",
        "refId": "A"
@@ -351,7 +351,7 @@
      "pluginVersion": "11.5.2",
      "targets": [
       {
-       "expr": "go_goroutines{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "expr": "go_goroutines{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}",
        "legendFormat": "{{pod}}",
        "refId": "A"
       }
@@ -961,7 +961,7 @@
    "pluginVersion": "11.5.2",
    "targets": [
     {
-     "expr": "tempodb_work_queue_length{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"} / tempodb_work_queue_max{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+     "expr": "tempodb_work_queue_length{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"} / tempodb_work_queue_max{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}",
      "legendFormat": "{{instance}}",
      "refId": "A"
     }
@@ -1058,17 +1058,17 @@
    "pluginVersion": "11.5.2",
    "targets": [
     {
-     "expr": "sum(increase(tempodb_compaction_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (job)",
+     "expr": "sum(increase(tempodb_compaction_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (job)",
      "legendFormat": "compaction_err",
      "refId": "B"
     },
     {
-     "expr": "sum(increase(tempodb_retention_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (job)",
+     "expr": "sum(increase(tempodb_retention_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (job)",
      "legendFormat": "retention_err",
      "refId": "C"
     },
     {
-     "expr": "sum(increase(tempodb_blocklist_poll_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (job)",
+     "expr": "sum(increase(tempodb_blocklist_poll_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (job)",
      "legendFormat": "blocklist_err",
      "refId": "D"
     }
@@ -1171,7 +1171,7 @@
       "uid": "mimir-ops-03"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
+     "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
      "interval": "",
      "legendFormat": ".99",
      "range": true,
@@ -1183,7 +1183,7 @@
       "uid": "mimir-ops-03"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
+     "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
      "legendFormat": ".9",
      "range": true,
      "refId": "B"
@@ -1194,7 +1194,7 @@
       "uid": "mimir-ops-03"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
+     "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
      "interval": "",
      "legendFormat": ".5",
      "range": true,
@@ -1206,7 +1206,7 @@
       "uid": "mimir-ops-03"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
+     "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
      "hide": false,
      "interval": "",
      "legendFormat": ".99",
@@ -1219,7 +1219,7 @@
       "uid": "mimir-ops-03"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
+     "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
      "hide": false,
      "legendFormat": ".9",
      "range": true,
@@ -1231,7 +1231,7 @@
       "uid": "mimir-ops-03"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
+     "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
      "hide": false,
      "interval": "",
      "legendFormat": ".5",
@@ -1332,7 +1332,7 @@
    "targets": [
     {
      "exemplar": true,
-     "expr": "avg(tempodb_blocklist_length{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}) by (tenant)",
+     "expr": "avg(tempodb_blocklist_length{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}) by (tenant)",
      "instant": false,
      "interval": "",
      "legendFormat": "{{tenant}}",
@@ -1600,13 +1600,13 @@
    "pluginVersion": "11.5.2",
    "targets": [
     {
-     "expr": "sum(increase(tempodb_retention_deleted_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval]))",
+     "expr": "sum(increase(tempodb_retention_deleted_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval]))",
      "interval": "",
      "legendFormat": "deleted",
      "refId": "A"
     },
     {
-     "expr": "sum(increase(tempodb_retention_marked_for_deletion_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval]))",
+     "expr": "sum(increase(tempodb_retention_marked_for_deletion_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval]))",
      "interval": "",
      "legendFormat": "marked_for_deletion",
      "refId": "B"
@@ -1994,8 +1994,8 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 4,
-      "x": 12,
+      "w": 6,
+      "x": 10,
       "y": 8
      },
      "id": 97,
@@ -2093,7 +2093,7 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 6,
+      "w": 8,
       "x": 16,
       "y": 8
      },
@@ -2414,8 +2414,8 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 4,
-      "x": 12,
+      "w": 6,
+      "x": 10,
       "y": 13
      },
      "id": 98,
@@ -2513,7 +2513,7 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 6,
+      "w": 8,
       "x": 16,
       "y": 13
      },
@@ -2832,8 +2832,8 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 4,
-      "x": 12,
+      "w": 6,
+      "x": 10,
       "y": 24
      },
      "id": 99,
@@ -2931,7 +2931,7 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 6,
+      "w": 8,
       "x": 16,
       "y": 24
      },
@@ -3250,8 +3250,8 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 4,
-      "x": 12,
+      "w": 6,
+      "x": 10,
       "y": 29
      },
      "id": 100,
@@ -3349,7 +3349,7 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 6,
+      "w": 8,
       "x": 16,
       "y": 29
      },
@@ -3396,6 +3396,416 @@
       }
      ],
      "title": "Search Query Latency (Ingester)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.6,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green"
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 4,
+      "x": 0,
+      "y": 34
+     },
+     "id": 1001,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_request_duration_seconds_count{route=\"/tempopb.Querier/FindTraceByID\", cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\"}[$__rate_interval])) by (status_code)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "{{status_code}}",
+       "refId": "A"
+      }
+     ],
+     "title": "Queries/Sec (Live Store)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.6,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green"
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 6,
+      "x": 4,
+      "y": 34
+     },
+     "id": 1002,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "title": "Query Latency (Live Store)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.6,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green"
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 6,
+      "x": 10,
+      "y": 34
+     },
+     "id": 1003,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\"/tempopb.Querier/Search.*\", cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\"}[$__rate_interval])) by (status_code)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "{{status_code}}",
+       "refId": "A"
+      }
+     ],
+     "title": "Search Queries/Sec (Live Store)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.6,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green"
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 8,
+      "x": 16,
+      "y": 34
+     },
+     "id": 1004,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", container=\"live-store\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "title": "Search Query Latency (Live Store)",
      "type": "timeseries"
     },
     {
@@ -3466,7 +3876,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 34
+      "y": 44
      },
      "id": 102,
      "options": {
@@ -3570,7 +3980,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 34
+      "y": 44
      },
      "id": 103,
      "options": {
@@ -3695,9 +4105,9 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 4,
-      "x": 12,
-      "y": 34
+      "w": 6,
+      "x": 10,
+      "y": 44
      },
      "id": 110,
      "options": {
@@ -3801,9 +4211,9 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 6,
+      "w": 8,
       "x": 16,
-      "y": 34
+      "y": 44
      },
      "id": 111,
      "options": {
@@ -4165,8 +4575,8 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 4,
-      "x": 12,
+      "w": 6,
+      "x": 10,
       "y": 39
      },
      "id": 106,
@@ -4269,7 +4679,7 @@
      },
      "gridPos": {
       "h": 5,
-      "w": 6,
+      "w": 8,
       "x": 16,
       "y": 39
      },
@@ -5989,7 +6399,7 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "sum(rate(tempo_memcache_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (status_code, method)",
+       "expr": "sum(rate(tempo_memcache_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (status_code, method)",
        "interval": "",
        "legendFormat": "{{status_code}}-{{method}}",
        "refId": "A"
@@ -6083,19 +6493,19 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "expr": "histogram_quantile(.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (method, le))",
        "interval": "",
        "legendFormat": ".99-{{method}}",
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "expr": "histogram_quantile(.9, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (method, le))",
        "interval": "",
        "legendFormat": ".9-{{method}}",
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (method, le))",
        "interval": "",
        "legendFormat": ".5-{{method}}",
        "refId": "C"
@@ -6203,7 +6613,7 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "sum(rate(tempodb_backend_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (status_code, operation)",
+       "expr": "sum(rate(tempodb_backend_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (status_code, operation)",
        "interval": "",
        "legendFormat": "{{status_code}}-{{operation}}",
        "refId": "A"
@@ -6297,17 +6707,17 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (operation, le))",
+       "expr": "histogram_quantile(.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (operation, le))",
        "legendFormat": ".99-{{operation}}",
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (operation, le))",
+       "expr": "histogram_quantile(.9, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (operation, le))",
        "legendFormat": ".9-{{operation}}",
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (operation, le))",
+       "expr": "histogram_quantile(.5, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}[$__rate_interval])) by (operation, le))",
        "legendFormat": ".5-{{operation}}",
        "refId": "C"
       }
@@ -6419,7 +6829,7 @@
         "type": "prometheus",
         "uid": "P666011C0B63BDCA4"
        },
-       "expr": "gauge_memberlist_health_score{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "expr": "gauge_memberlist_health_score{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}",
        "interval": "",
        "legendFormat": "{{instance}}",
        "refId": "A"
@@ -6513,7 +6923,7 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "tempo_memberlist_client_cluster_node_health_score{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "expr": "tempo_memberlist_client_cluster_node_health_score{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"}",
        "interval": "",
        "legendFormat": "{{instance}}",
        "refId": "A"
@@ -6607,13 +7017,13 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "min(tempo_memberlist_client_cluster_members_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"})",
+       "expr": "min(tempo_memberlist_client_cluster_members_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"})",
        "interval": "",
        "legendFormat": "min",
        "refId": "A"
       },
       {
-       "expr": "max(tempo_memberlist_client_cluster_members_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"})",
+       "expr": "max(tempo_memberlist_client_cluster_members_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"})",
        "interval": "",
        "legendFormat": "max",
        "refId": "B"
@@ -6712,7 +7122,7 @@
         "type": "prometheus",
         "uid": "P666011C0B63BDCA4"
        },
-       "expr": "min(tempo_memberlist_client_kv_store_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"})",
+       "expr": "min(tempo_memberlist_client_kv_store_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"})",
        "interval": "",
        "legendFormat": "min",
        "refId": "A"
@@ -6722,7 +7132,7 @@
         "type": "prometheus",
         "uid": "P666011C0B63BDCA4"
        },
-       "expr": "max(tempo_memberlist_client_kv_store_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"})",
+       "expr": "max(tempo_memberlist_client_kv_store_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component.*\"})",
        "interval": "",
        "legendFormat": "max",
        "refId": "B"
@@ -7485,9 +7895,14 @@
       "selected": false,
       "text": "cortex-gw-internal",
       "value": "cortex-gw-internal"
+     },
+     {
+      "selected": false,
+      "text": "live-store",
+      "value": "live-store"
      }
     ],
-    "query": "block-builder,compactor,distributor,ingester,metrics-generator,query-frontend,querier,cortex-gw,cortex-gw-internal",
+    "query": "block-builder,compactor,distributor,ingester,metrics-generator,query-frontend,querier,cortex-gw,cortex-gw-internal,live-store",
     "type": "custom"
    },
    {

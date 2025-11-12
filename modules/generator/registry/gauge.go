@@ -19,8 +19,9 @@ type gauge struct {
 	metricName string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
-	seriesMtx sync.RWMutex
-	series    map[uint64]*gaugeSeries
+	seriesMtx    sync.RWMutex
+	series       map[uint64]*gaugeSeries
+	seriesDemand *Cardinality
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
@@ -44,7 +45,7 @@ const (
 	set = "set"
 )
 
-func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *gauge {
+func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *gauge {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -57,6 +58,7 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 	return &gauge{
 		metricName:     name,
 		series:         make(map[uint64]*gaugeSeries),
+		seriesDemand:   NewCardinality(staleDuration, removeStaleSeriesInterval),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
 		externalLabels: externalLabels,
@@ -82,6 +84,8 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	s, ok := g.series[hash]
 	g.seriesMtx.RUnlock()
 
+	g.seriesDemand.Insert(hash)
+
 	if ok {
 		// target_info will always be 1 so if the series exists, we don't need to go through this loop
 		if !updateIfAlreadyExist {
@@ -91,39 +95,27 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		return
 	}
 
+	g.seriesMtx.Lock()
+	defer g.seriesMtx.Unlock()
+
+	if existing, ok := g.series[hash]; ok {
+		if !updateIfAlreadyExist {
+			return
+		}
+		g.updateSeriesValue(existing, value, operation)
+		return
+	}
+
 	if !g.onAddSeries(1) {
 		return
 	}
 
-	newSeries := g.newSeries(labelValueCombo, value)
-
-	g.seriesMtx.Lock()
-	defer g.seriesMtx.Unlock()
-
-	s, ok = g.series[hash]
-	if ok {
-		g.updateSeriesValue(s, value, operation)
-		return
-	}
-	g.series[hash] = newSeries
+	g.series[hash] = g.newSeries(labelValueCombo, value)
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
-	lbls := labelValueCombo.getLabelPair()
-	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)+len(g.externalLabels)))
-
-	for i, name := range lbls.names {
-		lb.Set(name, lbls.values[i])
-	}
-
-	for name, value := range g.externalLabels {
-		lb.Set(name, value)
-	}
-
-	lb.Set(labels.MetricName, g.metricName)
-
 	return &gaugeSeries{
-		labels:      lb.Labels(),
+		labels:      getSeriesLabels(g.metricName, labelValueCombo, g.externalLabels),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 	}
@@ -133,7 +125,7 @@ func (g *gauge) updateSeriesValue(s *gaugeSeries, value float64, operation strin
 	if operation == add {
 		s.value.Add(value)
 	} else {
-		s.value = atomic.NewFloat64(value)
+		s.value.Store(value)
 	}
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
@@ -142,22 +134,33 @@ func (g *gauge) name() string {
 	return g.metricName
 }
 
-func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
+func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) error {
 	g.seriesMtx.RLock()
 	defer g.seriesMtx.RUnlock()
 
-	activeSeries = len(g.series)
-
 	for _, s := range g.series {
-		t := time.UnixMilli(timeMs)
-		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
+		_, err := appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
-			return
+			return err
 		}
 		// TODO: support exemplars
 	}
 
-	return
+	return nil
+}
+
+func (g *gauge) countActiveSeries() int {
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
+
+	return len(g.series)
+}
+
+func (g *gauge) countSeriesDemand() int {
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
+
+	return int(g.seriesDemand.Estimate())
 }
 
 func (g *gauge) removeStaleSeries(staleTimeMs int64) {
@@ -170,4 +173,5 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 			g.onRemoveSeries(1)
 		}
 	}
+	g.seriesDemand.Advance()
 }

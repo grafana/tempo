@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -22,7 +23,7 @@ func TestHostInfo(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	p, err := New(cfg, testRegistry, nil)
 	require.NoError(t, err)
-	require.Equal(t, p.Name(), Name)
+	require.Equal(t, p.Name(), processor.HostInfoName)
 	defer p.Shutdown(context.TODO())
 
 	req := &tempopb.PushSpansRequest{
@@ -60,7 +61,7 @@ func TestHostInfoHostSource(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	p, err := New(cfg, testRegistry, nil)
 	require.NoError(t, err)
-	require.Equal(t, p.Name(), Name)
+	require.Equal(t, p.Name(), processor.HostInfoName)
 	defer p.Shutdown(context.TODO())
 
 	req := &tempopb.PushSpansRequest{

@@ -478,8 +478,18 @@ func TestSearchTags(t *testing.T) {
 	batch := util.MakeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// Wait for the traces to be written to the WAL and searchable
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(tempoPort))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
+
+	// wait for trace to be written to the WAL
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+
 	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
 
 	util.CallFlush(t, tempo)
@@ -491,15 +501,17 @@ func TestSearchTags(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
+	start := time.Now().Add(-5 * time.Second)
+	end := time.Now().Add(-5 * time.Second)
 	// Assert no more on the ingester
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{}}, 0, 0)
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{}}, start.Unix(), end.Unix())
 
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
 	// Assert tags on storage backend
 	now := time.Now()
-	start := now.Add(-2 * time.Hour)
-	end := now.Add(2 * time.Hour)
+	start = now.Add(-2 * time.Hour)
+	end = now.Add(2 * time.Hour)
 	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, start.Unix(), end.Unix())
 }
 
@@ -519,8 +531,18 @@ func TestSearchTagValues(t *testing.T) {
 	batch := util.MakeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// Wait for the traces to be written to the WAL and searchable
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(tempoPort))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
+
+	// wait for trace to be written to the WAL
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
 
 	util.CallFlush(t, tempo)
@@ -532,13 +554,15 @@ func TestSearchTagValues(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
 	// Assert no more on the ingester
-	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{}}, 0, 0)
+	start := time.Now().Add(-5 * time.Second)
+	end := time.Now().Add(-5 * time.Second)
+	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{}}, start.Unix(), end.Unix())
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
 	// Assert tags on storage backen
 	now := time.Now()
-	start := now.Add(-2 * time.Hour)
-	end := now.Add(2 * time.Hour)
+	start = now.Add(-2 * time.Hour)
+	end = now.Add(2 * time.Hour)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, start.Unix(), end.Unix())
 }
 

@@ -88,40 +88,17 @@ var (
 	// todo: remove this when support for tag based search is removed. we only
 	// need the below mappings for tag name search
 	labelMappings = map[string]string{
-		LabelRootSpanName:     "RootSpanName",
-		LabelRootServiceName:  "RootServiceName",
-		LabelServiceName:      "rs.list.element.Resource.ServiceName",
-		LabelCluster:          "rs.list.element.Resource.Cluster",
-		LabelNamespace:        "rs.list.element.Resource.Namespace",
-		LabelPod:              "rs.list.element.Resource.Pod",
-		LabelContainer:        "rs.list.element.Resource.Container",
-		LabelK8sClusterName:   "rs.list.element.Resource.K8sClusterName",
-		LabelK8sNamespaceName: "rs.list.element.Resource.K8sNamespaceName",
-		LabelK8sPodName:       "rs.list.element.Resource.K8sPodName",
-		LabelK8sContainerName: "rs.list.element.Resource.K8sContainerName",
-		LabelName:             "rs.list.element.ss.list.element.Spans.list.element.Name",
-		LabelHTTPMethod:       "rs.list.element.ss.list.element.Spans.list.element.HttpMethod",
-		LabelHTTPUrl:          "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
-		LabelHTTPStatusCode:   "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
-		LabelStatusCode:       "rs.list.element.ss.list.element.Spans.list.element.StatusCode",
+		LabelRootSpanName:    "RootSpanName",
+		LabelRootServiceName: "RootServiceName",
+		LabelServiceName:     "rs.list.element.Resource.ServiceName",
+		LabelName:            "rs.list.element.ss.list.element.Spans.list.element.Name",
+		LabelStatusCode:      "rs.list.element.ss.list.element.Spans.list.element.StatusCode",
 	}
 	// the two below are used in tag name search. they only include
-	//  custom attributes that are mapped to parquet "special" columns
+	// custom attributes that are mapped to parquet "special" columns
+	// TODO there is just one column left in this mapping, can this be replaced?
 	traceqlResourceLabelMappings = map[string]string{
-		LabelServiceName:      "rs.list.element.Resource.ServiceName",
-		LabelCluster:          "rs.list.element.Resource.Cluster",
-		LabelNamespace:        "rs.list.element.Resource.Namespace",
-		LabelPod:              "rs.list.element.Resource.Pod",
-		LabelContainer:        "rs.list.element.Resource.Container",
-		LabelK8sClusterName:   "rs.list.element.Resource.K8sClusterName",
-		LabelK8sNamespaceName: "rs.list.element.Resource.K8sNamespaceName",
-		LabelK8sPodName:       "rs.list.element.Resource.K8sPodName",
-		LabelK8sContainerName: "rs.list.element.Resource.K8sContainerName",
-	}
-	traceqlSpanLabelMappings = map[string]string{
-		LabelHTTPMethod:     "rs.list.element.ss.list.element.Spans.list.element.HttpMethod",
-		LabelHTTPUrl:        "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
-		LabelHTTPStatusCode: "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
+		LabelServiceName: "rs.list.element.Resource.ServiceName",
 	}
 
 	parquetSchema = parquet.SchemaOf(&Trace{})
@@ -140,21 +117,39 @@ type Attribute struct {
 
 // DedicatedAttributes add spare columns to the schema that can be assigned to attributes at runtime.
 type DedicatedAttributes struct {
-	String01 *string `parquet:",snappy,optional,dict"`
-	String02 *string `parquet:",snappy,optional,dict"`
-	String03 *string `parquet:",snappy,optional,dict"`
-	String04 *string `parquet:",snappy,optional,dict"`
-	String05 *string `parquet:",snappy,optional,dict"`
-	String06 *string `parquet:",snappy,optional,dict"`
-	String07 *string `parquet:",snappy,optional,dict"`
-	String08 *string `parquet:",snappy,optional,dict"`
-	String09 *string `parquet:",snappy,optional,dict"`
-	String10 *string `parquet:",snappy,optional,dict"`
-	Int01    *int64  `parquet:",snappy,optional"`
-	Int02    *int64  `parquet:",snappy,optional"`
-	Int03    *int64  `parquet:",snappy,optional"`
-	Int04    *int64  `parquet:",snappy,optional"`
-	Int05    *int64  `parquet:",snappy,optional"`
+	String01 []string `parquet:",snappy,optional,dict"`
+	String02 []string `parquet:",snappy,optional,dict"`
+	String03 []string `parquet:",snappy,optional,dict"`
+	String04 []string `parquet:",snappy,optional,dict"`
+	String05 []string `parquet:",snappy,optional,dict"`
+	String06 []string `parquet:",snappy,optional,dict"`
+	String07 []string `parquet:",snappy,optional,dict"`
+	String08 []string `parquet:",snappy,optional,dict"`
+	String09 []string `parquet:",snappy,optional,dict"`
+	String10 []string `parquet:",snappy,optional,dict"`
+	Int01    []int64  `parquet:",snappy,optional"`
+	Int02    []int64  `parquet:",snappy,optional"`
+	Int03    []int64  `parquet:",snappy,optional"`
+	Int04    []int64  `parquet:",snappy,optional"`
+	Int05    []int64  `parquet:",snappy,optional"`
+}
+
+func (da *DedicatedAttributes) Reset() {
+	da.String01 = da.String01[:0]
+	da.String02 = da.String02[:0]
+	da.String03 = da.String03[:0]
+	da.String04 = da.String04[:0]
+	da.String05 = da.String05[:0]
+	da.String06 = da.String06[:0]
+	da.String07 = da.String07[:0]
+	da.String08 = da.String08[:0]
+	da.String09 = da.String09[:0]
+	da.String10 = da.String10[:0]
+	da.Int01 = da.Int01[:0]
+	da.Int02 = da.Int02[:0]
+	da.Int03 = da.Int03[:0]
+	da.Int04 = da.Int04[:0]
+	da.Int05 = da.Int05[:0]
 }
 
 type Event struct {
@@ -196,11 +191,6 @@ type Span struct {
 	Links                  []Link      `parquet:",list"`
 	DroppedLinksCount      int32       `parquet:",snappy"`
 
-	// Static dedicated attribute columns
-	HttpMethod     *string `parquet:",snappy,optional,dict"`
-	HttpUrl        *string `parquet:",snappy,optional,dict"`
-	HttpStatusCode *int64  `parquet:",snappy,optional"`
-
 	// Dynamically assignable dedicated attribute columns
 	DedicatedAttributes DedicatedAttributes `parquet:""`
 
@@ -232,19 +222,10 @@ type ScopeSpans struct {
 }
 
 type Resource struct {
+	ServiceName string `parquet:",snappy,dict"`
+
 	Attrs                  []Attribute `parquet:",list"`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
-
-	// Static dedicated attribute columns
-	ServiceName      string  `parquet:",snappy,dict"`
-	Cluster          *string `parquet:",snappy,optional,dict"`
-	Namespace        *string `parquet:",snappy,optional,dict"`
-	Pod              *string `parquet:",snappy,optional,dict"`
-	Container        *string `parquet:",snappy,optional,dict"`
-	K8sClusterName   *string `parquet:",snappy,optional,dict"`
-	K8sNamespaceName *string `parquet:",snappy,optional,dict"`
-	K8sPodName       *string `parquet:",snappy,optional,dict"`
-	K8sContainerName *string `parquet:",snappy,optional,dict"`
 
 	// Dynamically assignable dedicated attribute columns
 	DedicatedAttributes DedicatedAttributes `parquet:""`
@@ -392,15 +373,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 		// Clear out any existing fields in case they were set on the original
 		ob.Resource.DroppedAttributesCount = 0
 		ob.Resource.ServiceName = ""
-		ob.Resource.Cluster = nil
-		ob.Resource.Namespace = nil
-		ob.Resource.Pod = nil
-		ob.Resource.Container = nil
-		ob.Resource.K8sClusterName = nil
-		ob.Resource.K8sNamespaceName = nil
-		ob.Resource.K8sPodName = nil
-		ob.Resource.K8sContainerName = nil
-		ob.Resource.DedicatedAttributes = DedicatedAttributes{}
+		ob.Resource.DedicatedAttributes.Reset()
 
 		if b.Resource != nil {
 			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
@@ -408,32 +381,10 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 
 			attrCount := 0
 			for _, a := range b.Resource.Attributes {
-				strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
-				written := ok
-				if ok {
-					switch a.Key {
-					case LabelServiceName:
-						ob.Resource.ServiceName = strVal.StringValue
-					case LabelCluster:
-						ob.Resource.Cluster = &strVal.StringValue
-					case LabelNamespace:
-						ob.Resource.Namespace = &strVal.StringValue
-					case LabelPod:
-						ob.Resource.Pod = &strVal.StringValue
-					case LabelContainer:
-						ob.Resource.Container = &strVal.StringValue
-
-					case LabelK8sClusterName:
-						ob.Resource.K8sClusterName = &strVal.StringValue
-					case LabelK8sNamespaceName:
-						ob.Resource.K8sNamespaceName = &strVal.StringValue
-					case LabelK8sPodName:
-						ob.Resource.K8sPodName = &strVal.StringValue
-					case LabelK8sContainerName:
-						ob.Resource.K8sContainerName = &strVal.StringValue
-					default:
-						written = false
-					}
+				var written bool
+				if strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue); ok && a.Key == LabelServiceName {
+					ob.Resource.ServiceName = strVal.StringValue
+					written = true
 				}
 
 				if !written {
@@ -525,10 +476,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
-				ss.HttpMethod = nil
-				ss.HttpUrl = nil
-				ss.HttpStatusCode = nil
-				ss.DedicatedAttributes = DedicatedAttributes{}
+				ss.DedicatedAttributes.Reset()
 
 				ss.Links = extendReuseSlice(len(s.Links), ss.Links)
 				for ie, e := range s.Links {
@@ -542,32 +490,9 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				for _, a := range s.Attributes {
 					written := false
 
-					switch a.Key {
-					case LabelHTTPMethod:
-						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
-						if ok {
-							ss.HttpMethod = &strVal.StringValue
-							written = true
-						}
-					case LabelHTTPUrl:
-						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
-						if ok {
-							ss.HttpUrl = &strVal.StringValue
-							written = true
-						}
-					case LabelHTTPStatusCode:
-						intVal, ok := a.Value.Value.(*v1.AnyValue_IntValue)
-						if ok {
-							ss.HttpStatusCode = &intVal.IntValue
-							written = true
-						}
-					}
-
-					if !written {
-						// Dynamically assigned dedicated span attribute columns
-						if spareColumn, exists := dedicatedSpanAttributes.get(a.Key); exists {
-							written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
-						}
+					// Dynamically assigned dedicated span attribute columns
+					if spareColumn, exists := dedicatedSpanAttributes.get(a.Key); exists {
+						written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
 					}
 
 					if !written {
@@ -843,30 +768,6 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 				},
 			})
 		}
-		for _, attr := range []struct {
-			Key   string
-			Value *string
-		}{
-			{Key: LabelCluster, Value: rs.Resource.Cluster},
-			{Key: LabelNamespace, Value: rs.Resource.Namespace},
-			{Key: LabelPod, Value: rs.Resource.Pod},
-			{Key: LabelContainer, Value: rs.Resource.Container},
-			{Key: LabelK8sClusterName, Value: rs.Resource.K8sClusterName},
-			{Key: LabelK8sNamespaceName, Value: rs.Resource.K8sNamespaceName},
-			{Key: LabelK8sPodName, Value: rs.Resource.K8sPodName},
-			{Key: LabelK8sContainerName, Value: rs.Resource.K8sContainerName},
-		} {
-			if attr.Value != nil {
-				protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
-					Key: attr.Key,
-					Value: &v1.AnyValue{
-						Value: &v1.AnyValue_StringValue{
-							StringValue: *attr.Value,
-						},
-					},
-				})
-			}
-		}
 
 		protoBatch.ScopeSpans = make([]*v1_trace.ScopeSpans, 0, len(rs.ScopeSpans))
 
@@ -910,38 +811,6 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 							Value: val,
 						})
 					}
-				}
-
-				// known span attributes
-				if span.HttpMethod != nil {
-					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
-						Key: LabelHTTPMethod,
-						Value: &v1.AnyValue{
-							Value: &v1.AnyValue_StringValue{
-								StringValue: *span.HttpMethod,
-							},
-						},
-					})
-				}
-				if span.HttpUrl != nil {
-					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
-						Key: LabelHTTPUrl,
-						Value: &v1.AnyValue{
-							Value: &v1.AnyValue_StringValue{
-								StringValue: *span.HttpUrl,
-							},
-						},
-					})
-				}
-				if span.HttpStatusCode != nil {
-					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
-						Key: LabelHTTPStatusCode,
-						Value: &v1.AnyValue{
-							Value: &v1.AnyValue_IntValue{
-								IntValue: *span.HttpStatusCode,
-							},
-						},
-					})
 				}
 
 				protoSS.Spans = append(protoSS.Spans, protoSpan)

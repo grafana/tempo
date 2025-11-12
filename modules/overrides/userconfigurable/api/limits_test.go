@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
@@ -19,9 +20,11 @@ func Test_limitsFromOverrides(t *testing.T) {
 		Defaults: overrides.Overrides{
 			Forwarders: []string{"my-forwarder"},
 			MetricsGenerator: overrides.MetricsGeneratorOverrides{
-				Processors:         map[string]struct{}{"service-graphs": {}},
-				CollectionInterval: 15 * time.Second,
-				DisableCollection:  true,
+				Processors:                     map[string]struct{}{"service-graphs": {}},
+				CollectionInterval:             15 * time.Second,
+				DisableCollection:              true,
+				GenerateNativeHistograms:       histograms.HistogramMethodBoth,
+				NativeHistogramMaxBucketNumber: 160,
 				Processor: overrides.ProcessorOverrides{
 					ServiceGraphs: overrides.ServiceGraphsOverrides{
 						HistogramBuckets:         []float64{0.1, 0.2, 0.5},
@@ -30,8 +33,9 @@ func Test_limitsFromOverrides(t *testing.T) {
 						EnableClientServerPrefix: boolPtr(true),
 					},
 					SpanMetrics: overrides.SpanMetricsOverrides{
-						Dimensions:       []string{"your-dim1", "your-dim2"},
-						EnableTargetInfo: boolPtr(true),
+						Dimensions:          []string{"your-dim1", "your-dim2"},
+						EnableTargetInfo:    boolPtr(true),
+						EnableInstanceLabel: boolPtr(true),
 						FilterPolicies: []filterconfig.FilterPolicy{
 							{
 								Exclude: &filterconfig.PolicyMatch{
@@ -74,6 +78,8 @@ func Test_limitsFromOverrides(t *testing.T) {
     ],
     "disable_collection": true,
     "collection_interval": "15s",
+    "generate_native_histograms": "both",
+    "native_histogram_max_bucket_number": 160,
     "processor": {
       "service_graphs": {
         "dimensions": [
@@ -116,7 +122,8 @@ func Test_limitsFromOverrides(t *testing.T) {
         ],
         "target_info_excluded_dimensions": [
           "no"
-        ]
+        ],
+        "enable_instance_label": true
       },
       "host_info": {
         "host_identifiers": [

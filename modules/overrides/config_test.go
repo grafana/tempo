@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
@@ -408,6 +409,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		IngestionTenantShardSize:   3,
 		IngestionMaxAttributeBytes: 1000,
 		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
+		IngestionRetryInfoEnabled:  true,
 
 		MaxLocalTracesPerUser:  1000,
 		MaxGlobalTracesPerUser: 2000,
@@ -419,7 +421,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorMaxActiveSeries:                                             1000,
 		MetricsGeneratorCollectionInterval:                                          10 * time.Second,
 		MetricsGeneratorDisableCollection:                                           false,
-		MetricsGeneratorGenerateNativeHistograms:                                    HistogramMethodNative,
+		MetricsGeneratorGenerateNativeHistograms:                                    histograms.HistogramMethodNative,
 		MetricsGeneratorTraceIDLabelName:                                            "trace_id",
 		MetricsGeneratorForwarderQueueSize:                                          100,
 		MetricsGeneratorForwarderWorkers:                                            5,
@@ -458,6 +460,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		},
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             boolPtr(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: []string{"excluded-dim-1", "excluded-dim-2"},
+		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:          boolPtr(false),
 		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                100,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:             10 * time.Minute,
 		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                1024 * 1024,

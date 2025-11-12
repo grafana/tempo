@@ -43,6 +43,18 @@ dashboard_utils {
         )
       )
       .addRow(
+        g.row('Livestore')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $._config.jobs.live_store),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.live_store),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.containerMatcher($._config.jobs.live_store)),
+        )
+      )
+      .addRow(
         g.row('Metrics-generator')
         .addPanel(
           $.containerCPUUsagePanel('CPU', $._config.jobs.metrics_generator),
@@ -135,7 +147,18 @@ dashboard_utils {
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.block_builder)),
         )
-
+      )
+      .addRow(
+        g.row('Live store')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $._config.jobs.live_store),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.live_store),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.live_store)),
+        )
       ),
   },
 }

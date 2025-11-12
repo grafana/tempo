@@ -81,6 +81,7 @@ server:
     http_path_prefix: ""
     cluster_validation:
         label: ""
+        additional_labels: ""
         grpc:
             enabled: false
             soft_validation: false
@@ -153,6 +154,7 @@ internal_server:
     http_path_prefix: ""
     cluster_validation:
         label: ""
+        additional_labels: ""
         grpc:
             enabled: false
             soft_validation: false
@@ -668,6 +670,7 @@ metrics_generator:
                 2: true
             filter_policies: []
             target_info_excluded_dimensions: []
+            enable_instance_label: true
         local_blocks:
             block:
                 bloom_filter_false_positive: 0.01
@@ -679,7 +682,63 @@ metrics_generator:
                 v2_index_page_size_bytes: 256000
                 v2_encoding: zstd
                 parquet_row_group_size_bytes: 100000000
-                parquet_dedicated_columns: []
+                parquet_dedicated_columns:
+                    - scope: resource
+                      name: k8s.cluster.name
+                      type: string
+                      options: []
+                    - scope: resource
+                      name: k8s.namespace.name
+                      type: string
+                      options: []
+                    - scope: resource
+                      name: k8s.pod.name
+                      type: string
+                      options: []
+                    - scope: resource
+                      name: k8s.container.name
+                      type: string
+                      options: []
+                    - scope: span
+                      name: http.request.method
+                      type: string
+                      options: []
+                    - scope: span
+                      name: http.response.status_code
+                      type: int
+                      options: []
+                    - scope: span
+                      name: url.path
+                      type: string
+                      options: []
+                    - scope: span
+                      name: url.route
+                      type: string
+                      options: []
+                    - scope: span
+                      name: server.address
+                      type: string
+                      options: []
+                    - scope: span
+                      name: server.port
+                      type: int
+                      options: []
+                    - scope: span
+                      name: http.method
+                      type: string
+                      options: []
+                    - scope: span
+                      name: http.url
+                      type: string
+                      options: []
+                    - scope: span
+                      name: http.route
+                      type: string
+                      options: []
+                    - scope: span
+                      name: http.status_code
+                      type: int
+                      options: []
             search:
                 chunk_size_bytes: 1000000
                 prefetch_trace_count: 1000
@@ -780,7 +839,63 @@ block_builder:
         v2_index_page_size_bytes: 256000
         v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns: []
+        parquet_dedicated_columns:
+            - scope: resource
+              name: k8s.cluster.name
+              type: string
+              options: []
+            - scope: resource
+              name: k8s.namespace.name
+              type: string
+              options: []
+            - scope: resource
+              name: k8s.pod.name
+              type: string
+              options: []
+            - scope: resource
+              name: k8s.container.name
+              type: string
+              options: []
+            - scope: span
+              name: http.request.method
+              type: string
+              options: []
+            - scope: span
+              name: http.response.status_code
+              type: int
+              options: []
+            - scope: span
+              name: url.path
+              type: string
+              options: []
+            - scope: span
+              name: url.route
+              type: string
+              options: []
+            - scope: span
+              name: server.address
+              type: string
+              options: []
+            - scope: span
+              name: server.port
+              type: int
+              options: []
+            - scope: span
+              name: http.method
+              type: string
+              options: []
+            - scope: span
+              name: http.url
+              type: string
+              options: []
+            - scope: span
+              name: http.route
+              type: string
+              options: []
+            - scope: span
+              name: http.status_code
+              type: int
+              options: []
     wal:
         path: /var/tempo/block-builder/traces
         v2_encoding: none
@@ -807,7 +922,63 @@ storage:
             v2_index_page_size_bytes: 256000
             v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
-            parquet_dedicated_columns: []
+            parquet_dedicated_columns:
+                - scope: resource
+                  name: k8s.cluster.name
+                  type: string
+                  options: []
+                - scope: resource
+                  name: k8s.namespace.name
+                  type: string
+                  options: []
+                - scope: resource
+                  name: k8s.pod.name
+                  type: string
+                  options: []
+                - scope: resource
+                  name: k8s.container.name
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.request.method
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.response.status_code
+                  type: int
+                  options: []
+                - scope: span
+                  name: url.path
+                  type: string
+                  options: []
+                - scope: span
+                  name: url.route
+                  type: string
+                  options: []
+                - scope: span
+                  name: server.address
+                  type: string
+                  options: []
+                - scope: span
+                  name: server.port
+                  type: int
+                  options: []
+                - scope: span
+                  name: http.method
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.url
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.route
+                  type: string
+                  options: []
+                - scope: span
+                  name: http.status_code
+                  type: int
+                  options: []
         search:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
@@ -874,6 +1045,7 @@ storage:
                 type: ""
                 kms_key_id: ""
                 kms_encryption_context: ""
+                encryption_key: ""
         azure:
             storage_account_name: ""
             storage_account_key: ""
@@ -902,6 +1074,7 @@ overrides:
             rate_limit_bytes: 15000000
             burst_size_bytes: 20000000
             max_traces_per_user: 10000
+            retry_info_enabled: true
         read:
             max_bytes_per_tag_values_query: 1000000
         metrics_generator:
@@ -965,6 +1138,7 @@ overrides:
                     type: ""
                     kms_key_id: ""
                     kms_encryption_context: ""
+                    encryption_key: ""
             azure:
                 storage_account_name: ""
                 storage_account_key: ""
@@ -1023,6 +1197,10 @@ memberlist:
     tls_insecure_skip_verify: false
     tls_cipher_suites: ""
     tls_min_version: ""
+    zone_aware_routing:
+        enabled: false
+        instance_availability_zone: ""
+        role: member
 usage_report:
     reporting_enabled: true
     backoff:
@@ -1234,14 +1412,15 @@ live_store:
     commit_interval: 5s
     query_block_concurrency: 10
     complete_block_timeout: 1h0m0s
-    complete_block_concurrency: 4
+    complete_block_concurrency: 2
+    shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
     flush_check_period: 10s
     flush_op_timeout: 5m0s
     max_trace_live: 30s
     max_trace_idle: 5s
     max_live_traces_bytes: 250000000
     max_block_duration: 30m0s
-    max_block_bytes: 524288000
+    max_block_bytes: 104857600
     block_config:
         bloom_filter_false_positive: 0.01
         bloom_filter_shard_size_bytes: 102400
@@ -1252,5 +1431,61 @@ live_store:
         v2_index_page_size_bytes: 256000
         v2_encoding: zstd
         parquet_row_group_size_bytes: 100000000
-        parquet_dedicated_columns: []
+        parquet_dedicated_columns:
+            - scope: resource
+              name: k8s.cluster.name
+              type: string
+              options: []
+            - scope: resource
+              name: k8s.namespace.name
+              type: string
+              options: []
+            - scope: resource
+              name: k8s.pod.name
+              type: string
+              options: []
+            - scope: resource
+              name: k8s.container.name
+              type: string
+              options: []
+            - scope: span
+              name: http.request.method
+              type: string
+              options: []
+            - scope: span
+              name: http.response.status_code
+              type: int
+              options: []
+            - scope: span
+              name: url.path
+              type: string
+              options: []
+            - scope: span
+              name: url.route
+              type: string
+              options: []
+            - scope: span
+              name: server.address
+              type: string
+              options: []
+            - scope: span
+              name: server.port
+              type: int
+              options: []
+            - scope: span
+              name: http.method
+              type: string
+              options: []
+            - scope: span
+              name: http.url
+              type: string
+              options: []
+            - scope: span
+              name: http.route
+              type: string
+              options: []
+            - scope: span
+              name: http.status_code
+              type: int
+              options: []
 ```

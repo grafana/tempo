@@ -1,0 +1,8 @@
+apiVersion: rollout-operator.grafana.com/v1
+kind: ReplicaTemplate
+metadata:
+  name: live-store
+  namespace: tracing
+spec:
+  labelSelector: rollout-group=live-store
+  replicas: 0

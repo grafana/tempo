@@ -1,6 +1,7 @@
 package deployments
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -185,7 +186,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			err = tempoIngester1.Kill()
 			require.NoError(t, err)
 
-			require.Error(t, info.EmitBatches(c))
+			require.Error(t, info.EmitBatches(context.Background(), c))
 		})
 	}
 }

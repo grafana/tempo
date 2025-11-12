@@ -2,11 +2,10 @@ package spanmetrics
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"time"
-	"unicode/utf8"
 
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/util/strutil"
 
@@ -29,8 +28,6 @@ const (
 	targetInfo            = "traces_target_info"
 )
 
-type sanitizeFn func(string) string
-
 type Processor struct {
 	Cfg Config
 
@@ -52,35 +49,27 @@ type Processor struct {
 }
 
 func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
-	labels := make([]string, 0, 4+len(cfg.Dimensions))
+	var configuredIntrinsicDimensions []string
 
 	if cfg.IntrinsicDimensions.Service {
-		labels = append(labels, dimService)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimService)
 	}
 	if cfg.IntrinsicDimensions.SpanName {
-		labels = append(labels, dimSpanName)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimSpanName)
 	}
 	if cfg.IntrinsicDimensions.SpanKind {
-		labels = append(labels, dimSpanKind)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimSpanKind)
 	}
 	if cfg.IntrinsicDimensions.StatusCode {
-		labels = append(labels, dimStatusCode)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimStatusCode)
 	}
 	if cfg.IntrinsicDimensions.StatusMessage {
-		labels = append(labels, dimStatusMessage)
+		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimStatusMessage)
 	}
 
 	c := reclaimable.New(strutil.SanitizeLabelName, 10000)
 
-	for _, d := range cfg.Dimensions {
-		labels = append(labels, SanitizeLabelNameWithCollisions(d, intrinsicLabels, c.Get))
-	}
-
-	for _, m := range cfg.DimensionMappings {
-		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels, c.Get))
-	}
-
-	err := validateUTF8LabelValues(labels)
+	labels, err := validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +105,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 }
 
 func (p *Processor) Name() string {
-	return Name
+	return gen.SpanMetricsName
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
@@ -135,7 +124,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
 		if p.Cfg.EnableTargetInfo {
-			GetTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, intrinsicLabels, p.sanitizeCache.Get)
+			getTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, p.sanitizeCache.Get)
 		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
@@ -200,20 +189,20 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		labelValues = append(labelValues, values)
 	}
 
-	// add job label only if job is not blank
+	// add job label only if job is not blank and target_info is enabled
 	if jobName != "" && p.Cfg.EnableTargetInfo {
-		labels = append(labels, dimJob)
+		labels = append(labels, gen.DimJob)
 		labelValues = append(labelValues, jobName)
 	}
-	//  add instance label only if job is not blank
-	if instanceID != "" && p.Cfg.EnableTargetInfo {
-		labels = append(labels, dimInstance)
+	//  add instance label only if instance is not blank and enabled and target_info is enabled
+	if instanceID != "" && p.Cfg.EnableTargetInfo && p.Cfg.EnableInstanceLabel {
+		labels = append(labels, gen.DimInstance)
 		labelValues = append(labelValues, instanceID)
 	}
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	err := validateUTF8LabelValues(labelValues)
+	err := validation.ValidateUTF8LabelValues(labelValues)
 	if err != nil {
 		p.invalidUTF8Counter.Inc()
 		return
@@ -242,12 +231,12 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 		// add joblabel to target info only if job is not blank
 		if jobName != "" {
-			targetInfoLabels = append(targetInfoLabels, dimJob)
+			targetInfoLabels = append(targetInfoLabels, gen.DimJob)
 			targetInfoLabelValues = append(targetInfoLabelValues, jobName)
 		}
-		//  add instance label to target info only if job is not blank
-		if instanceID != "" {
-			targetInfoLabels = append(targetInfoLabels, dimInstance)
+		//  add instance label to target info only if instance is not blank and enabled
+		if instanceID != "" && p.Cfg.EnableInstanceLabel {
+			targetInfoLabels = append(targetInfoLabels, gen.DimInstance)
 			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
 		}
 
@@ -261,16 +250,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func validateUTF8LabelValues(v []string) error {
-	for _, value := range v {
-		if !utf8.ValidString(value) {
-			return fmt.Errorf("invalid utf8 string: %s", value)
-		}
-	}
-	return nil
-}
-
-func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string, sanitizeFn sanitizeFn) {
+func getTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude []string, sanitizeFn validation.SanitizeFn) {
 	// TODO allocate with known length, or take new params for existing buffers
 	*keys = (*keys)[:0]
 	*values = (*values)[:0]
@@ -284,20 +264,9 @@ func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 			continue
 		}
 		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !slices.Contains(exclude, key) {
-			*keys = append(*keys, SanitizeLabelNameWithCollisions(key, intrinsicLabels, sanitizeFn))
+			*keys = append(*keys, validation.SanitizeLabelNameWithCollisions(key, targetInfoIntrinsicLabels, sanitizeFn))
 			value := tempo_util.StringifyAnyValue(attrs.Value)
 			*values = append(*values, value)
 		}
 	}
-}
-
-func SanitizeLabelNameWithCollisions(name string, dimensions []string, sansanitizeFn sanitizeFn) string {
-	sanitized := sansanitizeFn(name)
-
-	// check if same label as intrinsics
-	if slices.Contains(dimensions, sanitized) {
-		return "__" + sanitized
-	}
-
-	return sanitized
 }

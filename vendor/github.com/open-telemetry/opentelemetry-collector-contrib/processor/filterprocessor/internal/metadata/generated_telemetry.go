@@ -28,6 +28,7 @@ type TelemetryBuilder struct {
 	registrations                     []metric.Registration
 	ProcessorFilterDatapointsFiltered metric.Int64Counter
 	ProcessorFilterLogsFiltered       metric.Int64Counter
+	ProcessorFilterProfilesFiltered   metric.Int64Counter
 	ProcessorFilterSpansFiltered      metric.Int64Counter
 }
 
@@ -69,6 +70,12 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 	builder.ProcessorFilterLogsFiltered, err = builder.meter.Int64Counter(
 		"otelcol_processor_filter_logs.filtered",
 		metric.WithDescription("Number of logs dropped by the filter processor"),
+		metric.WithUnit("1"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ProcessorFilterProfilesFiltered, err = builder.meter.Int64Counter(
+		"otelcol_processor_filter_profiles.filtered",
+		metric.WithDescription("Number of profiles dropped by the filter processor"),
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)

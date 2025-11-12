@@ -2,7 +2,7 @@ services:
   # Tempo runs as user 10001, and docker compose creates the volume as root.
   # As such, we need to chown the volume in order for Tempo to start correctly.
   init:
-    image: &tempoImage grafana/tempo:latest
+    image: busybox:latest
     user: root
     entrypoint:
       - "chown"
@@ -12,7 +12,7 @@ services:
       - ./tempo-data:/var/tempo
 
   memcached:
-    image: memcached:1.6.38
+    image: memcached:1.6.39@sha256:050de63e6c082df85f93ffed9c388004b3c6257a06f1904e8628a6f87658eb99
     container_name: memcached
     ports:
       - "11211:11211"
@@ -21,7 +21,7 @@ services:
       - MEMCACHED_THREADS=4 # Number of threads to use
 
   tempo:
-    image: *tempoImage
+    image: grafana/tempo:latest
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
@@ -38,7 +38,7 @@ services:
       - memcached
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.7
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
     environment:
       - ENDPOINT=tempo:4317
     restart: always
@@ -58,7 +58,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:12.0.0
+    image: grafana/grafana:12.2.1@sha256:35c41e0fd0295f5d0ee5db7e780cf33506abfaf47686196f825364889dee878b
     volumes:
       - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

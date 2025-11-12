@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
@@ -245,6 +246,20 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(use
 	return o.Interface.MetricsGeneratorDisableCollection(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod {
+	if method, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetGenerateNativeHistograms(); ok {
+		return method
+	}
+	return o.Interface.MetricsGeneratorGenerateNativeHistograms(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32 {
+	if num, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetNativeHistogramMaxBucketNumber(); ok {
+		return num
+	}
+	return o.Interface.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {
 	if collectionInterval, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetCollectionInterval(); ok {
 		return collectionInterval
@@ -320,6 +335,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsT
 		return targetInfoExcludedDimensions
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool) {
+	if EnableInstanceLabel, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetEnableInstanceLabel(); ok {
+		return EnableInstanceLabel, true
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {

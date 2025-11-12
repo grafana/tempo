@@ -57,113 +57,96 @@ type dedicatedColumn struct {
 	Type        backend.DedicatedColumnType
 	ColumnPath  string
 	ColumnIndex int
+	IsArray     bool
 }
 
 func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
+	var val *v1.AnyValue
+
 	switch dc.Type {
 	case backend.DedicatedColumnTypeString:
-		var strVal *string
 		switch dc.ColumnIndex {
 		case 0:
-			strVal = attrs.String01
+			val = dedicatedColStrToAnyValue(attrs.String01, dc.IsArray)
 		case 1:
-			strVal = attrs.String02
+			val = dedicatedColStrToAnyValue(attrs.String02, dc.IsArray)
 		case 2:
-			strVal = attrs.String03
+			val = dedicatedColStrToAnyValue(attrs.String03, dc.IsArray)
 		case 3:
-			strVal = attrs.String04
+			val = dedicatedColStrToAnyValue(attrs.String04, dc.IsArray)
 		case 4:
-			strVal = attrs.String05
+			val = dedicatedColStrToAnyValue(attrs.String05, dc.IsArray)
 		case 5:
-			strVal = attrs.String06
+			val = dedicatedColStrToAnyValue(attrs.String06, dc.IsArray)
 		case 6:
-			strVal = attrs.String07
+			val = dedicatedColStrToAnyValue(attrs.String07, dc.IsArray)
 		case 7:
-			strVal = attrs.String08
+			val = dedicatedColStrToAnyValue(attrs.String08, dc.IsArray)
 		case 8:
-			strVal = attrs.String09
+			val = dedicatedColStrToAnyValue(attrs.String09, dc.IsArray)
 		case 9:
-			strVal = attrs.String10
+			val = dedicatedColStrToAnyValue(attrs.String10, dc.IsArray)
 		}
-		if strVal == nil {
-			return nil
-		}
-		return &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: *strVal}}
 	case backend.DedicatedColumnTypeInt:
-		var intVal *int64
 		switch dc.ColumnIndex {
 		case 0:
-			intVal = attrs.Int01
+			val = dedicatedColIntToAnyValue(attrs.Int01, dc.IsArray)
 		case 1:
-			intVal = attrs.Int02
+			val = dedicatedColIntToAnyValue(attrs.Int02, dc.IsArray)
 		case 2:
-			intVal = attrs.Int03
+			val = dedicatedColIntToAnyValue(attrs.Int03, dc.IsArray)
 		case 3:
-			intVal = attrs.Int04
+			val = dedicatedColIntToAnyValue(attrs.Int04, dc.IsArray)
 		case 4:
-			intVal = attrs.Int05
+			val = dedicatedColIntToAnyValue(attrs.Int05, dc.IsArray)
 		}
-		if intVal == nil {
-			return nil
-		}
-		return &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: *intVal}}
-	default:
-		return nil
 	}
+
+	return val
 }
 
 func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyValue) bool {
+	var written bool
+
 	switch dc.Type {
 	case backend.DedicatedColumnTypeString:
-		strVal, ok := value.Value.(*v1.AnyValue_StringValue)
-		if !ok {
-			return false
-		}
 		switch dc.ColumnIndex {
 		case 0:
-			attrs.String01 = &strVal.StringValue
+			attrs.String01, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String01)
 		case 1:
-			attrs.String02 = &strVal.StringValue
+			attrs.String02, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String02)
 		case 2:
-			attrs.String03 = &strVal.StringValue
+			attrs.String03, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String03)
 		case 3:
-			attrs.String04 = &strVal.StringValue
+			attrs.String04, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String04)
 		case 4:
-			attrs.String05 = &strVal.StringValue
+			attrs.String05, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String05)
 		case 5:
-			attrs.String06 = &strVal.StringValue
+			attrs.String06, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String06)
 		case 6:
-			attrs.String07 = &strVal.StringValue
+			attrs.String07, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String07)
 		case 7:
-			attrs.String08 = &strVal.StringValue
+			attrs.String08, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String08)
 		case 8:
-			attrs.String09 = &strVal.StringValue
+			attrs.String09, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String09)
 		case 9:
-			attrs.String10 = &strVal.StringValue
-		default:
-			return false
+			attrs.String10, written = anyValueToDedicatedColStr(value, dc.IsArray, attrs.String10)
 		}
 	case backend.DedicatedColumnTypeInt:
-		intVal, ok := value.Value.(*v1.AnyValue_IntValue)
-		if !ok {
-			return false
-		}
 		switch dc.ColumnIndex {
 		case 0:
-			attrs.Int01 = &intVal.IntValue
+			attrs.Int01, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int01)
 		case 1:
-			attrs.Int02 = &intVal.IntValue
+			attrs.Int02, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int02)
 		case 2:
-			attrs.Int03 = &intVal.IntValue
+			attrs.Int03, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int03)
 		case 3:
-			attrs.Int04 = &intVal.IntValue
+			attrs.Int04, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int04)
 		case 4:
-			attrs.Int05 = &intVal.IntValue
+			attrs.Int05, written = anyValueToDedicatedColInt(value, dc.IsArray, attrs.Int05)
 		}
-	default:
-		return false
 	}
-	return true
+	return written
 }
 
 func newDedicatedColumnMapping(size int) dedicatedColumnMapping {
@@ -232,14 +215,145 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 				continue // skip if there are not enough spare columns
 			}
 
+			var isArray bool
+			for _, opt := range c.Options {
+				if opt == backend.DedicatedColumnOptionArray {
+					isArray = true
+					break
+				}
+			}
+
 			mapping.put(c.Name, dedicatedColumn{
 				Type:        c.Type,
 				ColumnPath:  spareColumnPaths[i],
 				ColumnIndex: i,
+				IsArray:     isArray,
 			})
 			indexByType[c.Type]++
 		}
 	}
 
 	return mapping
+}
+
+func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
+	filtered := make(backend.DedicatedColumns, 0, len(columns))
+	for _, c := range columns {
+		if isIgnoredDedicatedColumn(&c) {
+			continue
+		}
+		filtered = append(filtered, c)
+	}
+	return filtered
+}
+
+func isIgnoredDedicatedColumn(dc *backend.DedicatedColumn) bool {
+	if _, found := DedicatedResourceColumnPaths[dc.Scope][dc.Type]; !found {
+		return true // unsupported scope or type
+	}
+	return false
+}
+
+func anyValueToDedicatedColStr(value *v1.AnyValue, isArray bool, buf []string) ([]string, bool) {
+	buf = buf[:0]
+	if !isArray {
+		value, ok := value.Value.(*v1.AnyValue_StringValue)
+		if !ok || value == nil {
+			return nil, false
+		}
+		buf = append(buf, value.StringValue)
+	} else {
+		value, ok := value.Value.(*v1.AnyValue_ArrayValue)
+		if !ok || value == nil {
+			return nil, false
+		}
+
+		for _, v := range value.ArrayValue.Values {
+			v, ok := v.Value.(*v1.AnyValue_StringValue)
+			if !ok || v == nil {
+				return nil, false
+			}
+			buf = append(buf, v.StringValue)
+		}
+	}
+	return buf, true
+}
+
+func dedicatedColStrToAnyValue(v []string, isArray bool) *v1.AnyValue {
+	if !isArray && len(v) == 1 {
+		return &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: v[0]}}
+	}
+
+	values := make([]*v1.AnyValue, 0, len(v))
+	switch len(v) {
+	case 0:
+		return nil
+	case 1:
+		values = append(values, &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: v[0]}})
+	default:
+		// allocate v1.Any* values in batches
+		allocAny := make([]v1.AnyValue, len(v))
+		allocStr := make([]v1.AnyValue_StringValue, len(v))
+		for i, s := range v {
+			anyS := &allocStr[i]
+			anyS.StringValue = s
+			anyV := &allocAny[i]
+			anyV.Value = anyS
+
+			values = append(values, anyV)
+		}
+	}
+	return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}}
+}
+
+func anyValueToDedicatedColInt(value *v1.AnyValue, isArray bool, buf []int64) ([]int64, bool) {
+	buf = buf[:0]
+	if !isArray {
+		value, ok := value.Value.(*v1.AnyValue_IntValue)
+		if !ok || value == nil {
+			return nil, false
+		}
+		buf = append(buf, value.IntValue)
+	} else {
+		value, ok := value.Value.(*v1.AnyValue_ArrayValue)
+		if !ok || value == nil {
+			return nil, false
+		}
+
+		for _, v := range value.ArrayValue.Values {
+			v, ok := v.Value.(*v1.AnyValue_IntValue)
+			if !ok || v == nil {
+				return nil, false
+			}
+			buf = append(buf, v.IntValue)
+		}
+	}
+	return buf, true
+}
+
+func dedicatedColIntToAnyValue(v []int64, isArray bool) *v1.AnyValue {
+	if !isArray && len(v) == 1 {
+		return &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: v[0]}}
+	}
+
+	values := make([]*v1.AnyValue, 0, len(v))
+	switch len(v) {
+	case 0:
+		return nil
+	case 1:
+		values = append(values, &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: v[0]}})
+	default:
+		// allocate v1.Any* values in batches
+		allocAny := make([]v1.AnyValue, len(v))
+		allocInt := make([]v1.AnyValue_IntValue, len(v))
+		for i, n := range v {
+			anyS := &allocInt[i]
+			anyS.IntValue = n
+			anyV := &allocAny[i]
+			anyV.Value = anyS
+
+			values = append(values, anyV)
+		}
+	}
+	return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}}
 }

@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
-	"hash/fnv"
 	"math"
 	"slices"
+	"strings"
 	"time"
 	"unsafe"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/grafana/tempo/pkg/regexp"
 )
 
@@ -519,6 +520,17 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 		RHS: rhs,
 	}
 
+	if attr, ok := lhs.(Attribute); ok && attr.Intrinsic == IntrinsicTraceID {
+		if static, ok := rhs.(Static); ok {
+			binop.RHS = normalizeTraceIDOperand(static)
+		}
+	}
+	if attr, ok := rhs.(Attribute); ok && attr.Intrinsic == IntrinsicTraceID {
+		if static, ok := lhs.(Static); ok {
+			binop.LHS = normalizeTraceIDOperand(static)
+		}
+	}
+
 	// AST rewrite for simplification
 	if !binop.referencesSpan() && binop.validate() == nil {
 		if simplified, err := binop.execute(nil); err == nil {
@@ -531,6 +543,16 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 	}
 
 	return binop
+}
+
+// normalizeTraceIDOperand normalizes a Static operand for trace ID
+func normalizeTraceIDOperand(operand Static) Static {
+	if operand.Type != TypeString {
+		return operand
+	}
+	traceID := operand.EncodeToString(false)
+	traceID = strings.TrimLeft(traceID, "0")
+	return NewStaticString(traceID)
 }
 
 // nolint: revive
@@ -580,7 +602,7 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 func (UnaryOperation) __fieldExpression() {}
 
 func (o UnaryOperation) impliedType() StaticType {
-	if o.Op == OpExists {
+	if o.Op == OpExists || o.Op == OpNotExists {
 		return TypeBoolean
 	}
 
@@ -725,7 +747,11 @@ func NewStaticBooleanArray(b []bool) Static {
 	}
 }
 
-var seedBytes = []byte{204, 38, 247, 160, 15, 37, 67, 77}
+var (
+	seedBytes = []byte{204, 38, 247, 160, 15, 37, 67, 77}
+	// separatorByte is a byte that cannot occur in valid UTF-8 sequences
+	separatorByte = []byte{255}
+)
 
 func (s Static) MapKey() StaticMapKey {
 	switch s.Type {
@@ -742,7 +768,7 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		h := fnv.New64a()
+		h := xxhash.New()
 		_, _ = h.Write(s.valBytes)
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	case TypeStringArray:
@@ -750,11 +776,13 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		h := fnv.New64a()
-		_, _ = h.Write(seedBytes) // avoid collisions with values like []string{""}
+		h := xxhash.New()
+		_, _ = h.Write(seedBytes)
 		for _, str := range s.valStrings {
-			_, _ = h.Write(unsafe.Slice(unsafe.StringData(str), len(str)))
+			_, _ = h.Write([]byte(str))
+			_, _ = h.Write(separatorByte)
 		}
+
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	default:
 		return StaticMapKey{typ: s.Type, code: s.valScalar}
