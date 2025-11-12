@@ -22,20 +22,13 @@ type analyseBlocksCmd struct {
 	MinCompactionLevel int    `help:"Min compaction level to analyse" default:"3"`
 	MaxBlocks          int    `help:"Max number of blocks to analyse" default:"10"`
 	NumAttr            int    `help:"Number of attributes to display" default:"15"`
-	// NumBlob            int    `help:"Number of blob attributes to display" default:"5"`
-	BlobThreshold string `help:"Convert column to blob when dictionary size reaches this value" default:"10MiB"`
-	BlobLength    string `help:"Convert column to blob when max length reaches this value" default:"2KiB"`
-	MaxStartTime  string `help:"Oldest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
-	MinStartTime  string `help:"Newest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
+	BlobThreshold      string `help:"Convert column to blob when dictionary size reaches this value" default:"10MiB"`
+	MaxStartTime       string `help:"Oldest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
+	MinStartTime       string `help:"Newest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
 }
 
 func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 	blobBytes, err := humanize.ParseBytes(cmd.BlobThreshold)
-	if err != nil {
-		return err
-	}
-
-	blobLength, err := humanize.ParseBytes(cmd.BlobLength)
 	if err != nil {
 		return err
 	}
@@ -116,5 +109,5 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 		resourceSummary: attributeSummary{
 			attributes: topResourceAttrs,
 		},
-	}).print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.Cli, blobBytes, blobLength)
+	}).print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.Cli, blobBytes)
 }

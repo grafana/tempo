@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -107,12 +105,10 @@ func pathsForVersion(v string) attributePaths {
 type analyseBlockCmd struct {
 	backendOptions
 
-	TenantID string `arg:"" help:"tenant-id within the bucket"`
-	BlockID  string `arg:"" help:"block ID to list"`
-	NumAttr  int    `help:"Number of attributes to display" default:"15"`
-	// NumBlob       int    `help:"Number of blob attributes to display" default:"5"`
+	TenantID      string `arg:"" help:"tenant-id within the bucket"`
+	BlockID       string `arg:"" help:"block ID to list"`
+	NumAttr       int    `help:"Number of attributes to display" default:"15"`
 	BlobThreshold string `help:"Convert column to blob when dictionary size reaches this value" default:"4MiB"`
-	BlobLength    string `help:"Convert column to blob when max length reaches this value" default:"2KiB"`
 
 	GenerateJsonnet  bool `help:"Generate overrides Jsonnet for dedicated columns"`
 	GenerateCliArgs  bool `help:"Generate textual args for passing to parquet conversion command"`
@@ -122,11 +118,6 @@ type analyseBlockCmd struct {
 
 func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 	blobBytes, err := humanize.ParseBytes(cmd.BlobThreshold)
-	if err != nil {
-		return err
-	}
-
-	blobLength, err := humanize.ParseBytes(cmd.BlobLength)
 	if err != nil {
 		return err
 	}
@@ -148,7 +139,7 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return errors.New("failed to process block")
 	}
 
-	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.GenerateCliArgs, blobBytes, blobLength)
+	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.GenerateCliArgs, blobBytes)
 }
 
 func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minStartTime time.Time, minCompactionLvl uint32) (*blockSummary, error) {
@@ -246,37 +237,37 @@ type blockSummary struct {
 	numRowGroups    int
 }
 
-func (s *blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printFullSummary, generateCliArgs bool, blobBytes uint64, blobLength uint64) error {
+func (s blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printFullSummary, generateCliArgs bool, blobBytes uint64) error {
 	if printFullSummary {
-		if err := printSummary("span", maxAttr, s.spanSummary, false, s.numRowGroups, blobBytes, blobLength); err != nil {
+		if err := printSummary("span", maxAttr, s.spanSummary, false, s.numRowGroups, blobBytes); err != nil {
 			return err
 		}
 
-		if err := printSummary("resource", maxAttr, s.resourceSummary, false, s.numRowGroups, blobBytes, blobLength); err != nil {
+		if err := printSummary("resource", maxAttr, s.resourceSummary, false, s.numRowGroups, blobBytes); err != nil {
 			return err
 		}
 
-		if err := printSummary("event", maxAttr, s.eventSummary, false, s.numRowGroups, blobBytes, blobLength); err != nil {
+		if err := printSummary("event", maxAttr, s.eventSummary, false, s.numRowGroups, blobBytes); err != nil {
 			return err
 		}
 	}
 
 	if simpleSummary {
-		if err := printSummary("span", maxAttr, s.spanSummary, true, s.numRowGroups, blobBytes, blobLength); err != nil {
+		if err := printSummary("span", maxAttr, s.spanSummary, true, s.numRowGroups, blobBytes); err != nil {
 			return err
 		}
 
-		if err := printSummary("resource", maxAttr, s.resourceSummary, true, s.numRowGroups, blobBytes, blobLength); err != nil {
+		if err := printSummary("resource", maxAttr, s.resourceSummary, true, s.numRowGroups, blobBytes); err != nil {
 			return err
 		}
 	}
 
 	if generateJsonnet {
-		printDedicatedColumnOverridesJsonnet(s.spanSummary, s.resourceSummary)
+		printDedicatedColumnOverridesJsonnet(s)
 	}
 
 	if generateCliArgs {
-		printCliArgs(s, maxAttr, s.numRowGroups, blobBytes, blobLength)
+		printCliArgs(s, maxAttr, s.numRowGroups, blobBytes)
 	}
 
 	return nil
@@ -305,6 +296,8 @@ type attribute struct {
 type cardinality map[string]uint64
 
 func (c cardinality) add(value string) {
+	// TODO - instead of storing the raw value in the map, we could hash it and record the length. The
+	// requirement is to be able to estimate the cardinality and total content size at the end.
 	c[value]++
 }
 
@@ -329,16 +322,7 @@ func (c cardinality) totalOccurrences() uint64 {
 	return total
 }
 
-func (c cardinality) maxLength() uint64 {
-	max := 0
-	for v := range c {
-		if len(v) > max {
-			max = len(v)
-		}
-	}
-	return uint64(max)
-}
-
+// dictionarySize is the estimated total size of a compressed dictionary for this attribute.
 func (c cardinality) dictionarySize() uint64 {
 	total := uint64(0)
 	for v := range c {
@@ -347,30 +331,12 @@ func (c cardinality) dictionarySize() uint64 {
 	return total
 }
 
-func (c cardinality) avgDictionarySize(numRowGroups int) uint64 {
-	return uint64(float64(c.dictionarySize()) / float64(numRowGroups))
-}
-
-func (c cardinality) compressedAvgDictionarySize(numRowGroups int) uint64 {
-	sz := make([]byte, 4)
-	buf := bytes.NewBuffer(nil)
-	for v := range c {
-		binary.BigEndian.PutUint32(sz, uint32(len(v)))
-		buf.Write(sz)
-		buf.Write([]byte(v))
-	}
-
-	bufOut, err := parquet.Snappy.Encode(nil, buf.Bytes())
-	if err != nil {
-		panic(err)
-	}
-	return uint64(float64(len(bufOut)) / float64(numRowGroups))
-}
-
-func (c cardinality) totalAttributeSize(numRowGroups int) uint64 {
-	dict := c.avgDictionarySize(numRowGroups)
-	content := uint64(float64(c.totalOccurrences()) / float64(numRowGroups))
-	return dict + content
+// avgSizePerRowGroup is the average number of bytes used for this attribute per row group, assuming a
+// compressed dictionary and page content of 1 byte per row.
+func (c cardinality) avgSizePerRowGroup(numRowGroups int) uint64 {
+	dict := c.dictionarySize()
+	content := c.totalOccurrences()
+	return uint64((float64(dict) + float64(content)) / float64(numRowGroups))
 }
 
 type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator
@@ -513,8 +479,7 @@ func aggregateSingleColumn(pf *parquet.File, colName string) (cardinality, error
 	return cardinality, nil
 }
 
-func printSummary(scope string, max int, summary attributeSummary, simple bool, numRowGroups int, blobBytes uint64, _ uint64) error {
-	// TODO: Support more output formats
+func printSummary(scope string, max int, summary attributeSummary, simple bool, numRowGroups int, blobBytes uint64) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
 	if max > len(summary.attributes) {
@@ -546,23 +511,20 @@ func printSummary(scope string, max int, summary attributeSummary, simple bool, 
 			thisBytes       = a.totalBytes
 			percentage      = float64(thisBytes) / float64(totalBytes) * 100
 			totalOccurances = a.cardinality.totalOccurrences()
-			maxLength       = a.cardinality.maxLength()
 			distinct        = a.cardinality.distinctValueCount()
 			avgReuse        = float64(totalOccurances) / float64(distinct)
-			totalSize       = a.cardinality.totalAttributeSize(numRowGroups)
+			totalSize       = a.cardinality.avgSizePerRowGroup(numRowGroups)
 		)
 
 		blob := ""
-		if totalSize >= blobBytes /* || maxLength >= blobLength */ {
+		if totalSize >= blobBytes {
 			blob = "(blob)"
 		}
 
-		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\t max length: %s\t count: %d\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\n",
+		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\n",
 			name,
 			humanize.Bytes(thisBytes),
 			percentage,
-			humanize.Bytes(uint64(maxLength)),
-			totalOccurances,
 			distinct,
 			avgReuse,
 			humanize.Bytes(totalSize),
@@ -597,87 +559,49 @@ func printSummary(scope string, max int, summary attributeSummary, simple bool, 
 	return nil
 }
 
-func printDedicatedColumnOverridesJsonnet(spanSummary, resourceSummary attributeSummary) {
+func printDedicatedColumnOverridesJsonnet(summary blockSummary) {
 	fmt.Println("")
 	fmt.Printf("parquet_dedicated_columns: [\n")
 
-	// span attributes first
-	spanAttrList := topN(10, spanSummary.attributes)
-	for _, a := range spanAttrList {
+	for _, a := range topN(10, summary.spanSummary.attributes) {
 		fmt.Printf(" { scope: 'span', name: '%s', type: 'string' },\n", a.name)
 	}
 
-	// span attributes first
-	resourceAttrList := topN(10, resourceSummary.attributes)
-	for _, a := range resourceAttrList {
+	for _, a := range topN(10, summary.resourceSummary.attributes) {
 		fmt.Printf(" { scope: 'resource', name: '%s', type: 'string' },\n", a.name)
 	}
+
+	for _, a := range topN(10, summary.eventSummary.attributes) {
+		fmt.Printf(" { scope: 'event', name: '%s', type: 'string' },\n", a.name)
+	}
+
 	fmt.Printf("], \n")
 	fmt.Println("")
 }
 
-func printCliArgs(s *blockSummary, maxAttr int, numRowGroups int, blobBytes uint64, blobLength uint64) {
+func printCliArgs(s blockSummary, maxAttr int, numRowGroups int, blobBytes uint64) {
 	fmt.Println("")
 	fmt.Printf("quoted/spaced cli list:")
 
 	ss := []string{}
-	// spanBlob     = make(map[string]*attribute)
-	// resourceBlob = make(map[string]*attribute)
-	// eventBlob    = make(map[string]*attribute)
-
-	/*for _, a := range s.spanSummary.attributes {
-		if a.cardinality.totalAttributeSize(numRowGroups) > blobBytes {
-			spanBlob[a.name] = a
-		}
-	}
-
-	for _, a := range s.resourceSummary.attributes {
-		if a.cardinality.totalAttributeSize(numRowGroups) > blobBytes {
-			resourceBlob[a.name] = a
-		}
-	}
-
-	for _, a := range s.eventSummary.attributes {
-		if a.cardinality.totalAttributeSize(numRowGroups) > blobBytes {
-			eventBlob[a.name] = a
-		}
-	}*/
-
-	// Move top N blob candidates out. Then choose top N from
-	// remaining, which may also still be good candidates for blobs
-	// but we ran out of columns.  But a dedicated column is still
-	// better than storing in the shared generic columns.
-	/*for _, b := range topN(numBlob, spanBlob) {
-		ss = append(ss, fmt.Sprintf("\"blob/span.%s\"", b.name))
-		delete(s.spanSummary.attributes, b.name)
-	}*/
 	for _, a := range topN(maxAttr, s.spanSummary.attributes) {
-		if a.cardinality.totalAttributeSize(numRowGroups) > blobBytes {
+		if a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/span.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"span.%s\"", a.name))
 		}
 	}
 
-	/*for _, b := range topN(numBlob, resourceBlob) {
-		ss = append(ss, fmt.Sprintf("\"blob/resource.%s\"", b.name))
-		delete(s.resourceSummary.attributes, b.name)
-	}*/
-
 	for _, a := range topN(maxAttr, s.resourceSummary.attributes) {
-		if a.cardinality.totalAttributeSize(numRowGroups) > blobBytes {
+		if a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/resource.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"resource.%s\"", a.name))
 		}
 	}
 
-	/*for _, b := range topN(numBlob, eventBlob) {
-		ss = append(ss, fmt.Sprintf("\"blob/event.%s\"", b.name))
-		delete(s.eventSummary.attributes, b.name)
-	}*/
 	for _, a := range topN(maxAttr, s.eventSummary.attributes) {
-		if a.cardinality.totalAttributeSize(numRowGroups) > blobBytes {
+		if a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/event.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"event.%s\"", a.name))
@@ -694,7 +618,6 @@ func topN(n int, attrs map[string]*attribute) []*attribute {
 	}
 	sort.Slice(top, func(i, j int) bool {
 		return top[i].totalBytes > top[j].totalBytes
-		// return top[i].cardinality.totalAttributeSize(1) > top[j].cardinality.totalAttributeSize(1)
 	})
 	if len(top) > n {
 		top = top[:n]
