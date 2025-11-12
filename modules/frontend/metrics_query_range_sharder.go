@@ -398,13 +398,6 @@ func (s *queryRangeSharder) exemplarsForBlock(m *backend.BlockMeta, totalExempla
 	return max(uint32(math.Ceil(share)), 1)
 }
 
-func max(a, b uint32) uint32 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	if req.Query == "" {
 		return 0

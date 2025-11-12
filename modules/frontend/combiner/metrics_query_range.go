@@ -68,7 +68,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 
 			return nil
 		},
-		metadata: func(resp PipelineResponse, final *tempopb.QueryRangeResponse) error {
+		metadata: func(resp PipelineResponse, _ *tempopb.QueryRangeResponse) error {
 			if qr, ok := resp.(*QueryRangeJobResponse); ok && qr != nil {
 				qrMetrics := &tempopb.SearchMetrics{
 					TotalBlocks:     uint32(qr.TotalBlocks), //nolint:gosec
