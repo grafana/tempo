@@ -54,7 +54,7 @@ func TestOverrides(t *testing.T) {
 	}
 	for _, tc := range testBackends {
 		t.Run(tc.name, func(t *testing.T) {
-			s, tempo := setupOverridesAPITest(t, tc.configFile)
+			s, tempo := setupTempo(t, tc.configFile)
 			defer s.Close()
 
 			orgID := ""
@@ -192,7 +192,7 @@ func TestOverrides(t *testing.T) {
 }
 
 func TestOverridesAPI_GET(t *testing.T) {
-	s, tempo := setupOverridesAPITest(t, configAllInOneS3Overrides)
+	s, tempo := setupTempo(t, configAllInOneS3Overrides)
 	defer s.Close()
 
 	t.Run("returns 404 when config not found", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestOverridesAPI_GET(t *testing.T) {
 }
 
 func TestOverridesAPI_POST(t *testing.T) {
-	s, tempo := setupOverridesAPITest(t, configAllInOneS3Overrides)
+	s, tempo := setupTempo(t, configAllInOneS3Overrides)
 	defer s.Close()
 
 	t.Run("API returns 428 without if-match header", func(t *testing.T) {
@@ -363,7 +363,7 @@ func TestOverridesAPI_POST(t *testing.T) {
 }
 
 func TestOverridesAPI_PATCH(t *testing.T) {
-	s, tempo := setupOverridesAPITest(t, configAllInOneS3Overrides)
+	s, tempo := setupTempo(t, configAllInOneS3Overrides)
 	defer s.Close()
 
 	t.Run("with no existing config creates new config", func(t *testing.T) {
@@ -506,7 +506,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 	})
 
 	t.Run("empty top level config doesn't overwrites nested configs", func(t *testing.T) {
-		apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "tenant-patch-4")
+		apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "tenant-patch-5")
 
 		// create initial config
 		initialPatch := &client.Limits{
@@ -553,7 +553,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 	})
 
 	t.Run("version changes after patch", func(t *testing.T) {
-		apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "tenant-patch-5")
+		apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "tenant-patch-6")
 
 		// Create initial config with POST
 		initialLimits := &client.Limits{
@@ -583,7 +583,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 	})
 
 	t.Run("handles complex nested config", func(t *testing.T) {
-		apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "tenant-patch-6")
+		apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "tenant-patch-7")
 
 		// Create comprehensive config via PATCH
 		patch := &client.Limits{
@@ -626,7 +626,7 @@ func TestOverridesAPI_PATCH(t *testing.T) {
 }
 
 func TestOverridesAPI_DELETE(t *testing.T) {
-	s, tempo := setupOverridesAPITest(t, configAllInOneS3Overrides)
+	s, tempo := setupTempo(t, configAllInOneS3Overrides)
 	defer s.Close()
 
 	t.Run("config is deleted with correct etag", func(t *testing.T) {
@@ -704,8 +704,8 @@ func TestOverridesAPI_DELETE(t *testing.T) {
 
 // Helper functions for overrides API tests
 
-// setupOverridesAPITest stands up a new NewTempoAllInOne for e2e test
-func setupOverridesAPITest(t *testing.T, configFilePath string) (*e2e.Scenario, *e2e.HTTPService) {
+// setupTempo stands up a new NewTempoAllInOne for e2e test
+func setupTempo(t *testing.T, configFilePath string) (*e2e.Scenario, *e2e.HTTPService) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 
