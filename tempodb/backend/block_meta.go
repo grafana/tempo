@@ -41,13 +41,6 @@ const (
 	DefaultDedicatedColumnScope = DedicatedColumnScopeSpan
 )
 
-type DedicatedColumnFlag uint8
-
-const (
-	DedicatedColumnFlagNone DedicatedColumnFlag = 0x00
-	DedicatedColumnFlagBlob                     = 0x01
-)
-
 var maxSupportedColumns = map[DedicatedColumnType]map[DedicatedColumnScope]int{
 	DedicatedColumnTypeString: {DedicatedColumnScopeSpan: 10, DedicatedColumnScopeResource: 10},
 	DedicatedColumnTypeInt:    {DedicatedColumnScopeSpan: 5, DedicatedColumnScopeResource: 5},

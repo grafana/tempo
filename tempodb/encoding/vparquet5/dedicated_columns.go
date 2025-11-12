@@ -78,6 +78,18 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String03",
 			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String04",
 			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String05",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String06",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String07",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String08",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String09",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.String10",
+		},
+		backend.DedicatedColumnTypeInt: {
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int01",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int02",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int03",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int04",
+			"rs.list.element.ss.list.element.Spans.list.element.Events.list.element.DedicatedAttributes.Int05",
 		},
 	},
 }

@@ -58,13 +58,13 @@ func (cmd *convertParquet4to5) Run() error {
 		for _, col := range cmd.DedicatedColumns {
 
 			var (
-				typ   = backend.DedicatedColumnTypeString
-				flags = backend.DedicatedColumnFlagNone
+				typ     = backend.DedicatedColumnTypeString
+				options = backend.DedicatedColumnOptions{}
 			)
 
 			col, blob := strings.CutPrefix(col, "blob/")
 			if blob {
-				flags |= backend.DedicatedColumnFlagBlob
+				options = append(options, backend.DedicatedColumnOptionBlob)
 			}
 
 			att, err := traceql.ParseIdentifier(col)
@@ -87,10 +87,10 @@ func (cmd *convertParquet4to5) Run() error {
 			fmt.Printf("add dedicated column scope=%s name=%s\n", scope, att.Name)
 
 			dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
-				Scope: scope,
-				Name:  att.Name,
-				Type:  typ,
-				Flags: uint8(flags),
+				Scope:   scope,
+				Name:    att.Name,
+				Type:    typ,
+				Options: options,
 			})
 		}
 	} else {
