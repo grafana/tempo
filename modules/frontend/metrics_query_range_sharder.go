@@ -214,6 +214,19 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	// calculate metrics to return to the caller
 	jobMetadata.TotalBlocks = len(blocks)
 
+	// Calculate total duration across all blocks for exemplar distribution
+	var totalDurationNanos int64
+	for _, b := range blocks {
+		if !b.EndTime.Before(b.StartTime) {
+			totalDurationNanos += b.EndTime.UnixNano() - b.StartTime.UnixNano()
+		}
+	}
+
+	// Create function to calculate exemplars per block
+	getExemplarsForBlock := func(m *backend.BlockMeta) uint32 {
+		return s.exemplarsForBlock(m, searchReq.Exemplars, totalDurationNanos)
+	}
+
 	// Group blocks into shards
 	maxShards := s.cfg.StreamingShards
 	if maxShards <= 0 {
@@ -233,11 +246,11 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	}, nil)
 
 	go func() {
-		s.buildBackendRequests(ctx, tenantID, parent, backendReq, firstShardIdx, blockIter, reqCh)
+		s.buildBackendRequests(ctx, tenantID, parent, backendReq, firstShardIdx, blockIter, reqCh, getExemplarsForBlock)
 	}()
 }
 
-func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, firstShardIdx int, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request) {
+func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, firstShardIdx int, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request, getExemplarsForBlock func(*backend.BlockMeta) uint32) {
 	defer close(reqCh)
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
@@ -259,6 +272,14 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			return
 		}
 
+		// Calculate exemplars for this specific request
+		exemplars := getExemplarsForBlock(m)
+		if exemplars > 0 {
+			// Scale the number of exemplars per block to match the size
+			// of each sub request on this block. For very small blocks or other edge cases, return at least 1.
+			exemplars = max(uint32(float64(exemplars)*float64(pages)/float64(m.TotalRecords)), 1)
+		}
+
 		pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 			queryRangeReq := &tempopb.QueryRangeRequest{
 				Query:     searchReq.Query,
@@ -275,7 +296,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Size_:         m.Size_,
 				FooterSize:    m.FooterSize,
 				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
-				Exemplars: searchReq.Exemplars,
+				Exemplars: exemplars,
 				MaxSeries: searchReq.MaxSeries,
 			}
 
@@ -358,6 +379,31 @@ func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, allowUnsafe bool) in
 	size := s.cfg.TargetBytesPerRequest
 
 	return size
+}
+
+// exemplarsForBlock calculates exemplars for a single block based on its proportional duration.
+// Example: if a block is 90s out of 100s total, with limit=100, it gets 90*1.2=108 exemplars.
+func (s *queryRangeSharder) exemplarsForBlock(m *backend.BlockMeta, totalExemplars uint32, totalDurationNanos int64) uint32 {
+	const overhead = 1.2 // 20% overhead for shard size
+
+	if totalExemplars == 0 || totalDurationNanos <= 0 {
+		return 0
+	}
+
+	if m.EndTime.Before(m.StartTime) { // Skip blocks with invalid time ranges
+		return 0
+	}
+
+	blockDuration := m.EndTime.UnixNano() - m.StartTime.UnixNano()
+	share := (float64(blockDuration) / float64(totalDurationNanos)) * float64(totalExemplars) * overhead
+	return max(uint32(math.Ceil(share)), 1)
+}
+
+func max(a, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {

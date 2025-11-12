@@ -42,7 +42,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      100,
 			blockSize:         uint64(targetBytesPerRequest),
 			exemplars:         5,
-			expectedExemplars: 5, // exemplars per request
+			expectedExemplars: 6, // 5 * 1.2
 			expectedBatches:   1,
 		},
 		{
@@ -50,7 +50,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      100,
 			blockSize:         uint64(2 * targetBytesPerRequest),
 			exemplars:         5,
-			expectedExemplars: 10, // 5 exemplars * 2 batches
+			expectedExemplars: 6, // 5 * 1.2
 			expectedBatches:   2,
 		},
 		{
@@ -58,7 +58,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      10000,
 			blockSize:         50000,
 			exemplars:         10,
-			expectedExemplars: 500, // 10 exemplars * 50 batches
+			expectedExemplars: 50, // 1 per each batch
 			expectedBatches:   50,
 		},
 		{
@@ -66,7 +66,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      uint32(targetBytesPerRequest),
 			blockSize:         uint64(targetBytesPerRequest),
 			exemplars:         10,
-			expectedExemplars: 10, // 10 exemplars * 1 batch
+			expectedExemplars: 12, // 10 * 1.2
 			expectedBatches:   1,
 		},
 		{
@@ -74,7 +74,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      500,
 			blockSize:         50000,
 			exemplars:         20,
-			expectedExemplars: 1000, // 20 exemplars * 50 batches
+			expectedExemplars: 50, // 1 per each batch
 			expectedBatches:   50,
 		},
 		{
@@ -82,7 +82,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      10,
 			blockSize:         100,
 			exemplars:         1,
-			expectedExemplars: 1, // 1 exemplar * 1 batch
+			expectedExemplars: 2, // 1 * 1.2 -> rounded up to 2
 			expectedBatches:   1,
 		},
 		{
@@ -90,7 +90,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      1,
 			blockSize:         uint64(2 * targetBytesPerRequest),
 			exemplars:         1,
-			expectedExemplars: 1, // 1 exemplar * 1 batch
+			expectedExemplars: 2, // 1 * 1.2 -> rounded up to 2
 			expectedBatches:   1,
 		},
 		{
@@ -98,7 +98,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      1,
 			blockSize:         uint64(1.5 * float64(targetBytesPerRequest)),
 			exemplars:         1,
-			expectedExemplars: 1, // 1 exemplar * 1 batch
+			expectedExemplars: 2, // 1 * 1.2 -> rounded up to 2
 			expectedBatches:   1,
 		},
 		{
@@ -106,7 +106,7 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			totalRecords:      2,
 			blockSize:         uint64(2 * targetBytesPerRequest),
 			exemplars:         1,
-			expectedExemplars: 2, // 1 exemplar * 2 batches
+			expectedExemplars: 2, // 1 * 1.2 -> rounded up to 2
 			expectedBatches:   2,
 		},
 	}
@@ -139,7 +139,19 @@ func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
 			blockIter := backendJobsFunc(blocks, targetBytesPerRequest, defaultMostRecentShards, uint32(searchReq.End))
 
 			go func() {
-				sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, 0, blockIter, reqCh)
+			// Calculate total duration for exemplar distribution
+			var totalDurationNanos int64
+			for _, b := range blocks {
+				if !b.EndTime.Before(b.StartTime) {
+					totalDurationNanos += b.EndTime.UnixNano() - b.StartTime.UnixNano()
+				}
+			}
+
+			getExemplarsForBlock := func(m *backend.BlockMeta) uint32 {
+				return sharder.exemplarsForBlock(m, searchReq.Exemplars, totalDurationNanos)
+			}
+
+			sharder.buildBackendRequests(t.Context(), tenantID, parentReq, searchReq, 0, blockIter, reqCh, getExemplarsForBlock)
 			}()
 
 			// Collect requests
@@ -177,6 +189,110 @@ func extractExemplarsValue(t *testing.T, uri string) int {
 	require.NoError(t, err, "Should be able to parse exemplars value")
 
 	return exemplarsValue
+}
+
+func TestExemplarsForBlock(t *testing.T) {
+	s := &queryRangeSharder{}
+
+	createBlockMeta := func(durationSeconds int) *backend.BlockMeta {
+		now := time.Now()
+		return &backend.BlockMeta{
+			BlockID:   backend.MustParse(uuid.NewString()),
+			StartTime: now.Add(-time.Duration(durationSeconds) * time.Second),
+			EndTime:   now,
+		}
+	}
+
+	testCases := []struct {
+		name               string
+		block              *backend.BlockMeta
+		totalExemplars     uint32
+		totalDurationNanos int64
+		expectedResult     uint32
+	}{
+		{
+			name:               "limit is zero",
+			block:              createBlockMeta(60),
+			totalExemplars:     0,
+			totalDurationNanos: 60 * 1e9,
+			expectedResult:     0,
+		},
+		{
+			name:               "total duration is zero",
+			block:              createBlockMeta(60),
+			totalExemplars:     100,
+			totalDurationNanos: 0,
+			expectedResult:     0,
+		},
+		{
+			name:               "single block gets all exemplars with overhead",
+			block:              createBlockMeta(60),
+			totalExemplars:     100,
+			totalDurationNanos: 60 * 1e9,
+			expectedResult:     120, // 100 * 1.2
+		},
+		{
+			name:               "block gets proportional share - 90% of time",
+			block:              createBlockMeta(90),
+			totalExemplars:     100,
+			totalDurationNanos: 100 * 1e9,
+			expectedResult:     108, // 90/100 * 100 * 1.2 = 108
+		},
+		{
+			name:               "block gets proportional share - 10% of time",
+			block:              createBlockMeta(10),
+			totalExemplars:     100,
+			totalDurationNanos: 100 * 1e9,
+			expectedResult:     12, // 10/100 * 100 * 1.2 = 12
+		},
+		{
+			name:               "at least one exemplar for very small block",
+			block:              createBlockMeta(1),
+			totalExemplars:     10,
+			totalDurationNanos: 1000 * 1e9,
+			expectedResult:     1, // Very small share, but still gets 1
+		},
+		{
+			name:               "invalid block returns zero",
+			block:              createBlockMeta(-60),
+			totalExemplars:     100,
+			totalDurationNanos: 100 * 1e9,
+			expectedResult:     0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := s.exemplarsForBlock(tc.block, tc.totalExemplars, tc.totalDurationNanos)
+			assert.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
+func FuzzExemplarsForBlock(f *testing.F) {
+	f.Add(uint32(100), uint32(60)) // limit = 100, duration = 60s
+	f.Add(uint32(0), uint32(30))   // limit = 0, duration = 30s
+	f.Add(uint32(1000), uint32(0)) // limit = 1000, duration = 0s
+
+	s := &queryRangeSharder{}
+
+	f.Fuzz(func(t *testing.T, limit uint32, value uint32) {
+		now := time.Now()
+		block := &backend.BlockMeta{
+			BlockID:   backend.MustParse(uuid.NewString()),
+			StartTime: now.Add(-time.Duration(value) * time.Second),
+			EndTime:   now,
+		}
+
+		totalDurationNanos := int64(value) * 1e9
+		result := s.exemplarsForBlock(block, limit, totalDurationNanos)
+
+		if limit == 0 || value == 0 {
+			assert.Equal(t, uint32(0), result, "result should be 0")
+		} else {
+			assert.Greater(t, result, uint32(0), "result should be greater than 0")
+		}
+	})
 }
 
 // nolint: gosec // G115
