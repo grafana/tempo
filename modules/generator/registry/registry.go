@@ -57,7 +57,7 @@ var (
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_collections_failed_total",
 		Help:      "The total amount of failed metrics collections per tenant",
-	}, []string{"tenant"})
+	}, []string{"tenant", "error_type"})
 )
 
 type ManagedRegistry struct {
@@ -84,7 +84,6 @@ type ManagedRegistry struct {
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
 	metricTotalCollections   prometheus.Counter
-	metricFailedCollections  prometheus.Counter
 }
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
@@ -140,7 +139,6 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
 		metricTotalSeriesLimited: metricTotalSeriesLimited.WithLabelValues(tenant),
 		metricTotalCollections:   metricTotalCollections.WithLabelValues(tenant),
-		metricFailedCollections:  metricFailedCollections.WithLabelValues(tenant),
 	}
 
 	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
@@ -241,8 +239,9 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	defer func() {
 		r.metricTotalCollections.Inc()
 		if err != nil {
+			errT := getErrType(err)
 			level.Error(r.logger).Log("msg", "collecting metrics failed", "err", err)
-			r.metricFailedCollections.Inc()
+			metricFailedCollections.WithLabelValues(r.tenant, errT).Inc()
 		}
 	}()
 
