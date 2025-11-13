@@ -22,7 +22,7 @@ type analyseBlocksCmd struct {
 	MinCompactionLevel int    `help:"Min compaction level to analyse" default:"3"`
 	MaxBlocks          int    `help:"Max number of blocks to analyse" default:"10"`
 	NumAttr            int    `help:"Number of attributes to display" default:"15"`
-	BlobThreshold      string `help:"Convert column to blob when dictionary size reaches this value" default:"10MiB"`
+	BlobThreshold      string `help:"Convert column to blob when dictionary size reaches this value" default:"4MiB"`
 	MaxStartTime       string `help:"Oldest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
 	MinStartTime       string `help:"Newest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
 }
