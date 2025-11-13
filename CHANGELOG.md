@@ -38,6 +38,7 @@
 * [BUGFIX] Fix wrong sleep duration in block-builder if one of partitions is inactive [#5855](https://github.com/grafana/tempo/pull/5855) (@ruslan-mikhailov)
 * [BUGFIX] Fix S3 compactor multipart upload to ensure Cloudflare R2 compliance by using uniform chunk sizes [#5838](https://github.com/grafana/tempo/pull/5838) (@constantins2001)
 * [BUGFIX] Make top/bottomk deterministic by breaking ties with label vals. [#5846](https://github.com/grafana/tempo/pull/5846) (@joe-elliott)
+* [BUGFIX] Fix metrics streaming releases intermediate/incomplete results. [#5937](https://github.com/grafana/tempo/pull/5937) (@joe-elliott)
 * [BUGFIX] Fix GetTrace() in tempo-query. [#5864](https://github.com/grafana/tempo/pull/5864) (@andreasgerstmayr)
 
 # v2.9.0

@@ -25,6 +25,7 @@ import (
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -1028,13 +1029,13 @@ func TestBackendShards(t *testing.T) {
 		name      string
 		maxShards int
 		searchEnd uint32
-		expected  []combiner.SearchShards
+		expected  []shardtracker.Shard
 	}{
 		{
 			name:      "1 shard, puts all jobs in one shard",
 			maxShards: 1,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 8, CompletedThroughSeconds: 1},
 			},
 		},
@@ -1042,7 +1043,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "2 shards, split evenly between",
 			maxShards: 2,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 4, CompletedThroughSeconds: 30},
 				{TotalJobs: 4, CompletedThroughSeconds: 1},
 			},
@@ -1051,7 +1052,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "3 shards, one for each block",
 			maxShards: 3,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 2, CompletedThroughSeconds: 40},
 				{TotalJobs: 2, CompletedThroughSeconds: 30},
 				{TotalJobs: 4, CompletedThroughSeconds: 1},
@@ -1061,7 +1062,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "4 shards, one for each block",
 			maxShards: 4,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 2, CompletedThroughSeconds: 40},
 				{TotalJobs: 2, CompletedThroughSeconds: 30},
 				{TotalJobs: 2, CompletedThroughSeconds: 20},
@@ -1072,7 +1073,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "5 shards, one for each block",
 			maxShards: 5,
 			searchEnd: 50,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 2, CompletedThroughSeconds: 40},
 				{TotalJobs: 2, CompletedThroughSeconds: 30},
 				{TotalJobs: 2, CompletedThroughSeconds: 20},
@@ -1083,7 +1084,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "4 shards, search end forces 2 blocks in the first shard",
 			maxShards: 4,
 			searchEnd: 35,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 4, CompletedThroughSeconds: 30},
 				{TotalJobs: 2, CompletedThroughSeconds: 20},
 				{TotalJobs: 2, CompletedThroughSeconds: 10},
@@ -1093,7 +1094,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "4 shards, search end forces 3 blocks in the first shard",
 			maxShards: 4,
 			searchEnd: 25,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 6, CompletedThroughSeconds: 20},
 				{TotalJobs: 2, CompletedThroughSeconds: 10},
 			},
@@ -1102,7 +1103,7 @@ func TestBackendShards(t *testing.T) {
 			name:      "2 shards, search end forces 2 blocks in the first shard",
 			maxShards: 2,
 			searchEnd: 35,
-			expected: []combiner.SearchShards{
+			expected: []shardtracker.Shard{
 				{TotalJobs: 4, CompletedThroughSeconds: 30},
 				{TotalJobs: 4, CompletedThroughSeconds: 1},
 			},
@@ -1129,10 +1130,10 @@ func TestBackendShards(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			fn := backendJobsFunc(metas, defaultTargetBytesPerRequest, tc.maxShards, tc.searchEnd)
-			actualShards := []combiner.SearchShards{}
+			actualShards := []shardtracker.Shard{}
 
 			fn(func(jobs int, _ uint64, completedThroughTime uint32) {
-				actualShards = append(actualShards, combiner.SearchShards{
+				actualShards = append(actualShards, shardtracker.Shard{
 					TotalJobs:               uint32(jobs),
 					CompletedThroughSeconds: completedThroughTime,
 				})
