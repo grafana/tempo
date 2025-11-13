@@ -11,6 +11,7 @@ services:
       - "/var/tempo"
     volumes:
       - ./tempo-data:/var/tempo
+      - ./mimir-data:/var/mimir
 
   tempo:
     image: grafana/tempo:latest
@@ -49,6 +50,7 @@ services:
       - "4319:4317"
     depends_on:
       - tempo
+      - mimir
 
   prometheus:
     image: prom/prometheus:latest
@@ -61,6 +63,17 @@ services:
       - ../shared/prometheus.yaml:/etc/prometheus.yaml
     ports:
       - "9090:9090"
+
+  mimir:
+    image: grafana/mimir:latest
+    command:
+      - "-config.file=/etc/mimir/config.yaml"
+    volumes:
+      - ./mimir-data:/var/mimir
+      - ../shared/mimir.yaml:/etc/mimir/config.yaml
+    ports:
+      - "9009:9009"
+      - "9025:9025"
 
   grafana:
     image: grafana/grafana:12.2.1@sha256:35c41e0fd0295f5d0ee5db7e780cf33506abfaf47686196f825364889dee878b

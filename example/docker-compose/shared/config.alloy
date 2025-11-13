@@ -7,11 +7,23 @@ otelcol.receiver.otlp "otlp_receiver" {
   }
 
   output {
-    traces = [otelcol.exporter.otlp.grafanacloud.input,]
+    traces = [otelcol.exporter.otlp.tempo.input, otelcol.connector.spanmetrics.meemeer.input,]
   }
 }
 
-otelcol.exporter.otlp "grafanacloud" {
+otelcol.connector.spanmetrics "meemeer" {
+   histogram {
+    unit = "s"
+    explicit {
+      buckets = ["333ms", "777s", "999h"]
+    }
+  }
+  output {
+    metrics = [otelcol.exporter.otlp.mimir.input,]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
   client {
     endpoint = "tempo:4317"
     tls {
@@ -20,3 +32,11 @@ otelcol.exporter.otlp "grafanacloud" {
   }
 }
 
+otelcol.exporter.otlp "mimir" {
+  client {
+    endpoint = "mimir:9095"
+    tls {
+			insecure = true
+		}
+  }
+}
