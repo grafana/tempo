@@ -108,7 +108,7 @@ type analyseBlockCmd struct {
 	TenantID      string `arg:"" help:"tenant-id within the bucket"`
 	BlockID       string `arg:"" help:"block ID to list"`
 	NumAttr       int    `help:"Number of attributes to display" default:"15"`
-	BlobThreshold string `help:"Convert column to blob when dictionary size reaches this value" default:"4MiB"`
+	BlobThreshold string `help:"Convert column to blob when dictionary size reaches this value. Disable with 0" default:"4MiB"`
 
 	GenerateJsonnet  bool `help:"Generate overrides Jsonnet for dedicated columns"`
 	GenerateCliArgs  bool `help:"Generate textual args for passing to parquet conversion command"`
@@ -488,7 +488,6 @@ func printSummary(scope string, max int, summary attributeSummary, simple bool, 
 
 	fmt.Println("")
 	attrList := topN(max, summary.attributes)
-	arrayAttrList := topN(max, summary.arrayAttributes)
 	if simple {
 		fmt.Printf("%s attributes: ", scope)
 		for _, a := range attrList {
@@ -510,14 +509,14 @@ func printSummary(scope string, max int, summary attributeSummary, simple bool, 
 		var (
 			thisBytes       = a.totalBytes
 			percentage      = float64(thisBytes) / float64(totalBytes) * 100
-			totalOccurances = a.cardinality.totalOccurrences()
+			totalOccurences = a.cardinality.totalOccurrences()
 			distinct        = a.cardinality.distinctValueCount()
-			avgReuse        = float64(totalOccurances) / float64(distinct)
+			avgReuse        = float64(totalOccurences) / float64(distinct)
 			totalSize       = a.cardinality.avgSizePerRowGroup(numRowGroups)
 		)
 
 		blob := ""
-		if totalSize >= blobBytes {
+		if blobBytes > 0 && totalSize >= blobBytes {
 			blob = "(blob)"
 		}
 
@@ -540,6 +539,7 @@ func printSummary(scope string, max int, summary attributeSummary, simple bool, 
 		return err
 	}
 
+	arrayAttrList := topN(max, summary.arrayAttributes)
 	if len(arrayAttrList) > 0 {
 		fmt.Printf("Top %d %s array attributes by size\n", len(arrayAttrList), scope)
 		for _, a := range arrayAttrList {
@@ -585,7 +585,7 @@ func printCliArgs(s blockSummary, maxAttr int, numRowGroups int, blobBytes uint6
 
 	ss := []string{}
 	for _, a := range topN(maxAttr, s.spanSummary.attributes) {
-		if a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
+		if blobBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/span.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"span.%s\"", a.name))
@@ -593,7 +593,7 @@ func printCliArgs(s blockSummary, maxAttr int, numRowGroups int, blobBytes uint6
 	}
 
 	for _, a := range topN(maxAttr, s.resourceSummary.attributes) {
-		if a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
+		if blobBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/resource.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"resource.%s\"", a.name))
@@ -601,7 +601,7 @@ func printCliArgs(s blockSummary, maxAttr int, numRowGroups int, blobBytes uint6
 	}
 
 	for _, a := range topN(maxAttr, s.eventSummary.attributes) {
-		if a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
+		if blobBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
 			ss = append(ss, fmt.Sprintf("\"blob/event.%s\"", a.name))
 		} else {
 			ss = append(ss, fmt.Sprintf("\"event.%s\"", a.name))
