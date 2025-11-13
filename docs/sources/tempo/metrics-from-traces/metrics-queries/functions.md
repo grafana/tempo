@@ -40,22 +40,38 @@ after a metrics query like:
 
 These functions can be added as an operator at the end of any TraceQL query.
 
-| Function                                                                             | Description                                                                                        | Example                                                                      |
-| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| [`rate()`](#the-rate-functions)                                                      | Calculates the number of matching spans per second.                                                | `{ span:status = error } \| rate()`                                          |
-| [`count_over_time()`](#the-count_over_time-function)                                 | Counts the number of matching spans per time interval.                                             | `{ span:name = "GET /:endpoint" } \| count_over_time()`                      |
-| [`sum_over_time()`](#the-sum_over_time-function)                                     | Sums the value for the specified attribute across all matching spans per time interval.            | `{ } \| sum_over_time(span.http.response.size)`                              |
-| [`min_over_time()`](#the-min_over_time-function)                                     | Returns the minimum value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| min_over_time(span:duration)`           |
-| [`max_over_time()`](#the-max_over_time-function)                                     | Returns the maximum value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| max_over_time(span:duration)`           |
-| [`avg_over_time()`](#the-avg_over_time-function)                                     | Returns the average value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| avg_over_time(span:duration)`           |
-| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)  | The quantile of the values in the specified interval.                                              | `{ span:name = "GET /:endpoint" } \| quantile_over_time(span:duration, .99)` |
-| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions) | Evaluate frequency distribution over time.                                                         | `{ } \| histogram_over_time(span:duration) by (span.http.target)`            |
+| Function                                                     | Description                                                                                        | Example                                                                         |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`rate()`](#the-rate-functions)                              | Calculates the number of matching spans per second.                                                | `{ span:status = error } \| rate()`                                             |
+| [`count_over_time()`](#the-count_over_time-function)         | Counts the number of matching spans per time interval.                                             | `{ span:name = "GET /:endpoint" } \| count_over_time()`                         |
+| [`sum_over_time()`](#the-sum_over_time-function)             | Sums the value for the specified attribute across all matching spans per time interval.            | `{ } \| sum_over_time(span.http.response.size)`                                 |
+| [`min_over_time()`](#the-min_over_time-function)             | Returns the minimum value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| min_over_time(span:duration)`              |
+| [`max_over_time()`](#the-max_over_time-function)             | Returns the maximum value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| max_over_time(span:duration)`              |
+| [`avg_over_time()`](#the-avg_over_time-function)             | Returns the average value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| avg_over_time(span:duration)`              |
+| [`quantile_over_time()`](#the-quantile_over_time-function)   | The quantile of the values in the specified interval.                                              | `{ span:name = "GET /:endpoint" } \| quantile_over_time(span:duration, .99)`    |
+| [`histogram_over_time()`](#the-histogram_over_time-function) | Evaluate frequency distribution over time.                                                         | `{ } \| histogram_over_time(span:duration) by (span.http.target)`               |
+| [`topk()`](#the-topk-function)                               | Returns only the top `k` results from a metrics query.                                             | `{ resource.service.name = "foo" } \| rate() by (span.http.url) \| topk(10)`    |
+| [`bottomk()`](#the-bottomk-function)                         | Returns only the bottom `k` results from a metrics query.                                          | `{ resource.service.name = "foo" } \| rate() by (span.http.url) \| bottomk(10)` |
 
-## The `rate` functions
+### Group results with `by()`
+
+You can use the optional `by()` clause with metrics functions in TraceQL metrics queries to group aggregated results by specified span attributes like service name, endpoint, or status.
+
+Without `by()`, you get a single aggregated value across all matching spans.
+
+```traceql
+{ span:status = error } | rate()
+```
+
+With `by()`, you get separate time series for each unique combination of the grouped attributes.
+
+```traceql
+{ span:status = error } | rate() by(resource.service.name)
+```
+
+## The `rate` function
 
 The `rate` function calculates the number of matching spans per second that match the given span selectors.
-
-### Examples
 
 The following query shows the rate of errors by service and span name.
 This is a TraceQL specific way of gathering rate metrics that would otherwise be generated by the span metrics
@@ -109,8 +125,6 @@ To check or change the `step` value using Grafana Explore:
 1. Expand the **Metrics options** to view the **Step** value.
 
 ![The Step value in the Metrics options in Grafana Explore](/media/docs/tempo/tempo-ds-query-metrics-options-step.png)
-
-### Example
 
 This example counts the number of spans with name `"GET /:endpoint"` broken down by status code. You might see that
 there are 10 `"GET /:endpoint"` spans with status code 200 and 15 `"GET /:endpoint"` spans with status code 400.
@@ -186,10 +200,9 @@ This example computes the average duration for each `http.status_code` of all sp
 { span:name = "GET /:endpoint" } | avg_over_time(span.http.response.size)
 ```
 
-## The `quantile_over_time` and `histogram_over_time` functions
+### The `quantile_over_time` function
 
-The `quantile_over_time()` and `histogram_over_time()` functions let you aggregate numerical values, such as the all
-important span duration.
+The `quantile_over_time()` function lets you aggregate numerical values, such as the all important span duration, by computing quantiles over time.
 You can specify multiple quantiles in the same query.
 
 The example below computes the 99th, 90th, and 50th percentile of the duration attribute on all spans with name
@@ -221,20 +234,28 @@ As a further example, imagine a custom attribute like `span.temperature`.
 You could use a similar query to know what the 50th percentile and 95th percentile temperatures were across all your
 spans.
 
+### The `histogram_over_time` function
+
+The `histogram_over_time()` function lets you evaluate frequency distribution over time for numerical values, such as span duration.
+This function groups values into buckets and shows how frequently values fall into each bucket over time.
+
+This example evaluates the frequency distribution of span duration, grouped by HTTP target:
+
+```traceql
+{ } | histogram_over_time(span:duration) by (span.http.target)
+```
+
 ## Multi-stage metrics queries
 
 Multi-stage metrics queries are queries that turn your spans into metrics and then perform additional operations on those metrics.
 
-### `topk` and `bottomk` functions
+### The `topk` function
 
-TraceQL supports the `topk` and `bottomk` functions that let you aggregate and process TraceQL metrics.
-These functions are similar to their equivalent PromQL functions. For example:
+The `topk` function lets you aggregate and process TraceQL metrics by returning only the top `k` results.
+This function is similar to its equivalent PromQL function.
 
-- `{ } | rate() by(resource.service.name) | bottomk(5)`
-- `{ } | rate() by(resource.service.name) | topk(5)`
-
-When a query response is larger than the maximum, you can use these functions to return only the specified number
-from 1 through `k` of the number of the top or bottom results.
+When a query response is larger than the maximum, you can use `topk` to return only the specified number
+from 1 through `k` of the top results.
 
 For example:
 
@@ -246,15 +267,41 @@ The first part, `{ resource.service.name = "foo" }`, takes all spans in the serv
 The spans are rated by the URL, for example, the most active endpoints on a service.
 
 Adding `topk(10)` returns the top 10 most common instead of the entire list.
-Conversely, you can use `bottomk(10)` to see the least most used ones.
 
-In TraceQL, `topk` and `bottomk` work similar to how they function in PromQL. Both `topk` and `bottomk`
-are evaluated at each data point.
+In TraceQL, `topk` works similar to how it functions in PromQL.
+The `topk` function is evaluated at each data point.
 
 If you do a `topk` of 10, you might get a 20 series. For example, on this data point, the top 10 are `A` through `J`.
 
 On the next data point, `A` through `I` might still be the top 9, but `J` might have fallen off for `K`.
 Because it's evaluated at each data point, you'll get the top series for each data point.
+
+### The `bottomk` function
+
+The `bottomk` function lets you aggregate and process TraceQL metrics by returning only the bottom `k` results.
+This function is similar to its equivalent PromQL function.
+
+When a query response is larger than the maximum, you can use `bottomk` to return only the specified number
+from 1 through `k` of the bottom results.
+
+For example:
+
+```traceql
+{ resource.service.name = "foo" } | rate() by (span.http.url)  | bottomk(10)
+```
+
+The first part, `{ resource.service.name = "foo" }`, takes all spans in the service `foo`.
+The spans are rated by the URL, for example, the least active endpoints on a service.
+
+Adding `bottomk(10)` returns the bottom 10 least common instead of the entire list.
+
+In TraceQL, `bottomk` works similar to how it functions in PromQL.
+The `bottomk` function is evaluated at each data point.
+
+If you do a `bottomk` of 10, you might get a 20 series. For example, on this data point, the bottom 10 are `A` through `J`.
+
+On the next data point, `A` through `I` might still be the bottom 9, but `J` might have fallen off for `K`.
+Because it's evaluated at each data point, you'll get the bottom series for each data point.
 
 ## Data sampling
 
@@ -279,7 +326,7 @@ Automatically determines optimal sampling strategy based on query selectivity an
 { resource.service.name="frontend" } | rate() with(sample=true)
 ```
 
-#### Fixed span sampling: `with(span_sample=0.xx)`
+### Fixed span sampling: `with(span_sample=0.xx)`
 
 Samples a fixed percentage of spans for span-level aggregations.
 
@@ -287,7 +334,7 @@ Samples a fixed percentage of spans for span-level aggregations.
 { span:status=error } | count_over_time() with(span_sample=0.1)
 ```
 
-#### Fixed trace sampling: `with(trace_sample=0.xx)`
+### Fixed trace sampling: `with(trace_sample=0.xx)`
 
 Samples a fixed percentage of traces for trace-level aggregations.
 
@@ -298,7 +345,7 @@ Samples a fixed percentage of traces for trace-level aggregations.
 ## The `compare` function
 
 {{< admonition type="note">}}
-This function was added for Traces Drilldown to drive the **Comparison** visualization.
+This function is primarily used to drive the [**Comparison** tab](/docs/grafana/latest/explore/simplified-exploration/traces/investigate/analyze-tracing-data/#use-the-comparison-tab) in Traces Drilldown.
 {{< /admonition >}}
 
 The `compare` function splits a set of spans into two groups: a selection and a baseline.
