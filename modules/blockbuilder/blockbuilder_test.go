@@ -39,6 +39,10 @@ const (
 	testPartition     = int32(0)
 )
 
+func TestMain(*testing.M) {
+	pollTimeout = 2 * time.Second // speed up the tests
+}
+
 // When the partition starts with no existing commit,
 // the block-builder looks back to consume all available records from the start and ensures they are committed and flushed into a block.
 func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
