@@ -217,12 +217,11 @@ func (i *Ingester) flushLoop(j int) {
 	}()
 
 	for {
-		o := i.flushQueues.Dequeue(j)
-		if o == nil {
+		op := i.flushQueues.Dequeue(j)
+		if op == nil {
 			return
 		}
 
-		op := o.(*flushOp)
 		op.attempts++
 
 		var retry bool

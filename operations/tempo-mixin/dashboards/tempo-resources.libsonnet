@@ -147,7 +147,8 @@ dashboard_utils {
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.block_builder)),
         )
-      ).addRow(
+      )
+      .addRow(
         g.row('Live store')
         .addPanel(
           $.containerCPUUsagePanel('CPU', $._config.jobs.live_store),

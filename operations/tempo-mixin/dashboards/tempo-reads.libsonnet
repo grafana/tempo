@@ -38,6 +38,10 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
         )
+        .addPanel(
+          $.panel('Requests Executed') +
+          $.latencyPanel('tempo_querier_worker_request_executed_total', '{%s,route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
+        )
       )
       .addRow(
         g.row('Ingester')

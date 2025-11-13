@@ -26,7 +26,6 @@ import (
 	"sync"
 
 	"cloud.google.com/go/iam/apiv1/iampb"
-	"cloud.google.com/go/internal/trace"
 	gapic "cloud.google.com/go/storage/internal/apiv2"
 	"cloud.google.com/go/storage/internal/apiv2/storagepb"
 	"github.com/googleapis/gax-go/v2"
@@ -100,9 +99,10 @@ func defaultGRPCOptions() []option.ClientOption {
 	} else {
 		// Only enable DirectPath when the emulator is not being targeted.
 		defaults = append(defaults,
-			internaloption.EnableDirectPath(true),
 			internaloption.AllowNonDefaultServiceAccount(true),
-			internaloption.EnableDirectPathXds())
+			internaloption.EnableDirectPath(true),
+			internaloption.EnableDirectPathXds(),
+			internaloption.AllowHardBoundTokens("ALTS"))
 	}
 
 	return defaults
@@ -124,9 +124,11 @@ func enableClientMetrics(ctx context.Context, s *settings, config storageConfig)
 		project = c.ProjectID
 	}
 	metricsContext, err := newGRPCMetricContext(ctx, metricsConfig{
-		project:      project,
-		interval:     config.metricInterval,
-		manualReader: config.manualReader},
+		project:       project,
+		interval:      config.metricInterval,
+		manualReader:  config.manualReader,
+		meterProvider: config.meterProvider,
+	},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("gRPC Metrics: %w", err)
@@ -140,7 +142,7 @@ func newGRPCStorageClient(ctx context.Context, opts ...storageOption) (*grpcStor
 	s := initSettings(opts...)
 	s.clientOption = append(defaultGRPCOptions(), s.clientOption...)
 	// Disable all gax-level retries in favor of retry logic in the veneer client.
-	s.gax = append(s.gax, gax.WithRetry(nil))
+	s.gax = append(s.gax, gax.WithRetry(nil), gax.WithTimeout(0))
 
 	config := newStorageConfig(s.clientOption...)
 	if config.readAPIWasSet {
@@ -950,14 +952,24 @@ func (c *grpcStorageClient) ComposeObject(ctx context.Context, req *composeObjec
 }
 func (c *grpcStorageClient) RewriteObject(ctx context.Context, req *rewriteObjectRequest, opts ...storageOption) (*rewriteObjectResponse, error) {
 	s := callSettings(c.settings, opts...)
-	obj := req.dstObject.attrs.toProtoObject("")
+
+	var dst *storagepb.Object
+	// If the destination object attributes are not set, do not include them
+	// in the request. This indicates that the object attributes should be
+	// copied from the source object.
+	if req.dstObject.attrs.isZero() {
+		dst = nil
+	} else {
+		dst = req.dstObject.attrs.toProtoObject("")
+	}
+
 	call := &storagepb.RewriteObjectRequest{
 		SourceBucket:              bucketResourceName(globalProjectAlias, req.srcObject.bucket),
 		SourceObject:              req.srcObject.name,
 		RewriteToken:              req.token,
 		DestinationBucket:         bucketResourceName(globalProjectAlias, req.dstObject.bucket),
 		DestinationName:           req.dstObject.name,
-		Destination:               obj,
+		Destination:               dst,
 		DestinationKmsKey:         req.dstObject.keyName,
 		DestinationPredefinedAcl:  req.predefinedACL,
 		CommonObjectRequestParams: toProtoCommonObjectRequestParams(req.dstObject.encryptionKey),
@@ -1066,8 +1078,8 @@ func (c *grpcStorageClient) NewMultiRangeDownloader(ctx context.Context, params 
 		return nil, errors.New("storage: MultiRangeDownloader requires the experimental.WithGRPCBidiReads option")
 	}
 
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/storage.grpcStorageClient.NewMultiRangeDownloader")
-	defer func() { trace.EndSpan(ctx, err) }()
+	ctx, _ = startSpan(ctx, "grpcStorageClient.NewMultiRangeDownloader")
+	defer func() { endSpan(ctx, err) }()
 	s := callSettings(c.settings, opts...)
 	// Force the use of the custom codec to enable zero-copy reads.
 	s.gax = append(s.gax, gax.WithGRPCOptions(
@@ -1100,8 +1112,6 @@ func (c *grpcStorageClient) NewMultiRangeDownloader(ctx context.Context, params 
 		ReadObjectSpec: bidiObject,
 	}
 
-	ctx = gax.InsertMetadataIntoOutgoingContext(ctx, contextMetadataFromBidiReadObject(req)...)
-
 	openStream := func(readHandle ReadHandle) (*bidiReadStreamResponse, context.CancelFunc, error) {
 		if err := applyCondsProto("grpcStorageClient.BidiReadObject", params.gen, params.conds, bidiObject); err != nil {
 			return nil, nil, err
@@ -1111,36 +1121,53 @@ func (c *grpcStorageClient) NewMultiRangeDownloader(ctx context.Context, params 
 				Handle: readHandle,
 			}
 		}
+		databufs := mem.BufferSlice{}
+
 		var stream storagepb.Storage_BidiReadObjectClient
 		var decoder *readResponseDecoder
 		cc, cancel := context.WithCancel(ctx)
 		err = run(cc, func(ctx context.Context) error {
-			stream, err = c.raw.BidiReadObject(ctx, s.gax...)
-			if err != nil {
+			openAndSendReq := func() error {
+				mdCtx := gax.InsertMetadataIntoOutgoingContext(ctx, contextMetadataFromBidiReadObject(req)...)
+
+				stream, err = c.raw.BidiReadObject(mdCtx, s.gax...)
+				if err != nil {
+					return err
+				}
+				// If stream opened succesfully, send first message on the stream.
+				// First message to stream should contain read_object_spec
+				err = stream.Send(req)
+				if err != nil {
+					return err
+				}
+				// Use RecvMsg to get the raw buffer slice instead of Recv().
+				err = stream.RecvMsg(&databufs)
+				if err != nil {
+					return err
+				}
+				return nil
+			}
+
+			err := openAndSendReq()
+
+			// We might get a redirect error here for an out-of-region request.
+			// Add the routing token and read handle to the request and do one
+			// retry.
+			if st, ok := status.FromError(err); ok && st.Code() == codes.Aborted {
 				// BidiReadObjectRedirectedError error is only returned on initial open in case of a redirect.
 				// The routing token that should be used when reopening the read stream. Needs to be exported.
-				rpcStatus := status.Convert(err)
-				details := rpcStatus.Details()
-				for _, detail := range details {
+				for _, detail := range st.Details() {
 					if bidiError, ok := detail.(*storagepb.BidiReadObjectRedirectedError); ok {
 						bidiObject.ReadHandle = bidiError.ReadHandle
 						bidiObject.RoutingToken = bidiError.RoutingToken
-						req.ReadObjectSpec = bidiObject
-						ctx = gax.InsertMetadataIntoOutgoingContext(ctx, contextMetadataFromBidiReadObject(req)...)
+						databufs = mem.BufferSlice{}
+						err = openAndSendReq()
+						break
 					}
 				}
-				return err
 			}
-			// Incase stream opened succesfully, send first message on the stream.
-			// First message to stream should contain read_object_spec
-			err = stream.Send(req)
 			if err != nil {
-				return err
-			}
-			// Use RecvMsg to get the raw buffer slice instead of Recv().
-			databufs := mem.BufferSlice{}
-			err = stream.RecvMsg(&databufs)
-			if err != nil {
+				databufs.Free()
 				return err
 			}
 
@@ -1596,8 +1623,8 @@ func (c *grpcStorageClient) NewRangeReader(ctx context.Context, params *newRange
 		return c.NewRangeReaderReadObject(ctx, params, opts...)
 	}
 
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/storage.grpcStorageClient.NewRangeReader")
-	defer func() { trace.EndSpan(ctx, err) }()
+	ctx, _ = startSpan(ctx, "grpcStorageClient.NewRangeReader")
+	defer func() { endSpan(ctx, err) }()
 
 	s := callSettings(c.settings, opts...)
 
@@ -1628,7 +1655,6 @@ func (c *grpcStorageClient) NewRangeReader(ctx context.Context, params *newRange
 	req := &storagepb.BidiReadObjectRequest{
 		ReadObjectSpec: spec,
 	}
-	ctx = gax.InsertMetadataIntoOutgoingContext(ctx, contextMetadataFromBidiReadObject(req)...)
 
 	// Define a function that initiates a Read with offset and length, assuming
 	// we have already read seen bytes.
@@ -1660,28 +1686,53 @@ func (c *grpcStorageClient) NewRangeReader(ctx context.Context, params *newRange
 		var decoder *readResponseDecoder
 
 		err = run(cc, func(ctx context.Context) error {
-			stream, err = c.raw.BidiReadObject(ctx, s.gax...)
-			if err != nil {
-				return err
-			}
-			if err := stream.Send(req); err != nil {
-				return err
-			}
-			// Oneshot reads can close the client->server side immediately.
-			if err := stream.CloseSend(); err != nil {
-				return err
+			var databufs mem.BufferSlice
+			openAndSendReq := func() error {
+				databufs = mem.BufferSlice{}
+
+				// Insert context metadata, including routing token if this is a retry
+				// for a redirect.
+				mdCtx := gax.InsertMetadataIntoOutgoingContext(ctx, contextMetadataFromBidiReadObject(req)...)
+				stream, err = c.raw.BidiReadObject(mdCtx, s.gax...)
+				if err != nil {
+					return err
+				}
+				if err := stream.Send(req); err != nil {
+					return err
+				}
+				// Oneshot reads can close the client->server side immediately.
+				if err := stream.CloseSend(); err != nil {
+					return err
+				}
+
+				// Receive the message into databuf as a wire-encoded message so we can
+				// use a custom decoder to avoid an extra copy at the protobuf layer.
+				return stream.RecvMsg(&databufs)
 			}
 
-			// Receive the message into databuf as a wire-encoded message so we can
-			// use a custom decoder to avoid an extra copy at the protobuf layer.
-			databufs := mem.BufferSlice{}
-			err := stream.RecvMsg(&databufs)
+			err := openAndSendReq()
+
+			// We might get a redirect error here for an out-of-region request.
+			// Add the routing token and read handle to the request and do one
+			// retry.
+			if st, ok := status.FromError(err); ok && st.Code() == codes.Aborted {
+				for _, d := range st.Details() {
+					if e, ok := d.(*storagepb.BidiReadObjectRedirectedError); ok {
+						req.ReadObjectSpec.ReadHandle = e.GetReadHandle()
+						req.ReadObjectSpec.RoutingToken = e.RoutingToken
+						err = openAndSendReq()
+						break
+					}
+				}
+			}
+
 			// These types of errors show up on the RecvMsg call, rather than the
 			// initialization of the stream via BidiReadObject above.
 			if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
-				return formatObjectErr(err)
+				err = formatObjectErr(err)
 			}
 			if err != nil {
+				databufs.Free()
 				return err
 			}
 			// Use a custom decoder that uses protobuf unmarshalling for all
@@ -1989,6 +2040,10 @@ func (r *gRPCReader) Read(p []byte) (int, error) {
 			n, found := r.currMsg.readAndUpdateCRC(p, 1, func(b []byte) {
 				r.updateCRC(b)
 			})
+			// If we are done reading the current msg, free buffers.
+			if r.currMsg.done {
+				r.currMsg.databufs.Free()
+			}
 
 			// If data for our readID was found, we can update `seen` and return.
 			if found {
@@ -2041,6 +2096,8 @@ func (r *gRPCReader) WriteTo(w io.Writer) (int64, error) {
 				r.updateCRC(b)
 			})
 			r.seen += written
+			// We have processed the message, so free the buffer
+			r.currMsg.databufs.Free()
 			if err != nil {
 				return r.seen - alreadySeen, err
 			}
@@ -2093,7 +2150,9 @@ func (r *gRPCReader) Close() error {
 func (r *gRPCReader) recv() error {
 	databufs := mem.BufferSlice{}
 	err := r.stream.RecvMsg(&databufs)
-	if err != nil && r.settings.retry.runShouldRetry(err) {
+	// If we get a mid-stream error on a recv call, reopen the stream.
+	// ABORTED could indicate a redirect so should also trigger a reopen.
+	if err != nil && (r.settings.retry.runShouldRetry(err) || status.Code(err) == codes.Aborted) {
 		// This will "close" the existing stream and immediately attempt to
 		// reopen the stream, but will backoff if further attempts are necessary.
 		// Reopening the stream Recvs the first message, so if retrying is

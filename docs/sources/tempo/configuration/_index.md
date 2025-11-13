@@ -809,6 +809,10 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
+        # The number of shards to use when streaming metrics queries back to the user. A shard must be fully completed before
+        # the results are returned to the user. More shards results in a more granular effect at the cost of additional bookkeeping.
+        [streaming_shards: <int> | default = 200]
+
 ```
 
 ### Limit query size to improve performance and stability
@@ -1953,8 +1957,9 @@ overrides:
       [disable_collection: <bool> | default = false]
 
       # Per-user configuration of the trace-id label name. This value will be used as name for the label to store the
-      # trace ID of exemplars in generated metrics. If not set, the default value "trace_id" will be used.
-      [trace_id_label_name: <string> | default = "trace_id"]
+      # trace ID of exemplars in generated metrics. If not set, the default value "traceID" will be used.
+      # Note it is different to the OTEL convention: https://opentelemetry.io/docs/specs/otel/compatibility/prometheus_and_openmetrics/#exemplars
+      [trace_id_label_name: <string> | default = "traceID"]
 
       # This option only allows spans with end time that occur within the configured duration to be
       # considered in metrics generation.
