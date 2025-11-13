@@ -25,7 +25,7 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 	}
 	switch path.Name() {
 	case "sample_type":
-		return accessSampleType[K](), nil
+		return accessSampleType(path)
 	case "sample":
 		return accessSample[K](), nil
 	case "time_unix_nano":
@@ -37,7 +37,7 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 	case "duration":
 		return accessDuration[K](), nil
 	case "period_type":
-		return accessPeriodType[K](), nil
+		return accessPeriodType[K](path)
 	case "period":
 		return accessPeriod[K](), nil
 	case "comment_string_indices":
@@ -142,18 +142,11 @@ func accessDuration[K Context]() ottl.StandardGetSetter[K] {
 	}
 }
 
-func accessPeriodType[K Context]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().PeriodType(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.ValueType); ok {
-				v.CopyTo(tCtx.GetProfile().PeriodType())
-			}
-			return nil
-		},
+func accessPeriodType[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
+	periodTypeTarget := func(tCtx K) pprofile.ValueType {
+		return tCtx.GetProfile().PeriodType()
 	}
+	return valueTypeGetterSetter(path, periodTypeTarget)
 }
 
 func accessPeriod[K Context]() ottl.StandardGetSetter[K] {
@@ -181,18 +174,11 @@ func accessCommentStringIndices[K Context]() ottl.StandardGetSetter[K] {
 	}
 }
 
-func accessSampleType[K Context]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetProfile().SampleType(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if v, ok := val.(pprofile.ValueType); ok {
-				v.CopyTo(tCtx.GetProfile().SampleType())
-			}
-			return nil
-		},
+func accessSampleType[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
+	sampleTypeTarget := func(tCtx K) pprofile.ValueType {
+		return tCtx.GetProfile().SampleType()
 	}
+	return valueTypeGetterSetter(path, sampleTypeTarget)
 }
 
 func accessProfileID[K Context]() ottl.StandardGetSetter[K] {
