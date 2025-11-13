@@ -31,7 +31,6 @@ import (
 const (
 	blockBuilderServiceName = "block-builder"
 	ConsumerGroup           = "block-builder"
-	pollTimeout             = 10 * time.Second
 	cutTime                 = 10 * time.Second
 	emptyPartitionEndOffset = 0  // partition has no records
 	commitOffsetAtEnd       = -1 // offset is at the end of partition
@@ -39,6 +38,7 @@ const (
 )
 
 var (
+	pollTimeout         = 10 * time.Second
 	metricFetchDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                   "tempo",
 		Subsystem:                   "block_builder",
