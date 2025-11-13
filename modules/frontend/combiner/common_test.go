@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -101,7 +102,7 @@ func TestInitHttpCombiner(t *testing.T) {
 	combiner := newTestCombiner()
 
 	require.Equal(t, 200, combiner.httpStatusCode)
-	require.Equal(t, api.HeaderAcceptJSON, combiner.httpMarshalingFormat)
+	require.Equal(t, api.MarshallingFormatJSON, combiner.httpMarshalingFormat)
 }
 
 func TestGenericCombiner(t *testing.T) {
@@ -281,6 +282,52 @@ func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {
 			}, nil
 		},
 	}
-	initHTTPCombiner(gc, api.HeaderAcceptJSON)
+	initHTTPCombiner(gc, api.MarshallingFormatJSON)
 	return gc
+}
+
+// Helper functions for creating test responses with different marshaling formats
+func toHTTPResponseWithFormat(t *testing.T, pb proto.Message, statusCode int, responseData any, format api.MarshallingFormat) PipelineResponse {
+	var body []byte
+	var err error
+
+	if pb != nil {
+		if format == api.MarshallingFormatProtobuf {
+			body, err = proto.Marshal(pb)
+			require.NoError(t, err)
+		} else {
+			m := jsonpb.Marshaler{}
+			bodyStr, marshalErr := m.MarshalToString(pb)
+			require.NoError(t, marshalErr)
+			body = []byte(bodyStr)
+		}
+	}
+
+	return &testPipelineResponse{
+		responseData: responseData,
+		r: &http.Response{
+			Body:       io.NopCloser(strings.NewReader(string(body))),
+			StatusCode: statusCode,
+			Header: http.Header{
+				api.HeaderContentType: {string(format)},
+			},
+		},
+	}
+}
+
+func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) PipelineResponse {
+	return toHTTPResponseWithFormat(t, pb, statusCode, nil, api.HeaderAcceptJSON)
+}
+
+func fromHTTPResponse(t *testing.T, r *http.Response, pb proto.Message) {
+	contentType := r.Header.Get(api.HeaderContentType)
+	if contentType == api.HeaderAcceptProtobuf {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		err = proto.Unmarshal(body, pb)
+		require.NoError(t, err)
+	} else {
+		err := jsonpb.Unmarshal(r.Body, pb)
+		require.NoError(t, err)
+	}
 }
