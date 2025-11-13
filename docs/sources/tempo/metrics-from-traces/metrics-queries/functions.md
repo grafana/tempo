@@ -40,17 +40,16 @@ after a metrics query like:
 
 These functions can be added as an operator at the end of any TraceQL query.
 
-| Function                                                                                        | Description                                                                                        | Parameters/attributes                                               |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| [`rate()`](#the-rate-function)                                                                  | Calculates the number of matching spans per second.                                                |                                                                     |
-| [`count_over_time()`](#the-count_over_time-function)                                            | Counts the number of matching spans per time interval.                                             | `step`                                                              |
-| [`sum_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Sums the value for the specified attribute across all matching spans per time interval.            | `numeric attribute`                                                 |
-| [`min_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the minimum value for the specified attribute across all matching spans per time interval. | `numeric attribute`                                                 |
-| [`max_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the maximum value for the specified attribute across all matching spans per time interval. | `numeric attribute`                                                 |
-| [`avg_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the average value for the specified attribute across all matching spans per time interval. | `numeric attribute`                                                 |
-| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)             | The quantile of the values in the specified interval.                                              | `numeric attribute`; one or more quantiles                          |
-| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)            | Evaluate frequency distribution over time.                                                         | `numeric attribute`                                                 |
-| [`compare()`](#the-compare-function)                                                            | Splits spans into selection and baseline groups and highlights attribute differences.              | `filter`; `topN` (default 10); `startTS`, `endTS` (both or neither) |
+| Function                                                                                        | Description                                                                                        | Parameters/attributes                      |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| [`rate()`](#the-rate-function)                                                                  | Calculates the number of matching spans per second.                                                |                                            |
+| [`count_over_time()`](#the-count_over_time-function)                                            | Counts the number of matching spans per time interval.                                             | `step`                                     |
+| [`sum_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Sums the value for the specified attribute across all matching spans per time interval.            | `numeric attribute`                        |
+| [`min_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the minimum value for the specified attribute across all matching spans per time interval. | `numeric attribute`                        |
+| [`max_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the maximum value for the specified attribute across all matching spans per time interval. | `numeric attribute`                        |
+| [`avg_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the average value for the specified attribute across all matching spans per time interval. | `numeric attribute`                        |
+| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)             | The quantile of the values in the specified interval.                                              | `numeric attribute`; one or more quantiles |
+| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)            | Evaluate frequency distribution over time.                                                         | `numeric attribute`                        |
 
 ## The `rate` functions
 
@@ -257,7 +256,50 @@ If you do a `topk` of 10, you might get a 20 series. For example, on this data p
 On the next data point, `A` through `I` might still be the top 9, but `J` might have fallen off for `K`.
 Because it's evaluated at each data point, you'll get the top series for each data point.
 
+## Data sampling
+
+TraceQL metrics queries support sampling to optimize performance and control sampling behavior.
+There are three sampling methods available:
+
+- Dynamic sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
+- Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
+- Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
+
+Refer to the [TraceQL metrics sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/sampling-guide/) documentation for more information.
+
+{{< admonition  type="note" >}}
+Sampling hints only work with TraceQL metrics queries (those using functions like `rate()`, `count_over_time()`, etc.).
+{{< /admonition >}}
+
+### Dynamic sampling: `with(sample=true)`
+
+Automatically determines optimal sampling strategy based on query selectivity and data volume.
+
+```
+{ resource.service.name="frontend" } | rate() with(sample=true)
+```
+
+#### Fixed span sampling: `with(span_sample=0.xx)`
+
+Samples a fixed percentage of spans for span-level aggregations.
+
+```
+{ status=error } | count_over_time() with(span_sample=0.1)
+```
+
+#### Fixed trace sampling: `with(trace_sample=0.xx)`
+
+Samples a fixed percentage of traces for trace-level aggregations.
+
+```
+{ } | count() by (resource.service.name) with(trace_sample=0.05)
+```
+
 ## The `compare` function
+
+{{< admonition type="note">}}
+This function was added for Traces Drilldown to drive the **Comparison** visualization.
+{{< /admonition >}}
 
 The `compare` function splits a set of spans into two groups: a selection and a baseline.
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
@@ -319,43 +361,4 @@ This example means the attribute `resource.cluster` had too many values.
 
 ```
 { __meta_error="__too_many_values__", resource.cluster=<nil> }
-```
-
-## Data sampling
-
-TraceQL metrics queries support sampling to optimize performance and control sampling behavior.
-There are three sampling methods available:
-
-- Dynamic sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
-- Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
-- Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
-
-Refer to the [TraceQL metrics sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/sampling-guide/) documentation for more information.
-
-{{< admonition  type="note" >}}
-Sampling hints only work with TraceQL metrics queries (those using functions like `rate()`, `count_over_time()`, etc.).
-{{< /admonition >}}
-
-### Dynamic sampling: `with(sample=true)`
-
-Automatically determines optimal sampling strategy based on query selectivity and data volume.
-
-```
-{ resource.service.name="frontend" } | rate() with(sample=true)
-```
-
-#### Fixed span sampling: `with(span_sample=0.xx)`
-
-Samples a fixed percentage of spans for span-level aggregations.
-
-```
-{ status=error } | count_over_time() with(span_sample=0.1)
-```
-
-#### Fixed trace sampling: `with(trace_sample=0.xx)`
-
-Samples a fixed percentage of traces for trace-level aggregations.
-
-```
-{ } | count() by (resource.service.name) with(trace_sample=0.05)
 ```
