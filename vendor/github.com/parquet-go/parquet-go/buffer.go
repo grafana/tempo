@@ -264,9 +264,19 @@ func (buf *Buffer) configure(schema *Schema) {
 		column := columnType.NewColumnBuffer(columnIndex, bufferCap)
 		switch {
 		case leaf.maxRepetitionLevel > 0:
-			column = newRepeatedColumnBuffer(column, leaf.maxRepetitionLevel, leaf.maxDefinitionLevel, nullOrdering)
+			// The Buffer implementation does not have a Close method, so we should do direct
+			// allocation to avoid breaking existing users.
+			n := column.Cap()
+			repetitionLevels := make([]byte, 0, n)
+			definitionLevels := make([]byte, 0, n)
+			column = newRepeatedColumnBuffer(column, repetitionLevels, definitionLevels, leaf.maxRepetitionLevel, leaf.maxDefinitionLevel, nullOrdering)
 		case leaf.maxDefinitionLevel > 0:
-			column = newOptionalColumnBuffer(column, leaf.maxDefinitionLevel, nullOrdering)
+			// The Buffer implementation does not have a Close method, so we should do direct
+			// allocation to avoid breaking existing users.
+			n := column.Cap()
+			rows := make([]int32, 0, n)
+			definitionLevels := make([]byte, 0, n)
+			column = newOptionalColumnBuffer(column, rows, definitionLevels, leaf.maxDefinitionLevel, nullOrdering)
 		}
 		buf.columns = append(buf.columns, column)
 
@@ -467,36 +477,44 @@ var (
 	_ ValueWriter = (*bufferWriter)(nil)
 )
 
-type buffer struct {
-	data  []byte
-	refc  uintptr
-	pool  *bufferPool
+type bufferedType interface{ byte | int32 | uint32 }
+
+type buffer[T bufferedType] struct {
+	data  []T
+	refc  atomic.Int32
+	pool  *bufferPool[T]
 	stack []byte
+	id    uint64
 }
 
-func (b *buffer) refCount() int {
-	return int(atomic.LoadUintptr(&b.refc))
+func newBuffer[T bufferedType](data []T) *buffer[T] {
+	b := &buffer[T]{data: data}
+	b.refc.Store(1)
+	return b
 }
 
-func (b *buffer) ref() {
-	atomic.AddUintptr(&b.refc, +1)
-}
-
-func (b *buffer) unref() {
-	if atomic.AddUintptr(&b.refc, ^uintptr(0)) == 0 {
-		if b.pool != nil {
-			b.pool.put(b)
-		}
+func (b *buffer[T]) ref() {
+	if b.refc.Add(1) <= 1 {
+		panic("BUG: buffer reference count overflow")
 	}
 }
 
-func monitorBufferRelease(b *buffer) {
-	if rc := b.refCount(); rc != 0 {
-		log.Printf("PARQUETGODEBUG: buffer garbage collected with non-zero reference count\n%s", string(b.stack))
+func (b *buffer[T]) unref() {
+	switch refc := b.refc.Add(-1); {
+	case refc < 0:
+		panic("BUG: buffer reference count underflow")
+	case refc == 0 && b.pool != nil:
+		b.pool.put(b)
 	}
 }
 
-type bufferPool struct {
+func monitorBufferRelease[T bufferedType](b *buffer[T]) {
+	if rc := b.refc.Load(); rc != 0 {
+		log.Printf("PARQUETGODEBUG: buffer[%d] garbage collected with non-zero reference count (rc=%d)\n%s", b.id, rc, string(b.stack))
+	}
+}
+
+type bufferPool[T bufferedType] struct {
 	// Buckets are split in two groups for short and large buffers. In the short
 	// buffer group (below 256KB), the growth rate between each bucket is 2. The
 	// growth rate changes to 1.5 in the larger buffer group.
@@ -512,47 +530,46 @@ type bufferPool struct {
 	buckets [bufferPoolBucketCount]sync.Pool
 }
 
-func (p *bufferPool) newBuffer(bufferSize, bucketSize int) *buffer {
-	b := &buffer{
-		data: make([]byte, bufferSize, bucketSize),
-		refc: 1,
+func (p *bufferPool[T]) newBuffer(bufferSize, bucketSize int) *buffer[T] {
+	b := &buffer[T]{
+		data: make([]T, bufferSize, bucketSize),
 		pool: p,
 	}
 	if debug.TRACEBUF > 0 {
 		b.stack = make([]byte, 4096)
-		runtime.SetFinalizer(b, monitorBufferRelease)
+		runtime.SetFinalizer(b, monitorBufferRelease[T])
 	}
 	return b
 }
 
 // get returns a buffer from the levelled buffer pool. size is used to choose
 // the appropriate pool.
-func (p *bufferPool) get(bufferSize int) *buffer {
+func (p *bufferPool[T]) get(bufferSize int) *buffer[T] {
 	bucketIndex, bucketSize := bufferPoolBucketIndexAndSizeOfGet(bufferSize)
 
-	b := (*buffer)(nil)
+	var b *buffer[T] = nil
 	if bucketIndex >= 0 {
-		b, _ = p.buckets[bucketIndex].Get().(*buffer)
+		b, _ = p.buckets[bucketIndex].Get().(*buffer[T])
 	}
 
 	if b == nil {
 		b = p.newBuffer(bufferSize, bucketSize)
 	} else {
 		b.data = b.data[:bufferSize]
-		b.ref()
 	}
 
 	if debug.TRACEBUF > 0 {
 		b.stack = b.stack[:runtime.Stack(b.stack[:cap(b.stack)], false)]
 	}
+	b.refc.Store(1)
 	return b
 }
 
-func (p *bufferPool) put(b *buffer) {
+func (p *bufferPool[T]) put(b *buffer[T]) {
 	if b.pool != p {
 		panic("BUG: buffer returned to a different pool than the one it was allocated from")
 	}
-	if b.refCount() != 0 {
+	if b.refc.Load() != 0 {
 		panic("BUG: buffer returned to pool with a non-zero reference count")
 	}
 	if bucketIndex, _ := bufferPoolBucketIndexAndSizeOfPut(cap(b.data)); bucketIndex >= 0 {
@@ -604,26 +621,30 @@ func bufferPoolBucketIndexAndSizeOfPut(size int) (int, int) {
 	return -1, size
 }
 
-var buffers bufferPool
+var (
+	buffers bufferPool[byte]
+	indexes bufferPool[int32]
+	offsets bufferPool[uint32]
+)
 
 type bufferedPage struct {
 	Page
-	values           *buffer
-	offsets          *buffer
-	repetitionLevels *buffer
-	definitionLevels *buffer
+	offsets          *buffer[uint32]
+	values           *buffer[byte]
+	repetitionLevels *buffer[byte]
+	definitionLevels *buffer[byte]
 }
 
-func newBufferedPage(page Page, values, offsets, definitionLevels, repetitionLevels *buffer) *bufferedPage {
+func newBufferedPage(page Page, offsets *buffer[uint32], values *buffer[byte], definitionLevels, repetitionLevels *buffer[byte]) *bufferedPage {
 	p := &bufferedPage{
 		Page:             page,
-		values:           values,
 		offsets:          offsets,
+		values:           values,
 		definitionLevels: definitionLevels,
 		repetitionLevels: repetitionLevels,
 	}
-	bufferRef(values)
 	bufferRef(offsets)
+	bufferRef(values)
 	bufferRef(definitionLevels)
 	bufferRef(repetitionLevels)
 	return p
@@ -632,34 +653,36 @@ func newBufferedPage(page Page, values, offsets, definitionLevels, repetitionLev
 func (p *bufferedPage) Slice(i, j int64) Page {
 	return newBufferedPage(
 		p.Page.Slice(i, j),
-		p.values,
 		p.offsets,
+		p.values,
 		p.definitionLevels,
 		p.repetitionLevels,
 	)
 }
 
 func (p *bufferedPage) Retain() {
-	bufferRef(p.values)
+	Retain(p.Page)
 	bufferRef(p.offsets)
+	bufferRef(p.values)
 	bufferRef(p.definitionLevels)
 	bufferRef(p.repetitionLevels)
 }
 
 func (p *bufferedPage) Release() {
-	bufferUnref(p.values)
+	Release(p.Page)
 	bufferUnref(p.offsets)
+	bufferUnref(p.values)
 	bufferUnref(p.definitionLevels)
 	bufferUnref(p.repetitionLevels)
 }
 
-func bufferRef(buf *buffer) {
+func bufferRef[T bufferedType](buf *buffer[T]) {
 	if buf != nil {
 		buf.ref()
 	}
 }
 
-func bufferUnref(buf *buffer) {
+func bufferUnref[T bufferedType](buf *buffer[T]) {
 	if buf != nil {
 		buf.unref()
 	}

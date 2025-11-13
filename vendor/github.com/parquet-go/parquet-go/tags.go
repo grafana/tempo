@@ -2,53 +2,53 @@ package parquet
 
 import "reflect"
 
-var noTags = ParquetTags{}
+var noTags = parquetTags{}
 
-// ParquetTags represents the superset of all the parquet struct tags that can be used
+// parquetTags represents the superset of all the parquet struct tags that can be used
 // to configure a field.
-type ParquetTags struct {
-	Parquet        string
-	ParquetKey     string
-	ParquetValue   string
-	ParquetElement string
+type parquetTags struct {
+	parquet        string
+	parquetKey     string
+	parquetValue   string
+	parquetElement string
 }
 
 // fromStructTag parses the parquet struct tags from a reflect.StructTag and returns
 // a parquetTags struct.
-func fromStructTag(tag reflect.StructTag) ParquetTags {
-	parquetTags := ParquetTags{}
+func fromStructTag(tag reflect.StructTag) parquetTags {
+	parquetTags := parquetTags{}
 	if val := tag.Get("parquet"); val != "" {
-		parquetTags.Parquet = val
+		parquetTags.parquet = val
 	}
 	if val := tag.Get("parquet-key"); val != "" {
-		parquetTags.ParquetKey = val
+		parquetTags.parquetKey = val
 	}
 	if val := tag.Get("parquet-value"); val != "" {
-		parquetTags.ParquetValue = val
+		parquetTags.parquetValue = val
 	}
 	if val := tag.Get("parquet-element"); val != "" {
-		parquetTags.ParquetElement = val
+		parquetTags.parquetElement = val
 	}
 	return parquetTags
 }
 
 // getMapKeyNodeTags returns the parquet tags for configuring the keys of a map.
-func (p ParquetTags) getMapKeyNodeTags() ParquetTags {
-	return ParquetTags{
-		Parquet: p.ParquetKey,
+func (p parquetTags) getMapKeyNodeTags() parquetTags {
+	return parquetTags{
+		parquet: p.parquetKey,
 	}
 }
 
 // getMapValueNodeTags returns the parquet tags for configuring the values of a map.
-func (p ParquetTags) getMapValueNodeTags() ParquetTags {
-	return ParquetTags{
-		Parquet: p.ParquetValue,
+func (p parquetTags) getMapValueNodeTags() parquetTags {
+	return parquetTags{
+		parquet: p.parquetValue,
 	}
 }
 
 // getListElementNodeTags returns the parquet tags for configuring the elements of a list.
-func (p ParquetTags) getListElementNodeTags() ParquetTags {
-	return ParquetTags{
-		Parquet: p.ParquetElement,
+func (p parquetTags) getListElementNodeTags() parquetTags {
+	return parquetTags{
+		parquet: p.parquetElement,
 	}
 }

@@ -594,9 +594,13 @@ func reconstructFuncOfOptional(columnIndex int16, node Node) (int16, reconstruct
 	return nextColumnIndex, func(value reflect.Value, levels levels, columns [][]Value) error {
 		levels.definitionLevel++
 
-		if columns[0][0].definitionLevel < levels.definitionLevel {
-			value.SetZero()
-			return nil
+		// For empty groups (no columns), we can't check definition levels.
+		// Treat them as always present (non-null).
+		if len(columns) > 0 && len(columns[0]) > 0 {
+			if columns[0][0].definitionLevel < levels.definitionLevel {
+				value.SetZero()
+				return nil
+			}
 		}
 
 		if value.Kind() == reflect.Ptr {
@@ -636,6 +640,12 @@ func reconstructFuncOfRepeated(columnIndex int16, node Node) (int16, reconstruct
 	return nextColumnIndex, func(value reflect.Value, levels levels, columns [][]Value) error {
 		levels.repetitionDepth++
 		levels.definitionLevel++
+
+		// Handle empty groups (no columns)
+		if len(columns) == 0 || len(columns[0]) == 0 {
+			setMakeSlice(value, 0)
+			return nil
+		}
 
 		if columns[0][0].definitionLevel < levels.definitionLevel {
 			setMakeSlice(value, 0)

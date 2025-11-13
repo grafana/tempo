@@ -326,8 +326,8 @@ func (pool *fileBufferPool) GetBuffer() io.ReadWriteSeeker {
 
 func (pool *fileBufferPool) PutBuffer(buf io.ReadWriteSeeker) {
 	if f, _ := buf.(*os.File); f != nil {
-		defer f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 	}
 }
 

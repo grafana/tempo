@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/sys/cpu"
 
+	"github.com/parquet-go/bitpack/unsafecast"
 	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/encoding"
 	"github.com/parquet-go/parquet-go/format"
-	"github.com/parquet-go/parquet-go/internal/unsafecast"
 )
 
 // ConvertError is an error type returned by calls to Convert when the conversion
@@ -383,8 +383,13 @@ func ConvertRowGroup(rowGroup RowGroup, conv Conversion) RowGroup {
 				numValues: numRows,
 				numNulls:  numRows,
 			}
-		} else {
+		} else if i == int16(j) {
 			columns[i] = rowGroupColumns[j]
+		} else {
+			columns[i] = &convertedColumnChunk{
+				chunk:             rowGroupColumns[j],
+				targetColumnIndex: ^int16(i),
+			}
 		}
 	})
 
@@ -599,6 +604,163 @@ func (c *convertedRows) Schema() *Schema {
 
 func (c *convertedRows) SeekToRow(rowIndex int64) error {
 	return c.rows.SeekToRow(rowIndex)
+}
+
+// convertedColumnChunk wraps a ColumnChunk to fix the column index after reordering.
+// When ConvertRowGroup reorders columns, the underlying chunk's Column() method
+// returns the original position. This wrapper fixes both Column() and the
+// columnIndex in values read from the chunk.
+type convertedColumnChunk struct {
+	chunk             ColumnChunk
+	targetColumnIndex int16 // XOR-encoded column index (^int16(columnIndex))
+}
+
+func (c *convertedColumnChunk) Type() Type {
+	return c.chunk.Type()
+}
+
+func (c *convertedColumnChunk) Column() int {
+	return int(^c.targetColumnIndex)
+}
+
+func (c *convertedColumnChunk) NumValues() int64 {
+	return c.chunk.NumValues()
+}
+
+func (c *convertedColumnChunk) Pages() Pages {
+	return &convertedPages{
+		pages:             c.chunk.Pages(),
+		targetColumnIndex: c.targetColumnIndex,
+	}
+}
+
+func (c *convertedColumnChunk) ColumnIndex() (ColumnIndex, error) {
+	return c.chunk.ColumnIndex()
+}
+
+func (c *convertedColumnChunk) OffsetIndex() (OffsetIndex, error) {
+	return c.chunk.OffsetIndex()
+}
+
+func (c *convertedColumnChunk) BloomFilter() BloomFilter {
+	return c.chunk.BloomFilter()
+}
+
+// convertedPages wraps Pages to return convertedPage instances.
+type convertedPages struct {
+	pages             Pages
+	targetColumnIndex int16
+}
+
+func (p *convertedPages) ReadPage() (Page, error) {
+	page, err := p.pages.ReadPage()
+	if err != nil {
+		return nil, err
+	}
+	return &convertedPage{
+		page:              page,
+		targetColumnIndex: p.targetColumnIndex,
+	}, nil
+}
+
+func (p *convertedPages) SeekToRow(rowIndex int64) error {
+	return p.pages.SeekToRow(rowIndex)
+}
+
+func (p *convertedPages) Close() error {
+	return p.pages.Close()
+}
+
+// convertedPage wraps a Page to return a convertedValueReader.
+type convertedPage struct {
+	page              Page
+	targetColumnIndex int16
+}
+
+func (p *convertedPage) Type() Type {
+	return p.page.Type()
+}
+
+func (p *convertedPage) Column() int {
+	return int(^p.targetColumnIndex)
+}
+
+func (p *convertedPage) Dictionary() Dictionary {
+	return p.page.Dictionary()
+}
+
+func (p *convertedPage) NumRows() int64 {
+	return p.page.NumRows()
+}
+
+func (p *convertedPage) NumValues() int64 {
+	return p.page.NumValues()
+}
+
+func (p *convertedPage) NumNulls() int64 {
+	return p.page.NumNulls()
+}
+
+func (p *convertedPage) Bounds() (min, max Value, ok bool) {
+	return p.page.Bounds()
+}
+
+func (p *convertedPage) Size() int64 {
+	return p.page.Size()
+}
+
+func (p *convertedPage) RepetitionLevels() []byte {
+	return p.page.RepetitionLevels()
+}
+
+func (p *convertedPage) DefinitionLevels() []byte {
+	return p.page.DefinitionLevels()
+}
+
+func (p *convertedPage) Data() encoding.Values {
+	return p.page.Data()
+}
+
+func (p *convertedPage) Values() ValueReader {
+	return &convertedValueReader{
+		reader:            p.page.Values(),
+		targetColumnIndex: p.targetColumnIndex,
+	}
+}
+
+func (p *convertedPage) Slice(i, j int64) Page {
+	return &convertedPage{
+		page:              p.page.Slice(i, j),
+		targetColumnIndex: p.targetColumnIndex,
+	}
+}
+
+func (p *convertedPage) Retain() {
+	Retain(p.page)
+}
+
+func (p *convertedPage) Release() {
+	Release(p.page)
+}
+
+var (
+	_ retainable = (*convertedPage)(nil)
+	_ releasable = (*convertedPage)(nil)
+)
+
+// convertedValueReader wraps a ValueReader to rewrite columnIndex in values.
+type convertedValueReader struct {
+	reader            ValueReader
+	targetColumnIndex int16
+}
+
+func (r *convertedValueReader) ReadValues(values []Value) (int, error) {
+	n, err := r.reader.ReadValues(values)
+	// Rewrite columnIndex for all values to match the target column position
+	for i := range n {
+		values[i].columnIndex = r.targetColumnIndex
+	}
+	return n, err
 }
 
 var (

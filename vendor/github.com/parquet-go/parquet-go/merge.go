@@ -30,6 +30,9 @@ func MergeRowGroups(rowGroups []RowGroup, options ...RowGroupOption) (RowGroup, 
 
 	schema := config.Schema
 	if len(rowGroups) == 0 {
+		if schema == nil {
+			return nil, fmt.Errorf("cannot merge empty row groups without a schema")
+		}
 		return newEmptyRowGroup(schema), nil
 	}
 	if schema == nil {

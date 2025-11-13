@@ -491,6 +491,20 @@ func fieldByName(node Node, name string) Field {
 	return nil
 }
 
+// findByPath navigates the node tree to find the node at the given path.
+// Returns nil if the path doesn't exist.
+// The path is a sequence of field names to traverse.
+func findByPath(node Node, path []string) Node {
+	for _, name := range path {
+		field := fieldByName(node, name)
+		if field == nil {
+			return nil
+		}
+		node = field
+	}
+	return node
+}
+
 // EqualNodes returns true if node1 and node2 are equal.
 //
 // Nodes that are not of the same repetition type (optional, required, repeated)
@@ -601,69 +615,4 @@ func sortFields(fields []Field) {
 
 func compareFields(a, b Field) int {
 	return strings.Compare(a.Name(), b.Name())
-}
-
-func IdenticalNodes(node1, node2 Node) bool {
-	if node1.Leaf() {
-		return node2.Leaf() && leafNodesAreIdentical(node1, node2)
-	} else {
-		return !node2.Leaf() && groupNodesAreIdentical(node1, node2)
-	}
-}
-
-func leafNodesAreIdentical(node1, node2 Node) bool {
-	if node1.ID() != node2.ID() {
-		return false
-	}
-
-	if !EqualTypes(node1.Type(), node2.Type()) {
-		return false
-	}
-	if node1.GoType() != node2.GoType() {
-		return false
-	}
-	if !repetitionsAreEqual(node1, node2) {
-		return false
-	}
-
-	enc1 := node1.Encoding()
-	enc2 := node2.Encoding()
-	if (enc1 != nil) != (enc2 != nil) {
-		return false
-	}
-	if enc1 != nil && enc2 != nil && enc1.String() != enc2.String() {
-		return false
-	}
-
-	comp1 := node1.Compression()
-	comp2 := node2.Compression()
-	if (comp1 != nil) != (comp2 != nil) {
-		return false
-	}
-	if comp1 != nil && comp2 != nil && comp1.String() != comp2.String() {
-		return false
-	}
-
-	return true
-}
-
-func groupNodesAreIdentical(node1, node2 Node) bool {
-	if node1.ID() != node2.ID() {
-		return false
-	}
-	fields1 := node1.Fields()
-	fields2 := node2.Fields()
-	if len(fields1) != len(fields2) {
-		return false
-	}
-	if !repetitionsAreEqual(node1, node2) {
-		return false
-	}
-	if !fieldsAreEqual(fields1, fields2, IdenticalNodes) {
-		return false
-	}
-	if node1.GoType() != node2.GoType() {
-		return false
-	}
-	return equalLogicalTypes(node1.Type(), node2.Type())
 }
