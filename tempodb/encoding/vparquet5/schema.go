@@ -102,8 +102,6 @@ var (
 	traceqlResourceLabelMappings = map[string]string{
 		LabelServiceName: "rs.list.element.Resource.ServiceName",
 	}
-
-	parquetSchema = parquet.SchemaOf(&Trace{})
 )
 
 type Attribute struct {
@@ -851,7 +849,7 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 	return append(in, make([]T, sz-len(in))...)
 }
 
-func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
+func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
 	var (
 		resMapping   = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
 		spanMapping  = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
@@ -867,6 +865,7 @@ func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 	writerOptions := []parquet.WriterOption{}
 	readerOptions := []parquet.ReaderOption{}
 
+	// Blobify
 	blobify := func(key string, col dedicatedColumn) {
 		fmt.Println("Blob column:", col.ColumnPath, key)
 		path := strings.Split(col.ColumnPath, ".")
@@ -895,6 +894,36 @@ func SchemaWithDyanmicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 	for key, col := range eventMapping.mapping {
 		if col.IsBlob {
 			blobify(key, col)
+		}
+	}
+
+	// Remove unused dedicated columns.
+	delete := func(path string) {
+		// fmt.Println("Deleting unused dedicated column:", path)
+		option := parquet.StructTag(`parquet:"-"`, strings.Split(path, ".")...)
+		schemaOptions = append(schemaOptions, option)
+		readerOptions = append(readerOptions, option)
+		writerOptions = append(writerOptions, option)
+	}
+
+	for scope, m1 := range DedicatedResourceColumnPaths {
+		for _, paths := range m1 {
+			for _, path := range paths {
+				switch scope {
+				case backend.DedicatedColumnScopeResource:
+					if !resMapping.usesPath(path) {
+						delete(path)
+					}
+				case backend.DedicatedColumnScopeSpan:
+					if !spanMapping.usesPath(path) {
+						delete(path)
+					}
+				case backend.DedicatedColumnScopeEvent:
+					if !eventMapping.usesPath(path) {
+						delete(path)
+					}
+				}
+			}
 		}
 	}
 

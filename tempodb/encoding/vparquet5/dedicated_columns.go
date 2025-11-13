@@ -215,6 +215,15 @@ func (dm *dedicatedColumnMapping) get(attr string) (dedicatedColumn, bool) {
 	return col, ok
 }
 
+func (dm *dedicatedColumnMapping) usesPath(path string) bool {
+	for _, col := range dm.mapping {
+		if col.ColumnPath == path {
+			return true
+		}
+	}
+	return false
+}
+
 func (dm *dedicatedColumnMapping) items() iter.Seq2[string, dedicatedColumn] {
 	return func(yield func(string, dedicatedColumn) bool) {
 		for _, k := range dm.keys {
