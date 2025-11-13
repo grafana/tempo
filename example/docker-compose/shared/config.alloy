@@ -19,9 +19,10 @@ otelcol.connector.spanmetrics "meemeer" {
     }
   }
   output {
-    metrics = [otelcol.exporter.otlp.mimir.input,]
+    metrics = [otelcol.exporter.otlp.mimir.input, otelcol.exporter.prometheus.default.input, ]
   }
 }
+
 
 otelcol.exporter.otlp "tempo" {
   client {
@@ -38,5 +39,15 @@ otelcol.exporter.otlp "mimir" {
     tls {
 			insecure = true
 		}
+  }
+}
+
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "http://mimir:9009/api/v1/push"
   }
 }
