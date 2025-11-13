@@ -40,16 +40,16 @@ after a metrics query like:
 
 These functions can be added as an operator at the end of any TraceQL query.
 
-| Function                                                                                        | Description                                                                                        | Parameters/attributes                      |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| [`rate()`](#the-rate-function)                                                                  | Calculates the number of matching spans per second.                                                |                                            |
-| [`count_over_time()`](#the-count_over_time-function)                                            | Counts the number of matching spans per time interval.                                             | `step`                                     |
-| [`sum_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Sums the value for the specified attribute across all matching spans per time interval.            | `numeric attribute`                        |
-| [`min_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the minimum value for the specified attribute across all matching spans per time interval. | `numeric attribute`                        |
-| [`max_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the maximum value for the specified attribute across all matching spans per time interval. | `numeric attribute`                        |
-| [`avg_over_time()`](#the-sum_over_time-min_over_time-max_over_time-and-avg_over_time-functions) | Returns the average value for the specified attribute across all matching spans per time interval. | `numeric attribute`                        |
-| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)             | The quantile of the values in the specified interval.                                              | `numeric attribute`; one or more quantiles |
-| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)            | Evaluate frequency distribution over time.                                                         | `numeric attribute`                        |
+| Function                                                                             | Description                                                                                        | Example                                                                      |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [`rate()`](#the-rate-functions)                                                      | Calculates the number of matching spans per second.                                                | `{ span:status = error } \| rate()`                                          |
+| [`count_over_time()`](#the-count_over_time-function)                                 | Counts the number of matching spans per time interval.                                             | `{ span:name = "GET /:endpoint" } \| count_over_time()`                      |
+| [`sum_over_time()`](#the-sum_over_time-function)                                     | Sums the value for the specified attribute across all matching spans per time interval.            | `{ } \| sum_over_time(span.http.response.size)`                              |
+| [`min_over_time()`](#the-min_over_time-function)                                     | Returns the minimum value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| min_over_time(span:duration)`           |
+| [`max_over_time()`](#the-max_over_time-function)                                     | Returns the maximum value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| max_over_time(span:duration)`           |
+| [`avg_over_time()`](#the-avg_over_time-function)                                     | Returns the average value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| avg_over_time(span:duration)`           |
+| [`quantile_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions)  | The quantile of the values in the specified interval.                                              | `{ span:name = "GET /:endpoint" } \| quantile_over_time(span:duration, .99)` |
+| [`histogram_over_time()`](#the-quantile_over_time-and-histogram_over_time-functions) | Evaluate frequency distribution over time.                                                         | `{ } \| histogram_over_time(span:duration) by (span.http.target)`            |
 
 ## The `rate` functions
 
@@ -63,8 +63,8 @@ processor.
 
 For example, this query:
 
-```
-{ status = error } | rate() by (resource.service.name, name)
+```traceql
+{ span:status = error } | rate() by (resource.service.name, span:name)
 ```
 
 Is an equivalent to using span-generated metrics and running the query.
@@ -72,14 +72,14 @@ Is an equivalent to using span-generated metrics and running the query.
 This example calculates the rate of the erroring spans coming from the service `foo`.
 Rate is a `spans/sec` quantity.
 
-```
-{ resource.service.name = "foo" && status = error } | rate()
+```traceql
+{ resource.service.name = "foo" && span:status = error } | rate()
 ```
 
 Combined with the `by()` operator, this can be even more powerful.
 
-```
-{ resource.service.name = "foo" && status = error } | rate() by (span.http.route)
+```traceql
+{ resource.service.name = "foo" && span:status = error } | rate() by (span.http.route)
 ```
 
 This example still rates the erroring spans in the service `foo` but the metrics are broken
@@ -115,8 +115,8 @@ To check or change the `step` value using Grafana Explore:
 This example counts the number of spans with name `"GET /:endpoint"` broken down by status code. You might see that
 there are 10 `"GET /:endpoint"` spans with status code 200 and 15 `"GET /:endpoint"` spans with status code 400.
 
-```
-{ name = "GET /:endpoint" } | count_over_time() by (span.http.status_code)
+```traceql
+{ span:name = "GET /:endpoint" } | count_over_time() by (span.http.status_code)
 
 ```
 
@@ -144,14 +144,14 @@ The time interval that the minimum is computed over is set by the `step` paramet
 This example computes the minimum duration for each `http.target` of all spans named `"GET /:endpoint"`.
 Any numerical attribute on the span is fair game.
 
-```
-{ name = "GET /:endpoint" } | min_over_time(duration) by (span.http.target)
+```traceql
+{ span:name = "GET /:endpoint" } | min_over_time(span:duration) by (span.http.target)
 ```
 
 This example computes the minimum status code value of all spans named `"GET /:endpoint"`.
 
-```
-{ name = "GET /:endpoint" } | min_over_time(span.http.status_code)
+```traceql
+{ span:name = "GET /:endpoint" } | min_over_time(span.http.status_code)
 ```
 
 ### The `max_over_time` function
@@ -162,12 +162,12 @@ The time interval that the maximum is computed over is set by the `step` paramet
 
 This example computes the maximum duration for each `http.target` of all spans named `"GET /:endpoint"`.
 
-```
-{ name = "GET /:endpoint" } | max_over_time(duration) by (span.http.target)
+```traceql
+{ span:name = "GET /:endpoint" } | max_over_time(span:duration) by (span.http.target)
 ```
 
-```
-{ name = "GET /:endpoint" } | max_over_time(span.http.response.size)
+```traceql
+{ span:name = "GET /:endpoint" } | max_over_time(span.http.response.size)
 ```
 
 ### The `avg_over_time` function
@@ -178,12 +178,12 @@ The time interval that the average is computed over is set by the `step` paramet
 
 This example computes the average duration for each `http.status_code` of all spans named `"GET /:endpoint"`.
 
-```
-{ name = "GET /:endpoint" } | avg_over_time(duration) by (span.http.status_code)
+```traceql
+{ span:name = "GET /:endpoint" } | avg_over_time(span:duration) by (span.http.status_code)
 ```
 
-```
-{ name = "GET /:endpoint" } | avg_over_time(span.http.response.size)
+```traceql
+{ span:name = "GET /:endpoint" } | avg_over_time(span.http.response.size)
 ```
 
 ## The `quantile_over_time` and `histogram_over_time` functions
@@ -195,22 +195,22 @@ You can specify multiple quantiles in the same query.
 The example below computes the 99th, 90th, and 50th percentile of the duration attribute on all spans with name
 `GET /:endpoint`.
 
-```
-{ name = "GET /:endpoint" } | quantile_over_time(duration, .99, .9, .5)
+```traceql
+{ span:name = "GET /:endpoint" } | quantile_over_time(span:duration, .99, .9, .5)
 ```
 
 You can group by any span or resource attribute.
 
-```
-{ name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target)
+```traceql
+{ span:name = "GET /:endpoint" } | quantile_over_time(span:duration, .99) by (span.http.target)
 ```
 
 Quantiles aren't limited to span duration.
 Any numerical attribute on the span is fair game.
 To demonstrate this flexibility, consider this nonsensical quantile on `span.http.status_code`:
 
-```
-{ name = "GET /:endpoint" } | quantile_over_time(span.http.status_code, .99, .9, .5)
+```traceql
+{ span:name = "GET /:endpoint" } | quantile_over_time(span.http.status_code, .99, .9, .5)
 ```
 
 This computes the 99th, 90th, and 50th percentile of the values of the `status_code` attribute for all spans named
@@ -238,7 +238,7 @@ from 1 through `k` of the number of the top or bottom results.
 
 For example:
 
-```
+```traceql
 { resource.service.name = "foo" } | rate() by (span.http.url)  | topk(10)
 ```
 
@@ -284,7 +284,7 @@ Automatically determines optimal sampling strategy based on query selectivity an
 Samples a fixed percentage of spans for span-level aggregations.
 
 ```
-{ status=error } | count_over_time() with(span_sample=0.1)
+{ span:status=error } | count_over_time() with(span_sample=0.1)
 ```
 
 #### Fixed trace sampling: `with(trace_sample=0.xx)`
@@ -313,8 +313,8 @@ metrics query:
 
 Example:
 
-```
-{ resource.service.name="a" && span.http.path="/myapi" } | compare({status=error})
+```traceql
+{ resource.service.name="a" && span.http.path="/myapi" } | compare({span:status=error})
 ```
 
 This function is generally run as an instant query.
@@ -329,8 +329,8 @@ The `compare` function has four parameters:
 
 1. Required. The first parameter is a spanset filter for choosing the subset of spans. This filter is executed against
    the incoming spans. If it matches, then the span is considered to be part of the selection. Otherwise, it is part of
-   the baseline. Common filters are expected to be things like `{status=error}` (what is different about errors?) or
-   `{duration>1s}` (what is different about slow spans?)
+   the baseline. Common filters are expected to be things like `{span:status=error}` (what is different about errors?) or
+   `{span:duration>1s}` (what is different about slow spans?)
 
 2. Optional. The second parameter is the top `N` values to return per attribute. If an attribute exceeds this limit in
    either the selection group or baseline group, then only the top `N` values (based on frequency) are returned, and an
