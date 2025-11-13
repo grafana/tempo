@@ -28,6 +28,9 @@ services:
   # Generate fake traces...
   k6-tracing:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    command: ["run", "--duration", "1h", "/scripts/gen_gha_traces.js"]
+    volumes:
+      - ../shared/gen_gha_traces.js:/scripts/gen_gha_traces.js
     environment:
       - ENDPOINT=alloy:4317
     restart: always
