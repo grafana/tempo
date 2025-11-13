@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 )
 
 type attributePaths struct {
@@ -169,6 +170,8 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
 	case vparquet4.VersionString:
 		reader = vparquet4.NewBackendReaderAt(context.Background(), r, vparquet4.DataFileName, meta)
+	case vparquet5.VersionString:
+		reader = vparquet5.NewBackendReaderAt(context.Background(), r, vparquet5.DataFileName, meta)
 	default:
 		fmt.Println("Unsupported block version:", meta.Version)
 		return nil, nil
@@ -237,6 +240,13 @@ type blockSummary struct {
 	numRowGroups    int
 }
 
+func (s *blockSummary) add(other blockSummary) {
+	s.numRowGroups += other.numRowGroups
+	s.spanSummary.add(other.spanSummary)
+	s.resourceSummary.add(other.resourceSummary)
+	s.eventSummary.add(other.eventSummary)
+}
+
 func (s blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printFullSummary, generateCliArgs bool, blobBytes uint64) error {
 	if printFullSummary {
 		if err := printSummary("span", maxAttr, s.spanSummary, false, s.numRowGroups, blobBytes); err != nil {
@@ -263,7 +273,7 @@ func (s blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printFu
 	}
 
 	if generateJsonnet {
-		printDedicatedColumnOverridesJsonnet(s)
+		printDedicatedColumnOverridesJsonnet(s, maxAttr, s.numRowGroups, blobBytes)
 	}
 
 	if generateCliArgs {
@@ -277,6 +287,31 @@ type attributeSummary struct {
 	attributes      map[string]*attribute // key: attribute name
 	arrayAttributes map[string]*attribute // key: attribute name
 	dedicated       map[string]struct{}
+}
+
+func (a attributeSummary) add(other attributeSummary) {
+	for k, v := range other.attributes {
+		existing, ok := a.attributes[k]
+		if !ok {
+			a.attributes[k] = v
+			continue
+		}
+		existing.totalBytes += v.totalBytes
+		for k, v := range v.cardinality {
+			existing.cardinality[k] += v
+		}
+	}
+	for k, v := range other.arrayAttributes {
+		existing, ok := a.arrayAttributes[k]
+		if !ok {
+			a.arrayAttributes[k] = v
+			continue
+		}
+		existing.totalBytes += v.totalBytes
+	}
+	for k := range other.dedicated {
+		a.dedicated[k] = struct{}{}
+	}
 }
 
 func (a attributeSummary) totalBytes() uint64 {
@@ -559,20 +594,31 @@ func printSummary(scope string, max int, summary attributeSummary, simple bool, 
 	return nil
 }
 
-func printDedicatedColumnOverridesJsonnet(summary blockSummary) {
+func printDedicatedColumnOverridesJsonnet(summary blockSummary, maxAttr int, numRowGroups int, blobBytes uint64) {
 	fmt.Println("")
 	fmt.Printf("parquet_dedicated_columns: [\n")
 
+	optionsText := func(a *attribute) string {
+		options := []string{}
+		if blobBytes > 0 && a.cardinality.avgSizePerRowGroup(numRowGroups) > blobBytes {
+			options = append(options, "'blob'")
+		}
+		if len(options) > 0 {
+			return ", options: [" + strings.Join(options, ", ") + "]"
+		}
+		return ""
+	}
+
 	for _, a := range topN(10, summary.spanSummary.attributes) {
-		fmt.Printf(" { scope: 'span', name: '%s', type: 'string' },\n", a.name)
+		fmt.Printf(" { scope: 'span', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 
 	for _, a := range topN(10, summary.resourceSummary.attributes) {
-		fmt.Printf(" { scope: 'resource', name: '%s', type: 'string' },\n", a.name)
+		fmt.Printf(" { scope: 'resource', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 
 	for _, a := range topN(10, summary.eventSummary.attributes) {
-		fmt.Printf(" { scope: 'event', name: '%s', type: 'string' },\n", a.name)
+		fmt.Printf(" { scope: 'event', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 
 	fmt.Printf("], \n")

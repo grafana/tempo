@@ -44,11 +44,12 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	processedBlocks := map[uuid.UUID]struct{}{}
-	topSpanAttrs, topResourceAttrs := make(map[string]*attribute), make(map[string]*attribute)
-	totalSpanBytes, totalResourceBytes := uint64(0), uint64(0)
+	var (
+		processedBlocks            = map[uuid.UUID]struct{}{}
+		totalSummary               blockSummary
+		maxStartTime, minStartTime time.Time
+	)
 
-	var maxStartTime, minStartTime time.Time
 	if cmd.MaxStartTime != "" {
 		maxStartTime, err = time.Parse(time.RFC3339, cmd.MaxStartTime)
 		if err != nil {
@@ -88,26 +89,11 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 			continue
 		}
 
-		for k, v := range blockSum.spanSummary.attributes {
-			topSpanAttrs[k].totalBytes += v.totalBytes
-		}
-		totalSpanBytes += blockSum.spanSummary.totalBytes()
-
-		for k, v := range blockSum.resourceSummary.attributes {
-			topResourceAttrs[k].totalBytes += v.totalBytes
-		}
-		totalResourceBytes += blockSum.resourceSummary.totalBytes()
+		totalSummary.add(*blockSum)
 
 		processedBlocks[block] = struct{}{}
 	}
 
 	// Get top N attributes from map
-	return (&blockSummary{
-		spanSummary: attributeSummary{
-			attributes: topSpanAttrs,
-		},
-		resourceSummary: attributeSummary{
-			attributes: topResourceAttrs,
-		},
-	}).print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.Cli, blobBytes)
+	return totalSummary.print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary, cmd.Cli, blobBytes)
 }
