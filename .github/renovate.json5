@@ -70,6 +70,8 @@
     {
       description: 'Automerge patch updates',
       matchUpdateTypes: ['patch'],
+      automergeStrategy: 'squash',
+      automergeType: 'branch',
       automerge: true
     },
   ],
