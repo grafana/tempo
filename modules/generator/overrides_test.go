@@ -53,6 +53,10 @@ func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(string) uint32 {
 	return 0
 }
 
+func (m *mockOverrides) MetricsGeneratorMaxActiveEntities(string) uint32 {
+	return 0
+}
+
 func (m *mockOverrides) MetricsGeneratorCollectionInterval(string) time.Duration {
 	return 15 * time.Second
 }

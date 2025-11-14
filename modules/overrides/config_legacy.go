@@ -30,6 +30,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
 		MetricsGeneratorProcessors:                                                  c.MetricsGenerator.Processors,
 		MetricsGeneratorMaxActiveSeries:                                             c.MetricsGenerator.MaxActiveSeries,
+		MetricsGeneratorMaxActiveEntities:                                           c.MetricsGenerator.MaxActiveEntities,
 		MetricsGeneratorCollectionInterval:                                          c.MetricsGenerator.CollectionInterval,
 		MetricsGeneratorDisableCollection:                                           c.MetricsGenerator.DisableCollection,
 		MetricsGeneratorGenerateNativeHistograms:                                    c.MetricsGenerator.GenerateNativeHistograms,
@@ -107,6 +108,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorRingSize                                                    int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
 	MetricsGeneratorProcessors                                                  listtomap.ListToMap              `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
 	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
+	MetricsGeneratorMaxActiveEntities                                           uint32                           `yaml:"metrics_generator_max_active_entities" json:"metrics_generator_max_active_entities"`
 	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
 	MetricsGeneratorGenerateNativeHistograms                                    histograms.HistogramMethod       `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
@@ -194,6 +196,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			RingSize:                 l.MetricsGeneratorRingSize,
 			Processors:               l.MetricsGeneratorProcessors,
 			MaxActiveSeries:          l.MetricsGeneratorMaxActiveSeries,
+			MaxActiveEntities:        l.MetricsGeneratorMaxActiveEntities,
 			CollectionInterval:       l.MetricsGeneratorCollectionInterval,
 			DisableCollection:        l.MetricsGeneratorDisableCollection,
 			TraceIDLabelName:         l.MetricsGeneratorTraceIDLabelName,

@@ -36,11 +36,13 @@ func Test_instance_concurrency(t *testing.T) {
 		processor.SpanMetricsName:   {},
 		processor.ServiceGraphsName: {},
 	}
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	instance1, err := newInstance(cfg, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	assert.NoError(t, err)
 
-	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	instance2, err := newInstance(cfg, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -93,7 +95,9 @@ func TestInstancePushSpansSkipProcessors(t *testing.T) {
 	}
 	const tenantID = "skip-processors-test"
 
-	i, err := newInstance(&Config{}, tenantID, overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	i, err := newInstance(cfg, tenantID, overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	require.NoError(t, err)
 
 	req := test.MakeBatch(1, nil)

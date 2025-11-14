@@ -18,12 +18,14 @@ var testTenant = "test-tenant"
 // Duplicate labels should not grow the series count.
 func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(count uint32) bool {
-		seriesAdded += int(count)
-		return true
+	lifecycler := &mockLimiter{
+		onAddFunc: func(_ uint64, count uint32) bool {
+			seriesAdded += int(count)
+			return true
+		},
 	}
 
-	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, lifecycler, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
 
@@ -498,8 +500,7 @@ func Test_Histograms(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
-				onAdd := func(uint32) bool { return true }
-				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil, 15*time.Minute)
+				h := newHistogram("test_histogram", tc.buckets, noopLimiter, "trace_id", nil, 15*time.Minute)
 				testHistogram(t, h, tc.collections)
 			})
 			t.Run("native", func(t *testing.T) {
@@ -507,8 +508,7 @@ func Test_Histograms(t *testing.T) {
 					t.SkipNow()
 				}
 
-				onAdd := func(uint32) bool { return true }
-				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+				h := newNativeHistogram("test_histogram", tc.buckets, noopLimiter, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 				testHistogram(t, h, tc.collections)
 			})
 		})
@@ -626,9 +626,8 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 			nativeHistogramMinResetDuration: time.Minute,
 		}
 
-		onAdd := func(uint32) bool { return true }
 		// Use HistogramModeNative to test native-only behavior
-		h := newNativeHistogram("test_native_histogram", buckets, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
+		h := newNativeHistogram("test_native_histogram", buckets, noopLimiter, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
 
 		// Add some observations with exemplars
 		lvc := newLabelValueCombo([]string{"service"}, []string{"test-service"})
@@ -666,8 +665,6 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 	})
 
 	t.Run("native_only_histogram_exemplars", func(t *testing.T) {
-		onAdd := func(uint32) bool { return true }
-
 		overrides := &mockOverrides{
 			nativeHistogramBucketFactor:     1.5,
 			nativeHistogramMaxBucketNumber:  10,
@@ -675,7 +672,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 		}
 
 		// Create a native histogram with empty buckets to force native-only mode
-		h := newNativeHistogram("test_native_only", []float64{}, onAdd, nil, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
+		h := newNativeHistogram("test_native_only", []float64{}, noopLimiter, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
 
 		// Add some observations with exemplars
 		lvc := newLabelValueCombo([]string{"service"}, []string{"native-only-xyz"})
@@ -706,7 +703,7 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 }
 
 func Test_nativeHistogram_demandTracking(t *testing.T) {
-	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, noopLimiter, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 	// Initially, demand should be 0
 	assert.Equal(t, 0, h.countSeriesDemand())
@@ -730,29 +727,31 @@ func Test_nativeHistogram_demandTracking(t *testing.T) {
 
 func Test_nativeHistogram_activeSeriesPerHistogramSerie(t *testing.T) {
 	// Test BOTH mode with 2 buckets: sum, count, bucket1, bucket2, +Inf, native = 6
-	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, noopLimiter, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 	assert.Equal(t, uint32(6), h.activeSeriesPerHistogramSerie(), "BOTH mode should be classic + native")
 
 	// Test NATIVE mode only: 1 native histogram series
-	h2 := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h2 := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, noopLimiter, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 	assert.Equal(t, uint32(1), h2.activeSeriesPerHistogramSerie(), "NATIVE mode should be 1 series")
 
 	// Test CLASSIC mode with 2 buckets: sum, count, bucket1, bucket2, +Inf = 5
-	h3 := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "", HistogramModeClassic, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h3 := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, noopLimiter, "", HistogramModeClassic, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 	assert.Equal(t, uint32(5), h3.activeSeriesPerHistogramSerie(), "CLASSIC mode should be sum + count + buckets")
 
 	// Test BOTH mode with 3 buckets: sum, count, 4 buckets, native = 7
-	h4 := newNativeHistogram("my_histogram", []float64{1.0, 2.0, 3.0}, nil, nil, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h4 := newNativeHistogram("my_histogram", []float64{1.0, 2.0, 3.0}, noopLimiter, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 	assert.Equal(t, uint32(7), h4.activeSeriesPerHistogramSerie(), "BOTH mode with 3 buckets")
 }
 
 func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	limitReached := false
-	onAdd := func(_ uint32) bool {
-		return !limitReached
+	lifecycler := &mockLimiter{
+		onAddFunc: func(uint64, uint32) bool {
+			return !limitReached
+		},
 	}
 
-	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
 
 	// Add some histogram series
 	for i := 0; i < 10; i++ {
@@ -780,4 +779,105 @@ func Test_nativeHistogram_demandVsActiveSeries(t *testing.T) {
 	expectedDemand := 20 * int(h.activeSeriesPerHistogramSerie())
 	assert.Greater(t, demand, expectedDemand-10, "demand should track all attempted series")
 	assert.Greater(t, demand, h.countActiveSeries(), "demand should exceed active series")
+}
+
+func Test_nativeHistogram_onUpdate(t *testing.T) {
+	// Test BOTH mode (classic + native)
+	t.Run("both_mode", func(t *testing.T) {
+		var seriesUpdated int
+		lifecycler := &mockLimiter{
+			onAddFunc: func(_ uint64, count uint32) bool {
+				// BOTH mode with 2 buckets: sum, count, bucket1, bucket2, +Inf, native = 6
+				assert.Equal(t, uint32(6), count)
+				return true
+			},
+			onUpdateFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(6), count)
+				seriesUpdated++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		// Add initial series (first observation triggers both OnAdd and OnUpdate)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+
+		initialUpdates := seriesUpdated
+		assert.Equal(t, 2, initialUpdates, "First observations should trigger OnUpdate")
+
+		// Update existing series
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		assert.Equal(t, initialUpdates+1, seriesUpdated)
+
+		// Update both series
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
+		assert.Equal(t, initialUpdates+3, seriesUpdated)
+	})
+
+	// Test NATIVE mode only
+	t.Run("native_mode", func(t *testing.T) {
+		var seriesUpdated int
+		lifecycler := &mockLimiter{
+			onAddFunc: func(_ uint64, count uint32) bool {
+				// NATIVE mode: only 1 native histogram series
+				assert.Equal(t, uint32(1), count)
+				return true
+			},
+			onUpdateFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(1), count)
+				seriesUpdated++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		// Add initial series (first observation triggers both OnAdd and OnUpdate)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+
+		initialUpdates := seriesUpdated
+		assert.Equal(t, 1, initialUpdates, "First observation should trigger OnUpdate")
+
+		// Update existing series multiple times
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		assert.Equal(t, initialUpdates+1, seriesUpdated)
+
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		assert.Equal(t, initialUpdates+2, seriesUpdated)
+
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.5, "", 1.0)
+		assert.Equal(t, initialUpdates+3, seriesUpdated)
+	})
+
+	// Test CLASSIC mode
+	t.Run("classic_mode", func(t *testing.T) {
+		var seriesUpdated int
+		lifecycler := &mockLimiter{
+			onAddFunc: func(_ uint64, count uint32) bool {
+				// CLASSIC mode with 2 buckets: sum, count, bucket1, bucket2, +Inf = 5
+				assert.Equal(t, uint32(5), count)
+				return true
+			},
+			onUpdateFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(5), count)
+				seriesUpdated++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeClassic, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		// Add initial series (first observation triggers both OnAdd and OnUpdate)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+
+		initialUpdates := seriesUpdated
+		assert.Equal(t, 1, initialUpdates, "First observation should trigger OnUpdate")
+
+		// Update existing series
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.5, "", 1.0)
+		assert.Equal(t, initialUpdates+1, seriesUpdated)
+
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
+		assert.Equal(t, initialUpdates+2, seriesUpdated)
+	})
 }

@@ -37,6 +37,13 @@ const (
 	codecOTLP = "otlp"
 )
 
+type LimiterType string
+
+const (
+	LimiterTypeSeries LimiterType = "series"
+	LimiterTypeEntity LimiterType = "entity"
+)
+
 var validCodecs = []string{codecPushBytes, codecOTLP}
 
 // Config for a generator.
@@ -60,6 +67,10 @@ type Config struct {
 	DisableLocalBlocks bool `yaml:"disable_local_blocks"`
 	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
 	DisableGRPC bool `yaml:"disable_grpc"`
+
+	// LimiterType configures the type of limiter to use.
+	// Defaults to "series". Available options are "series" and "entity".
+	LimiterType LimiterType `yaml:"limiter_type"`
 
 	// This config is dynamically injected because defined outside the generator config.
 	Ingest            ingest.Config `yaml:"-"`
@@ -85,6 +96,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
 	cfg.Codec = codecPushBytes
+	cfg.LimiterType = LimiterTypeSeries
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -121,6 +133,12 @@ func (cfg *Config) Validate() error {
 
 	if !slices.Contains(validCodecs, cfg.Codec) {
 		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
+	}
+
+	switch cfg.LimiterType {
+	case LimiterTypeSeries, LimiterTypeEntity:
+	default:
+		return fmt.Errorf("invalid limiter type: %s, valid values are %s and %s", cfg.LimiterType, LimiterTypeSeries, LimiterTypeEntity)
 	}
 
 	return nil
