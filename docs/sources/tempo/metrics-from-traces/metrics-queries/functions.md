@@ -141,7 +141,7 @@ The time interval that these functions compute over is set by the `step` paramet
 
 For more information, refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
 
-These functions accept the numerical field that you want to calculate the maximum of.
+These functions accept the numerical field that you want to aggregate on.
 
 ### The `sum_over_time` function
 
@@ -308,7 +308,8 @@ Because it's evaluated at each data point, you'll get the bottom series for each
 TraceQL metrics queries support sampling to optimize performance and control sampling behavior.
 There are three sampling methods available:
 
-- Dynamic sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
+- Dynamic sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy and amount based on query characteristics.
+- Fixed sampling using `with(sample=0.xx)`
 - Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
 - Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
 
