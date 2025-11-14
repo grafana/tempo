@@ -107,7 +107,7 @@ type Attribute struct {
 	Key string `parquet:",snappy,dict"`
 
 	IsArray          bool      `parquet:",snappy"`
-	Value            []string  `parquet:",snappy,list"` // Spillover for blobs
+	Value            []string  `parquet:",snappy,dict,list"`
 	ValueInt         []int64   `parquet:",snappy,list"`
 	ValueDouble      []float64 `parquet:",snappy,list"`
 	ValueBool        []bool    `parquet:",snappy,list"`
@@ -486,24 +486,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 				}
 
 				ss.DroppedLinksCount = int32(s.DroppedLinksCount)
-
-				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
-				attrCount := 0
-				for _, a := range s.Attributes {
-					written := false
-
-					// Dynamically assigned dedicated span attribute columns
-					if spareColumn, exists := dedicatedSpanAttributes.get(a.Key); exists {
-						written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
-					}
-
-					if !written {
-						// Other attributes put in generic columns
-						attrToParquet(a, &ss.Attrs[attrCount])
-						attrCount++
-					}
-				}
-				ss.Attrs = ss.Attrs[:attrCount]
+				writeAttrs(s.Attributes, &ss.Attrs, &ss.DedicatedAttributes, dedicatedSpanAttributes)
 			}
 		}
 	}
@@ -526,6 +509,25 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 	}
 
 	return finalizeTrace(ot)
+}
+
+func writeAttrs(input []*v1.KeyValue, generic *[]Attribute, dedicated *DedicatedAttributes, mapping dedicatedColumnMapping) {
+	*generic = extendReuseSlice(len(input), *generic)
+
+	attrCount := 0
+	for _, a := range input {
+		written := false
+
+		if spareColumn, exists := mapping.get(a.Key); exists {
+			written = spareColumn.writeValue(dedicated, a.Value)
+		}
+
+		if !written {
+			attrToParquet(a, &(*generic)[attrCount])
+			attrCount++
+		}
+	}
+	*generic = (*generic)[:attrCount]
 }
 
 // finalizeTrace augments and optimized the trace by calculating service stats, nested set model bounds
@@ -559,24 +561,7 @@ func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64, ded
 	ee.Name = e.Name
 	ee.TimeSinceStartNano = e.TimeUnixNano - spanStartTime
 	ee.DroppedAttributesCount = int32(e.DroppedAttributesCount)
-	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
-
-	attrCount := 0
-	for _, a := range e.Attributes {
-		written := false
-
-		// Dynamically assigned dedicated span attribute columns
-		if spareColumn, exists := dedicatedEventAttributes.get(a.Key); exists {
-			written = spareColumn.writeValue(&ee.DedicatedAttributes, a.Value)
-		}
-
-		// If not landed in a dedicated column, add to the generic.
-		if !written {
-			attrToParquet(a, &ee.Attrs[attrCount])
-			attrCount++
-		}
-	}
-	ee.Attrs = ee.Attrs[:attrCount]
+	writeAttrs(e.Attributes, &ee.Attrs, &ee.DedicatedAttributes, dedicatedEventAttributes)
 }
 
 func linkToParquet(l *v1_trace.Span_Link, ll *Link) {

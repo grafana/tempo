@@ -23,7 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 )
 
 type attributePaths struct {
@@ -106,15 +105,14 @@ func pathsForVersion(v string) attributePaths {
 type analyseBlockCmd struct {
 	backendOptions
 
-	TenantID      string `arg:"" help:"tenant-id within the bucket"`
-	BlockID       string `arg:"" help:"block ID to list"`
-	NumAttr       int    `help:"Number of attributes to display" default:"15"`
-	BlobThreshold string `help:"Convert column to blob when dictionary size reaches this value. Disable with 0" default:"4MiB"`
-
-	GenerateJsonnet  bool `help:"Generate overrides Jsonnet for dedicated columns"`
-	GenerateCliArgs  bool `help:"Generate textual args for passing to parquet conversion command"`
-	SimpleSummary    bool `help:"Print only single line of top attributes" default:"false"`
-	PrintFullSummary bool `help:"Print full summary of the analysed block" default:"true"`
+	TenantID         string `arg:"" help:"tenant-id within the bucket"`
+	BlockID          string `arg:"" help:"block ID to list"`
+	NumAttr          int    `help:"Number of attributes to display" default:"15"`
+	BlobThreshold    string `help:"Convert column to blob when dictionary size reaches this value. Disable with 0" default:"4MiB"`
+	GenerateJsonnet  bool   `help:"Generate overrides Jsonnet for dedicated columns"`
+	GenerateCliArgs  bool   `help:"Generate textual args for passing to parquet conversion command"`
+	SimpleSummary    bool   `help:"Print only single line of top attributes" default:"false"`
+	PrintFullSummary bool   `help:"Print full summary of the analysed block" default:"true"`
 }
 
 func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
@@ -170,8 +168,6 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
 	case vparquet4.VersionString:
 		reader = vparquet4.NewBackendReaderAt(context.Background(), r, vparquet4.DataFileName, meta)
-	case vparquet5.VersionString:
-		reader = vparquet5.NewBackendReaderAt(context.Background(), r, vparquet5.DataFileName, meta)
 	default:
 		fmt.Println("Unsupported block version:", meta.Version)
 		return nil, nil
@@ -691,6 +687,7 @@ var statsPool = sync.Pool{
 func putStats(s *attrStats) {
 	s.name = ""
 	s.value = ""
+	s.bytes = 0
 	s.isArray = false
 	s.isNull = false
 	statsPool.Put(s)
