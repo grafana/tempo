@@ -10,12 +10,12 @@ import (
 
 	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
@@ -24,6 +24,10 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
+)
+
+const (
+	defaultStreamingShards = 200
 )
 
 type queryRangeSharder struct {
@@ -44,6 +48,7 @@ type QueryRangeSharderConfig struct {
 	Interval          time.Duration `yaml:"interval,omitempty"`
 	MaxExemplars      int           `yaml:"max_exemplars,omitempty"`
 	MaxResponseSeries int           `yaml:"max_response_series,omitempty"`
+	StreamingShards   int           `yaml:"streaming_shards,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
@@ -132,7 +137,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 
 	backendExemplars, generatorExemplars := s.exemplarsCutoff(*req, cutoff)
 	req.Exemplars = generatorExemplars
-	generatorReq := s.generatorRequest(tenantID, pipelineRequest, *req, cutoff)
+	generatorReq, jobMetadata := s.generatorRequest(tenantID, pipelineRequest, *req, cutoff)
 	req.Exemplars = backendExemplars
 
 	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
@@ -140,75 +145,13 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		reqCh <- generatorReq
 	}
 
-	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, pipelineRequest, *req, cutoff, targetBytesPerRequest, reqCh)
+	s.backendRequests(ctx, tenantID, pipelineRequest, *req, cutoff, targetBytesPerRequest, reqCh, jobMetadata)
 
-	span.SetAttributes(attribute.Int64("totalJobs", int64(totalJobs)))
-	span.SetAttributes(attribute.Int64("totalBlocks", int64(totalBlocks)))
-	span.SetAttributes(attribute.Int64("totalBlockBytes", int64(totalBlockBytes)))
+	span.SetAttributes(attribute.Int64("totalJobs", int64(jobMetadata.TotalJobs)))
+	span.SetAttributes(attribute.Int64("totalBlocks", int64(jobMetadata.TotalBlocks)))
+	span.SetAttributes(attribute.Int64("totalBlockBytes", int64(jobMetadata.TotalBytes)))
 
-	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs
-	var jobMetricsResponse pipeline.Responses[combiner.PipelineResponse]
-	if totalBlocks > 0 {
-		resp := &tempopb.QueryRangeResponse{
-			Metrics: &tempopb.SearchMetrics{
-				TotalJobs:       totalJobs,
-				TotalBlocks:     totalBlocks,
-				TotalBlockBytes: totalBlockBytes,
-			},
-		}
-
-		m := jsonpb.Marshaler{}
-		body, err := m.MarshalToString(resp)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal search metrics: %w", err)
-		}
-
-		jobMetricsResponse = pipeline.NewSuccessfulResponse(body)
-	}
-
-	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, jobMetricsResponse, s.next), nil
-}
-
-// exemplarsPerShard fairly distributes exemplars over time per each shard.
-// Example: with metas containing 2 blocks, where first block duration is 90 seconds and
-// second block duration is 10 seconds, with limit = 100, the first block will
-// get 90*1.2 exemplars and the second block will get 10*1.2 exemplars
-func (s *queryRangeSharder) exemplarsPerShard(metas []*backend.BlockMeta, limit uint32) []uint32 {
-	const overhead = 1.2 // 20% overhead for shard size
-
-	exemplars := make([]uint32, len(metas))
-	if limit == 0 || len(metas) == 0 {
-		return exemplars
-	}
-
-	// Calculate total duration across all blocks
-	var totalDurationNanos int64
-	for _, meta := range metas {
-		if meta.EndTime.Before(meta.StartTime) { // Skip blocks with invalid time ranges
-			continue
-		}
-
-		totalDurationNanos += meta.EndTime.UnixNano() - meta.StartTime.UnixNano()
-	}
-
-	if totalDurationNanos <= 0 {
-		return exemplars
-	}
-
-	// Distribute exemplars proportionally based on block duration
-	var blockDuration int64
-	var share float64
-	for i, meta := range metas {
-		if meta.EndTime.Before(meta.StartTime) { // Skip blocks with invalid time ranges
-			continue
-		}
-
-		blockDuration = meta.EndTime.UnixNano() - meta.StartTime.UnixNano()
-		share = (float64(blockDuration) / float64(totalDurationNanos)) * float64(limit) * overhead
-		exemplars[i] = max(uint32(math.Ceil(share)), 1)
-	}
-
-	return exemplars
+	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, pipeline.NewAsyncResponse(jobMetadata), s.next), nil
 }
 
 // exemplarsCutoff calculates how to distribute exemplars between the generator (for recent data) and
@@ -235,7 +178,7 @@ func (s *queryRangeSharder) exemplarsCutoff(req tempopb.QueryRangeRequest, cutof
 	return limit - shareAfterCutoffCeil, shareAfterCutoffCeil
 }
 
-func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request, jobMetadata *combiner.QueryRangeJobResponse) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -268,117 +211,123 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	}
 
 	// calculate metrics to return to the caller
-	totalBlocks = uint32(len(blocks))
-	for _, b := range blocks {
-		p := pagesPerRequest(b, targetBytesPerRequest)
+	jobMetadata.TotalBlocks = len(blocks)
 
-		totalJobs += b.TotalRecords / uint32(p)
-		if int(b.TotalRecords)%p != 0 {
-			totalJobs++
+	// Calculate total duration across all blocks for exemplar distribution
+	var totalDurationNanos int64
+	for _, b := range blocks {
+		if !b.EndTime.Before(b.StartTime) {
+			totalDurationNanos += b.EndTime.UnixNano() - b.StartTime.UnixNano()
 		}
-		totalBlockBytes += b.Size_
 	}
 
-	go func() {
-		s.buildBackendRequests(ctx, tenantID, parent, backendReq, blocks, targetBytesPerRequest, reqCh)
-	}()
+	// Create function to calculate exemplars per block
+	getExemplarsForBlock := func(m *backend.BlockMeta) uint32 {
+		return s.exemplarsForBlock(m, searchReq.Exemplars, totalDurationNanos)
+	}
 
-	return
+	// Group blocks into shards
+	maxShards := s.cfg.StreamingShards
+	if maxShards <= 0 {
+		maxShards = defaultStreamingShards
+	}
+
+	firstShardIdx := len(jobMetadata.Shards)
+	blockIter := backendJobsFunc(blocks, targetBytesPerRequest, maxShards, uint32(time.Unix(0, int64(searchReq.End)).Unix()))
+	blockIter(func(jobs int, sz uint64, completedThroughTime uint32) {
+		jobMetadata.TotalJobs += jobs
+		jobMetadata.TotalBytes += sz
+
+		jobMetadata.Shards = append(jobMetadata.Shards, shardtracker.Shard{
+			TotalJobs:               uint32(jobs),
+			CompletedThroughSeconds: completedThroughTime,
+		})
+	}, nil)
+
+	go func() {
+		s.buildBackendRequests(ctx, tenantID, parent, backendReq, firstShardIdx, blockIter, reqCh, getExemplarsForBlock)
+	}()
 }
 
-func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- pipeline.Request) {
+func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, firstShardIdx int, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request, getExemplarsForBlock func(*backend.BlockMeta) uint32) {
 	defer close(reqCh)
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
-	exemplarsPerBlock := s.exemplarsPerShard(metas, searchReq.Exemplars)
-	for i, m := range metas {
-		if m.EndTime.Before(m.StartTime) {
-			// Ignore blocks with bad timings from debugging
-			continue
+	blockIter(nil, func(m *backend.BlockMeta, shard, startPage, pages int) {
+		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
+		if err != nil {
+			_ = level.Error(s.logger).Log("msg", "failed to convert dedicated columns in query range sharder. skipping", "block", m.BlockID, "err", err)
+			return
 		}
 
-		pages := pagesPerRequest(m, targetBytesPerRequest)
-		if pages == 0 {
-			continue
+		// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
+		// cache the response for that, we want only the few minutes time range for this block. This has
+		// size savings but the main thing is that the response is reuseable for any overlapping query.
+		start, end, step := traceql.TrimToBlockOverlap(searchReq.Start, searchReq.End, searchReq.Step, m.StartTime, m.EndTime)
+		if start == end || step == 0 {
+			level.Warn(s.logger).Log("msg", "invalid start/step end. skipping", "start", start, "end", end, "step", step, "blockStart", m.StartTime.UnixNano(), "blockEnd", m.EndTime.UnixNano())
+			return
 		}
 
-		exemplars := exemplarsPerBlock[i]
+		// Calculate exemplars for this specific request
+		exemplars := getExemplarsForBlock(m)
 		if exemplars > 0 {
 			// Scale the number of exemplars per block to match the size
 			// of each sub request on this block. For very small blocks or other edge cases, return at least 1.
 			exemplars = max(uint32(float64(exemplars)*float64(pages)/float64(m.TotalRecords)), 1)
 		}
 
-		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
+		pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+			queryRangeReq := &tempopb.QueryRangeRequest{
+				Query:     searchReq.Query,
+				Start:     start,
+				End:       end,
+				Step:      step,
+				QueryMode: searchReq.QueryMode,
+				// New RF1 fields
+				BlockID:       m.BlockID.String(),
+				StartPage:     uint32(startPage),
+				PagesToSearch: uint32(pages),
+				Version:       m.Version,
+				Encoding:      m.Encoding.String(),
+				Size_:         m.Size_,
+				FooterSize:    m.FooterSize,
+				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+				Exemplars: exemplars,
+				MaxSeries: searchReq.MaxSeries,
+			}
+
+			return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
+		})
 		if err != nil {
-			_ = level.Error(s.logger).Log("msg", "failed to convert dedicated columns in query range sharder. skipping", "block", m.BlockID, "err", err)
-			continue
+			_ = level.Error(s.logger).Log("msg", "failed to cloneRequestForQuerirs in the query range sharder. skipping", "block", m.BlockID, "err", err)
+			return
 		}
 
-		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
-			// cache the response for that, we want only the few minutes time range for this block. This has
-			// size savings but the main thing is that the response is reuseable for any overlapping query.
-			start, end, step := traceql.TrimToBlockOverlap(searchReq.Start, searchReq.End, searchReq.Step, m.StartTime, m.EndTime)
-			if start == end || step == 0 {
-				level.Warn(s.logger).Log("msg", "invalid start/step end. skipping", "start", start, "end", end, "step", step, "blockStart", m.StartTime.UnixNano(), "blockEnd", m.EndTime.UnixNano())
-				continue
-			}
-
-			pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
-				queryRangeReq := &tempopb.QueryRangeRequest{
-					Query:     searchReq.Query,
-					Start:     start,
-					End:       end,
-					Step:      step,
-					QueryMode: searchReq.QueryMode,
-					// New RF1 fields
-					BlockID:       m.BlockID.String(),
-					StartPage:     uint32(startPage),
-					PagesToSearch: uint32(pages),
-					Version:       m.Version,
-					Encoding:      m.Encoding.String(),
-					Size_:         m.Size_,
-					FooterSize:    m.FooterSize,
-					// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
-					Exemplars: exemplars,
-					MaxSeries: searchReq.MaxSeries,
-				}
-
-				return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
-			})
-			if err != nil {
-				_ = level.Error(s.logger).Log("msg", "failed to cloneRequestForQuerirs in the query range sharder. skipping", "block", m.BlockID, "err", err)
-				continue
-			}
-
-			startTime := time.Unix(0, int64(searchReq.Start)) // start/end are in nanoseconds
-			endTime := time.Unix(0, int64(searchReq.End))
-			// TODO: Handle sampling rate
-			key := queryRangeCacheKey(tenantID, queryHash, startTime, endTime, m, startPage, pages)
-			if len(key) > 0 {
-				pipelineR.SetCacheKey(key)
-			}
-
-			select {
-			case reqCh <- pipelineR:
-			case <-ctx.Done():
-				return
-			}
+		startTime := time.Unix(0, int64(searchReq.Start)) // start/end are in nanoseconds
+		endTime := time.Unix(0, int64(searchReq.End))
+		// TODO: Handle sampling rate
+		key := queryRangeCacheKey(tenantID, queryHash, startTime, endTime, m, startPage, pages)
+		if len(key) > 0 {
+			pipelineR.SetCacheKey(key)
 		}
-	}
+
+		// Set which shard this request belongs to
+		pipelineR.SetResponseData(shard + firstShardIdx)
+
+		select {
+		case reqCh <- pipelineR:
+		case <-ctx.Done():
+			return
+		}
+	})
 }
 
-func max(a, b uint32) uint32 {
-	if a > b {
-		return a
-	}
-	return b
-}
+func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) (pipeline.Request, *combiner.QueryRangeJobResponse) {
+	jobMetadata := &combiner.QueryRangeJobResponse{}
 
-func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) pipeline.Request {
 	// Trim the time range to only the recent which is covered by the generators.
 	// Important - don't align the request after trimming. We always need to ensure
 	// the start/end time range sent to the generators is accurate.
@@ -386,7 +335,7 @@ func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Re
 
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {
-		return nil
+		return nil, jobMetadata
 	}
 
 	searchReq.QueryMode = querier.QueryModeRecent
@@ -395,7 +344,17 @@ func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Re
 		return api.BuildQueryRangeRequest(r, &searchReq, ""), nil
 	})
 
-	return subR
+	// Add shard metadata for the generator request, similar to ingesterRequests
+	// The generator covers the most recent data, so it completes through MaxUint32
+	jobMetadata.TotalJobs = 1
+	jobMetadata.Shards = append(jobMetadata.Shards, shardtracker.Shard{
+		TotalJobs:               1,
+		CompletedThroughSeconds: shardtracker.TimestampNever,
+	})
+
+	subR.SetResponseData(0) // generator requests are always shard 0
+
+	return subR, jobMetadata
 }
 
 // maxDuration returns the max search duration allowed for this tenant.
@@ -419,6 +378,24 @@ func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, allowUnsafe bool) in
 	size := s.cfg.TargetBytesPerRequest
 
 	return size
+}
+
+// exemplarsForBlock calculates exemplars for a single block based on its proportional duration.
+// Example: if a block is 90s out of 100s total, with limit=100, it gets 90*1.2=108 exemplars.
+func (s *queryRangeSharder) exemplarsForBlock(m *backend.BlockMeta, totalExemplars uint32, totalDurationNanos int64) uint32 {
+	const overhead = 1.2 // 20% overhead for shard size
+
+	if totalExemplars == 0 || totalDurationNanos <= 0 {
+		return 0
+	}
+
+	if m.EndTime.Before(m.StartTime) { // Skip blocks with invalid time ranges
+		return 0
+	}
+
+	blockDuration := m.EndTime.UnixNano() - m.StartTime.UnixNano()
+	share := (float64(blockDuration) / float64(totalDurationNanos)) * float64(totalExemplars) * overhead
+	return max(uint32(math.Ceil(share)), 1)
 }
 
 func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {

@@ -67,5 +67,12 @@
       ],
       groupName: 'docker',
     },
+    {
+      description: 'Automerge patch updates',
+      matchUpdateTypes: ['patch'],
+      automergeStrategy: 'squash',
+      automergeType: 'pr',
+      automerge: true
+    },
   ],
 }

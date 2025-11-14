@@ -24,10 +24,13 @@
 * [ENHANCEMENT] Add metric for tracking added latency to write requests [#5781](https://github.com/grafana/tempo/pull/5781) (@mapno)
 * [ENHANCEMENT] Improve error message when overrides fail to parse [#5787](https://github.com/grafana/tempo/pull/5787) (@mapno)
 * [ENHANCEMENT] Increase weight for heavy TraceQL queries [#5782](https://github.com/grafana/tempo/pull/5782) (@ruslan-mikhailov)
+* [ENHANCEMENT] Add entity-based limiting mode for metrics-generator as an alternative to series-based limiting. [#5788](https://github.com/grafana/tempo/pull/5788) (@Logiraptor)
+* [ENHANCEMENT] Improve observability of collection failures in the metrics generator with error categorization [#5936](https://github.com/grafana/tempo/pull/5936) (@javiermolinar)
 * [ENHANCEMENT] Add TraceQL support for nonexistential attribute queries [#4950](https://github.com/grafana/tempo/pull/4905) (@ie-pham)
 * [ENHANCEMENT] Add partition ownership metric to live-store [#5815](https://github.com/grafana/tempo/pull/5815) (@javiermolinar, @mapno)
 * [ENHANCEMENT] Update list of intrinsics returned by search tags endpoint [#5857](https://github.com/grafana/tempo/pull/5857) (@andreasgerstmayr)
 * [ENHANCEMENT] Add "Requests Executed" panel for querier metrics in the operational dashboard. [#5848](https://github.com/grafana/tempo/pull/5848) (@anglerfishlyy)
+* [ENHANCEMENT] Add support for application/protobuf in frontend endpoints [#5865](https://github.com/grafana/tempo/pull/5865) (@oleg-kozliuk-grafana)
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
 * [BUGFIX] Fix incorrect results in TraceQL compare() caused by potential hash collision of string array attributes [#5835](https://github.com/grafana/tempo/pull/5835) (@mdisibio)
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
@@ -37,6 +40,7 @@
 * [BUGFIX] Fix wrong sleep duration in block-builder if one of partitions is inactive [#5855](https://github.com/grafana/tempo/pull/5855) (@ruslan-mikhailov)
 * [BUGFIX] Fix S3 compactor multipart upload to ensure Cloudflare R2 compliance by using uniform chunk sizes [#5838](https://github.com/grafana/tempo/pull/5838) (@constantins2001)
 * [BUGFIX] Make top/bottomk deterministic by breaking ties with label vals. [#5846](https://github.com/grafana/tempo/pull/5846) (@joe-elliott)
+* [BUGFIX] Fix metrics streaming releases intermediate/incomplete results. [#5937](https://github.com/grafana/tempo/pull/5937) (@joe-elliott)
 * [BUGFIX] Fix GetTrace() in tempo-query. [#5864](https://github.com/grafana/tempo/pull/5864) (@andreasgerstmayr)
 
 # v2.9.0
