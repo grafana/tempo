@@ -52,6 +52,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 					},
 					ScopeSpans: []ScopeSpans{
 						{
+							SpanCount: 1,
 							Spans: []Span{
 								{
 									Name: "hello",

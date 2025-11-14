@@ -132,6 +132,7 @@ func TestFetchTagNames(t *testing.T) {
 								attr("scope-attr-str-1", "scope-attr-1"),
 							},
 						},
+						SpanCount: 2,
 						Spans: []Span{
 							{
 								SpanID:        []byte("0101"),
@@ -197,6 +198,7 @@ func TestFetchTagNames(t *testing.T) {
 								attr("scope-attr-str-2", "scope-attr-2"),
 							},
 						},
+						SpanCount: 1,
 						Spans: []Span{
 							{
 								SpanID:        []byte("0201"),
