@@ -1136,7 +1136,7 @@ github.com/openzipkin/zipkin-go/reporter
 ## explicit; go 1.24.0
 github.com/parquet-go/bitpack
 github.com/parquet-go/bitpack/unsafecast
-# github.com/parquet-go/parquet-go v0.25.2-0.20251109025748-5555ba45793c
+# github.com/parquet-go/parquet-go v0.25.2-0.20251113212313-bb7dcf6d014e
 ## explicit; go 1.24.9
 github.com/parquet-go/parquet-go
 github.com/parquet-go/parquet-go/bloom
