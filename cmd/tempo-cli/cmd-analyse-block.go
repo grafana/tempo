@@ -510,15 +510,15 @@ func aggregateSingleColumn(pf *parquet.File, colName string) (cardinality, error
 	return cardinality, nil
 }
 
-func printSummary(scope string, max int, summary attributeSummary, simple bool, numRowGroups int, blobBytes uint64) error {
+func printSummary(scope string, maxAttr int, summary attributeSummary, simple bool, numRowGroups int, blobBytes uint64) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
-	if max > len(summary.attributes) {
-		max = len(summary.attributes)
+	if maxAttr > len(summary.attributes) {
+		maxAttr = len(summary.attributes)
 	}
 
 	fmt.Println("")
-	attrList := topN(max, summary.attributes)
+	attrList := topN(maxAttr, summary.attributes)
 	if simple {
 		fmt.Printf("%s attributes: ", scope)
 		for _, a := range attrList {
@@ -571,7 +571,7 @@ func printSummary(scope string, max int, summary attributeSummary, simple bool, 
 		return err
 	}
 
-	arrayAttrList := topN(max, summary.arrayAttributes)
+	arrayAttrList := topN(maxAttr, summary.arrayAttributes)
 	if len(arrayAttrList) > 0 {
 		fmt.Printf("Top %d %s array attributes by size\n", len(arrayAttrList), scope)
 		for _, a := range arrayAttrList {
@@ -606,15 +606,15 @@ func printDedicatedColumnOverridesJsonnet(summary blockSummary, maxAttr int, num
 		return ""
 	}
 
-	for _, a := range topN(10, summary.spanSummary.attributes) {
+	for _, a := range topN(maxAttr, summary.spanSummary.attributes) {
 		fmt.Printf(" { scope: 'span', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 
-	for _, a := range topN(10, summary.resourceSummary.attributes) {
+	for _, a := range topN(maxAttr, summary.resourceSummary.attributes) {
 		fmt.Printf(" { scope: 'resource', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 
-	for _, a := range topN(10, summary.eventSummary.attributes) {
+	for _, a := range topN(maxAttr, summary.eventSummary.attributes) {
 		fmt.Printf(" { scope: 'event', name: '%s', type: 'string' %s },\n", a.name, optionsText(a))
 	}
 

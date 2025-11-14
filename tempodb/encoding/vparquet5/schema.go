@@ -842,11 +842,6 @@ func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 		eventMapping = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeEvent)
 	)
 
-	type rewritePath struct {
-		path    []string
-		rewrite func(parquet.Node) parquet.Node
-	}
-
 	schemaOptions := []parquet.SchemaOption{}
 	writerOptions := []parquet.WriterOption{}
 	readerOptions := []parquet.ReaderOption{}
@@ -883,7 +878,7 @@ func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 	}
 
 	// Remove unused dedicated columns.
-	delete := func(path string) {
+	del := func(path string) {
 		option := parquet.StructTag(`parquet:"-"`, strings.Split(path, ".")...)
 		schemaOptions = append(schemaOptions, option)
 		readerOptions = append(readerOptions, option)
@@ -896,15 +891,15 @@ func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 				switch scope {
 				case backend.DedicatedColumnScopeResource:
 					if !resMapping.usesPath(path) {
-						delete(path)
+						del(path)
 					}
 				case backend.DedicatedColumnScopeSpan:
 					if !spanMapping.usesPath(path) {
-						delete(path)
+						del(path)
 					}
 				case backend.DedicatedColumnScopeEvent:
 					if !eventMapping.usesPath(path) {
-						delete(path)
+						del(path)
 					}
 				}
 			}

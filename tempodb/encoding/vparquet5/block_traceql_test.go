@@ -1422,9 +1422,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"complex", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "hosted-grafana" && resource.k8s.container.name="hosted-grafana-gateway" && name = "httpclient/grafana" && span.http.status_code = 200 && duration > 20ms}`},
 		{"select", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "tempo-prod"} | select(resource.container)`},
 
-		//{"span generic", "{span.ICCID=~`.*bar.*`}"},
-		//{"span blob", "{span.model=~`.*a.*`}"},
-		//{"span dedicated", "{span.db.statement=~`.*bar.*`}"},
+		// TODO - Check block meta and automatically find dedicated and blob attributes to test.
+		// {"span generic", "{span.ICCID=~`.*bar.*`}"},
+		// {"span blob", "{span.model=~`.*a.*`}"},
+		// {"span dedicated", "{span.db.statement=~`.*bar.*`}"},
 	}
 
 	var (
