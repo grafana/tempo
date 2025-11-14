@@ -1392,7 +1392,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		query string
 	}{
 		// span
-		/*{"spanAttValMatch", "{ span.component = `net/http` }"},
+		{"spanAttValMatch", "{ span.component = `net/http` }"},
 		{"spanAttValMatchFew", "{ span.component =~ `database/sql` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `does-not-exit-6c2408325a45` }"},
 		{"spanAttIntrinsicMatch", "{ name = `distributor.ConsumeTraces` }"},
@@ -1420,25 +1420,26 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
 		{"complex", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "hosted-grafana" && resource.k8s.container.name="hosted-grafana-gateway" && name = "httpclient/grafana" && span.http.status_code = 200 && duration > 20ms}`},
-		{"select", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "tempo-prod"} | select(resource.container)`},*/
+		{"select", `{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "tempo-prod"} | select(resource.container)`},
 
-		{"span generic", "{span.ICCID=~`.*bar.*`}"},
-		{"span blob", "{span.model=~`.*bar.*`}"},
-		{"span dedicated", "{span.charges=~`.*bar.*`}"},
+		//{"span generic", "{span.ICCID=~`.*bar.*`}"},
+		//{"span blob", "{span.model=~`.*a.*`}"},
+		//{"span dedicated", "{span.db.statement=~`.*bar.*`}"},
 	}
 
-	os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
-	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20")
-	os.Setenv("VP5_BENCH_TENANTID", "328776")
-
-	ctx := context.TODO()
-	opts := common.DefaultSearchOptions()
-	// opts.StartPage = 3
-	// opts.TotalPages = 2
+	var (
+		ctx  = b.Context()
+		opts = common.DefaultSearchOptions()
+		e    = traceql.NewEngine()
+	)
 
 	block := blockForBenchmarks(b)
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
 
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
@@ -1446,12 +1447,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			bytesRead := 0
 			matches := 0
 
-			for i := 0; i < b.N; i++ {
-				e := traceql.NewEngine()
-
-				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-					return block.Fetch(ctx, req, opts)
-				}), false)
+			for b.Loop() {
+				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
@@ -1583,7 +1580,6 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",
 		"{} | quantile_over_time(duration, .99, .9, .5)",
-		"{} | quantile_over_time(duration, .99, .9, .5)",
 		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",
@@ -1599,13 +1595,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	// For sampler debugging
 	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
 
-	e := traceql.NewEngine()
-	ctx := context.TODO()
-	opts := common.DefaultSearchOptions()
-	opts.StartPage = 3
-	opts.TotalPages = 7
+	var (
+		e     = traceql.NewEngine()
+		ctx   = b.Context()
+		opts  = common.DefaultSearchOptions()
+		block = blockForBenchmarks(b)
+	)
 
-	block := blockForBenchmarks(b)
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
@@ -1630,11 +1626,12 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			require.NoError(b, err)
 
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				err := eval.Do(ctx, f, st, end, int(req.MaxSeries))
 				require.NoError(b, err)
 			}
 
+			// Always call results to include the final series processing in the benchmark.
 			_ = eval.Results()
 
 			bytes, spansTotal, _ := eval.Metrics()
@@ -1644,38 +1641,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	}
 }
 
-func BenchmarkReadTraces(b *testing.B) {
-	// For sampler debugging
-	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
+func BenchmarkReadAllTraces(b *testing.B) {
+	var (
+		ctx   = b.Context()
+		block = blockForBenchmarks(b)
+		pool  = newRowPool(1_000_000)
+	)
 
-	ctx := b.Context()
-	// opts := common.DefaultSearchOptions()
-
-	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-10")
-	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20")
-	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20-dyn")
-
-	os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
-	os.Setenv("VP5_BENCH_TENANTID", "328776")
-
-	// os.Setenv("VP5_BENCH_BLOCKID", "26142bda-e8f4-4886-a669-e47829e6aa90")
-	// os.Setenv("VP5_BENCH_TENANTID", "797642")
-
-	// os.Setenv("VP5_BENCH_BLOCKID", "d1240180-7d43-49b3-b691-06ddcc4e53b3")
-	// os.Setenv("VP5_BENCH_TENANTID", "1")
-
-	block := blockForBenchmarks(b)
-
-	/*id, err := util.HexStringToTraceID("84dbab961d9b7c10dcf4aa8b929fe6a7")
-	require.NoError(b, err)*/
-
-	/*pf, _, err := block.openForSearch(ctx, opts)
-		require.NoError(b, err)
-
-		rdr := parquet.NewReader(pf)
-	    row := parquet.Row{}*/
-
-	pool := newRowPool(1_000_000)
 	iter, err := block.rawIter(ctx, pool)
 	require.NoError(b, err)
 
@@ -1689,40 +1661,25 @@ func BenchmarkReadTraces(b *testing.B) {
 			require.NotNil(b, row)
 			pool.Put(row)
 		}
-
-		/*tr, err := block.FindTraceByID(ctx, id, opts)
-		require.NoError(b, err)
-		require.NotNil(b, tr)*/
 	}
 }
 
 func BenchmarkReadSingleTrace(b *testing.B) {
-	// For sampler debugging
-	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
+	var (
+		ctx   = b.Context()
+		opts  = common.DefaultSearchOptions()
+		block = blockForBenchmarks(b)
+	)
 
-	ctx := b.Context()
-	opts := common.DefaultSearchOptions()
-
-	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-10")
-	// os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20")
-	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-20-dyn")
-
-	os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
-	os.Setenv("VP5_BENCH_TENANTID", "328776")
-
-	// os.Setenv("VP5_BENCH_BLOCKID", "26142bda-e8f4-4886-a669-e47829e6aa90")
-	// os.Setenv("VP5_BENCH_TENANTID", "797642")
-
-	// os.Setenv("VP5_BENCH_BLOCKID", "d1240180-7d43-49b3-b691-06ddcc4e53b3")
-	// os.Setenv("VP5_BENCH_TENANTID", "1")
-
-	block := blockForBenchmarks(b)
-
-	id, err := util.HexStringToTraceID("84dbab961d9b7c10dcf4aa8b929fe6a7")
+	// Get a trace ID from the first page.
+	pf, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
+	index, err := pf.RowGroups()[0].ColumnChunks()[0].ColumnIndex()
+	require.NoError(b, err)
+	id := index.MaxValue(0).ByteArray()
+	require.NotNil(b, id)
 
 	for b.Loop() {
-
 		tr, err := block.FindTraceByID(ctx, id, opts)
 		require.NoError(b, err)
 		require.NotNil(b, tr)

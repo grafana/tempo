@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -98,6 +99,46 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Equal(t, wantProto, gotProto.Trace)
+	}
+}
+
+func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
+	rawR, _, _, err := local.New(&local.Config{
+		Path: "./test-data",
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	ctx := context.Background()
+
+	blocks, _, err := r.Blocks(ctx, "single-tenant")
+	require.NoError(t, err)
+	assert.Len(t, blocks, 1)
+
+	meta, err := r.BlockMeta(ctx, blocks[0], "single-tenant")
+	require.NoError(t, err)
+
+	b := newBackendBlock(meta, r)
+
+	iter, err := b.rawIter(context.Background(), newRowPool(10))
+	require.NoError(t, err)
+
+	sch, _, _ := SchemaWithDynamicChanges(meta.DedicatedColumns)
+	for {
+		_, row, err := iter.Next(context.Background())
+		require.NoError(t, err)
+
+		if row == nil {
+			break
+		}
+
+		tr := &Trace{}
+		err = sch.Reconstruct(tr, row)
+		require.NoError(t, err)
+
+		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		require.NotNil(t, protoTr)
 	}
 }
 

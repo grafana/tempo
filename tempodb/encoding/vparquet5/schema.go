@@ -2,7 +2,6 @@ package vparquet5
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
@@ -562,20 +561,22 @@ func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64, ded
 	ee.DroppedAttributesCount = int32(e.DroppedAttributesCount)
 	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
 
-	written := false
+	attrCount := 0
 	for _, a := range e.Attributes {
+		written := false
+
 		// Dynamically assigned dedicated span attribute columns
 		if spareColumn, exists := dedicatedEventAttributes.get(a.Key); exists {
 			written = spareColumn.writeValue(&ee.DedicatedAttributes, a.Value)
 		}
-	}
 
-	// If not landed in a dedicated column, add to the generic.
-	if !written {
-		for i, a := range e.Attributes {
-			attrToParquet(a, &ee.Attrs[i])
+		// If not landed in a dedicated column, add to the generic.
+		if !written {
+			attrToParquet(a, &ee.Attrs[attrCount])
+			attrCount++
 		}
 	}
+	ee.Attrs = ee.Attrs[:attrCount]
 }
 
 func linkToParquet(l *v1_trace.Span_Link, ll *Link) {
@@ -866,8 +867,7 @@ func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 	readerOptions := []parquet.ReaderOption{}
 
 	// Blobify
-	blobify := func(key string, col dedicatedColumn) {
-		fmt.Println("Blob column:", col.ColumnPath, key)
+	blobify := func(col dedicatedColumn) {
 		path := strings.Split(col.ColumnPath, ".")
 
 		// Remove dictionary encoding and change compression.
@@ -881,25 +881,24 @@ func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 		writerOptions = append(writerOptions, parquet.SkipPageBounds(path...))
 	}
 
-	for key, col := range spanMapping.mapping {
+	for _, col := range spanMapping.mapping {
 		if col.IsBlob {
-			blobify(key, col)
+			blobify(col)
 		}
 	}
-	for key, col := range resMapping.mapping {
+	for _, col := range resMapping.mapping {
 		if col.IsBlob {
-			blobify(key, col)
+			blobify(col)
 		}
 	}
-	for key, col := range eventMapping.mapping {
+	for _, col := range eventMapping.mapping {
 		if col.IsBlob {
-			blobify(key, col)
+			blobify(col)
 		}
 	}
 
 	// Remove unused dedicated columns.
 	delete := func(path string) {
-		// fmt.Println("Deleting unused dedicated column:", path)
 		option := parquet.StructTag(`parquet:"-"`, strings.Split(path, ".")...)
 		schemaOptions = append(schemaOptions, option)
 		readerOptions = append(readerOptions, option)
