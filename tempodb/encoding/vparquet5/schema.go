@@ -219,7 +219,7 @@ type InstrumentationScope struct {
 type ScopeSpans struct {
 	Scope     InstrumentationScope `parquet:""`
 	Spans     []Span               `parquet:",list"`
-	SpanCount int32                `parquet:",snappy,delta"`
+	SpanCount int32                `parquet:",delta"`
 }
 
 type Resource struct {

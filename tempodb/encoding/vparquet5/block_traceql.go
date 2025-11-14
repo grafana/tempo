@@ -2228,7 +2228,6 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			pred = newSamplingPredicate(sampler, nil)
 		}
 		required = []parquetquery.Iterator{newVirtualRowNumberIterator(makeIter(columnPathScopeSpanSpanCount, pred, "spanCount"), DefinitionLevelResourceSpansILSSpan)}
-		// required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, pred, "")}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
