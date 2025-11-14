@@ -9,6 +9,7 @@
 * [FEATURE] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605)
 * [FEATURE] Add query_end_cutoff setting to clamp near-“now” queries (default 30s) for consistent Tempo results [#5682](https://github.com/grafana/tempo/pull/5682) (@javiermolinar)
 * [FEATURE] New block encoding vParquet5-preview4 with array support for dedicated columns. This is a preview, breaking changes are expected. [#5760](https://github.com/grafana/tempo/pull/5760) (@stoewer)
+* [FEATURE] New block encoding vParquet5-preview5 with virtual span row numbers. This is a preview, breaking changes are expected. [#5943](https://github.com/grafana/tempo/pull/5943) (@stoewer)
 * [FEATURE] Add SSE-C encryption support to S3 backend [#5789](https://github.com/grafana/tempo/pull/5789) (@steffsas)
 * [ENHANCEMENT] docs: Add explicit notes about authentication [#5735](https://github.com/grafana/tempo/pull/5735) (@electron0zero)
 * [ENHANCEMENT] On startup, first record for live store to consume is not older than two complete block timeouts [#5693](https://github.com/grafana/tempo/pull/5693) (@ruslan-mikhailov)
