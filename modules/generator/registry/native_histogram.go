@@ -78,12 +78,12 @@ type nativeHistogramSeries struct {
 	overridesHash uint64
 }
 
-func (hs *nativeHistogramSeries) isNew() bool {
-	return hs.firstSeries.Load()
+func (hs *nativeHistogramSeries) wasNew() bool {
+	return hs.firstSeries.CompareAndSwap(true, false)
 }
 
-func (hs *nativeHistogramSeries) registerSeenSeries() {
-	hs.firstSeries.Store(false)
+func (hs *nativeHistogramSeries) resetSeenSeries() {
+	hs.firstSeries.Store(true)
 }
 
 var (
@@ -419,10 +419,12 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 }
 
 func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs int64, s *nativeHistogramSeries) error {
-	if s.isNew() {
+	wasNew := s.wasNew()
+	if wasNew {
 		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 		_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 		if err != nil {
+			s.resetSeenSeries()
 			return err
 		}
 	}
@@ -453,10 +455,11 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if bucket.GetUpperBound() == math.Inf(1) {
 			infBucketWasAdded = true
 		}
-		if s.isNew() {
+		if wasNew {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, appendErr := appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
 			if appendErr != nil {
+				s.resetSeenSeries()
 				return appendErr
 			}
 		}
@@ -483,10 +486,11 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	if !infBucketWasAdded {
 		// Add +Inf bucket
 		s.lb.Set(labels.BucketLabel, "+Inf")
-		if s.isNew() {
+		if wasNew {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err = appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
 			if err != nil {
+				s.resetSeenSeries()
 				return err
 			}
 		}
@@ -498,10 +502,6 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 
 	// drop "le" label again
 	s.lb.Del(labels.BucketLabel)
-
-	if s.isNew() {
-		s.registerSeenSeries()
-	}
 
 	return nil
 }

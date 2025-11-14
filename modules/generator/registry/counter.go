@@ -41,12 +41,12 @@ var (
 	_ metric  = (*counter)(nil)
 )
 
-func (co *counterSeries) isNew() bool {
-	return co.firstSeries.Load()
+func (co *counterSeries) wasNew() bool {
+	return co.firstSeries.CompareAndSwap(true, false)
 }
 
-func (co *counterSeries) registerSeenSeries() {
-	co.firstSeries.Store(false)
+func (co *counterSeries) resetSeenSeries() {
+	co.firstSeries.Store(true)
 }
 
 func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *counter {
@@ -127,15 +127,15 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) error 
 		// If we are about to call Append for the first time on a series, we need
 		// to first insert a 0 value to allow Prometheus to start from a non-null
 		// value.
-		if s.isNew() {
+		if s.wasNew() {
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err := appender.Append(0, s.labels, endOfLastMinuteMs, 0)
 			if err != nil {
+				s.resetSeenSeries()
 				return err
 			}
-			s.registerSeenSeries()
 		}
 
 		_, err := appender.Append(0, s.labels, timeMs, s.value.Load())
