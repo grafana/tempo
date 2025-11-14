@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -74,7 +73,7 @@ type Ingester struct {
 	local        *local.Backend
 	replayJitter bool // this var exists so tests can remove jitter
 
-	flushQueues     *flushqueues.ExclusiveQueues
+	flushQueues     *flushqueues.ExclusiveQueues[*flushOp]
 	flushQueuesDone sync.WaitGroup
 
 	// manages synchronous behavior with startCutToWal
@@ -98,7 +97,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 		cfg:          cfg,
 		instances:    map[string]*instance{},
 		store:        store,
-		flushQueues:  flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
+		flushQueues:  flushqueues.New[*flushOp](cfg.ConcurrentFlushes, metricFlushQueueLength),
 		replayJitter: true,
 		overrides:    overrides,
 
@@ -310,7 +309,7 @@ func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesReques
 		return nil, status.Errorf(codes.InvalidArgument, "mismatched traces/ids length: %d, %d", len(req.Traces), len(req.Ids))
 	}
 
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +340,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	ctx, span := tracer.Start(ctx, "Ingester.FindTraceByID")
 	defer span.End()
 
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,65 @@
+target: all
+stream_over_http_enabled: true
+auth_enabled: true
+
+server:
+  http_listen_port: 3200
+
+query_frontend:
+  query_end_cutoff: -1s # Include all recent data
+  search:
+    query_backend_after: 5s
+    query_ingesters_until: 5s
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: "tempo:14250"
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+    min_ready_duration: 1s
+  trace_idle_period: 1s
+  max_block_duration: 5s
+  complete_block_timeout: 5s
+  flush_check_period: 1s
+
+storage:
+  trace:
+    blocklist_poll: 1s
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: tempo_e2e-minio-9000:9000 # TODO: this is brittle, fix this eventually
+      access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
+      secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
+      insecure: true
+      prefix: {{ .Prefix }}
+    pool:
+      max_workers: 10
+      queue_depth: 100
+
+overrides:
+  user_configurable_overrides:
+    enabled: true
+    poll_interval: 10s
+    client:
+      backend: s3
+      s3:
+        # TODO use separate bucket?
+        bucket: tempo
+        endpoint: tempo_e2e-minio-9000:9000 # TODO: this is brittle, fix this eventually
+        access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
+        secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
+        insecure: true

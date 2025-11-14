@@ -5,15 +5,24 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestTagsCombiner(t *testing.T) {
+func TestTagsCombinerJSON(t *testing.T) {
+	testTagsCombiner(t, api.MarshallingFormatJSON)
+}
+
+func TestTagsCombinerProtobuf(t *testing.T) {
+	testTagsCombiner(t, api.MarshallingFormatProtobuf)
+}
+
+func testTagsCombiner(t *testing.T, marshalingFormat api.MarshallingFormat) {
 	tests := []struct {
 		name               string
-		factory            func(int, uint32, uint32) Combiner
+		factory            func(int, uint32, uint32, api.MarshallingFormat) Combiner
 		limitBytes         int
 		maxTagsValues      uint32
 		maxCacheHits       uint32
@@ -205,12 +214,12 @@ func TestTagsCombiner(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			combiner := tc.factory(tc.limitBytes, tc.maxTagsValues, tc.maxCacheHits)
+			combiner := tc.factory(tc.limitBytes, tc.maxTagsValues, tc.maxCacheHits, marshalingFormat)
 
-			err := combiner.AddResponse(toHTTPResponse(t, tc.result1, 200))
+			err := combiner.AddResponse(toHTTPResponseWithFormat(t, tc.result1, 200, nil, marshalingFormat))
 			assert.NoError(t, err)
 
-			err = combiner.AddResponse(toHTTPResponse(t, tc.result2, 200))
+			err = combiner.AddResponse(toHTTPResponseWithFormat(t, tc.result2, 200, nil, marshalingFormat))
 			assert.NoError(t, err)
 
 			res, err := combiner.HTTPFinal()
@@ -244,18 +253,34 @@ func metrics(message proto.Message) *tempopb.MetadataMetrics {
 	return nil
 }
 
-func TestTagsGRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTags(0, 0, 0)
+func TestTagsGRPCCombinerJSON(t *testing.T) {
+	testTagsGRPCCombiner(t, api.MarshallingFormatJSON)
+}
+
+func TestTagsGRPCCombinerProtobuf(t *testing.T) {
+	testTagsGRPCCombiner(t, api.MarshallingFormatProtobuf)
+}
+
+func testTagsGRPCCombiner(t *testing.T, format api.MarshallingFormat) {
+	c := NewTypedSearchTags(0, 0, 0, format)
 	res1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff2 := &tempopb.SearchTagsResponse{TagNames: []string{"tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 2}}
 	expectedFinal := &tempopb.SearchTagsResponse{TagNames: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 2}}
-	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagsResponse) { sort.Strings(r.TagNames) })
+	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagsResponse) { sort.Strings(r.TagNames) }, format)
 }
 
-func TestTagsV2GRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagsV2(0, 0, 0)
+func TestTagsV2GRPCCombinerJSON(t *testing.T) {
+	testTagsV2GRPCCombiner(t, api.MarshallingFormatJSON)
+}
+
+func TestTagsV2GRPCCombinerProtobuf(t *testing.T) {
+	testTagsV2GRPCCombiner(t, api.MarshallingFormatProtobuf)
+}
+
+func testTagsV2GRPCCombiner(t *testing.T, format api.MarshallingFormat) {
+	c := NewTypedSearchTagsV2(0, 0, 0, format)
 	res1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1", "tag2"}}, {Name: "scope2", Tags: []string{"tag3"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -268,21 +293,37 @@ func TestTagsV2GRPCCombiner(t *testing.T) {
 		sort.Slice(r.Scopes, func(i, j int) bool {
 			return r.Scopes[i].Name < r.Scopes[j].Name
 		})
-	})
+	}, format)
 }
 
-func TestTagValuesGRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagValues(0, 0, 0)
+func TestTagValuesGRPCCombinerJSON(t *testing.T) {
+	testTagValuesGRPCCombiner(t, api.MarshallingFormatJSON)
+}
+
+func TestTagValuesGRPCCombinerProtobuf(t *testing.T) {
+	testTagValuesGRPCCombiner(t, api.MarshallingFormatProtobuf)
+}
+
+func testTagValuesGRPCCombiner(t *testing.T, format api.MarshallingFormat) {
+	c := NewTypedSearchTagValues(0, 0, 0, format)
 	res1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff2 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 2}}
 	expectedFinal := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 2}}
-	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagValuesResponse) { sort.Strings(r.TagValues) })
+	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagValuesResponse) { sort.Strings(r.TagValues) }, format)
 }
 
-func TestTagValuesV2GRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagValuesV2(0, 0, 0)
+func TestTagValuesV2GRPCCombinerJSON(t *testing.T) {
+	testTagValuesV2GRPCCombiner(t, api.MarshallingFormatJSON)
+}
+
+func TestTagValuesV2GRPCCombinerProtobuf(t *testing.T) {
+	testTagValuesV2GRPCCombiner(t, api.MarshallingFormatProtobuf)
+}
+
+func testTagValuesV2GRPCCombiner(t *testing.T, format api.MarshallingFormat) {
+	c := NewTypedSearchTagValuesV2(0, 0, 0, format)
 	res1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}, {Value: "v2", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -292,11 +333,11 @@ func TestTagValuesV2GRPCCombiner(t *testing.T) {
 		sort.Slice(r.TagValues, func(i, j int) bool {
 			return r.TagValues[i].Value < r.TagValues[j].Value
 		})
-	})
+	}, format)
 }
 
-func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], result1 T, result2 T, diff1 T, diff2 T, expectedFinal T, sort func(T)) {
-	err := combiner.AddResponse(toHTTPResponse(t, result1, 200))
+func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], result1 T, result2 T, diff1 T, diff2 T, expectedFinal T, sort func(T), format api.MarshallingFormat) {
+	err := combiner.AddResponse(toHTTPResponseWithFormat(t, result1, 200, nil, format))
 	require.NoError(t, err)
 
 	actualDiff1, err := combiner.GRPCDiff()
@@ -304,7 +345,7 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	sort(actualDiff1)
 	require.Equal(t, diff1, actualDiff1)
 
-	err = combiner.AddResponse(toHTTPResponse(t, result2, 200))
+	err = combiner.AddResponse(toHTTPResponseWithFormat(t, result2, 200, nil, format))
 	assert.NoError(t, err)
 
 	actualDiff2, err := combiner.GRPCDiff()

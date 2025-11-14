@@ -2,11 +2,8 @@ package app
 
 import (
 	"fmt"
-	"slices"
-	"time"
 
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -33,9 +30,9 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		}
 	}
 
-	if _, ok := registry.HistogramModeToValue[string(config.MetricsGenerator.GenerateNativeHistograms)]; !ok {
-		if config.MetricsGenerator.GenerateNativeHistograms != "" {
-			return fmt.Errorf("metrics_generator.generate_native_histograms \"%s\" is not a valid value, valid values: classic, native, both", config.MetricsGenerator.GenerateNativeHistograms)
+	if config.MetricsGenerator.GenerateNativeHistograms != "" {
+		if err := validation.ValidateHistogramMode(string(config.MetricsGenerator.GenerateNativeHistograms)); err != nil {
+			return err
 		}
 	}
 
@@ -74,8 +71,8 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if processors, ok := limits.GetMetricsGenerator().GetProcessors(); ok {
 		for p := range processors.GetMap() {
-			if !slices.Contains(generator.SupportedProcessors, p) {
-				return fmt.Errorf("metrics_generator.processor \"%s\" is not a known processor, valid values: %v", p, generator.SupportedProcessors)
+			if err := validation.ValidateProcessor(p); err != nil {
+				return err
 			}
 		}
 	}
@@ -89,8 +86,8 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 	}
 
 	if collectionInterval, ok := limits.GetMetricsGenerator().GetCollectionInterval(); ok {
-		if collectionInterval < 15*time.Second || collectionInterval > 5*time.Minute {
-			return fmt.Errorf("metrics_generator.collection_interval \"%s\" is outside acceptable range of 15s to 5m", collectionInterval.String())
+		if err := validation.ValidateCollectionInterval(collectionInterval); err != nil {
+			return err
 		}
 	}
 

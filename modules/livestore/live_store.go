@@ -13,12 +13,12 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/shutdownmarker"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -123,7 +123,7 @@ type LiveStore struct {
 	ctx             context.Context // context for the service. all background processes should exit if this is cancelled
 	cancel          func()
 	wg              sync.WaitGroup
-	completeQueues  *flushqueues.ExclusiveQueues
+	completeQueues  *flushqueues.ExclusiveQueues[*completeOp]
 	startupComplete chan struct{} // channel to signal that the starting function has finished. allows background processes to block until the service is fully started
 	lagCancel       context.CancelFunc
 }
@@ -140,7 +140,7 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		cancel:          cancel,
 		instances:       make(map[string]*instance),
 		overrides:       overridesService,
-		completeQueues:  flushqueues.New(cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
+		completeQueues:  flushqueues.New[*completeOp](cfg.CompleteBlockConcurrency, metricCompleteQueueLength),
 		startupComplete: make(chan struct{}),
 	}
 
@@ -591,7 +591,7 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 func withInstance[T any](ctx context.Context, s *LiveStore, fn func(*instance) (*T, error)) (*T, error) {
 	var defaultValue T
 
-	instanceID, err := user.ExtractOrgID(ctx)
+	instanceID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return &defaultValue, err
 	}

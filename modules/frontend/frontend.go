@@ -138,6 +138,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
 	queryValidatorWare := pipeline.NewQueryValidatorWare(cfg.MaxQueryExpressionSizeBytes)
 	headerStripWare := pipeline.NewStripHeadersWare(cfg.AllowedHeaders)
+	tenantValidatorWare := pipeline.NewTenantValidatorMiddleware()
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -145,6 +146,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
@@ -158,6 +160,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -170,6 +173,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -182,6 +186,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -194,6 +199,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -207,6 +213,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantUnsupportedMiddleware(cfg, logger),
+			tenantValidatorWare,
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
 		next)
@@ -220,6 +227,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, false, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
@@ -233,6 +241,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
+			tenantValidatorWare,
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, true, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},

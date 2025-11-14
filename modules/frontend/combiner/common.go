@@ -45,11 +45,11 @@ type genericCombiner[T TResponse] struct {
 	httpStatusCode int
 	httpRespBody   string
 	// Used to marshal the response when using an HTTP Combiner, it doesn't affect for a GRPC combiner.
-	httpMarshalingFormat string
+	httpMarshalingFormat api.MarshallingFormat
 }
 
 // Init an HTTP combiner with default values. The marshaling format dictates how the response will be marshaled, including the Content-type header.
-func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat string) {
+func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat api.MarshallingFormat) {
 	c.httpStatusCode = 200
 	c.httpMarshalingFormat = marshalingFormat
 }
@@ -164,7 +164,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	}
 
 	var bodyString string
-	if c.httpMarshalingFormat == api.HeaderAcceptProtobuf {
+	if c.httpMarshalingFormat == api.MarshallingFormatProtobuf {
 		buff, err := proto.Marshal(final)
 		if err != nil {
 			return nil, fmt.Errorf("error marshalling response body: %w", err)
@@ -180,7 +180,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	return &http.Response{
 		StatusCode: 200,
 		Header: http.Header{
-			api.HeaderContentType: {c.httpMarshalingFormat},
+			api.HeaderContentType: {string(c.httpMarshalingFormat)},
 		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),

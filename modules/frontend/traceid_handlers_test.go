@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -259,7 +260,7 @@ func TestTraceIDHandlerForJSONResponse(t *testing.T) {
 	ctx = user.InjectOrgID(ctx, "blerg")
 	req = req.WithContext(ctx)
 	req = mux.SetURLVars(req, map[string]string{"traceID": "1234"})
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", api.HeaderAcceptJSON)
 
 	httpResp := httptest.NewRecorder()
 	f.TraceByIDHandler.ServeHTTP(httpResp, req)
@@ -475,13 +476,13 @@ func TestTraceIDHandlerV2WithJSONResponse(t *testing.T) {
 	ctx = user.InjectOrgID(ctx, "blerg")
 	req = req.WithContext(ctx)
 	req = mux.SetURLVars(req, map[string]string{"traceID": "1234"})
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", api.HeaderAcceptJSON)
 
 	httpResp := httptest.NewRecorder()
 	f.TraceByIDHandlerV2.ServeHTTP(httpResp, req)
 	resp := httpResp.Result()
 
-	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+	assert.Equal(t, api.HeaderAcceptJSON, resp.Header.Get("Content-Type"))
 
 	actualResp := &tempopb.TraceByIDResponse{}
 	err := new(jsonpb.Unmarshaler).Unmarshal(resp.Body, actualResp)

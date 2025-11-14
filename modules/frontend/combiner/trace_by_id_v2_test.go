@@ -108,7 +108,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 
 		res, err := combiner.HTTPFinal()
 		require.NoError(t, err)
-		assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
+		assert.Equal(t, api.HeaderAcceptJSON, res.Header.Get(api.HeaderContentType))
 
 		actualResp := &tempopb.TraceByIDResponse{}
 		err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
