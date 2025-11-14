@@ -22,19 +22,19 @@ func (b *backendBlock) openForIteration(ctx context.Context) (*parquet.File, *pa
 	// 128 MB memory buffering
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size_), 2*1024*1024, 64)
 
+	sch, _, readerOptions := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
-		// parquet.FileSchema(parquetSchema),
 		parquet.FileReadMode(parquet.ReadModeAsync),
+		parquet.FileSchema(sch),
 	}
 
 	pf, err := parquet.OpenFile(br, int64(b.meta.Size_), o...)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	sch, _, readerOptions := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
 
 	r := parquet.NewReader(pf, append(readerOptions, sch)...)
 	return pf, r, nil

@@ -555,10 +555,11 @@ func printSummary(scope string, max int, summary attributeSummary, simple bool, 
 			blob = "(blob)"
 		}
 
-		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\n",
+		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\n",
 			name,
 			humanize.Bytes(thisBytes),
 			percentage,
+			totalOccurences,
 			distinct,
 			avgReuse,
 			humanize.Bytes(totalSize),

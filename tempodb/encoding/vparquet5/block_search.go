@@ -62,14 +62,12 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
 	schema, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
-	// schema := parquetSchema
 
 	// no searches currently require bloom filters or the page index. so just add them statically
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
 		parquet.FileReadMode(parquet.ReadModeAsync),
-		// parquet.FileSchema(parquetSchema),
 		parquet.FileSchema(schema),
 	}
 

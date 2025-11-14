@@ -21,16 +21,6 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.Resource.DedicatedAttributes.String08",
 			"rs.list.element.Resource.DedicatedAttributes.String09",
 			"rs.list.element.Resource.DedicatedAttributes.String10",
-			/*"rs.list.element.Resource.DedicatedAttributes.String11",
-			"rs.list.element.Resource.DedicatedAttributes.String12",
-			"rs.list.element.Resource.DedicatedAttributes.String13",
-			"rs.list.element.Resource.DedicatedAttributes.String14",
-			"rs.list.element.Resource.DedicatedAttributes.String15",
-			"rs.list.element.Resource.DedicatedAttributes.String16",
-			"rs.list.element.Resource.DedicatedAttributes.String17",
-			"rs.list.element.Resource.DedicatedAttributes.String18",
-			"rs.list.element.Resource.DedicatedAttributes.String19",
-			"rs.list.element.Resource.DedicatedAttributes.String20",*/
 		},
 		backend.DedicatedColumnTypeInt: {
 			"rs.list.element.Resource.DedicatedAttributes.Int01",
@@ -52,16 +42,6 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
-			/*"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String11",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String12",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String13",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String14",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String15",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String16",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String17",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String18",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String19",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String20",*/
 		},
 		backend.DedicatedColumnTypeInt: {
 			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.Int01",

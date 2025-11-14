@@ -145,19 +145,18 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
-	// remove unsupported dedicated columns
 	newMeta.DedicatedColumns = filterDedicatedColumns(meta.DedicatedColumns)
 
 	// TotalObjects is used here an an estimated count for the bloom filter.
 	// The real number of objects is tracked below.
 	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
 
-	w := &backendWriter{ctx, to, DataFileName, (uuid.UUID)(meta.BlockID), meta.TenantID, nil}
-	bw := createBufferedWriter(w)
-
-	_, writerOptions, _ := SchemaWithDynamicChanges(meta.DedicatedColumns)
-
-	pw := parquet.NewGenericWriter[*Trace](bw, writerOptions...)
+	var (
+		w                   = &backendWriter{ctx, to, DataFileName, (uuid.UUID)(meta.BlockID), meta.TenantID, nil}
+		bw                  = createBufferedWriter(w)
+		_, writerOptions, _ = SchemaWithDynamicChanges(meta.DedicatedColumns)
+		pw                  = parquet.NewGenericWriter[*Trace](bw, writerOptions...)
+	)
 
 	return &streamingBlock{
 		ctx:               ctx,
@@ -296,7 +295,7 @@ func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
 	for _, rs := range tr.ResourceSpans {
 		size += estimateAttrSize(rs.Resource.Attrs)
 		size += 21 // 21 resource lvl fields including dedicated attributes
-		size += 50 // 50 dedicated columns
+		size += 10 // 10 dedicated columns
 
 		for _, ils := range rs.ScopeSpans {
 			size += 2 // 2 scope span lvl fields
@@ -305,7 +304,7 @@ func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
 
 			for _, s := range ils.Spans {
 				size += 35 // 35 span lvl fields including dedicated attributes
-				size += 50 // 50 dedicated columns
+				size += 10 // 10 dedicated columns
 				size += len(s.SpanID) + len(s.ParentSpanID)
 				size += estimateAttrSize(s.Attrs)
 				size += estimateEventsSize(s.Events)
@@ -333,7 +332,7 @@ func estimateAttrSize(attrs []Attribute) (size int) {
 func estimateEventsSize(events []Event) (size int) {
 	for _, e := range events {
 		size += 4  // 4 event lvl fields
-		size += 50 // 50 dedicated columns
+		size += 10 // 10 dedicated columns
 		size += estimateAttrSize(e.Attrs)
 	}
 	return
