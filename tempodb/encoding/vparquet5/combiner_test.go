@@ -153,6 +153,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -161,7 +162,6 @@ func TestCombiner(t *testing.T) {
 										NestedSetRight: 2,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -177,6 +177,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -184,7 +185,6 @@ func TestCombiner(t *testing.T) {
 										StatusCode:   0,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -209,6 +209,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -218,7 +219,6 @@ func TestCombiner(t *testing.T) {
 										ParentID:       -1,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -228,6 +228,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -238,7 +239,6 @@ func TestCombiner(t *testing.T) {
 										NestedSetRight: 3,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -257,6 +257,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -265,7 +266,6 @@ func TestCombiner(t *testing.T) {
 										NestedSetRight: 2,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -281,6 +281,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 2,
 								Spans: []Span{
 									{
 										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -293,7 +294,6 @@ func TestCombiner(t *testing.T) {
 										StatusCode:   2,
 									},
 								},
-								SpanCount: 2,
 							},
 						},
 					},
@@ -319,6 +319,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -328,7 +329,6 @@ func TestCombiner(t *testing.T) {
 										NestedSetRight: 6,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -338,6 +338,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 2,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -356,7 +357,6 @@ func TestCombiner(t *testing.T) {
 										NestedSetRight: 5,
 									},
 								},
-								SpanCount: 2,
 							},
 						},
 					},
@@ -420,6 +420,7 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -428,7 +429,6 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 										NestedSetRight: 2,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -444,6 +444,7 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -451,7 +452,6 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 										StatusCode:   0,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -471,6 +471,7 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -479,7 +480,6 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 										NestedSetRight: 2,
 									},
 								},
-								SpanCount: 1,
 							},
 						},
 					},
@@ -495,6 +495,7 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 2,
 								Spans: []Span{
 									{
 										SpanID:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -506,7 +507,6 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 										StatusCode:   2,
 									},
 								},
-								SpanCount: 2,
 							},
 						},
 					},

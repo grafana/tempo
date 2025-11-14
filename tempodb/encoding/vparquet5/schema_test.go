@@ -137,6 +137,7 @@ func TestFieldsAreCleared(t *testing.T) {
 				},
 			},
 			ScopeSpans: []ScopeSpans{{
+				SpanCount: 1,
 				Spans: []Span{{
 					StatusCode:     2,
 					ParentID:       -1,
@@ -159,7 +160,6 @@ func TestFieldsAreCleared(t *testing.T) {
 						},
 					}},
 				}},
-				SpanCount: 1,
 			}},
 		}},
 	}
@@ -361,6 +361,7 @@ func TestTraceToParquet(t *testing.T) {
 								attr("scope.string.array", []string{"one", "two"}),
 							},
 						},
+						SpanCount: 1,
 						Spans: []Span{{
 							Name:           "span-a",
 							SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -388,7 +389,6 @@ func TestTraceToParquet(t *testing.T) {
 								String05: []string{"dedicated-span-attr-value-5"},
 							},
 						}},
-						SpanCount: 1,
 					}},
 				}},
 			},
@@ -450,6 +450,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 3,
 						Spans: []Span{
 							{
 								Name:           "span-a",
@@ -484,7 +485,6 @@ func TestTraceToParquet(t *testing.T) {
 								},
 							},
 						},
-						SpanCount: 3,
 					}},
 				}},
 			},
@@ -568,6 +568,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 3,
 						Spans: []Span{
 							{
 								Name:           "span-a",
@@ -594,7 +595,6 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetRight: 9,
 							},
 						},
-						SpanCount: 3,
 					}},
 				}, {
 					Resource: Resource{
@@ -602,6 +602,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 2,
 						Spans: []Span{
 							{
 								Name:           "span-d",
@@ -621,7 +622,6 @@ func TestTraceToParquet(t *testing.T) {
 								StatusCode:     int(v1_trace.Status_STATUS_CODE_ERROR),
 							},
 						},
-						SpanCount: 2,
 					}},
 				}},
 			},
@@ -690,6 +690,7 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs:       []Attribute{},
 					},
 					ScopeSpans: []ScopeSpans{{
+						SpanCount: 2,
 						Spans: []Span{
 							{
 								Name:              "span-with-link",
@@ -725,7 +726,6 @@ func TestTraceToParquet(t *testing.T) {
 								}},
 							},
 						},
-						SpanCount: 2,
 					}},
 				}},
 			},
