@@ -32,8 +32,10 @@ const (
 
 	DedicatedColumnScopeResource DedicatedColumnScope = "resource"
 	DedicatedColumnScopeSpan     DedicatedColumnScope = "span"
+	DedicatedColumnScopeEvent    DedicatedColumnScope = "event"
 
 	DedicatedColumnOptionArray DedicatedColumnOption = "array"
+	DedicatedColumnOptionBlob  DedicatedColumnOption = "blob"
 
 	DefaultDedicatedColumnType  = DedicatedColumnTypeString
 	DefaultDedicatedColumnScope = DedicatedColumnScopeSpan

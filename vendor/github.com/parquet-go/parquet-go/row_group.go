@@ -215,22 +215,9 @@ func newRowGroupRows(schema *Schema, columns []ColumnChunk, bufferSize int) *row
 		columns:  make([]columnChunkRows, len(columns)),
 		rowIndex: -1,
 	}
-
 	for i, column := range columns {
-		var release func(Page)
-		// Only release pages that are not byte array because the values
-		// that were read from the page might be retained by the program
-		// after calls to ReadRows.
-		switch column.Type().Kind() {
-		case ByteArray, FixedLenByteArray:
-			release = func(Page) {}
-		default:
-			release = Release
-		}
-		r.columns[i].reader.release = release
 		r.columns[i].reader.pages = column.Pages()
 	}
-
 	// This finalizer is used to ensure that the goroutines started by calling
 	// init on the underlying page readers will be shutdown in the event that
 	// Close isn't called and the rowGroupRows object is garbage collected.
