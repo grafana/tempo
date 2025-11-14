@@ -40,16 +40,16 @@ func (r *rowNumberIterator) Close() {}
 
 var _ pq.Iterator = (*virtualRowNumberIterator)(nil)
 
-// virtualRowNumberIterator is an iterator reads a row count from a column in a parquet file and uses the numbers
+// virtualRowNumberIterator is an iterator that reads the row count from a column in a parquet file and uses this count
 // to calculate virtual row numbers on the given definitionLevel. This is used to iterate over spans in a trace without
 // actually reading a column on span definition level.
 type virtualRowNumberIterator struct {
 	iter            pq.Iterator // iterator returning row count
 	definitionLevel int
 
-	at      pq.IteratorResult
-	rowsMax int32
-	rowsLef int32
+	at       pq.IteratorResult
+	rowsMax  int32
+	rowsLeft int32
 }
 
 func newVirtualRowNumberIterator(iter pq.Iterator, definitionLevel int) *virtualRowNumberIterator {
@@ -65,7 +65,7 @@ func (v *virtualRowNumberIterator) String() string {
 }
 
 func (v *virtualRowNumberIterator) Next() (*pq.IteratorResult, error) {
-	if v.rowsLef == 0 {
+	if v.rowsLeft == 0 {
 		res, err := v.iter.Next()
 		if err != nil {
 			return nil, err
@@ -80,12 +80,12 @@ func (v *virtualRowNumberIterator) Next() (*pq.IteratorResult, error) {
 		v.at.RowNumber = res.RowNumber
 		v.setRows(res.Entries[0].Value.Int32())
 
-		if v.rowsLef == 0 {
+		if v.rowsLeft == 0 {
 			return &v.at, nil
 		}
 	}
 
-	v.rowsLef--
+	v.rowsLeft--
 	v.at.RowNumber.Next(v.definitionLevel, v.definitionLevel, v.definitionLevel)
 
 	return &v.at, nil
@@ -108,12 +108,12 @@ func (v *virtualRowNumberIterator) SeekTo(rowNumber pq.RowNumber, definitionLeve
 		v.at.RowNumber = res.RowNumber
 		v.setRows(res.Entries[0].Value.Int32())
 
-		if v.rowsLef == 0 {
+		if v.rowsLeft == 0 {
 			return &v.at, nil
 		}
 	} else {
 		v.at.RowNumber = pq.TruncateRowNumber(scopeLevel, rowNumber)
-		v.rowsLef = v.rowsMax
+		v.rowsLeft = v.rowsMax
 	}
 
 	var seek int32
@@ -121,9 +121,9 @@ func (v *virtualRowNumberIterator) SeekTo(rowNumber pq.RowNumber, definitionLeve
 		seek = rowNumber[v.definitionLevel] + 1
 	}
 
-	for seek > 0 && v.rowsLef > 0 {
+	for seek > 0 && v.rowsLeft > 0 {
 		seek--
-		v.rowsLef--
+		v.rowsLeft--
 		v.at.RowNumber.Next(v.definitionLevel, v.definitionLevel, v.definitionLevel)
 	}
 
@@ -137,5 +137,5 @@ func (v *virtualRowNumberIterator) Close() {
 
 func (v *virtualRowNumberIterator) setRows(rows int32) {
 	v.rowsMax = rows
-	v.rowsLef = rows
+	v.rowsLeft = rows
 }

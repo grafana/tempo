@@ -914,7 +914,7 @@ const (
 	columnPathResourceAttrBool        = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
 	columnPathResourceServiceName     = "rs.list.element.Resource.ServiceName"
 
-	columnPathScopeSpanSpanCount        = "rs.list.element.ss.list.element.SpanCount"
+	columnPathScopeSpansSpanCount       = "rs.list.element.ss.list.element.SpanCount"
 	columnPathInstrumentationName       = "rs.list.element.ss.list.element.Scope.Name"
 	columnPathInstrumentationVersion    = "rs.list.element.ss.list.element.Scope.Version"
 	columnPathInstrumentationAttrKey    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Key"
@@ -2221,7 +2221,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		if sampler != nil {
 			pred = newSamplingPredicate(sampler, nil)
 		}
-		required = []parquetquery.Iterator{newVirtualRowNumberIterator(makeIter(columnPathScopeSpanSpanCount, pred, "spanCount"), DefinitionLevelResourceSpansILSSpan)}
+		required = []parquetquery.Iterator{newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, pred, "spanCount"), DefinitionLevelResourceSpansILSSpan)}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
