@@ -1,5 +1,7 @@
 package registry
 
+import "github.com/prometheus/prometheus/model/labels"
+
 // Registry is a metrics store.
 type Registry interface {
 	NewLabelValueCombo(labels []string, values []string) *LabelValueCombo
@@ -61,27 +63,21 @@ var HistogramModeToValue = map[string]HistogramMode{
 // the label values. When passing the same label values to multiple metrics, create LabelValueCombo once
 // and pass it to all of them.
 type LabelValueCombo struct {
-	labels LabelPair
-	hash   uint64
+	labels labels.Labels
 }
 
-type LabelPair struct {
-	names  []string
-	values []string
-}
-
-func newLabelPair(labels []string, values []string) LabelPair {
-	return LabelPair{
-		names:  labels,
-		values: values,
+func newLabelPair(lbls []string, values []string) labels.Labels {
+	builder := labels.NewBuilder(labels.New())
+	for i := range lbls {
+		builder.Set(lbls[i], values[i])
 	}
+	return builder.Labels()
 }
 
 func newLabelValueCombo(labels []string, values []string) *LabelValueCombo {
 	labelPair := newLabelPair(labels, values)
 	return &LabelValueCombo{
 		labels: labelPair,
-		hash:   0,
 	}
 }
 
@@ -91,51 +87,9 @@ func newLabelValueComboWithMax(labels []string, values []string, maxLabelLength 
 	return newLabelValueCombo(labels, values)
 }
 
-func (l *LabelValueCombo) getValues() []string {
-	if l == nil {
-		return nil
-	}
-	return l.labels.values
-}
-
-func (l *LabelValueCombo) getNames() []string {
-	if l == nil {
-		return nil
-	}
-	return l.labels.names
-}
-
-func (l *LabelValueCombo) getValuesCopy() []string {
-	values := l.getValues()
-	valuesCopy := make([]string, len(values))
-	copy(valuesCopy, values)
-	return valuesCopy
-}
-
-func (l *LabelValueCombo) getNamesCopy() []string {
-	names := l.getNames()
-	labelsCopy := make([]string, len(names))
-	copy(labelsCopy, names)
-	return labelsCopy
-}
-
 func (l *LabelValueCombo) getHash() uint64 {
 	if l == nil {
 		return 0
 	}
-	if l.hash != 0 {
-		return l.hash
-	}
-	l.hash = hashLabelValues(l.labels)
-	return l.hash
-}
-
-func (l *LabelValueCombo) getLabelPair() LabelPair {
-	if l == nil {
-		return LabelPair{}
-	}
-	return LabelPair{
-		names:  l.getNamesCopy(),
-		values: l.getValuesCopy(),
-	}
+	return l.labels.Hash()
 }

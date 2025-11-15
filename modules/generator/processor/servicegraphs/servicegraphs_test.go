@@ -55,25 +55,20 @@ func TestServiceGraphs(t *testing.T) {
 	p.PushSpans(context.Background(), request)
 
 	requesterToServerLabels := labels.FromMap(map[string]string{
-		"client":          "mythical-requester",
-		"server":          "mythical-server",
-		"connection_type": "",
-		"beast":           "manticore",
-		"god":             "zeus",
+		"client": "mythical-requester",
+		"server": "mythical-server",
+		"beast":  "manticore",
+		"god":    "zeus",
 	})
 	serverToDatabaseLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-server",
 		"server":          "postgres",
 		"connection_type": "database",
-		"beast":           "",
-		"god":             "",
 	})
 	requesterToRecorderLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-requester",
 		"server":          "mythical-recorder",
 		"connection_type": "messaging_system",
-		"beast":           "",
-		"god":             "",
 	})
 
 	// counters
@@ -142,13 +137,12 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 	p.PushSpans(context.Background(), request)
 
 	requesterToServerLabels := labels.FromMap(map[string]string{
-		"client":          "mythical-requester",
-		"server":          "mythical-server",
-		"connection_type": "",
-		"client_beast":    "manticore",
-		"server_beast":    "manticore",
-		"client_god":      "ares",
-		"server_god":      "zeus",
+		"client":       "mythical-requester",
+		"server":       "mythical-server",
+		"client_beast": "manticore",
+		"server_beast": "manticore",
+		"client_god":   "ares",
+		"server_god":   "zeus",
 	})
 
 	// counters
@@ -177,8 +171,6 @@ func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
 		"client":          "mythical-requester",
 		"server":          "mythical-recorder",
 		"connection_type": "messaging_system",
-		"beast":           "",
-		"god":             "",
 	})
 
 	// counters
@@ -200,9 +192,8 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 	p.PushSpans(context.Background(), request)
 
 	requesterToServerLabels := labels.FromMap(map[string]string{
-		"client":          "mythical-requester",
-		"server":          "mythical-server",
-		"connection_type": "",
+		"client": "mythical-requester",
+		"server": "mythical-server",
 	})
 	serverToDatabaseLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-server",
@@ -530,24 +521,17 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 
 	messagingSystemLabels := labels.FromMap(map[string]string{
 		"client":                  "mythical-requester",
-		"client_db_system":        "",
 		"client_messaging_system": "rabbitmq",
 		"connection_type":         "messaging_system",
-		"server_db_system":        "",
 		"server_messaging_system": "rabbitmq",
 		"server":                  "mythical-recorder",
-		virtualNodeLabel:          "",
 	})
 
 	dbSystemSystemLabels := labels.FromMap(map[string]string{
-		"client":                  "mythical-server",
-		"client_db_system":        "postgresql",
-		"client_messaging_system": "",
-		"connection_type":         "database",
-		"server_db_system":        "",
-		"server_messaging_system": "",
-		"server":                  "postgres",
-		virtualNodeLabel:          "",
+		"client":           "mythical-server",
+		"client_db_system": "postgresql",
+		"connection_type":  "database",
+		"server":           "postgres",
 	})
 
 	// counters
