@@ -54,20 +54,20 @@ func newGauge(name string, lifecycler Limiter, externalLabels map[string]string,
 	}
 }
 
-func (g *gauge) Set(labelValueCombo *LabelValueCombo, value float64) {
-	g.updateSeries(labelValueCombo, value, set, true)
+func (g *gauge) Set(lbls labels.Labels, value float64) {
+	g.updateSeries(lbls, value, set, true)
 }
 
-func (g *gauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
-	g.updateSeries(labelValueCombo, value, add, true)
+func (g *gauge) Inc(lbls labels.Labels, value float64) {
+	g.updateSeries(lbls, value, add, true)
 }
 
-func (g *gauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
-	g.updateSeries(labelValueCombo, value, set, false)
+func (g *gauge) SetForTargetInfo(lbls labels.Labels, value float64) {
+	g.updateSeries(lbls, value, set, false)
 }
 
-func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string, updateIfAlreadyExist bool) {
-	hash := labelValueCombo.getHash()
+func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string, updateIfAlreadyExist bool) {
+	hash := lbls.Hash()
 
 	g.seriesMtx.RLock()
 	s, ok := g.series[hash]
@@ -99,12 +99,12 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		return
 	}
 
-	g.series[hash] = g.newSeries(labelValueCombo, value)
+	g.series[hash] = g.newSeries(lbls, value)
 }
 
-func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
+func (g *gauge) newSeries(lbls labels.Labels, value float64) *gaugeSeries {
 	return &gaugeSeries{
-		labels:      getSeriesLabels(g.metricName, labelValueCombo, g.externalLabels),
+		labels:      getSeriesLabels(g.metricName, lbls, g.externalLabels),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 	}

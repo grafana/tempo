@@ -48,17 +48,13 @@ func (p *Processor) findHostIdentifier(resourceSpans *v1.ResourceSpans) (string,
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
-	values := make([]string, 2)
 	for i := range req.Batches {
 		resourceSpans := req.Batches[i]
 		if hostID, hostSource := p.findHostIdentifier(resourceSpans); hostID != "" && hostSource != "" {
-			values[0] = hostID
-			values[1] = hostSource
-			labelValues := p.registry.NewLabelValueCombo(
-				p.labels,
-				values,
-			)
-			p.gauge.Set(labelValues, 1)
+			builder := p.registry.NewLabelBuilder()
+			builder.Add(hostIdentifierAttr, hostID)
+			builder.Add(hostSourceAttr, hostSource)
+			p.gauge.Set(builder.Labels(), 1)
 		}
 	}
 }

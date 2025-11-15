@@ -346,27 +346,28 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) onComplete(e *store.Edge) {
-	labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
-	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
+	builder := p.registry.NewLabelBuilder()
+	builder.Add("client", e.ClientService)
+	builder.Add("server", e.ServerService)
+	builder.Add("connection_type", string(e.ConnectionType))
 
 	for _, dimension := range p.Cfg.Dimensions {
 		if p.Cfg.EnableClientServerPrefix {
 			if p.Cfg.EnableVirtualNodeLabel {
 				// leave the extra label for this feature as-is
 				if dimension == virtualNodeLabel {
-					labelValues = append(labelValues, e.Dimensions[dimension])
+					builder.Add(virtualNodeLabel, e.Dimensions[dimension])
 					continue
 				}
 			}
-			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
+			builder.Add(strutil.SanitizeLabelName("client_"+dimension), e.Dimensions["client_"+dimension])
+			builder.Add(strutil.SanitizeLabelName("server_"+dimension), e.Dimensions["server_"+dimension])
 		} else {
-			labelValues = append(labelValues, e.Dimensions[dimension])
+			builder.Add(strutil.SanitizeLabelName(dimension), e.Dimensions[dimension])
 		}
 	}
 
-	labels := append([]string{}, p.labels...)
-
-	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
+	registryLabelValues := builder.Labels()
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {
