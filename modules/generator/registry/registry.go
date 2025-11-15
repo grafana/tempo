@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
@@ -137,7 +138,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	return r
 }
 
-func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *LabelValueCombo {
+func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) labels.Labels {
 	if len(labels) != len(values) {
 		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", labels, values))
 	}

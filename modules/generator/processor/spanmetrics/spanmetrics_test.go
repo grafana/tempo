@@ -166,6 +166,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 				"status_message": "OK",
 				"foo":            "foo-value",
 				"bar":            "bar-value",
+				"does_not_exist": "",
 			},
 		},
 		{
@@ -181,10 +182,12 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 				math.Inf(1): 10.0,
 			},
 			labels: map[string]string{
-				"service":        "test-service",
-				"span_name":      "test",
-				"status_code":    "STATUS_CODE_OK",
-				"status_message": "OK",
+				"service":           "test-service",
+				"span_name":         "test",
+				"status_code":       "STATUS_CODE_OK",
+				"status_message":    "OK",
+				"valid_label_123":   "",
+				"_underscore_first": "",
 			},
 		},
 		{
@@ -205,6 +208,9 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 				"span_name":      "test",
 				"status_code":    "STATUS_CODE_OK",
 				"status_message": "OK",
+				"label_name":     "",
+				"foo_name":       "",
+				"foo_bar":        "",
 			},
 		},
 	}
@@ -482,6 +488,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				"status_message": "OK",
 				"foo":            "foo-value",
 				"bar":            "bar-value",
+				"does_not_exist": "",
 			})
 
 			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
@@ -535,6 +542,7 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
+		"service":     "",
 		"span_name":   "test",
 		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
@@ -1512,6 +1520,8 @@ func TestSpanMetricsNegativeLatency(t *testing.T) {
 	})
 
 	lbls := labels.FromMap(map[string]string{
+		"service":     "",
+		"span_name":   "",
 		"span_kind":   "SPAN_KIND_UNSPECIFIED",
 		"status_code": "STATUS_CODE_UNSET",
 	})

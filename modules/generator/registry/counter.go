@@ -58,12 +58,12 @@ func newCounter(name string, lifecycler Limiter, externalLabels map[string]strin
 	}
 }
 
-func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
+func (c *counter) Inc(labelValueCombo labels.Labels, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
 
-	hash := labelValueCombo.getHash()
+	hash := labelValueCombo.Hash()
 
 	c.seriesMtx.RLock()
 	s, ok := c.series[hash]
@@ -90,7 +90,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	c.series[hash] = c.newSeries(labelValueCombo, value)
 }
 
-func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
+func (c *counter) newSeries(labelValueCombo labels.Labels, value float64) *counterSeries {
 	return &counterSeries{
 		labels:      getSeriesLabels(c.metricName, labelValueCombo, c.externalLabels),
 		value:       atomic.NewFloat64(value),

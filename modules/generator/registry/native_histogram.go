@@ -114,8 +114,8 @@ func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, trac
 	}
 }
 
-func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
-	hash := labelValueCombo.getHash()
+func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo labels.Labels, value float64, traceID string, multiplier float64) {
+	hash := labelValueCombo.Hash()
 
 	h.seriesDemand.Insert(hash)
 
@@ -135,7 +135,7 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
 }
 
-func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
+func (h *nativeHistogram) newSeries(labelValueCombo labels.Labels, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
 	// Configure histogram based on mode
 	//
 	// Native-only mode sets buckets to nil, and uses the histogram.Exemplars slice as the native exemplar format.
@@ -175,7 +175,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		overridesHash: hsh,
 	}
 
-	h.updateSeries(labelValueCombo.getHash(), newSeries, value, traceID, multiplier)
+	h.updateSeries(labelValueCombo.Hash(), newSeries, value, traceID, multiplier)
 
 	lb := newSeriesLabelsBuilder(labelValueCombo, h.externalLabels)
 

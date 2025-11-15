@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -153,8 +154,8 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	counter1 := registry.NewCounter("metric_1")
 	counter2 := registry.NewCounter("metric_2")
 
-	counter1.Inc(nil, 1)
-	counter2.Inc(nil, 2)
+	counter1.Inc(labels.New(), 1)
+	counter2.Inc(labels.New(), 2)
 
 	registry.removeStaleSeries(context.Background())
 
@@ -169,7 +170,7 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	appender.samples = nil
 
 	time.Sleep(50 * time.Millisecond)
-	counter2.Inc(nil, 2)
+	counter2.Inc(labels.New(), 2)
 	time.Sleep(50 * time.Millisecond)
 
 	registry.removeStaleSeries(context.Background())
@@ -192,7 +193,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
-	counter.Inc(nil, 1.0)
+	counter.Inc(labels.New(), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__foo": "bar"}, 0, 0),
@@ -211,7 +212,7 @@ func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
-	counter.Inc(nil, 1.0)
+	counter.Inc(labels.New(), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__tempo_tenant": "test"}, 0, 0),
@@ -239,8 +240,8 @@ func TestManagedRegistry_limited(t *testing.T) {
 	counter1.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	atLimit = true
 	// these series should be discarded
-	counter1.Inc(newLabelValueCombo(nil, []string{"value-2"}), 1.0)
-	counter2.Inc(nil, 1.0)
+	counter1.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.0)
+	counter2.Inc(labels.New(), 1.0)
 
 	assert.Equal(t, uint32(1), registry.activeSeries())
 	expectedSamples := []sample{
@@ -295,7 +296,7 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	defer registry.Close()
 
 	counter := registry.NewCounter("metric_1")
-	counter.Inc(nil, 1.0)
+	counter.Inc(labels.New(), 1.0)
 
 	// active series are still tracked
 	assert.Equal(t, uint32(1), registry.activeSeries())

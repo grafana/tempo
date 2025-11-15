@@ -4,7 +4,7 @@ import "github.com/prometheus/prometheus/model/labels"
 
 // Registry is a metrics store.
 type Registry interface {
-	NewLabelValueCombo(labels []string, values []string) *LabelValueCombo
+	NewLabelValueCombo(labels []string, values []string) labels.Labels
 	NewCounter(name string) Counter
 	NewHistogram(name string, buckets []float64, histogramOverride HistogramMode) Histogram
 	NewGauge(name string) Gauge
@@ -15,7 +15,7 @@ type Registry interface {
 type Counter interface {
 	metric
 
-	Inc(labelValueCombo *LabelValueCombo, value float64)
+	Inc(labelValueCombo labels.Labels, value float64)
 }
 
 // Histogram
@@ -24,7 +24,7 @@ type Histogram interface {
 	metric
 
 	// ObserveWithExemplar observes a datapoint with the given values. traceID will be added as exemplar.
-	ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64)
+	ObserveWithExemplar(labelValueCombo labels.Labels, value float64, traceID string, multiplier float64)
 }
 
 // Gauge
@@ -34,9 +34,9 @@ type Gauge interface {
 	metric
 
 	// Set sets the Gauge to an arbitrary value.
-	Set(labelValueCombo *LabelValueCombo, value float64)
-	Inc(labelValueCombo *LabelValueCombo, value float64)
-	SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64)
+	Set(labelValueCombo labels.Labels, value float64)
+	Inc(labelValueCombo labels.Labels, value float64)
+	SetForTargetInfo(labelValueCombo labels.Labels, value float64)
 }
 
 type HistogramMode int
@@ -74,14 +74,11 @@ func newLabelPair(lbls []string, values []string) labels.Labels {
 	return builder.Labels()
 }
 
-func newLabelValueCombo(labels []string, values []string) *LabelValueCombo {
-	labelPair := newLabelPair(labels, values)
-	return &LabelValueCombo{
-		labels: labelPair,
-	}
+func newLabelValueCombo(labels []string, values []string) labels.Labels {
+	return newLabelPair(labels, values)
 }
 
-func newLabelValueComboWithMax(labels []string, values []string, maxLabelLength int, maxLengthLabelValue int) *LabelValueCombo {
+func newLabelValueComboWithMax(labels []string, values []string, maxLabelLength int, maxLengthLabelValue int) labels.Labels {
 	truncateLength(labels, maxLabelLength)
 	truncateLength(values, maxLengthLabelValue)
 	return newLabelValueCombo(labels, values)
