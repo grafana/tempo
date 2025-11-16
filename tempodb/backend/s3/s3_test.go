@@ -20,7 +20,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/grafana/dskit/flagext"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -327,7 +326,7 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 
 func TestReadError(t *testing.T) {
 	errA := minio.ErrorResponse{
-		Code: s3.ErrCodeNoSuchKey,
+		Code: minio.NoSuchKey,
 	}
 	errB := readError(errA)
 	assert.Equal(t, backend.ErrDoesNotExist, errB)

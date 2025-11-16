@@ -3,20 +3,20 @@ package frontend
 import (
 	"context"
 	"fmt"
-	"math"
 	"net/http"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
-	"github.com/grafana/dskit/user"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -89,7 +89,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 
 	requestCtx := r.Context()
-	tenantID, err := user.ExtractOrgID(requestCtx)
+	tenantID, err := validation.ExtractValidTenantID(requestCtx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
@@ -167,7 +167,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 		resp.TotalJobs += jobs
 		resp.TotalBytes += sz
 
-		resp.Shards = append(resp.Shards, combiner.SearchShards{
+		resp.Shards = append(resp.Shards, shardtracker.Shard{
 			TotalJobs:               uint32(jobs),
 			CompletedThroughSeconds: completedThroughTime,
 		})
@@ -183,15 +183,14 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
 func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) (*combiner.SearchJobResponse, error) {
-	resp := &combiner.SearchJobResponse{
-		Shards: make([]combiner.SearchShards, 0, s.cfg.MostRecentShards+1), // +1 for the ingester shard
-	}
+	resp := &combiner.SearchJobResponse{}
+	resp.Shards = make([]shardtracker.Shard, 0, s.cfg.MostRecentShards+1) // +1 for the ingester shard
 
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		// one shard that covers all time
 		resp.TotalJobs = 1
-		resp.Shards = append(resp.Shards, combiner.SearchShards{
+		resp.Shards = append(resp.Shards, shardtracker.Shard{
 			TotalJobs:               1,
 			CompletedThroughSeconds: 1,
 		})
@@ -261,9 +260,9 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 	//  for ingester requests to complete before moving on to the backend requests
 	ingesterJobs := len(reqCh)
 	resp.TotalJobs = ingesterJobs
-	resp.Shards = append(resp.Shards, combiner.SearchShards{
+	resp.Shards = append(resp.Shards, shardtracker.Shard{
 		TotalJobs:               uint32(ingesterJobs),
-		CompletedThroughSeconds: math.MaxUint32,
+		CompletedThroughSeconds: shardtracker.TimestampNever,
 	})
 
 	return resp, nil

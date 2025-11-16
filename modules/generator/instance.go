@@ -11,10 +11,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/grafana/tempo/modules/generator/localentitylimiter"
+	"github.com/grafana/tempo/modules/generator/localserieslimiter"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -22,6 +25,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -31,16 +35,6 @@ import (
 )
 
 var (
-	SupportedProcessors = []string{
-		servicegraphs.Name,
-		spanmetrics.Name,
-		localblocks.Name,
-		spanmetrics.Count.String(),
-		spanmetrics.Latency.String(),
-		spanmetrics.Size.String(),
-		hostinfo.Name,
-	}
-
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_active_processors",
@@ -109,12 +103,23 @@ type instance struct {
 func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
+	limitLogger := tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
+	var limiter registry.Limiter
+	switch cfg.LimiterType {
+	case LimiterTypeSeries:
+		limiter = localserieslimiter.New(overrides.MetricsGeneratorMaxActiveSeries, instanceID, limitLogger)
+	case LimiterTypeEntity:
+		limiter = localentitylimiter.New(overrides.MetricsGeneratorMaxActiveEntities, instanceID, limitLogger)
+	default:
+		return nil, fmt.Errorf("invalid limiter type: %s", cfg.LimiterType)
+	}
+
 	i := &instance{
 		cfg:        cfg,
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
+		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
 		wal:           wal,
 		traceWAL:      traceWAL,
 		traceQueryWAL: rf1TraceWAL,
@@ -162,7 +167,7 @@ func (i *instance) watchOverrides() {
 func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
 	desiredProcessorsFound := false
 	for d := range desiredProcessors {
-		if (d == spanmetrics.Name) || (spanmetrics.ParseSubprocessor(d)) {
+		if (d == processor.SpanMetricsName) || (spanmetrics.ParseSubprocessor(d)) {
 			desiredProcessorsFound = true
 		}
 	}
@@ -171,7 +176,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 		return desiredProcessors, desiredCfg
 	}
 
-	_, allOk := desiredProcessors[spanmetrics.Name]
+	_, allOk := desiredProcessors[processor.SpanMetricsName]
 	_, countOk := desiredProcessors[spanmetrics.Count.String()]
 	_, latencyOk := desiredProcessors[spanmetrics.Latency.String()]
 	_, sizeOk := desiredProcessors[spanmetrics.Size.String()]
@@ -181,7 +186,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 	maps.Copy(newDesiredProcessors, desiredProcessors)
 
 	if !allOk {
-		newDesiredProcessors[spanmetrics.Name] = struct{}{}
+		newDesiredProcessors[processor.SpanMetricsName] = struct{}{}
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = false
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = false
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Size] = false
@@ -269,7 +274,7 @@ func (i *instance) filterDisabledProcessors(processors map[string]struct{}) map[
 
 	// Otherwise, do not instantiate the localblocks processor.
 	filteredProcessors := maps.Clone(processors)
-	delete(filteredProcessors, localblocks.Name)
+	delete(filteredProcessors, processor.LocalBlocksName)
 
 	return filteredProcessors
 }
@@ -307,7 +312,7 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			}
 		default:
 			level.Error(i.logger).Log(
-				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
+				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(validation.SupportedProcessors, ", ")),
 				"processorName", processorName,
 			)
 			err = fmt.Errorf("unknown processor %s", processorName)
@@ -325,16 +330,16 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	var newProcessor processor.Processor
 	var err error
 	switch processorName {
-	case spanmetrics.Name:
+	case processor.SpanMetricsName:
 		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered)
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8)
 		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter)
 		if err != nil {
 			return err
 		}
-	case servicegraphs.Name:
+	case processor.ServiceGraphsName:
 		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
-	case localblocks.Name:
+	case processor.LocalBlocksName:
 		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.writer, i.overrides)
 		if err != nil {
 			return err
@@ -351,14 +356,14 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 				return err
 			}
 		}
-	case hostinfo.Name:
+	case processor.HostInfoName:
 		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger)
 		if err != nil {
 			return err
 		}
 	default:
 		level.Error(i.logger).Log(
-			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
+			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(validation.SupportedProcessors, ", ")),
 			"processorName", processorName,
 		)
 		return fmt.Errorf("unknown processor %s", processorName)
@@ -388,7 +393,7 @@ func (i *instance) removeProcessor(processorName string) {
 
 	deletedProcessor.Shutdown(context.Background())
 
-	if processorName == localblocks.Name && i.queuebasedLocalBlocks != nil {
+	if processorName == processor.LocalBlocksName && i.queuebasedLocalBlocks != nil {
 		i.queuebasedLocalBlocks.Shutdown(context.Background())
 		i.queuebasedLocalBlocks = nil
 	}
@@ -396,7 +401,7 @@ func (i *instance) removeProcessor(processorName string) {
 
 // updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
 func (i *instance) updateProcessorMetrics() {
-	for _, processorName := range SupportedProcessors {
+	for _, processorName := range validation.SupportedProcessors {
 		isPresent := 0.0
 		if _, ok := i.processors[processorName]; ok {
 			isPresent = 1.0
@@ -410,16 +415,16 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
 
-	for _, processor := range i.processors {
-		switch processor.Name() {
-		case localblocks.Name:
-			processor.PushSpans(ctx, req)
-		case spanmetrics.Name, servicegraphs.Name, hostinfo.Name:
+	for _, proc := range i.processors {
+		switch proc.Name() {
+		case processor.LocalBlocksName:
+			proc.PushSpans(ctx, req)
+		case processor.SpanMetricsName, processor.ServiceGraphsName, processor.HostInfoName:
 			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
 				break
 			}
-			processor.PushSpans(ctx, req)
+			proc.PushSpans(ctx, req)
 		}
 	}
 }
@@ -429,17 +434,17 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, ts time.Time, req *te
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
 
-	for _, processor := range i.processors {
-		switch processor.Name() {
-		case localblocks.Name:
+	for _, proc := range i.processors {
+		switch proc.Name() {
+		case processor.LocalBlocksName:
 			// don't push to this processor as queue consumer, instead use queue based local
 			// blocks if configured.
-		case spanmetrics.Name, servicegraphs.Name, hostinfo.Name:
+		case processor.SpanMetricsName, processor.ServiceGraphsName, processor.HostInfoName:
 			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
 				break
 			}
-			processor.PushSpans(ctx, req)
+			proc.PushSpans(ctx, req)
 		}
 	}
 

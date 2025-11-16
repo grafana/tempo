@@ -1,10 +1,7 @@
 package hostinfo
 
 import (
-	"errors"
 	"flag"
-
-	"github.com/prometheus/common/model"
 )
 
 const (
@@ -22,16 +19,4 @@ type Config struct {
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.HostIdentifiers = []string{"k8s.node.name", "host.id"}
 	cfg.MetricName = defaultHostInfoMetric
-}
-
-func (cfg *Config) Validate() error {
-	if len(cfg.HostIdentifiers) == 0 {
-		return errors.New("at least one value must be provided in host_identifiers")
-	}
-
-	if !model.IsValidMetricName(model.LabelValue(cfg.MetricName)) {
-		return errors.New("metric_name is invalid")
-	}
-
-	return nil
 }

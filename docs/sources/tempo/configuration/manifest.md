@@ -407,6 +407,7 @@ query_frontend:
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
+        streaming_shards: 200
         max_intervals: 10000
     multi_tenant_queries_enabled: true
     response_consumers: 10
@@ -802,6 +803,7 @@ metrics_generator:
     codec: push-bytes
     disable_local_blocks: false
     disable_grpc: false
+    limiter_type: series
     ingest_concurrency: 16
     instance_id: hostname
 ingest:

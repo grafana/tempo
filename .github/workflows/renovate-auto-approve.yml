@@ -1,0 +1,40 @@
+name: Auto-approve Renovate PRs
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  auto-approve:
+    # skip it in all forks, only run in grafana/tempo
+    if: github.repository == 'grafana/tempo' && github.actor_id == '219655108' # renovate-sh-app[bot]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Github App secrets from vault
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@2d5a0678eb32b0fd6655b4f7a3a7ec72eaf530ca #get-vault-secrets 1.3.0
+        with:
+          export_env: false
+          repo_secrets: |
+            APP_ID=tempo-ci-app:app-id
+            PRIVATE_KEY=tempo-ci-app:private-key
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+        with:
+          app-id: ${{ fromJSON(steps.get-secrets.outputs.secrets).APP_ID }}
+          private-key: ${{ fromJSON(steps.get-secrets.outputs.secrets).PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: tempo
+      - name: Approve PR
+        run: |
+          gh pr review "${{ github.event.pull_request.number }}" --approve --body "Auto-approved Renovate PR"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}

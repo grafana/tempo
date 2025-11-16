@@ -102,6 +102,25 @@ const (
 	defaultSince           = 1 * time.Hour
 )
 
+// MarshallingFormat represents the format used for marshalling HTTP responses
+type MarshallingFormat string
+
+const (
+	MarshallingFormatProtobuf MarshallingFormat = HeaderAcceptProtobuf
+	MarshallingFormatJSON     MarshallingFormat = HeaderAcceptJSON
+)
+
+// MarshalingFormatFromAcceptHeader extracts the marshaling format from the Accept header
+// It properly handles multiple media types and quality values
+func MarshalingFormatFromAcceptHeader(header http.Header) MarshallingFormat {
+	// Check if protobuf is requested (handles multiple values, quality params, etc.)
+	if strings.Contains(header.Get(HeaderAccept), HeaderAcceptProtobuf) {
+		return MarshallingFormatProtobuf
+	}
+	// Default to JSON
+	return MarshallingFormatJSON
+}
+
 func ParseRecentDataTargetHeader(req *http.Request) string {
 	v := req.Header.Get(HeaderRecentDataTarget)
 	return v

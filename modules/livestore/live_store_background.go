@@ -75,11 +75,10 @@ func (s *LiveStore) runInBackground(fn func()) {
 
 func (s *LiveStore) globalCompleteLoop(idx int) {
 	for {
-		o := s.completeQueues.Dequeue(idx)
-		if o == nil {
+		op := s.completeQueues.Dequeue(idx)
+		if op == nil {
 			return // queue is closed
 		}
-		op := o.(*completeOp)
 		op.attempts++
 
 		if op.attempts > maxFlushAttempts {

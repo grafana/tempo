@@ -118,6 +118,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			Interval:              5 * time.Minute,
 			MaxExemplars:          100,
 			MaxResponseSeries:     0,
+			StreamingShards:       defaultStreamingShards,
 		},
 		SLO: slo,
 	}

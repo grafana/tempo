@@ -26,7 +26,7 @@ type sink struct {
 	// response, we check what version was set in the request. If it is at
 	// least 4, which 1.0 introduced, we upgrade the sem size.
 	inflightSem    atomic.Value
-	produceVersion atomicI32 // negative is unset, positive is version
+	produceVersion atomic.Int32 // negative is unset, positive is version
 
 	drainState workLoop
 
@@ -43,7 +43,7 @@ type sink struct {
 	// successful response. For simplicity, if we have a good response
 	// following an error response before the error response's backoff
 	// occurs, the backoff is not cleared.
-	consecutiveFailures atomicU32
+	consecutiveFailures atomic.Uint32
 
 	recBufsMu    sync.Mutex // guards the following
 	recBufs      []*recBuf  // contains all partition records for batch building
@@ -134,8 +134,9 @@ func (s *sink) createReq(id int64, epoch int16) (*produceRequest, *kmsg.AddParti
 		recBuf.inflight++
 
 		recBuf.batchDrainIdx++
+		recBuf.lockedStopLinger()
 		recBuf.seq = incrementSequence(recBuf.seq, int32(len(batch.records)))
-		moreToDrain = recBuf.tryStopLingerForDraining() || moreToDrain
+		moreToDrain = recBuf.checkIfShouldDrainOrStartLinger() || moreToDrain
 		recBuf.mu.Unlock()
 
 		txnBuilder.add(recBuf)
@@ -1251,11 +1252,11 @@ type recBuf struct {
 
 	// addedToTxn, for transactions only, signifies whether this partition
 	// has been added to the transaction yet or not.
-	addedToTxn atomicBool
+	addedToTxn atomic.Bool
 
 	// For LoadTopicPartitioner partitioning; atomically tracks the number
 	// of records buffered in total on this recBuf.
-	buffered atomicI64
+	buffered atomic.Int64
 
 	mu sync.Mutex // guards r/w access to all fields below
 
@@ -1384,18 +1385,17 @@ func (recBuf *recBuf) bufferRecord(pr promisedRec, abortOnNewBatch bool) bool {
 	}
 
 	var (
-		newBatch       = true
-		onDrainBatch   = recBuf.batchDrainIdx == len(recBuf.batches)
+		mkNewBatch     = true
 		produceVersion = recBuf.sink.produceVersion.Load()
 	)
 
-	if !onDrainBatch {
+	if recBuf.batchDrainIdx != len(recBuf.batches) {
 		batch := recBuf.batches[len(recBuf.batches)-1]
 		appended, _ := batch.tryBuffer(pr, produceVersion, recBuf.maxRecordBatchBytes, false)
-		newBatch = !appended
+		mkNewBatch = !appended
 	}
 
-	if newBatch {
+	if mkNewBatch {
 		newBatch := recBuf.newRecordBatch()
 		appended, aborted := newBatch.tryBuffer(pr, produceVersion, recBuf.maxRecordBatchBytes, abortOnNewBatch)
 
@@ -1413,22 +1413,7 @@ func (recBuf *recBuf) bufferRecord(pr promisedRec, abortOnNewBatch bool) bool {
 		recBuf.batches = append(recBuf.batches, newBatch)
 	}
 
-	if recBuf.cl.cfg.linger == 0 {
-		if onDrainBatch {
-			recBuf.sink.maybeDrain()
-		}
-	} else {
-		// With linger, if this is a new batch but not the first, we
-		// stop lingering and begin draining. The drain loop will
-		// restart our linger once this buffer has one batch left.
-		if newBatch && !onDrainBatch ||
-			// If this is the first batch, try lingering; if
-			// we cannot, we are being flushed and must drain.
-			onDrainBatch && !recBuf.lockedMaybeLinger() {
-			recBuf.lockedStopLinger()
-			recBuf.sink.maybeDrain()
-		}
-	}
+	recBuf.maybeTriggerDrain()
 
 	recBuf.buffered.Add(1)
 	if recBuf.cl.producer.hooks != nil && len(recBuf.cl.producer.hooks.partitioned) > 0 {
@@ -1440,19 +1425,22 @@ func (recBuf *recBuf) bufferRecord(pr promisedRec, abortOnNewBatch bool) bool {
 	return true
 }
 
-// Stops lingering, potentially restarting it, and returns whether there is
-// more to drain.
-//
-// If lingering, if there are more than one batches ready, there is definitely
-// more to drain and we should not linger. Otherwise, if we cannot restart
-// lingering, then we are flushing and also indicate there is more to drain.
-func (recBuf *recBuf) tryStopLingerForDraining() bool {
-	recBuf.lockedStopLinger()
-	canLinger := recBuf.cl.cfg.linger != 0
-	moreToDrain := !canLinger && len(recBuf.batches) > recBuf.batchDrainIdx ||
-		canLinger && (len(recBuf.batches) > recBuf.batchDrainIdx+1 ||
-			len(recBuf.batches) == recBuf.batchDrainIdx+1 && !recBuf.lockedMaybeLinger())
-	return moreToDrain
+// Maybe drains, maybe starts a linger.
+// Must be called while locked.
+func (recBuf *recBuf) maybeTriggerDrain() {
+	if recBuf.checkIfShouldDrainOrStartLinger() {
+		recBuf.lockedStopLinger()
+		recBuf.sink.maybeDrain()
+	}
+}
+
+// Checks and returns if we should drain; if not, this potentially starts a
+// linger timer.
+func (recBuf *recBuf) checkIfShouldDrainOrStartLinger() bool {
+	nbufBatches := len(recBuf.batches) - recBuf.batchDrainIdx
+	return recBuf.cl.cfg.linger == 0 && nbufBatches > 0 || // no lingering, and any batch exists? drain
+		nbufBatches > 1 || // lingering, and more than one batch exists? drain -- one is full
+		nbufBatches == 1 && !recBuf.lockedMaybeLinger() // only one batch; if we cannot start lingering, we are being flushed or have too much buffered and have to drain
 }
 
 // Begins a linger timer unless the producer is being flushed.
@@ -1461,9 +1449,7 @@ func (recBuf *recBuf) lockedMaybeLinger() bool {
 		return false
 	}
 	if recBuf.lingering == nil {
-		recBuf.lingering = time.AfterFunc(recBuf.cl.cfg.linger, func() {
-			recBuf.sink.maybeDrain()
-		})
+		recBuf.lingering = time.AfterFunc(recBuf.cl.cfg.linger, recBuf.unlingerAndManuallyDrain)
 	}
 	return true
 }
@@ -1586,9 +1572,7 @@ func (recBuf *recBuf) clearFailing() {
 	defer recBuf.mu.Unlock()
 
 	recBuf.failing = false
-	if len(recBuf.batches) != recBuf.batchDrainIdx {
-		recBuf.sink.maybeDrain()
-	}
+	recBuf.maybeTriggerDrain()
 }
 
 func (recBuf *recBuf) resetBatchDrainIdx() {
@@ -1765,14 +1749,7 @@ func (b *recBatch) decInflight() {
 		return
 	}
 	recBuf.inflightOnSink = nil
-
-	nbufBatches := len(recBuf.batches) - recBuf.batchDrainIdx
-	if recBuf.cl.cfg.linger == 0 && nbufBatches > 0 ||
-		nbufBatches > 1 ||
-		nbufBatches == 1 && !recBuf.lockedMaybeLinger() {
-		recBuf.lockedStopLinger()
-		recBuf.sink.maybeDrain()
-	}
+	recBuf.maybeTriggerDrain()
 }
 
 ////////////////////

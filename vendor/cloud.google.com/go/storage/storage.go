@@ -40,7 +40,6 @@ import (
 
 	"cloud.google.com/go/auth"
 	"cloud.google.com/go/internal/optional"
-	"cloud.google.com/go/internal/trace"
 	"cloud.google.com/go/storage/internal"
 	"cloud.google.com/go/storage/internal/apiv2/storagepb"
 	"github.com/googleapis/gax-go/v2"
@@ -208,7 +207,9 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error
 		return nil, fmt.Errorf("dialing: %w", err)
 	}
 	// RawService should be created with the chosen endpoint to take account of user override.
-	rawService, err := raw.NewService(ctx, option.WithEndpoint(ep), option.WithHTTPClient(hc))
+	// Preserve other user-supplied options as well.
+	opts = append(opts, option.WithEndpoint(ep), option.WithHTTPClient(hc))
+	rawService, err := raw.NewService(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("storage client: %w", err)
 	}
@@ -1197,8 +1198,7 @@ func (o *ObjectHandle) Restore(ctx context.Context, opts *RestoreOptions) (*Obje
 }
 
 // Move changes the name of the object to the destination name.
-// It can only be used to rename an object within the same bucket. The
-// bucket must have [HierarchicalNamespace] enabled to use this method.
+// It can only be used to rename an object within the same bucket.
 //
 // Any preconditions set on the ObjectHandle will be applied for the source
 // object. Set preconditions on the destination object using
@@ -1247,7 +1247,7 @@ type MoveObjectDestination struct {
 // It is the caller's responsibility to call Close when writing is done. To
 // stop writing without saving the data, cancel the context.
 func (o *ObjectHandle) NewWriter(ctx context.Context) *Writer {
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/storage.Object.Writer")
+	ctx, _ = startSpan(ctx, "Object.Writer")
 	return &Writer{
 		ctx:         ctx,
 		o:           o,
@@ -1283,16 +1283,18 @@ func (o *ObjectHandle) NewWriter(ctx context.Context) *Writer {
 // objects which were created append semantics and not finalized.
 // This feature is in preview and is not yet available for general use.
 func (o *ObjectHandle) NewWriterFromAppendableObject(ctx context.Context, opts *AppendableWriterOpts) (*Writer, int64, error) {
-	ctx = trace.StartSpan(ctx, "cloud.google.com/go/storage.Object.Writer")
+	ctx, _ = startSpan(ctx, "Object.WriterFromAppendableObject")
 	if o.gen < 0 {
 		return nil, 0, errors.New("storage: ObjectHandle.Generation must be set to use NewWriterFromAppendableObject")
 	}
+	toc := make(chan int64)
 	w := &Writer{
-		ctx:         ctx,
-		o:           o,
-		donec:       make(chan struct{}),
-		ObjectAttrs: ObjectAttrs{Name: o.object},
-		Append:      true,
+		ctx:               ctx,
+		o:                 o,
+		donec:             make(chan struct{}),
+		ObjectAttrs:       ObjectAttrs{Name: o.object},
+		Append:            true,
+		setTakeoverOffset: func(to int64) { toc <- to },
 	}
 	opts.apply(w)
 	if w.ChunkSize == 0 {
@@ -1302,7 +1304,16 @@ func (o *ObjectHandle) NewWriterFromAppendableObject(ctx context.Context, opts *
 	if err != nil {
 		return nil, 0, err
 	}
-	return w, w.takeoverOffset, nil
+	// Block until we discover the takeover offset, or the stream fails
+	select {
+	case to, ok := <-toc:
+		if !ok {
+			return nil, 0, errors.New("storage: unexpectedly did not discover takeover offset")
+		}
+		return w, to, nil
+	case <-w.donec:
+		return nil, 0, w.err
+	}
 }
 
 // AppendableWriterOpts provides options to set on a Writer initialized
@@ -1659,6 +1670,12 @@ type ObjectAttrs struct {
 	// ObjectHandle.Attrs will return ErrObjectNotExist if the object is soft-deleted.
 	// This field is read-only.
 	HardDeleteTime time.Time
+}
+
+// isZero reports whether the ObjectAttrs struct is empty (i.e. all the
+// fields are their zero value).
+func (o *ObjectAttrs) isZero() bool {
+	return reflect.DeepEqual(o, &ObjectAttrs{})
 }
 
 // ObjectRetention contains the retention configuration for this object.

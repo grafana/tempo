@@ -39,6 +39,10 @@ const (
 	testPartition     = int32(0)
 )
 
+func TestMain(*testing.M) {
+	pollTimeout = 2 * time.Second // speed up the tests
+}
+
 // When the partition starts with no existing commit,
 // the block-builder looks back to consume all available records from the start and ensures they are committed and flushed into a block.
 func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
@@ -897,7 +901,11 @@ type ownEverythingSharder struct{}
 func (o *ownEverythingSharder) Owns(string) bool { return true }
 
 func newStore(ctx context.Context, t testing.TB) storage.Store {
-	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t), false)
+	store := newStoreWithLogger(ctx, t, test.NewTestingLogger(t), false)
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), store))
+	})
+	return store
 }
 
 func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipNoCompactBlocks bool) storage.Store {
@@ -1106,6 +1114,7 @@ func (s *slowStore) unlock() {
 // - committed offsets equal number of sent records.
 // The test highly coupled with the blockbuilder implementation. In case it stuck
 // due to channel, it is advised to debug consume cycle step by step.
+// If the test hangs, it is most likely because storage received unexpected writes.
 func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
@@ -1171,4 +1180,84 @@ func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
 		require.True(t, ok, "partition %d should have a committed offset", partition)
 		require.Equal(t, expectedOffset, offset.At)
 	}
+}
+
+// TestBlockbuilder_threePartitions_oneWithNoLag verifies that when multiple partitions
+// are assigned and one partition has no lag (is caught up), the block builder efficiently
+// processes only the partitions with data without wasting time polling the caught-up partition.
+// This test ensures that a caught-up partition doesn't block processing of lagging partitions.
+func TestBlockbuilder_PartitionWithNoLag(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+	reqTime := time.Now().Add(-1 * time.Minute) // ensure records won't be filtered out
+	cycleDuration := 7 * time.Second            // increase if test is flaky
+
+	_, address := testkafka.CreateCluster(t, 2, testTopic)
+
+	// Setup block-builder
+	storageWrites := atomic.NewInt32(0)
+	store := newStoreWrapper(newStore(ctx, t), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
+		storageWrites.Inc()
+		return store.WriteBlock(ctx, block)
+	})
+	cfg := blockbuilderConfig(t, address, []int32{0, 1})
+	cfg.ConsumeCycleDuration = cycleDuration
+	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
+		0: {Id: 0, State: ring.PartitionActive},
+		1: {Id: 1, State: ring.PartitionInactive},
+	})
+
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+
+	// Produce data to partition 0
+	for range 10 {
+		testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
+	}
+	time.Sleep(2 * cycleDuration) // simulate lag
+	var lastRecordTime time.Time
+	for range 10 {
+		rec := testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
+		lastRecordTime = rec[len(rec)-1].Timestamp
+	}
+
+	// Produce and commit one record to partition 1 and commit it (simulating it's already caught up)
+	rec := testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 1, Time: reqTime, TenantID: util.FakeTenantID})
+	offsets := make(kadm.Offsets)
+	offsets.Add(kadm.Offset{
+		Topic:     testTopic,
+		Partition: 1,
+		At:        rec[len(rec)-1].Offset + 1, // Commit past the last record
+	})
+	admClient := kadm.NewClient(client)
+	require.NoError(t, admClient.CommitAllOffsets(ctx, cfg.IngestStorageConfig.Kafka.ConsumerGroup, offsets))
+
+	// Create and start the block builder
+	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, store)
+	require.NoError(t, err)
+
+	// Verify builder is listening to all partitions
+	parts := b.getAssignedPartitions()
+	require.ElementsMatch(t, []int32{0, 1}, parts)
+
+	require.NoError(t, b.starting(ctx))
+
+	res, err := b.consume(ctx)
+	require.NoError(t, err)
+	elapsed := time.Since(lastRecordTime)
+	assert.InDelta(t, cycleDuration-elapsed, res, float64(100*time.Millisecond))
+	assert.Less(t, res, cycleDuration)
+
+	// Verify offsets - all partitions should be committed
+	offsetsResult, err := admClient.FetchOffsetsForTopics(ctx, testConsumerGroup, testTopic)
+	require.NoError(t, err)
+
+	for partition, expectedCount := range map[int32]int64{
+		0: 20,
+		1: 1,
+	} {
+		offset, ok := offsetsResult.Lookup(testTopic, partition)
+		require.True(t, ok, "partition %d should have a committed offset", partition)
+		assert.Equal(t, expectedCount, offset.At, "partition %d should have correct committed offset", partition)
+	}
+	assert.Equal(t, int32(2), storageWrites.Load(), "unexpected number of storage writes")
 }
