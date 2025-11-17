@@ -37,7 +37,6 @@ type Processor struct {
 	spanMetricsDurationSeconds registry.Histogram
 	spanMetricsSizeTotal       registry.Counter
 	spanMetricsTargetInfo      registry.Gauge
-	labels                     []string
 
 	filter               *spanfilter.SpanFilter
 	filteredSpansCounter prometheus.Counter
@@ -69,7 +68,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 
 	c := reclaimable.New(validation.SanitizeLabelName, 10000)
 
-	labels, err := validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
+	err := validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +78,6 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		registry:              reg,
 		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
 		now:                   time.Now,
-		labels:                labels,
 		filteredSpansCounter:  filteredSpansCounter,
 		invalidUTF8Counter:    invalidUTF8Counter,
 		sanitizeCache:         c,

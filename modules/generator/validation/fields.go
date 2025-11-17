@@ -80,7 +80,7 @@ func ValidateHostInfoMetricName(metricName string) error {
 	return nil
 }
 
-func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimensionMappings []sharedconfig.DimensionMappings, sanitizeFn SanitizeFn) ([]string, error) {
+func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimensionMappings []sharedconfig.DimensionMappings, sanitizeFn SanitizeFn) error {
 	var labels []string
 	labels = append(labels, intrinsicDimensions...)
 	for _, d := range dimensions {
@@ -93,7 +93,7 @@ func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimen
 
 	err := ValidateUTF8LabelValues(labels)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return labels, nil
+	return nil
 }

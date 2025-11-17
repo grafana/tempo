@@ -23,7 +23,6 @@ type Processor struct {
 	gauge      registry.Gauge
 	registry   registry.Registry
 	metricName string
-	labels     []string
 }
 
 func (p *Processor) Name() string {
@@ -62,16 +61,12 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 func (p *Processor) Shutdown(_ context.Context) {}
 
 func New(cfg Config, reg registry.Registry, logger log.Logger) (*Processor, error) {
-	labels := make([]string, 2)
-	labels[0] = hostIdentifierAttr
-	labels[1] = hostSourceAttr
 	p := &Processor{
 		Cfg:        cfg,
 		logger:     logger,
 		registry:   reg,
 		metricName: cfg.MetricName,
 		gauge:      reg.NewGauge(cfg.MetricName),
-		labels:     labels,
 	}
 	return p, nil
 }

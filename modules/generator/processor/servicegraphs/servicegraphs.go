@@ -71,7 +71,6 @@ type Processor struct {
 	Cfg Config
 
 	registry registry.Registry
-	labels   []string
 	store    store.Store
 
 	closeCh chan struct{}
@@ -89,31 +88,13 @@ type Processor struct {
 }
 
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) gen.Processor {
-	labels := []string{"client", "server", "connection_type"}
-
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
-	}
-
-	for _, d := range cfg.Dimensions {
-		if cfg.EnableClientServerPrefix {
-			if cfg.EnableVirtualNodeLabel {
-				// leave the extra label for this feature as-is
-				if d == virtualNodeLabel {
-					labels = append(labels, strutil.SanitizeLabelName(d))
-					continue
-				}
-			}
-			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
-		} else {
-			labels = append(labels, strutil.SanitizeLabelName(d))
-		}
 	}
 
 	p := &Processor{
 		Cfg:      cfg,
 		registry: reg,
-		labels:   labels,
 		closeCh:  make(chan struct{}, 1),
 
 		serviceGraphRequestTotal:                           reg.NewCounter(metricRequestTotal),
