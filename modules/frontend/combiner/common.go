@@ -34,12 +34,13 @@ type genericCombiner[T TResponse] struct {
 
 	current T // todo: state mgmt is mixed between the combiner and the various implementations. put it in one spot.
 
-	new      func() T
-	combine  func(partial T, final T, resp PipelineResponse) error
-	metadata func(resp PipelineResponse, final T) error
-	finalize func(T) (T, error)
-	diff     func(T) (T, error)
-	quit     func(T) bool
+	new       func() T
+	combine   func(partial T, final T, resp PipelineResponse) error
+	metadata  func(resp PipelineResponse, final T) error
+	finalize  func(T) (T, error)
+	diff      func(T) (T, error)
+	quit      func(T) bool
+	marshalAs func(T) (string, error)
 
 	// Used to determine the response code and when to stop
 	httpStatusCode int
@@ -163,24 +164,15 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 		return nil, err
 	}
 
-	var bodyString string
-	if c.httpMarshalingFormat == api.MarshallingFormatProtobuf {
-		buff, err := proto.Marshal(final)
-		if err != nil {
-			return nil, fmt.Errorf("error marshalling response body: %w", err)
-		}
-		bodyString = string(buff)
-	} else {
-		bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
-		if err != nil {
-			return nil, fmt.Errorf("error marshalling response body: %w", err)
-		}
+	bodyString, contentType, err := c.internalMarshalAs(final)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling response body as %s: %w", c.httpMarshalingFormat, err)
 	}
 
 	return &http.Response{
 		StatusCode: 200,
 		Header: http.Header{
-			api.HeaderContentType: {string(c.httpMarshalingFormat)},
+			api.HeaderContentType: {contentType},
 		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
@@ -289,6 +281,36 @@ func (c *genericCombiner[R]) shouldQuit() bool {
 
 	// 2xx
 	return false
+}
+
+func (c *genericCombiner[T]) internalMarshalAs(final T) (string, string, error) {
+	var bodyString string
+	var contentType string
+	var err error
+
+	switch c.httpMarshalingFormat {
+	case api.MarshallingFormatProtobuf:
+		var buff []byte
+		buff, err = proto.Marshal(final)
+		bodyString = string(buff) // jpe - yolo string
+		contentType = string(api.MarshallingFormatProtobuf)
+	case api.MarshallingFormatLLM:
+		bodyString, err = new(llmMarshaler).marshalToString(final)
+		contentType = string(api.MarshallingFormatLLM) + "+json" // postfix the content subtype to indicate its parseable as json
+		// if its unsupported, just fallthrough to marshal as normal json
+		if err == util.ErrUnsupported {
+			bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
+			contentType = string(api.MarshallingFormatJSON)
+
+		}
+	case api.MarshallingFormatJSON:
+		fallthrough
+	default:
+		bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
+		contentType = string(api.MarshallingFormatJSON)
+	}
+
+	return bodyString, contentType, err
 }
 
 type TraceRedactor interface {
