@@ -38,7 +38,7 @@ type genericCombiner[T TResponse] struct {
 	combine  func(partial T, final T, resp PipelineResponse) error
 	metadata func(resp PipelineResponse, final T) error
 	finalize func(T) (T, error)
-	diff     func(T) (T, error) // currently only implemented by the search combiner. required for streaming
+	diff     func(T) (T, error)
 	quit     func(T) bool
 
 	// Used to determine the response code and when to stop

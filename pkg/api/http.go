@@ -65,6 +65,7 @@ const (
 	HeaderContentType      = "Content-Type"
 	HeaderAcceptProtobuf   = "application/protobuf"
 	HeaderAcceptJSON       = "application/json"
+	HeaderAcceptMarkdown   = "text/markdown"
 	HeaderRecentDataTarget = "Recent-Data-Target"
 
 	PathPrefixQuerier   = "/querier"
@@ -108,15 +109,25 @@ type MarshallingFormat string
 const (
 	MarshallingFormatProtobuf MarshallingFormat = HeaderAcceptProtobuf
 	MarshallingFormatJSON     MarshallingFormat = HeaderAcceptJSON
+	MarshallingFormatMarkdown MarshallingFormat = HeaderAcceptMarkdown
 )
 
 // MarshalingFormatFromAcceptHeader extracts the marshaling format from the Accept header
 // It properly handles multiple media types and quality values
 func MarshalingFormatFromAcceptHeader(header http.Header) MarshallingFormat {
-	// Check if protobuf is requested (handles multiple values, quality params, etc.)
-	if strings.Contains(header.Get(HeaderAccept), HeaderAcceptProtobuf) {
-		return MarshallingFormatProtobuf
+	allMarshallingFormats := []MarshallingFormat{MarshallingFormatProtobuf, MarshallingFormatJSON, MarshallingFormatMarkdown}
+	acceptHeader := header.Get(HeaderAccept)
+	if acceptHeader == "" {
+		return MarshallingFormatJSON
 	}
+
+	// Check if a specific/supported marshalling format is requested
+	for _, format := range allMarshallingFormats {
+		if strings.Contains(acceptHeader, string(format)) {
+			return format
+		}
+	}
+
 	// Default to JSON
 	return MarshallingFormatJSON
 }
