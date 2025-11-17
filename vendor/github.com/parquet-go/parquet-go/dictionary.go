@@ -5,12 +5,12 @@ import (
 	"math/bits"
 	"unsafe"
 
+	"github.com/parquet-go/bitpack"
+	"github.com/parquet-go/bitpack/unsafecast"
 	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/encoding"
 	"github.com/parquet-go/parquet-go/encoding/plain"
 	"github.com/parquet-go/parquet-go/hashprobe"
-	"github.com/parquet-go/parquet-go/internal/bitpack"
-	"github.com/parquet-go/parquet-go/internal/unsafecast"
 	"github.com/parquet-go/parquet-go/sparse"
 	"slices"
 )
@@ -51,6 +51,10 @@ type Dictionary interface {
 
 	// Returns the number of value indexed in the dictionary.
 	Len() int
+
+	// Returns the total size in bytes of all values stored in the dictionary.
+	// This is used for tracking dictionary memory usage and enforcing size limits.
+	Size() int64
 
 	// Returns the dictionary value at the given index.
 	Index(index int32) Value
@@ -135,6 +139,8 @@ func newBooleanDictionary(typ Type, columnIndex int16, numValues int32, data enc
 func (d *booleanDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *booleanDictionary) Len() int { return int(d.numValues) }
+
+func (d *booleanDictionary) Size() int64 { return int64(len(d.bits)) }
 
 func (d *booleanDictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
@@ -232,6 +238,8 @@ func newInt32Dictionary(typ Type, columnIndex int16, numValues int32, data encod
 func (d *int32Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *int32Dictionary) Len() int { return len(d.values) }
+
+func (d *int32Dictionary) Size() int64 { return int64(len(d.values) * 4) }
 
 func (d *int32Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
@@ -332,6 +340,8 @@ func (d *int64Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *int64Dictionary) Len() int { return len(d.values) }
 
+func (d *int64Dictionary) Size() int64 { return int64(len(d.values) * 8) }
+
 func (d *int64Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
 func (d *int64Dictionary) index(i int32) int64 { return d.values[i] }
@@ -417,6 +427,8 @@ func newInt96Dictionary(typ Type, columnIndex int16, numValues int32, data encod
 func (d *int96Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *int96Dictionary) Len() int { return len(d.values) }
+
+func (d *int96Dictionary) Size() int64 { return int64(len(d.values) * 12) }
 
 func (d *int96Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
@@ -513,6 +525,8 @@ func (d *floatDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *floatDictionary) Len() int { return len(d.values) }
 
+func (d *floatDictionary) Size() int64 { return int64(len(d.values) * 4) }
+
 func (d *floatDictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
 func (d *floatDictionary) index(i int32) float32 { return d.values[i] }
@@ -598,6 +612,8 @@ func newDoubleDictionary(typ Type, columnIndex int16, numValues int32, data enco
 func (d *doubleDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *doubleDictionary) Len() int { return len(d.values) }
+
+func (d *doubleDictionary) Size() int64 { return int64(len(d.values) * 8) }
 
 func (d *doubleDictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
@@ -698,6 +714,8 @@ func newByteArrayDictionary(typ Type, columnIndex int16, numValues int32, data e
 func (d *byteArrayDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *byteArrayDictionary) Len() int { return d.len() }
+
+func (d *byteArrayDictionary) Size() int64 { return int64(len(d.values)) }
 
 func (d *byteArrayDictionary) Index(i int32) Value { return d.makeValueBytes(d.index(int(i))) }
 
@@ -807,6 +825,8 @@ func newFixedLenByteArrayDictionary(typ Type, columnIndex int16, numValues int32
 func (d *fixedLenByteArrayDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *fixedLenByteArrayDictionary) Len() int { return len(d.data) / d.size }
+
+func (d *fixedLenByteArrayDictionary) Size() int64 { return int64(len(d.data)) }
 
 func (d *fixedLenByteArrayDictionary) Index(i int32) Value {
 	return d.makeValueBytes(d.index(i))
@@ -921,6 +941,8 @@ func (d *uint32Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *uint32Dictionary) Len() int { return len(d.values) }
 
+func (d *uint32Dictionary) Size() int64 { return int64(len(d.values) * 4) }
+
 func (d *uint32Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
 func (d *uint32Dictionary) index(i int32) uint32 { return d.values[i] }
@@ -1007,6 +1029,8 @@ func (d *uint64Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *uint64Dictionary) Len() int { return len(d.values) }
 
+func (d *uint64Dictionary) Size() int64 { return int64(len(d.values) * 8) }
+
 func (d *uint64Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
 func (d *uint64Dictionary) index(i int32) uint64 { return d.values[i] }
@@ -1092,6 +1116,8 @@ func newBE128Dictionary(typ Type, columnIndex int16, numValues int32, data encod
 func (d *be128Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *be128Dictionary) Len() int { return len(d.values) }
+
+func (d *be128Dictionary) Size() int64 { return int64(len(d.values) * 16) }
 
 func (d *be128Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
 
@@ -1496,6 +1522,8 @@ func newNullDictionary(typ Type, columnIndex int16, numValues int32, _ encoding.
 func (d *nullDictionary) Type() Type { return d.nullPage.Type() }
 
 func (d *nullDictionary) Len() int { return int(d.nullPage.count) }
+
+func (d *nullDictionary) Size() int64 { return 0 }
 
 func (d *nullDictionary) Index(i int32) Value { return NullValue() }
 
