@@ -37,7 +37,7 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 }
 
 func Test_Histograms(t *testing.T) {
-	// A single observations has a label value combo, a value, and a multiplier.
+	// A single observation has a labelset, a value, and a multiplier.
 	type observations []struct {
 		lbls       labels.Labels
 		value      float64
