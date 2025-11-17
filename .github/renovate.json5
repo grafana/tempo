@@ -72,7 +72,8 @@
       matchUpdateTypes: ['patch'],
       automergeStrategy: 'squash',
       automergeType: 'pr',
-      automerge: true
+      automerge: true,
+      platformAutomerge: false
     },
   ],
 }
