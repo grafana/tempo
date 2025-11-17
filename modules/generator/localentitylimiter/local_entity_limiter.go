@@ -1,12 +1,14 @@
 package localentitylimiter
 
 import (
+	"regexp"
 	"sync"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/model/labels"
 )
 
 type localEntityLimiterMetrics struct {
@@ -63,10 +65,12 @@ type LocalEntityLimiter struct {
 	metricMaxActiveEntities    prometheus.Gauge
 	metricTotalEntitiesAdded   prometheus.Counter
 	metricTotalEntitiesRemoved prometheus.Counter
+
+	overflowEntity labels.Labels
 }
 
 func New(maxEntityFunc func(tenant string) uint32, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalEntityLimiter {
-	return &LocalEntityLimiter{
+	l := &LocalEntityLimiter{
 		tenant:             tenant,
 		entityActiveSeries: make(map[uint64]uint32),
 		maxEntityFunc:      maxEntityFunc,
@@ -77,7 +81,37 @@ func New(maxEntityFunc func(tenant string) uint32, tenant string, limitLogger *t
 		metricMaxActiveEntities:    metrics.maxActiveEntities.WithLabelValues(tenant),
 		metricTotalEntitiesAdded:   metrics.totalEntitiesAdded.WithLabelValues(tenant),
 		metricTotalEntitiesRemoved: metrics.totalEntitiesRemoved.WithLabelValues(tenant),
+
+		overflowEntity: labels.FromStrings("service", "<overflow>", "span_name", "<overflow>"),
 	}
+
+	// Add the overflow entity to the registry to ensure it's accepted.
+	// Note: we never remove this series from the overflow entity, so it
+	// will stay active until the process exits.
+	l.entityActiveSeries[l.overflowEntity.Hash()] = 1
+
+	return l
+}
+
+var numberRegex = regexp.MustCompile(`\d+`)
+
+func (l *LocalEntityLimiter) Transform(lbls labels.Labels) labels.Labels {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	hash := lbls.Hash()
+	_, ok := l.entityActiveSeries[hash]
+	if ok {
+		// If we've already accepted this entity, return the original label value combo
+		return lbls
+	}
+
+	maxEntities := l.maxEntityFunc(l.tenant)
+	if maxEntities != 0 && uint32(len(l.entityActiveSeries))+1 >= maxEntities {
+		return l.overflowEntity
+	}
+
+	return lbls
 }
 
 func (l *LocalEntityLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
