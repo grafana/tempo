@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"unicode/utf8"
+
+	"github.com/prometheus/prometheus/util/strutil"
 )
 
 type SanitizeFn func(string) string
@@ -26,4 +28,8 @@ func ValidateUTF8LabelValues(v []string) error {
 		}
 	}
 	return nil
+}
+
+func SanitizeLabelName(name string) string {
+	return strutil.SanitizeLabelName(name)
 }

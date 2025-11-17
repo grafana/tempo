@@ -7,7 +7,6 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/util/strutil"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -67,7 +66,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		configuredIntrinsicDimensions = append(configuredIntrinsicDimensions, gen.DimStatusMessage)
 	}
 
-	c := reclaimable.New(strutil.SanitizeLabelName, 10000)
+	c := reclaimable.New(validation.SanitizeLabelName, 10000)
 
 	labels, err := validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
 	if err != nil {
