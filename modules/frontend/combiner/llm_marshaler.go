@@ -14,6 +14,74 @@ import (
 
 type llmMarshaler struct{}
 
+// LLM-optimized response structures with JSON tags
+
+type LLMTraceByIDResponse struct {
+	Trace   LLMTrace    `json:"trace"`
+	Metrics *LLMMetrics `json:"metrics,omitempty"`
+}
+
+type LLMTrace struct {
+	TraceID  string       `json:"traceId"`
+	Services []LLMService `json:"services"`
+}
+
+type LLMService struct {
+	ServiceName string                 `json:"serviceName,omitempty"`
+	Resource    map[string]interface{} `json:"resource,omitempty"`
+	Scopes      []LLMScope             `json:"scopes,omitempty"`
+}
+
+type LLMScope struct {
+	Name    string    `json:"name,omitempty"`
+	Version string    `json:"version,omitempty"`
+	Spans   []LLMSpan `json:"spans,omitempty"`
+}
+
+type LLMSpan struct {
+	SpanID            string                 `json:"spanId"`
+	Name              string                 `json:"name"`
+	ParentSpanID      string                 `json:"parentSpanId,omitempty"`
+	Kind              string                 `json:"kind,omitempty"`
+	StartTimeUnixNano string                 `json:"startTimeUnixNano,omitempty"`
+	EndTimeUnixNano   string                 `json:"endTimeUnixNano,omitempty"`
+	DurationMs        float64                `json:"durationMs,omitempty"`
+	Attributes        map[string]interface{} `json:"attributes,omitempty"`
+	Events            []LLMEvent             `json:"events,omitempty"`
+	Links             []LLMLink              `json:"links,omitempty"`
+	Status            LLMStatus              `json:"status"`
+}
+
+type LLMEvent struct {
+	Name          string                 `json:"name"`
+	TimeUnixNano  string                 `json:"timeUnixNano,omitempty"`
+	Attributes    map[string]interface{} `json:"attributes,omitempty"`
+}
+
+type LLMLink struct {
+	TraceID    string                 `json:"traceId"`
+	SpanID     string                 `json:"spanId"`
+	Attributes map[string]interface{} `json:"attributes,omitempty"`
+}
+
+type LLMStatus struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type LLMMetrics struct {
+	InspectedBytes  uint64 `json:"inspectedBytes,omitempty"`
+	TotalJobs       uint32 `json:"totalJobs,omitempty"`
+	CompletedJobs   uint32 `json:"completedJobs,omitempty"`
+	TotalBlocks     uint32 `json:"totalBlocks,omitempty"`
+	TotalBlockBytes uint64 `json:"totalBlockBytes,omitempty"`
+}
+
+type LLMSearchTagValuesV2Response struct {
+	TagValues map[string][]string `json:"tagValues"`
+	Metrics   *LLMMetrics         `json:"metrics,omitempty"`
+}
+
 func (m *llmMarshaler) marshalToString(t proto.Message) (string, error) {
 	// unsupported: *tempopb.Trace, *tempopb.SearchTagsResponse, *tempopb.SearchTagValuesResponse, *tempopb.QueryRangeResponse
 
@@ -39,68 +107,62 @@ func traceByIDResponseToSimplifiedJSON(t *tempopb.TraceByIDResponse) (string, er
 	}
 
 	// Build services array
-	services := make([]map[string]interface{}, 0, len(t.Trace.ResourceSpans))
+	services := make([]LLMService, 0, len(t.Trace.ResourceSpans))
 	for _, rs := range t.Trace.ResourceSpans {
-		service := make(map[string]interface{})
+		service := LLMService{}
 
 		// Extract service name and flatten resource attributes
 		resourceAttrs := flattenAttributes(rs.Resource.GetAttributes())
 		if serviceName, ok := resourceAttrs["service.name"]; ok {
-			service["serviceName"] = serviceName
+			if name, ok := serviceName.(string); ok {
+				service.ServiceName = name
+			}
 			delete(resourceAttrs, "service.name")
 		}
 		if len(resourceAttrs) > 0 {
-			service["resource"] = resourceAttrs
+			service.Resource = resourceAttrs
 		}
 
 		// Build scopes array
-		scopes := make([]map[string]interface{}, 0, len(rs.ScopeSpans))
+		scopes := make([]LLMScope, 0, len(rs.ScopeSpans))
 		for _, ss := range rs.ScopeSpans {
-			scope := make(map[string]interface{})
+			scope := LLMScope{}
 			if ss.Scope != nil {
-				if ss.Scope.Name != "" {
-					scope["name"] = ss.Scope.Name
-				}
-				if ss.Scope.Version != "" {
-					scope["version"] = ss.Scope.Version
-				}
+				scope.Name = ss.Scope.Name
+				scope.Version = ss.Scope.Version
 			}
 
 			// Build spans array
-			spans := make([]map[string]interface{}, 0, len(ss.Spans))
+			spans := make([]LLMSpan, 0, len(ss.Spans))
 			for _, span := range ss.Spans {
 				simplifiedSpan := simplifySpan(span)
 				spans = append(spans, simplifiedSpan)
 			}
 
 			if len(spans) > 0 {
-				scope["spans"] = spans
+				scope.Spans = spans
 			}
 			scopes = append(scopes, scope)
 		}
 
 		if len(scopes) > 0 {
-			service["scopes"] = scopes
+			service.Scopes = scopes
 		}
 		services = append(services, service)
 	}
 
 	// Build final structure
-	result := map[string]interface{}{
-		"trace": map[string]interface{}{
-			"traceId":  traceID,
-			"services": services,
+	result := LLMTraceByIDResponse{
+		Trace: LLMTrace{
+			TraceID:  traceID,
+			Services: services,
 		},
 	}
 
 	// Add metrics if present
-	if t.Metrics != nil {
-		metrics := make(map[string]interface{})
-		if t.Metrics.InspectedBytes > 0 {
-			metrics["inspectedBytes"] = t.Metrics.InspectedBytes
-		}
-		if len(metrics) > 0 {
-			result["metrics"] = metrics
+	if t.Metrics != nil && t.Metrics.InspectedBytes > 0 {
+		result.Metrics = &LLMMetrics{
+			InspectedBytes: t.Metrics.InspectedBytes,
 		}
 	}
 
@@ -112,91 +174,88 @@ func traceByIDResponseToSimplifiedJSON(t *tempopb.TraceByIDResponse) (string, er
 	return string(data), nil
 }
 
-func simplifySpan(span *tracev1.Span) map[string]interface{} {
-	result := map[string]interface{}{
-		"spanId": bytesToHex(span.SpanId),
-		"name":   span.Name,
+func simplifySpan(span *tracev1.Span) LLMSpan {
+	result := LLMSpan{
+		SpanID: bytesToHex(span.SpanId),
+		Name:   span.Name,
 	}
 
 	if len(span.ParentSpanId) > 0 {
-		result["parentSpanId"] = bytesToHex(span.ParentSpanId)
+		result.ParentSpanID = bytesToHex(span.ParentSpanId)
 	}
 
 	// Add kind if not unspecified
 	if span.Kind != tracev1.Span_SPAN_KIND_UNSPECIFIED {
-		result["kind"] = span.Kind.String()
+		result.Kind = span.Kind.String()
 	}
 
 	// Add timestamps
 	if span.StartTimeUnixNano > 0 {
-		result["startTimeUnixNano"] = fmt.Sprintf("%d", span.StartTimeUnixNano)
+		result.StartTimeUnixNano = fmt.Sprintf("%d", span.StartTimeUnixNano)
 	}
 	if span.EndTimeUnixNano > 0 {
-		result["endTimeUnixNano"] = fmt.Sprintf("%d", span.EndTimeUnixNano)
+		result.EndTimeUnixNano = fmt.Sprintf("%d", span.EndTimeUnixNano)
 	}
 
 	// Calculate duration in milliseconds
 	if span.EndTimeUnixNano > 0 && span.StartTimeUnixNano > 0 {
 		durationNano := span.EndTimeUnixNano - span.StartTimeUnixNano
 		durationMs := float64(durationNano) / 1_000_000.0
-		result["durationMs"] = durationMs
+		result.DurationMs = durationMs
 	}
 
 	// Flatten attributes
 	if len(span.Attributes) > 0 {
-		result["attributes"] = flattenAttributes(span.Attributes)
+		result.Attributes = flattenAttributes(span.Attributes)
 	}
 
 	// Add events if present
 	if len(span.Events) > 0 {
-		events := make([]map[string]interface{}, 0, len(span.Events))
+		events := make([]LLMEvent, 0, len(span.Events))
 		for _, event := range span.Events {
-			e := map[string]interface{}{
-				"name": event.Name,
+			e := LLMEvent{
+				Name: event.Name,
 			}
 			if event.TimeUnixNano > 0 {
-				e["timeUnixNano"] = fmt.Sprintf("%d", event.TimeUnixNano)
+				e.TimeUnixNano = fmt.Sprintf("%d", event.TimeUnixNano)
 			}
 			if len(event.Attributes) > 0 {
-				e["attributes"] = flattenAttributes(event.Attributes)
+				e.Attributes = flattenAttributes(event.Attributes)
 			}
 			events = append(events, e)
 		}
-		result["events"] = events
+		result.Events = events
 	}
 
 	// Add links if present
 	if len(span.Links) > 0 {
-		links := make([]map[string]interface{}, 0, len(span.Links))
+		links := make([]LLMLink, 0, len(span.Links))
 		for _, link := range span.Links {
-			l := map[string]interface{}{
-				"traceId": bytesToHex(link.TraceId),
-				"spanId":  bytesToHex(link.SpanId),
+			l := LLMLink{
+				TraceID: bytesToHex(link.TraceId),
+				SpanID:  bytesToHex(link.SpanId),
 			}
 			if len(link.Attributes) > 0 {
-				l["attributes"] = flattenAttributes(link.Attributes)
+				l.Attributes = flattenAttributes(link.Attributes)
 			}
 			links = append(links, l)
 		}
-		result["links"] = links
+		result.Links = links
 	}
 
 	// Add status
-	status := make(map[string]interface{})
-	if span.Status != nil {
-		if span.Status.Code != tracev1.Status_STATUS_CODE_UNSET {
-			status["code"] = span.Status.Code.String()
+	if span.Status != nil && span.Status.Code != tracev1.Status_STATUS_CODE_UNSET {
+		result.Status = LLMStatus{
+			Code:    span.Status.Code.String(),
+			Message: span.Status.Message,
 		}
-		if span.Status.Message != "" {
-			status["message"] = span.Status.Message
-		}
-	}
-	if len(status) == 0 {
+	} else {
 		// Default empty status
-		status["code"] = "STATUS_CODE_UNSET"
-		status["message"] = ""
+		result.Status = LLMStatus{
+			Code:    "STATUS_CODE_UNSET",
+			Message: "",
+		}
 	}
-	result["status"] = status
 
 	return result
 }
@@ -260,34 +319,27 @@ func searchTagValuesV2ResponseToSimplifiedJSON(t *tempopb.SearchTagValuesV2Respo
 	}
 
 	// Build simplified structure
-	simplified := map[string]interface{}{
-		"tagValues": valuesByType,
+	result := LLMSearchTagValuesV2Response{
+		TagValues: valuesByType,
 	}
 
 	// Add metrics if present
 	if t.Metrics != nil {
-		metrics := make(map[string]interface{})
-		if t.Metrics.InspectedBytes > 0 {
-			metrics["inspectedBytes"] = t.Metrics.InspectedBytes
-		}
-		if t.Metrics.TotalJobs > 0 {
-			metrics["totalJobs"] = t.Metrics.TotalJobs
-		}
-		if t.Metrics.CompletedJobs > 0 {
-			metrics["completedJobs"] = t.Metrics.CompletedJobs
-		}
-		if t.Metrics.TotalBlocks > 0 {
-			metrics["totalBlocks"] = t.Metrics.TotalBlocks
-		}
-		if t.Metrics.TotalBlockBytes > 0 {
-			metrics["totalBlockBytes"] = t.Metrics.TotalBlockBytes
-		}
-		if len(metrics) > 0 {
-			simplified["metrics"] = metrics
+		hasMetrics := t.Metrics.InspectedBytes > 0 || t.Metrics.TotalJobs > 0 ||
+			t.Metrics.CompletedJobs > 0 || t.Metrics.TotalBlocks > 0 || t.Metrics.TotalBlockBytes > 0
+
+		if hasMetrics {
+			result.Metrics = &LLMMetrics{
+				InspectedBytes:  t.Metrics.InspectedBytes,
+				TotalJobs:       t.Metrics.TotalJobs,
+				CompletedJobs:   t.Metrics.CompletedJobs,
+				TotalBlocks:     t.Metrics.TotalBlocks,
+				TotalBlockBytes: t.Metrics.TotalBlockBytes,
+			}
 		}
 	}
 
-	data, err := json.Marshal(simplified)
+	data, err := json.Marshal(result)
 	if err != nil {
 		return "", err
 	}
