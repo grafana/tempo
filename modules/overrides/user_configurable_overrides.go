@@ -274,6 +274,20 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorNativeHistogramMaxBuc
 	return o.Interface.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorNativeHistogramBucketFactor(userID string) float64 {
+	if factor, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetNativeHistogramBucketFactor(); ok {
+		return factor
+	}
+	return o.Interface.MetricsGeneratorNativeHistogramBucketFactor(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration {
+	if minReset, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetNativeHistogramMinResetDuration(); ok {
+		return minReset
+	}
+	return o.Interface.MetricsGeneratorNativeHistogramMinResetDuration(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {
 	if collectionInterval, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetCollectionInterval(); ok {
 		return collectionInterval

@@ -36,13 +36,15 @@ func (l *Limits) GetCostAttribution() *CostAttribution {
 }
 
 type LimitsMetricsGenerator struct {
-	Processors                     listtomap.ListToMap         `yaml:"processors,omitempty" json:"processors,omitempty"`
-	DisableCollection              *bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	CollectionInterval             *Duration                   `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
-	TraceIDLabelName               *string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
-	IngestionSlack                 *Duration                   `yaml:"ingestion_time_range_slack,omitempty" json:"ingestion_time_range_slack,omitempty"`
-	GenerateNativeHistograms       *histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
-	NativeHistogramMaxBucketNumber *uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
+	Processors                      listtomap.ListToMap         `yaml:"processors,omitempty" json:"processors,omitempty"`
+	DisableCollection               *bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	CollectionInterval              *Duration                   `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	TraceIDLabelName                *string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
+	IngestionSlack                  *Duration                   `yaml:"ingestion_time_range_slack,omitempty" json:"ingestion_time_range_slack,omitempty"`
+	GenerateNativeHistograms        *histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	NativeHistogramMaxBucketNumber  *uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
+	NativeHistogramBucketFactor     *float64                    `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
+	NativeHistogramMinResetDuration *Duration                   `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
 
 	Processor LimitsMetricsGeneratorProcessor `yaml:"processor,omitempty" json:"processor,omitempty"`
 }
@@ -71,6 +73,20 @@ func (l *LimitsMetricsGenerator) GetGenerateNativeHistograms() (histograms.Histo
 func (l *LimitsMetricsGenerator) GetNativeHistogramMaxBucketNumber() (uint32, bool) {
 	if l != nil && l.NativeHistogramMaxBucketNumber != nil && *l.NativeHistogramMaxBucketNumber > 0 {
 		return *l.NativeHistogramMaxBucketNumber, true
+	}
+	return 0, false
+}
+
+func (l *LimitsMetricsGenerator) GetNativeHistogramBucketFactor() (float64, bool) {
+	if l != nil && l.NativeHistogramBucketFactor != nil {
+		return *l.NativeHistogramBucketFactor, true
+	}
+	return 0, false
+}
+
+func (l *LimitsMetricsGenerator) GetNativeHistogramMinResetDuration() (time.Duration, bool) {
+	if l != nil && l.NativeHistogramMinResetDuration != nil {
+		return l.NativeHistogramMinResetDuration.Duration, true
 	}
 	return 0, false
 }

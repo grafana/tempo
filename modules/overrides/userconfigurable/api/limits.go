@@ -14,13 +14,15 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 	return &client.Limits{
 		Forwarders: strArrPtr(overrides.Forwarders(userID)),
 		MetricsGenerator: client.LimitsMetricsGenerator{
-			Processors:                     overrides.MetricsGeneratorProcessors(userID),
-			DisableCollection:              boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
-			CollectionInterval:             timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
-			TraceIDLabelName:               strPtr(overrides.MetricsGeneratorTraceIDLabelName(userID)),
-			IngestionSlack:                 timePtr(overrides.MetricsGeneratorIngestionSlack(userID)),
-			GenerateNativeHistograms:       histogramModePtr(overrides.MetricsGeneratorGenerateNativeHistograms(userID)),
-			NativeHistogramMaxBucketNumber: uint32Ptr(overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)),
+			Processors:                      overrides.MetricsGeneratorProcessors(userID),
+			DisableCollection:               boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
+			CollectionInterval:              timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
+			TraceIDLabelName:                strPtr(overrides.MetricsGeneratorTraceIDLabelName(userID)),
+			IngestionSlack:                  timePtr(overrides.MetricsGeneratorIngestionSlack(userID)),
+			GenerateNativeHistograms:        histogramModePtr(overrides.MetricsGeneratorGenerateNativeHistograms(userID)),
+			NativeHistogramMaxBucketNumber:  uint32Ptr(overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)),
+			NativeHistogramBucketFactor:     floatPtr(overrides.MetricsGeneratorNativeHistogramBucketFactor(userID)),
+			NativeHistogramMinResetDuration: timePtr(overrides.MetricsGeneratorNativeHistogramMinResetDuration(userID)),
 			Processor: client.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
@@ -68,6 +70,10 @@ func strArrPtr(s []string) *[]string {
 }
 
 func floatArrPtr(f []float64) *[]float64 {
+	return &f
+}
+
+func floatPtr(f float64) *float64 {
 	return &f
 }
 
