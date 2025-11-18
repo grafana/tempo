@@ -305,14 +305,14 @@ To re-enable the compression, use `snappy` with the following settings:
 ```yaml
 ingester_client:
   grpc_client_config:
-    grpc_compression: "snappy"
+    grpc_compression: 'snappy'
 metrics_generator_client:
   grpc_client_config:
-    grpc_compression: "snappy"
+    grpc_compression: 'snappy'
 querier:
   frontend_worker:
     grpc_client_config:
-      grpc_compression: "snappy"
+      grpc_compression: 'snappy'
 ```
 
 ## Ingester
@@ -1663,17 +1663,17 @@ attributes: <list of policy atributes>
 
 ```yaml
 exclude:
-  match_type: "regex"
+  match_type: 'regex'
   attributes:
-    - key: "resource.service.name"
-      value: "unknown_service:myservice"
+    - key: 'resource.service.name'
+      value: 'unknown_service:myservice'
 ```
 
 ```yaml
 include:
-  match_type: "strict"
+  match_type: 'strict'
   attributes:
-    - key: "foo.bar"
+    - key: 'foo.bar'
       value: "baz"
 ```
 
