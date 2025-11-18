@@ -1,11 +1,13 @@
 package combiner
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"unsafe"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -164,7 +166,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 		return nil, err
 	}
 
-	bodyString, contentType, err := c.internalMarshalAs(final)
+	bodyBytes, contentType, err := c.internalMarshalAs(final)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling response body as %s: %w", c.httpMarshalingFormat, err)
 	}
@@ -174,8 +176,8 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 		Header: http.Header{
 			api.HeaderContentType: {contentType},
 		},
-		Body:          io.NopCloser(strings.NewReader(bodyString)),
-		ContentLength: int64(len([]byte(bodyString))),
+		Body:          io.NopCloser(bytes.NewReader(bodyBytes)),
+		ContentLength: int64(len(bodyBytes)),
 	}, nil
 }
 
@@ -283,36 +285,43 @@ func (c *genericCombiner[R]) shouldQuit() bool {
 	return false
 }
 
-func (c *genericCombiner[T]) internalMarshalAs(final T) (string, string, error) {
-	var bodyString string
+func (c *genericCombiner[T]) internalMarshalAs(final T) ([]byte, string, error) {
+	var bodyBytes []byte
 	var contentType string
 	var err error
 
 	switch c.httpMarshalingFormat {
 	case api.MarshallingFormatProtobuf:
-		var buff []byte
-		buff, err = proto.Marshal(final)
-		bodyString = string(buff) // jpe - yolo string
+		bodyBytes, err = proto.Marshal(final)
 		contentType = string(api.MarshallingFormatProtobuf)
 	case api.MarshallingFormatLLM:
+		var bodyString string
 		bodyString, err = new(llmMarshaler).marshalToString(final)
 		contentType = string(api.MarshallingFormatLLM) + "+json" // postfix the content subtype to indicate its parseable as json
 		// if its unsupported, just fallthrough to marshal as normal json
 		if err == util.ErrUnsupported {
 			bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
 			contentType = string(api.MarshallingFormatJSON)
-
 		}
+		bodyBytes = unsafeStringToBytes(bodyString)
 	case api.MarshallingFormatJSON:
 		fallthrough
 	default:
+		var bodyString string
 		bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
 		contentType = string(api.MarshallingFormatJSON)
+		bodyBytes = unsafeStringToBytes(bodyString)
 	}
 
-	return bodyString, contentType, err
+	return bodyBytes, contentType, err
 }
 
 type TraceRedactor interface {
 	RedactTraceAttributes(t *tempopb.Trace)
+}
+
+// unsafeStringToBytes converts a string to []byte without allocation.
+// The returned byte slice must not be modified.
+func unsafeStringToBytes(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
