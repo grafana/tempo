@@ -365,6 +365,7 @@ func createDistinctLinkIterator(
 			iters = append(iters, makeNilIter(columnPathLinkAttrKey, pred, "")) // don't select just filter nils
 			continue
 		}
+
 		// Else: generic attribute lookup
 		genericConditions = append(genericConditions, cond)
 	}
@@ -914,7 +915,7 @@ func createDistinctResourceIterator(
 			if entry.columnPath == columnPathResourceServiceName && cond.Op == traceql.OpNotExists {
 				// well known attr with default of "" instead of nil
 				pred := parquetquery.NewStringEqualPredicate([]byte(""))
-				addPredicate(entry.columnPath, pred) // No filtering
+				addPredicate(entry.columnPath, pred)
 				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			}

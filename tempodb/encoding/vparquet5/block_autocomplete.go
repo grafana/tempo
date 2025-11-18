@@ -213,39 +213,40 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 
 	rgs := rowGroupsFromFile(pf, opts)
 	makeIter := makeIterFunc(ctx, rgs, pf)
+	makeNilIter := makeNilIterFunc(ctx, rgs, pf)
 
 	var currentIter parquetquery.Iterator
 
 	if len(catConditions.event) > 0 || tr.keysRequested(traceql.AttributeScopeEvent) {
-		currentIter, err = createDistinctEventIterator(makeIter, tr, currentIter, catConditions.event)
+		currentIter, err = createDistinctEventIterator(makeIter, makeNilIter, tr, currentIter, catConditions.event)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating event iterator")
 		}
 	}
 
 	if len(catConditions.link) > 0 || tr.keysRequested(traceql.AttributeScopeLink) {
-		currentIter, err = createDistinctLinkIterator(makeIter, tr, currentIter, catConditions.link)
+		currentIter, err = createDistinctLinkIterator(makeIter, makeNilIter, tr, currentIter, catConditions.link)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating link iterator")
 		}
 	}
 
 	if len(catConditions.span) > 0 || tr.keysRequested(traceql.AttributeScopeSpan) {
-		currentIter, err = createDistinctSpanIterator(makeIter, tr, currentIter, catConditions.span, dc)
+		currentIter, err = createDistinctSpanIterator(makeIter, makeNilIter, tr, currentIter, catConditions.span, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
 	}
 
 	if len(catConditions.instrumentation) > 0 || tr.keysRequested(traceql.AttributeScopeInstrumentation) {
-		currentIter, err = createDistinctScopeIterator(makeIter, tr, currentIter, catConditions.instrumentation)
+		currentIter, err = createDistinctScopeIterator(makeIter, makeNilIter, tr, currentIter, catConditions.instrumentation)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating instrumentation iterator")
 		}
 	}
 
 	if len(catConditions.resource) > 0 || tr.keysRequested(traceql.AttributeScopeResource) {
-		currentIter, err = createDistinctResourceIterator(makeIter, tr, currentIter, catConditions.resource, dc)
+		currentIter, err = createDistinctResourceIterator(makeIter, makeNilIter, tr, currentIter, catConditions.resource, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating resource iterator")
 		}
@@ -262,7 +263,7 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 }
 
 func createDistinctEventIterator(
-	makeIter makeIterFn,
+	makeIter, makeNilIter makeIterFn,
 	tr tagRequest,
 	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
@@ -273,8 +274,14 @@ func createDistinctEventIterator(
 	)
 
 	for _, cond := range conditions {
+		isNotExistSearch := len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists
+
 		// Intrinsic?
 		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName {
+			if isNotExistSearch {
+				cond.Operands = []traceql.Static{traceql.NewStaticString("")}
+				cond.Op = traceql.OpEqual
+			}
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -284,6 +291,12 @@ func createDistinctEventIterator(
 				selectAs = columnPathEventName
 			}
 			iters = append(iters, makeIter(columnPathEventName, pred, selectAs))
+			continue
+		}
+		// generic attr does not exist?
+		if isNotExistSearch {
+			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
+			iters = append(iters, makeNilIter(columnPathEventAttrKey, pred, "")) // don't select just filter nils
 			continue
 		}
 		// Else: generic attribute lookup
@@ -315,7 +328,7 @@ func createDistinctEventIterator(
 }
 
 func createDistinctLinkIterator(
-	makeIter makeIterFn,
+	makeIter, makeNilIter makeIterFn,
 	tr tagRequest,
 	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
@@ -341,6 +354,11 @@ func createDistinctLinkIterator(
 				return nil, err
 			}
 			iters = append(iters, makeIter(columnPathLinkSpanID, pred, "")) // don't select just filter
+			continue
+		}
+		if len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists {
+			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
+			iters = append(iters, makeNilIter(columnPathLinkAttrKey, pred, "")) // don't select just filter nils
 			continue
 		}
 		// Else: generic attribute lookup
@@ -374,7 +392,7 @@ func createDistinctLinkIterator(
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
 func createDistinctSpanIterator(
-	makeIter makeIterFn,
+	makeIter, makeNilIter makeIterFn,
 	tr tagRequest,
 	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
@@ -403,6 +421,25 @@ func createDistinctSpanIterator(
 	}
 
 	for _, cond := range conditions {
+		isNotExistSearch := len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists
+		if isNotExistSearch {
+			// the default value for some intrinsics is 0 or "" not nil
+			switch cond.Attribute.Intrinsic {
+			case traceql.IntrinsicSpanStartTime,
+				traceql.IntrinsicKind,
+				traceql.IntrinsicDuration,
+				traceql.IntrinsicStatus:
+				// rewrite to = 0
+				cond.Operands = []traceql.Static{traceql.NewStaticInt(0)}
+				cond.Op = traceql.OpEqual
+			case traceql.IntrinsicName,
+				traceql.IntrinsicStatusMessage:
+				// rewrite to = ""
+				cond.Operands = []traceql.Static{traceql.NewStaticString("")}
+				cond.Op = traceql.OpEqual
+			}
+		}
+
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 
@@ -499,6 +536,14 @@ func createDistinctSpanIterator(
 				continue
 			}
 
+			// = nil ?
+			if isNotExistSearch {
+				pred := parquetquery.NewNilValuePredicate()
+				addPredicate(entry.columnPath, pred)
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
+				continue
+			}
+
 			// Compatible type?
 			if entry.typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
@@ -515,6 +560,14 @@ func createDistinctSpanIterator(
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
 				addPredicate(c.ColumnPath, nil) // No filtering
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
+				continue
+			}
+
+			// = nil ?
+			if isNotExistSearch {
+				pred := parquetquery.NewNilValuePredicate()
+				addPredicate(c.ColumnPath, pred)
 				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
@@ -727,7 +780,7 @@ func oneLevelUp(definitionLevel int) int {
 }
 
 func createDistinctScopeIterator(
-	makeIter makeIterFn,
+	makeIter, makeNilIter makeIterFn,
 	tr tagRequest,
 	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
@@ -738,9 +791,15 @@ func createDistinctScopeIterator(
 	)
 
 	for _, cond := range conditions {
+		isNotExistSearch := len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists
+
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicInstrumentationName:
+			if isNotExistSearch {
+				cond.Operands = []traceql.Static{traceql.NewStaticString("")}
+				cond.Op = traceql.OpEqual
+			}
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -752,6 +811,10 @@ func createDistinctScopeIterator(
 			iters = append(iters, makeIter(columnPathInstrumentationName, pred, selectAs))
 			continue
 		case traceql.IntrinsicInstrumentationVersion:
+			if isNotExistSearch {
+				cond.Operands = []traceql.Static{traceql.NewStaticString("")}
+				cond.Op = traceql.OpEqual
+			}
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -761,6 +824,11 @@ func createDistinctScopeIterator(
 				selectAs = columnPathInstrumentationVersion
 			}
 			iters = append(iters, makeIter(columnPathInstrumentationVersion, pred, selectAs))
+			continue
+		}
+		if isNotExistSearch {
+			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
+			iters = append(iters, makeNilIter(columnPathInstrumentationAttrKey, pred, "")) // don't select just filter nils
 			continue
 		}
 		// Else: generic attribute lookup
@@ -792,7 +860,7 @@ func createDistinctScopeIterator(
 }
 
 func createDistinctResourceIterator(
-	makeIter makeIterFn,
+	makeIter, makeNilIter makeIterFn,
 	tr tagRequest,
 	spanIterator parquetquery.Iterator,
 	conditions []traceql.Condition,
@@ -819,10 +887,28 @@ func createDistinctResourceIterator(
 	}
 
 	for _, cond := range conditions {
+		isNotExistSearch := len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists
+
 		// Well-known selector?
 		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
 			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
+				continue
+			}
+
+			// = nil ?
+			if entry.columnPath == columnPathResourceServiceName && cond.Op == traceql.OpNotExists {
+				// well known attr with default of "" instead of nil
+				pred := parquetquery.NewStringEqualPredicate([]byte(""))
+				addPredicate(entry.columnPath, pred)
+				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
+				continue
+			}
+
+			if isNotExistSearch {
+				pred := parquetquery.NewNilValuePredicate()
+				addPredicate(entry.columnPath, pred)
 				addSelectAs(cond.Attribute, entry.columnPath, cond.Attribute.Name)
 				continue
 			}
@@ -850,6 +936,13 @@ func createDistinctResourceIterator(
 				continue
 			}
 
+			if isNotExistSearch {
+				pred := parquetquery.NewNilValuePredicate()
+				addPredicate(c.ColumnPath, pred)
+				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
+				continue
+			}
+
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
 			if typ == operandType(cond.Operands) {
@@ -861,6 +954,12 @@ func createDistinctResourceIterator(
 				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
 				continue
 			}
+		}
+		// nil
+		if isNotExistSearch {
+			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
+			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, "")) // don't select just filter nils
+			continue
 		}
 
 		// Else: generic attribute lookup
@@ -911,6 +1010,10 @@ func createDistinctTraceIterator(
 	// be sped up by searching for traceDuration first. note that we can only set the predicates if all conditions is true.
 	// otherwise we just pass the info up to the engine to make a choice
 	for _, cond := range conds {
+		if cond.Op == traceql.OpNotExists {
+			// trace-level intrinsic can't be nil
+			continue
+		}
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicTraceID, traceql.IntrinsicTraceStartTime:
 			// metadata conditions not necessary, we don't need to fetch them
