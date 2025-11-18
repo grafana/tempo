@@ -36,13 +36,12 @@ type genericCombiner[T TResponse] struct {
 
 	current T // todo: state mgmt is mixed between the combiner and the various implementations. put it in one spot.
 
-	new       func() T
-	combine   func(partial T, final T, resp PipelineResponse) error
-	metadata  func(resp PipelineResponse, final T) error
-	finalize  func(T) (T, error)
-	diff      func(T) (T, error)
-	quit      func(T) bool
-	marshalAs func(T) (string, error)
+	new      func() T
+	combine  func(partial T, final T, resp PipelineResponse) error
+	metadata func(resp PipelineResponse, final T) error
+	finalize func(T) (T, error)
+	diff     func(T) (T, error)
+	quit     func(T) bool
 
 	// Used to determine the response code and when to stop
 	httpStatusCode int
