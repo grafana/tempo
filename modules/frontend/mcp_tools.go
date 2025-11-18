@@ -340,6 +340,9 @@ func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (s
 		req.Header = make(http.Header)
 	}
 
+	// the query frontend we want content formatted for an LLM
+	req.Header.Set(api.HeaderAccept, api.HeaderAcceptLLM)
+
 	if req.RequestURI == "" {
 		req.RequestURI = req.URL.RequestURI()
 	}
