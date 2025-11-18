@@ -60,12 +60,15 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 
 	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
+
+	schema, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+
 	// no searches currently require bloom filters or the page index. so just add them statically
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
 		parquet.FileReadMode(parquet.ReadModeAsync),
-		parquet.FileSchema(parquetSchema),
+		parquet.FileSchema(schema),
 	}
 
 	// if the read buffer size provided is <= 0 then we'll use the parquet default

@@ -74,13 +74,13 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, fmt.Errorf("error creating iterator for block %s: %w", blockMeta.BlockID.String(), err)
 		}
 
-		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
+		bookmarks = append(bookmarks, newBookmark(iter))
 	}
 
 	var (
 		replicationFactor   = inputs[0].ReplicationFactor
 		nextCompactionLevel = compactionLevel + 1
-		sch                 = parquet.SchemaOf(new(Trace))
+		sch, _, _           = SchemaWithDynamicChanges(inputs[0].DedicatedColumns)
 	)
 
 	// Dedupe rows and also call the metrics callback.

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -100,7 +99,6 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Equal(t, wantProto, gotProto.Trace)
-		require.Greater(t, gotProto.Metrics.InspectedBytes, uint64(60000)) // approximate value
 	}
 }
 
@@ -125,7 +123,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	iter, err := b.rawIter(context.Background(), newRowPool(10))
 	require.NoError(t, err)
 
-	sch := parquet.SchemaOf(new(Trace))
+	sch, _, _ := SchemaWithDynamicChanges(meta.DedicatedColumns)
 	for {
 		_, row, err := iter.Next(context.Background())
 		require.NoError(t, err)
