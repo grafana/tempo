@@ -12,8 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-type llmMarshaler struct {
-}
+type llmMarshaler struct{}
 
 func (m *llmMarshaler) marshalToString(t proto.Message) (string, error) {
 	// unsupported: *tempopb.Trace, *tempopb.SearchTagsResponse, *tempopb.SearchTagValuesResponse, *tempopb.QueryRangeResponse
