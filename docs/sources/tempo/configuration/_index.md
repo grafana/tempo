@@ -495,14 +495,18 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling mapping
+            # Custom labeling mapping to rename attributes or combine multiple attributes into a single label.
+            # Use dimension_mappings to rename a single attribute to a custom label name or combine multiple attributes into a composite label.
             dimension_mappings: <list of label mappings>
-                # The new label name
+                # The new label name (will be sanitized for Prometheus compatibility)
               - [name: <string>]
-                # The actual attributes that will make the value of the new label
+                # List of attribute names to map. Can be a single attribute (for renaming) or multiple attributes (for combining)
                 [source_labels: <list of strings>]
-                # The separator used to join multiple `source_labels`
-                [join: <string>]
+                # Separator used to join attribute values together when multiple source_labels are provided.
+                # For example, with source_labels: ["service.name", "service.namespace"] and join: "/",
+                # if service.name="abc" and service.namespace="def", the result is "abc/def".
+                # Ignored if only one source_label is provided.
+                [join: <string> | default = ""]
 
             # Enable traces_target_info metrics
             [enable_target_info: <bool> | default = false]
@@ -1275,7 +1279,7 @@ storage:
 
               # Optional
               # Example: encryption_key: <32-byte-long-key>
-              # SSE-C Encryption Key used for object encryption with customer provided keys. 
+              # SSE-C Encryption Key used for object encryption with customer provided keys.
               # It expects a 32 byte long string.
               encryption_key:
 
