@@ -40,6 +40,7 @@ type LimitsMetricsGenerator struct {
 	DisableCollection              *bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
 	CollectionInterval             *Duration                   `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	TraceIDLabelName               *string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
+	IngestionSlack                 *Duration                   `yaml:"ingestion_time_range_slack,omitempty" json:"ingestion_time_range_slack,omitempty"`
 	GenerateNativeHistograms       *histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
 	NativeHistogramMaxBucketNumber *uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 
@@ -93,6 +94,13 @@ func (l *LimitsMetricsGenerator) GetTraceIDLabelName() (string, bool) {
 		return *l.TraceIDLabelName, true
 	}
 	return "", false
+}
+
+func (l *LimitsMetricsGenerator) GetIngestionSlack() (time.Duration, bool) {
+	if l != nil && l.IngestionSlack != nil {
+		return l.IngestionSlack.Duration, true
+	}
+	return 0, false
 }
 
 type LimitsMetricsGeneratorProcessor struct {

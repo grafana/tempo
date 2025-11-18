@@ -16,6 +16,7 @@ type runtimeConfigValidator struct {
 
 var _ overrides.Validator = (*runtimeConfigValidator)(nil)
 
+// newRuntimeConfigValidator validates runtime overrides
 func newRuntimeConfigValidator(cfg *Config) overrides.Validator {
 	return &runtimeConfigValidator{
 		cfg: cfg,
@@ -47,6 +48,7 @@ type overridesValidator struct {
 
 var _ api.Validator = (*overridesValidator)(nil)
 
+// newOverridesValidator valides user-configurable overrides
 func newOverridesValidator(cfg *Config) api.Validator {
 	validForwarders := map[string]struct{}{}
 	for _, f := range cfg.Distributor.Forwarders {
@@ -93,6 +95,12 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if traceIDLabelName, ok := limits.GetMetricsGenerator().GetTraceIDLabelName(); ok {
 		if err := validation.ValidateTraceIDLabelName(traceIDLabelName); err != nil {
+			return err
+		}
+	}
+
+	if ingestionSlack, ok := limits.GetMetricsGenerator().GetIngestionSlack(); ok {
+		if err := validation.ValidateIngestionTimeRangeSlack(ingestionSlack); err != nil {
 			return err
 		}
 	}

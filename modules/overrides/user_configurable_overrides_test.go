@@ -87,6 +87,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorGenerateNativeHistograms(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorMaxActiveSeries(tenant1))
 	assert.Equal(t, 0*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
+	assert.Equal(t, time.Duration(0), mgr.MetricsGeneratorIngestionSlack(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
@@ -110,6 +111,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 			DisableCollection:              boolPtr(true),
 			CollectionInterval:             &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
 			TraceIDLabelName:               strPtr("trace_id"),
+			IngestionSlack:                 &userconfigurableoverrides.Duration{Duration: 45 * time.Second},
 			GenerateNativeHistograms:       (*histograms.HistogramMethod)(strPtr("native")),
 			NativeHistogramMaxBucketNumber: func(u uint32) *uint32 { return &u }(101),
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
@@ -162,6 +164,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Equal(t, 60*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Equal(t, "trace_id", mgr.MetricsGeneratorTraceIDLabelName(tenant1))
+	assert.Equal(t, 45*time.Second, mgr.MetricsGeneratorIngestionSlack(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	enableVirtualNodeLabelValue, enableVirtualNodeLabelIsSet := mgr.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(tenant1)
 	assert.Equal(t, true, enableVirtualNodeLabelValue)
@@ -419,6 +422,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors:       map[string]struct{}{"local-blocks": {}},
 			TraceIDLabelName: strPtr("custom_trace_id"),
+			IngestionSlack:   &userconfigurableoverrides.Duration{Duration: time.Minute},
 		},
 	}
 
@@ -442,7 +446,8 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MaxBlocksPerTagValuesQuery(tenantID), baseMgr.MaxBlocksPerTagValuesQuery(tenantID))
 	assert.Equal(t, mgr.IngestionRateLimitBytes(tenantID), baseMgr.IngestionRateLimitBytes(tenantID))
 	assert.Equal(t, mgr.IngestionBurstSizeBytes(tenantID), baseMgr.IngestionBurstSizeBytes(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorIngestionSlack(tenantID), baseMgr.MetricsGeneratorIngestionSlack(tenantID))
+	assert.Equal(t, time.Minute, mgr.MetricsGeneratorIngestionSlack(tenantID))
+	assert.NotEqual(t, mgr.MetricsGeneratorIngestionSlack(tenantID), baseMgr.MetricsGeneratorIngestionSlack(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorRingSize(tenantID), baseMgr.MetricsGeneratorRingSize(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorMaxActiveSeries(tenantID), baseMgr.MetricsGeneratorMaxActiveSeries(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorCollectionInterval(tenantID), baseMgr.MetricsGeneratorCollectionInterval(tenantID))

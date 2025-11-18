@@ -18,6 +18,7 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 			DisableCollection:              boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
 			CollectionInterval:             timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
 			TraceIDLabelName:               strPtr(overrides.MetricsGeneratorTraceIDLabelName(userID)),
+			IngestionSlack:                 timePtr(overrides.MetricsGeneratorIngestionSlack(userID)),
 			GenerateNativeHistograms:       histogramModePtr(overrides.MetricsGeneratorGenerateNativeHistograms(userID)),
 			NativeHistogramMaxBucketNumber: uint32Ptr(overrides.MetricsGeneratorNativeHistogramMaxBucketNumber(userID)),
 			Processor: client.LimitsMetricsGeneratorProcessor{

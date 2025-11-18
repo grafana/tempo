@@ -239,6 +239,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessors(userID str
 	return listtomap.Merge(processorsUserConfigurable, processorsRuntime)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {
+	if ingestionSlack, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetIngestionSlack(); ok {
+		return ingestionSlack
+	}
+	return o.Interface.MetricsGeneratorIngestionSlack(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(userID string) bool {
 	if disableCollection, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetDisableCollection(); ok {
 		return disableCollection
