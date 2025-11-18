@@ -15,17 +15,6 @@ import (
 type llmMarshaler struct {
 }
 
-func llmMarshalerSupported(t proto.Message) bool {
-	switch t.(type) {
-	case *tempopb.TraceByIDResponse:
-		return true
-	case *tempopb.SearchTagValuesV2Response:
-		return true
-	}
-
-	return false
-}
-
 func (m *llmMarshaler) marshalToString(t proto.Message) (string, error) {
 	// unsupported: *tempopb.Trace, *tempopb.SearchTagsResponse, *tempopb.SearchTagValuesResponse, *tempopb.QueryRangeResponse
 
