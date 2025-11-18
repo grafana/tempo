@@ -53,9 +53,9 @@ type LLMSpan struct {
 }
 
 type LLMEvent struct {
-	Name          string                 `json:"name"`
-	TimeUnixNano  string                 `json:"timeUnixNano,omitempty"`
-	Attributes    map[string]interface{} `json:"attributes,omitempty"`
+	Name         string                 `json:"name"`
+	TimeUnixNano string                 `json:"timeUnixNano,omitempty"`
+	Attributes   map[string]interface{} `json:"attributes,omitempty"`
 }
 
 type LLMLink struct {
