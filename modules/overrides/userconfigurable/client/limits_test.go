@@ -32,6 +32,7 @@ func TestLimits_parseJson(t *testing.T) {
   "metrics_generator": {
     "processors": ["service-graphs"],
     "collection_interval": "30s",
+    "trace_id_label_name": "my_trace_id",
 		"native_histogram_max_bucket_number": 101,
 		"generate_native_histograms": "native",
     "processor": {
@@ -54,6 +55,7 @@ func TestLimits_parseJson(t *testing.T) {
 				MetricsGenerator: LimitsMetricsGenerator{
 					Processors:                     map[string]struct{}{"service-graphs": {}},
 					CollectionInterval:             &Duration{Duration: 30 * time.Second},
+					TraceIDLabelName:               strPtr("my_trace_id"),
 					GenerateNativeHistograms:       (*histograms.HistogramMethod)(strPtr("native")),
 					NativeHistogramMaxBucketNumber: func(u uint32) *uint32 { return &u }(101),
 					Processor: LimitsMetricsGeneratorProcessor{

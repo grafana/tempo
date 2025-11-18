@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [CHANGE] Expose metrics_generator.trace_id_label_name to user-configurable overrides API [#5958](https://github.com/grafana/tempo/pull/5958) (@carles-grafana)
 * [CHANGE] Remove remaining aws-sdk-go references and migrate tests to MinIO [#5856](https://github.com/grafana/tempo/pull/5856) (@anglerfishlyy)
 * [CHANGE] **BREAKING CHANGE** Validate tenant ID in frontend and distributor [#5786](https://github.com/grafana/tempo/pull/5786) (@carles-grafana)
 * [CHANGE] Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities [#5717](https://github.com/grafana/tempo/pull/5717) (@carles-grafana)

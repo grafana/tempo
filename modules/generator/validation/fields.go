@@ -97,3 +97,10 @@ func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimen
 	}
 	return nil
 }
+
+func ValidateTraceIDLabelName(traceIDLabelName string) error {
+	if !model.UTF8Validation.IsValidLabelName(traceIDLabelName) {
+		return errors.New("trace_id_label_name is invalid")
+	}
+	return nil
+}

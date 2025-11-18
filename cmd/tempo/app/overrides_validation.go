@@ -91,5 +91,11 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 		}
 	}
 
+	if traceIDLabelName, ok := limits.GetMetricsGenerator().GetTraceIDLabelName(); ok {
+		if err := validation.ValidateDimensions([]string{traceIDLabelName}, validation.SupportedIntrinsicDimensions, nil, validation.SanitizeLabelName); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

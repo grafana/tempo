@@ -246,6 +246,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(use
 	return o.Interface.MetricsGeneratorDisableCollection(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGenerationTraceIDLabelName(userID string) string {
+	if traceIDLabelName, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetTraceIDLabelName(); ok {
+		return traceIDLabelName
+	}
+	return o.Interface.MetricsGenerationTraceIDLabelName(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod {
 	if method, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetGenerateNativeHistograms(); ok {
 		return method
