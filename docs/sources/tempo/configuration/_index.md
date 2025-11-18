@@ -16,44 +16,44 @@ Instructions for configuring Tempo data sources are available in the [Grafana Cl
 The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)
-    - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
-    - [Server](#server)
-    - [Distributor](#distributor)
-        - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
-        - [gRPC compression](#grpc-compression)
-    - [Ingester](#ingester)
-        - [Ingester configuration block](#ingester-configuration-block)
-    - [Metrics-generator](#metrics-generator)
-    - [Query-frontend](#query-frontend)
-        - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
-            - [Limit the spans per spanset](#limit-the-spans-per-spanset)
-            - [Cap the maximum query length](#cap-the-maximum-query-length)
-    - [Querier](#querier)
-    - [Compactor](#compactor)
-    - [Storage](#storage)
-        - [Local storage recommendations](#local-storage-recommendations)
-        - [Storage block configuration example](#storage-block-configuration-example)
-    - [Memberlist](#memberlist)
-    - [Configuration blocks](#configuration-blocks)
-        - [Block config](#block-config)
-        - [Filter policy config](#filter-policy-config)
-            - [Filter policy](#filter-policy)
-            - [Policy match](#policy-match)
-            - [Examples](#examples)
-        - [KVStore config](#kvstore-config)
-        - [Search config](#search-config)
-        - [WAL config](#wal-config)
-    - [Overrides](#overrides)
-        - [Ingestion limits](#ingestion-limits)
-            - [Standard overrides](#standard-overrides)
-            - [Tenant-specific overrides](#tenant-specific-overrides)
-                - [Runtime overrides](#runtime-overrides)
-                - [User-configurable overrides](#user-configurable-overrides)
-            - [Override strategies](#override-strategies)
-    - [Usage-report](#usage-report)
-        - [Configure usage-reporting](#configure-usage-reporting)
-    - [Cache](#cache)
-    - [Configure authentication](#configure-authentication)
+  - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+  - [Server](#server)
+  - [Distributor](#distributor)
+    - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
+    - [gRPC compression](#grpc-compression)
+  - [Ingester](#ingester)
+    - [Ingester configuration block](#ingester-configuration-block)
+  - [Metrics-generator](#metrics-generator)
+  - [Query-frontend](#query-frontend)
+    - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
+      - [Limit the spans per spanset](#limit-the-spans-per-spanset)
+      - [Cap the maximum query length](#cap-the-maximum-query-length)
+  - [Querier](#querier)
+  - [Compactor](#compactor)
+  - [Storage](#storage)
+    - [Local storage recommendations](#local-storage-recommendations)
+    - [Storage block configuration example](#storage-block-configuration-example)
+  - [Memberlist](#memberlist)
+  - [Configuration blocks](#configuration-blocks)
+    - [Block config](#block-config)
+    - [Filter policy config](#filter-policy-config)
+      - [Filter policy](#filter-policy)
+      - [Policy match](#policy-match)
+      - [Examples](#examples)
+    - [KVStore config](#kvstore-config)
+    - [Search config](#search-config)
+    - [WAL config](#wal-config)
+  - [Overrides](#overrides)
+    - [Ingestion limits](#ingestion-limits)
+      - [Standard overrides](#standard-overrides)
+      - [Tenant-specific overrides](#tenant-specific-overrides)
+        - [Runtime overrides](#runtime-overrides)
+        - [User-configurable overrides](#user-configurable-overrides)
+      - [Override strategies](#override-strategies)
+  - [Usage-report](#usage-report)
+    - [Configure usage-reporting](#configure-usage-reporting)
+  - [Cache](#cache)
+  - [Configure authentication](#configure-authentication)
 
 Additionally, you can review [TLS](network/tls/) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
@@ -297,14 +297,14 @@ To re-enable the compression, use `snappy` with the following settings:
 ```yaml
 ingester_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 metrics_generator_client:
   grpc_client_config:
-    grpc_compression: 'snappy'
+    grpc_compression: "snappy"
 querier:
   frontend_worker:
     grpc_client_config:
-      grpc_compression: 'snappy'
+      grpc_compression: "snappy"
 ```
 
 ## Ingester
@@ -487,14 +487,18 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling mapping
+            # Custom labeling mapping to rename attributes or combine multiple attributes into a single label.
+            # Use dimension_mappings to rename a single attribute to a custom label name or combine multiple attributes into a composite label.
             dimension_mappings: <list of label mappings>
-                # The new label name
+                # The new label name (will be sanitized for Prometheus compatibility)
               - [name: <string>]
-                # The actual attributes that will make the value of the new label
+                # List of attribute names to map. Can be a single attribute (for renaming) or multiple attributes (for combining)
                 [source_labels: <list of strings>]
-                # The separator used to join multiple `source_labels`
-                [join: <string>]
+                # Separator used to join attribute values together when multiple source_labels are provided.
+                # For example, with source_labels: ["service.name", "service.namespace"] and join: "/",
+                # if service.name="abc" and service.namespace="def", the result is "abc/def".
+                # Ignored if only one source_label is provided.
+                [join: <string> | default = ""]
 
             # Enable traces_target_info metrics
             [enable_target_info: <bool> | default = false]
@@ -1160,6 +1164,12 @@ storage:
               # KMS Encryption Context used for object encryption. It expects JSON formatted string
               kms_encryption_context:
 
+              # Optional
+              # Example: encryption_key: <32-byte-long-key>
+              # SSE-C Encryption Key used for object encryption with customer provided keys.
+              # It expects a 32 byte long string.
+              encryption_key:
+
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
         azure:
@@ -1492,18 +1502,18 @@ attributes: <list of policy atributes>
 
 ```yaml
 exclude:
-  match_type: 'regex'
+  match_type: "regex"
   attributes:
-    - key: 'resource.service.name'
-      value: 'unknown_service:myservice'
+    - key: "resource.service.name"
+      value: "unknown_service:myservice"
 ```
 
 ```yaml
 include:
-  match_type: 'strict'
+  match_type: "strict"
   attributes:
-    - key: 'foo.bar'
-      value: 'baz'
+    - key: "foo.bar"
+      value: "baz"
 ```
 
 ### KVStore config
