@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -298,7 +299,7 @@ func (c *genericCombiner[T]) internalMarshalAs(final T) ([]byte, string, error) 
 		bodyString, err = new(llmMarshaler).marshalToString(final)
 		contentType = string(api.MarshallingFormatLLM) + "+json" // postfix the content subtype to indicate its parseable as json
 		// if its unsupported, just fallthrough to marshal as normal json
-		if err == util.ErrUnsupported {
+		if errors.Is(err, util.ErrUnsupported) {
 			bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
 			contentType = string(api.MarshallingFormatJSON)
 		}
