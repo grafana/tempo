@@ -151,5 +151,11 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 		}
 	}
 
+	if intrinsicDimensions, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetIntrinsicDimensions(); ok {
+		if err := validation.ValidateIntrinsicDimensions(intrinsicDimensions); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

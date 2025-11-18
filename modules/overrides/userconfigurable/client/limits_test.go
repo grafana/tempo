@@ -14,6 +14,10 @@ func strPtr(s string) *string {
 	return &s
 }
 
+func mapBoolPtr(m map[string]bool) *map[string]bool {
+	return &m
+}
+
 func TestLimits_parseJson(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -36,19 +40,22 @@ func TestLimits_parseJson(t *testing.T) {
     "ingestion_time_range_slack": "45s",
     "native_histogram_bucket_factor": 1.2,
     "native_histogram_min_reset_duration": "10m",
-		"native_histogram_max_bucket_number": 101,
-		"generate_native_histograms": "native",
+    "native_histogram_max_bucket_number": 101,
+    "generate_native_histograms": "native",
     "processor": {
       "service_graphs": {
         "dimensions": ["cluster"]
       },
       "span_metrics": {
         "dimensions": ["cluster"],
+        "intrinsic_dimensions": {
+          "cluster": true
+        },
         "histogram_buckets": [0.1, 0.2, 0.5]
       },
       "host_info": {
-         "host_identifiers": ["k8s.node.name", "host.id"],
-         "metric_name": "traces_host_info"
+        "host_identifiers": ["k8s.node.name", "host.id"],
+        "metric_name": "traces_host_info"
       }
     }
   }
@@ -62,15 +69,16 @@ func TestLimits_parseJson(t *testing.T) {
 					IngestionSlack:                  &Duration{Duration: 45 * time.Second},
 					NativeHistogramBucketFactor:     func(f float64) *float64 { return &f }(1.2),
 					NativeHistogramMinResetDuration: &Duration{Duration: 10 * time.Minute},
-					GenerateNativeHistograms:        (*histograms.HistogramMethod)(strPtr("native")),
 					NativeHistogramMaxBucketNumber:  func(u uint32) *uint32 { return &u }(101),
+					GenerateNativeHistograms:        (*histograms.HistogramMethod)(strPtr("native")),
 					Processor: LimitsMetricsGeneratorProcessor{
 						ServiceGraphs: LimitsMetricsGeneratorProcessorServiceGraphs{
 							Dimensions: &[]string{"cluster"},
 						},
 						SpanMetrics: LimitsMetricsGeneratorProcessorSpanMetrics{
-							Dimensions:       &[]string{"cluster"},
-							HistogramBuckets: &[]float64{0.1, 0.2, 0.5},
+							Dimensions:          &[]string{"cluster"},
+							IntrinsicDimensions: mapBoolPtr(map[string]bool{"cluster": true}),
+							HistogramBuckets:    &[]float64{0.1, 0.2, 0.5},
 						},
 						HostInfo: LimitsMetricGeneratorProcessorHostInfo{
 							HostIdentifiers: &[]string{"k8s.node.name", "host.id"},
