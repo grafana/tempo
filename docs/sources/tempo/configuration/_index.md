@@ -502,7 +502,10 @@ metrics_generator:
               - [name: <string>]
                 # List of attribute names to map. Can be a single attribute (for renaming) or multiple attributes (for combining)
                 [source_labels: <list of strings>]
-                # Separator used to join multiple source_labels. Ignored if only one source_label is provided.
+                # Separator used to join attribute values together when multiple source_labels are provided.
+                # For example, with source_labels: ["service.name", "service.namespace"] and join: "/",
+                # if service.name="abc" and service.namespace="def", the result is "abc/def".
+                # Ignored if only one source_label is provided.
                 [join: <string> | default = ""]
 
             # Enable traces_target_info metrics

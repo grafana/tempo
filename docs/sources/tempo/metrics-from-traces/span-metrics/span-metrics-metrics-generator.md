@@ -98,7 +98,7 @@ dimension_mappings:
     join: "-" # Ignored when only one source_label
 ```
 
-This exmaple shows how to combine the `service.name`, `service.namespace`, and `service.version` attributes into a single label called `service_instance`.
+This example shows how to combine the `service.name`, `service.namespace`, and `service.version` attributes into a single label called `service_instance`. The `join` parameter specifies the separator used to join the attribute values together.
 
 ```yaml
 dimension_mappings:
@@ -106,6 +106,14 @@ dimension_mappings:
     source_labels: ["service.name", "service.namespace", "service.version"]
     join: "/"
 ```
+
+With this configuration, if a span has the following attribute values:
+
+- `service.name = "abc"`
+- `service.namespace = "def"`
+- `service.version = "ghi"`
+
+The resulting metric label is `service_instance="abc/def/ghi"`.
 
 An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
 
