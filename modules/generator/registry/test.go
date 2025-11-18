@@ -38,8 +38,8 @@ func (t *TestRegistry) NewGauge(name string) Gauge {
 	}
 }
 
-func (t *TestRegistry) NewLabelValueCombo(labels []string, values []string) *LabelValueCombo {
-	return newLabelValueCombo(labels, values)
+func (t *TestRegistry) NewLabelBuilder() LabelBuilder {
+	return NewLabelBuilder(0, 0)
 }
 
 func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides HistogramMode) Histogram {
@@ -70,7 +70,9 @@ func (t *TestRegistry) setMetric(name string, lbls labels.Labels, value float64)
 // Query returns the value of the given metric. Note this is a rather naive query engine, it's only
 // possible to query metrics by using the exact same labels as they were stored with.
 func (t *TestRegistry) Query(name string, lbls labels.Labels) float64 {
-	return t.metrics[name+lbls.String()]
+	// The prometheus data model does not distinguish between empty labels and
+	// missing labels, so here we ignore empty labels in the query.
+	return t.metrics[name+lbls.WithoutEmpty().String()]
 }
 
 func (t *TestRegistry) String() string {
@@ -91,12 +93,12 @@ type testCounter struct {
 
 var _ Counter = (*testCounter)(nil)
 
-func (t *testCounter) Inc(labelValueCombo *LabelValueCombo, value float64) {
+func (t *testCounter) Inc(lbls labels.Labels, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
 
-	t.registry.addToMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
+	t.registry.addToMetric(t.n, lbls, value)
 }
 
 func (t *testCounter) name() string {
@@ -126,20 +128,20 @@ type testGauge struct {
 
 var _ Gauge = (*testGauge)(nil)
 
-func (t *testGauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
+func (t *testGauge) Inc(lbls labels.Labels, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
 
-	t.registry.addToMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
+	t.registry.addToMetric(t.n, lbls, value)
 }
 
-func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
-	t.registry.setMetric(t.n, getLabelsFromValueCombo(labelValueCombo), value)
+func (t *testGauge) Set(lbls labels.Labels, value float64) {
+	t.registry.setMetric(t.n, lbls, value)
 }
 
-func (t *testGauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
-	t.Set(labelValueCombo, value)
+func (t *testGauge) SetForTargetInfo(lbls labels.Labels, value float64) {
+	t.Set(lbls, value)
 }
 
 func (t *testGauge) name() string {
@@ -176,18 +178,16 @@ var (
 	_ metric    = (*testHistogram)(nil)
 )
 
-func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, _ string, multiplier float64) {
-	l := getLabelsFromValueCombo(labelValueCombo)
-
-	t.registry.addToMetric(t.nameCount, l, 1*multiplier)
-	t.registry.addToMetric(t.nameSum, l, value*multiplier)
+func (t *testHistogram) ObserveWithExemplar(lbls labels.Labels, value float64, _ string, multiplier float64) {
+	t.registry.addToMetric(t.nameCount, lbls, 1*multiplier)
+	t.registry.addToMetric(t.nameSum, lbls, value*multiplier)
 
 	for _, bucket := range t.buckets {
 		if value <= bucket {
-			t.registry.addToMetric(t.nameBucket, withLe(l, bucket), 1*multiplier)
+			t.registry.addToMetric(t.nameBucket, withLe(lbls, bucket), 1*multiplier)
 		}
 	}
-	t.registry.addToMetric(t.nameBucket, withLe(l, math.Inf(1)), 1*multiplier)
+	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1*multiplier)
 }
 
 func (t *testHistogram) name() string {
@@ -215,12 +215,3 @@ func (t *testHistogram) countActiveSeries() int {
 // countSeriesDemand is a stub to satisfy optional estimator usage in registry.
 // Test registry does not track estimates, so return 0.
 func (t *testHistogram) countSeriesDemand() int { return 0 }
-
-func getLabelsFromValueCombo(labelValueCombo *LabelValueCombo) labels.Labels {
-	lbls := labelValueCombo.getLabelPair()
-	lb := make([]labels.Label, len(lbls.names))
-	for i := range lbls.names {
-		lb[i] = labels.Label{Name: lbls.names[i], Value: lbls.values[i]}
-	}
-	return labels.New(lb...)
-}

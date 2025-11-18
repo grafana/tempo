@@ -95,8 +95,8 @@ func newHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLab
 	}
 }
 
-func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
-	hash := labelValueCombo.getHash()
+func (h *histogram) ObserveWithExemplar(lbls labels.Labels, value float64, traceID string, multiplier float64) {
+	hash := lbls.Hash()
 
 	h.seriesDemand.Insert(hash)
 
@@ -113,10 +113,10 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 		return
 	}
 
-	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
+	h.series[hash] = h.newSeries(lbls, value, traceID, multiplier)
 }
 
-func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {
+func (h *histogram) newSeries(lbls labels.Labels, value float64, traceID string, multiplier float64) *histogramSeries {
 	newSeries := &histogramSeries{
 		count:          atomic.NewFloat64(0),
 		sum:            atomic.NewFloat64(0),
@@ -135,7 +135,7 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 	// Precompute all labels for all sub-metrics upfront
 
 	// Create and populate label builder
-	lb := newSeriesLabelsBuilder(labelValueCombo, h.externalLabels)
+	lb := newSeriesLabelsBuilder(lbls, h.externalLabels)
 
 	// _count
 	lb.Set(labels.MetricName, h.nameCount)
@@ -152,7 +152,7 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 		newSeries.bucketLabels = append(newSeries.bucketLabels, lb.Labels())
 	}
 
-	h.updateSeries(labelValueCombo.getHash(), newSeries, value, traceID, multiplier)
+	h.updateSeries(lbls.Hash(), newSeries, value, traceID, multiplier)
 
 	return newSeries
 }

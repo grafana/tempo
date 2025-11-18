@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,6 +46,14 @@ func (m *mockLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
 		return
 	}
 	m.onDeleteFunc(labelHash, seriesCount)
+}
+
+func buildTestLabels(names []string, values []string) labels.Labels {
+	builder := NewLabelBuilder(0, 0)
+	for i := range names {
+		builder.Add(names[i], values[i])
+	}
+	return builder.Labels()
 }
 
 // TODO: rewrite tests to use mocked limiter instead of this
@@ -108,7 +117,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 
 	counter := registry.NewCounter("my_counter")
 
-	counter.Inc(newLabelValueCombo([]string{"label", "label"}, []string{"repeated-value", "value-1"}), 1.0)
+	counter.Inc(buildTestLabels([]string{"label", "label"}, []string{"repeated-value", "value-1"}), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),
@@ -125,7 +134,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 
 	histogram := registry.NewHistogram("histogram", []float64{1.0, 2.0}, HistogramModeClassic)
 
-	histogram.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+	histogram.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
@@ -153,8 +162,8 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	counter1 := registry.NewCounter("metric_1")
 	counter2 := registry.NewCounter("metric_2")
 
-	counter1.Inc(nil, 1)
-	counter2.Inc(nil, 2)
+	counter1.Inc(labels.New(), 1)
+	counter2.Inc(labels.New(), 2)
 
 	registry.removeStaleSeries(context.Background())
 
@@ -169,7 +178,7 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	appender.samples = nil
 
 	time.Sleep(50 * time.Millisecond)
-	counter2.Inc(nil, 2)
+	counter2.Inc(labels.New(), 2)
 	time.Sleep(50 * time.Millisecond)
 
 	registry.removeStaleSeries(context.Background())
@@ -192,7 +201,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
-	counter.Inc(nil, 1.0)
+	counter.Inc(labels.New(), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__foo": "bar"}, 0, 0),
@@ -211,7 +220,7 @@ func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
 	defer registry.Close()
 
 	counter := registry.NewCounter("my_counter")
-	counter.Inc(nil, 1.0)
+	counter.Inc(labels.New(), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__tempo_tenant": "test"}, 0, 0),
@@ -236,11 +245,11 @@ func TestManagedRegistry_limited(t *testing.T) {
 	counter1 := registry.NewCounter("metric_1")
 	counter2 := registry.NewCounter("metric_2")
 
-	counter1.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	counter1.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 	atLimit = true
 	// these series should be discarded
-	counter1.Inc(newLabelValueCombo(nil, []string{"value-2"}), 1.0)
-	counter2.Inc(nil, 1.0)
+	counter1.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.0)
+	counter2.Inc(labels.New(), 1.0)
 
 	assert.Equal(t, uint32(1), registry.activeSeries())
 	expectedSamples := []sample{
@@ -266,8 +275,8 @@ func TestManagedRegistry_maxEntities(t *testing.T) {
 	counter1 := registry.NewCounter("metric_1")
 	counter2 := registry.NewCounter("metric_2")
 
-	entity1 := newLabelValueCombo([]string{"label"}, []string{"value-1"})
-	entity2 := newLabelValueCombo([]string{"label"}, []string{"value-2"})
+	entity1 := buildTestLabels([]string{"label"}, []string{"value-1"})
+	entity2 := buildTestLabels([]string{"label"}, []string{"value-2"})
 	counter1.Inc(entity1, 1.0)
 	counter2.Inc(entity1, 1.0)
 	atLimit = true
@@ -295,7 +304,7 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	defer registry.Close()
 
 	counter := registry.NewCounter("metric_1")
-	counter.Inc(nil, 1.0)
+	counter.Inc(labels.New(), 1.0)
 
 	// active series are still tracked
 	assert.Equal(t, uint32(1), registry.activeSeries())
@@ -318,8 +327,12 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 	counter := registry.NewCounter("counter")
 	histogram := registry.NewHistogram("histogram", []float64{1.0}, HistogramModeClassic)
 
-	counter.Inc(registry.NewLabelValueCombo([]string{"very_lengthy_label"}, []string{"very_length_value"}), 1.0)
-	histogram.ObserveWithExemplar(registry.NewLabelValueCombo([]string{"another_very_lengthy_label"}, []string{"another_very_lengthy_value"}), 1.0, "", 1.0)
+	builder := registry.NewLabelBuilder()
+	builder.Add("very_lengthy_label", "very_length_value")
+	counter.Inc(builder.Labels(), 1.0)
+	builder = registry.NewLabelBuilder()
+	builder.Add("another_very_lengthy_label", "another_very_lengthy_value")
+	histogram.ObserveWithExemplar(builder.Labels(), 1.0, "", 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),
@@ -333,17 +346,6 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 1, 1.0),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
-}
-
-func TestValidLabelValueCombo(t *testing.T) {
-	appender := &capturingAppender{}
-
-	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
-	defer registry.Close()
-
-	assert.Panics(t, func() {
-		registry.NewLabelValueCombo([]string{"one-label"}, []string{"one-value", "two-value"})
-	})
 }
 
 func TestHistogramOverridesConfig(t *testing.T) {
@@ -512,8 +514,8 @@ func TestManagedRegistry_demandTracking(t *testing.T) {
 
 	// Add series with unique label combinations
 	for i := 0; i < 100; i++ {
-		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		counter.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lbls, 1.0)
 	}
 
 	// Collect metrics to update demand tracking
@@ -558,8 +560,8 @@ func TestManagedRegistry_demandExceedsMax(t *testing.T) {
 
 	// Add series which should all be rejected
 	for i := 0; i < 100; i++ {
-		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		counter.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lbls, 1.0)
 	}
 
 	// Collect metrics
@@ -595,8 +597,8 @@ func TestManagedRegistry_demandDecaysOverTime(t *testing.T) {
 
 	// Add series
 	for i := 0; i < 50; i++ {
-		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		counter.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lbls, 1.0)
 	}
 
 	registry.CollectMetrics(context.Background())
@@ -648,8 +650,8 @@ func TestManagedRegistry_entityDemandTracking(t *testing.T) {
 
 	// Add series with unique label combinations (entities)
 	for i := 0; i < 100; i++ {
-		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		counter.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lbls, 1.0)
 	}
 
 	// Collect metrics to update demand tracking
@@ -683,8 +685,8 @@ func TestManagedRegistry_entityDemandExceedsMax(t *testing.T) {
 
 	// Add series which should all be rejected
 	for i := 0; i < 100; i++ {
-		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		counter.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lbls, 1.0)
 	}
 
 	// Collect metrics
@@ -717,8 +719,8 @@ func TestManagedRegistry_entityDemandDecaysOverTime(t *testing.T) {
 
 	// Add entities
 	for i := 0; i < 50; i++ {
-		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		counter.Inc(lvc, 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter.Inc(lbls, 1.0)
 	}
 
 	registry.CollectMetrics(context.Background())
@@ -757,10 +759,10 @@ func TestManagedRegistry_entityDemandWithMultipleMetrics(t *testing.T) {
 	// Add the same entity across multiple metrics
 	// Since entity demand is based on label hash (not metric name), same labels should count as one entity
 	for i := 0; i < 50; i++ {
-		lvc := registry.NewLabelValueCombo([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
-		counter1.Inc(lvc, 1.0)
-		counter2.Inc(lvc, 2.0)
-		histogram.ObserveWithExemplar(lvc, 1.5, "", 1.0)
+		lbls := buildTestLabels([]string{"label"}, []string{fmt.Sprintf("value-%d", i)})
+		counter1.Inc(lbls, 1.0)
+		counter2.Inc(lbls, 2.0)
+		histogram.ObserveWithExemplar(lbls, 1.5, "", 1.0)
 	}
 
 	registry.CollectMetrics(context.Background())

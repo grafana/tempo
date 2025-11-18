@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -36,7 +37,6 @@ type Processor struct {
 	spanMetricsDurationSeconds registry.Histogram
 	spanMetricsSizeTotal       registry.Counter
 	spanMetricsTargetInfo      registry.Gauge
-	labels                     []string
 
 	filter               *spanfilter.SpanFilter
 	filteredSpansCounter prometheus.Counter
@@ -68,7 +68,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 
 	c := reclaimable.New(validation.SanitizeLabelName, 10000)
 
-	labels, err := validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
+	err := validation.ValidateDimensions(cfg.Dimensions, configuredIntrinsicDimensions, cfg.DimensionMappings, c.Get)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,6 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		registry:              reg,
 		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
 		now:                   time.Now,
-		labels:                labels,
 		filteredSpansCounter:  filteredSpansCounter,
 		invalidUTF8Counter:    invalidUTF8Counter,
 		sanitizeCache:         c,
@@ -144,34 +143,32 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		latencySeconds = float64(end-start) / float64(time.Second.Nanoseconds())
 	}
 
-	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
-	targetInfoLabelValues := make([]string, len(resourceLabels))
-	labels := make([]string, len(p.labels))
-	targetInfoLabels := make([]string, len(resourceLabels))
-	copy(labels, p.labels)
-	copy(targetInfoLabels, resourceLabels)
-	copy(targetInfoLabelValues, resourceValues)
+	builder := p.registry.NewLabelBuilder()
+	targetInfoBuilder := p.registry.NewLabelBuilder()
+	for i := range resourceLabels {
+		targetInfoBuilder.Add(resourceLabels[i], resourceValues[i])
+	}
 
-	// important: the order of labelValues must correspond to the order of labels / intrinsic dimensions
 	if p.Cfg.IntrinsicDimensions.Service {
-		labelValues = append(labelValues, svcName)
+		builder.Add(gen.DimService, svcName)
 	}
 	if p.Cfg.IntrinsicDimensions.SpanName {
-		labelValues = append(labelValues, span.GetName())
+		builder.Add(gen.DimSpanName, span.GetName())
 	}
 	if p.Cfg.IntrinsicDimensions.SpanKind {
-		labelValues = append(labelValues, span.GetKind().String())
+		builder.Add(gen.DimSpanKind, span.GetKind().String())
 	}
 	if p.Cfg.IntrinsicDimensions.StatusCode {
-		labelValues = append(labelValues, span.GetStatus().GetCode().String())
+		builder.Add(gen.DimStatusCode, span.GetStatus().GetCode().String())
 	}
 	if p.Cfg.IntrinsicDimensions.StatusMessage {
-		labelValues = append(labelValues, span.GetStatus().GetMessage())
+		builder.Add(gen.DimStatusMessage, span.GetStatus().GetMessage())
 	}
 
 	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
-		labelValues = append(labelValues, value)
+		label := validation.SanitizeLabelNameWithCollisions(d, validation.SupportedIntrinsicDimensions, p.sanitizeCache.Get)
+		builder.Add(label, value)
 	}
 
 	for _, m := range p.Cfg.DimensionMappings {
@@ -185,29 +182,26 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 				}
 			}
 		}
-		labelValues = append(labelValues, values)
+		label := validation.SanitizeLabelNameWithCollisions(m.Name, validation.SupportedIntrinsicDimensions, p.sanitizeCache.Get)
+		builder.Add(label, values)
 	}
 
 	// add job label only if job is not blank and target_info is enabled
 	if jobName != "" && p.Cfg.EnableTargetInfo {
-		labels = append(labels, gen.DimJob)
-		labelValues = append(labelValues, jobName)
+		builder.Add(gen.DimJob, jobName)
 	}
 	//  add instance label only if instance is not blank and enabled and target_info is enabled
 	if instanceID != "" && p.Cfg.EnableTargetInfo && p.Cfg.EnableInstanceLabel {
-		labels = append(labels, gen.DimInstance)
-		labelValues = append(labelValues, instanceID)
+		builder.Add(gen.DimInstance, instanceID)
 	}
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	err := validation.ValidateUTF8LabelValues(labelValues)
-	if err != nil {
+	registryLabelValues := builder.Labels()
+	if !registryLabelValues.IsValid(model.UTF8Validation) {
 		p.invalidUTF8Counter.Inc()
 		return
 	}
-
-	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	if p.Cfg.Subprocessors[Count] {
 		p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*spanMultiplier)
@@ -226,24 +220,22 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		// TODO - The resource labels only need to be sanitized once
 		// TODO - attribute names are stable across applications
 		//        so let's cache the result of previous sanitizations
-		resourceAttributesCount := len(targetInfoLabels)
+		resourceAttributesCount := len(resourceLabels)
 
 		// add joblabel to target info only if job is not blank
 		if jobName != "" {
-			targetInfoLabels = append(targetInfoLabels, gen.DimJob)
-			targetInfoLabelValues = append(targetInfoLabelValues, jobName)
+			targetInfoBuilder.Add(gen.DimJob, jobName)
 		}
 		//  add instance label to target info only if instance is not blank and enabled
 		if instanceID != "" && p.Cfg.EnableInstanceLabel {
-			targetInfoLabels = append(targetInfoLabels, gen.DimInstance)
-			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
+			targetInfoBuilder.Add(gen.DimInstance, instanceID)
 		}
 
-		targetInfoRegistryLabelValues := p.registry.NewLabelValueCombo(targetInfoLabels, targetInfoLabelValues)
+		targetInfoRegistryLabelValues := targetInfoBuilder.Labels()
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		// TODO - We can move this check to the top
-		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
+		if resourceAttributesCount > 0 && targetInfoRegistryLabelValues.Len() > resourceAttributesCount {
 			p.spanMetricsTargetInfo.SetForTargetInfo(targetInfoRegistryLabelValues, 1)
 		}
 	}

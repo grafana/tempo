@@ -2,7 +2,6 @@ package registry
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -137,11 +136,8 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	return r
 }
 
-func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *LabelValueCombo {
-	if len(labels) != len(values) {
-		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", labels, values))
-	}
-	return newLabelValueComboWithMax(labels, values, r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength)
+func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
+	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength)
 }
 
 func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32) bool {
