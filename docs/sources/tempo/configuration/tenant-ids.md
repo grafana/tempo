@@ -62,7 +62,7 @@ The tenant ID should not be empty.
 
 For security reasons, `.` and `..` aren't valid tenant IDs. These values are restricted to prevent path traversal attacks.
 
-`__tempo_cluster` isn't a valid tenant ID because Tempo uses the name internally.
+`__tempo_cluster` should not be used as a tenant ID because Tempo uses the name internally.
 
 ## Cross-tenant queries
 
@@ -75,11 +75,3 @@ For example, `bar|foo|bar` is normalized to `bar|foo`.
 
 Cross-tenant queries are supported for search, search-tags, and trace-by-ID search operations.
 For detailed information about cross-tenant query federation, refer to [Cross-tenant query federation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/cross_tenant_query/).
-
-### Security considerations
-
-The `X-Scope-OrgID` header should be set by a trusted reverse proxy, not by client applications. Tempo assumes that clients setting `X-Scope-OrgID` are trusted, and the responsibility of populating this value should be handled by your authenticating reverse proxy.
-
-Allowing clients to set the tenant ID directly can lead to unauthorized access to other tenants' data. A malicious client could change the tenant ID in the header to access traces from other tenants.
-
-For more information about setting up authentication and reverse proxies, refer to [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/).
