@@ -13,7 +13,7 @@ type Overrides interface {
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
 	MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod
-	MetricsGenerationTraceIDLabelName(userID string) string
+	MetricsGeneratorTraceIDLabelName(userID string) string
 	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
 	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
 	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration
