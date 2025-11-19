@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
@@ -71,8 +70,6 @@ var (
 func newHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
-	} else {
-		traceIDLabelName = validation.SanitizeLabelName(traceIDLabelName)
 	}
 
 	// add +Inf bucket

@@ -23,7 +23,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 				Processors:                     map[string]struct{}{"service-graphs": {}},
 				CollectionInterval:             15 * time.Second,
 				DisableCollection:              true,
-				TraceIDLabelName:               "traceID",
+				TraceIDLabelName:               "trace_id",
 				GenerateNativeHistograms:       histograms.HistogramMethodBoth,
 				NativeHistogramMaxBucketNumber: 160,
 				Processor: overrides.ProcessorOverrides{
@@ -79,7 +79,7 @@ func Test_limitsFromOverrides(t *testing.T) {
     ],
     "disable_collection": true,
     "collection_interval": "15s",
-    "trace_id_label_name": "traceID",
+    "trace_id_label_name": "trace_id",
     "generate_native_histograms": "both",
     "native_histogram_max_bucket_number": 160,
     "processor": {

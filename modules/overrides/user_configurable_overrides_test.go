@@ -109,7 +109,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 			Processors:                     map[string]struct{}{"service-graphs": {}},
 			DisableCollection:              boolPtr(true),
 			CollectionInterval:             &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
-			TraceIDLabelName:               strPtr("tenant-trace-id"),
+			TraceIDLabelName:               strPtr("trace_id"),
 			GenerateNativeHistograms:       (*histograms.HistogramMethod)(strPtr("native")),
 			NativeHistogramMaxBucketNumber: func(u uint32) *uint32 { return &u }(101),
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
@@ -161,7 +161,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, uint32(101), mgr.MetricsGeneratorNativeHistogramMaxBucketNumber(tenant1))
 	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Equal(t, 60*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
-	assert.Equal(t, "tenant-trace-id", mgr.MetricsGenerationTraceIDLabelName(tenant1))
+	assert.Equal(t, "trace_id", mgr.MetricsGeneratorTraceIDLabelName(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	enableVirtualNodeLabelValue, enableVirtualNodeLabelIsSet := mgr.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(tenant1)
 	assert.Equal(t, true, enableVirtualNodeLabelValue)
@@ -418,7 +418,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 		Forwarders: &[]string{"my-other-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors:       map[string]struct{}{"local-blocks": {}},
-			TraceIDLabelName: strPtr("custom-trace-id"),
+			TraceIDLabelName: strPtr("custom_trace_id"),
 		},
 	}
 
@@ -447,7 +447,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MetricsGeneratorMaxActiveSeries(tenantID), baseMgr.MetricsGeneratorMaxActiveSeries(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorCollectionInterval(tenantID), baseMgr.MetricsGeneratorCollectionInterval(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorDisableCollection(tenantID), baseMgr.MetricsGeneratorDisableCollection(tenantID))
-	assert.Equal(t, "custom-trace-id", mgr.MetricsGenerationTraceIDLabelName(tenantID))
+	assert.Equal(t, "custom_trace_id", mgr.MetricsGeneratorTraceIDLabelName(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorForwarderQueueSize(tenantID), baseMgr.MetricsGeneratorForwarderQueueSize(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorForwarderWorkers(tenantID), baseMgr.MetricsGeneratorForwarderWorkers(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenantID))
