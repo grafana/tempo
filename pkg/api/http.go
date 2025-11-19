@@ -65,7 +65,7 @@ const (
 	HeaderContentType      = "Content-Type"
 	HeaderAcceptProtobuf   = "application/protobuf"
 	HeaderAcceptJSON       = "application/json"
-	HeaderAcceptLLM        = "application/llm"
+	HeaderAcceptLLM        = "application/vnd.grafana.llm"
 	HeaderRecentDataTarget = "Recent-Data-Target"
 
 	PathPrefixQuerier   = "/querier"
