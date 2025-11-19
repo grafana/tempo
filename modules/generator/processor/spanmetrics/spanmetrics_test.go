@@ -29,13 +29,13 @@ var metricSpansDiscarded = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempo",
 	Name:      "metrics_generator_spans_discarded_total",
 	Help:      "The total number of discarded spans received per tenant",
-}, []string{"tenant", "reason"})
+}, []string{"tenant", "reason", "processor"})
 
 func TestSpanMetrics(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -72,8 +72,8 @@ func TestSpanMetrics(t *testing.T) {
 
 func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -219,8 +219,8 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testRegistry := registry.NewTestRegistry()
 
-			filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-			invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+			filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+			invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 			cfg := Config{}
 			cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -265,8 +265,8 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 func TestSpanMetrics_collisions(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -313,8 +313,8 @@ func TestSpanMetrics_collisions(t *testing.T) {
 
 func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -361,8 +361,8 @@ func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 }
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cases := []struct {
 		filterPolicies     []filterconfig.FilterPolicy
@@ -506,8 +506,8 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	// no service.name = no job label/dimension
 	// but service will still be there
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -559,8 +559,8 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 
 func TestLabelsWithDifferentBatches(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -638,8 +638,8 @@ func TestTargetInfoEnabled(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -691,8 +691,8 @@ func TestTargetInfoEnabled(t *testing.T) {
 
 func TestTargetInfoDisabled(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -740,8 +740,8 @@ func TestTargetInfoDisabled(t *testing.T) {
 
 func TestTargetInfoWithEmptyKey(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -791,8 +791,8 @@ func TestTargetInfoWithExclusion(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -856,8 +856,8 @@ func TestTargetInfoSanitizeLabelName(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -911,8 +911,8 @@ func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -953,8 +953,8 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if both job and instance are missing, target info should not exist
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1001,8 +1001,8 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 
 func TestTargetInfoWithDifferentBatches(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1090,8 +1090,8 @@ func TestTargetInfoWithDifferentBatches(t *testing.T) {
 
 func TestEnableInstanceLabelFalse(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1210,8 +1210,8 @@ func TestEnableInstanceLabelFalse(t *testing.T) {
 
 func TestEnableInstanceLabelUnset(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1355,8 +1355,8 @@ func TestEnableInstanceLabelUnset(t *testing.T) {
 
 func TestSpanMetricsDimensionMapping(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1415,8 +1415,8 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 
 func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1494,8 +1494,8 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 
 func TestSpanMetricsNegativeLatency(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -1626,8 +1626,8 @@ func BenchmarkSpanMetrics_applyFilterPolicyMedium(b *testing.B) {
 }
 
 func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, batch *trace_v1.ResourceSpans) {
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	testRegistry := registry.NewTestRegistry()
 	cfg := Config{}
@@ -1645,8 +1645,8 @@ func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, b
 
 func TestTargetInfoSkipsLabelsStartingWithNumber(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)

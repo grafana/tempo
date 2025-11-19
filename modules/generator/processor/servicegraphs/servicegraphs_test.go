@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +47,7 @@ func TestServiceGraphs(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableMessagingSystemLatencyHistogram = true
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -128,7 +129,7 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableClientServerPrefix = true
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -159,7 +160,7 @@ func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
 	cfg.Dimensions = []string{"beast", "god"}
 	cfg.EnableMessagingSystemLatencyHistogram = true
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -183,7 +184,7 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-failed-requests.json")
@@ -215,7 +216,7 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.MaxItems = 1
-	p := New(cfg, "test", &testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", &testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -235,7 +236,7 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Wait = time.Nanosecond
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-virtual-nodes.json")
@@ -283,7 +284,7 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 	cfg.EnableVirtualNodeLabel = true
 	cfg.Wait = time.Nanosecond
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-virtual-nodes.json")
@@ -326,7 +327,7 @@ func TestServiceGraphs_expiredEdges(t *testing.T) {
 
 	const tenant = "expired-edge-test"
 
-	p := New(cfg, tenant, testRegistry, log.NewNopLogger())
+	p := New(cfg, tenant, testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	/*
@@ -474,7 +475,7 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			cfg.HistogramBuckets = []float64{0.04}
 			cfg.EnableMessagingSystemLatencyHistogram = true
 
-			p := New(cfg, "test", testRegistry, log.NewNopLogger())
+			p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 			defer p.Shutdown(context.Background())
 
 			request, err := loadTestData(tc.fixturePath)
@@ -511,7 +512,7 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	cfg.EnableClientServerPrefix = true
 	cfg.EnableVirtualNodeLabel = true
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")
@@ -551,7 +552,7 @@ func BenchmarkServiceGraphs(b *testing.B) {
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"beast", "god"}
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
 	request, err := loadTestData("testdata/trace-with-queue-database.json")

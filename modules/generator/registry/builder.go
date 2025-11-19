@@ -3,6 +3,7 @@ package registry
 import (
 	"sync"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 )
 
@@ -58,7 +59,7 @@ func (b *labelBuilder) Add(name, value string) {
 	b.builder.Set(name, value)
 }
 
-func (b *labelBuilder) CloseAndBuildLabels() labels.Labels {
+func (b *labelBuilder) CloseAndBuildLabels() (labels.Labels, bool) {
 	labels := b.builder.Labels()
 	// it's no longer safe to use the builder after this point, so we drop our
 	// reference to it. this may cause a nil panic if the builder is used after
@@ -66,5 +67,9 @@ func (b *labelBuilder) CloseAndBuildLabels() labels.Labels {
 	builderPool.Put(b.builder)
 	b.builder = nil
 
-	return labels
+	if !labels.IsValid(model.UTF8Validation) {
+		return labels, false
+	}
+
+	return labels, true
 }

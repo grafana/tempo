@@ -10,8 +10,9 @@ import (
 func TestLabelBuilder(t *testing.T) {
 	builder := NewLabelBuilder(0, 0)
 	builder.Add("name", "value")
-	lbls := builder.CloseAndBuildLabels()
+	lbls, ok := builder.CloseAndBuildLabels()
 
+	assert.True(t, ok)
 	assert.Equal(t, labels.FromStrings("name", "value"), lbls)
 
 	// Using the builder after calling Labels() will panic to prevent memory
@@ -26,9 +27,19 @@ func TestLabelBuilder_MaxLabelNameLength(t *testing.T) {
 	builder.Add("name", "very_long_value")
 	builder.Add("very_long_name", "value")
 
-	lbls := builder.CloseAndBuildLabels()
+	lbls, ok := builder.CloseAndBuildLabels()
 
+	assert.True(t, ok)
 	assert.Equal(t, labels.FromStrings("name", "very_long_", "very_long_", "value"), lbls)
+}
+
+func TestLabelBuilder_InvalidUTF8(t *testing.T) {
+	builder := NewLabelBuilder(0, 0)
+	builder.Add("name", "svc-\xc3\x28") // Invalid UTF-8
+
+	_, ok := builder.CloseAndBuildLabels()
+
+	assert.False(t, ok)
 }
 
 func TestSafeBuilderPool(t *testing.T) {
