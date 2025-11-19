@@ -3,7 +3,7 @@ module github.com/grafana/tempo
 go 1.25.1
 
 require (
-	cloud.google.com/go/storage v1.57.1
+	cloud.google.com/go/storage v1.57.2
 	github.com/alecthomas/kong v1.12.1
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/cespare/xxhash/v2 v2.3.0
