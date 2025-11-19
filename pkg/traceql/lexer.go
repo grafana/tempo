@@ -123,6 +123,21 @@ type lexer struct {
 
 	parsingAttribute bool
 	currentScope     int
+
+	lastToken int
+}
+
+func isUnaryContext(tok int) bool {
+	switch tok {
+	case 0, // start of expression
+		OPEN_PARENS,               // (
+		COMMA,                     // ,
+		EQ, NEQ, GT, GTE, LT, LTE, // comparisons
+		NOT: // !
+		return true
+	default:
+		return false
+	}
 }
 
 func (l *lexer) Lex(lval *yySymType) int {
@@ -153,8 +168,48 @@ func (l *lexer) Lex(lval *yySymType) int {
 
 	r := l.Scan()
 	// now that we know we're not parsing an attribute, let's look for everything else
+	// --- Handle unary signed integers (+123, -123) ---
+	if (r == '+' || r == '-') &&
+		isUnaryContext(l.lastToken) &&
+		l.lastToken != OPEN_PARENS {
+		sign := l.TokenText()
+
+		// Copy scanner for lookahead (safe)
+		s := l.Scanner
+		next := s.Scan()
+
+		if next == scanner.Int {
+			numberText := sign + s.TokenText()
+
+			// Try duration (-5s, +10ms)
+			if duration, ok := tryScanDuration(numberText, &s); ok {
+				l.Scanner = s // commit scanner state
+				lval.staticDuration = duration
+				l.lastToken = DURATION
+				return DURATION
+			}
+
+			// Parse safe signed integer
+			intVal, err := strconv.ParseInt(numberText, 10, 64)
+			if err != nil {
+				l.Error(err.Error())
+				return 0
+			}
+
+			l.Scanner = s // commit scanner state
+			lval.staticInt = int(intVal)
+			l.lastToken = INTEGER
+			return INTEGER
+		}
+
+		// Not unary → return '+' or '-' normally
+		l.lastToken = tokens[sign]
+		return tokens[sign]
+	}
+
 	switch r {
 	case scanner.EOF:
+		l.lastToken = 0
 		return 0
 
 	case scanner.String, scanner.RawString:
@@ -164,6 +219,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 			l.Error(err.Error())
 			return 0
 		}
+		l.lastToken = STRING
 		return STRING
 
 	case scanner.Int:
@@ -173,6 +229,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 		duration, ok := tryScanDuration(numberText, &l.Scanner)
 		if ok {
 			lval.staticDuration = duration
+			l.lastToken = DURATION
 			return DURATION
 		}
 
@@ -183,6 +240,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 			l.Error(err.Error())
 			return 0
 		}
+		l.lastToken = INTEGER
 		return INTEGER
 
 	case scanner.Float:
@@ -192,6 +250,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 		duration, ok := tryScanDuration(numberText, &l.Scanner)
 		if ok {
 			lval.staticDuration = duration
+			l.lastToken = DURATION
 			return DURATION
 		}
 
@@ -201,6 +260,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 			l.Error(err.Error())
 			return 0
 		}
+		l.lastToken = FLOAT
 		return FLOAT
 	}
 
@@ -238,18 +298,24 @@ func (l *lexer) Lex(lval *yySymType) int {
 	// did we find a combination token?
 	if multiTok != -1 {
 		l.parsingAttribute = startsAttribute(multiTok)
+		l.lastToken = multiTok
 		return multiTok
+
 	}
 
 	// no combination tokens, see if the current text is a known token
 	if tok, ok := tokens[l.TokenText()]; ok {
 		l.parsingAttribute = startsAttribute(tok)
+		l.lastToken = tok
 		return tok
+
 	}
 
 	// default to an identifier
 	lval.staticStr = l.TokenText()
+	l.lastToken = IDENTIFIER
 	return IDENTIFIER
+
 }
 
 func (l *lexer) Error(msg string) {
