@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"text/scanner"
@@ -131,6 +132,7 @@ func isUnaryContext(tok int) bool {
 	switch tok {
 	case 0, // start of expression
 		OPEN_PARENS,               // (
+		OPEN_BRACE,                // {
 		COMMA,                     // ,
 		EQ, NEQ, GT, GTE, LT, LTE, // comparisons
 		NOT: // !
@@ -169,9 +171,11 @@ func (l *lexer) Lex(lval *yySymType) int {
 	r := l.Scan()
 	// now that we know we're not parsing an attribute, let's look for everything else
 	// --- Handle unary signed integers (+123, -123) ---
+	// Only allow unary -/+ after OPEN_BRACE (for field expressions like { -1 })
+	// Not after OPEN_PARENS (function arguments should use SUB INTEGER grammar rule)
 	if (r == '+' || r == '-') &&
 		isUnaryContext(l.lastToken) &&
-		l.lastToken != OPEN_PARENS {
+		(l.lastToken == OPEN_BRACE || l.lastToken == 0) {
 		sign := l.TokenText()
 
 		// Copy scanner for lookahead (safe)
@@ -189,15 +193,37 @@ func (l *lexer) Lex(lval *yySymType) int {
 				return DURATION
 			}
 
-			// Parse safe signed integer
-			intVal, err := strconv.ParseInt(numberText, 10, 64)
+			// Parse unsigned number first to handle math.MinInt64 case
+			unsignedNum, err := strconv.ParseUint(s.TokenText(), 10, 64)
 			if err != nil {
-				l.Error(err.Error())
+				l.Error("invalid numeric literal")
 				return 0
 			}
 
+			var finalInt int64
+			if sign == "-" {
+				// Handle negative numbers
+				if unsignedNum == 1<<63 {
+					// Special case: -9223372036854775808 (math.MinInt64)
+					finalInt = math.MinInt64
+				} else if unsignedNum > 1<<63 {
+					// Out of range for int64
+					l.Error("integer out of range")
+					return 0
+				} else {
+					finalInt = -int64(unsignedNum)
+				}
+			} else {
+				// Handle positive numbers
+				if unsignedNum > math.MaxInt64 {
+					l.Error("integer out of range")
+					return 0
+				}
+				finalInt = int64(unsignedNum)
+			}
+
 			l.Scanner = s // commit scanner state
-			lval.staticInt = int(intVal)
+			lval.staticInt = int(finalInt)
 			l.lastToken = INTEGER
 			return INTEGER
 		}
