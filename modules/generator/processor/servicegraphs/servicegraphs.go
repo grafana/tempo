@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
@@ -84,10 +85,11 @@ type Processor struct {
 	metricDroppedSpans prometheus.Counter
 	metricTotalEdges   prometheus.Counter
 	metricExpiredEdges prometheus.Counter
+	invalidUTF8Counter prometheus.Counter
 	logger             log.Logger
 }
 
-func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) gen.Processor {
+func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, invalidUTF8Counter prometheus.Counter) gen.Processor {
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
@@ -106,6 +108,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) ge
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
 		metricExpiredEdges: metricExpiredEdges.WithLabelValues(tenant),
+		invalidUTF8Counter: invalidUTF8Counter,
 		logger:             log.With(logger, "component", "service-graphs"),
 	}
 
@@ -349,6 +352,10 @@ func (p *Processor) onComplete(e *store.Edge) {
 	}
 
 	registryLabelValues := builder.CloseAndBuildLabels()
+	if !registryLabelValues.IsValid(model.UTF8Validation) {
+		p.invalidUTF8Counter.Inc()
+		return
+	}
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {

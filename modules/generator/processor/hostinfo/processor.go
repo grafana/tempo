@@ -4,6 +4,9 @@ import (
 	"context"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
+
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -20,9 +23,10 @@ type Processor struct {
 	Cfg    Config
 	logger log.Logger
 
-	gauge      registry.Gauge
-	registry   registry.Registry
-	metricName string
+	gauge              registry.Gauge
+	registry           registry.Registry
+	metricName         string
+	invalidUTF8Counter prometheus.Counter
 }
 
 func (p *Processor) Name() string {
@@ -53,20 +57,26 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 			builder := p.registry.NewLabelBuilder()
 			builder.Add(hostIdentifierAttr, hostID)
 			builder.Add(hostSourceAttr, hostSource)
-			p.gauge.Set(builder.CloseAndBuildLabels(), 1)
+			labels := builder.CloseAndBuildLabels()
+			if !labels.IsValid(model.UTF8Validation) {
+				p.invalidUTF8Counter.Inc()
+				continue
+			}
+			p.gauge.Set(labels, 1)
 		}
 	}
 }
 
 func (p *Processor) Shutdown(_ context.Context) {}
 
-func New(cfg Config, reg registry.Registry, logger log.Logger) (*Processor, error) {
+func New(cfg Config, reg registry.Registry, logger log.Logger, invalidUTF8Counter prometheus.Counter) (*Processor, error) {
 	p := &Processor{
-		Cfg:        cfg,
-		logger:     logger,
-		registry:   reg,
-		metricName: cfg.MetricName,
-		gauge:      reg.NewGauge(cfg.MetricName),
+		Cfg:                cfg,
+		logger:             logger,
+		registry:           reg,
+		metricName:         cfg.MetricName,
+		gauge:              reg.NewGauge(cfg.MetricName),
+		invalidUTF8Counter: invalidUTF8Counter,
 	}
 	return p, nil
 }

@@ -232,6 +232,10 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		}
 
 		targetInfoRegistryLabelValues := targetInfoBuilder.CloseAndBuildLabels()
+		if !targetInfoRegistryLabelValues.IsValid(model.UTF8Validation) {
+			p.invalidUTF8Counter.Inc()
+			return
+		}
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		// TODO - We can move this check to the top
