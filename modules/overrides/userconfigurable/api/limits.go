@@ -6,6 +6,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
@@ -33,6 +34,7 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 				SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:          strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
 					IntrinsicDimensions: mapBoolPtr(overrides.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID)),
+					DimensionMappings:   dimensionMappingsPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)),
 					EnableTargetInfo: func() *bool {
 						val, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
 						return boolPtr(val)
@@ -79,6 +81,13 @@ func floatPtr(f float64) *float64 {
 }
 
 func mapBoolPtr(m map[string]bool) *map[string]bool {
+	return &m
+}
+
+func dimensionMappingsPtr(m []sharedconfig.DimensionMappings) *[]sharedconfig.DimensionMappings {
+	if len(m) == 0 {
+		return nil
+	}
 	return &m
 }
 

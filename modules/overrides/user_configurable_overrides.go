@@ -21,6 +21,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
@@ -342,6 +343,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsI
 		return intrinsicDimensions
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
+	if mappings, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensionMappings(); ok {
+		return mappings
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,8 +50,17 @@ func TestLimits_parseJson(t *testing.T) {
       "span_metrics": {
         "dimensions": ["cluster"],
         "intrinsic_dimensions": {
-          "service": true
+          "service": true,
         },
+        "dimension_mappings": [
+          {
+            "name": "foo",
+            "source_labels": [
+              "bar"
+            ],
+            "join": ""
+          }
+        ],
         "histogram_buckets": [0.1, 0.2, 0.5]
       },
       "host_info": {
@@ -77,8 +87,13 @@ func TestLimits_parseJson(t *testing.T) {
 						},
 						SpanMetrics: LimitsMetricsGeneratorProcessorSpanMetrics{
 							Dimensions:          &[]string{"cluster"},
-							IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true}),
 							HistogramBuckets:    &[]float64{0.1, 0.2, 0.5},
+							IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true}),
+							DimensionMappings: &[]sharedconfig.DimensionMappings{{
+								Name:        "foo",
+								SourceLabel: []string{"bar"},
+								Join:        "",
+							}},
 						},
 						HostInfo: LimitsMetricGeneratorProcessorHostInfo{
 							HostIdentifiers: &[]string{"k8s.node.name", "host.id"},

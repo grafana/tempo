@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 )
@@ -191,13 +192,14 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetHistogramBuckets() ([]
 }
 
 type LimitsMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions                   *[]string                    `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	IntrinsicDimensions          *map[string]bool             `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
-	EnableTargetInfo             *bool                        `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
-	FilterPolicies               *[]filterconfig.FilterPolicy `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
-	HistogramBuckets             *[]float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	TargetInfoExcludedDimensions *[]string                    `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
-	EnableInstanceLabel          *bool                        `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
+	Dimensions                   *[]string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	IntrinsicDimensions          *map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
+	DimensionMappings            *[]sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mappings,omitempty"`
+	EnableTargetInfo             *bool                             `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
+	FilterPolicies               *[]filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	HistogramBuckets             *[]float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	TargetInfoExcludedDimensions *[]string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
+	EnableInstanceLabel          *bool                             `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -210,6 +212,13 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetIntrinsicDimensions() (map[string]bool, bool) {
 	if l != nil && l.IntrinsicDimensions != nil {
 		return *l.IntrinsicDimensions, true
+	}
+	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensionMappings() ([]sharedconfig.DimensionMappings, bool) {
+	if l != nil && l.DimensionMappings != nil {
+		return *l.DimensionMappings, true
 	}
 	return nil, false
 }
