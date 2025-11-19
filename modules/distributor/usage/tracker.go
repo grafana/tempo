@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"fmt"
 	"maps"
 	"math"
 	"math/bits"
@@ -407,7 +408,7 @@ func (u *Tracker) Collect(ch chan<- prometheus.Metric) {
 			if err != nil {
 				// this will be logged for every invalid metric, for each scrape of `/usage_metrics`
 				// so we use a rate limited logger to avoid log span and perf overhead of logging
-				u.logger.Log("msg", "failed to collect usage tracker metric", "tenantID", tenantID, "err", err)
+				u.logger.Log("msg", "failed to collect usage tracker metric", "tenantID", tenantID, "dimensions", fmt.Sprintf("%v", t.dimensions), "labels", strings.Join(b.labels, ";"), "err", err)
 				continue // move to next series because we don't have a metric due to error
 			}
 			ch <- metric
