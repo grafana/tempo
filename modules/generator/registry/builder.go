@@ -67,7 +67,6 @@ func (b *labelBuilder) CloseAndBuildLabels() (labels.Labels, bool) {
 	builderPool.Put(b.builder)
 	b.builder = nil
 
-	// Validate UTF-8. Return false if invalid.
 	if !labels.IsValid(model.UTF8Validation) {
 		return labels, false
 	}
