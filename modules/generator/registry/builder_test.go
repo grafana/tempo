@@ -10,7 +10,7 @@ import (
 func TestLabelBuilder(t *testing.T) {
 	builder := NewLabelBuilder(0, 0)
 	builder.Add("name", "value")
-	lbls := builder.Labels()
+	lbls := builder.CloseAndBuildLabels()
 
 	assert.Equal(t, labels.FromStrings("name", "value"), lbls)
 
@@ -26,7 +26,23 @@ func TestLabelBuilder_MaxLabelNameLength(t *testing.T) {
 	builder.Add("name", "very_long_value")
 	builder.Add("very_long_name", "value")
 
-	lbls := builder.Labels()
+	lbls := builder.CloseAndBuildLabels()
 
 	assert.Equal(t, labels.FromStrings("name", "very_long_", "very_long_", "value"), lbls)
+}
+
+func TestSafeBuilderPool(t *testing.T) {
+	pool := newSafeBuilderPool()
+	builder := pool.Get()
+	builder.Set("name", "value")
+	lbls := builder.Labels()
+
+	assert.Equal(t, labels.FromStrings("name", "value"), lbls)
+
+	// Putting the builder back into the pool should reset it.
+	pool.Put(builder)
+
+	reusedBuilder := pool.Get()
+	assert.Equal(t, builder, reusedBuilder)
+	assert.Equal(t, labels.EmptyLabels(), reusedBuilder.Labels())
 }

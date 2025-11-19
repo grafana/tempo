@@ -6,11 +6,30 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
-var builderPool = sync.Pool{
-	New: func() interface{} {
-		return labels.NewBuilder(labels.New())
-	},
+type safeBuilderPool struct {
+	pool sync.Pool
 }
+
+func newSafeBuilderPool() *safeBuilderPool {
+	return &safeBuilderPool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				return labels.NewBuilder(labels.New())
+			},
+		},
+	}
+}
+
+func (p *safeBuilderPool) Get() *labels.Builder {
+	return p.pool.Get().(*labels.Builder)
+}
+
+func (p *safeBuilderPool) Put(builder *labels.Builder) {
+	builder.Reset(labels.New())
+	p.pool.Put(builder)
+}
+
+var builderPool = newSafeBuilderPool()
 
 type labelBuilder struct {
 	builder             *labels.Builder
@@ -21,8 +40,7 @@ type labelBuilder struct {
 var _ LabelBuilder = (*labelBuilder)(nil)
 
 func NewLabelBuilder(maxLabelNameLength int, maxLabelValueLength int) LabelBuilder {
-	builder := builderPool.Get().(*labels.Builder)
-	builder.Reset(labels.New())
+	builder := builderPool.Get()
 	return &labelBuilder{
 		builder:             builder,
 		maxLabelNameLength:  maxLabelNameLength,
@@ -40,7 +58,7 @@ func (b *labelBuilder) Add(name, value string) {
 	b.builder.Set(name, value)
 }
 
-func (b *labelBuilder) Labels() labels.Labels {
+func (b *labelBuilder) CloseAndBuildLabels() labels.Labels {
 	labels := b.builder.Labels()
 	// it's no longer safe to use the builder after this point, so we drop our
 	// reference to it. this may cause a nil panic if the builder is used after

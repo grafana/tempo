@@ -53,7 +53,7 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 			builder := p.registry.NewLabelBuilder()
 			builder.Add(hostIdentifierAttr, hostID)
 			builder.Add(hostSourceAttr, hostSource)
-			p.gauge.Set(builder.Labels(), 1)
+			p.gauge.Set(builder.CloseAndBuildLabels(), 1)
 		}
 	}
 }
