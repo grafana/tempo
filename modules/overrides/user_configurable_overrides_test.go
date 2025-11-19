@@ -126,7 +126,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 				},
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:          &[]string{"sm-dimension"},
-					IntrinsicDimensions: mapBoolPtr(map[string]bool{"service.name": true, "span.name": false}),
+					IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true, "span_name": false}),
 					EnableTargetInfo:    boolPtr(true),
 					EnableInstanceLabel: boolPtr(false),
 					FilterPolicies: &[]filterconfig.FilterPolicy{
@@ -170,7 +170,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, 60*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Equal(t, "trace_id", mgr.MetricsGeneratorTraceIDLabelName(tenant1))
 	assert.Equal(t, 45*time.Second, mgr.MetricsGeneratorIngestionSlack(tenant1))
-	assert.Equal(t, map[string]bool{"service.name": true, "span.name": false}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenant1))
+	assert.Equal(t, map[string]bool{"service": true, "span_name": false}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	enableVirtualNodeLabelValue, enableVirtualNodeLabelIsSet := mgr.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(tenant1)
 	assert.Equal(t, true, enableVirtualNodeLabelValue)
@@ -437,7 +437,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 			NativeHistogramMinResetDuration: &userconfigurableoverrides.Duration{Duration: 2 * time.Minute},
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
-					IntrinsicDimensions: mapBoolPtr(map[string]bool{"custom": true}),
+					IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true}),
 				},
 			},
 		},
@@ -481,7 +481,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenantID))
-	assert.Equal(t, map[string]bool{"custom": true}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID))
+	assert.Equal(t, map[string]bool{"service": true}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID))
 	assert.NotEqual(t, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(tenantID))

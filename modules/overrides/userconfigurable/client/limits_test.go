@@ -49,7 +49,7 @@ func TestLimits_parseJson(t *testing.T) {
       "span_metrics": {
         "dimensions": ["cluster"],
         "intrinsic_dimensions": {
-          "cluster": true
+          "service": true
         },
         "histogram_buckets": [0.1, 0.2, 0.5]
       },
@@ -77,7 +77,7 @@ func TestLimits_parseJson(t *testing.T) {
 						},
 						SpanMetrics: LimitsMetricsGeneratorProcessorSpanMetrics{
 							Dimensions:          &[]string{"cluster"},
-							IntrinsicDimensions: mapBoolPtr(map[string]bool{"cluster": true}),
+							IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true}),
 							HistogramBuckets:    &[]float64{0.1, 0.2, 0.5},
 						},
 						HostInfo: LimitsMetricGeneratorProcessorHostInfo{

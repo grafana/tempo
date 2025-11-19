@@ -38,7 +38,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 					},
 					SpanMetrics: overrides.SpanMetricsOverrides{
 						Dimensions:          []string{"your-dim1", "your-dim2"},
-						IntrinsicDimensions: map[string]bool{"service.name": true, "span.name": false},
+						IntrinsicDimensions: map[string]bool{"service": true, "span_name": false},
 						EnableTargetInfo:    boolPtr(true),
 						EnableInstanceLabel: boolPtr(true),
 						FilterPolicies: []filterconfig.FilterPolicy{
@@ -111,8 +111,8 @@ func Test_limitsFromOverrides(t *testing.T) {
           "your-dim2"
         ],
         "intrinsic_dimensions": {
-          "service.name": true,
-          "span.name": false
+          "service": true,
+          "span_name": false
         },
         "enable_target_info": true,
         "filter_policies": [
