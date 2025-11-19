@@ -21,10 +21,11 @@ services:
       - MEMCACHED_THREADS=4 # Number of threads to use
 
   tempo:
-    image: grafana/tempo:latest
+    image: tempo:latest
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
+      - ./overrides.yaml:/etc/overrides.yaml
       - ./tempo-data:/var/tempo
     ports:
       - "14268:14268" # jaeger ingest
