@@ -249,8 +249,11 @@ func (k *Kong) interpolateValue(value *Value, vars Vars) (err error) {
 		vars = vars.CloneWith(varsContributor.Vars(value))
 	}
 
-	if value.Enum, err = interpolate(value.Enum, vars, nil); err != nil {
-		return fmt.Errorf("enum for %s: %s", value.Summary(), err)
+	initialVars := vars.CloneWith(nil)
+	for n, v := range initialVars {
+		if vars[n], err = interpolate(v, initialVars, nil); err != nil {
+			return fmt.Errorf("variable %s for %s: %s", n, value.Summary(), err)
+		}
 	}
 
 	if value.Default, err = interpolate(value.Default, vars, nil); err != nil {
@@ -469,7 +472,7 @@ func (k *Kong) FatalIfErrorf(err error, args ...any) {
 	if errors.As(err, &parseErr) {
 		switch k.usageOnError {
 		case fullUsage:
-			_ = k.help(k.helpOptions, parseErr.Context)
+			_ = parseErr.Context.printHelp(k.helpOptions)
 			fmt.Fprintln(k.Stdout)
 		case shortUsage:
 			_ = k.shortHelp(k.helpOptions, parseErr.Context)
