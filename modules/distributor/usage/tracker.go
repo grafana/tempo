@@ -13,6 +13,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -199,10 +200,12 @@ type Tracker struct {
 	maxFn    tenantMaxFunc
 	reg      *prometheus.Registry
 	cfg      PerTrackerConfig
-	logger   log.Logger
+	logger   *tempo_log.RateLimitedLogger
 }
 
 func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, maxFn tenantMaxFunc, logger log.Logger) (*Tracker, error) {
+	// wrapped into error because we only log errors in the usage tracker with this logger
+	logger = level.Error(log.With(logger, "component", "usage-tracker"))
 	u := &Tracker{
 		cfg:      cfg,
 		name:     name,
@@ -210,7 +213,8 @@ func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, ma
 		labelsFn: labelsFn,
 		maxFn:    maxFn,
 		reg:      prometheus.NewRegistry(),
-		logger:   log.With(logger, "component", "usage-tracker"),
+		// rate limit logger to avoid log spam
+		logger: tempo_log.NewRateLimitedLogger(1, logger),
 	}
 
 	err := u.reg.Register(u)
@@ -401,7 +405,9 @@ func (u *Tracker) Collect(ch chan<- prometheus.Metric) {
 			metric, err := prometheus.NewConstMetric(b.descr, prometheus.CounterValue, float64(b.bytes), b.labels...)
 			// we have invalid config that's causing an error when registering a metric, log it and move on to next series
 			if err != nil {
-				level.Error(u.logger).Log("msg", "failed to collect usage tracker metric", "tenantID", tenantID, "dimensions", "err", err)
+				// this will be logged for every invalid metric, for each scrape of `/usage_metrics`
+				// so we use a rate limited logger to avoid log span and perf overhead of logging
+				u.logger.Log("msg", "failed to collect usage tracker metric", "tenantID", tenantID, "err", err)
 				continue // move to next series because we don't have a metric due to error
 			}
 			ch <- metric
