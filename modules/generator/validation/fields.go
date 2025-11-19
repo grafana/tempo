@@ -97,3 +97,10 @@ func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimen
 	}
 	return nil
 }
+
+func ValidateTraceIDLabelName(traceIDLabelName string) error {
+	if traceIDLabelName != SanitizeLabelName(traceIDLabelName) {
+		return fmt.Errorf("trace_id_label_name \"%s\" is not a valid Prometheus label name", traceIDLabelName)
+	}
+	return nil
+}

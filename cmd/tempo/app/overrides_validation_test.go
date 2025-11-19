@@ -17,6 +17,10 @@ import (
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
+func strPtr(s string) *string {
+	return &s
+}
+
 func Test_runtimeOverridesValidator(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -207,6 +211,25 @@ func Test_overridesValidator(t *testing.T) {
 				},
 			},
 			expErr: "metrics_generator.collection_interval \"10m0s\" is outside acceptable range of 15s to 5m",
+		},
+		{
+			name: "metrics_generator.trace_id_label_name empty is allowed",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					TraceIDLabelName: strPtr(""),
+				},
+			},
+		},
+		{
+			name: "metrics_generator.trace_id_label_name invalid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					TraceIDLabelName: strPtr("trace-id"),
+				},
+			},
+			expErr: "trace_id_label_name \"trace-id\" is not a valid Prometheus label name",
 		},
 	}
 

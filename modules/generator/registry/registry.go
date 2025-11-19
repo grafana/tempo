@@ -161,7 +161,7 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 }
 
 func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogramOverride HistogramMode) (h Histogram) {
-	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
+	traceIDLabelName := r.overrides.MetricsGeneratorTraceIDLabelName(r.tenant)
 
 	// TODO: Temporary switch: use the old implementation when native histograms
 	// are disabled, eventually the new implementation can handle all cases

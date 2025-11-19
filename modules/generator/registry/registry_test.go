@@ -480,7 +480,7 @@ func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) histo
 	return m.generateNativeHistograms
 }
 
-func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {
+func (m *mockOverrides) MetricsGeneratorTraceIDLabelName(string) string {
 	return ""
 }
 
