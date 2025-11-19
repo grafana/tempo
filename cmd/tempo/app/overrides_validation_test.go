@@ -160,6 +160,21 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "valid cost attribution dimensions",
+			cfg:  Config{},
+			overrides: overrides.Overrides{CostAttribution: overrides.CostAttributionOverrides{
+				Dimensions: map[string]string{"span.name": "op_name"}},
+			},
+		},
+		{
+			name: "invalid cost attribution dimensions",
+			cfg:  Config{},
+			overrides: overrides.Overrides{CostAttribution: overrides.CostAttributionOverrides{
+				Dimensions: map[string]string{"span.name": "__name__"}},
+			},
+			expErr: "cost_attribution.dimensions config has invalid label name: '__name__'",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -398,6 +413,21 @@ func Test_overridesValidator(t *testing.T) {
 					NativeHistogramBucketFactor: float64Ptr(1.5),
 				},
 			},
+		},
+		{
+			name: "valid cost attribution dimensions",
+			cfg:  Config{},
+			limits: client.Limits{CostAttribution: client.CostAttribution{
+				Dimensions: &map[string]string{"span.name": "op_name"}},
+			},
+		},
+		{
+			name: "invalid cost attribution dimensions",
+			cfg:  Config{},
+			limits: client.Limits{CostAttribution: client.CostAttribution{
+				Dimensions: &map[string]string{"span.name": "__name__"}},
+			},
+			expErr: "cost_attribution.dimensions config has invalid label name: '__name__'",
 		},
 	}
 

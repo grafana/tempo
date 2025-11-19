@@ -43,6 +43,12 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		}
 	}
 
+	if config.CostAttribution.Dimensions != nil {
+		if err := validation.ValidateCostAttributionDimensions(config.CostAttribution.Dimensions); err != nil {
+			return err
+		}
+	}
+
 	serviceBuckets := config.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
 	if err := validation.ValidateHistogramBuckets(serviceBuckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
 		return err
@@ -64,7 +70,7 @@ type overridesValidator struct {
 
 var _ api.Validator = (*overridesValidator)(nil)
 
-// newOverridesValidator valides user-configurable overrides
+// newOverridesValidator validates user-configurable overrides
 func newOverridesValidator(cfg *Config) api.Validator {
 	validForwarders := map[string]struct{}{}
 	for _, f := range cfg.Distributor.Forwarders {
@@ -135,6 +141,12 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if buckets, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetHistogramBuckets(); ok {
 		if err := validation.ValidateHistogramBuckets(buckets, "metrics_generator.processor.span_metrics.histogram_buckets"); err != nil {
+			return err
+		}
+	}
+
+	if dims, ok := limits.GetCostAttribution().GetDimensions(); ok {
+		if err := validation.ValidateCostAttributionDimensions(dims); err != nil {
 			return err
 		}
 	}
