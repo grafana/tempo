@@ -18,33 +18,6 @@ Tempo uses the `X-Scope-OrgID` HTTP header to identify and enforce tenant bounda
 
 For more information about setting up multi-tenancy, refer to [Enable multi-tenancy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/multitenancy/).
 
-## Usage
-
-Tenant IDs are transmitted to Tempo via the `X-Scope-OrgID` HTTP header. This header must be included in all requests to Tempo when multi-tenancy is enabled.
-
-Multi-tenancy on ingestion is supported with both gRPC and HTTP for OTLP (OpenTelemetry Protocol). You can add the header in:
-
-- OpenTelemetry Collector configuration
-- Grafana Alloy configuration
-- Any HTTP/gRPC client using `curl` or other relevant tools
-
-### Example: Setting the tenant ID header
-
-The following example shows how to configure Grafana Alloy to send traces with a tenant ID:
-
-```
-otelcol.exporter.otlphttp "tempo" {
-    client {
-        headers = {
-            "X-Scope-OrgID" = "tenant-123",
-        }
-        endpoint = "http://tempo:4318"
-    }
-}
-```
-
-For security best practices on setting tenant IDs, refer to [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/).
-
 ## Characters and length restrictions
 
 Tenant IDs must be less-than or equal-to 150 bytes in length. The length is measured in bytes, not characters, which is important for multi-byte characters.
@@ -66,12 +39,17 @@ For security reasons, `.` and `..` aren't valid tenant IDs. These values are res
 
 ## Cross-tenant queries
 
-Tempo supports querying across multiple tenants in a single request. To perform a cross-tenant query, specify multiple tenant IDs separated by a pipe character (`|`) in the `X-Scope-OrgID` header.
-
-For example, to query both `foo` and `bar` tenants, set the header: `X-Scope-OrgID: foo|bar`
-
-When multiple tenant IDs are specified, Tempo normalizes them by sorting and removing duplicate tenant IDs.
-For example, `bar|foo|bar` is normalized to `bar|foo`.
-
 Cross-tenant queries are supported for search, search-tags, and trace-by-ID search operations.
-For detailed information about cross-tenant query federation, refer to [Cross-tenant query federation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/cross_tenant_query/).
+Refer to [Cross-tenant query federation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/cross_tenant_query/) for more information.
+
+## Multitenancy
+
+Tenant IDs are transmitted to Tempo via the `X-Scope-OrgID` HTTP header. This header must be included in all requests to Tempo when multi-tenancy is enabled.
+
+Multi-tenancy on ingestion is supported with both gRPC and HTTP for OTLP (OpenTelemetry Protocol). You can add the header in:
+
+- OpenTelemetry Collector configuration
+- Grafana Alloy configuration
+- Any HTTP/gRPC client using `curl` or other relevant tools
+
+Refer to [Enable multi-tenancy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/multitenancy/) for more information.
