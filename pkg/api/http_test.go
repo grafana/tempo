@@ -27,7 +27,7 @@ func TestMarshalingFormatFromAcceptHeader(t *testing.T) {
 		{name: "empty accept header", acceptHeader: "", expected: MarshallingFormatJSON},
 		{name: "json", acceptHeader: "application/json", expected: MarshallingFormatJSON},
 		{name: "protobuf", acceptHeader: "application/protobuf", expected: MarshallingFormatProtobuf},
-		{name: "simplified json", acceptHeader: "application/llm", expected: MarshallingFormatLLM},
+		{name: "simplified json", acceptHeader: "application/vnd.grafana.llm", expected: MarshallingFormatLLM},
 		{name: "invalid", acceptHeader: "application/invalid", expected: MarshallingFormatJSON},
 	}
 
