@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -197,9 +199,10 @@ type Tracker struct {
 	maxFn    tenantMaxFunc
 	reg      *prometheus.Registry
 	cfg      PerTrackerConfig
+	logger   log.Logger
 }
 
-func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, maxFn tenantMaxFunc) (*Tracker, error) {
+func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, maxFn tenantMaxFunc, logger log.Logger) (*Tracker, error) {
 	u := &Tracker{
 		cfg:      cfg,
 		name:     name,
@@ -207,6 +210,7 @@ func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, ma
 		labelsFn: labelsFn,
 		maxFn:    maxFn,
 		reg:      prometheus.NewRegistry(),
+		logger:   log.With(logger, "component", "usage-tracker"),
 	}
 
 	err := u.reg.Register(u)
@@ -384,17 +388,23 @@ func (u *Tracker) Handler() http.Handler {
 }
 
 func (u *Tracker) Describe(chan<- *prometheus.Desc) {
-	// This runs on startup when registering the tracker. Therefore
-	// we will have nothing to describe, but it's also not required.
+	// This runs on startup when registering the tracker.
+	// Therefore, we will have nothing to describe, but it's also not required.
 }
 
 func (u *Tracker) Collect(ch chan<- prometheus.Metric) {
 	u.mtx.Lock()
 	defer u.mtx.Unlock()
 
-	for _, t := range u.tenants {
+	for tenantID, t := range u.tenants {
 		for _, b := range t.series {
-			ch <- prometheus.MustNewConstMetric(b.descr, prometheus.CounterValue, float64(b.bytes), b.labels...)
+			metric, err := prometheus.NewConstMetric(b.descr, prometheus.CounterValue, float64(b.bytes), b.labels...)
+			// we have invalid config that's causing an error when registering a metric, log it and move on to next series
+			if err != nil {
+				level.Error(u.logger).Log("msg", "failed to collect usage tracker metric", "tenantID", tenantID, "dimensions", "err", err)
+				continue // move to next series because we don't have a metric due to error
+			}
+			ch <- metric
 		}
 	}
 }
