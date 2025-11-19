@@ -348,7 +348,7 @@ func (p *Processor) onComplete(e *store.Edge) {
 		}
 	}
 
-	registryLabelValues := builder.Labels()
+	registryLabelValues := builder.CloseAndBuildLabels()
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {

@@ -197,7 +197,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	registryLabelValues := builder.Labels()
+	registryLabelValues := builder.CloseAndBuildLabels()
 	if !registryLabelValues.IsValid(model.UTF8Validation) {
 		p.invalidUTF8Counter.Inc()
 		return
@@ -231,7 +231,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 			targetInfoBuilder.Add(gen.DimInstance, instanceID)
 		}
 
-		targetInfoRegistryLabelValues := targetInfoBuilder.Labels()
+		targetInfoRegistryLabelValues := targetInfoBuilder.CloseAndBuildLabels()
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		// TODO - We can move this check to the top

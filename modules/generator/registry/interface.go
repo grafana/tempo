@@ -14,7 +14,7 @@ type Registry interface {
 
 type LabelBuilder interface {
 	Add(name, value string)
-	Labels() labels.Labels
+	CloseAndBuildLabels() labels.Labels
 }
 
 // Counter
