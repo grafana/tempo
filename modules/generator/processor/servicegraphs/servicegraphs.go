@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
@@ -351,8 +350,8 @@ func (p *Processor) onComplete(e *store.Edge) {
 		}
 	}
 
-	registryLabelValues := builder.CloseAndBuildLabels()
-	if !registryLabelValues.IsValid(model.UTF8Validation) {
+	registryLabelValues, validUTF8 := builder.CloseAndBuildLabels()
+	if !validUTF8 {
 		p.invalidUTF8Counter.Inc()
 		return
 	}

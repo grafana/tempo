@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -57,8 +56,8 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 			builder := p.registry.NewLabelBuilder()
 			builder.Add(hostIdentifierAttr, hostID)
 			builder.Add(hostSourceAttr, hostSource)
-			labels := builder.CloseAndBuildLabels()
-			if !labels.IsValid(model.UTF8Validation) {
+			labels, validUTF8 := builder.CloseAndBuildLabels()
+			if !validUTF8 {
 				p.invalidUTF8Counter.Inc()
 				continue
 			}

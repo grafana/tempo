@@ -53,7 +53,8 @@ func buildTestLabels(names []string, values []string) labels.Labels {
 	for i := range names {
 		builder.Add(names[i], values[i])
 	}
-	return builder.CloseAndBuildLabels()
+	lbls, _ := builder.CloseAndBuildLabels()
+	return lbls
 }
 
 // TODO: rewrite tests to use mocked limiter instead of this
@@ -329,10 +330,14 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 
 	builder := registry.NewLabelBuilder()
 	builder.Add("very_lengthy_label", "very_length_value")
-	counter.Inc(builder.CloseAndBuildLabels(), 1.0)
+	lbls, ok := builder.CloseAndBuildLabels()
+	require.True(t, ok)
+	counter.Inc(lbls, 1.0)
 	builder = registry.NewLabelBuilder()
 	builder.Add("another_very_lengthy_label", "another_very_lengthy_value")
-	histogram.ObserveWithExemplar(builder.CloseAndBuildLabels(), 1.0, "", 1.0)
+	lbls, ok = builder.CloseAndBuildLabels()
+	require.True(t, ok)
+	histogram.ObserveWithExemplar(lbls, 1.0, "", 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),

@@ -7,7 +7,6 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -197,8 +196,8 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
-	registryLabelValues := builder.CloseAndBuildLabels()
-	if !registryLabelValues.IsValid(model.UTF8Validation) {
+	registryLabelValues, validUTF8 := builder.CloseAndBuildLabels()
+	if !validUTF8 {
 		p.invalidUTF8Counter.Inc()
 		return
 	}
@@ -231,8 +230,8 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 			targetInfoBuilder.Add(gen.DimInstance, instanceID)
 		}
 
-		targetInfoRegistryLabelValues := targetInfoBuilder.CloseAndBuildLabels()
-		if !targetInfoRegistryLabelValues.IsValid(model.UTF8Validation) {
+		targetInfoRegistryLabelValues, validUTF8 := targetInfoBuilder.CloseAndBuildLabels()
+		if !validUTF8 {
 			p.invalidUTF8Counter.Inc()
 			return
 		}
