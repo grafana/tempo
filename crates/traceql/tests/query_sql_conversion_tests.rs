@@ -14,9 +14,9 @@ fn strip_comments(content: &str) -> String {
 
 test_each_file! { for ["tql", "sql"] in "./crates/traceql/queries" => test_sql_conversion }
 
-fn test_sql_conversion(content: &str) {
+fn test_sql_conversion([input, expected]: [&str; 2]) {
     // Strip comments
-    let query = strip_comments(content);
+    let query = strip_comments(input);
 
     // Skip empty queries
     if query.is_empty() {
@@ -36,18 +36,5 @@ fn test_sql_conversion(content: &str) {
 
     let sql = result.unwrap();
 
-    // Verify the SQL is not empty
-    assert!(
-        !sql.is_empty(),
-        "Generated SQL is empty for query: {}",
-        query
-    );
-
-    // Verify the SQL contains SELECT statement
-    assert!(
-        sql.to_uppercase().contains("SELECT"),
-        "Generated SQL does not contain SELECT statement: {}\nQuery: {}",
-        sql,
-        query
-    );
+    assert_eq!(sql, strip_comments(expected));
 }

@@ -14,9 +14,9 @@ fn strip_comments(content: &str) -> String {
 
 test_each_file! { for ["tql"] in "./crates/traceql/queries" => test_parse_query }
 
-fn test_parse_query(content: &str) {
+fn test_parse_query([input]: [&str; 1]) {
     // Strip comments
-    let query = strip_comments(content);
+    let query = strip_comments(input);
 
     // Skip empty queries
     if query.is_empty() {
