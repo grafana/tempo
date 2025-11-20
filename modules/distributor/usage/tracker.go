@@ -1,7 +1,6 @@
 package usage
 
 import (
-	"fmt"
 	"maps"
 	"math"
 	"math/bits"
@@ -16,6 +15,7 @@ import (
 	"github.com/go-kit/log/level"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/util/strutil"
 
@@ -27,6 +27,18 @@ const (
 	trackerLabel  = "tracker"
 	missingLabel  = "__missing__"
 	overflowLabel = "__overflow__"
+)
+
+const (
+	reasonBadLabelsInCollect = "invalid_labels_in_collect"
+)
+
+var (
+	usageTrackerErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_usage_tracker_errors_total",
+		Help:      "The total number of errors in the usage tracker",
+	}, []string{"tenant", "reason"})
 )
 
 type (
@@ -408,7 +420,8 @@ func (u *Tracker) Collect(ch chan<- prometheus.Metric) {
 			if err != nil {
 				// this will be logged for every invalid metric, for each scrape of `/usage_metrics`
 				// so we use a rate limited logger to avoid log span and perf overhead of logging
-				u.logger.Log("msg", "failed to collect usage tracker metric", "tenantID", tenantID, "dimensions", fmt.Sprintf("%v", t.dimensions), "labels", strings.Join(b.labels, ";"), "err", err)
+				u.logger.Log("msg", "failed to collect usage tracker metric", "tenantID", tenantID, "err", err)
+				usageTrackerErrors.WithLabelValues(tenantID, reasonBadLabelsInCollect).Inc()
 				continue // move to next series because we don't have a metric due to error
 			}
 			ch <- metric
