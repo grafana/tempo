@@ -1,5 +1,9 @@
+.cache/
+bin/
 docs/
 example/
 integration/
 operations/
-opentelemetry-proto/
+target/
+
+# Note: opentelemetry-proto/ is needed for the Rust querier build

@@ -71,6 +71,19 @@ services:
   # Uncomment the following lines to enable tracing
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+  
+  querier-rs:
+    build:
+      context: ../../..
+      dockerfile: crates/querier/Dockerfile
+    command: "-target=querier -config.file=/etc/tempo.yaml -log.level=debug"
+    restart: always
+    ports:
+      - "3200"
+      - "9095"
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   compactor:
     image: *tempoImage
@@ -131,7 +144,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:11.6.7@sha256:41c78d437d7c8e81812aca8b03559e4fca39b43e670a5d9bae44915875faae41
+    image: grafana/grafana:latest
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
