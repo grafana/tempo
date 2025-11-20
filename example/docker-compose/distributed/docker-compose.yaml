@@ -9,8 +9,8 @@ services:
       - "3200" # tempo
       - "4317:4317"
   # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-0:
     image: *tempoImage
@@ -21,8 +21,8 @@ services:
     ports:
       - "3200" # tempo
   # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-1:
     image: *tempoImage
@@ -33,8 +33,8 @@ services:
     ports:
       - "3200" # tempo
   # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-2:
     image: *tempoImage
@@ -45,8 +45,8 @@ services:
     ports:
       - "3200" # tempo
   # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   query-frontend:
     image: *tempoImage
@@ -56,11 +56,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200:3200" # tempo
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+# Uncomment the following lines to enable tracing
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-  querier:
+  querier-go:
     image: *tempoImage
     command: "-target=querier -config.file=/etc/tempo.yaml -log.level=debug"
     restart: always
@@ -69,21 +69,20 @@ services:
     ports:
       - "3200" # tempo
   # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
   
-  querier-rs:
+  querier:
     build:
       context: ../../..
       dockerfile: crates/querier/Dockerfile
-    command: "-target=querier -config.file=/etc/tempo.yaml -log.level=debug"
     restart: always
     ports:
       - "3200"
-      - "9095"
-  # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    # Uncomment the following lines to enable tracing
+    environment:
+      - RUST_LOG=debug
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   compactor:
     image: *tempoImage
@@ -94,8 +93,8 @@ services:
     ports:
       - "3200" # tempo
   # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   metrics-generator:
     image: *tempoImage
@@ -106,8 +105,8 @@ services:
     ports:
       - "3200" # tempo
   # Uncomment the following lines to enable tracing
-  #    environment:
-  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   minio:
     image: minio/minio:latest
@@ -154,16 +153,20 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
     ports:
       - "3000:3000"
+
 # Uncomment the following lines to enable tracing
-# alloy:
-#   image: grafana/alloy:v1.3.1
-#   volumes:
-#     - ../shared/config.alloy:/etc/alloy/config.alloy
-#   command:
-#     - run
-#     - /etc/alloy/config.alloy
-#     - --storage.path=/var/lib/alloy/data
-#     - --server.http.listen-addr=0.0.0.0:12345
-#   ports:
-#     - "12345:12345"
-#     - "4319:4319"
+  alloy:
+    image: grafana/alloy:v1.3.1
+    volumes:
+      - ../shared/config.alloy:/etc/alloy/config.alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    ports:
+      - "12345:12345"
+      - "4317"
+      - "4318"
+    depends_on:
+      - distributor

@@ -1,0 +1,19 @@
+[package]
+name = "storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+config = { workspace = true }
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+datafusion = { workspace = true }
+flate2 = { workspace = true }
+futures-util = { workspace = true }
+object_store = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }

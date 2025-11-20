@@ -13,10 +13,9 @@ otelcol.receiver.otlp "otlp_receiver" {
 
 otelcol.exporter.otlp "grafanacloud" {
   client {
-    endpoint = "tempo:4317"
+    endpoint = "distributor:4317"
     tls {
 			insecure = true
 		}
   }
 }
-

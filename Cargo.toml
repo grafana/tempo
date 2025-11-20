@@ -1,7 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/cli",
+    "crates/config",
+    "crates/context",
+    "crates/provider",
     "crates/querier",
+    "crates/storage",
+    "crates/traceql",
 ]
 
 [workspace.package]
@@ -10,10 +16,39 @@ edition = "2021"
 license = "AGPL-3.0"
 
 [workspace.dependencies]
-tonic = "0.12"
-tonic-build = "0.12"
+# Internal crates
+cli = { path = "crates/cli" }
+config = { path = "crates/config" }
+context = { path = "crates/context" }
+storage = { path = "crates/storage" }
+traceql = { path = "crates/traceql" }
+provider = { path = "crates/provider" }
+
+# External dependencies
+anyhow = "1.0"
+async-trait = "0.1"
+chrono = "0.4"
+clap = { version = "4.5", features = ["derive"] }
+comfy-table = "7.1"
+config-rs = { package = "config", version = "0.14" }
+criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
+datafusion = { version = "50.3.0", features = ["parquet"] }
+datafusion-datasource = { version = "50.3.0", features = ["parquet"] }
+datafusion-physical-plan = "50.3.0"
+dirs = "6.0.0"
+flate2 = "1.1"
+futures-util = "0.3"
+humansize = "2.1"
+object_store = { version = "0.12", features = ["http", "aws"] }
+parquet = { version = "54.3.1", features = ["async"] }
 prost = "0.13"
 prost-types = "0.13"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+rustyline = "17.0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "full"] }
+tonic = "0.12"
+tonic-build = "0.12"
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2.5"

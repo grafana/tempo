@@ -1,0 +1,9 @@
+[package]
+name = "config"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+config-rs = { workspace = true }
+serde = { workspace = true }

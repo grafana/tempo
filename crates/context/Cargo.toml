@@ -1,0 +1,15 @@
+[package]
+name = "context"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+config = { workspace = true }
+provider = { workspace = true }
+storage = { workspace = true }
+traceql = { workspace = true }
+
+datafusion = { workspace = true }
+datafusion-physical-plan = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

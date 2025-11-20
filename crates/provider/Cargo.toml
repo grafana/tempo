@@ -1,0 +1,28 @@
+[package]
+name = "provider"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+config = { workspace = true }
+storage = { workspace = true }
+
+async-trait = { workspace = true }
+chrono = { workspace = true }
+comfy-table = { workspace = true }
+datafusion = { workspace = true }
+datafusion-datasource = { workspace = true }
+humansize = { workspace = true }
+parquet = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+criterion = { workspace = true }
+traceql = { workspace = true }
+
+[[bench]]
+name = "traceql_queries"
+harness = false
