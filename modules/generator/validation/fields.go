@@ -104,3 +104,12 @@ func ValidateTraceIDLabelName(traceIDLabelName string) error {
 	}
 	return nil
 }
+
+func ValidateHistogramBuckets(buckets []float64, field string) error {
+	for i, bucket := range buckets {
+		if i > 0 && bucket <= buckets[i-1] {
+			return fmt.Errorf("%s must be strictly increasing: bucket[%d]=%g is <= bucket[%d]=%g", field, i, bucket, i-1, buckets[i-1])
+		}
+	}
+	return nil
+}

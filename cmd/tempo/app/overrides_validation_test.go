@@ -6,15 +6,14 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/ring"
-	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/forwarder"
+	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/stretchr/testify/assert"
 )
 
 func strPtr(s string) *string {
@@ -83,6 +82,60 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
 				GenerateNativeHistograms: "both",
 			}},
+		},
+		{
+			name: "service graphs histogram buckets must be increasing",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{
+							HistogramBuckets: []float64{2, 1},
+						},
+					},
+				},
+			},
+			expErr: "metrics_generator.processor.service_graphs.histogram_buckets must be strictly increasing: bucket[1]=1 is <= bucket[0]=2",
+		},
+		{
+			name: "span metrics histogram buckets must be increasing",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						SpanMetrics: overrides.SpanMetricsOverrides{
+							HistogramBuckets: []float64{0.5, 0.5},
+						},
+					},
+				},
+			},
+			expErr: "metrics_generator.processor.span_metrics.histogram_buckets must be strictly increasing: bucket[1]=0.5 is <= bucket[0]=0.5",
+		},
+		{
+			name: "service graphs histogram buckets valid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{
+							HistogramBuckets: []float64{0.01, 0.1, 1},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "span metrics histogram buckets valid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						SpanMetrics: overrides.SpanMetricsOverrides{
+							HistogramBuckets: []float64{0.005, 0.01, 0.02},
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -249,6 +302,60 @@ func Test_overridesValidator(t *testing.T) {
 				},
 			},
 			expErr: "metrics_generator.ingestion_time_range_slack \"15h0m0s\" is outside acceptable range of 0s to 12h",
+		},
+		{
+			name: "service graphs histogram buckets must be increasing",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
+							HistogramBuckets: &[]float64{5, 4},
+						},
+					},
+				},
+			},
+			expErr: "metrics_generator.processor.service_graphs.histogram_buckets must be strictly increasing: bucket[1]=4 is <= bucket[0]=5",
+		},
+		{
+			name: "span metrics histogram buckets must be increasing",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
+							HistogramBuckets: &[]float64{1, 1},
+						},
+					},
+				},
+			},
+			expErr: "metrics_generator.processor.span_metrics.histogram_buckets must be strictly increasing: bucket[1]=1 is <= bucket[0]=1",
+		},
+		{
+			name: "service graphs histogram buckets valid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
+							HistogramBuckets: &[]float64{0.01, 0.1, 1},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "span metrics histogram buckets valid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
+							HistogramBuckets: &[]float64{0.005, 0.01, 0.02},
+						},
+					},
+				},
+			},
 		},
 	}
 
