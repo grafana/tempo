@@ -1,6 +1,9 @@
+use context::create_block_context;
 use datafusion::execution::context::SessionContext;
 use provider::{create_flattened_view, register_local_tempo_table, register_udfs};
+use storage::BlockInfo;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Setup DataFusion context with a local Tempo parquet file
 pub async fn setup_context_with_file(file_path: impl Into<String>) -> anyhow::Result<SessionContext> {
@@ -38,6 +41,38 @@ pub fn get_test_data_path(block_id: &str) -> PathBuf {
         .join("tempodb/encoding/vparquet4/test-data/single-tenant")
         .join(block_id)
         .join("data.parquet")
+}
+
+/// Setup DataFusion context with a block using object store
+///
+/// Parameters:
+/// - block_id: The block ID (GUID)
+/// - tenant_id: The tenant ID (defaults to "single-tenant")
+pub async fn setup_context_with_block(
+    block_id: impl Into<String>,
+    tenant_id: impl Into<String>,
+) -> anyhow::Result<SessionContext> {
+    let block_id_str = block_id.into();
+    let tenant_id_str = tenant_id.into();
+
+    // Get the base path to test data
+    let base_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("tempodb/encoding/vparquet4/test-data");
+
+    // Create a local filesystem object store
+    let store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix(base_path)?);
+
+    // Create BlockInfo
+    let block_info = BlockInfo::new(block_id_str, tenant_id_str);
+
+    // Create context using the new function
+    let ctx = create_block_context(store, block_info).await?;
+
+    Ok(ctx)
 }
 
 /// Get list of TraceQL query files

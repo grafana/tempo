@@ -1,11 +1,13 @@
 use config::Config;
 use provider::{display, register_tempo_table, register_udfs, create_flattened_view};
+use storage::{BlockInfo, tempo_trace_schema};
 use traceql;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::*;
 use datafusion_physical_plan::metrics::MetricsSet;
+use object_store::ObjectStore;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -169,4 +171,53 @@ pub async fn execute_query(ctx: &SessionContext, query: &str) -> Result<String> 
     debug!("Query execution time: {:.3} seconds", elapsed.as_secs_f64());
 
     Ok(formatted)
+}
+
+/// Create a DataFusion context for a specific block
+///
+/// Parameters:
+/// - object_store: The object store containing the block's parquet file
+/// - block_info: Information about the block (block_id and tenant_id)
+///
+/// Returns:
+/// - A configured SessionContext with the block's data registered as "traces" table
+pub async fn create_block_context(
+    object_store: Arc<dyn ObjectStore>,
+    block_info: BlockInfo,
+) -> Result<SessionContext> {
+    info!(
+        "Creating context for block {} in tenant {}",
+        block_info.block_id, block_info.tenant_id
+    );
+
+    // Create a new session context
+    let ctx = SessionContext::new();
+
+    // Register UDFs
+    register_udfs(&ctx);
+
+    // Get the path to the parquet file
+    let parquet_path = block_info.data_parquet_path();
+    info!("Registering parquet file: {}", parquet_path);
+
+    // Register the object store with a URL scheme
+    let store_url = url::Url::parse("tempo://bucket").map_err(|e| {
+        DataFusionError::External(format!("Failed to parse store URL: {}", e).into())
+    })?;
+    ctx.register_object_store(&store_url, object_store);
+
+    // Register the parquet file as the "traces" table
+    let full_path = format!("tempo://bucket/{}", parquet_path);
+    let mut options = ParquetReadOptions::default();
+    let schema = tempo_trace_schema();
+    options.schema = Some(&schema);
+    ctx.register_parquet("traces", &full_path, options)
+        .await?;
+    info!("Registered 'traces' table for block");
+
+    // Create the flattened spans view
+    create_flattened_view(&ctx).await?;
+    info!("Created flattened view");
+
+    Ok(ctx)
 }

@@ -19,7 +19,7 @@ struct BlockMeta {
 }
 
 #[derive(Debug, Clone)]
-pub struct BlockInfo {
+pub struct DiscoveredBlock {
     pub path: ObjectPath,
     pub size: u64,
     pub start_time: String,
@@ -47,8 +47,8 @@ impl TempoStorage {
     /// Discover blocks by directly searching for data.parquet files and matching meta files
     ///
     /// Returns:
-    /// - Vector of BlockInfo structs containing path, size, and time range information
-    pub async fn discover_blocks(&self) -> Result<Vec<BlockInfo>> {
+    /// - Vector of DiscoveredBlock structs containing path, size, and time range information
+    pub async fn discover_blocks(&self) -> Result<Vec<DiscoveredBlock>> {
         use futures_util::stream::{StreamExt, TryStreamExt};
 
         // List all objects under the prefix
@@ -114,7 +114,7 @@ impl TempoStorage {
                         }
                     };
 
-                    Ok(BlockInfo {
+                    Ok(DiscoveredBlock {
                         path: parquet_path,
                         size: parquet_size,
                         start_time: block_meta.start_time,

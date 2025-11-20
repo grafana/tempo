@@ -1,7 +1,7 @@
 use chrono::DateTime;
 use datafusion::logical_expr::{Expr, Operator};
 use datafusion::scalar::ScalarValue;
-use storage::BlockInfo;
+use storage::DiscoveredBlock;
 use tracing::{debug, warn};
 
 /// The column name for the start time in nanoseconds
@@ -32,7 +32,7 @@ impl TimeRange {
 
     /// Check if this time range overlaps with a block's time range
     /// Block times are in RFC3339 format (e.g., "2024-01-01T00:00:00Z")
-    pub fn overlaps_with_block(&self, block: &BlockInfo) -> bool {
+    pub fn overlaps_with_block(&self, block: &DiscoveredBlock) -> bool {
         // Parse block start and end times
         let block_start_nanos = match DateTime::parse_from_rfc3339(&block.start_time) {
             Ok(dt) => dt.timestamp_nanos_opt().unwrap_or(i64::MIN),
@@ -384,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_overlaps_with_block() {
-        let block = BlockInfo {
+        let block = DiscoveredBlock {
             path: "test".into(),
             size: 100,
             start_time: "2024-01-01T00:00:00Z".to_string(),

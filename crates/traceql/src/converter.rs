@@ -142,35 +142,47 @@ fn write_comparison(
         format!("{}.", prefix)
     };
 
-    // Check if this is a span attribute that returns a list
-    let is_span_attr = matches!(field.scope, FieldScope::Span)
-        && !matches!(field.name.as_str(), "http.method" | "http.url" | "http.status_code" | "http.response_code");
+    // Check if this is a span or resource attribute that returns a list
+    let is_list_attr = match field.scope {
+        FieldScope::Span => {
+            // Span attributes except dedicated columns
+            !matches!(field.name.as_str(), "http.method" | "http.url" | "http.status_code" | "http.response_code")
+        }
+        FieldScope::Resource => {
+            // Resource attributes except dedicated columns
+            !matches!(field.name.as_str(),
+                "service.name" | "cluster" | "namespace" | "pod" | "container" |
+                "k8s.cluster.name" | "k8s.namespace.name" | "k8s.pod.name" | "k8s.container.name"
+            )
+        }
+        _ => false
+    };
 
     // Map TraceQL field to SQL column
     let sql_field = field_to_sql(field, &table_prefix)?;
 
     // Write the comparison
     match op {
-        ComparisonOperator::Eq if is_span_attr => {
-            // Use list_contains for span attributes
+        ComparisonOperator::Eq if is_list_attr => {
+            // Use list_contains for span and resource attributes
             write!(sql, "list_contains({}, ", sql_field)?;
             write_value(sql, value)?;
             write!(sql, ")")?;
         }
-        ComparisonOperator::NotEq if is_span_attr => {
-            // Use NOT list_contains for span attributes
+        ComparisonOperator::NotEq if is_list_attr => {
+            // Use NOT list_contains for span and resource attributes
             write!(sql, "NOT list_contains({}, ", sql_field)?;
             write_value(sql, value)?;
             write!(sql, ")")?;
         }
-        ComparisonOperator::Regex if is_span_attr => {
+        ComparisonOperator::Regex if is_list_attr => {
             // TODO: Use proper list aggregation instead of array_to_string
             // This workaround concatenates all list elements which may produce false matches
             // Should use a list iteration function when available in DataFusion
             write!(sql, "array_to_string({}, ',') ~ ", sql_field)?;
             write_value(sql, value)?;
         }
-        ComparisonOperator::NotRegex if is_span_attr => {
+        ComparisonOperator::NotRegex if is_list_attr => {
             // TODO: Use proper list aggregation instead of array_to_string
             // This workaround concatenates all list elements which may produce false matches
             // Should use a list iteration function when available in DataFusion
@@ -227,7 +239,8 @@ fn field_to_sql(field: &FieldRef, table_prefix: &str) -> Result<String, Conversi
                 "k8s.container.name" => Ok(format!("{}\"ResourceK8sContainerName\"", table_prefix)),
                 _ => {
                     // Generic resource attribute access via ResourceAttrs map
-                    Ok(format!("{}\"ResourceAttrs\"['{}']", table_prefix, field.name))
+                    // Use map_extract to get the list for this key
+                    Ok(format!("flatten(map_extract({}\"ResourceAttrs\", '{}'))", table_prefix, field.name))
                 }
             }
         }

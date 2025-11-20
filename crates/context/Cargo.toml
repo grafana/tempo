@@ -9,7 +9,11 @@ provider = { workspace = true }
 storage = { workspace = true }
 traceql = { workspace = true }
 
+async-trait = { workspace = true }
 datafusion = { workspace = true }
+datafusion-datasource = { workspace = true }
 datafusion-physical-plan = { workspace = true }
+object_store = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+url = { workspace = true }

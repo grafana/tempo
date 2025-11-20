@@ -967,14 +967,18 @@ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 name = "context"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "config 0.1.0",
  "datafusion",
+ "datafusion-datasource",
  "datafusion-physical-plan",
+ "object_store",
  "provider",
  "storage",
  "tokio",
  "traceql",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -4252,9 +4256,12 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "context",
  "criterion",
  "datafusion",
+ "object_store",
  "provider",
+ "storage",
  "test_each_file",
  "tokio",
  "traceql",

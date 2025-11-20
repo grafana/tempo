@@ -1,5 +1,5 @@
 use config::S3Config;
-use storage::{create_object_store, BlockInfo, TempoStorage};
+use storage::{create_object_store, DiscoveredBlock, TempoStorage};
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::Session;
@@ -75,7 +75,7 @@ pub struct TempoTableProvider {
     #[allow(dead_code)]
     tempo_storage: TempoStorage,
     /// List of block information including paths, sizes, and time ranges
-    blocks: Vec<BlockInfo>,
+    blocks: Vec<DiscoveredBlock>,
     /// The parquet file format
     file_format: Arc<ParquetFormat>,
     /// Base URL for the table (e.g., s3://tempo/single-tenant)

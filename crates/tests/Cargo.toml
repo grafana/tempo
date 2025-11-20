@@ -4,11 +4,14 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+context = { workspace = true }
 provider = { workspace = true }
+storage = { workspace = true }
 traceql = { workspace = true }
 
 anyhow = { workspace = true }
 datafusion = { workspace = true }
+object_store = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]

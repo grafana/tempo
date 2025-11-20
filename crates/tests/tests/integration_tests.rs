@@ -1,8 +1,9 @@
 use test_each_file::test_each_file;
-use tests::{execute_query, get_test_data_path, setup_context_with_file};
+use tests::{execute_query, get_test_data_path, setup_context_with_block};
 use traceql::traceql_to_sql_string;
 
 const TEST_BLOCK_ID: &str = "b27b0e53-66a0-4505-afd6-434ae3cd4a10";
+const TEST_TENANT_ID: &str = "single-tenant";
 
 /// Strip comments starting with # from the query
 fn strip_comments(content: &str) -> String {
@@ -20,8 +21,8 @@ test_each_file! { for ["tql"] in "./crates/traceql/queries" => test_traceql_quer
 fn test_traceql_query_execution([input]: [&str; 1]) {
     // Strip comments
     let query = strip_comments(input);
-    
-    // Get the path to the test data file
+
+    // Get the path to the test data file (for verification)
     let data_path = get_test_data_path(TEST_BLOCK_ID);
 
     // Verify test data exists
@@ -34,8 +35,8 @@ fn test_traceql_query_execution([input]: [&str; 1]) {
     // Run async test in blocking context
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        // Setup context with test data
-        let ctx = setup_context_with_file(data_path.to_string_lossy().to_string())
+        // Setup context with test block using object store
+        let ctx = setup_context_with_block(TEST_BLOCK_ID, TEST_TENANT_ID)
             .await
             .expect("Failed to setup context");
 
@@ -54,7 +55,7 @@ fn test_traceql_query_execution([input]: [&str; 1]) {
 
 #[tokio::test]
 async fn test_basic_queries() {
-    // Get the path to the test data file
+    // Get the path to the test data file (for verification)
     let data_path = get_test_data_path(TEST_BLOCK_ID);
 
     // Verify test data exists
@@ -64,8 +65,8 @@ async fn test_basic_queries() {
         data_path
     );
 
-    // Setup context with test data
-    let ctx = setup_context_with_file(data_path.to_string_lossy().to_string())
+    // Setup context with test block using object store
+    let ctx = setup_context_with_block(TEST_BLOCK_ID, TEST_TENANT_ID)
         .await
         .expect("Failed to setup context");
 
@@ -90,7 +91,7 @@ async fn test_basic_queries() {
 
 #[tokio::test]
 async fn test_no_match_queries() {
-    // Get the path to the test data file
+    // Get the path to the test data file (for verification)
     let data_path = get_test_data_path(TEST_BLOCK_ID);
 
     // Verify test data exists
@@ -100,8 +101,8 @@ async fn test_no_match_queries() {
         data_path
     );
 
-    // Setup context with test data
-    let ctx = setup_context_with_file(data_path.to_string_lossy().to_string())
+    // Setup context with test block using object store
+    let ctx = setup_context_with_block(TEST_BLOCK_ID, TEST_TENANT_ID)
         .await
         .expect("Failed to setup context");
 

@@ -1,1 +1,2 @@
-{ status = ok }
+SELECT * FROM spans
+WHERE "StatusCode" = 1

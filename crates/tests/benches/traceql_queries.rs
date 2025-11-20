@@ -1,10 +1,12 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
-use tests::{execute_query, setup_context_with_file};
+use tests::execute_query;
 use tokio::runtime::Runtime;
 use traceql::traceql_to_sql_string;
 use anyhow;
+use context::create_block_context;
+use storage::BlockInfo;
 
 /// Benchmark test case
 struct BenchCase {
@@ -95,13 +97,11 @@ fn get_test_cases() -> Vec<BenchCase> {
     ]
 }
 
-/// Construct the parquet file path from environment variables (same as Go benchmark)
+/// Get block info and object store from environment variables
 /// - BENCH_BLOCKID: GUID of the block (e.g., "030c8c4f-9d47-4916-aadc-26b90b1d2bc4")
 /// - BENCH_PATH: Root path to backend (e.g., "/path/to/tempo/storage")
 /// - BENCH_TENANTID: Tenant ID (defaults to "1")
-///
-/// Returns path: <BENCH_PATH>/<BENCH_TENANTID>/<BENCH_BLOCKID>/data.parquet
-fn get_bench_file_path() -> anyhow::Result<String> {
+fn get_bench_block_info() -> anyhow::Result<(Arc<dyn object_store::ObjectStore>, BlockInfo)> {
     let block_id = std::env::var("BENCH_BLOCKID").map_err(|_| {
         anyhow::anyhow!(
             "BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. \
@@ -120,26 +120,26 @@ fn get_bench_file_path() -> anyhow::Result<String> {
 
     let tenant_id = std::env::var("BENCH_TENANTID").unwrap_or_else(|_| "1".to_string());
 
-    // Construct the path: <BENCH_PATH>/<BENCH_TENANTID>/<BENCH_BLOCKID>/data.parquet
-    let file_path = PathBuf::from(bench_path)
-        .join(&tenant_id)
-        .join(&block_id)
-        .join("data.parquet");
+    // Create a local filesystem object store
+    let store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix(bench_path)?);
 
-    Ok(file_path.to_string_lossy().to_string())
+    // Create BlockInfo
+    let block_info = BlockInfo::new(block_id, tenant_id);
+
+    Ok((store, block_info))
 }
 
 fn bench_traceql_queries(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
 
     // Setup context once
-    let file_path = get_bench_file_path().unwrap_or_else(|e| {
-        panic!("Failed to get bench file path: {}. \
+    let (object_store, block_info) = get_bench_block_info().unwrap_or_else(|e| {
+        panic!("Failed to get block info: {}. \
                Make sure BENCH_BLOCKID, BENCH_PATH, and optionally BENCH_TENANTID environment variables are set.", e)
     });
 
     let ctx = rt.block_on(async {
-        setup_context_with_file(&file_path).await.unwrap_or_else(|e| {
+        create_block_context(object_store, block_info).await.unwrap_or_else(|e| {
             panic!("Failed to setup context: {}", e)
         })
     });
@@ -183,13 +183,13 @@ fn bench_with_metrics(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
 
     // Setup context
-    let file_path = get_bench_file_path().unwrap_or_else(|e| {
-        panic!("Failed to get bench file path: {}. \
+    let (object_store, block_info) = get_bench_block_info().unwrap_or_else(|e| {
+        panic!("Failed to get block info: {}. \
                Make sure BENCH_BLOCKID, BENCH_PATH, and optionally BENCH_TENANTID environment variables are set.", e)
     });
 
     let ctx = rt.block_on(async {
-        setup_context_with_file(&file_path).await.unwrap_or_else(|e| {
+        create_block_context(object_store, block_info).await.unwrap_or_else(|e| {
             panic!("Failed to setup context: {}", e)
         })
     });
