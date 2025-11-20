@@ -90,7 +90,7 @@ func create(makeIter makeIterFn,
 	// anywhere, except in the case of the empty query: {}
 	batchRequireAtLeastOneMatchOverall := len(conditions) > 0 && len(catConditions.trace) == 0
 
-	traceIters, traceOptional, err := createTraceIterators(makeIter, catConditions.trace, start, end, allConditions, dedicatedColumns)
+	traceIters, traceOptional, err := createTraceIterators(makeIter, catConditions.trace, start, end, allConditions, dedicatedColumns, selectAll)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -120,22 +120,14 @@ func create(makeIter makeIterFn,
 		return nil, nil, err
 	}
 
-	/*var required []parquetquery.Iterator
-	var optional []parquetquery.Iterator
-
-	if driver != nil {
-		required = append(required, driver)
+	debugName := "firstPass"
+	if selectAll {
+		debugName = "secondPass"
 	}
-
-	required = append(required, traceIters...)
-	required = append(required, resIters...)
-	required = append(required, spanIters...)
-	optional = append(optional, traceOptional...)
-	optional = append(optional, resOptional...)
-	optional = append(optional, spanOptional...)*/
 
 	spanCol := NewSpanCollector2()
 	spanCol.secondPass = secondPass
+	spanCol.name = debugName
 	switch {
 	case selectAll:
 		// We are selecting everything so don't assert any restrictions on the number of attributes.
@@ -156,6 +148,7 @@ func create(makeIter makeIterFn,
 	options := []parquetquery.LeftJoinIteratorOption{
 		parquetquery.WithPool(pqSpanPool),
 		parquetquery.WithCollector(spanCol),
+		parquetquery.WithName(debugName),
 	}
 
 	// Given driver or created span drivers are always first.
@@ -219,6 +212,7 @@ func createTraceIterators(
 	start, end uint64,
 	allConditions bool,
 	_ backend.DedicatedColumns,
+	selectAll bool,
 ) (required, optional []parquetquery.Iterator, err error) {
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
@@ -243,6 +237,22 @@ func createTraceIterators(
 
 		required = append(required, makeIter(columnPathStartTimeUnixNano, startFilter, columnPathStartTimeUnixNano))
 		required = append(required, makeIter(columnPathEndTimeUnixNano, endFilter, columnPathEndTimeUnixNano))
+	}
+
+	if selectAll {
+		for intrins, entry := range intrinsicColumnLookups {
+			if entry.scope != intrinsicScopeTrace {
+				continue
+			}
+			// These intrinsics aren't included in select all because they are not
+			// useful for filtering or grouping.
+			switch intrins {
+			case traceql.IntrinsicTraceStartTime,
+				traceql.IntrinsicServiceStats:
+				continue
+			}
+			required = append(required, makeIter(entry.columnPath, nil, entry.columnPath))
+		}
 	}
 
 	// If all conditions move them to required
@@ -696,6 +706,13 @@ func createSpanIterators(
 }
 
 func createEventIterators(makeIter makeIterFn, conditions []traceql.Condition, allConditions bool, selectAll bool) (required, optional []parquetquery.Iterator, err error) {
+	// TODO - Preserving compatibility with original fetch.
+	// If there are no event-level conditions we do nothing.
+	// Which means we are ignoring event data during select all.
+	if len(conditions) == 0 {
+		return nil, nil, nil
+	}
+
 	var genericConditions []traceql.Condition
 
 	for _, cond := range conditions {
@@ -746,6 +763,12 @@ func createEventIterators(makeIter makeIterFn, conditions []traceql.Condition, a
 }
 
 func createLinkIterators(makeIter makeIterFn, conditions []traceql.Condition, allConditions, selectAll bool) (required, optional []parquetquery.Iterator, err error) {
+	// TODO - Preserving compatibility with original fetch.
+	// If there are no event-level conditions we do nothing.
+	// Which means we are ignoring event data during select all.
+	if len(conditions) == 0 {
+		return nil, nil, nil
+	}
 	var genericConditions []traceql.Condition
 
 	for _, cond := range conditions {
@@ -1065,6 +1088,8 @@ type spanCollector2 struct {
 
 	at    span
 	atRes parquetquery.IteratorResult
+
+	name string
 }
 
 var _ parquetquery.Collector = (*spanCollector2)(nil)
@@ -1155,6 +1180,8 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			putLink(v)
 		case *attrVal:
 			switch v.a.Scope {
+			case traceql.AttributeScopeTrace:
+				sp.traceAttrs = append(sp.traceAttrs, *v)
 			case traceql.AttributeScopeResource:
 				sp.resourceAttrs = append(sp.resourceAttrs, *v)
 			case traceql.AttributeScopeSpan:
@@ -1178,8 +1205,23 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 	// Merge all individual columns into the span
 	for _, kv := range res.Entries {
 		switch kv.Key {
+		// --------------------
+		// Trace-level columns:
+		// --------------------
+		case columnPathRootSpanName:
+			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
+		case columnPathRootServiceName:
+			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
 		case columnPathTraceID:
 			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceIDAttribute, traceql.NewStaticString(util.TraceIDToHexString(kv.Value.ByteArray()))})
+		case columnPathDurationNanos:
+			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))})
+		case columnPathStartTimeUnixNano, columnPathEndTimeUnixNano:
+			// TODO
+			return
+		// --------------------
+		// Span-level columns:
+		// --------------------
 		case columnPathSpanID:
 			sp.id = kv.Value.ByteArray()
 			sp.addSpanAttr(traceql.IntrinsicSpanIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
@@ -1223,14 +1265,21 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			if c.nestedSetRightExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+		// -------------------------
+		// Instrumentation-level columns:
+		// -------------------------
+		case columnPathInstrumentationName:
+			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
+		case columnPathInstrumentationVersion:
+			sp.instrumentationAttrs = append(sp.instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))})
+		// -------------------------
+		// Resource-level columns:
+		// -------------------------
 		case columnPathResourceServiceName:
 			sp.resourceAttrs = append(sp.resourceAttrs, attrVal{
 				traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
 				traceql.NewStaticString(unsafeToString(kv.Value.Bytes())),
 			})
-		case columnPathDurationNanos, columnPathStartTimeUnixNano, columnPathEndTimeUnixNano:
-			// Trace-level values.
-			// TODO
 		default:
 			// Decomposed attributes from dedicated columns.
 			scope := param.(traceql.AttributeScope)
@@ -1249,13 +1298,17 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 				x.s = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
 			default:
 				if kv.Value.IsNull() {
-					x.s = traceql.StaticNil
+					// Throwing away nulls.
+					// should we preserve nils here?
+					return
 				} else {
 					panic("unhandled attribute value kind: " + kv.Value.Kind().String())
 				}
 			}
 
 			switch scope {
+			case traceql.AttributeScopeTrace:
+				sp.traceAttrs = append(sp.traceAttrs, x)
 			case traceql.AttributeScopeResource:
 				sp.resourceAttrs = append(sp.resourceAttrs, x)
 			case traceql.AttributeScopeSpan:

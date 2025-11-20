@@ -362,6 +362,18 @@ func (o PoolOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
 	j.pool = o.pool
 }
 
+type NameOption struct {
+	name string
+}
+
+func WithName(name string) NameOption {
+	return NameOption{name}
+}
+
+func (o NameOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
+	j.name = o.name
+}
+
 type IteratorOption struct {
 	definitionLevel int
 	iter            Iterator
@@ -1171,6 +1183,9 @@ type LeftJoinIterator struct {
 	collector                    Collector
 	pool                         *ResultPool
 	at                           *IteratorResult
+
+	// For debugging purposes.
+	name string
 }
 
 var _ Iterator = (*LeftJoinIterator)(nil)
