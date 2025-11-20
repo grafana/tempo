@@ -35,7 +35,6 @@ The tenant ID should not be empty.
 
 For security reasons, `.` and `..` aren't valid tenant IDs. These values are restricted to prevent path traversal attacks.
 
-`__tempo_cluster` should not be used as a tenant ID because Tempo uses the name internally.
 
 ## Cross-tenant queries
 
