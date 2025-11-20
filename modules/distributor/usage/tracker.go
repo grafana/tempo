@@ -33,13 +33,11 @@ const (
 	reasonBadLabelsInCollect = "invalid_labels_in_collect"
 )
 
-var (
-	usageTrackerErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "distributor_usage_tracker_errors_total",
-		Help:      "The total number of errors in the usage tracker",
-	}, []string{"tenant", "reason"})
-)
+var usageTrackerErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "distributor_usage_tracker_errors_total",
+	Help:      "The total number of errors in the usage tracker",
+}, []string{"tenant", "reason"})
 
 type (
 	tenantLabelsFunc func(string) map[string]string
