@@ -815,6 +815,83 @@ func (s *span) attributesMatched() int {
 	return count
 }
 
+func (s *span) hasAtLeast(numAttributes int) bool {
+	count := 0
+	if s.startTimeUnixNanos != 0 {
+		count++
+		if count >= numAttributes {
+			return true
+		}
+	}
+	// don't count duration nanos b/c it is added to the attributes as well as the span struct
+	// if s.durationNanos != 0 {
+	// 	count++
+	// }
+	if len(s.id) > 0 {
+		count++
+		if count >= numAttributes {
+			return true
+		}
+	}
+	if s.nestedSetLeft > 0 || s.nestedSetRight > 0 || s.nestedSetParent != 0 { // nestedSetParent can be -1 meaning it is a root span
+		count++
+		if count >= numAttributes {
+			return true
+		}
+	}
+	// todo: attributesMatced is called a lot. we could cache this count on set
+	for _, st := range s.spanAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.resourceAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.traceAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.eventAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.linkAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+	for _, st := range s.instrumentationAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+			if count >= numAttributes {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
 // it currently catches spans discarded:
 // - in the span collector

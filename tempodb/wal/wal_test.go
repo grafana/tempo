@@ -268,11 +268,13 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			require.NotEmpty(t, v)
 
 			query := fmt.Sprintf("{ .%s = \"%s\" }", k, v)
-			resp, err := block.FetcherFor(common.DefaultSearchOptions()).SpansetFetcher().Fetch(ctx, traceql.MustExtractFetchSpansRequestWithMetadata(query))
-			// not all blocks support fetch
-			if errors.Is(err, util.ErrUnsupported) {
+
+			f := block.FetcherFor(common.DefaultSearchOptions()).SpansetFetcher()
+			if f == nil {
 				return
 			}
+
+			resp, err := f.Fetch(ctx, traceql.MustExtractFetchSpansRequestWithMetadata(query))
 			require.NoError(t, err)
 
 			// grab the first result

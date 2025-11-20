@@ -961,6 +961,9 @@ func (c *scopedAttributeCollector) Result() *parquetquery.IteratorResult {
 	return &c.atRes
 }
 
+func (c *scopedAttributeCollector) Close() {
+}
+
 func createScopedAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
@@ -1147,9 +1150,8 @@ func (c *spanCollector2) Reset(rowNumber parquetquery.RowNumber) {
 func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 	sp := &c.at
 
-	// c.at.rowNum = res.RowNumber
-
-	for _, e := range res.OtherEntries {
+	if len(res.OtherEntries) > 0 {
+		e := res.OtherEntries[0]
 		switch v := e.Value.(type) {
 		case *span:
 			// Copy data from first pass span to this one.
@@ -1203,7 +1205,9 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 	var durationNanos uint64
 
 	// Merge all individual columns into the span
-	for _, kv := range res.Entries {
+	if len(res.Entries) > 0 {
+		// for _, kv := range res.Entries {
+		kv := res.Entries[0]
 		switch kv.Key {
 		// --------------------
 		// Trace-level columns:
@@ -1229,7 +1233,6 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
-			return
 		case columnPathSpanStartRounded15:
 			sp.startTimeUnixNanos = intervalMapper15Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanStartRounded60:
@@ -1327,7 +1330,7 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 }
 
 func (c *spanCollector2) Result() *parquetquery.IteratorResult {
-	if c.minAttributes > 0 && c.at.attributesMatched() < c.minAttributes {
+	if c.minAttributes > 0 && !c.at.hasAtLeast(c.minAttributes) {
 		return nil
 	}
 
@@ -1339,4 +1342,7 @@ func (c *spanCollector2) Result() *parquetquery.IteratorResult {
 	}
 
 	return &c.atRes
+}
+
+func (c *spanCollector2) Close() {
 }
