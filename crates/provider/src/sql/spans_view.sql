@@ -3,6 +3,7 @@
 -- Each row contains all span fields with Attrs converted to a Map for convenient access
 -- Usage: SELECT * FROM spans WHERE Name = 'query-product'
 -- Access attributes: SELECT TraceID, Name, Attrs['http.method'] FROM spans
+-- Access resource attributes: SELECT TraceID, Name, ResourceAttrs['service.name'] FROM spans
 
 CREATE OR REPLACE VIEW spans AS
 WITH unnest_resources AS (
@@ -14,12 +15,14 @@ WITH unnest_resources AS (
 unnest_scopespans AS (
     SELECT
         "TraceID",
+        resource,
         UNNEST(resource."ScopeSpans") as scopespans
     FROM unnest_resources
 ),
 unnest_spans AS (
     SELECT
         "TraceID",
+        resource,
         UNNEST(scopespans."Spans") as span
     FROM unnest_scopespans
 )
@@ -46,5 +49,17 @@ SELECT
     span."HttpMethod" AS "HttpMethod",
     span."HttpUrl" AS "HttpUrl",
     span."HttpStatusCode" AS "HttpStatusCode",
-    span."DedicatedAttributes" AS "DedicatedAttributes"
+    span."DedicatedAttributes" AS "DedicatedAttributes",
+    -- Resource attributes
+    attrs_to_map(resource."Resource"."Attrs") AS "ResourceAttrs",
+    resource."Resource"."ServiceName" AS "ResourceServiceName",
+    resource."Resource"."Cluster" AS "ResourceCluster",
+    resource."Resource"."Namespace" AS "ResourceNamespace",
+    resource."Resource"."Pod" AS "ResourcePod",
+    resource."Resource"."Container" AS "ResourceContainer",
+    resource."Resource"."K8sClusterName" AS "ResourceK8sClusterName",
+    resource."Resource"."K8sNamespaceName" AS "ResourceK8sNamespaceName",
+    resource."Resource"."K8sPodName" AS "ResourceK8sPodName",
+    resource."Resource"."K8sContainerName" AS "ResourceK8sContainerName",
+    resource."Resource"."DedicatedAttributes" AS "ResourceDedicatedAttributes"
 FROM unnest_spans

@@ -214,10 +214,22 @@ fn field_to_sql(field: &FieldRef, table_prefix: &str) -> Result<String, Conversi
             }
         }
         FieldScope::Resource => {
-            // resource.* attributes - not yet implemented, would need to unnest resources
-            Err(ConversionError::Unsupported(
-                "Resource attributes not yet supported".to_string(),
-            ))
+            // resource.* attributes go to ResourceAttrs map or dedicated columns
+            match field.name.as_str() {
+                "service.name" => Ok(format!("{}\"ResourceServiceName\"", table_prefix)),
+                "cluster" => Ok(format!("{}\"ResourceCluster\"", table_prefix)),
+                "namespace" => Ok(format!("{}\"ResourceNamespace\"", table_prefix)),
+                "pod" => Ok(format!("{}\"ResourcePod\"", table_prefix)),
+                "container" => Ok(format!("{}\"ResourceContainer\"", table_prefix)),
+                "k8s.cluster.name" => Ok(format!("{}\"ResourceK8sClusterName\"", table_prefix)),
+                "k8s.namespace.name" => Ok(format!("{}\"ResourceK8sNamespaceName\"", table_prefix)),
+                "k8s.pod.name" => Ok(format!("{}\"ResourceK8sPodName\"", table_prefix)),
+                "k8s.container.name" => Ok(format!("{}\"ResourceK8sContainerName\"", table_prefix)),
+                _ => {
+                    // Generic resource attribute access via ResourceAttrs map
+                    Ok(format!("{}\"ResourceAttrs\"['{}']", table_prefix, field.name))
+                }
+            }
         }
         FieldScope::Intrinsic => {
             // Intrinsic fields map directly to columns
