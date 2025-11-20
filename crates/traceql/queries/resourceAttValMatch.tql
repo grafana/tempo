@@ -1,0 +1,2 @@
+# Resource attribute matching
+{ resource.opencensus.exporterversion = `Jaeger-Go-2.30.0` }

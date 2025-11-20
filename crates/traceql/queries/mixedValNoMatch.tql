@@ -1,0 +1,2 @@
+# Mixed scope attribute matching with no results
+{ .bloom = `does-not-exit-6c2408325a45` }

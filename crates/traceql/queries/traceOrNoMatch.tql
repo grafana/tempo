@@ -1,0 +1,2 @@
+# Trace-level query with OR condition (no matches)
+{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}

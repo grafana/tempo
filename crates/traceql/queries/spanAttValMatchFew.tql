@@ -1,0 +1,2 @@
+# Span attribute matching with regex (few matches)
+{ span.component =~ `database/sql` }

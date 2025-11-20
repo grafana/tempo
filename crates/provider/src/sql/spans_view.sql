@@ -8,20 +8,20 @@ CREATE OR REPLACE VIEW spans AS
 WITH unnest_resources AS (
     SELECT
         t."TraceID",
-        UNNEST(t.rs) as resource
+        UNNEST(t."ResourceSpans") as resource
     FROM traces t
 ),
-unnest_spansets AS (
+unnest_scopespans AS (
     SELECT
         "TraceID",
-        UNNEST(resource.ss) as spanset
+        UNNEST(resource."ScopeSpans") as scopespans
     FROM unnest_resources
 ),
 unnest_spans AS (
     SELECT
         "TraceID",
-        UNNEST(spanset."Spans") as span
-    FROM unnest_spansets
+        UNNEST(scopespans."Spans") as span
+    FROM unnest_scopespans
 )
 SELECT
     "TraceID",

@@ -7,3 +7,6 @@ edition.workspace = true
 anyhow = { workspace = true }
 datafusion = { workspace = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+test_each_file = "0.3"

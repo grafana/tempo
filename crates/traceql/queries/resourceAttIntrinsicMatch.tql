@@ -1,0 +1,2 @@
+# Resource intrinsic attribute matching
+{ resource.service.name = `tempo-gateway` }

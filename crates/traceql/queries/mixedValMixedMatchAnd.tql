@@ -1,0 +1,2 @@
+# Mixed attribute matching with AND
+{ resource.k8s.cluster.name =~ `prod.*` && name = `gcs.ReadRange` }

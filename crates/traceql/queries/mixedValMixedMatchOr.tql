@@ -1,0 +1,2 @@
+# Mixed attribute matching with OR
+{ resource.foo = `bar` || name = `gcs.ReadRange` }

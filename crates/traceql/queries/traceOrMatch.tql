@@ -1,0 +1,2 @@
+# Trace-level query with OR condition
+{ rootServiceName = `tempo-distributor` && (status = error || span.http.status_code = 500)}

@@ -1,0 +1,2 @@
+# Mixed query with multiple conditions
+{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}

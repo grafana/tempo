@@ -182,7 +182,8 @@ impl Lexer {
                     Err(LexerError::UnexpectedCharacter(ch, self.position))
                 }
             }
-            '"' => self.read_string(),
+            '"' => self.read_string('"'),
+            '`' => self.read_string('`'),
             _ if ch.is_ascii_digit()
                 || (ch == '-' && self.peek().map(|c| c.is_ascii_digit()).unwrap_or(false)) =>
             {
@@ -239,13 +240,13 @@ impl Lexer {
         }
     }
 
-    fn read_string(&mut self) -> Result<Token, LexerError> {
+    fn read_string(&mut self, quote_char: char) -> Result<Token, LexerError> {
         let start_pos = self.position;
         self.advance(); // skip opening quote
 
         let mut value = String::new();
 
-        while !self.is_eof() && self.current_char() != '"' {
+        while !self.is_eof() && self.current_char() != quote_char {
             if self.current_char() == '\\' {
                 self.advance();
                 if self.is_eof() {
@@ -258,6 +259,7 @@ impl Lexer {
                     'r' => value.push('\r'),
                     '\\' => value.push('\\'),
                     '"' => value.push('"'),
+                    '`' => value.push('`'),
                     _ => {
                         value.push('\\');
                         value.push(self.current_char());
@@ -437,6 +439,30 @@ mod tests {
                 Token::Integer(42),
                 Token::Float(3.14),
                 Token::Identifier("100ms".to_string()),
+                Token::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn test_backtick_strings() {
+        let mut lexer = Lexer::new("`hello world`");
+        let tokens = lexer.tokenize().unwrap();
+        assert_eq!(
+            tokens,
+            vec![Token::String("hello world".to_string()), Token::Eof]
+        );
+    }
+
+    #[test]
+    fn test_mixed_quote_styles() {
+        let mut lexer = Lexer::new(r#"`backtick` "doublequote""#);
+        let tokens = lexer.tokenize().unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::String("backtick".to_string()),
+                Token::String("doublequote".to_string()),
                 Token::Eof
             ]
         );

@@ -13,6 +13,5 @@ const SPANS_VIEW_SQL: &str = include_str!("sql/spans_view.sql");
 /// ```
 pub async fn create_flattened_view(ctx: &SessionContext) -> Result<()> {
     ctx.sql(SPANS_VIEW_SQL).await?;
-    println!("✓ View 'spans' created successfully!");
     Ok(())
 }

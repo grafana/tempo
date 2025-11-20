@@ -1,0 +1,2 @@
+# Trace-level query with OR condition (few matches)
+{ rootServiceName = `faro-collector` && (status = error || span.http.status_code = 500)}

@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use datafusion::execution::context::SessionContext;
-use provider::{register_local_tempo_table, register_udfs};
+use provider::{create_flattened_view, register_local_tempo_table, register_udfs};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::runtime::Runtime;
@@ -149,6 +149,9 @@ async fn setup_context() -> anyhow::Result<SessionContext> {
     // Register local table with the file path
     register_local_tempo_table(&ctx, file_path).await?;
 
+    // Create the flattened spans view
+    create_flattened_view(&ctx).await?;
+
     Ok(ctx)
 }
 
@@ -187,7 +190,10 @@ fn bench_traceql_queries(c: &mut Criterion) {
     for case in get_test_cases() {
         // Convert TraceQL to SQL
         let sql = match traceql_to_sql_string(case.traceql) {
-            Ok(sql) => sql,
+            Ok(sql) => {
+                eprintln!("\n{}: {}", case.name, sql);
+                sql
+            },
             Err(e) => {
                 eprintln!("Skipping {}: Failed to convert TraceQL to SQL: {}", case.name, e);
                 continue;

@@ -4237,6 +4237,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "test_each_file"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de773517ee4367314c7918f6c9ef69c201ba72bfdbffb00234c22c50a153b73"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "unicode-ident",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4576,6 +4588,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "datafusion",
+ "test_each_file",
  "tracing",
 ]
 
