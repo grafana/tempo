@@ -53,3 +53,24 @@ tonic-build = "0.12"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2.5"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.bench]
+inherits = "release"
+debug = true
+strip = false
+
+# Build dependencies with optimizations even in dev mode
+[profile.dev.package."*"]
+opt-level = 2
+
+# Optimize build dependencies
+[profile.release.build-override]
+opt-level = 3
+codegen-units = 1

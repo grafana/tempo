@@ -1,0 +1,17 @@
+[build]
+# Compile for native CPU architecture for maximum performance
+rustflags = [
+    "-C", "target-cpu=native",
+]
+
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "link-arg=-fuse-ld=lld",
+]
+
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "link-arg=-fuse-ld=lld",
+]

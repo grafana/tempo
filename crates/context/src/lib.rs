@@ -85,7 +85,7 @@ pub async fn create_context(config_file: Option<&str>) -> Result<SessionContext>
 /// Collect metrics from a physical plan by walking the execution tree
 ///
 /// Returns a HashMap of metric name to value (as strings for flexibility)
-fn collect_plan_metrics(physical_plan: Arc<dyn ExecutionPlan>) -> HashMap<String, String> {
+pub fn collect_plan_metrics(physical_plan: Arc<dyn ExecutionPlan>) -> HashMap<String, String> {
     use std::collections::VecDeque;
 
     let mut metric_set = MetricsSet::new();
