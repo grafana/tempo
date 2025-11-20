@@ -116,6 +116,11 @@ var tokens = map[string]int{
 	"with":                WITH,
 }
 
+var builtinIntegerConstants = map[string]int{
+	"minInt": math.MinInt,
+	"maxInt": math.MaxInt,
+}
+
 type lexer struct {
 	scanner.Scanner
 	expr   *RootExpr
@@ -124,22 +129,6 @@ type lexer struct {
 
 	parsingAttribute bool
 	currentScope     int
-
-	lastToken int
-}
-
-func isUnaryContext(tok int) bool {
-	switch tok {
-	case 0, // start of expression
-		OPEN_PARENS,               // (
-		OPEN_BRACE,                // {
-		COMMA,                     // ,
-		EQ, NEQ, GT, GTE, LT, LTE, // comparisons
-		NOT: // !
-		return true
-	default:
-		return false
-	}
 }
 
 func (l *lexer) Lex(lval *yySymType) int {
@@ -170,72 +159,8 @@ func (l *lexer) Lex(lval *yySymType) int {
 
 	r := l.Scan()
 	// now that we know we're not parsing an attribute, let's look for everything else
-	// --- Handle unary signed integers (+123, -123) ---
-	// Only allow unary -/+ after OPEN_BRACE (for field expressions like { -1 })
-	// Not after OPEN_PARENS (function arguments should use SUB INTEGER grammar rule)
-	if (r == '+' || r == '-') &&
-		isUnaryContext(l.lastToken) &&
-		(l.lastToken == OPEN_BRACE || l.lastToken == 0) {
-		sign := l.TokenText()
-
-		// Copy scanner for lookahead (safe)
-		s := l.Scanner
-		next := s.Scan()
-
-		if next == scanner.Int {
-			numberText := sign + s.TokenText()
-
-			// Try duration (-5s, +10ms)
-			if duration, ok := tryScanDuration(numberText, &s); ok {
-				l.Scanner = s // commit scanner state
-				lval.staticDuration = duration
-				l.lastToken = DURATION
-				return DURATION
-			}
-
-			// Parse unsigned number first to handle math.MinInt64 case
-			unsignedNum, err := strconv.ParseUint(s.TokenText(), 10, 64)
-			if err != nil {
-				l.Error("invalid numeric literal")
-				return 0
-			}
-
-			var finalInt int64
-			if sign == "-" {
-				// Handle negative numbers
-				if unsignedNum == 1<<63 {
-					// Special case: -9223372036854775808 (math.MinInt64)
-					finalInt = math.MinInt64
-				} else if unsignedNum > 1<<63 {
-					// Out of range for int64
-					l.Error("integer out of range")
-					return 0
-				} else {
-					finalInt = -int64(unsignedNum)
-				}
-			} else {
-				// Handle positive numbers
-				if unsignedNum > math.MaxInt64 {
-					l.Error("integer out of range")
-					return 0
-				}
-				finalInt = int64(unsignedNum)
-			}
-
-			l.Scanner = s // commit scanner state
-			lval.staticInt = int(finalInt)
-			l.lastToken = INTEGER
-			return INTEGER
-		}
-
-		// Not unary → return '+' or '-' normally
-		l.lastToken = tokens[sign]
-		return tokens[sign]
-	}
-
 	switch r {
 	case scanner.EOF:
-		l.lastToken = 0
 		return 0
 
 	case scanner.String, scanner.RawString:
@@ -245,7 +170,6 @@ func (l *lexer) Lex(lval *yySymType) int {
 			l.Error(err.Error())
 			return 0
 		}
-		l.lastToken = STRING
 		return STRING
 
 	case scanner.Int:
@@ -255,7 +179,6 @@ func (l *lexer) Lex(lval *yySymType) int {
 		duration, ok := tryScanDuration(numberText, &l.Scanner)
 		if ok {
 			lval.staticDuration = duration
-			l.lastToken = DURATION
 			return DURATION
 		}
 
@@ -266,7 +189,6 @@ func (l *lexer) Lex(lval *yySymType) int {
 			l.Error(err.Error())
 			return 0
 		}
-		l.lastToken = INTEGER
 		return INTEGER
 
 	case scanner.Float:
@@ -276,7 +198,6 @@ func (l *lexer) Lex(lval *yySymType) int {
 		duration, ok := tryScanDuration(numberText, &l.Scanner)
 		if ok {
 			lval.staticDuration = duration
-			l.lastToken = DURATION
 			return DURATION
 		}
 
@@ -286,7 +207,6 @@ func (l *lexer) Lex(lval *yySymType) int {
 			l.Error(err.Error())
 			return 0
 		}
-		l.lastToken = FLOAT
 		return FLOAT
 	}
 
@@ -324,24 +244,24 @@ func (l *lexer) Lex(lval *yySymType) int {
 	// did we find a combination token?
 	if multiTok != -1 {
 		l.parsingAttribute = startsAttribute(multiTok)
-		l.lastToken = multiTok
 		return multiTok
-
 	}
 
 	// no combination tokens, see if the current text is a known token
 	if tok, ok := tokens[l.TokenText()]; ok {
 		l.parsingAttribute = startsAttribute(tok)
-		l.lastToken = tok
 		return tok
+	}
 
+	// builtin integer constants (e.g. minInt, maxInt)
+	if value, ok := builtinIntegerConstants[l.TokenText()]; ok {
+		lval.staticInt = value
+		return INTEGER
 	}
 
 	// default to an identifier
 	lval.staticStr = l.TokenText()
-	l.lastToken = IDENTIFIER
 	return IDENTIFIER
-
 }
 
 func (l *lexer) Error(msg string) {
