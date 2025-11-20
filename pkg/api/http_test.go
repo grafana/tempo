@@ -18,6 +18,27 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+func TestMarshalingFormatFromAcceptHeader(t *testing.T) {
+	tests := []struct {
+		name         string
+		acceptHeader string
+		expected     MarshallingFormat
+	}{
+		{name: "empty accept header", acceptHeader: "", expected: MarshallingFormatJSON},
+		{name: "json", acceptHeader: "application/json", expected: MarshallingFormatJSON},
+		{name: "protobuf", acceptHeader: "application/protobuf", expected: MarshallingFormatProtobuf},
+		{name: "simplified json", acceptHeader: "application/vnd.grafana.llm", expected: MarshallingFormatLLM},
+		{name: "invalid", acceptHeader: "application/invalid", expected: MarshallingFormatJSON},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := MarshalingFormatFromAcceptHeader(http.Header{HeaderAccept: []string{tt.acceptHeader}})
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
 // For licensing reasons these strings exist in two packages. This test exists to make sure they don't
 // drift.
 func TestEquality(t *testing.T) {
