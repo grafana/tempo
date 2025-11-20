@@ -20,13 +20,15 @@ func Test_limitsFromOverrides(t *testing.T) {
 		Defaults: overrides.Overrides{
 			Forwarders: []string{"my-forwarder"},
 			MetricsGenerator: overrides.MetricsGeneratorOverrides{
-				Processors:                     map[string]struct{}{"service-graphs": {}},
-				CollectionInterval:             15 * time.Second,
-				IngestionSlack:                 time.Minute,
-				DisableCollection:              true,
-				TraceIDLabelName:               "trace_id",
-				GenerateNativeHistograms:       histograms.HistogramMethodBoth,
-				NativeHistogramMaxBucketNumber: 160,
+				Processors:                      map[string]struct{}{"service-graphs": {}},
+				CollectionInterval:              15 * time.Second,
+				IngestionSlack:                  time.Minute,
+				DisableCollection:               true,
+				TraceIDLabelName:                "trace_id",
+				GenerateNativeHistograms:        histograms.HistogramMethodBoth,
+				NativeHistogramMaxBucketNumber:  160,
+				NativeHistogramBucketFactor:     1.2,
+				NativeHistogramMinResetDuration: 10 * time.Minute,
 				Processor: overrides.ProcessorOverrides{
 					ServiceGraphs: overrides.ServiceGraphsOverrides{
 						HistogramBuckets:         []float64{0.1, 0.2, 0.5},
@@ -84,6 +86,8 @@ func Test_limitsFromOverrides(t *testing.T) {
     "ingestion_time_range_slack": "1m0s",
     "generate_native_histograms": "both",
     "native_histogram_max_bucket_number": 160,
+    "native_histogram_bucket_factor": 1.2,
+    "native_histogram_min_reset_duration": "10m0s",
     "processor": {
       "service_graphs": {
         "dimensions": [
