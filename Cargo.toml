@@ -7,6 +7,7 @@ members = [
     "crates/provider",
     "crates/querier",
     "crates/storage",
+    "crates/tests",
     "crates/traceql",
 ]
 

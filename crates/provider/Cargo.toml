@@ -20,9 +20,4 @@ url = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
-criterion = { workspace = true }
 traceql = { workspace = true }
-
-[[bench]]
-name = "traceql_queries"
-harness = false

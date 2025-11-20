@@ -1,21 +1,15 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use datafusion::execution::context::SessionContext;
-use provider::{create_flattened_view, register_local_tempo_table, register_udfs};
 use std::path::PathBuf;
 use std::time::Duration;
+use tests::{execute_query, setup_context_with_file};
 use tokio::runtime::Runtime;
 use traceql::traceql_to_sql_string;
+use anyhow;
 
 /// Benchmark test case
 struct BenchCase {
     name: &'static str,
     traceql: &'static str,
-}
-
-/// Metrics collected during query execution
-#[derive(Debug, Default)]
-struct QueryMetrics {
-    rows_returned: usize,
 }
 
 /// Test cases matching the Go benchmark queries
@@ -101,7 +95,6 @@ fn get_test_cases() -> Vec<BenchCase> {
     ]
 }
 
-
 /// Construct the parquet file path from environment variables (same as Go benchmark)
 /// - BENCH_BLOCKID: GUID of the block (e.g., "030c8c4f-9d47-4916-aadc-26b90b1d2bc4")
 /// - BENCH_PATH: Root path to backend (e.g., "/path/to/tempo/storage")
@@ -136,47 +129,18 @@ fn get_bench_file_path() -> anyhow::Result<String> {
     Ok(file_path.to_string_lossy().to_string())
 }
 
-/// Setup DataFusion context with the local Tempo table
-async fn setup_context() -> anyhow::Result<SessionContext> {
-    let ctx = SessionContext::new();
-
-    // Register UDFs
-    register_udfs(&ctx);
-
-    // Get file path from environment variables
-    let file_path = get_bench_file_path()?;
-
-    // Register local table with the file path
-    register_local_tempo_table(&ctx, file_path).await?;
-
-    // Create the flattened spans view
-    create_flattened_view(&ctx).await?;
-
-    Ok(ctx)
-}
-
-/// Execute a single query and collect metrics
-async fn execute_query(ctx: &SessionContext, sql: &str) -> anyhow::Result<QueryMetrics> {
-    // Execute the query
-    let df = ctx.sql(sql).await?;
-    let results = df.collect().await?;
-
-    // Calculate rows returned
-    let rows_returned: usize = results.iter().map(|batch| batch.num_rows()).sum();
-
-    let metrics = QueryMetrics { rows_returned };
-
-    Ok(metrics)
-}
-
 fn bench_traceql_queries(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
 
     // Setup context once
+    let file_path = get_bench_file_path().unwrap_or_else(|e| {
+        panic!("Failed to get bench file path: {}. \
+               Make sure BENCH_BLOCKID, BENCH_PATH, and optionally BENCH_TENANTID environment variables are set.", e)
+    });
+
     let ctx = rt.block_on(async {
-        setup_context().await.unwrap_or_else(|e| {
-            panic!("Failed to setup context: {}. \
-                   Make sure BENCH_BLOCKID, BENCH_PATH, and optionally BENCH_TENANTID environment variables are set.", e)
+        setup_context_with_file(&file_path).await.unwrap_or_else(|e| {
+            panic!("Failed to setup context: {}", e)
         })
     });
 
@@ -205,13 +169,7 @@ fn bench_traceql_queries(c: &mut Criterion) {
             &sql,
             |b, sql_query| {
                 b.to_async(&rt).iter(|| async {
-                    match execute_query(&ctx, sql_query).await {
-                        Ok(metrics) => metrics,
-                        Err(e) => {
-                            eprintln!("Query {} failed: {}", case.name, e);
-                            QueryMetrics::default()
-                        }
-                    }
+                    execute_query(&ctx, sql_query).await.ok()
                 });
             },
         );
@@ -225,10 +183,14 @@ fn bench_with_metrics(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
 
     // Setup context
+    let file_path = get_bench_file_path().unwrap_or_else(|e| {
+        panic!("Failed to get bench file path: {}. \
+               Make sure BENCH_BLOCKID, BENCH_PATH, and optionally BENCH_TENANTID environment variables are set.", e)
+    });
+
     let ctx = rt.block_on(async {
-        setup_context().await.unwrap_or_else(|e| {
-            panic!("Failed to setup context: {}. \
-                   Make sure BENCH_BLOCKID, BENCH_PATH, and optionally BENCH_TENANTID environment variables are set.", e)
+        setup_context_with_file(&file_path).await.unwrap_or_else(|e| {
+            panic!("Failed to setup context: {}", e)
         })
     });
 
@@ -262,18 +224,18 @@ fn bench_with_metrics(c: &mut Criterion) {
         };
 
         // Warm-up run to get metrics
-        let warmup_metrics = rt.block_on(async {
-            execute_query(&ctx, &sql).await.unwrap_or_default()
+        let warmup_rows = rt.block_on(async {
+            execute_query(&ctx, &sql).await.unwrap_or(0)
         });
 
-        println!("\n{}: {} rows returned", case.name, warmup_metrics.rows_returned);
+        println!("\n{}: {} rows returned", case.name, warmup_rows);
 
         group.bench_with_input(
             BenchmarkId::new("query", case.name),
             &sql,
             |b, sql_query| {
                 b.to_async(&rt).iter(|| async {
-                    execute_query(&ctx, sql_query).await.unwrap_or_default()
+                    execute_query(&ctx, sql_query).await.ok()
                 });
             },
         );

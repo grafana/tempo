@@ -52,7 +52,7 @@ impl LocalTempoTableProvider {
         let file_format = Arc::new(ParquetFormat::default());
 
         // Convert file path to URL format
-        let table_url = ListingTableUrl::parse(format!("file://{}", file_path))?;
+        let table_url: ListingTableUrl = ListingTableUrl::parse(format!("file://{}", file_path))?;
 
         Ok(Self {
             schema,

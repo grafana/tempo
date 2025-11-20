@@ -1,0 +1,20 @@
+[package]
+name = "tests"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+provider = { workspace = true }
+traceql = { workspace = true }
+
+anyhow = { workspace = true }
+datafusion = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+test_each_file = "0.3"
+
+[[bench]]
+name = "traceql_queries"
+harness = false
