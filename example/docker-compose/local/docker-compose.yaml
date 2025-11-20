@@ -21,7 +21,7 @@ services:
       - MEMCACHED_THREADS=4 # Number of threads to use
 
   tempo:
-    image: tempo:latest
+    image: grafana/tempo:latest
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
