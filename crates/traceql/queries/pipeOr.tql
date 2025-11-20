@@ -1,0 +1,2 @@
+# Union query with pipe operator
+{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }

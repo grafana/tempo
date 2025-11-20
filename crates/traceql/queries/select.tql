@@ -1,0 +1,2 @@
+# Select query with projection
+{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "tempo-prod"} | select(resource.container)

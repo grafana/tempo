@@ -1,0 +1,2 @@
+# Structural query with descendant operator
+{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-gateway` && status = error }

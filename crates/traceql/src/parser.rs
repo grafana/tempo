@@ -340,17 +340,68 @@ impl Parser {
                     self.advance();
                     self.expect_token(Token::RParen)?;
                 }
-                Ok(PipelineOp::Rate)
+
+                // Check for "by" clause
+                let group_by = self.parse_group_by()?;
+
+                Ok(PipelineOp::Rate { group_by })
             }
             "count" => {
                 if self.current_token() == &Token::LParen {
                     self.advance();
                     self.expect_token(Token::RParen)?;
                 }
-                Ok(PipelineOp::Count)
+
+                // Check for "by" clause
+                let group_by = self.parse_group_by()?;
+
+                Ok(PipelineOp::Count { group_by })
             }
             _ => Err(ParserError::UnknownPipelineOp(op_name)),
         }
+    }
+
+    /// Parse optional "by (field1, field2, ...)" clause
+    fn parse_group_by(&mut self) -> Result<Vec<String>, ParserError> {
+        // Check if next token is "by"
+        if let Token::Identifier(id) = self.current_token() {
+            if id == "by" {
+                self.advance();
+
+                // Expect opening parenthesis
+                self.expect_token(Token::LParen)?;
+
+                // Parse field list
+                let mut fields = Vec::new();
+                loop {
+                    let field = self.expect_identifier()?;
+                    fields.push(field);
+
+                    // Check for comma or closing parenthesis
+                    match self.current_token() {
+                        Token::Comma => {
+                            self.advance();
+                            continue;
+                        }
+                        Token::RParen => {
+                            self.advance();
+                            break;
+                        }
+                        _ => {
+                            return Err(ParserError::UnexpectedToken(
+                                self.current_token().clone(),
+                                "expected ',' or ')' in group by clause".to_string(),
+                            ));
+                        }
+                    }
+                }
+
+                return Ok(fields);
+            }
+        }
+
+        // No "by" clause found
+        Ok(Vec::new())
     }
 
     // Helper methods

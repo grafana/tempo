@@ -429,25 +429,170 @@ fn write_pipeline_op(
     source: &str,
 ) -> Result<(), ConversionError> {
     match op {
-        PipelineOp::Rate => {
-            // Rate calculates spans per second
-            // This is a simplified version - real rate would need time windows
-            writeln!(sql, "SELECT COUNT(*) as rate FROM {}", source)?;
+        PipelineOp::Rate { group_by } => {
+            // Rate calculates spans per second using 5-minute buckets
+            // Use date_bin to create time buckets
+            write!(sql, "SELECT ")?;
+
+            // Add time bucket column
+            // Cast StartTimeUnixNano (UInt64) to timestamp for date_bin
+            write!(
+                sql,
+                "date_bin(INTERVAL '5 minutes', to_timestamp_nanos(\"StartTimeUnixNano\"), TIMESTAMP '1970-01-01 00:00:00') as time_bucket"
+            )?;
+
+            // Add group by fields
+            for field in group_by {
+                // Assume group_by fields are intrinsic fields
+                let field_ref = FieldRef {
+                    scope: FieldScope::Intrinsic,
+                    name: field.clone(),
+                };
+                let column_name = field_to_sql(&field_ref, "")?;
+                write!(sql, ", {} as {}", column_name, field)?;
+            }
+
+            // Add rate calculation (count per 5 minutes)
+            write!(sql, ", COUNT(*) as rate")?;
+
+            writeln!(sql, " FROM {}", source)?;
+
+            // Add GROUP BY clause
+            write!(sql, "GROUP BY time_bucket")?;
+            for field in group_by {
+                write!(sql, ", {}", field)?;
+            }
+            writeln!(sql)?;
+
+            // Order by time bucket and group by fields
+            write!(sql, "ORDER BY time_bucket")?;
+            for field in group_by {
+                write!(sql, ", {}", field)?;
+            }
         }
-        PipelineOp::Count => {
-            writeln!(sql, "SELECT COUNT(*) as count FROM {}", source)?;
+        PipelineOp::Count { group_by } => {
+            write!(sql, "SELECT ")?;
+
+            // Add group by fields
+            if !group_by.is_empty() {
+                for (i, field) in group_by.iter().enumerate() {
+                    if i > 0 {
+                        write!(sql, ", ")?;
+                    }
+                    write!(sql, "{}", field)?;
+                }
+                write!(sql, ", ")?;
+            }
+
+            writeln!(sql, "COUNT(*) as count FROM {}", source)?;
+
+            // Add GROUP BY clause if needed
+            if !group_by.is_empty() {
+                write!(sql, "GROUP BY ")?;
+                for (i, field) in group_by.iter().enumerate() {
+                    if i > 0 {
+                        write!(sql, ", ")?;
+                    }
+                    write!(sql, "{}", field)?;
+                }
+                writeln!(sql)?;
+            }
         }
-        PipelineOp::Avg { field } => {
-            writeln!(sql, "SELECT AVG({}) as avg FROM {}", field, source)?;
+        PipelineOp::Avg { field, group_by } => {
+            write!(sql, "SELECT ")?;
+
+            // Add group by fields
+            if !group_by.is_empty() {
+                for f in group_by {
+                    write!(sql, "{}, ", f)?;
+                }
+            }
+
+            writeln!(sql, "AVG({}) as avg FROM {}", field, source)?;
+
+            // Add GROUP BY clause if needed
+            if !group_by.is_empty() {
+                write!(sql, "GROUP BY ")?;
+                for (i, f) in group_by.iter().enumerate() {
+                    if i > 0 {
+                        write!(sql, ", ")?;
+                    }
+                    write!(sql, "{}", f)?;
+                }
+                writeln!(sql)?;
+            }
         }
-        PipelineOp::Sum { field } => {
-            writeln!(sql, "SELECT SUM({}) as sum FROM {}", field, source)?;
+        PipelineOp::Sum { field, group_by } => {
+            write!(sql, "SELECT ")?;
+
+            // Add group by fields
+            if !group_by.is_empty() {
+                for f in group_by {
+                    write!(sql, "{}, ", f)?;
+                }
+            }
+
+            writeln!(sql, "SUM({}) as sum FROM {}", field, source)?;
+
+            // Add GROUP BY clause if needed
+            if !group_by.is_empty() {
+                write!(sql, "GROUP BY ")?;
+                for (i, f) in group_by.iter().enumerate() {
+                    if i > 0 {
+                        write!(sql, ", ")?;
+                    }
+                    write!(sql, "{}", f)?;
+                }
+                writeln!(sql)?;
+            }
         }
-        PipelineOp::Min { field } => {
-            writeln!(sql, "SELECT MIN({}) as min FROM {}", field, source)?;
+        PipelineOp::Min { field, group_by } => {
+            write!(sql, "SELECT ")?;
+
+            // Add group by fields
+            if !group_by.is_empty() {
+                for f in group_by {
+                    write!(sql, "{}, ", f)?;
+                }
+            }
+
+            writeln!(sql, "MIN({}) as min FROM {}", field, source)?;
+
+            // Add GROUP BY clause if needed
+            if !group_by.is_empty() {
+                write!(sql, "GROUP BY ")?;
+                for (i, f) in group_by.iter().enumerate() {
+                    if i > 0 {
+                        write!(sql, ", ")?;
+                    }
+                    write!(sql, "{}", f)?;
+                }
+                writeln!(sql)?;
+            }
         }
-        PipelineOp::Max { field } => {
-            writeln!(sql, "SELECT MAX({}) as max FROM {}", field, source)?;
+        PipelineOp::Max { field, group_by } => {
+            write!(sql, "SELECT ")?;
+
+            // Add group by fields
+            if !group_by.is_empty() {
+                for f in group_by {
+                    write!(sql, "{}, ", f)?;
+                }
+            }
+
+            writeln!(sql, "MAX({}) as max FROM {}", field, source)?;
+
+            // Add GROUP BY clause if needed
+            if !group_by.is_empty() {
+                write!(sql, "GROUP BY ")?;
+                for (i, f) in group_by.iter().enumerate() {
+                    if i > 0 {
+                        write!(sql, ", ")?;
+                    }
+                    write!(sql, "{}", f)?;
+                }
+                writeln!(sql)?;
+            }
         }
     }
     Ok(())

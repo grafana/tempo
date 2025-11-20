@@ -283,10 +283,10 @@ impl fmt::Display for SpanKind {
 /// Pipeline operations (not yet implemented, placeholder for future)
 #[derive(Debug, Clone, PartialEq)]
 pub enum PipelineOp {
-    Rate,
-    Count,
-    Avg { field: String },
-    Sum { field: String },
-    Min { field: String },
-    Max { field: String },
+    Rate { group_by: Vec<String> },
+    Count { group_by: Vec<String> },
+    Avg { field: String, group_by: Vec<String> },
+    Sum { field: String, group_by: Vec<String> },
+    Min { field: String, group_by: Vec<String> },
+    Max { field: String, group_by: Vec<String> },
 }
