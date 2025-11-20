@@ -34,14 +34,14 @@ Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEM
 
 There are three sampling methods available:
 
-- Adaptive sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
+- Dynamic sampling using `with(sample=true)`, which automatically determines the optimal sampling strategy based on query characteristics.
 - Fixed span sampling using `with(span_sample=0.xx)`, which selects the specified percentage of spans.
 - Fixed trace sampling using `with(trace_sample=0.xx)`, which selects complete traces for analysis.
 - Fixed probabilistic sampling using `with(sample=0.xx)`.
 
-### How adaptive sampling works
+### How dynamic sampling works
 
-Adaptive sampling, `with(sample=true)`, applies probabilistic sampling at the storage layer.
+Dynamic sampling, `with(sample=true)`, applies probabilistic sampling at the storage layer.
 This sampling method uses an adaptive probabilistic approach that responds to how common spans and traces matching the query are.
 This approach applies probabilistic sampling at the storage layer, for example, only inspecting `xx%` spans, or `xx%` traces, depending on the needs of the query.
 
@@ -60,9 +60,9 @@ TraceQL metrics sampling requires:
 You can use the TraceQL query editor in the Tempo data source in Grafana or Grafana Cloud to run the sample queries.
 Refer to [TraceQL queries in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/query-editor/) for more information.
 
-## Adaptive sampling using `with(sample=true)`
+## Dynamic sampling using `with(sample=true)`
 
-Adaptive sampling automatically determines the optimal sampling strategy based on query characteristics. It switches between span-level and trace-level sampling as needed and adjusts sampling rates dynamically.
+Dynamic sampling automatically determines the optimal sampling strategy based on query characteristics. It switches between span-level and trace-level sampling as needed and adjusts sampling rates dynamically.
 The goal is for `with(sample=true)` to be safe to include in virtually any query, regardless of scale or selectivity.
 
 ```traceql
