@@ -163,15 +163,19 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 		{
 			name: "valid cost attribution dimensions",
 			cfg:  Config{},
-			overrides: overrides.Overrides{CostAttribution: overrides.CostAttributionOverrides{
-				Dimensions: map[string]string{"span.name": "op_name"}},
+			overrides: overrides.Overrides{
+				CostAttribution: overrides.CostAttributionOverrides{
+					Dimensions: map[string]string{"span.name": "op_name"},
+				},
 			},
 		},
 		{
 			name: "invalid cost attribution dimensions",
 			cfg:  Config{},
-			overrides: overrides.Overrides{CostAttribution: overrides.CostAttributionOverrides{
-				Dimensions: map[string]string{"span.name": "__name__"}},
+			overrides: overrides.Overrides{
+				CostAttribution: overrides.CostAttributionOverrides{
+					Dimensions: map[string]string{"span.name": "__name__"},
+				},
 			},
 			expErr: "cost_attribution.dimensions config has invalid label name: '__name__'",
 		},
@@ -417,15 +421,19 @@ func Test_overridesValidator(t *testing.T) {
 		{
 			name: "valid cost attribution dimensions",
 			cfg:  Config{},
-			limits: client.Limits{CostAttribution: client.CostAttribution{
-				Dimensions: &map[string]string{"span.name": "op_name"}},
+			limits: client.Limits{
+				CostAttribution: client.CostAttribution{
+					Dimensions: &map[string]string{"span.name": "op_name"},
+				},
 			},
 		},
 		{
 			name: "invalid cost attribution dimensions",
 			cfg:  Config{},
-			limits: client.Limits{CostAttribution: client.CostAttribution{
-				Dimensions: &map[string]string{"span.name": "__name__"}},
+			limits: client.Limits{
+				CostAttribution: client.CostAttribution{
+					Dimensions: &map[string]string{"span.name": "__name__"},
+				},
 			},
 			expErr: "cost_attribution.dimensions config has invalid label name: '__name__'",
 		},
