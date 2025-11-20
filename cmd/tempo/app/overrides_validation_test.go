@@ -231,6 +231,25 @@ func Test_overridesValidator(t *testing.T) {
 			},
 			expErr: "trace_id_label_name \"trace-id\" is not a valid Prometheus label name",
 		},
+		{
+			name: "metrics_generator.ingestion_time_range_slack valid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					IngestionSlack: &client.Duration{Duration: 2 * time.Minute},
+				},
+			},
+		},
+		{
+			name: "metrics_generator.ingestion_time_range_slack invalid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					IngestionSlack: &client.Duration{Duration: 15 * time.Hour},
+				},
+			},
+			expErr: "metrics_generator.ingestion_time_range_slack \"15h0m0s\" is outside acceptable range of 0s to 12h",
+		},
 	}
 
 	for _, tc := range testCases {
