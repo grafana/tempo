@@ -16,9 +16,9 @@ fn strip_comments(content: &str) -> String {
         .to_string()
 }
 
-test_each_file! { for ["tql"] in "./crates/traceql/queries" => test_traceql_query_execution }
+test_each_file! { #[tokio::test] async for ["tql"] in "./crates/traceql/queries" => test_traceql_query_execution }
 
-fn test_traceql_query_execution([input]: [&str; 1]) {
+async fn test_traceql_query_execution([input]: [&str; 1]) {
     // Strip comments
     let query = strip_comments(input);
 
@@ -32,25 +32,21 @@ fn test_traceql_query_execution([input]: [&str; 1]) {
         data_path
     );
 
-    // Run async test in blocking context
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(async {
-        // Setup context with test block using object store
-        let ctx = setup_context_with_block(TEST_BLOCK_ID, TEST_TENANT_ID)
-            .await
-            .expect("Failed to setup context");
+    // Setup context with test block using object store
+    let ctx = setup_context_with_block(TEST_BLOCK_ID, TEST_TENANT_ID)
+        .await
+        .expect("Failed to setup context");
 
-        // Convert TraceQL to SQL
-        let sql = traceql_to_sql_string(&query)
-            .unwrap_or_else(|e| panic!("Failed to convert TraceQL to SQL: {}\nQuery: {}", e, query));
+    // Convert TraceQL to SQL
+    let sql = traceql_to_sql_string(&query)
+        .unwrap_or_else(|e| panic!("Failed to convert TraceQL to SQL: {}\nQuery: {}", e, query));
 
-        // Execute the query
-        let rows = execute_query(&ctx, &sql)
-            .await
-            .unwrap_or_else(|e| panic!("Failed to execute query: {}\nSQL: {}", e, sql));
+    // Execute the query
+    let rows = execute_query(&ctx, &sql)
+        .await
+        .unwrap_or_else(|e| panic!("Failed to execute query: {}\nSQL: {}", e, sql));
 
-        println!("Query executed successfully: {} rows returned", rows);
-    });
+    println!("Query executed successfully: {} rows returned", rows);
 }
 
 #[tokio::test]

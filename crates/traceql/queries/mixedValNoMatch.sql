@@ -1,2 +1,2 @@
 SELECT * FROM spans
-WHERE "Attrs"['bloom'] = 'does-not-exit-6c2408325a45'
+WHERE list_contains(flatten(map_extract("Attrs", 'bloom')), 'does-not-exit-6c2408325a45')

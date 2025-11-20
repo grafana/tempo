@@ -1,2 +1,2 @@
 SELECT * FROM spans
-WHERE ((((("ResourceK8sClusterName" ~ 'prod.*' && "ResourceK8sNamespaceName" = 'hosted-grafana') && "ResourceK8sContainerName" = 'hosted-grafana-gateway') && "Name" = 'httpclient/grafana') && "HttpStatusCode" = 200) && "DurationNano" > 20000000)
+WHERE ((((("ResourceK8sClusterName" ~ 'prod.*' AND "ResourceK8sNamespaceName" = 'hosted-grafana') AND "ResourceK8sContainerName" = 'hosted-grafana-gateway') AND "Name" = 'httpclient/grafana') AND "HttpStatusCode" = 200) AND "DurationNano" > 20000000)

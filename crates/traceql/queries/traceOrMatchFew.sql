@@ -1,2 +1,4 @@
-SELECT * FROM spans
-WHERE ("rootServiceName" = 'faro-collector' && ("StatusCode" = 2 || "HttpStatusCode" = 500))
+SELECT spans.* FROM spans
+INNER JOIN spans root ON root."TraceID" = spans."TraceID"
+  AND (root."ParentSpanID" = '' OR root."ParentSpanID" IS NULL)
+WHERE (root."ResourceServiceName" = 'faro-collector' AND (spans."StatusCode" = 2 OR spans."HttpStatusCode" = 500))

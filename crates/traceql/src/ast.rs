@@ -154,6 +154,8 @@ impl FieldScope {
                 | "nestedSetParent"
                 | "nestedSetLeft"
                 | "nestedSetRight"
+                | "rootServiceName"
+                | "rootName"
         )
     }
 }

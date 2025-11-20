@@ -1,2 +1,2 @@
 SELECT * FROM spans
-WHERE ((("ResourceNamespace" != '' && "ResourceServiceName" = 'cortex-gateway') && "DurationNano" > 50000000) && "ResourceCluster" ~ 'prod.*')
+WHERE ((("ResourceNamespace" != '' AND "ResourceServiceName" = 'cortex-gateway') AND "DurationNano" > 50000000) AND "ResourceCluster" ~ 'prod.*')

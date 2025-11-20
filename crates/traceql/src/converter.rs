@@ -44,14 +44,43 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
 
 /// Write a simple span filter query
 fn write_span_filter_query(sql: &mut String, filter: &SpanFilter) -> Result<(), ConversionError> {
-    writeln!(sql, "SELECT * FROM spans")?;
+    // Check if the filter uses trace-level intrinsics that require a join
+    let needs_root_join = filter.expr.as_ref().map_or(false, |e| uses_trace_level_intrinsic(e));
 
-    if let Some(expr) = &filter.expr {
-        write!(sql, "WHERE ")?;
-        write_expr(sql, expr)?;
+    if needs_root_join {
+        // Use a join with the root span
+        writeln!(sql, "SELECT spans.* FROM spans")?;
+        writeln!(sql, "INNER JOIN spans root ON root.\"TraceID\" = spans.\"TraceID\"")?;
+        writeln!(sql, "  AND (root.\"ParentSpanID\" = '' OR root.\"ParentSpanID\" IS NULL)")?;
+
+        if let Some(expr) = &filter.expr {
+            write!(sql, "WHERE ")?;
+            write_expr_with_root_join(sql, expr)?;
+        }
+    } else {
+        writeln!(sql, "SELECT * FROM spans")?;
+
+        if let Some(expr) = &filter.expr {
+            write!(sql, "WHERE ")?;
+            write_expr(sql, expr)?;
+        }
     }
 
     Ok(())
+}
+
+/// Check if an expression uses trace-level intrinsic fields
+fn uses_trace_level_intrinsic(expr: &Expr) -> bool {
+    match expr {
+        Expr::BinaryOp { left, right, .. } => {
+            uses_trace_level_intrinsic(left) || uses_trace_level_intrinsic(right)
+        }
+        Expr::UnaryOp { expr, .. } => uses_trace_level_intrinsic(expr),
+        Expr::Comparison { field, .. } => {
+            matches!(field.scope, FieldScope::Intrinsic)
+                && matches!(field.name.as_str(), "rootServiceName" | "rootName")
+        }
+    }
 }
 
 /// Write a structural query (parent >> child)
@@ -101,6 +130,57 @@ fn write_expr(sql: &mut String, expr: &Expr) -> Result<(), ConversionError> {
     write_expr_with_prefix(sql, expr, "")
 }
 
+/// Write an expression with root join support
+fn write_expr_with_root_join(sql: &mut String, expr: &Expr) -> Result<(), ConversionError> {
+    match expr {
+        Expr::BinaryOp { left, op, right } => {
+            write!(sql, "(")?;
+            write_expr_with_root_join(sql, left)?;
+            // Convert TraceQL logical operators to SQL equivalents
+            let sql_op = match op {
+                BinaryOperator::And => "AND",
+                BinaryOperator::Or => "OR",
+            };
+            write!(sql, " {} ", sql_op)?;
+            write_expr_with_root_join(sql, right)?;
+            write!(sql, ")")?;
+        }
+        Expr::UnaryOp { op, expr } => {
+            // Convert TraceQL NOT operator to SQL equivalent
+            let sql_op = match op {
+                UnaryOperator::Not => "NOT",
+            };
+            write!(sql, "{} ", sql_op)?;
+            write!(sql, "(")?;
+            write_expr_with_root_join(sql, expr)?;
+            write!(sql, ")")?;
+        }
+        Expr::Comparison { field, op, value } => {
+            write_comparison_with_root_join(sql, field, op, value)?;
+        }
+    }
+    Ok(())
+}
+
+/// Write a comparison expression with root join support
+fn write_comparison_with_root_join(
+    sql: &mut String,
+    field: &FieldRef,
+    op: &ComparisonOperator,
+    value: &Value,
+) -> Result<(), ConversionError> {
+    // Check if this is a trace-level intrinsic that uses the root table
+    if matches!(field.scope, FieldScope::Intrinsic)
+        && matches!(field.name.as_str(), "rootServiceName" | "rootName") {
+        // Use the root table prefix for trace-level intrinsics
+        write_comparison(sql, field, op, value, "root")?;
+    } else {
+        // Use spans table prefix for regular fields
+        write_comparison(sql, field, op, value, "spans")?;
+    }
+    Ok(())
+}
+
 /// Write an expression with an optional table prefix
 fn write_expr_with_prefix(
     sql: &mut String,
@@ -111,12 +191,21 @@ fn write_expr_with_prefix(
         Expr::BinaryOp { left, op, right } => {
             write!(sql, "(")?;
             write_expr_with_prefix(sql, left, prefix)?;
-            write!(sql, " {} ", op)?;
+            // Convert TraceQL logical operators to SQL equivalents
+            let sql_op = match op {
+                BinaryOperator::And => "AND",
+                BinaryOperator::Or => "OR",
+            };
+            write!(sql, " {} ", sql_op)?;
             write_expr_with_prefix(sql, right, prefix)?;
             write!(sql, ")")?;
         }
         Expr::UnaryOp { op, expr } => {
-            write!(sql, "{}", op)?;
+            // Convert TraceQL NOT operator to SQL equivalent
+            let sql_op = match op {
+                UnaryOperator::Not => "NOT",
+            };
+            write!(sql, "{} ", sql_op)?;
             write!(sql, "(")?;
             write_expr_with_prefix(sql, expr, prefix)?;
             write!(sql, ")")?;
@@ -154,6 +243,10 @@ fn write_comparison(
                 "service.name" | "cluster" | "namespace" | "pod" | "container" |
                 "k8s.cluster.name" | "k8s.namespace.name" | "k8s.pod.name" | "k8s.container.name"
             )
+        }
+        FieldScope::Unscoped => {
+            // Unscoped fields use map_extract which returns a list
+            true
         }
         _ => false
     };
@@ -251,6 +344,16 @@ fn field_to_sql(field: &FieldRef, table_prefix: &str) -> Result<String, Conversi
                 "duration" => Ok(format!("{}\"DurationNano\"", table_prefix)),
                 "status" => Ok(format!("{}\"StatusCode\"", table_prefix)),
                 "kind" => Ok(format!("{}\"Kind\"", table_prefix)),
+                "rootServiceName" => {
+                    // Trace-level field: service name of the root span
+                    // When using root join, table_prefix will be "root."
+                    Ok(format!("{}\"ResourceServiceName\"", table_prefix))
+                }
+                "rootName" => {
+                    // Trace-level field: name of the root span
+                    // When using root join, table_prefix will be "root."
+                    Ok(format!("{}\"Name\"", table_prefix))
+                }
                 "nestedSetParent" => {
                     // Special case: nestedSetParent is calculated from nested set model
                     // A span's parent count is based on how many ancestors it has
@@ -267,8 +370,8 @@ fn field_to_sql(field: &FieldRef, table_prefix: &str) -> Result<String, Conversi
         }
         FieldScope::Unscoped => {
             // Unscoped field .* - try both span and resource attributes
-            // For now, just try as span attribute
-            Ok(format!("{}\"Attrs\"['{}']", table_prefix, field.name))
+            // For now, just try as span attribute using same logic as scoped span attributes
+            Ok(format!("flatten(map_extract({}\"Attrs\", '{}'))", table_prefix, field.name))
         }
     }
 }
@@ -409,6 +512,6 @@ mod tests {
         let sql = traceql_to_sql(&query).unwrap();
         assert!(sql.contains("HttpMethod"));
         assert!(sql.contains("HttpStatusCode"));
-        assert!(sql.contains("&&"));
+        assert!(sql.contains("AND"));
     }
 }
