@@ -456,14 +456,15 @@ func createDistinctSpanIterator(
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
-	if attrIter != nil {
-		iters = append(iters, attrIter)
-	}
 
-	if len(columnPredicates) == 0 {
+	if len(iters) == 0 {
 		// If no special+intrinsic+dedicated columns are being searched,
 		// we can iterate over the generic attributes directly.
 		return attrIter, nil
+	}
+
+	if attrIter != nil {
+		iters = append(iters, attrIter)
 	}
 
 	spanCol := newDistinctValueCollector(mapSpanAttr, "span")
@@ -845,6 +846,7 @@ func (d *distinctAttrCollector) String() string {
 
 func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	var val traceql.Static
+	d.sentKeys = make(map[string]struct{}) // reset for each group
 
 	for _, e := range result.Entries {
 		// Ignore nulls, this leaves val as the remaining found value,
