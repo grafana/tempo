@@ -37,6 +37,16 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		}
 	}
 
+	serviceBuckets := config.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
+	if err := validation.ValidateHistogramBuckets(serviceBuckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
+		return err
+	}
+
+	spanBuckets := config.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets
+	if err := validation.ValidateHistogramBuckets(spanBuckets, "metrics_generator.processor.span_metrics.histogram_buckets"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -101,6 +111,18 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if ingestionSlack, ok := limits.GetMetricsGenerator().GetIngestionSlack(); ok {
 		if err := validation.ValidateIngestionTimeRangeSlack(ingestionSlack); err != nil {
+			return err
+		}
+	}
+
+	if buckets, ok := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetHistogramBuckets(); ok {
+		if err := validation.ValidateHistogramBuckets(buckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
+			return err
+		}
+	}
+
+	if buckets, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetHistogramBuckets(); ok {
+		if err := validation.ValidateHistogramBuckets(buckets, "metrics_generator.processor.span_metrics.histogram_buckets"); err != nil {
 			return err
 		}
 	}
