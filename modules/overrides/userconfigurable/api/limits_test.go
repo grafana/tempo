@@ -114,7 +114,7 @@ func Test_limitsFromOverrides(t *testing.T) {
         ],
         "intrinsic_dimensions": {
           "service": true,
-          "span_name": false,
+          "span_name": false
         },
         "dimension_mappings": [
           {

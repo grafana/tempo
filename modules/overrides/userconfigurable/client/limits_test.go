@@ -50,7 +50,7 @@ func TestLimits_parseJson(t *testing.T) {
       "span_metrics": {
         "dimensions": ["cluster"],
         "intrinsic_dimensions": {
-          "service": true,
+          "service": true
         },
         "dimension_mappings": [
           {

@@ -443,7 +443,12 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 			NativeHistogramMinResetDuration: &userconfigurableoverrides.Duration{Duration: 2 * time.Minute},
 			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
-					IntrinsicDimensions: mapBoolPtr(map[string]bool{"custom": true}),
+					IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true}),
+					DimensionMappings: &[]sharedconfig.DimensionMappings{{
+						Name:        "svc",
+						SourceLabel: []string{"service"},
+						Join:        "",
+					}},
 				},
 			},
 		},
@@ -487,9 +492,10 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenantID))
-	assert.Equal(t, map[string]bool{"custom": true}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID))
+	assert.Equal(t, map[string]bool{"service": true}, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID))
 	assert.NotEqual(t, mgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(tenantID))
-	assert.Equal(t, baseMgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID), mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID))
+	assert.Equal(t, []sharedconfig.DimensionMappings{{Name: "svc", SourceLabel: []string{"service"}, Join: ""}}, mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID))
+	assert.NotEqual(t, baseMgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID), mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(tenantID))
@@ -497,7 +503,6 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(tenantID), baseMgr.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID), baseMgr.MetricsGeneratorProcessorSpanMetricsDimensionMappings(tenantID))
 	baseEnableTargetInfoValue, baseEnableTargetInfoIsSet := mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID)
 	overrideEnableTargetInfoValue, overrideEnableTargetInfoIsSet := baseMgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenantID)
 	assert.Equal(t, overrideEnableTargetInfoValue, baseEnableTargetInfoValue)
