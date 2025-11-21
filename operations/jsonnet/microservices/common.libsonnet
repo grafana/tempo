@@ -76,24 +76,44 @@
           http_listen_address: '::0',
           grpc_listen_address: '::0',
         },
-        ingester+: {
-          lifecycler+: {
-            enable_inet6: true,
-          },
-        },
         memberlist+: {
           bind_addr: ['::'],
         },
+      },
+
+      tempo_compactor_config+: {
         compactor+: {
           ring+: {
             enable_inet6: true,
           },
         },
+      },
+
+      tempo_backend_worker_config+: {
         backend_worker+: {
           ring+: {
             enable_inet6: true,
           },
         },
+      },
+
+      tempo_ingester_config+: {
+        ingester+: {
+          lifecycler+: {
+            enable_inet6: true,
+          },
+        },
+      },
+
+      tempo_live_store_config+: {
+        live_store+: {
+          ring+: {
+            enable_inet6: true,
+          },
+        },
+      },
+
+      tempo_metrics_generator_config+: {
         metrics_generator+: {
           ring+: {
             enable_inet6: true,
