@@ -749,6 +749,10 @@ query_frontend:
         # The number of shards to break ingester queries into.
         [ingester_shards: <int> | default = 3]
 
+        # The default number of spans to return per span set when not specified in the request.
+        # Set to 0 to return unlimited spans by default.
+        [default_spans_per_span_set: <int> | default = 3]
+
         # The maximum allowed value of spans per span set. 0 disables this limit.
         [max_spans_per_span_set: <int> | default = 100]
 
@@ -833,15 +837,17 @@ In a similar manner, excessive queries result size can also negatively impact qu
 
 #### Limit the spans per spanset
 
-You can set the maximum spans per spanset by setting `max_spans_per_span_set` for the query-frontend.
-The default value is 100.
+You can control spans per spanset behavior using two configuration options:
+
+- `default_spans_per_span_set`: Sets the default number of spans returned when not specified in the query (default: 3). Set to `0` to return unlimited spans by default.
+- `max_spans_per_span_set`: Sets the maximum allowed value (default: 100). Set to `0` to disable the limit entirely.
 
 In Grafana or Grafana Cloud, you can use the **Span Limit** field in the [TraceQL query editor](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/query-editor/) in Grafana Explore.
-This field sets the maximum number of spans to return for each span set.
-The maximum value that you can set for the **Span Limit** value (or the spss query) is controlled by `max_spans_per_span_set`.
+This field sets the number of spans to return for each span set (the `spss` query parameter).
+If not specified, the value from `default_spans_per_span_set` is used.
+The maximum value that you can set for **Span Limit** (or the `spss` query parameter) is controlled by `max_spans_per_span_set`.
 To disable the maximum spans per span set limit, set `max_spans_per_span_set` to `0`.
-When set to `0`, there is no maximum and users can put any value in **Span Limit**.
-However, this can only be set by a Tempo administrator, not by the user.
+When set to `0`, there is no maximum and users can request any number of spans, including unlimited spans by setting `spss=0`.
 
 #### Cap the maximum query length
 
