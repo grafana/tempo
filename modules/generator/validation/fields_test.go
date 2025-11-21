@@ -142,7 +142,33 @@ func TestValidateCostAttributionDimensions(t *testing.T) {
 				"span.name": "name",
 			},
 			expErr:     true,
-			expErrText: "duplicate label name: 'name'",
+			expErrText: "cost_attribution.dimensions has duplicate label name: 'name', both",
+		},
+		{
+			name: "same attribute across two scopes in dimensions will error",
+			dimensions: map[string]string{
+				"resource.attribute": "",
+				"span.attribute":     "",
+			},
+			expErr:     true,
+			expErrText: "cost_attribution.dimensions has duplicate label name: 'attribute', both",
+		},
+		{
+			name: "same attribute scoped and unscoped scopes in dimensions will error",
+			dimensions: map[string]string{
+				"resource.attribute": "",
+				"attribute":          "",
+			},
+			expErr:     true,
+			expErrText: "cost_attribution.dimensions has duplicate label name: 'attribute', both",
+		},
+		{
+			name: "same attribute across two scopes in dimensions but with mapping",
+			dimensions: map[string]string{
+				"resource.attribute": "res_name",
+				"span.attribute":     "span_name",
+			},
+			expErr: false,
 		},
 	}
 

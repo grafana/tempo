@@ -108,7 +108,7 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]m
 	for k, v := range dimensions {
 		// parse the dimensions key to get the attribute name and the scope
 		// and build the keys for the lookup
-		attr, scope := parseDimensionKey(k)
+		attr, scope := ParseDimensionKey(k)
 		dimensionsScope[k] = scope
 		dimensionsAttr[k] = attr
 
@@ -491,12 +491,12 @@ func protoLengthMath(x int) (n int) {
 	return 1 + (bits.Len64(uint64(x)|1)+6)/7
 }
 
-// parseAttribute take the dimensions key, and gives the scope and the attribute with scope trimmed
+// ParseDimensionKey take the dimensions key, and gives the scope and the attribute with scope trimmed
 //
 // we are not using traceql.ParseIdentifier because it needs `.` for unscoped attributes
 // and errors out for string without `.` or the scope prefix, also it supports other scopes that we don't support
 // in cost attribution config
-func parseDimensionKey(key string) (attribute string, scope Scope) {
+func ParseDimensionKey(key string) (attribute string, scope Scope) {
 	switch {
 	case strings.HasPrefix(key, "resource."):
 		return strings.TrimPrefix(key, "resource."), ScopeResource

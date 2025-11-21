@@ -601,7 +601,7 @@ func TestParseDimensionKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			attr, scope := parseDimensionKey(tt.input)
+			attr, scope := ParseDimensionKey(tt.input)
 			require.Equal(t, tt.expectedAttr, attr)
 			require.Equal(t, tt.expectedScope, scope)
 		})

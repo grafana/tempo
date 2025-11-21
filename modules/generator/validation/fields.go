@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grafana/tempo/modules/distributor/usage"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -128,19 +129,20 @@ func ValidateCostAttributionDimensions(dimensions map[string]string) error {
 
 	// map is with key=tempo attribute, value=prometheus labelName
 	for k, v := range dimensions {
-		// build labelName the same way as usage.GetBuffersForDimensions in the usage tracker
+		// build labelName in the similar way as usage.GetBuffersForDimensions
+		attr, _ := usage.ParseDimensionKey(k) // extract attr so validate the duplicates with scope prefix
 		labelName := v
 		if labelName == "" {
-			labelName = k // The dimension is using default mapping, we map it to attribute
+			labelName = attr // The dimension is using default mapping, we map it to attribute
 		}
 		labelName = strutil.SanitizeFullLabelName(labelName) // sanitize label name
 
-		// Check for duplicate prometheus label names.
+		// check for duplicate prometheus label names.
 		// when we have duplicate labelNames, we randomly pick one so validate and don't allow duplicates.
 		if originalKey, exists := seenLabels[labelName]; exists {
 			return fmt.Errorf("cost_attribution.dimensions has duplicate label name: '%s', both '%s' and '%s' map to it", labelName, originalKey, k)
 		}
-		seenLabels[labelName] = k
+		seenLabels[labelName] = k // put k as value so we can show configured keys in the error
 
 		// creating a desc do the complete labelName validation
 		desc := prometheus.NewDesc("test_desc", "test desc created for validation", []string{labelName}, nil)
