@@ -85,7 +85,7 @@ func (p Profile) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	joinedErr = errors.Join(joinedErr, err)
 	joinedErr = errors.Join(joinedErr, encoder.AddObject("sample_type", vts))
 
-	samples := p.Sample()
+	samples := p.Samples()
 	for _, s := range samples.All() {
 		joinedErr = errors.Join(joinedErr, encoder.AddObject("sample", ProfileSample{
 			s,
@@ -102,10 +102,6 @@ func (p Profile) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	joinedErr = errors.Join(joinedErr, encoder.AddObject("period_type", vt))
 
 	encoder.AddInt64("period", p.Period())
-
-	cs, err := p.getComments()
-	joinedErr = errors.Join(joinedErr, err)
-	joinedErr = errors.Join(joinedErr, encoder.AddArray("comments", cs))
 
 	pid := p.ProfileID()
 	encoder.AddString("profile_id", hex.EncodeToString(pid[:]))
@@ -162,7 +158,6 @@ func newValueType(p Profile, vt pprofile.ValueType) (valueType, error) {
 	var result valueType
 	var err, joinedErr error
 
-	result.aggregationTemporality = int32(vt.AggregationTemporality())
 	result.typ, err = getString(p.Dictionary, vt.TypeStrindex())
 	joinedErr = errors.Join(joinedErr, err)
 	result.unit, err = getString(p.Dictionary, vt.UnitStrindex())
@@ -207,7 +202,7 @@ func newLocation(dict pprofile.ProfilesDictionary, pl pprofile.Location) (locati
 	if l.attributes, err = newAttributes(dict, pl.AttributeIndices()); err != nil {
 		joinedErr = errors.Join(joinedErr, err)
 	}
-	if l.lines, err = newLines(dict, pl.Line()); err != nil {
+	if l.lines, err = newLines(dict, pl.Lines()); err != nil {
 		joinedErr = errors.Join(joinedErr, err)
 	}
 	l.address = pl.Address()
@@ -431,28 +426,5 @@ type value int64
 
 func (v value) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddInt64("value", int64(v))
-	return nil
-}
-
-type comments []string
-
-func (p Profile) getComments() (comments, error) {
-	var joinedErr error
-	l := p.CommentStrindices().Len()
-	cs := make(comments, 0, l)
-	for i := range l {
-		c, err := getString(p.Dictionary, p.CommentStrindices().At(i))
-		if err != nil {
-			joinedErr = errors.Join(joinedErr, err)
-		}
-		cs = append(cs, c)
-	}
-	return cs, joinedErr
-}
-
-func (cs comments) MarshalLogArray(encoder zapcore.ArrayEncoder) error {
-	for _, s := range cs {
-		encoder.AppendString(s)
-	}
 	return nil
 }

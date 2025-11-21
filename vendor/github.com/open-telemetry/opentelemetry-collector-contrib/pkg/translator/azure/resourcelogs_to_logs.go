@@ -5,12 +5,11 @@ package azure // import "github.com/open-telemetry/opentelemetry-collector-contr
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"strconv"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/goccy/go-json"
 	"github.com/relvacode/iso8601"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -64,7 +63,7 @@ type azureLogRecord struct {
 	CallerIPAddress   *string      `json:"callerIpAddress"`
 	CorrelationID     *string      `json:"correlationId"`
 	Identity          *any         `json:"identity"`
-	Level             *json.Number `json:"Level"`
+	Level             any          `json:"Level"`
 	Location          *string      `json:"location"`
 	Properties        *any         `json:"properties"`
 }
@@ -81,7 +80,7 @@ func (r ResourceLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 	l := plog.NewLogs()
 
 	var azureLogs azureRecords
-	decoder := jsoniter.NewDecoder(bytes.NewReader(buf))
+	decoder := json.NewDecoder(bytes.NewReader(buf))
 	if err := decoder.Decode(&azureLogs); err != nil {
 		return l, err
 	}
@@ -118,9 +117,14 @@ func (r ResourceLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 			lr.SetTimestamp(nanos)
 
 			if log.Level != nil {
-				severity := asSeverity(*log.Level)
+				severity := asSeverity(log.Level)
 				lr.SetSeverityNumber(severity)
-				lr.SetSeverityText(log.Level.String())
+				switch s := log.Level.(type) {
+				case string:
+					lr.SetSeverityText(s)
+				case float64:
+					lr.SetSeverityText(strconv.FormatFloat(s, 'f', -1, 64))
+				}
 			}
 
 			if err := lr.Attributes().FromRaw(extractRawAttributes(log)); err != nil {
@@ -165,22 +169,27 @@ func asTimestamp(s string, formats ...string) (pcommon.Timestamp, error) {
 // asSeverity converts the Azure log level to equivalent
 // OpenTelemetry severity numbers. If the log level is not
 // valid, then the 'Unspecified' value is returned.
-func asSeverity(number json.Number) plog.SeverityNumber {
-	switch number.String() {
-	case "Informational":
-		return plog.SeverityNumberInfo
-	case "Warning":
-		return plog.SeverityNumberWarn
-	case "Error":
-		return plog.SeverityNumberError
-	case "Critical":
-		return plog.SeverityNumberFatal
-	default:
-		levelNumber, _ := number.Int64()
-		if levelNumber > 0 {
-			return plog.SeverityNumber(levelNumber)
+func asSeverity(number any) plog.SeverityNumber {
+	switch l := number.(type) {
+	case string:
+		switch l {
+		case "Informational":
+			return plog.SeverityNumberInfo
+		case "Warning":
+			return plog.SeverityNumberWarn
+		case "Error":
+			return plog.SeverityNumberError
+		case "Critical":
+			return plog.SeverityNumberFatal
+		default:
+			return plog.SeverityNumberUnspecified
 		}
-
+	case float64:
+		if l > 0 {
+			return plog.SeverityNumber(l)
+		}
+		return plog.SeverityNumberUnspecified
+	default:
 		return plog.SeverityNumberUnspecified
 	}
 }
