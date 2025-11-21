@@ -81,11 +81,6 @@ func CompareRowNumbersLossy(upToDefinitionLevel int, a, b RowNumber) int {
 // EqualRowNumber compares the sequences of row numbers in a and b
 // for partial equality. A little faster than CompareRowNumbers(d,a,b)==0
 func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
-	/*for i := 0; i <= upToDefinitionLevel; i++ {
-		if a[i] != b[i] {
-			return false
-		}
-	}*/
 	// Compare in reverse order because most row number activity
 	// occurs at the lower definition levels.
 	for i := upToDefinitionLevel; i >= 0; i-- {
@@ -94,6 +89,12 @@ func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
 		}
 	}
 	return true
+
+	// Dynamically create 2 byte slices covering the content
+	// and try to use hw acceleration to compare them.
+	/*as := unsafe.Slice((*byte)(unsafe.Pointer(&a[0])), (upToDefinitionLevel+1)*4)
+	bs := unsafe.Slice((*byte)(unsafe.Pointer(&b[0])), (upToDefinitionLevel+1)*4)
+	return bytes.Equal(as, bs)*/
 }
 
 func truncateRowNumberSlow(definitionLevelToKeep int, t RowNumber) RowNumber {
@@ -1172,6 +1173,14 @@ type oldStyleCollector struct {
 	pred GroupPredicate
 }
 
+func newOldStyleCollector(pool *ResultPool, pred GroupPredicate) *oldStyleCollector {
+	return &oldStyleCollector{
+		at:   pool.Get(),
+		pool: pool,
+		pred: pred,
+	}
+}
+
 func (c *oldStyleCollector) Reset(rowNumber RowNumber) {
 	c.at.Reset()
 	c.at.RowNumber = rowNumber
@@ -1225,7 +1234,7 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		pool:            DefaultPool,
 	}
 
-	// Fill in config slices for the explicitly given iterators.
+	// Fill in config slices for the explicitly given iterators first.
 	for range j.required {
 		j.defLevelsRequired = append(j.defLevelsRequired, j.definitionLevel)
 		j.paramsRequired = append(j.paramsRequired, nil)
@@ -1239,24 +1248,14 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		opt.applyToLeftJoinIterator(j)
 	}
 
-	if j.collector == nil {
-		j.collector = &oldStyleCollector{
-			at:   j.pool.Get(),
-			pool: j.pool,
-			pred: pred,
-		}
-	}
-
-	if j.defLevelsRequired[0] != j.definitionLevel {
-		panic(fmt.Sprintf("left join iterator defLevelsRequired[0] %d != j.definitionLevel %d", j.defLevelsRequired[0], j.definitionLevel))
-	}
-
-	// No query should ever result in a left-join with no required iterators.
-	// If this happens, it's a bug in the iter building code.
-	// LeftJoinIterator is not designed to handle this case and will loop forever.
-	// Instead use a UnionIterator.
+	// Any join requires at least one required iterator. If there are no required iterators,
+	// use a UnionIterator instead.
 	if len(j.required) == 0 {
 		return nil, fmt.Errorf("left join iterator requires at least one required iterator")
+	}
+
+	if j.collector == nil {
+		j.collector = newOldStyleCollector(j.pool, pred)
 	}
 
 	j.peeksRequired = make([]*IteratorResult, len(j.required))
@@ -1480,14 +1479,14 @@ iters:
 }
 
 func (j *LeftJoinIterator) collectRequired(rowNumber RowNumber) (err error) {
-iter0:
+	// iter0:
 	// First iterator (driver) is pointing at the next row to collect.
 	// Collect from it while at the same level as the desired definition level
 	// or until exhausted.
 	for {
-		// Collect and save row number.
+		// Collect. Optimization: we don't need to save the row number
+		// for the primary iterator.
 		j.collector.Collect(j.peeksRequired[0], j.paramsRequired[0])
-		j.collectedThroughRequired[0] = j.peeksRequired[0].RowNumber
 
 		j.peeksRequired[0], err = j.required[0].Next()
 		if err != nil {
@@ -1496,14 +1495,17 @@ iter0:
 
 		if j.peeksRequired[0] == nil {
 			// This iterator is exhausted.  Collect from remaining.
-			break iter0
+			break
 		}
 
-		for k := j.definitionLevel; k >= 0; k-- {
+		if !EqualRowNumber(j.definitionLevel, j.peeksRequired[0].RowNumber, rowNumber) {
+			break
+		}
+		/*for k := j.definitionLevel; k >= 0; k-- {
 			if j.peeksRequired[0].RowNumber[k] != rowNumber[k] {
 				break iter0
 			}
-		}
+		}*/
 	}
 
 iters:
