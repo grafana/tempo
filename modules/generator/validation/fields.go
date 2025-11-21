@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grafana/tempo/modules/distributor/usage"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/util/strutil"
 )
 
 var SupportedProcessors = []string{
@@ -118,5 +121,38 @@ func ValidateNativeHistogramBucketFactor(factor float64) error {
 	if factor <= 1 {
 		return fmt.Errorf("metrics_generator.native_histogram_bucket_factor must be greater than 1")
 	}
+	return nil
+}
+
+func ValidateCostAttributionDimensions(dimensions map[string]string) error {
+	seenLabels := make(map[string]string)
+
+	// map is with key=tempo attribute, value=prometheus labelName
+	for k, v := range dimensions {
+		// build labelName in the similar way as usage.GetBuffersForDimensions
+		attr, _ := usage.ParseDimensionKey(k) // extract attr so validate the duplicates with scope prefix
+		labelName := v
+		if labelName == "" {
+			labelName = attr // The dimension is using default mapping, we map it to attribute
+		}
+		labelName = strutil.SanitizeFullLabelName(labelName) // sanitize label name
+
+		// check for duplicate prometheus label names.
+		// when we have duplicate labelNames, we randomly pick one so validate and don't allow duplicates.
+		if originalKey, exists := seenLabels[labelName]; exists {
+			return fmt.Errorf("cost_attribution.dimensions has duplicate label name: '%s', both '%s' and '%s' map to it", labelName, originalKey, k)
+		}
+		seenLabels[labelName] = k // put k as value so we can show configured keys in the error
+
+		// creating a desc do the complete labelName validation
+		desc := prometheus.NewDesc("test_desc", "test desc created for validation", []string{labelName}, nil)
+		// try to create a metric and see if there are any error, we use same method in usage.Collect
+		_, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, float64(1), labelName)
+		if err != nil {
+			return fmt.Errorf("cost_attribution.dimensions config has invalid label name: '%s'", labelName)
+		}
+	}
+
+	// no errors, we are good.
 	return nil
 }
