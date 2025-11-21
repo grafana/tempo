@@ -1189,17 +1189,18 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
 
-func (e *MetricsEvaluator) Do(ctx context.Context, f Fetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	if !e.needsFullTrace && e.newFetch {
 		// The query can operate at a span level so attempt.
 		// This is faster. If not supported then fallback to spanset level.
-		spanFetcher := f.SpanFetcher()
-		if spanFetcher != nil {
-			return e.DoSpansOnly(ctx, spanFetcher, fetcherStart, fetcherEnd, maxSeries)
+		err := e.DoSpansOnly(ctx, f, fetcherStart, fetcherEnd, maxSeries)
+		if !errors.Is(err, util.ErrUnsupported) {
+			// We ran successfully or some other error.
+			// In the case of unsupported, keep going and use original SpansetFetcher.
+			return err
 		}
 	}
 
-	spanSetFetcher := f.SpansetFetcher()
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1226,7 +1227,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f Fetcher, fetcherStart, fetc
 		}
 	}
 
-	fetch, err := spanSetFetcher.Fetch(ctx, storageReq)
+	fetch, err := f.Fetch(ctx, storageReq)
 	if errors.Is(err, util.ErrUnsupported) {
 		return nil
 	}
@@ -1307,7 +1308,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f Fetcher, fetcherStart, fetc
 	return nil
 }
 
-func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpanFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1335,9 +1336,6 @@ func (e *MetricsEvaluator) DoSpansOnly(ctx context.Context, f SpanFetcher, fetch
 	}
 
 	fetch, err := f.FetchSpans(ctx, storageReq)
-	if errors.Is(err, util.ErrUnsupported) {
-		return nil
-	}
 	if err != nil {
 		return err
 	}

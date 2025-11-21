@@ -3,6 +3,8 @@ package traceql
 import (
 	"context"
 	"time"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type Operands []Static
@@ -267,16 +269,8 @@ type FetchSpansOnlyResponse struct {
 	Bytes func() uint64
 }
 
-type Fetcher interface {
-	SpansetFetcher() SpansetFetcher
-	SpanFetcher() SpanFetcher
-}
-
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
-}
-
-type SpanFetcher interface {
 	FetchSpans(context.Context, FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
@@ -337,42 +331,29 @@ func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 }
 
 type SpansetFetcherWrapper struct {
-	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+	f  func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+	f2 func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)
 }
 
-var (
-	_ SpansetFetcher = (*SpansetFetcherWrapper)(nil)
-	_ Fetcher        = (*SpansetFetcherWrapper)(nil)
-)
+var _ SpansetFetcher = (*SpansetFetcherWrapper)(nil)
 
-func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) Fetcher {
-	return SpansetFetcherWrapper{f}
+func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
+	return SpansetFetcherWrapper{f, nil}
+}
+
+func NewSpansetFetcherWrapperBoth(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error), f2 func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)) SpansetFetcher {
+	return SpansetFetcherWrapper{f, f2}
 }
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
 }
 
-func (s SpansetFetcherWrapper) SpansetFetcher() SpansetFetcher {
-	return s
-}
-
-func (s SpansetFetcherWrapper) SpanFetcher() SpanFetcher {
-	return nil
-}
-
-type SpanFetcherWrapper struct {
-	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)
-}
-
-var _ SpanFetcher = (*SpanFetcherWrapper)(nil)
-
-func NewSpanFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error)) SpanFetcher {
-	return SpanFetcherWrapper{f}
-}
-
-func (s SpanFetcherWrapper) FetchSpans(ctx context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
-	return s.f(ctx, request)
+func (s SpansetFetcherWrapper) FetchSpans(ctx context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
+	if s.f2 == nil {
+		return FetchSpansOnlyResponse{}, util.ErrUnsupported
+	}
+	return s.f2(ctx, request)
 }
 
 type FetchTagsCallback func(tag string, scope AttributeScope) bool

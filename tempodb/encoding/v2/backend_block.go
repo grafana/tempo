@@ -175,6 +175,10 @@ func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.
 	return traceql.FetchSpansResponse{}, util.ErrUnsupported
 }
 
+func (b *BackendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
+}
+
 func (b *BackendBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return util.ErrUnsupported
 }
@@ -185,20 +189,4 @@ func (b *BackendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, 
 
 func (b *BackendBlock) Validate(_ context.Context) error {
 	return util.ErrUnsupported
-}
-
-func (b *BackendBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
-	return &backendFetcher{}
-}
-
-type backendFetcher struct{}
-
-var _ traceql.Fetcher = (*backendFetcher)(nil)
-
-func (b *backendFetcher) SpansetFetcher() traceql.SpansetFetcher {
-	return nil
-}
-
-func (b *backendFetcher) SpanFetcher() traceql.SpanFetcher {
-	return nil
 }

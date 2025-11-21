@@ -1092,10 +1092,14 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				e := traceql.NewEngine()
 
-				f := &blockFetcher{
-					b:    block,
-					opts: opts,
-				}
+				f := traceql.NewSpansetFetcherWrapperBoth(
+					func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+						return block.Fetch(ctx, req, opts)
+					},
+					func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+						return block.FetchSpans(ctx, req, opts)
+					},
+				)
 
 				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
 				require.NoError(b, err)
@@ -1139,7 +1143,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 					return block.Fetch(ctx, req, opts)
 				})
 
-				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f.SpansetFetcher())
+				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f)
 
 				require.NoError(b, err)
 				require.NotNil(b, r)
@@ -1216,8 +1220,8 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
-		"{} | rate() with(new=true)",
-		"{} | rate() with(sample=true)",
+		"{} | rate() with(new=true, exemplars=0)",
+		/*"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
 		"{} | rate() by (span.http.url)", // High cardinality attribute
@@ -1229,7 +1233,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | histogram_over_time(duration)",
 		"{} | avg_over_time(duration) by (span.http.status_code)",
 		"{} | max_over_time(duration) by (span.http.status_code)",
-		"{} | min_over_time(duration) by (span.http.status_code)",
+		"{} | min_over_time(duration) by (span.http.status_code)",*/
 		//"{ name != nil } | compare({status=error})",
 		//"{} > {} | rate() by (name)", // structural
 
@@ -1237,25 +1241,32 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		// {} | rate() with(sample=true,debug=true,info=true)
 	}
 
+	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-10-noblob-with-deletes")
+	os.Setenv("VP5_BENCH_TENANTID", "328776")
+	os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
+
 	// For sampler debugging
 	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
 
-	e := traceql.NewEngine()
-	ctx := context.TODO()
-	opts := common.DefaultSearchOptions()
-
-	block := blockForBenchmarks(b)
-
-	f := &blockFetcher{
-		b:    block,
-		opts: opts,
-	}
+	var (
+		e     = traceql.NewEngine()
+		ctx   = b.Context()
+		opts  = common.DefaultSearchOptions()
+		block = blockForBenchmarks(b)
+		st    = uint64(block.meta.StartTime.UnixNano())
+		end   = uint64(block.meta.EndTime.UnixNano())
+		f     = traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return block.Fetch(ctx, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return block.FetchSpans(ctx, req, opts)
+			},
+		)
+	)
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			st := uint64(block.meta.StartTime.UnixNano())
-			end := uint64(block.meta.EndTime.UnixNano())
-
 			req := &tempopb.QueryRangeRequest{
 				Query:     tc,
 				Step:      uint64(time.Minute),
@@ -1322,10 +1333,14 @@ func TestSamplingError(t *testing.T) {
 	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(t, err)
 
-	f := &blockFetcher{
-		b:    block,
-		opts: opts,
-	}
+	f := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, opts)
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return block.FetchSpans(ctx, req, opts)
+		},
+	)
 
 	executeQuery := func(t *testing.T, q string) (results traceql.SeriesSet, spanCount int) {
 		st := uint64(block.meta.StartTime.UnixNano())

@@ -46,7 +46,7 @@ func Compile(query string) (*RootExpr, SpansetFilterFunc, firstStageElement, sec
 	return expr, expr.Pipeline.evaluate, expr.MetricsPipeline, expr.MetricsSecondStage, req, nil
 }
 
-func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, fetcher Fetcher, allowUnsafeQueryHints bool) (*tempopb.SearchResponse, error) {
+func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, fetcher SpansetFetcher, allowUnsafeQueryHints bool) (*tempopb.SearchResponse, error) {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.End()
 
@@ -127,12 +127,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return evalSS, nil
 	}
 
-	spanSetFetcher := fetcher.SpansetFetcher()
-	if spanSetFetcher == nil {
-		return nil, fmt.Errorf("spanset fetcher is not supported")
-	}
-
-	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, *fetchSpansRequest)
+	fetchSpansResponse, err := fetcher.Fetch(ctx, *fetchSpansRequest)
 	if err != nil {
 		if errors.Is(err, util.ErrUnsupported) {
 			return &tempopb.SearchResponse{

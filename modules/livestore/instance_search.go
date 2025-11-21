@@ -47,9 +47,6 @@ const (
 type block interface {
 	common.Searcher
 	common.Finder
-	// traceql.Fetcher
-
-	FetcherFor(opts common.SearchOptions) traceql.Fetcher
 }
 
 // blockFn defines a function that processes a single block
@@ -86,9 +83,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 			ctx, span := tracer.Start(ctx, "process.headBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-			f := i.headBlock
-
-			if err := fn(ctx, meta, f); err != nil {
+			if err := fn(ctx, meta, i.headBlock); err != nil {
 				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
 			}
 			span.End()
@@ -210,7 +205,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		}
 
 		if api.IsTraceQLQuery(req) {
-			f := b.FetcherFor(opts)
+			f := traceql.NewSpansetFetcherWrapperBoth(
+				func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+					return b.Fetch(ctx, req, opts)
+				},
+				func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+					return b.FetchSpans(ctx, req, opts)
+				},
+			)
 			// note: we are creating new engine for each wal block,
 			// and engine.ExecuteSearch is parsing the query for each block
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, f, i.overrides.UnsafeQueryHints(i.tenantID))
@@ -751,7 +753,14 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	))
 	defer span.End()
 
-	fetcher := b.FetcherFor(common.DefaultSearchOptions())
+	fetcher := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return b.Fetch(ctx, req, common.DefaultSearchOptions())
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return b.FetchSpans(ctx, req, common.DefaultSearchOptions())
+		},
+	)
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
@@ -789,7 +798,14 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loca
 	if err != nil {
 		return nil, err
 	}
-	f := b.FetcherFor(common.DefaultSearchOptions())
+	f := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return b.Fetch(ctx, req, common.DefaultSearchOptions())
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return b.FetchSpans(ctx, req, common.DefaultSearchOptions())
+		},
+	)
 	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err

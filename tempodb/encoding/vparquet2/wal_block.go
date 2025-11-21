@@ -660,6 +660,10 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}, nil
 }
 
+func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
+}
+
 func (b *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return util.ErrUnsupported
 }
@@ -807,27 +811,4 @@ func (i *commonIterator) NextRow(ctx context.Context) (common.ID, parquet.Row, e
 
 func (i *commonIterator) Close() {
 	i.iter.Close()
-}
-
-func (b *walBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
-	return &walFetcher{b: b, opts: opts}
-}
-
-type walFetcher struct {
-	b    *walBlock
-	opts common.SearchOptions
-}
-
-var _ traceql.Fetcher = (*walFetcher)(nil)
-
-func (b *walFetcher) SpansetFetcher() traceql.SpansetFetcher {
-	return b
-}
-
-func (b *walFetcher) SpanFetcher() traceql.SpanFetcher {
-	return nil
-}
-
-func (b *walFetcher) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-	return b.b.Fetch(ctx, req, b.opts)
 }

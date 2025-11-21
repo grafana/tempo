@@ -4,16 +4,13 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
-	kitlog "github.com/go-kit/log"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -40,7 +37,14 @@ func TestStuff(t *testing.T) {
 	block := makeBackendBlockWithTraces(t, traces)
 	ctx := context.Background()
 	e := traceql.NewEngine()
-	f := block.FetcherFor(common.DefaultSearchOptions()).SpanFetcher()
+	f := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, common.DefaultSearchOptions())
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return block.FetchSpans(ctx, req, common.DefaultSearchOptions())
+		},
+	)
 
 	req := &tempopb.QueryRangeRequest{
 		Query:     "{} | count_over_time() by (resource.service.name)",
@@ -272,7 +276,7 @@ func TestSearchFetchSpansOnly(t *testing.T) {
 				req.SecondPassConditions = traceql.SearchMetaConditions()
 			}
 
-			resp, err := b.FetchSpansOnly(ctx, req, common.DefaultSearchOptions())
+			resp, err := b.FetchSpans(ctx, req, common.DefaultSearchOptions())
 			require.NoError(t, err, "search request:%v", req)
 
 			found := false
@@ -407,7 +411,7 @@ func TestSearchFetchSpansOnly(t *testing.T) {
 				req.SecondPassConditions = traceql.SearchMetaConditions()
 			}
 
-			resp, err := b.FetchSpansOnly(ctx, req, common.DefaultSearchOptions())
+			resp, err := b.FetchSpans(ctx, req, common.DefaultSearchOptions())
 			require.NoError(t, err, "search request:%v", req)
 
 			for {
@@ -464,7 +468,7 @@ func TestSelectAllFetchSpansOnly(t *testing.T) {
 	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return eval([]*traceql.Spanset{inSS}) }
 	req.SecondPassSelectAll = true
 
-	resp, err := b.FetchSpansOnly(ctx, *req, opts)
+	resp, err := b.FetchSpans(ctx, *req, opts)
 	require.NoError(t, err)
 	defer resp.Results.Close()
 
@@ -516,66 +520,4 @@ func TestSelectAllFetchSpansOnly(t *testing.T) {
 		gotSp.rowNum = rn
 	}
 	require.True(t, found, "trace was found")
-}
-
-func BenchmarkQueryRangeSpansOnly(b *testing.B) {
-	testCases := []string{
-		/*"{} | rate()",
-		"{} | rate() with(sample=true)",
-		"{} | rate() by (span.http.status_code)",
-		"{} | rate() by (resource.service.name)",
-		"{} | rate() by (span.http.url)", // High cardinality attribute
-		"{resource.service.name=`loki-ingester`} | rate()",
-		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
-		"{status=error} | rate()",
-		"{} | quantile_over_time(duration, .99, .9, .5)",
-		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
-		"{} | histogram_over_time(duration)",
-		"{} | avg_over_time(duration) by (span.http.status_code)",
-		"{} | max_over_time(duration) by (span.http.status_code)",
-		"{} | min_over_time(duration) by (span.http.status_code)",*/
-		"{ name != nil } | compare({status=error})",
-	}
-
-	// For sampler debugging
-	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
-
-	e := traceql.NewEngine()
-	ctx := context.TODO()
-	opts := common.DefaultSearchOptions()
-
-	block := blockForBenchmarks(b)
-
-	f := block.FetcherFor(opts).SpanFetcher()
-
-	for _, tc := range testCases {
-		b.Run(tc, func(b *testing.B) {
-			st := uint64(block.meta.StartTime.UnixNano())
-			end := uint64(block.meta.EndTime.UnixNano())
-
-			req := &tempopb.QueryRangeRequest{
-				Query:     tc,
-				Step:      uint64(time.Minute),
-				Start:     st,
-				End:       end,
-				MaxSeries: 1000,
-			}
-
-			eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
-			require.NoError(b, err)
-
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				err := eval.DoSpansOnly(ctx, f, st, end, int(req.MaxSeries))
-				require.NoError(b, err)
-			}
-
-			_ = eval.Results()
-
-			bytes, spansTotal, _ := eval.Metrics()
-			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
-			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-			b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
-		})
-	}
 }

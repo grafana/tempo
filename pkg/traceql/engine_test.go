@@ -408,18 +408,7 @@ type MockSpanSetFetcher struct {
 	capturedRequest FetchSpansRequest
 }
 
-var (
-	_ = (Fetcher)(&MockSpanSetFetcher{})
-	_ = (SpansetFetcher)(&MockSpanSetFetcher{})
-)
-
-func (m *MockSpanSetFetcher) SpansetFetcher() SpansetFetcher {
-	return m
-}
-
-func (m *MockSpanSetFetcher) SpanFetcher() SpanFetcher {
-	return nil
-}
+var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
 
 func (m *MockSpanSetFetcher) Fetch(_ context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
@@ -430,6 +419,10 @@ func (m *MockSpanSetFetcher) Fetch(_ context.Context, request FetchSpansRequest)
 			return 100_00 // hardcoded in tests
 		},
 	}, nil
+}
+
+func (m *MockSpanSetFetcher) FetchSpans(_ context.Context, request FetchSpansRequest) (FetchSpansOnlyResponse, error) {
+	return FetchSpansOnlyResponse{}, util.ErrUnsupported
 }
 
 type MockSpanSetIterator struct {

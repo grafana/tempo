@@ -903,10 +903,9 @@ func TestTempoDBQueryRange(t *testing.T) {
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 
-	/*f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return block.Fetch(ctx, req, common.DefaultSearchOptions())
-	})*/
-	f := block.FetcherFor(common.DefaultSearchOptions())
+	})
 
 	/*for _, tc := range queryRangeTestCases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -318,6 +318,10 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 	return traceql.FetchSpansResponse{}, util.ErrUnsupported
 }
 
+func (a *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	return traceql.FetchSpansOnlyResponse{}, util.ErrUnsupported
+}
+
 // FetchTagValues implements common.Searcher
 func (a *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return util.ErrUnsupported
@@ -444,20 +448,4 @@ func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding
 	}
 
 	return id, tenant, version, encoding, dataEncoding, nil
-}
-
-func (b *walBlock) FetcherFor(opts common.SearchOptions) traceql.Fetcher {
-	return &walFetcher{}
-}
-
-type walFetcher struct{}
-
-var _ traceql.Fetcher = (*walFetcher)(nil)
-
-func (b *walFetcher) SpansetFetcher() traceql.SpansetFetcher {
-	return nil
-}
-
-func (b *walFetcher) SpanFetcher() traceql.SpanFetcher {
-	return nil
 }

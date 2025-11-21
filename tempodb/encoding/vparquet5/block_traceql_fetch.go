@@ -14,7 +14,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
-func (b *backendBlock) FetchSpansOnly(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
 	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err

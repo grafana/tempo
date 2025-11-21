@@ -646,3 +646,5 @@ func (c *testCollector) Collect(r *IteratorResult, param any) {
 func (c *testCollector) Result() *IteratorResult {
 	return c.result()
 }
+
+func (c *testCollector) Close() {}

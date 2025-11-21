@@ -644,7 +644,9 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	_, _, err = block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
-	f := block.FetcherFor(opts)
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
 
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
@@ -709,7 +711,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 					return block.Fetch(ctx, req, opts)
 				})
 
-				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f.SpansetFetcher())
+				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f)
 
 				require.NoError(b, err)
 				require.NotNil(b, r)

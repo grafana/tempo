@@ -105,30 +105,16 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		return nil, err
 	}
 
-	/*if expr.NeedsFullTrace() {
-		f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	f := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return q.store.Fetch(ctx, meta, req, opts)
-		})
-		err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		f := traceql.NewSpanFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
-			return q.store.FetchSpansOnly(ctx, meta, req, opts)
-		})
-		err = eval.DoSpansOnly(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
-		if err != nil {
-			return nil, err
-		}
-	}*/
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return q.store.FetchSpans(ctx, meta, req, opts)
+		},
+	)
 
-	fetcher, err := q.store.Fetcher(ctx, meta, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	err = eval.Do(ctx, fetcher, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
+	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
 		return nil, err
 	}
