@@ -1,22 +1,15 @@
--- Flattened Spans View
--- This view unnests the nested trace structure and presents one row per span
--- Each row contains all span fields with Attrs converted to a Map for convenient access
--- Usage: SELECT * FROM spans WHERE Name = 'query-product'
--- Access attributes: SELECT TraceID, Name, Attrs['http.method'] FROM spans
--- Access resource attributes: SELECT TraceID, Name, ResourceAttrs['service.name'] FROM spans
-
 CREATE OR REPLACE VIEW spans AS
 WITH unnest_resources AS (
     SELECT
         t."TraceID",
-        UNNEST(t."ResourceSpans") as resource
+        UNNEST(t.rs) as resource
     FROM traces t
 ),
 unnest_scopespans AS (
     SELECT
         "TraceID",
         resource,
-        UNNEST(resource."ScopeSpans") as scopespans
+        UNNEST(resource.ss) as scopespans
     FROM unnest_resources
 ),
 unnest_spans AS (

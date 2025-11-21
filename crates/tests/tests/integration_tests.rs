@@ -46,7 +46,7 @@ async fn test_traceql_query_execution([input]: [&str; 1]) {
         .await
         .unwrap_or_else(|e| panic!("Failed to execute query: {}\nSQL: {}", e, sql));
 
-    assert!(rows > 0);
+    assert!(rows > 0, "Query '{}' returned 0 rows", query);
 }
 
 #[tokio::test]

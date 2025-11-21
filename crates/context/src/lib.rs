@@ -208,9 +208,9 @@ pub async fn create_block_context(
 
     // Register the parquet file as the "traces" table
     let full_path = format!("tempo://bucket/{}", parquet_path);
-    let mut options = ParquetReadOptions::default();
-    let schema = tempo_trace_schema();
-    options.schema = Some(&schema);
+    let options = ParquetReadOptions::default();
+    //let schema = tempo_trace_schema();
+    //options.schema = Some(&schema);
     ctx.register_parquet("traces", &full_path, options)
         .await?;
     info!("Registered 'traces' table for block");
