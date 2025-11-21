@@ -153,6 +153,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -176,6 +177,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -207,6 +209,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -225,6 +228,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -253,6 +257,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -276,6 +281,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 2,
 								Spans: []Span{
 									{
 										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -313,6 +319,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -331,6 +338,7 @@ func TestCombiner(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 2,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -412,6 +420,7 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -435,6 +444,7 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
@@ -461,6 +471,7 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -484,6 +495,7 @@ func TestCombinerReturnsDuplicates(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 2,
 								Spans: []Span{
 									{
 										SpanID:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},

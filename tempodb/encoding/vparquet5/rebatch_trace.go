@@ -77,6 +77,7 @@ func rebatchTrace(trace *Trace) {
 			// else, merge the Spans with the existing identical ScopeSpans
 			rebatchSS := &rs.ScopeSpans[idx]
 			rebatchSS.Spans = append(rebatchSS.Spans, ss.Spans...)
+			rebatchSS.SpanCount = int32(len(rebatchSS.Spans))
 
 			// the append above creates copies of Spans, we have to clear the originals otherwise
 			// we will have multiple copies of the same slices in different Spans
@@ -233,6 +234,7 @@ func clearScopeSpans(sss []ScopeSpans) []ScopeSpans {
 		ss := &sss[i]
 		ss.Scope.Attrs = nil
 		ss.Spans = nil
+		ss.SpanCount = 0
 	}
 	return sss[:0]
 }

@@ -111,6 +111,7 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 
 			if len(notFoundSpans) > 0 {
 				ils.Spans = notFoundSpans
+				ils.SpanCount = int32(len(ils.Spans))
 				notFoundILS = append(notFoundILS, ils)
 			}
 
