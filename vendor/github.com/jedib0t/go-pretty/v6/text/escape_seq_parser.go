@@ -42,16 +42,22 @@ const (
 	escSeqKindOSI
 )
 
-type escSeqParser struct {
+// EscSeqParser parses ANSI escape sequences from text and tracks active formatting codes.
+// It supports both CSI (Control Sequence Introducer) and OSI (Operating System Command)
+// escape sequence formats.
+type EscSeqParser struct {
+	// codes tracks active escape sequence codes (e.g., 1 for bold, 3 for italic).
 	codes map[int]bool
 
-	// consume specific
-	inEscSeq   bool
+	// inEscSeq indicates whether the parser is currently inside an escape sequence.
+	inEscSeq bool
+	// escSeqKind identifies the type of escape sequence being parsed (CSI or OSI).
 	escSeqKind escSeqKind
-	escapeSeq  string
+	// escapeSeq accumulates the current escape sequence being parsed.
+	escapeSeq string
 }
 
-func (s *escSeqParser) Codes() []int {
+func (s *EscSeqParser) Codes() []int {
 	codes := make([]int, 0)
 	for code, val := range s.codes {
 		if val {
@@ -62,7 +68,7 @@ func (s *escSeqParser) Codes() []int {
 	return codes
 }
 
-func (s *escSeqParser) Consume(char rune) {
+func (s *EscSeqParser) Consume(char rune) {
 	if !s.inEscSeq && char == EscapeStartRune {
 		s.inEscSeq = true
 		s.escSeqKind = escSeqKindUnknown
@@ -95,15 +101,15 @@ func (s *escSeqParser) Consume(char rune) {
 	}
 }
 
-func (s *escSeqParser) InSequence() bool {
+func (s *EscSeqParser) InSequence() bool {
 	return s.inEscSeq
 }
 
-func (s *escSeqParser) IsOpen() bool {
+func (s *EscSeqParser) IsOpen() bool {
 	return len(s.codes) > 0
 }
 
-func (s *escSeqParser) Reset() {
+func (s *EscSeqParser) Reset() {
 	s.inEscSeq = false
 	s.escSeqKind = escSeqKindUnknown
 	s.escapeSeq = ""
@@ -128,7 +134,7 @@ const (
 	escCodeCrossedOut      = 9
 )
 
-func (s *escSeqParser) ParseSeq(seq string, seqKind escSeqKind) {
+func (s *EscSeqParser) ParseSeq(seq string, seqKind escSeqKind) {
 	if s.codes == nil {
 		s.codes = make(map[int]bool)
 	}
@@ -169,7 +175,7 @@ func (s *escSeqParser) ParseSeq(seq string, seqKind escSeqKind) {
 	}
 }
 
-func (s *escSeqParser) ParseString(str string) string {
+func (s *EscSeqParser) ParseString(str string) string {
 	s.escapeSeq, s.inEscSeq, s.escSeqKind = "", false, escSeqKindUnknown
 	for _, char := range str {
 		s.Consume(char)
@@ -177,7 +183,7 @@ func (s *escSeqParser) ParseString(str string) string {
 	return s.Sequence()
 }
 
-func (s *escSeqParser) Sequence() string {
+func (s *EscSeqParser) Sequence() string {
 	out := strings.Builder{}
 	if s.IsOpen() {
 		out.WriteString(EscapeStart)
@@ -198,7 +204,7 @@ const (
 	escapeStopConcealOSI  = "\x1b\\"
 )
 
-func (s *escSeqParser) isEscapeStopRune(char rune) bool {
+func (s *EscSeqParser) isEscapeStopRune(char rune) bool {
 	if strings.HasPrefix(s.escapeSeq, escapeStartConcealOSI) {
 		if strings.HasSuffix(s.escapeSeq, escapeStopConcealOSI) {
 			return true
