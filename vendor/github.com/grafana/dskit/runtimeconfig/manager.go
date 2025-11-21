@@ -268,9 +268,22 @@ func mergeConfigMaps(a, b map[string]interface{}, path string) (_ map[string]int
 		out[k] = v
 	}
 	for k, v := range b {
-		_, aHasKey := a[k]
+		aVal, aHasKey := a[k]
+		bVal, bHasKey := b[k]
+
 		_, aIsMap := a[k].(map[string]interface{})
 		_, bIsMap := b[k].(map[string]interface{})
+
+		if aHasKey && aVal == nil && bIsMap {
+			aIsMap = true
+			out[k] = make(map[string]interface{})
+		}
+
+		if bHasKey && bVal == nil && aIsMap {
+			bIsMap = true
+			v = make(map[string]interface{})
+		}
+
 		if aHasKey && aIsMap != bIsMap {
 			return nil, errors.Errorf("conflicting types for %q: %T != %T", path+"."+k, a[k], b[k])
 		}
