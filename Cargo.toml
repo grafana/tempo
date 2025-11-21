@@ -63,6 +63,7 @@ panic = "abort"
 
 [profile.bench]
 inherits = "release"
+lto = "thin"
 debug = true
 strip = false
 

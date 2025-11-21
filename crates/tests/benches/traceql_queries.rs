@@ -37,19 +37,30 @@ impl QueryMetrics {
 }
 
 /// Execute a SQL query and return metrics using collect_plan_metrics from context
+/// Bypasses DataFrame to avoid performance overhead: SQL -> LogicalPlan -> PhysicalPlan -> Execute
 async fn execute(ctx: &SessionContext, sql: &str) -> anyhow::Result<QueryMetrics> {
     use std::time::Instant;
+    use datafusion::sql::parser::DFParser;
+    use datafusion::sql::sqlparser::dialect::GenericDialect;
 
     let start = Instant::now();
 
-    // Execute the query
-    let df = ctx.sql(sql).await?;
+    // Parse SQL to AST
+    let dialect = GenericDialect {};
+    let statements = DFParser::parse_sql_with_dialect(sql, &dialect)?;
+    let statement = &statements[0];
 
-    // Get the physical plan
-    let physical_plan = df.create_physical_plan().await?;
+    // Create logical plan
+    let logical_plan = ctx.state().statement_to_plan(statement.clone()).await?;
+
+    // Optimize logical plan
+    let optimized_plan = ctx.state().optimize(&logical_plan)?;
+
+    // Create physical plan
+    let physical_plan = ctx.state().create_physical_plan(&optimized_plan).await?;
+
+    // Execute the physical plan
     let task_ctx = ctx.task_ctx();
-
-    // Execute and collect results
     let results = collect(physical_plan.clone(), task_ctx).await?;
 
     let elapsed = start.elapsed();
@@ -160,10 +171,10 @@ fn get_test_cases() -> Vec<BenchCase> {
             traceql: r#"{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "hosted-grafana" && resource.k8s.container.name="hosted-grafana-gateway" && name = "httpclient/grafana" && span.http.status_code = 200 && duration > 20ms}"#,
         },
         // Advanced queries
-        BenchCase {
-            name: "count",
-            traceql: "{ } | count() > 1",
-        },
+        //BenchCase {
+        //    name: "count",
+        //    traceql: "{ } | count() > 1",
+        //},
         //BenchCase {
         //    name: "struct",
         //    traceql: "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-gateway` && status = error }",
@@ -251,7 +262,7 @@ fn bench_traceql_queries(c: &mut Criterion) {
             &sql,
             |b, sql_query| {
                 b.to_async(&rt).iter(|| async {
-                    execute_query(&ctx, sql_query).await.ok()
+                    execute_query(&ctx, sql_query).await.unwrap()
                 });
             },
         );
@@ -299,13 +310,11 @@ fn bench_with_metrics(c: &mut Criterion) {
 
         // Set throughput based on a warmup run
         let warmup_metrics = rt.block_on(async {
-            execute(&ctx, &sql).await.ok()
+            execute(&ctx, &sql).await.unwrap()
         });
 
-        if let Some(ref metrics) = warmup_metrics {
-            if metrics.bytes_scanned > 0 {
-                group.throughput(Throughput::Bytes(metrics.bytes_scanned as u64));
-            }
+        if warmup_metrics.bytes_scanned > 0 {
+            group.throughput(Throughput::Bytes(warmup_metrics.bytes_scanned as u64));
         }
 
         group.bench_with_input(
@@ -361,5 +370,5 @@ fn bench_with_metrics(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_traceql_queries, bench_with_metrics);
+criterion_group!(benches, bench_with_metrics);
 criterion_main!(benches);
