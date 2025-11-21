@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"text/scanner"
@@ -113,6 +114,11 @@ var tokens = map[string]int{
 	"topk":                TOPK,
 	"bottomk":             BOTTOMK,
 	"with":                WITH,
+}
+
+var builtinIntegerConstants = map[string]int{
+	"minInt": math.MinInt,
+	"maxInt": math.MaxInt,
 }
 
 type lexer struct {
@@ -245,6 +251,12 @@ func (l *lexer) Lex(lval *yySymType) int {
 	if tok, ok := tokens[l.TokenText()]; ok {
 		l.parsingAttribute = startsAttribute(tok)
 		return tok
+	}
+
+	// builtin integer constants (e.g. minInt, maxInt)
+	if value, ok := builtinIntegerConstants[l.TokenText()]; ok {
+		lval.staticInt = value
+		return INTEGER
 	}
 
 	// default to an identifier
