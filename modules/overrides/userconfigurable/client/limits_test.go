@@ -56,7 +56,15 @@ func TestLimits_parseJson(t *testing.T) {
           {
             "name": "foo",
             "source_labels": [
-              "bar"
+              "bar",
+			  "bar2"
+            ],
+            "join": "/"
+          },
+		  {
+            "name": "abc",
+            "source_labels": [
+              "def"
             ],
             "join": ""
           }
@@ -89,11 +97,18 @@ func TestLimits_parseJson(t *testing.T) {
 							Dimensions:          &[]string{"cluster"},
 							HistogramBuckets:    &[]float64{0.1, 0.2, 0.5},
 							IntrinsicDimensions: mapBoolPtr(map[string]bool{"service": true}),
-							DimensionMappings: &[]sharedconfig.DimensionMappings{{
-								Name:        "foo",
-								SourceLabel: []string{"bar"},
-								Join:        "",
-							}},
+							DimensionMappings: &[]sharedconfig.DimensionMappings{
+								{
+									Name:        "foo",
+									SourceLabel: []string{"bar", "bar2"},
+									Join:        "/",
+								},
+								{
+									Name:        "abc",
+									SourceLabel: []string{"def"},
+									Join:        "",
+								},
+							},
 						},
 						HostInfo: LimitsMetricGeneratorProcessorHostInfo{
 							HostIdentifiers: &[]string{"k8s.node.name", "host.id"},

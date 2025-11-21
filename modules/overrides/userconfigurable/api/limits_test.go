@@ -40,7 +40,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 					SpanMetrics: overrides.SpanMetricsOverrides{
 						Dimensions:          []string{"your-dim1", "your-dim2"},
 						IntrinsicDimensions: map[string]bool{"service": true, "span_name": false},
-						DimensionMappings:   []sharedconfig.DimensionMappings{{Name: "env", SourceLabel: []string{"k8s.namespace"}, Join: ""}},
+						DimensionMappings:   []sharedconfig.DimensionMappings{{Name: "env", SourceLabel: []string{"k8s.namespace", "foo"}, Join: "/"}},
 						EnableTargetInfo:    boolPtr(true),
 						EnableInstanceLabel: boolPtr(true),
 						FilterPolicies: []filterconfig.FilterPolicy{
@@ -120,9 +120,10 @@ func Test_limitsFromOverrides(t *testing.T) {
           {
             "name": "env",
             "source_labels": [
-              "k8s.namespace"
+              "k8s.namespace",
+              "foo"
             ],
-            "join": ""
+            "join": "/"
           }
         ],
         "enable_target_info": true,
