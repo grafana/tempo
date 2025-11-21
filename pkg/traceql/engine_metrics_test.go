@@ -598,6 +598,33 @@ func TestOptimizeFetchSpansRequest(t *testing.T) {
 	}
 }
 
+func TestLog2Bucketize(t *testing.T) {
+	tc := []struct {
+		input  uint64
+		output float64
+	}{
+		{0, -1},
+		{1, -1},
+		{2, 2.0},
+		{3, 4.0},
+		{4, 4.0},
+		{5, 8.0},
+		{1023, 1024.0},
+		{1024, 1024.0},
+		{1025, 2048.0},
+	}
+
+	for _, c := range tc {
+		require.Equal(t, c.output, Log2Bucketize(c.input))
+	}
+}
+
+func BenchmarkLog2Bucketize(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Log2Bucketize(1024)
+	}
+}
+
 func TestQuantileOverTime(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: 1,

@@ -27,6 +27,7 @@
 * [ENHANCEMENT] Unsafe search hints for frontend performance tests [#5723](https://github.com/grafana/tempo/pull/5723) (@ruslan-mikhailov)
 * [ENHANCEMENT] Add new livestore alert to the tempo-mixin [#5752](https://github.com/grafana/tempo/pull/5752) (@javiermolinar)
 * [ENHANCEMENT] TraceQL query performance improvement [#5773](https://github.com/grafana/tempo/pull/5773) (@mdisibio)
+* [ENHANCEMENT] Performance improvement in quantile_over_time() [#5996](https://github.com/grafana/tempo/pull/5996) (@mdisibio)
 * [ENHANCEMENT] Improve shutdown time in the first 30 seconds [#5725](https://github.com/grafana/tempo/pull/5725) (@ldufr)
 * [ENHANCEMENT] Add metric for tracking added latency to write requests [#5781](https://github.com/grafana/tempo/pull/5781) (@mapno)
 * [ENHANCEMENT] Improve error message when overrides fail to parse [#5787](https://github.com/grafana/tempo/pull/5787) (@mapno)
