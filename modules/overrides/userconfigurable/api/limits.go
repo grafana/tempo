@@ -31,7 +31,8 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					HistogramBuckets:         floatArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)),
 				},
 				SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
-					Dimensions: strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
+					Dimensions:          strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
+					IntrinsicDimensions: mapBoolPtr(overrides.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID)),
 					EnableTargetInfo: func() *bool {
 						val, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
 						return boolPtr(val)
@@ -75,6 +76,10 @@ func floatArrPtr(f []float64) *[]float64 {
 
 func floatPtr(f float64) *float64 {
 	return &f
+}
+
+func mapBoolPtr(m map[string]bool) *map[string]bool {
+	return &m
 }
 
 func filterPoliciesPtr(p []config.FilterPolicy) *[]config.FilterPolicy {

@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/forwarder"
+	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
@@ -22,6 +23,10 @@ func strPtr(s string) *string {
 
 func float64Ptr(f float64) *float64 {
 	return &f
+}
+
+func boolMapPtr(m map[string]bool) *map[string]bool {
+	return &m
 }
 
 func Test_runtimeOverridesValidator(t *testing.T) {
@@ -436,6 +441,38 @@ func Test_overridesValidator(t *testing.T) {
 				},
 			},
 			expErr: "cost_attribution.dimensions config has invalid label name: '__name__'",
+		},
+		{
+			name: "metrics_generator.span_metrics.intrinsic_dimensions valid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
+							IntrinsicDimensions: boolMapPtr(map[string]bool{
+								processor.DimService:  true,
+								processor.DimSpanKind: false,
+							}),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "metrics_generator.span_metrics.intrinsic_dimensions invalid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
+							IntrinsicDimensions: boolMapPtr(map[string]bool{
+								"not_supported": true,
+							}),
+						},
+					},
+				},
+			},
+			expErr: fmt.Sprintf("intrinsic dimension \"%s\" is not supported, valid values: %v", "not_supported", validation.SupportedIntrinsicDimensions),
 		},
 	}
 

@@ -166,7 +166,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
-		label := validation.SanitizeLabelNameWithCollisions(d, validation.SupportedIntrinsicDimensions, p.sanitizeCache.Get)
+		label := validation.SanitizeLabelNameWithCollisions(d, validation.SupportedIntrinsicDimensionsSet, p.sanitizeCache.Get)
 		builder.Add(label, value)
 	}
 
@@ -181,7 +181,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 				}
 			}
 		}
-		label := validation.SanitizeLabelNameWithCollisions(m.Name, validation.SupportedIntrinsicDimensions, p.sanitizeCache.Get)
+		label := validation.SanitizeLabelNameWithCollisions(m.Name, validation.SupportedIntrinsicDimensionsSet, p.sanitizeCache.Get)
 		builder.Add(label, values)
 	}
 
@@ -258,7 +258,7 @@ func getTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 			continue
 		}
 		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !slices.Contains(exclude, key) {
-			*keys = append(*keys, validation.SanitizeLabelNameWithCollisions(key, targetInfoIntrinsicLabels, sanitizeFn))
+			*keys = append(*keys, validation.SanitizeLabelNameWithCollisions(key, targetInfoIntrinsicLabelsSet, sanitizeFn))
 			value := tempo_util.StringifyAnyValue(attrs.Value)
 			*values = append(*values, value)
 		}

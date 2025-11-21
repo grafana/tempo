@@ -26,11 +26,17 @@ var SupportedProcessors = []string{
 
 var SupportedIntrinsicDimensions = []string{processor.DimService, processor.DimSpanName, processor.DimSpanKind, processor.DimStatusCode, processor.DimStatusMessage}
 
+var SupportedIntrinsicDimensionsSet map[string]struct{}
+
 var SupportedProcessorsSet map[string]struct{}
 
 var SupportedHistogramModesSet map[string]struct{}
 
 func init() {
+	SupportedIntrinsicDimensionsSet = make(map[string]struct{})
+	for _, dim := range SupportedIntrinsicDimensions {
+		SupportedIntrinsicDimensionsSet[dim] = struct{}{}
+	}
 	SupportedProcessorsSet = make(map[string]struct{})
 	for _, p := range SupportedProcessors {
 		SupportedProcessorsSet[p] = struct{}{}
@@ -87,11 +93,11 @@ func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimen
 	var labels []string
 	labels = append(labels, intrinsicDimensions...)
 	for _, d := range dimensions {
-		labels = append(labels, SanitizeLabelNameWithCollisions(d, SupportedIntrinsicDimensions, sanitizeFn))
+		labels = append(labels, SanitizeLabelNameWithCollisions(d, SupportedIntrinsicDimensionsSet, sanitizeFn))
 	}
 
 	for _, m := range dimensionMappings {
-		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, SupportedIntrinsicDimensions, sanitizeFn))
+		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, SupportedIntrinsicDimensionsSet, sanitizeFn))
 	}
 
 	err := ValidateUTF8LabelValues(labels)
@@ -154,5 +160,14 @@ func ValidateCostAttributionDimensions(dimensions map[string]string) error {
 	}
 
 	// no errors, we are good.
+	return nil
+}
+
+func ValidateIntrinsicDimensions(intrinsicDimensions map[string]bool) error {
+	for dim := range intrinsicDimensions {
+		if _, ok := SupportedIntrinsicDimensionsSet[dim]; !ok {
+			return fmt.Errorf("intrinsic dimension \"%s\" is not supported, valid values: %v", dim, SupportedIntrinsicDimensions)
+		}
+	}
 	return nil
 }

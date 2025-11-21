@@ -2,7 +2,6 @@ package validation
 
 import (
 	"fmt"
-	"slices"
 	"unicode/utf8"
 
 	"github.com/prometheus/prometheus/util/strutil"
@@ -10,11 +9,11 @@ import (
 
 type SanitizeFn func(string) string
 
-func SanitizeLabelNameWithCollisions(name string, dimensions []string, sanitizeFn SanitizeFn) string {
+func SanitizeLabelNameWithCollisions(name string, dimensions map[string]struct{}, sanitizeFn SanitizeFn) string {
 	sanitized := sanitizeFn(name)
 
 	// check if same label as intrinsics
-	if slices.Contains(dimensions, sanitized) {
+	if _, ok := dimensions[sanitized]; ok {
 		return "__" + sanitized
 	}
 

@@ -12,7 +12,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var targetInfoIntrinsicLabels = append(validation.SupportedIntrinsicDimensions, processor.DimJob, processor.DimInstance)
+var targetInfoIntrinsicLabelsSet map[string]struct{}
+
+func init() {
+	targetInfoIntrinsicLabelsSet = make(map[string]struct{})
+	for dim := range validation.SupportedIntrinsicDimensionsSet {
+		targetInfoIntrinsicLabelsSet[dim] = struct{}{}
+	}
+	targetInfoIntrinsicLabelsSet[processor.DimJob] = struct{}{}
+	targetInfoIntrinsicLabelsSet[processor.DimInstance] = struct{}{}
+}
 
 type Config struct {
 	// Buckets for latency histogram in seconds.
