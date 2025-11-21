@@ -37,6 +37,12 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		}
 	}
 
+	if config.MetricsGenerator.NativeHistogramBucketFactor != 0 {
+		if err := validation.ValidateNativeHistogramBucketFactor(config.MetricsGenerator.NativeHistogramBucketFactor); err != nil {
+			return err
+		}
+	}
+
 	serviceBuckets := config.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
 	if err := validation.ValidateHistogramBuckets(serviceBuckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
 		return err
@@ -111,6 +117,12 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 
 	if ingestionSlack, ok := limits.GetMetricsGenerator().GetIngestionSlack(); ok {
 		if err := validation.ValidateIngestionTimeRangeSlack(ingestionSlack); err != nil {
+			return err
+		}
+	}
+
+	if factor, ok := limits.GetMetricsGenerator().GetNativeHistogramBucketFactor(); ok {
+		if err := validation.ValidateNativeHistogramBucketFactor(factor); err != nil {
 			return err
 		}
 	}

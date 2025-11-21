@@ -113,3 +113,10 @@ func ValidateHistogramBuckets(buckets []float64, field string) error {
 	}
 	return nil
 }
+
+func ValidateNativeHistogramBucketFactor(factor float64) error {
+	if factor <= 1 {
+		return fmt.Errorf("metrics_generator.native_histogram_bucket_factor must be greater than 1")
+	}
+	return nil
+}
