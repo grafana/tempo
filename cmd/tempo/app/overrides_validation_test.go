@@ -20,6 +20,10 @@ func strPtr(s string) *string {
 	return &s
 }
 
+func float64Ptr(f float64) *float64 {
+	return &f
+}
+
 func Test_runtimeOverridesValidator(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -134,6 +138,25 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 							HistogramBuckets: []float64{0.005, 0.01, 0.02},
 						},
 					},
+				},
+			},
+		},
+		{
+			name: "native histogram bucket factor invalid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					NativeHistogramBucketFactor: 1,
+				},
+			},
+			expErr: "metrics_generator.native_histogram_bucket_factor must be greater than 1",
+		},
+		{
+			name: "native histogram bucket factor valid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					NativeHistogramBucketFactor: 1.5,
 				},
 			},
 		},
@@ -354,6 +377,25 @@ func Test_overridesValidator(t *testing.T) {
 							HistogramBuckets: &[]float64{0.005, 0.01, 0.02},
 						},
 					},
+				},
+			},
+		},
+		{
+			name: "native histogram bucket factor invalid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					NativeHistogramBucketFactor: float64Ptr(1),
+				},
+			},
+			expErr: "metrics_generator.native_histogram_bucket_factor must be greater than 1",
+		},
+		{
+			name: "native histogram bucket factor valid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					NativeHistogramBucketFactor: float64Ptr(1.5),
 				},
 			},
 		},
