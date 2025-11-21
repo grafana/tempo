@@ -1950,6 +1950,7 @@ func Log2Bucketize(v uint64) float64 {
 		return -1
 	}
 
+	// return float64(int(2) << (uint(math.Ceil(math.Log2(float64(v)))) - 1))
 	return math.Pow(2, math.Ceil(math.Log2(float64(v))))
 }
 

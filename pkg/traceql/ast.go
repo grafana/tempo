@@ -431,7 +431,7 @@ func (SpansetOperation) __spansetExpression() {}
 type SpansetFilter struct {
 	Expression          FieldExpression
 	matchingSpansBuffer []Span
-	noop                bool
+	// noop                bool
 }
 
 func newSpansetFilter(e FieldExpression) *SpansetFilter {
@@ -440,13 +440,13 @@ func newSpansetFilter(e FieldExpression) *SpansetFilter {
 	}
 
 	// AST rewrite for simplification
-	if !e.referencesSpan() && e.validate() == nil {
+	/*if !e.referencesSpan() && e.validate() == nil {
 		if simplified, err := e.execute(nil); err == nil {
 			if b, ok := simplified.Bool(); ok && b {
 				f.noop = true
 			}
 		}
-	}
+	}*/
 
 	return f
 }
@@ -455,9 +455,9 @@ func newSpansetFilter(e FieldExpression) *SpansetFilter {
 func (*SpansetFilter) __spansetExpression() {}
 
 func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
-	if f.noop {
+	/*if f.noop {
 		return input, nil
-	}
+	}*/
 
 	var outputBuffer []*Spanset
 

@@ -1219,21 +1219,25 @@ func BenchmarkIterators(b *testing.B) {
 
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
-		"{} | rate()",
-		"{} | rate() with(new=true, exemplars=0)",
-		/*"{} | rate() with(sample=true)",
-		"{} | rate() by (span.http.status_code)",
-		"{} | rate() by (resource.service.name)",
-		"{} | rate() by (span.http.url)", // High cardinality attribute
-		"{resource.service.name=`loki-ingester`} | rate()",
-		"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
-		"{status=error} | rate()",
+		//"{} | rate()",
+		//"{} | rate() with(new=true)",
+		/*"{} | rate() with(sample=true)",*/
+		//"{} | rate() by (span.http.status_code)",
+		//"{} | rate() by (span.http.status_code) with(new=true)",
+		//"{} | rate() by (resource.service.name)",
+		//"{} | rate() by (resource.service.name) with(new=true)",
+		//"{} | rate() by (span.http.url)", // High cardinality attribute*/
+		//"{resource.service.name=`loki-ingester`} | rate()",
+		/*"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
+		"{status=error} | rate()",*/
 		"{} | quantile_over_time(duration, .99, .9, .5)",
-		"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
-		"{} | histogram_over_time(duration)",
-		"{} | avg_over_time(duration) by (span.http.status_code)",
-		"{} | max_over_time(duration) by (span.http.status_code)",
-		"{} | min_over_time(duration) by (span.http.status_code)",*/
+		"{} | quantile_over_time(duration, .99, .9, .5) with(new=true)",
+		/*
+			"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
+			"{} | histogram_over_time(duration)",
+			"{} | avg_over_time(duration) by (span.http.status_code)",
+			"{} | max_over_time(duration) by (span.http.status_code)",
+			"{} | min_over_time(duration) by (span.http.status_code)",*/
 		//"{ name != nil } | compare({status=error})",
 		//"{} > {} | rate() by (name)", // structural
 
