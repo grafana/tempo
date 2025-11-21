@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/bits"
 	"math/rand"
 	"sort"
 	"sync"
@@ -1852,7 +1853,11 @@ func Log2Bucketize(v uint64) float64 {
 		return -1
 	}
 
-	return math.Pow(2, math.Ceil(math.Log2(float64(v))))
+	v2 := uint64(2) << (64 - bits.LeadingZeros64(v-1) - 1)
+	return float64(v2)
+
+	// OLD:
+	// return math.Pow(2, math.Ceil(math.Log2(float64(v))))
 }
 
 // Log2Quantile returns the quantile given bucket labeled with float ranges and counts. Uses
