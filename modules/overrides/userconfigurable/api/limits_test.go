@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
@@ -39,6 +40,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 					SpanMetrics: overrides.SpanMetricsOverrides{
 						Dimensions:          []string{"your-dim1", "your-dim2"},
 						IntrinsicDimensions: map[string]bool{"service": true, "span_name": false},
+						DimensionMappings:   []sharedconfig.DimensionMappings{{Name: "env", SourceLabel: []string{"k8s.namespace", "foo"}, Join: "/"}},
 						EnableTargetInfo:    boolPtr(true),
 						EnableInstanceLabel: boolPtr(true),
 						FilterPolicies: []filterconfig.FilterPolicy{
@@ -114,6 +116,16 @@ func Test_limitsFromOverrides(t *testing.T) {
           "service": true,
           "span_name": false
         },
+        "dimension_mappings": [
+          {
+            "name": "env",
+            "source_labels": [
+              "k8s.namespace",
+              "foo"
+            ],
+            "join": "/"
+          }
+        ],
         "enable_target_info": true,
         "filter_policies": [
           {
