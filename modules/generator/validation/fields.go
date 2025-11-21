@@ -124,7 +124,6 @@ func ValidateNativeHistogramBucketFactor(factor float64) error {
 }
 
 func ValidateCostAttributionDimensions(dimensions map[string]string) error {
-	// track sanitized label names to detect duplicates
 	seenLabels := make(map[string]string)
 
 	// map is with key=tempo attribute, value=prometheus labelName
@@ -134,15 +133,16 @@ func ValidateCostAttributionDimensions(dimensions map[string]string) error {
 		if labelName == "" {
 			labelName = k // The dimension is using default mapping, we map it to attribute
 		}
-		labelName = strutil.SanitizeLabelName(labelName) // sanitize final label name the label name
+		labelName = strutil.SanitizeFullLabelName(labelName) // sanitize label name
 
-		// Check for duplicate prometheus label names, we silently pick one so validate and don't allow it.
+		// Check for duplicate prometheus label names.
+		// when we have duplicate labelNames, we randomly pick one so validate and don't allow duplicates.
 		if originalKey, exists := seenLabels[labelName]; exists {
 			return fmt.Errorf("cost_attribution.dimensions has duplicate label name: '%s', both '%s' and '%s' map to it", labelName, originalKey, k)
 		}
 		seenLabels[labelName] = k
 
-		// creating a desc just so can do the validation
+		// creating a desc do the complete labelName validation
 		desc := prometheus.NewDesc("test_desc", "test desc created for validation", []string{labelName}, nil)
 		// try to create a metric and see if there are any error, we use same method in usage.Collect
 		_, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, float64(1), labelName)

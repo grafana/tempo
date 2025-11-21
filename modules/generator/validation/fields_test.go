@@ -69,11 +69,22 @@ func TestValidateCostAttributionDimensions(t *testing.T) {
 		{
 			name: "dimensions with numeric prefixes",
 			dimensions: map[string]string{
+				"1.attribute": "1label",
+				"2.attribute": "2label",
+			},
+			expErr: true,
+			// we will end up with duplicate output labels after sanitizing label names because they start with digit
+			expErrText: "cost_attribution.dimensions has duplicate label name: '_label', both",
+		},
+		{
+			name: "dimensions with numeric prefixes and underscores",
+			dimensions: map[string]string{
 				"1.attribute": "1_label",
 				"2.attribute": "2_label",
-				"3.attribute": "3_label",
 			},
-			expErr: false,
+			expErr: true,
+			// we will end up with invalid output label name after sanitizing label names because they start with digit
+			expErrText: "cost_attribution.dimensions config has invalid label name: '__label'",
 		},
 		{
 			name: "dimensions that need sanitization from default mapping",
