@@ -1853,8 +1853,7 @@ func Log2Bucketize(v uint64) float64 {
 		return -1
 	}
 
-	v2 := uint64(2) << (64 - bits.LeadingZeros64(v-1) - 1)
-	return float64(v2)
+	return float64(uint64(1) << (64 - bits.LeadingZeros64(v-1)))
 
 	// OLD:
 	// return math.Pow(2, math.Ceil(math.Log2(float64(v))))
