@@ -35,7 +35,7 @@ services:
 
   # And put them in an OTEL collector pipeline...
   otel-collector:
-    image: otel/opentelemetry-collector:0.86.0
+    image: otel/opentelemetry-collector:0.140.1@sha256:e448b3c73de52e379d85875c3441faf499e470ef91e775439e7937bca67e9c4f
     command: [ "--config=/etc/otel-collector.yaml" ]
     volumes:
       - ./otel-collector.yaml:/etc/otel-collector.yaml
