@@ -883,6 +883,11 @@ func (c *Context) Run(binds ...any) (err error) {
 func (c *Context) PrintUsage(summary bool) error {
 	options := c.helpOptions
 	options.Summary = summary
+	return c.printHelp(options)
+}
+
+func (c *Context) printHelp(options HelpOptions) error {
+	options.ValueFormatter = c.Kong.helpFormatter
 	return c.help(options, c)
 }
 
