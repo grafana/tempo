@@ -124,8 +124,10 @@ type ConsumerConfig struct {
 	MaxPartitionFetchSize int32 `mapstructure:"max_partition_fetch_size"`
 
 	// RebalanceStrategy specifies the strategy to use for partition assignment.
-	// Possible values are "range", "roundrobin", and "sticky".
-	// Defaults to "range".
+	// Possible values are "range", "roundrobin", and "sticky", and
+	// "cooperative-sticky" (franz-go only).
+	//
+	// Defaults to "cooperative-sticky" for franz-go, "range" for Sarama.
 	GroupRebalanceStrategy string `mapstructure:"group_rebalance_strategy,omitempty"`
 
 	// GroupInstanceID specifies the ID of the consumer
@@ -217,6 +219,10 @@ type ProducerConfig struct {
 	// Whether or not to allow automatic topic creation.
 	// (default enabled).
 	AllowAutoTopicCreation bool `mapstructure:"allow_auto_topic_creation"`
+
+	// Linger controls the linger time for the producer.
+	// (default 10ms).
+	Linger time.Duration `mapstructure:"linger"`
 }
 
 func NewDefaultProducerConfig() ProducerConfig {
@@ -226,6 +232,7 @@ func NewDefaultProducerConfig() ProducerConfig {
 		Compression:            "none",
 		FlushMaxMessages:       0,
 		AllowAutoTopicCreation: true,
+		Linger:                 10 * time.Millisecond,
 	}
 }
 
@@ -393,6 +400,8 @@ func (c SASLConfig) Validate() error {
 type AWSMSKConfig struct {
 	// Region is the AWS region the MSK cluster is based in
 	Region string `mapstructure:"region"`
+	// prevent unkeyed literal initialization
+	_ struct{}
 }
 
 // KerberosConfig defines kerberos configuration.
