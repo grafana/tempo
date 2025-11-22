@@ -3322,7 +3322,7 @@
      "span": 4,
      "targets": [
       {
-       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/live-store\"})",
+       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/live-store-.*\"})",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{instance}}",
