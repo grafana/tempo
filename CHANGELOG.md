@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [FEATURE] Add `minInt` and `maxInt` built-in constants to TraceQL for accessing minimum and maximum integer values
 * [CHANGE] Expose metrics_generator.trace_id_label_name to user-configurable overrides API [#5972](https://github.com/grafana/tempo/pull/5972) (@carles-grafana)
 * [CHANGE] Remove remaining aws-sdk-go references and migrate tests to MinIO [#5856](https://github.com/grafana/tempo/pull/5856) (@anglerfishlyy)
 * [CHANGE] **BREAKING CHANGE** Validate tenant ID in frontend and distributor [#5786](https://github.com/grafana/tempo/pull/5786) (@carles-grafana)
