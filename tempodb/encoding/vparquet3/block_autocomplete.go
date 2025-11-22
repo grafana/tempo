@@ -14,6 +14,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+type tagNameKey struct {
+	name  string
+	scope traceql.AttributeScope
+}
+
 type tagRequest struct {
 	// applies to tag names and tag values. the conditions by which to return the filtered data
 	conditions []traceql.Condition
@@ -21,6 +26,10 @@ type tagRequest struct {
 	scope traceql.AttributeScope
 	// tag requested.  only used for tag values. if populated then return tag values for this tag, otherwise return tag names.
 	tag traceql.Attribute
+	// existsTagName is a callback to check if a tag name has already been seen
+	existsTagName func(key tagNameKey) bool
+	// existsTagValue is a callback to check if a tag value has already been seen
+	existsTagValue func(val traceql.Static) bool
 }
 
 func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
@@ -61,9 +70,17 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	// report metrics with defer to handle early exit
 	defer mcb(rr.BytesRead())
 
+	// track sent tag names to avoid duplicates. this is a perf improvement
+	sentKeys := make(map[tagNameKey]struct{})
+	existsTagName := func(key tagNameKey) bool {
+		_, ok := sentKeys[key]
+		return ok
+	}
+
 	tr := tagRequest{
-		conditions: req.Conditions,
-		scope:      req.Scope,
+		conditions:    req.Conditions,
+		scope:         req.Scope,
+		existsTagName: existsTagName,
 	}
 
 	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
@@ -82,7 +99,10 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 			break
 		}
 		for _, oe := range res.OtherEntries {
-			if cb(oe.Key, oe.Value.(traceql.AttributeScope)) {
+			scope := oe.Value.(traceql.AttributeScope)
+			key := tagNameKey{name: oe.Key, scope: scope}
+			sentKeys[key] = struct{}{}
+			if cb(oe.Key, scope) {
 				return nil // We have enough values
 			}
 		}
@@ -172,9 +192,18 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 	// report metrics with defer to handle early exit
 	defer mcb(rr.BytesRead())
 
+	// track sent tag values to avoid duplicates. this is a perf improvement
+	sentVals := make(map[traceql.StaticMapKey]struct{})
+	existsTagValue := func(val traceql.Static) bool {
+		mk := val.MapKey()
+		_, ok := sentVals[mk]
+		return ok
+	}
+
 	tr := tagRequest{
-		conditions: req.Conditions,
-		tag:        req.TagName,
+		conditions:     req.Conditions,
+		tag:            req.TagName,
+		existsTagValue: existsTagValue,
 	}
 
 	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
@@ -194,6 +223,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		}
 		for _, oe := range res.OtherEntries {
 			v := oe.Value.(traceql.Static)
+			sentVals[v.MapKey()] = struct{}{}
 			if cb(v) {
 				return nil // We have enough values
 			}
@@ -574,7 +604,7 @@ func createDistinctAttributeIterator(
 				definitionLevel,
 				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 				valueIters,
-				newDistinctAttrCollector(scope, false),
+				newDistinctAttrCollector(scope, false, tr.existsTagName, tr.existsTagValue),
 			)
 			if err != nil {
 				return nil, fmt.Errorf("creating left join iterator: %w", err)
@@ -583,7 +613,7 @@ func createDistinctAttributeIterator(
 		}
 
 		if tr.keysRequested(scope) {
-			return keyNameIterator(makeIter, definitionLevel, keyPath, iters)
+			return keyNameIterator(makeIter, tr, definitionLevel, keyPath, iters)
 		}
 
 		return parquetquery.NewJoinIterator(
@@ -596,12 +626,13 @@ func createDistinctAttributeIterator(
 	return nil, nil
 }
 
-func keyNameIterator(makeIter makeIterFn, definitionLevel int, keyPath string, attrIters []parquetquery.Iterator) (parquetquery.Iterator, error) {
+func keyNameIterator(makeIter makeIterFn, tr tagRequest, definitionLevel int, keyPath string, attrIters []parquetquery.Iterator) (parquetquery.Iterator, error) {
+	scope := scopeFromDefinitionLevel(definitionLevel)
 	if len(attrIters) == 0 {
 		return parquetquery.NewJoinIterator(
 			oneLevelUp(definitionLevel),
 			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
-			newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel), true),
+			newDistinctAttrCollector(scope, true, tr.existsTagName, tr.existsTagValue),
 		), nil
 	}
 
@@ -609,7 +640,7 @@ func keyNameIterator(makeIter makeIterFn, definitionLevel int, keyPath string, a
 		oneLevelUp(definitionLevel),
 		attrIters,
 		[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
-		newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel), true),
+		newDistinctAttrCollector(scope, true, tr.existsTagName, tr.existsTagValue),
 	)
 }
 
@@ -824,19 +855,18 @@ func createDistinctTraceIterator(
 var _ parquetquery.GroupPredicate = (*distinctAttrCollector)(nil)
 
 type distinctAttrCollector struct {
-	scope     traceql.AttributeScope
-	attrNames bool
-
-	sentVals map[traceql.StaticMapKey]struct{}
-	sentKeys map[string]struct{}
+	scope          traceql.AttributeScope
+	attrNames      bool
+	existsTagName  func(key tagNameKey) bool
+	existsTagValue func(val traceql.Static) bool
 }
 
-func newDistinctAttrCollector(scope traceql.AttributeScope, attrNames bool) *distinctAttrCollector {
+func newDistinctAttrCollector(scope traceql.AttributeScope, attrNames bool, existsTagName func(key tagNameKey) bool, existsTagValue func(val traceql.Static) bool) *distinctAttrCollector {
 	return &distinctAttrCollector{
-		scope:     scope,
-		sentVals:  make(map[traceql.StaticMapKey]struct{}),
-		sentKeys:  make(map[string]struct{}),
-		attrNames: attrNames,
+		scope:          scope,
+		attrNames:      attrNames,
+		existsTagName:  existsTagName,
+		existsTagValue: existsTagValue,
 	}
 }
 
@@ -846,7 +876,6 @@ func (d *distinctAttrCollector) String() string {
 
 func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	var val traceql.Static
-	d.sentKeys = make(map[string]struct{}) // reset for each group
 
 	for _, e := range result.Entries {
 		// Ignore nulls, this leaves val as the remaining found value,
@@ -857,10 +886,10 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 		if d.attrNames {
 			if e.Key == "key" {
-				key := unsafeToString(e.Value.ByteArray())
-				if _, ok := d.sentKeys[key]; !ok {
-					result.AppendOtherValue(key, d.scope)
-					d.sentKeys[key] = struct{}{}
+				name := unsafeToString(e.Value.ByteArray())
+				key := tagNameKey{name: name, scope: d.scope}
+				if !d.existsTagName(key) {
+					result.AppendOtherValue(name, d.scope)
 				}
 			}
 		} else {
@@ -878,10 +907,8 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 	}
 
 	if val.Type != traceql.TypeNil {
-		mk := val.MapKey()
-		if _, ok := d.sentVals[mk]; !ok {
+		if !d.existsTagValue(val) {
 			result.AppendOtherValue("", val)
-			d.sentVals[mk] = struct{}{}
 		}
 	}
 
