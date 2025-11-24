@@ -373,6 +373,33 @@ impl Parser {
 
                 Ok(PipelineOp::Count { group_by })
             }
+            "select" => {
+                // select(field1, field2, ...)
+                self.expect_token(Token::LParen)?;
+
+                let mut fields = Vec::new();
+                loop {
+                    fields.push(self.parse_field_ref()?);
+
+                    match self.current_token() {
+                        Token::Comma => {
+                            self.advance();
+                        }
+                        Token::RParen => {
+                            self.advance();
+                            break;
+                        }
+                        _ => {
+                            return Err(ParserError::UnexpectedToken(
+                                self.current_token().clone(),
+                                "expected ',' or ')' in select field list".to_string(),
+                            ))
+                        }
+                    }
+                }
+
+                Ok(PipelineOp::Select { fields })
+            }
             _ => Err(ParserError::UnknownPipelineOp(op_name)),
         }
     }

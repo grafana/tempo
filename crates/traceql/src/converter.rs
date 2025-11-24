@@ -8,10 +8,19 @@ use std::fmt::Write;
 pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
     let mut sql = String::new();
 
+    // Check if we have a select operation (projection)
+    let select_fields = query.pipeline.iter().find_map(|op| {
+        if let PipelineOp::Select { fields } = op {
+            Some(fields)
+        } else {
+            None
+        }
+    });
+
     // Convert the main query
     match &query.query {
         QueryExpr::SpanFilter(filter) => {
-            write_span_filter_query(&mut sql, filter)?;
+            write_span_filter_query(&mut sql, filter, select_fields.map(|v| v.as_slice()))?;
         }
         QueryExpr::Structural { parent, child } => {
             write_structural_query(&mut sql, parent, child)?;
@@ -21,8 +30,12 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
         }
     }
 
-    // Handle pipeline operations
-    if !query.pipeline.is_empty() {
+    // Handle pipeline operations (skip select as it's handled above)
+    let non_select_ops: Vec<_> = query.pipeline.iter()
+        .filter(|op| !matches!(op, PipelineOp::Select { .. }))
+        .collect();
+
+    if !non_select_ops.is_empty() {
         // Wrap the query in a CTE for aggregation
         let base_query = sql;
         sql = String::new();
@@ -30,7 +43,7 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
         writeln!(&mut sql, "{}", base_query)?;
         writeln!(&mut sql, ")")?;
 
-        for (i, op) in query.pipeline.iter().enumerate() {
+        for (i, op) in non_select_ops.iter().enumerate() {
             if i == 0 {
                 write_pipeline_op(&mut sql, op, "base_spans")?;
             } else {
@@ -45,14 +58,14 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
         if let Some(having) = &query.having {
             write!(&mut sql, " WHERE ")?;
             // Determine the aggregation column name based on the pipeline operation
-            let agg_column = match query.pipeline.first() {
+            let agg_column = match non_select_ops.first() {
                 Some(PipelineOp::Count { .. }) => "count",
                 Some(PipelineOp::Rate { .. }) => "rate",
                 Some(PipelineOp::Avg { .. }) => "avg",
                 Some(PipelineOp::Sum { .. }) => "sum",
                 Some(PipelineOp::Min { .. }) => "min",
                 Some(PipelineOp::Max { .. }) => "max",
-                None => return Err(ConversionError::Unsupported("No pipeline operation".to_string())),
+                _ => return Err(ConversionError::Unsupported("No aggregation pipeline operation".to_string())),
             };
             write!(&mut sql, "{} {} ", agg_column, having.op)?;
             write_value(&mut sql, &having.value)?;
@@ -63,13 +76,29 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
 }
 
 /// Write a simple span filter query
-fn write_span_filter_query(sql: &mut String, filter: &SpanFilter) -> Result<(), ConversionError> {
+fn write_span_filter_query(
+    sql: &mut String,
+    filter: &SpanFilter,
+    select_fields: Option<&[FieldRef]>,
+) -> Result<(), ConversionError> {
     // Check if the filter uses trace-level intrinsics that require a join
     let needs_root_join = filter.expr.as_ref().map_or(false, |e| uses_trace_level_intrinsic(e));
 
     if needs_root_join {
         // Use a join with the root span
-        writeln!(sql, "SELECT spans.* FROM spans")?;
+        if let Some(fields) = select_fields {
+            write!(sql, "SELECT ")?;
+            for (i, field) in fields.iter().enumerate() {
+                if i > 0 {
+                    write!(sql, ", ")?;
+                }
+                let col = field_to_sql(field, "spans.")?;
+                write!(sql, "{}", col)?;
+            }
+            writeln!(sql, " FROM spans")?;
+        } else {
+            writeln!(sql, "SELECT spans.* FROM spans")?;
+        }
         writeln!(sql, "INNER JOIN spans root ON root.\"TraceID\" = spans.\"TraceID\"")?;
         writeln!(sql, "  AND (root.\"ParentSpanID\" = '' OR root.\"ParentSpanID\" IS NULL)")?;
 
@@ -78,7 +107,19 @@ fn write_span_filter_query(sql: &mut String, filter: &SpanFilter) -> Result<(), 
             write_expr_with_root_join(sql, expr)?;
         }
     } else {
-        writeln!(sql, "SELECT * FROM spans")?;
+        if let Some(fields) = select_fields {
+            write!(sql, "SELECT ")?;
+            for (i, field) in fields.iter().enumerate() {
+                if i > 0 {
+                    write!(sql, ", ")?;
+                }
+                let col = field_to_sql(field, "")?;
+                write!(sql, "{}", col)?;
+            }
+            writeln!(sql, " FROM spans")?;
+        } else {
+            writeln!(sql, "SELECT * FROM spans")?;
+        }
 
         if let Some(expr) = &filter.expr {
             write!(sql, "WHERE ")?;
@@ -151,7 +192,7 @@ fn write_union_query(sql: &mut String, filters: &[SpanFilter]) -> Result<(), Con
         if i > 0 {
             writeln!(sql, "UNION")?;
         }
-        write_span_filter_query(sql, filter)?;
+        write_span_filter_query(sql, filter, None)?;
     }
     Ok(())
 }
@@ -624,6 +665,12 @@ fn write_pipeline_op(
                 }
                 writeln!(sql)?;
             }
+        }
+        PipelineOp::Select { .. } => {
+            // Select operations are handled in traceql_to_sql and should not reach here
+            return Err(ConversionError::Unsupported(
+                "Select operations should be handled before aggregation pipeline".to_string(),
+            ));
         }
     }
     Ok(())

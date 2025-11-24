@@ -1,3 +1,2 @@
-SELECT "Container" FROM spans
-WHERE regexp_like("K8sClusterName", '^prod.*')
-  AND "K8sNamespaceName" = 'tempo-prod'
+SELECT "ResourceContainer" FROM spans
+WHERE ("ResourceK8sClusterName" ~ 'prod.*' AND "ResourceK8sNamespaceName" = 'tempo-prod')

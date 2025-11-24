@@ -302,4 +302,5 @@ pub enum PipelineOp {
     Sum { field: String, group_by: Vec<String> },
     Min { field: String, group_by: Vec<String> },
     Max { field: String, group_by: Vec<String> },
+    Select { fields: Vec<FieldRef> },
 }
