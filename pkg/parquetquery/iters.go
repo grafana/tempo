@@ -1208,7 +1208,6 @@ var _ Collector = (*oldStyleCollector)(nil)
 // of optional iterators are collected if they also match.
 // TODO - This should technically obsolete the JoinIterator.
 type LeftJoinIterator struct {
-	definitionLevel              int
 	defLevelsRequired            []int
 	defLevelsOptional            []int
 	paramsRequired               []any
@@ -1228,19 +1227,18 @@ var _ Iterator = (*LeftJoinIterator)(nil)
 
 func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate, opts ...LeftJoinIteratorOption) (*LeftJoinIterator, error) {
 	j := &LeftJoinIterator{
-		definitionLevel: definitionLevel,
-		required:        required,
-		optional:        optional,
-		pool:            DefaultPool,
+		required: required,
+		optional: optional,
+		pool:     DefaultPool,
 	}
 
 	// Fill in config slices for the explicitly given iterators first.
 	for range j.required {
-		j.defLevelsRequired = append(j.defLevelsRequired, j.definitionLevel)
+		j.defLevelsRequired = append(j.defLevelsRequired, definitionLevel)
 		j.paramsRequired = append(j.paramsRequired, nil)
 	}
 	for range j.optional {
-		j.defLevelsOptional = append(j.defLevelsOptional, j.definitionLevel)
+		j.defLevelsOptional = append(j.defLevelsOptional, definitionLevel)
 		j.paramsOptional = append(j.paramsOptional, nil)
 	}
 
@@ -1282,7 +1280,7 @@ func (j *LeftJoinIterator) String() string {
 	for _, o := range j.optional {
 		soptional += "\n\t" + util.TabOut(o)
 	}
-	return fmt.Sprintf("LeftJoinIterator: %d: %s\n%s\n%s", j.definitionLevel, j.collector, srequired, soptional)
+	return fmt.Sprintf("LeftJoinIterator: %s\n%s\n%s", j.collector, srequired, soptional)
 }
 
 func (j *LeftJoinIterator) Next() (result *IteratorResult, err error) {
@@ -1479,65 +1477,68 @@ iters:
 }
 
 func (j *LeftJoinIterator) collectRequired(rowNumber RowNumber) (err error) {
-	// iter0:
-	// First iterator (driver) is pointing at the next row to collect.
-	// Collect from it while at the same level as the desired definition level
-	// or until exhausted.
-	for {
-		// Collect. Optimization: we don't need to save the row number
-		// for the primary iterator.
+	// First iterator is broken out because it is treated a little differently,
+	// and being on the hot path this is requiredfor best performance.
+iter0:
+	for j.peeksRequired[0] != nil {
 		j.collector.Collect(j.peeksRequired[0], j.paramsRequired[0])
 
 		j.peeksRequired[0], err = j.required[0].Next()
 		if err != nil {
 			return
 		}
-
 		if j.peeksRequired[0] == nil {
-			// This iterator is exhausted.  Collect from remaining.
-			break
+			break iter0
 		}
 
-		if !EqualRowNumber(j.definitionLevel, j.peeksRequired[0].RowNumber, rowNumber) {
-			break
-		}
-		/*for k := j.definitionLevel; k >= 0; k-- {
+		// For the driver we check after because we already know
+		// entering this loop that it was pointed at the row.
+		for k := j.defLevelsRequired[0]; k >= 0; k-- {
 			if j.peeksRequired[0].RowNumber[k] != rowNumber[k] {
 				break iter0
 			}
-		}*/
+		}
 	}
 
 iters:
 	for i := 1; i < len(j.required); i++ {
-		if EqualRowNumber(j.defLevelsRequired[i], j.collectedThroughRequired[i], rowNumber) {
-			// Already collected
-			continue iters
+		if i > 0 {
+			if EqualRowNumber(j.defLevelsRequired[i], j.collectedThroughRequired[i], rowNumber) {
+				// Already collected
+				continue
+			}
 		}
 
-		iter := j.required[i]
-
-		// Collect matches from this iter while it points at the given row number.
+		// First iterator (driver) is pointing at the next row to collect.
+		// Collect from it while at the same level as the desired definition level
+		// or until exhausted.
 		for j.peeksRequired[i] != nil {
 
-			// Collect and save row number.
-			j.collector.Collect(j.peeksRequired[i], j.paramsRequired[i])
-			j.collectedThroughRequired[i] = j.peeksRequired[i].RowNumber
+			// Before collecting ensure we are at the same row.
+			// For the driver we already know entering this loop that it s pointed at the row.
+			// So this early check is only for later iterators.
+			if i > 0 {
+				// Interned version of EqualRowNumber
+				// Compare in reverse order because most row number activity
+				// occurs at the deeper definition levels.
+				for k := j.defLevelsRequired[i]; k >= 0; k-- {
+					if j.peeksRequired[i].RowNumber[k] != rowNumber[k] {
+						continue iters
+					}
+				}
+			}
 
-			j.peeksRequired[i], err = iter.Next()
+			j.collector.Collect(j.peeksRequired[i], j.paramsRequired[i])
+
+			// Optimization: we don't need to save the row number
+			// for the primary iterator (driver).
+			if i > 0 {
+				j.collectedThroughRequired[i] = j.peeksRequired[i].RowNumber
+			}
+
+			j.peeksRequired[i], err = j.required[i].Next()
 			if err != nil {
 				return
-			}
-			if j.peeksRequired[i] == nil {
-				// This iterator is exhausted.  Collect from remaining.
-				continue iters
-			}
-
-			// While pointing at the same row.
-			for k := j.defLevelsRequired[i]; k >= 0; k-- {
-				if j.peeksRequired[i].RowNumber[k] != rowNumber[k] {
-					continue iters
-				}
 			}
 		}
 	}
@@ -1567,7 +1568,7 @@ func (j *LeftJoinIterator) collect() error {
 
 	// Collect is only called after we have found a match among all
 	// required iterators, therefore we only need to seek the optional ones to same location.
-	err = j.seekAllOptional(rowNumber, j.definitionLevel)
+	err = j.seekAllOptional(rowNumber, j.defLevelsRequired[0])
 	if err != nil {
 		return err
 	}

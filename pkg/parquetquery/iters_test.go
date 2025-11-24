@@ -2,7 +2,6 @@ package parquetquery
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"math"
 	"os"
@@ -516,7 +515,6 @@ func TestLeftJoinDown(t *testing.T) {
 
 	testCollector := &testCollector{
 		reset: func(rowNumber RowNumber) {
-			fmt.Printf("reset: %v\n", rowNumber)
 			buf.Reset()
 			buf.RowNumber = rowNumber
 		},

@@ -1219,8 +1219,8 @@ func BenchmarkIterators(b *testing.B) {
 
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
-		//"{} | rate()",
-		//"{} | rate() with(new=true)",
+		"{} | rate()",
+		"{} | rate() with(new=true)",
 		/*"{} | rate() with(sample=true)",*/
 		//"{} | rate() by (span.http.status_code)",
 		//"{} | rate() by (span.http.status_code) with(new=true)",
@@ -1230,8 +1230,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		//"{resource.service.name=`loki-ingester`} | rate()",
 		/*"{span.http.host != `` && span.http.flavor=`2`} | rate() by (span.http.flavor)", // Multiple conditions
 		"{status=error} | rate()",*/
-		"{} | quantile_over_time(duration, .99, .9, .5)",
-		"{} | quantile_over_time(duration, .99, .9, .5) with(new=true)",
+		//"{} | quantile_over_time(duration, .99, .9, .5)",
+		//"{} | quantile_over_time(duration, .99, .9, .5) with(new=true)",
 		/*
 			"{} | quantile_over_time(duration, .99) by (span.http.status_code)",
 			"{} | histogram_over_time(duration)",
@@ -1248,6 +1248,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tempo/cmd/tempo-cli/hello-10-noblob-with-deletes")
 	os.Setenv("VP5_BENCH_TENANTID", "328776")
 	os.Setenv("VP5_BENCH_BLOCKID", "5ee5a693-5ccf-4d5a-bb1d-9412844c626e")
+
+	/*os.Setenv("VP5_BENCH_PATH", "/Users/marty/src/tmp")
+	os.Setenv("VP5_BENCH_BLOCKID", "d1240180-7d43-49b3-b691-06ddcc4e53b3")
+	osSetenv("VP5_BENCH_TENANTID", "1")*/
 
 	// For sampler debugging
 	log.Logger = kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
