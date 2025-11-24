@@ -18,11 +18,6 @@ fn test_parse_query([input]: [&str; 1]) {
     // Strip comments
     let query = strip_comments(input);
 
-    // Skip empty queries
-    if query.is_empty() {
-        return;
-    }
-
     // Parse the query
     let result = parser::parse(&query);
 

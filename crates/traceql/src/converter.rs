@@ -16,6 +16,9 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
         QueryExpr::Structural { parent, child } => {
             write_structural_query(&mut sql, parent, child)?;
         }
+        QueryExpr::Union(filters) => {
+            write_union_query(&mut sql, filters)?;
+        }
     }
 
     // Handle pipeline operations
@@ -36,6 +39,23 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
                     "Multiple pipeline operations not yet supported".to_string(),
                 ));
             }
+        }
+
+        // Add having condition if present
+        if let Some(having) = &query.having {
+            write!(&mut sql, " WHERE ")?;
+            // Determine the aggregation column name based on the pipeline operation
+            let agg_column = match query.pipeline.first() {
+                Some(PipelineOp::Count { .. }) => "count",
+                Some(PipelineOp::Rate { .. }) => "rate",
+                Some(PipelineOp::Avg { .. }) => "avg",
+                Some(PipelineOp::Sum { .. }) => "sum",
+                Some(PipelineOp::Min { .. }) => "min",
+                Some(PipelineOp::Max { .. }) => "max",
+                None => return Err(ConversionError::Unsupported("No pipeline operation".to_string())),
+            };
+            write!(&mut sql, "{} {} ", agg_column, having.op)?;
+            write_value(&mut sql, &having.value)?;
         }
     }
 
@@ -122,6 +142,17 @@ fn write_structural_query(
         writeln!(sql, "WHERE {}", conditions.join(" AND "))?;
     }
 
+    Ok(())
+}
+
+/// Write a union query ({ } || { } || ...)
+fn write_union_query(sql: &mut String, filters: &[SpanFilter]) -> Result<(), ConversionError> {
+    for (i, filter) in filters.iter().enumerate() {
+        if i > 0 {
+            writeln!(sql, "UNION")?;
+        }
+        write_span_filter_query(sql, filter)?;
+    }
     Ok(())
 }
 
@@ -435,10 +466,10 @@ fn write_pipeline_op(
             write!(sql, "SELECT ")?;
 
             // Add time bucket column
-            // Cast StartTimeUnixNano (UInt64) to timestamp for date_bin
+            // Cast StartTimeUnixNano (UInt64) to Int64 for to_timestamp_nanos using arrow_cast
             write!(
                 sql,
-                "date_bin(INTERVAL '5 minutes', to_timestamp_nanos(\"StartTimeUnixNano\"), TIMESTAMP '1970-01-01 00:00:00') as time_bucket"
+                "date_bin(INTERVAL '5 minutes', to_timestamp_nanos(arrow_cast(\"StartTimeUnixNano\", 'Int64')), TIMESTAMP '1970-01-01 00:00:00') as time_bucket"
             )?;
 
             // Add group by fields

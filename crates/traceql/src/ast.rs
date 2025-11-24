@@ -11,6 +11,8 @@ pub struct TraceQLQuery {
     pub query: QueryExpr,
     /// Optional pipeline operations
     pub pipeline: Vec<PipelineOp>,
+    /// Optional having condition applied to aggregated results
+    pub having: Option<HavingCondition>,
 }
 
 /// Query expression - can be a simple filter or structural query
@@ -23,6 +25,8 @@ pub enum QueryExpr {
         parent: SpanFilter,
         child: SpanFilter,
     },
+    /// Union query: { expr } || { expr } || ...
+    Union(Vec<SpanFilter>),
 }
 
 /// Span filter - the expression inside { }
@@ -30,6 +34,15 @@ pub enum QueryExpr {
 pub struct SpanFilter {
     /// The filter expression, or None for empty filter { }
     pub expr: Option<Expr>,
+}
+
+/// Having condition applied to aggregated results (e.g., count() > 1)
+#[derive(Debug, Clone, PartialEq)]
+pub struct HavingCondition {
+    /// Comparison operator
+    pub op: ComparisonOperator,
+    /// Value to compare against
+    pub value: Value,
 }
 
 /// Expression types

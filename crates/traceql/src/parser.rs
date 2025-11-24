@@ -34,6 +34,9 @@ impl Parser {
             pipeline.push(self.parse_pipeline_op()?);
         }
 
+        // Parse optional having condition (comparison after pipeline operations)
+        let having = self.parse_having_condition()?;
+
         // Ensure we're at EOF
         if self.current_token() != &Token::Eof {
             return Err(ParserError::UnexpectedToken(
@@ -42,7 +45,11 @@ impl Parser {
             ));
         }
 
-        Ok(TraceQLQuery { query, pipeline })
+        Ok(TraceQLQuery {
+            query,
+            pipeline,
+            having,
+        })
     }
 
     /// Parse query expression (simple filter or structural query)
@@ -58,6 +65,15 @@ impl Parser {
                 parent: first_filter,
                 child: second_filter,
             })
+        }
+        // Check for union operator ||
+        else if self.current_token() == &Token::Or {
+            let mut filters = vec![first_filter];
+            while self.current_token() == &Token::Or {
+                self.advance(); // consume ||
+                filters.push(self.parse_span_filter()?);
+            }
+            Ok(QueryExpr::Union(filters))
         } else {
             Ok(QueryExpr::SpanFilter(first_filter))
         }
@@ -402,6 +418,29 @@ impl Parser {
 
         // No "by" clause found
         Ok(Vec::new())
+    }
+
+    /// Parse optional having condition (e.g., > 1, >= 10)
+    fn parse_having_condition(&mut self) -> Result<Option<HavingCondition>, ParserError> {
+        // Check if current token is a comparison operator
+        let op = match self.current_token() {
+            Token::Eq => ComparisonOperator::Eq,
+            Token::NotEq => ComparisonOperator::NotEq,
+            Token::Gt => ComparisonOperator::Gt,
+            Token::Gte => ComparisonOperator::Gte,
+            Token::Lt => ComparisonOperator::Lt,
+            Token::Lte => ComparisonOperator::Lte,
+            Token::Regex => ComparisonOperator::Regex,
+            Token::NotRegex => ComparisonOperator::NotRegex,
+            _ => return Ok(None), // No having condition
+        };
+
+        self.advance(); // consume comparison operator
+
+        // Parse value
+        let value = self.parse_value()?;
+
+        Ok(Some(HavingCondition { op, value }))
     }
 
     // Helper methods

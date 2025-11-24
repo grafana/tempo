@@ -1,2 +1,2 @@
 # Count aggregation query
-{ } | count() > 1
+{ status = error && .a = `b` } | count() > 1
