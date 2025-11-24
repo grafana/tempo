@@ -995,6 +995,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 					ServiceName: "myservice",
 					Attrs: []Attribute{
 						attr("foo", "abc"),
+						attr("asdf", 123),
 						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
 						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column

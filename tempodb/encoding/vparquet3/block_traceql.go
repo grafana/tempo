@@ -1947,6 +1947,10 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	// be sped up by searching for traceDuration first. note that we can only set the predicates if all conditions is true.
 	// otherwise we just pass the info up to the engine to make a choice
 	for _, cond := range conds {
+		if cond.Op == traceql.OpNotExists {
+			// trace-level intrinsic can't be nil
+			continue
+		}
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicTraceID:
 			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
