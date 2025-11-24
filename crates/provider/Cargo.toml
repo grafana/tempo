@@ -21,3 +21,8 @@ url = { workspace = true }
 [dev-dependencies]
 anyhow = { workspace = true }
 traceql = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "udf_bench"
+harness = false

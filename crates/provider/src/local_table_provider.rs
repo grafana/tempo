@@ -29,12 +29,14 @@ pub struct LocalTempoTableProvider {
     file_format: Arc<ParquetFormat>,
     /// Base URL for the table (local file path)
     table_url: ListingTableUrl,
+    /// Cached file size (read during initialization)
+    file_size: u64,
 }
 
 impl LocalTempoTableProvider {
     /// Create a new LocalTempoTableProvider from a local file path
     pub async fn try_new(file_path: String) -> Result<Self> {
-        // Validate file exists
+        // Validate file exists and read metadata
         let path = PathBuf::from(&file_path);
         if !path.exists() {
             return Err(DataFusionError::Execution(format!(
@@ -43,7 +45,13 @@ impl LocalTempoTableProvider {
             )));
         }
 
-        info!("Loading Parquet file from: {}", file_path);
+        // Read file metadata during initialization
+        let metadata = std::fs::metadata(&file_path).map_err(|e| {
+            DataFusionError::Execution(format!("Failed to read file metadata: {}", e))
+        })?;
+        let file_size = metadata.len();
+
+        info!("Loading Parquet file from: {} (size: {} bytes)", file_path, file_size);
 
         // Use the Tempo trace schema from storage crate
         let schema = Arc::new(tempo_trace_schema());
@@ -59,6 +67,7 @@ impl LocalTempoTableProvider {
             file_path,
             file_format,
             table_url,
+            file_size,
         })
     }
 
@@ -85,14 +94,9 @@ impl TableProvider for LocalTempoTableProvider {
         _filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // Get file statistics
-        let metadata = std::fs::metadata(&self.file_path).map_err(|e| {
-            DataFusionError::Execution(format!("Failed to read file metadata: {}", e))
-        })?;
-        let file_size = metadata.len();
-
+        // Use cached file size from initialization
         // Create a partitioned file entry
-        let partitioned_file = PartitionedFile::new(&self.file_path, file_size);
+        let partitioned_file = PartitionedFile::new(&self.file_path, self.file_size);
 
         // Get the file source from ParquetFormat
         let file_source = self.file_format.file_source();
@@ -103,7 +107,7 @@ impl TableProvider for LocalTempoTableProvider {
                 .with_file(partitioned_file);
 
         if let Some(proj) = projection {
-            config_builder = config_builder.with_projection(Some(proj.clone()));
+            config_builder = config_builder.with_projection_indices(Some(proj.clone()));
         }
 
         config_builder = config_builder.with_limit(limit);

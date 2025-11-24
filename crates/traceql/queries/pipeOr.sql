@@ -1,5 +1,5 @@
 SELECT * FROM spans
-WHERE "ServiceName" = 'loki-querier'
+WHERE "ResourceServiceName" = 'loki-querier'
 UNION
 SELECT * FROM spans
-WHERE "ServiceName" = 'loki-gateway'
+WHERE "ResourceServiceName" = 'loki-gateway'

@@ -53,7 +53,8 @@ fn attrs_to_map_impl(args: &[ColumnarValue]) -> Result<ColumnarValue> {
         .ok_or_else(|| DataFusionError::Execution("Expected ListArray for Attrs".to_string()))?;
 
     // Process each row (each list of attrs)
-    let mut result_arrays = Vec::new();
+    // Pre-allocate capacity for result arrays
+    let mut result_arrays = Vec::with_capacity(list_array.len());
 
     for row_idx in 0..list_array.len() {
         if list_array.is_null(row_idx) {
@@ -113,16 +114,39 @@ fn attrs_to_map_impl(args: &[ColumnarValue]) -> Result<ColumnarValue> {
 
         // Build the result map using a HashMap to handle potential duplicate keys
         use std::collections::HashMap;
-        let mut map: HashMap<String, Vec<String>> = HashMap::new();
+        // Pre-allocate capacity for better performance
+        let mut map: HashMap<String, Vec<String>> = HashMap::with_capacity(key_array.len());
 
         // Iterate through each attribute
-        for i in 0..key_array.len() {
+        // Cache length to avoid repeated method calls
+        let key_len = key_array.len();
+        for i in 0..key_len {
             if key_array.is_null(i) {
                 continue;
             }
 
             let key = key_array.value(i).to_string();
-            let values = map.entry(key).or_default();
+
+            // Calculate total values to pre-allocate Vec
+            let mut total_values = 0;
+            if !value_array.is_null(i) {
+                let value_list = value_array.value(i);
+                total_values += value_list.len();
+            }
+            if !value_int_array.is_null(i) {
+                let value_list = value_int_array.value(i);
+                total_values += value_list.len();
+            }
+            if !value_double_array.is_null(i) {
+                let value_list = value_double_array.value(i);
+                total_values += value_list.len();
+            }
+            if !value_bool_array.is_null(i) {
+                let value_list = value_bool_array.value(i);
+                total_values += value_list.len();
+            }
+
+            let values = map.entry(key).or_insert_with(|| Vec::with_capacity(total_values));
 
             // Collect string values
             if !value_array.is_null(i) {
@@ -134,7 +158,8 @@ fn attrs_to_map_impl(args: &[ColumnarValue]) -> Result<ColumnarValue> {
                         DataFusionError::Execution("Value list items are not strings".to_string())
                     })?;
 
-                for j in 0..string_values.len() {
+                let string_len = string_values.len();
+                for j in 0..string_len {
                     if !string_values.is_null(j) {
                         values.push(string_values.value(j).to_string());
                     }
@@ -151,7 +176,8 @@ fn attrs_to_map_impl(args: &[ColumnarValue]) -> Result<ColumnarValue> {
                         DataFusionError::Execution("ValueInt list items are not Int64".to_string())
                     })?;
 
-                for j in 0..int_values.len() {
+                let int_len = int_values.len();
+                for j in 0..int_len {
                     if !int_values.is_null(j) {
                         values.push(int_values.value(j).to_string());
                     }
@@ -170,7 +196,8 @@ fn attrs_to_map_impl(args: &[ColumnarValue]) -> Result<ColumnarValue> {
                         )
                     })?;
 
-                for j in 0..double_values.len() {
+                let double_len = double_values.len();
+                for j in 0..double_len {
                     if !double_values.is_null(j) {
                         values.push(double_values.value(j).to_string());
                     }
@@ -189,7 +216,8 @@ fn attrs_to_map_impl(args: &[ColumnarValue]) -> Result<ColumnarValue> {
                         )
                     })?;
 
-                for j in 0..bool_values.len() {
+                let bool_len = bool_values.len();
+                for j in 0..bool_len {
                     if !bool_values.is_null(j) {
                         values.push(bool_values.value(j).to_string());
                     }

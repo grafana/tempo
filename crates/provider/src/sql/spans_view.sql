@@ -44,15 +44,15 @@ SELECT
     span."HttpStatusCode" AS "HttpStatusCode",
     span."DedicatedAttributes" AS "DedicatedAttributes",
     -- Resource attributes
-    attrs_to_map(resource."Resource"."Attrs") AS "ResourceAttrs",
-    resource."Resource"."ServiceName" AS "ResourceServiceName",
-    resource."Resource"."Cluster" AS "ResourceCluster",
-    resource."Resource"."Namespace" AS "ResourceNamespace",
-    resource."Resource"."Pod" AS "ResourcePod",
-    resource."Resource"."Container" AS "ResourceContainer",
-    resource."Resource"."K8sClusterName" AS "ResourceK8sClusterName",
-    resource."Resource"."K8sNamespaceName" AS "ResourceK8sNamespaceName",
-    resource."Resource"."K8sPodName" AS "ResourceK8sPodName",
-    resource."Resource"."K8sContainerName" AS "ResourceK8sContainerName",
-    resource."Resource"."DedicatedAttributes" AS "ResourceDedicatedAttributes"
+    --attrs_to_map(resource."Resource"."Attrs") AS "ResourceAttrs",
+    --resource."Resource"."ServiceName" AS "ResourceServiceName",
+    --resource."Resource"."Cluster" AS "ResourceCluster",
+    --resource."Resource"."Namespace" AS "ResourceNamespace",
+    --resource."Resource"."Pod" AS "ResourcePod",
+    --resource."Resource"."Container" AS "ResourceContainer",
+    --resource."Resource"."K8sClusterName" AS "ResourceK8sClusterName",
+    --resource."Resource"."K8sNamespaceName" AS "ResourceK8sNamespaceName",
+    --resource."Resource"."K8sPodName" AS "ResourceK8sPodName",
+    --resource."Resource"."K8sContainerName" AS "ResourceK8sContainerName",
+    --resource."Resource"."DedicatedAttributes" AS "ResourceDedicatedAttributes"
 FROM unnest_spans

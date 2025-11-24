@@ -105,6 +105,7 @@ fn write_span_filter_query(
         if let Some(expr) = &filter.expr {
             write!(sql, "WHERE ")?;
             write_expr_with_root_join(sql, expr)?;
+            writeln!(sql)?;
         }
     } else {
         if let Some(fields) = select_fields {
@@ -124,6 +125,7 @@ fn write_span_filter_query(
         if let Some(expr) = &filter.expr {
             write!(sql, "WHERE ")?;
             write_expr(sql, expr)?;
+            writeln!(sql)?;
         }
     }
 
@@ -507,10 +509,9 @@ fn write_pipeline_op(
             write!(sql, "SELECT ")?;
 
             // Add time bucket column
-            // Cast StartTimeUnixNano (UInt64) to Int64 for to_timestamp_nanos using arrow_cast
             write!(
                 sql,
-                "date_bin(INTERVAL '5 minutes', to_timestamp_nanos(arrow_cast(\"StartTimeUnixNano\", 'Int64')), TIMESTAMP '1970-01-01 00:00:00') as time_bucket"
+                "date_bin(INTERVAL '5 minutes', to_timestamp_nanos(\"StartTimeUnixNano\"), TIMESTAMP '1970-01-01 00:00:00') as time_bucket"
             )?;
 
             // Add group by fields

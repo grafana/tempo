@@ -1,3 +1,6 @@
+WITH base_spans AS (
 SELECT * FROM spans
-WHERE true
--- TODO: Add count aggregation logic
+
+)
+SELECT COUNT(*) as count FROM base_spans
+ WHERE count > 1

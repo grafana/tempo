@@ -1,0 +1,21 @@
+[package]
+name = "bench"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bench"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+datafusion.workspace = true
+object_store.workspace = true
+futures-util.workspace = true
+
+# Local dependencies
+context.workspace = true
+storage.workspace = true
+traceql.workspace = true

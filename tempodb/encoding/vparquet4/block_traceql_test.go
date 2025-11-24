@@ -1432,6 +1432,9 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		name  string
 		query string
 	}{
+		// count
+		{"basicCount", "{ } | count() > 1"},
+
 		// span
 		{"spanAttValMatch", "{ span.component = `net/http` }"},
 		{"spanAttValMatchFew", "{ span.component =~ `database/sql` }"},

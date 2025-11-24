@@ -176,7 +176,7 @@ impl TableProvider for TempoTableProvider {
         }
 
         if let Some(proj) = projection {
-            config_builder = config_builder.with_projection(Some(proj.clone()));
+            config_builder = config_builder.with_projection_indices(Some(proj.clone()));
         }
 
         config_builder = config_builder.with_limit(limit);

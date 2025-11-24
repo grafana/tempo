@@ -1,6 +1,6 @@
 use config::Config;
 use provider::{display, register_tempo_table, register_udfs, create_flattened_view};
-use storage::{BlockInfo, tempo_trace_schema};
+use storage::BlockInfo;
 use traceql;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result};

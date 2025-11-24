@@ -93,83 +93,88 @@ struct BenchCase {
 /// Test cases matching the Go benchmark queries
 fn get_test_cases() -> Vec<BenchCase> {
     vec![
+        // Basic count
+        BenchCase {
+            name: "basicCount",
+            traceql: "{ } | count()",
+        },
         // Span attribute matching
-        BenchCase {
-            name: "spanAttValMatch",
-            traceql: "{ span.component = `net/http` }",
-        },
-        BenchCase {
-            name: "spanAttValMatchFew",
-            traceql: "{ span.component =~ `database/sql` }",
-        },
-        BenchCase {
-            name: "spanAttValNoMatch",
-            traceql: "{ span.bloom = `does-not-exit-6c2408325a45` }",
-        },
-        BenchCase {
-            name: "spanAttIntrinsicMatch",
-            traceql: "{ name = `distributor.ConsumeTraces` }",
-        },
-        BenchCase {
-            name: "spanAttIntrinsicMatchFew",
-            traceql: "{ name = `grpcutils.Authenticate` }",
-        },
-        BenchCase {
-            name: "spanAttIntrinsicNoMatch",
-            traceql: "{ name = `does-not-exit-6c2408325a45` }",
-        },
-        // Resource attribute matching
-        BenchCase {
-            name: "resourceAttValMatch",
-            traceql: "{ resource.opencensus.exporterversion = `Jaeger-Go-2.30.0` }",
-        },
-        BenchCase {
-            name: "resourceAttValNoMatch",
-            traceql: "{ resource.module.path = `does-not-exit-6c2408325a45` }",
-        },
-        BenchCase {
-            name: "resourceAttIntrinsicMatch",
-            traceql: "{ resource.service.name = `tempo-gateway` }",
-        },
-        BenchCase {
-            name: "resourceAttIntrinsicNoMatch",
-            traceql: "{ resource.service.name = `does-not-exit-6c2408325a45` }",
-        },
-        // Trace-level queries with OR
-        BenchCase {
-            name: "traceOrMatch",
-            traceql: "{ rootServiceName = `tempo-distributor` && (status = error || span.http.status_code = 500)}",
-        },
-        BenchCase {
-            name: "traceOrMatchFew",
-            traceql: "{ rootServiceName = `faro-collector` && (status = error || span.http.status_code = 500)}",
-        },
-        BenchCase {
-            name: "traceOrNoMatch",
-            traceql: "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}",
-        },
-        // Mixed queries
-        BenchCase {
-            name: "mixedValNoMatch",
-            traceql: "{ .bloom = `does-not-exit-6c2408325a45` }",
-        },
-        BenchCase {
-            name: "mixedValMixedMatchAnd",
-            traceql: "{ resource.k8s.cluster.name =~ `prod.*` && name = `gcs.ReadRange` }",
-        },
-        BenchCase {
-            name: "mixedValMixedMatchOr",
-            traceql: "{ resource.foo = `bar` || name = `gcs.ReadRange` }",
-        },
-        BenchCase {
-            name: "mixed",
-            traceql: r#"{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}"#,
-        },
-        // Complex queries
-        BenchCase {
-            name: "complex",
-            traceql: r#"{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "hosted-grafana" && resource.k8s.container.name="hosted-grafana-gateway" && name = "httpclient/grafana" && span.http.status_code = 200 && duration > 20ms}"#,
-        },
+        //BenchCase {
+        //    name: "spanAttValMatch",
+        //    traceql: "{ span.component = `net/http` }",
+        //},
+        //BenchCase {
+        //    name: "spanAttValMatchFew",
+        //    traceql: "{ span.component =~ `database/sql` }",
+        //},
+        //BenchCase {
+        //    name: "spanAttValNoMatch",
+        //    traceql: "{ span.bloom = `does-not-exit-6c2408325a45` }",
+        //},
+        //BenchCase {
+        //    name: "spanAttIntrinsicMatch",
+        //    traceql: "{ name = `distributor.ConsumeTraces` }",
+        //},
+        //BenchCase {
+        //    name: "spanAttIntrinsicMatchFew",
+        //    traceql: "{ name = `grpcutils.Authenticate` }",
+        //},
+        //BenchCase {
+        //    name: "spanAttIntrinsicNoMatch",
+        //    traceql: "{ name = `does-not-exit-6c2408325a45` }",
+        //},
+        //// Resource attribute matching
+        //BenchCase {
+        //    name: "resourceAttValMatch",
+        //    traceql: "{ resource.opencensus.exporterversion = `Jaeger-Go-2.30.0` }",
+        //},
+        //BenchCase {
+        //    name: "resourceAttValNoMatch",
+        //    traceql: "{ resource.module.path = `does-not-exit-6c2408325a45` }",
+        //},
+        //BenchCase {
+        //    name: "resourceAttIntrinsicMatch",
+        //    traceql: "{ resource.service.name = `tempo-gateway` }",
+        //},
+        //BenchCase {
+        //    name: "resourceAttIntrinsicNoMatch",
+        //    traceql: "{ resource.service.name = `does-not-exit-6c2408325a45` }",
+        //},
+        //// Trace-level queries with OR
+        //BenchCase {
+        //    name: "traceOrMatch",
+        //    traceql: "{ rootServiceName = `tempo-distributor` && (status = error || span.http.status_code = 500)}",
+        //},
+        //BenchCase {
+        //    name: "traceOrMatchFew",
+        //    traceql: "{ rootServiceName = `faro-collector` && (status = error || span.http.status_code = 500)}",
+        //},
+        //BenchCase {
+        //    name: "traceOrNoMatch",
+        //    traceql: "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}",
+        //},
+        //// Mixed queries
+        //BenchCase {
+        //    name: "mixedValNoMatch",
+        //    traceql: "{ .bloom = `does-not-exit-6c2408325a45` }",
+        //},
+        //BenchCase {
+        //    name: "mixedValMixedMatchAnd",
+        //    traceql: "{ resource.k8s.cluster.name =~ `prod.*` && name = `gcs.ReadRange` }",
+        //},
+        //BenchCase {
+        //    name: "mixedValMixedMatchOr",
+        //    traceql: "{ resource.foo = `bar` || name = `gcs.ReadRange` }",
+        //},
+        //BenchCase {
+        //    name: "mixed",
+        //    traceql: r#"{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}"#,
+        //},
+        //// Complex queries
+        //BenchCase {
+        //    name: "complex",
+        //    traceql: r#"{resource.k8s.cluster.name =~ "prod.*" && resource.k8s.namespace.name = "hosted-grafana" && resource.k8s.container.name="hosted-grafana-gateway" && name = "httpclient/grafana" && span.http.status_code = 200 && duration > 20ms}"#,
+        //},
         // Advanced queries
         //BenchCase {
         //    name: "count",
@@ -370,5 +375,5 @@ fn bench_with_metrics(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_with_metrics);
+criterion_group!(benches, bench_traceql_queries);
 criterion_main!(benches);
