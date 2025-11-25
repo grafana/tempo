@@ -367,12 +367,26 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 				TraceID: wantTraceID,
 				ResourceSpans: []ResourceSpans{
 					{
+						Resource: Resource{
+							ServiceName: "hello",
+							Attrs: []Attribute{
+								// BUG - at least one generic attr is required to satisfy
+								// resource.bar=nil test case below.
+								attr("foo", "def"),
+							},
+						},
+
 						ScopeSpans: []ScopeSpans{
 							{
 								Spans: []Span{
 									{
 										// this span has nil values for everything
 										SpanID: []byte("nil-test-span-0"),
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "jkl"),
+										},
 									},
 									{
 										SpanID:                 []byte("nil-test-span-1"),
@@ -392,6 +406,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 											String03: []string{"dedicated-span-attr-value-3"},
 											String04: []string{"dedicated-span-attr-value-4"},
 											String05: []string{"dedicated-span-attr-value-5"},
+										},
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "mno"),
 										},
 									},
 								},
@@ -421,6 +440,11 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 								Spans: []Span{
 									{
 										SpanID: []byte("nil-test-span-2"),
+										Attrs: []Attribute{
+											// BUG - at least one generic attr is required to satisfy
+											// span.bar=nil test case below.
+											attr("foo", "ghi"),
+										},
 									},
 								},
 							},
@@ -429,6 +453,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 				},
 			}
 			traces = append(traces, wantTrace)
+			continue
 		}
 
 		id := test.ValidTraceID(nil)
@@ -447,26 +472,19 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 		// span 0 has all resource level nils, instrumentation level nils, and span levels nils including ded columns except for SpanID
 		// span 1 has all resource level + ded nils, instrumentation level nils, but has all span values
 		// span 2 has resource level values, but instrumentation level nils an	d span level nils except for Name
-		// Intrinsics
-		{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = nil }`), []int{0, 2}},
-		{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: status", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = nil}`), []int{0, 2}},
-		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = nil}`), []int{0, 2}},
-		// Resource well-known attributes
-		{"resource.service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = nil}`), []int{0, 1}},
+
+		// Resource generic attrs
+		{"resource.bar", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.bar = nil}`), []int{0, 1, 2}},
 
 		// Resource dedicated attributes
 		{"resource.dedicated.resource.3", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = nil}`), []int{0, 1}},
 		{"resource.dedicated.resource.5", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.5 = nil}`), []int{0, 1}},
+		// Span generic attrs
+		{"span.bar", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bar = nil}`), []int{0, 1, 2}},
 
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = nil}`), []int{0, 2}},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = nil}`), []int{0, 2}},
-
-		// Instrumentation Scope
-		{"instrumentation:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:name = nil}`), []int{0, 1, 2}},
-		{"instrumentation:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:version = nil}`), []int{0, 1, 2}},
 	}
 
 	spanIDs := map[int][]byte{

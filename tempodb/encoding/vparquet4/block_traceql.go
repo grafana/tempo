@@ -2323,8 +2323,6 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 	}
 
 	for _, cond := range conditions {
-		isNotExistSearch := len(cond.Operands) == 0 && cond.Op == traceql.OpNotExists
-
 		// Well-known selector?
 		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
 			// Operands that need special handling.
@@ -2386,7 +2384,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 		}
 
 		// check attr not exists
-		if isNotExistSearch {
+		if cond.Op == traceql.OpNotExists {
 			pred := parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name))
 			iters = append(iters, makeNilIter(columnPathResourceAttrKey, pred, cond.Attribute.Name))
 			continue
@@ -2882,7 +2880,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		// but this is more performant because it's at the lowest level.
 		// Alternatively, JoinIterators don't pay attention to -1 (undefined) when checking
 		// the definition level matches.  Fixing that would also work but would need wider testing first.
-
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{
 				makeIter(keyPath, skipNils, "key"),
@@ -3096,7 +3093,6 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				if kv.Value.IsNull() {
 					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString("nil"))
 				}
-
 			}
 		}
 	}
@@ -3711,17 +3707,6 @@ func newEventAttr(name string) traceql.Attribute {
 
 func newLinkAttr(name string) traceql.Attribute {
 	return traceql.NewScopedAttribute(traceql.AttributeScopeLink, false, name)
-}
-
-func unionIfNeeded(definitionLevel int, iters []parquetquery.Iterator, pred parquetquery.GroupPredicate) parquetquery.Iterator {
-	switch len(iters) {
-	case 0:
-		return nil
-	case 1:
-		return iters[0]
-	default:
-		return parquetquery.NewUnionIterator(definitionLevel, iters, pred)
-	}
 }
 
 func orIfNeeded(preds []parquetquery.Predicate) parquetquery.Predicate {
