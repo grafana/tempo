@@ -98,7 +98,7 @@ When writing these attributes, they can spike the memory usage of the write comp
 * compactor
 * metrics-generator
 
-You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using [`max_attribute_bytes`]((https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#set-max-attribute-size-to-help-control-out-of-memory-errors).
+You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using [`max_attribute_bytes`](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#set-max-attribute-size-to-help-control-out-of-memory-errors).
 You can also use these options:
 
 * Manually update application instrumentation to remove or limit these attributes
