@@ -128,18 +128,20 @@ func (o UnaryOperation) extractConditions(request *FetchSpansRequest) {
 	// TODO when Op is Not we should just either negate all inner Operands or just fetch the columns with OpNone
 
 	switch expr := o.Expression.(type) {
-	case UnaryOperation:
-		expr.extractConditions(request)
-	default:
-		if o.Op == OpNotExists {
+	case Attribute:
+		switch o.Op {
+		case OpExists, OpNotExists:
 			request.appendCondition(Condition{
-				Attribute: o.Expression.(Attribute),
-				Op:        OpNotExists,
+				Attribute: expr,
+				Op:        o.Op,
 				Operands:  nil,
 			})
 			return
+		default:
+			expr.extractConditions(request)
 		}
-		o.Expression.extractConditions(request)
+	default:
+		expr.extractConditions(request)
 	}
 }
 

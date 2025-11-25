@@ -268,8 +268,11 @@ func (o UnaryOperation) validate() error {
 	// Disallow intrinsic=nil
 	if o.Op == OpNotExists {
 		if attr, ok := o.Expression.(Attribute); ok {
-			if attr.Intrinsic != IntrinsicNone {
+			switch {
+			case attr.Intrinsic != IntrinsicNone:
 				return fmt.Errorf("%s=nil is not valid because intrinsics cannot be nil", attr.String())
+			case attr == NewScopedAttribute(AttributeScopeResource, false, "service.name"):
+				return fmt.Errorf("%s=nil is not valid because resource.service.name cannot be nil", attr.String())
 			}
 		}
 	}
