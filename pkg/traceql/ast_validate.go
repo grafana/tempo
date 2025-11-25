@@ -265,6 +265,15 @@ func (o UnaryOperation) validate() error {
 		return err
 	}
 
+	// Disallow intrinsic=nil
+	if o.Op == OpNotExists {
+		if attr, ok := o.Expression.(Attribute); ok {
+			if attr.Intrinsic != IntrinsicNone {
+				return fmt.Errorf("%s=nil is not valid because intrinsics cannot be nil", attr.String())
+			}
+		}
+	}
+
 	t := o.Expression.impliedType()
 	if t == TypeAttribute {
 		return nil
