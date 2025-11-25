@@ -2025,7 +2025,9 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	if len(operands) == 0 && op == traceql.OpNotExists {
 		return parquetquery.NewNilValuePredicate(), nil
 	}
@@ -2048,7 +2050,9 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	if len(operands) == 0 && op == traceql.OpNotExists {
 		return parquetquery.NewNilValuePredicate(), nil
 	}
@@ -2084,7 +2088,9 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	if len(operands) == 0 && op == traceql.OpNotExists {
 		return parquetquery.NewNilValuePredicate(), nil
 	}
@@ -2120,7 +2126,9 @@ func createDurationPredicate(op traceql.Operator, operands traceql.Operands) (pa
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	if len(operands) == 0 && op == traceql.OpNotExists {
 		return parquetquery.NewNilValuePredicate(), nil
 	}
@@ -2149,7 +2157,9 @@ func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands)
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	if len(operands) == 0 && op == traceql.OpNotExists {
 		return parquetquery.NewNilValuePredicate(), nil
 	}
@@ -2211,7 +2221,9 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	if len(operands) == 0 && op == traceql.OpNotExists {
 		return parquetquery.NewNilValuePredicate(), nil
 	}
