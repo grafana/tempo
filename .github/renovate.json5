@@ -69,10 +69,11 @@
     },
     {
       description: 'Automerge patch updates',
-      matchUpdateTypes: ['patch'],
+      matchUpdateTypes: ['digest', 'patch', 'minor'],
       automergeStrategy: 'squash',
       automergeType: 'pr',
       automerge: true,
+      minimumReleaseAge: '7 days',
       platformAutomerge: false
     },
   ],
