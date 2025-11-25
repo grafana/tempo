@@ -288,6 +288,7 @@ func TestBackendNilKeyBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
+// nolint:revive,unparam
 func attr(key string, val any) Attribute {
 	switch val := val.(type) {
 	case string:
