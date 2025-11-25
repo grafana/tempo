@@ -199,6 +199,12 @@ func (e *Engine) ExecuteTagValues(
 		}
 	}
 
+	if err := rootExpr.validate(); err != nil {
+		// Invalid query - return nothing
+		span.RecordError(err)
+		return nil
+	}
+
 	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
 
 	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
@@ -239,6 +245,12 @@ func (e *Engine) ExecuteTagNames(
 		req := &FetchSpansRequest{}
 		rootExpr.Pipeline.extractConditions(req)
 		conditions = req.Conditions
+	}
+
+	if err := rootExpr.validate(); err != nil {
+		// Invalid query - return nothing
+		span.RecordError(err)
+		return nil
 	}
 
 	autocompleteReq := FetchTagsRequest{
