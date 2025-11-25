@@ -189,7 +189,14 @@ func (e *Engine) ExecuteTagValues(
 	span.SetAttributes(attribute.String("sanitized query", query))
 
 	rootExpr, err := Parse(query)
-	if err != nil {
+	if err == nil {
+		// Query parses, now see if it's valid.
+		if err := rootExpr.validate(); err != nil {
+			// Invalid query - return nothing
+			span.RecordError(err)
+			return nil
+		}
+	} else {
 		// If the query has bad TraceQL, don't error out, return unfiltered results
 		var parseErr *ParseError
 		if errors.As(err, &parseErr) {
@@ -197,12 +204,6 @@ func (e *Engine) ExecuteTagValues(
 		} else {
 			return err
 		}
-	}
-
-	if err := rootExpr.validate(); err != nil {
-		// Invalid query - return nothing
-		span.RecordError(err)
-		return nil
 	}
 
 	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
@@ -242,15 +243,17 @@ func (e *Engine) ExecuteTagNames(
 	rootExpr, err := Parse(query)
 	// if the parse succeeded then use those conditions, otherwise pass in none. the next layer will handle it
 	if err == nil {
+		// Query parses now see if it's valid.
+		if err := rootExpr.validate(); err != nil {
+			// Invalid query - return nothing
+			span.RecordError(err)
+			return nil
+		}
+
+		// Query parses and is valid.
 		req := &FetchSpansRequest{}
 		rootExpr.Pipeline.extractConditions(req)
 		conditions = req.Conditions
-	}
-
-	if err := rootExpr.validate(); err != nil {
-		// Invalid query - return nothing
-		span.RecordError(err)
-		return nil
 	}
 
 	autocompleteReq := FetchTagsRequest{
