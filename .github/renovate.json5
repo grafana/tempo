@@ -69,7 +69,7 @@
     },
     {
       description: 'Automerge patch updates',
-      matchUpdateTypes: ['patch', 'minor'],
+      matchUpdateTypes: ['digest', 'patch', 'minor'],
       automergeStrategy: 'squash',
       automergeType: 'pr',
       automerge: true,
