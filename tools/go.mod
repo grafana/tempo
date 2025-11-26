@@ -9,7 +9,7 @@ require (
 	github.com/jsonnet-bundler/jsonnet-bundler v0.6.0
 	github.com/psampaz/go-mod-outdated v0.9.0
 	golang.org/x/tools v0.39.0
-	gotest.tools/gotestsum v1.12.1
+	gotest.tools/gotestsum v1.13.0
 	mvdan.cc/gofumpt v0.9.2
 )
 
@@ -74,7 +74,7 @@ require (
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/firefart/nonamedreturns v1.0.6 // indirect
-	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
 	github.com/ghostiam/protogetter v0.3.15 // indirect
 	github.com/go-clix/cli v0.2.0 // indirect
