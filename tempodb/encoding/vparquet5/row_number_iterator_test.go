@@ -109,22 +109,28 @@ func TestVirtualRowNumberIterator_SeekTo(t *testing.T) {
 			expectedNext: pq.RowNumber{2, 0, 0, 1, -1, -1, -1, -1},
 		},
 		{
-			seekRow:      pq.RowNumber{3, 0, 0, -1, -1, -1, -1, -1},
-			seekLevel:    1,
+			seekRow:      pq.RowNumber{2, 0, 0, 3, -1, -1, -1, -1}, // seek past last virtual row
+			seekLevel:    DefinitionLevelResourceSpansILSSpan,
 			expectedRow:  pq.RowNumber{3, 0, 0, -1, -1, -1, -1, -1},
 			expectedNext: pq.RowNumber{4, 0, 0, 0, -1, -1, -1, -1},
 		},
 		{
-			seekRow:      pq.RowNumber{5, 0, 1, 0, -1, -1, -1, -1},
-			seekLevel:    DefinitionLevelResourceSpansILSSpan,
-			expectedRow:  pq.RowNumber{5, 0, 1, 0, -1, -1, -1, -1},
-			expectedNext: pq.RowNumber{5, 0, 1, 1, -1, -1, -1, -1},
+			seekRow:      pq.RowNumber{5, 0, 1, 0, 0, -1, -1, -1}, // seek on higher level
+			seekLevel:    DefinitionLevelResourceSpansILSSpan + 1,
+			expectedRow:  pq.RowNumber{5, 0, 1, 1, -1, -1, -1, -1},
+			expectedNext: pq.RowNumber{5, 0, 1, 2, -1, -1, -1, -1},
 		},
 		{
-			seekRow:      pq.RowNumber{5, 0, 1, 3, -1, -1, -1, -1},
-			seekLevel:    DefinitionLevelResourceSpansILSSpan,
-			expectedRow:  pq.RowNumber{5, 0, 1, 3, -1, -1, -1, -1},
-			expectedNext: pq.RowNumber{5, 0, 1, 4, -1, -1, -1, -1},
+			seekRow:      pq.RowNumber{5, 0, 1, 4, 0, -1, -1, -1}, // seek past last virtual row on higher level
+			seekLevel:    DefinitionLevelResourceSpansILSSpan + 1,
+			expectedRow:  pq.RowNumber{5, 0, 2, 0, -1, -1, -1, -1},
+			expectedNext: pq.RowNumber{5, 0, 2, 1, -1, -1, -1, -1},
+		},
+		{
+			seekRow:      pq.RowNumber{5, 0, 2, 4, -1, -1, -1, -1}, // seek on higher level and row number with fewer levels
+			seekLevel:    DefinitionLevelResourceSpansILSSpan + 1,
+			expectedRow:  pq.RowNumber{5, 0, 2, 4, -1, -1, -1, -1},
+			expectedNext: pq.RowNumber{5, 0, 2, 5, -1, -1, -1, -1},
 		},
 	}
 

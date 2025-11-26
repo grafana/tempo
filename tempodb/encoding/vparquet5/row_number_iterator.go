@@ -120,11 +120,17 @@ func (v *virtualRowNumberIterator) SeekTo(rowNumber pq.RowNumber, definitionLeve
 	if definitionLevel >= v.definitionLevel && rowNumber[v.definitionLevel] >= 0 {
 		seek = rowNumber[v.definitionLevel] + 1
 	}
+	if definitionLevel > v.definitionLevel && rowNumber[v.definitionLevel+1] >= 0 {
+		seek++
+	}
 
 	for seek > 0 && v.rowsLeft > 0 {
 		seek--
 		v.rowsLeft--
 		v.at.RowNumber.Next(v.definitionLevel, v.definitionLevel, v.definitionLevel)
+	}
+	if v.rowsLeft == 0 && seek > 0 {
+		return v.Next()
 	}
 
 	return &v.at, nil
