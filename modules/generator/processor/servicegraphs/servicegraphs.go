@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
@@ -21,6 +20,8 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/modules/generator/validation"
+	"github.com/grafana/tempo/pkg/cache/reclaimable"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -80,6 +81,7 @@ type Processor struct {
 	serviceGraphRequestServerSecondsHistogram          registry.Histogram
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
+	sanitizeCache                                      reclaimable.Cache[string, string]
 
 	metricDroppedSpans prometheus.Counter
 	metricTotalEdges   prometheus.Counter
@@ -93,6 +95,8 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
 
+	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
+
 	p := &Processor{
 		Cfg:      cfg,
 		registry: reg,
@@ -103,6 +107,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, in
 		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
+		sanitizeCache: sanitizeCache,
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
@@ -343,10 +348,10 @@ func (p *Processor) onComplete(e *store.Edge) {
 					continue
 				}
 			}
-			builder.Add(strutil.SanitizeLabelName("client_"+dimension), e.Dimensions["client_"+dimension])
-			builder.Add(strutil.SanitizeLabelName("server_"+dimension), e.Dimensions["server_"+dimension])
+			builder.Add(p.sanitizeCache.Get("client_"+dimension), e.Dimensions["client_"+dimension])
+			builder.Add(p.sanitizeCache.Get("server_"+dimension), e.Dimensions["server_"+dimension])
 		} else {
-			builder.Add(strutil.SanitizeLabelName(dimension), e.Dimensions[dimension])
+			builder.Add(p.sanitizeCache.Get(dimension), e.Dimensions[dimension])
 		}
 	}
 
