@@ -95,9 +95,11 @@ func (v *virtualRowNumberIterator) Next() (*pq.IteratorResult, error) {
 }
 
 func (v *virtualRowNumberIterator) SeekTo(rowNumber pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
-	scopeLevel := min(definitionLevel, v.definitionLevel-1)
-	if pq.CompareRowNumbers(scopeLevel, rowNumber, v.at.RowNumber) != 0 {
-		res, err := v.iter.SeekTo(rowNumber, scopeLevel)
+	// determine the definition level used for comparison of non-virtual row numbers (used for seeking in the row number column)
+	cmpLevel := min(definitionLevel, v.definitionLevel-1)
+
+	if pq.CompareRowNumbers(cmpLevel, rowNumber, v.at.RowNumber) != 0 {
+		res, err := v.iter.SeekTo(rowNumber, cmpLevel)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +117,7 @@ func (v *virtualRowNumberIterator) SeekTo(rowNumber pq.RowNumber, definitionLeve
 			return &v.at, nil
 		}
 	} else {
-		v.at.RowNumber = pq.TruncateRowNumber(scopeLevel, rowNumber)
+		v.at.RowNumber = pq.TruncateRowNumber(cmpLevel, rowNumber)
 		v.rowsLeft = v.rowsMax
 	}
 
