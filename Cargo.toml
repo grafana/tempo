@@ -63,8 +63,8 @@ strip = true
 panic = "unwind"
 
 [profile.bench]
-opt-level = 1
+opt-level = 2
 inherits = "release"
-lto = false
+lto = "thin"
 debug = true
 strip = false

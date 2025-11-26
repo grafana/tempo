@@ -21,3 +21,7 @@ test_each_file = "0.3"
 [[bench]]
 name = "traceql_queries"
 harness = false
+
+[[bench]]
+name = "sql_queries"
+harness = false

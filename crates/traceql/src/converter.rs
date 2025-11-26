@@ -4,6 +4,36 @@
 use super::ast::*;
 use std::fmt::Write;
 
+/// Represents which level of the trace hierarchy a filter applies to
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum FilterLevel {
+    Trace,    // Applied at traces table level
+    Resource, // Applied after ResourceSpans unnest
+    Span,     // Applied after Spans unnest
+}
+
+/// Classified filter expressions for each hierarchy level
+#[derive(Debug, Default)]
+struct ClassifiedFilters {
+    trace_filters: Vec<String>,
+    resource_filters: Vec<String>,
+    span_filters: Vec<String>,
+}
+
+impl ClassifiedFilters {
+    fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// Context for writing field paths
+#[derive(Copy, Clone)]
+enum FieldContext {
+    Trace,
+    Resource,
+    Span,
+}
+
 /// Convert a TraceQL query to SQL
 pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
     let mut sql = String::new();
@@ -56,7 +86,7 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
 
         // Add having condition if present
         if let Some(having) = &query.having {
-            write!(&mut sql, " WHERE ")?;
+            write!(&mut sql, " HAVING ")?;
             // Determine the aggregation column name based on the pipeline operation
             let agg_column = match non_select_ops.first() {
                 Some(PipelineOp::Count { .. }) => "count",
@@ -75,75 +105,480 @@ pub fn traceql_to_sql(query: &TraceQLQuery) -> Result<String, ConversionError> {
     Ok(sql)
 }
 
-/// Write a simple span filter query
-fn write_span_filter_query(
+/// Helper to determine most specific level (Span > Resource > Trace)
+fn most_specific_level(a: FilterLevel, b: FilterLevel) -> FilterLevel {
+    match (a, b) {
+        (FilterLevel::Span, _) | (_, FilterLevel::Span) => FilterLevel::Span,
+        (FilterLevel::Resource, _) | (_, FilterLevel::Resource) => FilterLevel::Resource,
+        _ => FilterLevel::Trace,
+    }
+}
+
+/// Helper to determine least specific level (Trace < Resource < Span)
+fn least_specific_level(a: FilterLevel, b: FilterLevel) -> FilterLevel {
+    match (a, b) {
+        (FilterLevel::Trace, _) | (_, FilterLevel::Trace) => FilterLevel::Trace,
+        (FilterLevel::Resource, _) | (_, FilterLevel::Resource) => FilterLevel::Resource,
+        _ => FilterLevel::Span,
+    }
+}
+
+/// Determines which level a field reference belongs to
+fn determine_field_level(field: &FieldRef) -> Result<FilterLevel, ConversionError> {
+    match field.scope {
+        FieldScope::Resource => Ok(FilterLevel::Resource),
+        FieldScope::Span => Ok(FilterLevel::Span),
+        FieldScope::Unscoped => Ok(FilterLevel::Span), // Default unscoped to span
+        FieldScope::Intrinsic => {
+            // Classify intrinsics by whether they're trace-level or span-level
+            match field.name.as_str() {
+                "rootServiceName" | "rootName" | "traceDuration" => Ok(FilterLevel::Trace),
+                _ => Ok(FilterLevel::Span), // Most intrinsics are span-level
+            }
+        }
+    }
+}
+
+/// Adds a filter SQL string to the appropriate level
+fn add_filter_to_level(classified: &mut ClassifiedFilters, level: FilterLevel, sql: String) {
+    match level {
+        FilterLevel::Trace => classified.trace_filters.push(sql),
+        FilterLevel::Resource => classified.resource_filters.push(sql),
+        FilterLevel::Span => classified.span_filters.push(sql),
+    }
+}
+
+/// Writes SQL for a filter expression at a specific context level
+fn write_filter_expr(
     sql: &mut String,
-    filter: &SpanFilter,
-    select_fields: Option<&[FieldRef]>,
+    expr: &Expr,
+    context: FieldContext,
 ) -> Result<(), ConversionError> {
-    // Check if the filter uses trace-level intrinsics that require a join
-    let needs_root_join = filter.expr.as_ref().map_or(false, |e| uses_trace_level_intrinsic(e));
+    match expr {
+        Expr::BinaryOp { left, op, right } => {
+            write!(sql, "(")?;
+            write_filter_expr(sql, left, context)?;
+            let sql_op = match op {
+                BinaryOperator::And => "AND",
+                BinaryOperator::Or => "OR",
+            };
+            write!(sql, " {} ", sql_op)?;
+            write_filter_expr(sql, right, context)?;
+            write!(sql, ")")?;
+        }
+        Expr::UnaryOp { op, expr } => {
+            let sql_op = match op {
+                UnaryOperator::Not => "NOT",
+            };
+            write!(sql, "{} (", sql_op)?;
+            write_filter_expr(sql, expr, context)?;
+            write!(sql, ")")?;
+        }
+        Expr::Comparison { field, op, value } => {
+            write_comparison_with_context(sql, field, op, value, context)?;
+        }
+    }
+    Ok(())
+}
 
-    if needs_root_join {
-        // Use a join with the root span
-        if let Some(fields) = select_fields {
-            write!(sql, "SELECT ")?;
-            for (i, field) in fields.iter().enumerate() {
-                if i > 0 {
-                    write!(sql, ", ")?;
+/// Analyzes a filter expression and classifies predicates by hierarchy level
+fn classify_filter_expression(
+    expr: &Option<Expr>,
+) -> Result<ClassifiedFilters, ConversionError> {
+    let mut classified = ClassifiedFilters::new();
+
+    if let Some(expr) = expr {
+        classify_expr_recursive(expr, &mut classified)?;
+    }
+
+    Ok(classified)
+}
+
+/// Recursively walks expression tree and classifies leaf predicates
+fn classify_expr_recursive(
+    expr: &Expr,
+    classified: &mut ClassifiedFilters,
+) -> Result<FilterLevel, ConversionError> {
+    match expr {
+        Expr::BinaryOp { left, op, right } => {
+            match op {
+                BinaryOperator::And => {
+                    // AND can split predicates across levels
+                    let left_level = classify_expr_recursive(left, classified)?;
+                    let right_level = classify_expr_recursive(right, classified)?;
+                    Ok(most_specific_level(left_level, right_level))
                 }
-                let col = field_to_sql(field, "spans.")?;
-                write!(sql, "{}", col)?;
-            }
-            writeln!(sql, " FROM spans")?;
-        } else {
-            writeln!(sql, "SELECT spans.* FROM spans")?;
-        }
-        writeln!(sql, "INNER JOIN spans root ON root.\"TraceID\" = spans.\"TraceID\"")?;
-        writeln!(sql, "  AND (root.\"ParentSpanID\" = '' OR root.\"ParentSpanID\" IS NULL)")?;
+                BinaryOperator::Or => {
+                    // OR must keep both sides at the same (lowest common) level
+                    let left_level = classify_expr_recursive(left, classified)?;
+                    let right_level = classify_expr_recursive(right, classified)?;
+                    let common_level = least_specific_level(left_level, right_level);
 
-        if let Some(expr) = &filter.expr {
-            write!(sql, "WHERE ")?;
-            write_expr_with_root_join(sql, expr)?;
-            writeln!(sql)?;
+                    // Generate SQL for the entire OR expression
+                    let mut or_sql = String::new();
+                    let context = match common_level {
+                        FilterLevel::Trace => FieldContext::Trace,
+                        FilterLevel::Resource => FieldContext::Resource,
+                        FilterLevel::Span => FieldContext::Span,
+                    };
+                    write_filter_expr(&mut or_sql, expr, context)?;
+
+                    add_filter_to_level(classified, common_level, or_sql);
+                    Ok(common_level)
+                }
+            }
         }
+        Expr::UnaryOp { expr: inner, .. } => {
+            // For NOT, classify the inner expression first
+            let level = classify_expr_recursive(inner, classified)?;
+
+            // Generate SQL with NOT
+            let mut not_sql = String::new();
+            let context = match level {
+                FilterLevel::Trace => FieldContext::Trace,
+                FilterLevel::Resource => FieldContext::Resource,
+                FilterLevel::Span => FieldContext::Span,
+            };
+            write_filter_expr(&mut not_sql, expr, context)?;
+
+            add_filter_to_level(classified, level, not_sql);
+            Ok(level)
+        }
+        Expr::Comparison { field, op, value } => {
+            let level = determine_field_level(field)?;
+
+            // Generate SQL for this comparison
+            let mut comp_sql = String::new();
+            let context = match level {
+                FilterLevel::Trace => FieldContext::Trace,
+                FilterLevel::Resource => FieldContext::Resource,
+                FilterLevel::Span => FieldContext::Span,
+            };
+            write_comparison_with_context(&mut comp_sql, field, op, value, context)?;
+
+            add_filter_to_level(classified, level, comp_sql);
+            Ok(level)
+        }
+    }
+}
+
+/// Writes SQL path for a resource-scoped field in the nested structure
+fn write_resource_field_path(
+    sql: &mut String,
+    field_name: &str,
+) -> Result<(), ConversionError> {
+    // Check dedicated resource columns first
+    let dedicated_column = match field_name {
+        "service.name" => Some("resource.\"Resource\".\"ServiceName\""),
+        "cluster" => Some("resource.\"Resource\".\"Cluster\""),
+        "namespace" => Some("resource.\"Resource\".\"Namespace\""),
+        "pod" => Some("resource.\"Resource\".\"Pod\""),
+        "container" => Some("resource.\"Resource\".\"Container\""),
+        "k8s.cluster.name" => Some("resource.\"Resource\".\"K8sClusterName\""),
+        "k8s.namespace.name" => Some("resource.\"Resource\".\"K8sNamespaceName\""),
+        "k8s.pod.name" => Some("resource.\"Resource\".\"K8sPodName\""),
+        "k8s.container.name" => Some("resource.\"Resource\".\"K8sContainerName\""),
+        _ => None,
+    };
+
+    if let Some(column) = dedicated_column {
+        sql.push_str(column);
     } else {
-        if let Some(fields) = select_fields {
-            write!(sql, "SELECT ")?;
-            for (i, field) in fields.iter().enumerate() {
-                if i > 0 {
-                    write!(sql, ", ")?;
-                }
-                let col = field_to_sql(field, "")?;
-                write!(sql, "{}", col)?;
-            }
-            writeln!(sql, " FROM spans")?;
-        } else {
-            writeln!(sql, "SELECT * FROM spans")?;
-        }
+        // Generic attribute via attrs_to_map UDF
+        sql.push_str("flatten(map_extract(attrs_to_map(resource.\"Resource\".\"Attrs\"), '");
+        sql.push_str(field_name);
+        sql.push_str("'))");
+    }
 
-        if let Some(expr) = &filter.expr {
-            write!(sql, "WHERE ")?;
-            write_expr(sql, expr)?;
-            writeln!(sql)?;
+    Ok(())
+}
+
+/// Writes SQL path for a span-scoped field in the nested structure
+fn write_span_field_path(
+    sql: &mut String,
+    field_name: &str,
+) -> Result<(), ConversionError> {
+    // Check dedicated span columns first
+    let dedicated_column = match field_name {
+        "http.method" => Some("span.\"HttpMethod\""),
+        "http.url" => Some("span.\"HttpUrl\""),
+        "http.status_code" | "http.response_code" => Some("span.\"HttpStatusCode\""),
+        _ => None,
+    };
+
+    if let Some(column) = dedicated_column {
+        sql.push_str(column);
+    } else {
+        // Generic attribute via attrs_to_map UDF
+        sql.push_str("flatten(map_extract(attrs_to_map(span.\"Attrs\"), '");
+        sql.push_str(field_name);
+        sql.push_str("'))");
+    }
+
+    Ok(())
+}
+
+/// Writes SQL path for a span intrinsic field in the nested structure
+fn write_span_intrinsic_path(
+    sql: &mut String,
+    intrinsic_name: &str,
+) -> Result<(), ConversionError> {
+    let column = match intrinsic_name {
+        "name" => "span.\"Name\"",
+        "duration" => "span.\"DurationNano\"",
+        "status" => "span.\"StatusCode\"",
+        "kind" => "span.\"Kind\"",
+        "spanID" => "span.\"SpanID\"",
+        "parentSpanID" => "span.\"ParentSpanID\"",
+        "traceID" => "\"TraceID\"", // Available at all levels
+        _ => return Err(ConversionError::Unsupported(
+            format!("Unsupported span intrinsic: {}", intrinsic_name)
+        )),
+    };
+
+    sql.push_str(column);
+    Ok(())
+}
+
+/// Writes SQL path for a trace-level field (used in trace WHERE clause)
+fn write_trace_field_path(
+    sql: &mut String,
+    intrinsic_name: &str,
+) -> Result<(), ConversionError> {
+    let column = match intrinsic_name {
+        "traceID" => "t.\"TraceID\"",
+        "startTime" => "t.\"StartTimeUnixNano\"",
+        "endTime" => "t.\"EndTimeUnixNano\"",
+        "duration" => "t.\"DurationNano\"",
+        "rootServiceName" => "t.\"RootServiceName\"",
+        "rootName" => "t.\"RootSpanName\"",
+        _ => return Err(ConversionError::Unsupported(
+            format!("Unsupported trace intrinsic: {}", intrinsic_name)
+        )),
+    };
+
+    sql.push_str(column);
+    Ok(())
+}
+
+/// Write a comparison expression with context-appropriate field paths
+fn write_comparison_with_context(
+    sql: &mut String,
+    field: &FieldRef,
+    op: &ComparisonOperator,
+    value: &Value,
+    context: FieldContext,
+) -> Result<(), ConversionError> {
+    // Determine if this is a list attribute
+    let is_list_attr = match field.scope {
+        FieldScope::Span => {
+            !matches!(field.name.as_str(),
+                "http.method" | "http.url" | "http.status_code" | "http.response_code")
+        }
+        FieldScope::Resource => {
+            !matches!(field.name.as_str(),
+                "service.name" | "cluster" | "namespace" | "pod" | "container" |
+                "k8s.cluster.name" | "k8s.namespace.name" | "k8s.pod.name" | "k8s.container.name"
+            )
+        }
+        FieldScope::Unscoped => true,
+        FieldScope::Intrinsic => false,
+    };
+
+    // Write the field path based on context
+    match field.scope {
+        FieldScope::Resource => {
+            write_resource_field_path(sql, &field.name)?;
+        }
+        FieldScope::Span | FieldScope::Unscoped => {
+            write_span_field_path(sql, &field.name)?;
+        }
+        FieldScope::Intrinsic => {
+            match context {
+                FieldContext::Trace => write_trace_field_path(sql, &field.name)?,
+                _ => write_span_intrinsic_path(sql, &field.name)?,
+            }
+        }
+    }
+
+    // Write operator and value with appropriate handling for list attributes
+    match op {
+        ComparisonOperator::Eq if is_list_attr => {
+            let field_sql = sql.clone();
+            sql.clear();
+            write!(sql, "list_contains({}, ", field_sql)?;
+            write_value(sql, value)?;
+            write!(sql, ")")?;
+        }
+        ComparisonOperator::NotEq if is_list_attr => {
+            let field_sql = sql.clone();
+            sql.clear();
+            write!(sql, "NOT list_contains({}, ", field_sql)?;
+            write_value(sql, value)?;
+            write!(sql, ")")?;
+        }
+        ComparisonOperator::Regex if is_list_attr => {
+            let field_sql = sql.clone();
+            sql.clear();
+            write!(sql, "array_to_string({}, ',') ~ ", field_sql)?;
+            write_value(sql, value)?;
+        }
+        ComparisonOperator::NotRegex if is_list_attr => {
+            let field_sql = sql.clone();
+            sql.clear();
+            write!(sql, "array_to_string({}, ',') !~ ", field_sql)?;
+            write_value(sql, value)?;
+        }
+        ComparisonOperator::Regex => {
+            write!(sql, " ~ ")?;
+            write_value(sql, value)?;
+        }
+        ComparisonOperator::NotRegex => {
+            write!(sql, " !~ ")?;
+            write_value(sql, value)?;
+        }
+        _ => {
+            write!(sql, " {} ", op)?;
+            write_value(sql, value)?;
         }
     }
 
     Ok(())
 }
 
-/// Check if an expression uses trace-level intrinsic fields
-fn uses_trace_level_intrinsic(expr: &Expr) -> bool {
-    match expr {
-        Expr::BinaryOp { left, right, .. } => {
-            uses_trace_level_intrinsic(left) || uses_trace_level_intrinsic(right)
+/// Generates inline CTE chain with filter pushdown
+/// Returns the name of the final CTE to select from
+fn write_inline_spans_view_with_pushdown(
+    sql: &mut String,
+    filters: &ClassifiedFilters,
+    include_with_keyword: bool,
+) -> Result<&'static str, ConversionError> {
+    if include_with_keyword {
+        sql.push_str("WITH ");
+    }
+    sql.push_str("unnest_resources AS (\n");
+    sql.push_str("  SELECT t.\"TraceID\", UNNEST(t.rs) as resource\n");
+    sql.push_str("  FROM traces t\n");
+
+    // Apply trace-level filters
+    if !filters.trace_filters.is_empty() {
+        sql.push_str("  WHERE ");
+        sql.push_str(&filters.trace_filters.join(" AND "));
+        sql.push_str("\n");
+    }
+    sql.push_str(")");
+
+    // Conditionally add resource filtering CTE
+    let resource_source = if !filters.resource_filters.is_empty() {
+        sql.push_str(",\nfiltered_resources AS (\n");
+        sql.push_str("  SELECT * FROM unnest_resources\n");
+        sql.push_str("  WHERE ");
+        sql.push_str(&filters.resource_filters.join(" AND "));
+        sql.push_str("\n)");
+        "filtered_resources"
+    } else {
+        "unnest_resources"
+    };
+
+    // Unnest ScopeSpans
+    sql.push_str(",\nunnest_scopespans AS (\n");
+    sql.push_str("  SELECT \"TraceID\", resource, UNNEST(resource.ss) as scopespans\n");
+    sql.push_str(&format!("  FROM {}\n", resource_source));
+    sql.push_str(")");
+
+    // Unnest Spans
+    sql.push_str(",\nunnest_spans AS (\n");
+    sql.push_str("  SELECT \"TraceID\", resource, UNNEST(scopespans.\"Spans\") as span\n");
+    sql.push_str("  FROM unnest_scopespans\n");
+    sql.push_str(")");
+
+    // Add span-level filtering in a separate CTE if needed
+    let source_cte = if !filters.span_filters.is_empty() {
+        sql.push_str(",\nfiltered_spans AS (\n");
+        sql.push_str("  SELECT * FROM unnest_spans\n");
+        sql.push_str("  WHERE ");
+        sql.push_str(&filters.span_filters.join(" AND "));
+        sql.push_str("\n)");
+        "filtered_spans"
+    } else {
+        "unnest_spans"
+    };
+
+    Ok(source_cte)
+}
+
+/// Writes the final SELECT with field mappings
+fn write_final_projection(
+    sql: &mut String,
+    select_fields: Option<&[FieldRef]>,
+    source: &str,
+) -> Result<(), ConversionError> {
+    sql.push_str("\nSELECT ");
+
+    if let Some(fields) = select_fields {
+        // Explicit field list from SELECT clause
+        for (i, field) in fields.iter().enumerate() {
+            if i > 0 {
+                sql.push_str(", ");
+            }
+            write_projection_field(sql, field)?;
         }
-        Expr::UnaryOp { expr, .. } => uses_trace_level_intrinsic(expr),
-        Expr::Comparison { field, .. } => {
-            matches!(field.scope, FieldScope::Intrinsic)
-                && matches!(field.name.as_str(), "rootServiceName" | "rootName")
+    } else {
+        // Default: select all span fields with proper aliases
+        sql.push_str("\"TraceID\" AS \"TraceID\", ");
+        sql.push_str("span.\"SpanID\" AS \"SpanID\", ");
+        sql.push_str("span.\"Name\" AS \"Name\", ");
+        sql.push_str("span.\"Kind\" AS \"Kind\", ");
+        sql.push_str("span.\"ParentSpanID\" AS \"ParentSpanID\", ");
+        sql.push_str("span.\"StartTimeUnixNano\" AS \"StartTimeUnixNano\", ");
+        sql.push_str("span.\"DurationNano\" AS \"DurationNano\", ");
+        sql.push_str("span.\"StatusCode\" AS \"StatusCode\", ");
+        sql.push_str("span.\"HttpMethod\" AS \"HttpMethod\", ");
+        sql.push_str("span.\"HttpUrl\" AS \"HttpUrl\", ");
+        sql.push_str("span.\"HttpStatusCode\" AS \"HttpStatusCode\", ");
+        // sql.push_str("attrs_to_map(span.\"Attrs\") AS \"Attrs\", ");
+    }
+
+    write!(sql, "\nFROM {}", source)?;
+
+    Ok(())
+}
+
+/// Write a projection field with appropriate path
+fn write_projection_field(
+    sql: &mut String,
+    field: &FieldRef,
+) -> Result<(), ConversionError> {
+    match field.scope {
+        FieldScope::Resource => {
+            write_resource_field_path(sql, &field.name)?;
+        }
+        FieldScope::Span | FieldScope::Unscoped => {
+            write_span_field_path(sql, &field.name)?;
+        }
+        FieldScope::Intrinsic => {
+            write_span_intrinsic_path(sql, &field.name)?;
         }
     }
+    Ok(())
+}
+
+/// Write a simple span filter query
+fn write_span_filter_query(
+    sql: &mut String,
+    filter: &SpanFilter,
+    select_fields: Option<&[FieldRef]>,
+) -> Result<(), ConversionError> {
+    // Classify the filter expression
+    let classified = classify_filter_expression(&filter.expr)?;
+
+    // Generate inline view with pushdown
+    let source = write_inline_spans_view_with_pushdown(sql, &classified, true)?;
+
+    // Write final projection
+    write_final_projection(sql, select_fields, source)?;
+
+    Ok(())
 }
 
 /// Write a structural query (parent >> child)
@@ -152,38 +587,75 @@ fn write_structural_query(
     parent: &SpanFilter,
     child: &SpanFilter,
 ) -> Result<(), ConversionError> {
-    // Use nested set model to find parent-child relationships
-    writeln!(sql, "SELECT child.* FROM spans parent")?;
-    writeln!(sql, "INNER JOIN spans child")?;
-    writeln!(
-        sql,
-        "  ON child.\"NestedSetLeft\" > parent.\"NestedSetLeft\""
-    )?;
-    writeln!(
-        sql,
-        "  AND child.\"NestedSetRight\" < parent.\"NestedSetRight\""
-    )?;
-    writeln!(sql, "  AND child.\"TraceID\" = parent.\"TraceID\"")?;
+    // Classify parent and child filters separately
+    let parent_classified = classify_filter_expression(&parent.expr)?;
+    let child_classified = classify_filter_expression(&child.expr)?;
 
-    let mut conditions = Vec::new();
+    // Generate parent spans CTE
+    write_inline_spans_view_with_pushdown(sql, &parent_classified, true)?;
+    sql.push_str(", parent_spans AS (\n");
+    sql.push_str("  SELECT * FROM unnest_spans\n");
+    sql.push_str(")\n");
 
-    // Add parent filter
-    if let Some(expr) = &parent.expr {
-        let mut parent_filter = String::new();
-        write_expr_with_prefix(&mut parent_filter, expr, "parent")?;
-        conditions.push(parent_filter);
+    // Generate child spans CTE with prefixed names to avoid conflicts
+    sql.push_str(", child_unnest_resources AS (\n");
+    sql.push_str("  SELECT t.\"TraceID\", UNNEST(t.rs) as resource\n");
+    sql.push_str("  FROM traces t\n");
+    if !child_classified.trace_filters.is_empty() {
+        sql.push_str("  WHERE ");
+        sql.push_str(&child_classified.trace_filters.join(" AND "));
+        sql.push_str("\n");
     }
+    sql.push_str(")");
 
-    // Add child filter
-    if let Some(expr) = &child.expr {
-        let mut child_filter = String::new();
-        write_expr_with_prefix(&mut child_filter, expr, "child")?;
-        conditions.push(child_filter);
-    }
+    let child_resource_source = if !child_classified.resource_filters.is_empty() {
+        sql.push_str(",\nchild_filtered_resources AS (\n");
+        sql.push_str("  SELECT * FROM child_unnest_resources\n");
+        sql.push_str("  WHERE ");
+        sql.push_str(&child_classified.resource_filters.join(" AND "));
+        sql.push_str("\n)");
+        "child_filtered_resources"
+    } else {
+        "child_unnest_resources"
+    };
 
-    if !conditions.is_empty() {
-        writeln!(sql, "WHERE {}", conditions.join(" AND "))?;
-    }
+    sql.push_str(",\nchild_unnest_scopespans AS (\n");
+    sql.push_str("  SELECT \"TraceID\", resource, UNNEST(resource.ss) as scopespans\n");
+    sql.push_str(&format!("  FROM {}\n", child_resource_source));
+    sql.push_str(")");
+
+    sql.push_str(",\nchild_unnest_spans AS (\n");
+    sql.push_str("  SELECT \"TraceID\", resource, UNNEST(scopespans.\"Spans\") as span\n");
+    sql.push_str("  FROM child_unnest_scopespans\n");
+    sql.push_str(")");
+
+    // Add span-level filtering for child spans if needed
+    let child_source = if !child_classified.span_filters.is_empty() {
+        sql.push_str(",\nchild_filtered_spans AS (\n");
+        sql.push_str("  SELECT * FROM child_unnest_spans\n");
+        sql.push_str("  WHERE ");
+        sql.push_str(&child_classified.span_filters.join(" AND "));
+        sql.push_str("\n)");
+        "child_filtered_spans"
+    } else {
+        "child_unnest_spans"
+    };
+
+    sql.push_str(",\nchild_spans AS (\n");
+    sql.push_str("  SELECT \"TraceID\", ");
+    sql.push_str("span.\"SpanID\", ");
+    sql.push_str("span.\"Name\", ");
+    sql.push_str("span.\"NestedSetLeft\", ");
+    sql.push_str("span.\"NestedSetRight\" ");
+    write!(sql, "FROM {}\n", child_source)?;
+    sql.push_str(")\n");
+
+    // Join parent and child on nested set relationships
+    sql.push_str("SELECT child_spans.* FROM parent_spans\n");
+    sql.push_str("INNER JOIN child_spans\n");
+    sql.push_str("  ON child_spans.\"TraceID\" = parent_spans.\"TraceID\"\n");
+    sql.push_str("  AND child_spans.\"NestedSetLeft\" > parent_spans.\"NestedSetLeft\"\n");
+    sql.push_str("  AND child_spans.\"NestedSetRight\" < parent_spans.\"NestedSetRight\"\n");
 
     Ok(())
 }
@@ -192,185 +664,14 @@ fn write_structural_query(
 fn write_union_query(sql: &mut String, filters: &[SpanFilter]) -> Result<(), ConversionError> {
     for (i, filter) in filters.iter().enumerate() {
         if i > 0 {
-            writeln!(sql, "UNION")?;
+            writeln!(sql, "\nUNION\n")?;
         }
-        write_span_filter_query(sql, filter, None)?;
+
+        // Each branch gets its own classification and pushdown
+        let classified = classify_filter_expression(&filter.expr)?;
+        let source = write_inline_spans_view_with_pushdown(sql, &classified, true)?;
+        write_final_projection(sql, None, source)?;
     }
-    Ok(())
-}
-
-/// Write an expression
-fn write_expr(sql: &mut String, expr: &Expr) -> Result<(), ConversionError> {
-    write_expr_with_prefix(sql, expr, "")
-}
-
-/// Write an expression with root join support
-fn write_expr_with_root_join(sql: &mut String, expr: &Expr) -> Result<(), ConversionError> {
-    match expr {
-        Expr::BinaryOp { left, op, right } => {
-            write!(sql, "(")?;
-            write_expr_with_root_join(sql, left)?;
-            // Convert TraceQL logical operators to SQL equivalents
-            let sql_op = match op {
-                BinaryOperator::And => "AND",
-                BinaryOperator::Or => "OR",
-            };
-            write!(sql, " {} ", sql_op)?;
-            write_expr_with_root_join(sql, right)?;
-            write!(sql, ")")?;
-        }
-        Expr::UnaryOp { op, expr } => {
-            // Convert TraceQL NOT operator to SQL equivalent
-            let sql_op = match op {
-                UnaryOperator::Not => "NOT",
-            };
-            write!(sql, "{} ", sql_op)?;
-            write!(sql, "(")?;
-            write_expr_with_root_join(sql, expr)?;
-            write!(sql, ")")?;
-        }
-        Expr::Comparison { field, op, value } => {
-            write_comparison_with_root_join(sql, field, op, value)?;
-        }
-    }
-    Ok(())
-}
-
-/// Write a comparison expression with root join support
-fn write_comparison_with_root_join(
-    sql: &mut String,
-    field: &FieldRef,
-    op: &ComparisonOperator,
-    value: &Value,
-) -> Result<(), ConversionError> {
-    // Check if this is a trace-level intrinsic that uses the root table
-    if matches!(field.scope, FieldScope::Intrinsic)
-        && matches!(field.name.as_str(), "rootServiceName" | "rootName") {
-        // Use the root table prefix for trace-level intrinsics
-        write_comparison(sql, field, op, value, "root")?;
-    } else {
-        // Use spans table prefix for regular fields
-        write_comparison(sql, field, op, value, "spans")?;
-    }
-    Ok(())
-}
-
-/// Write an expression with an optional table prefix
-fn write_expr_with_prefix(
-    sql: &mut String,
-    expr: &Expr,
-    prefix: &str,
-) -> Result<(), ConversionError> {
-    match expr {
-        Expr::BinaryOp { left, op, right } => {
-            write!(sql, "(")?;
-            write_expr_with_prefix(sql, left, prefix)?;
-            // Convert TraceQL logical operators to SQL equivalents
-            let sql_op = match op {
-                BinaryOperator::And => "AND",
-                BinaryOperator::Or => "OR",
-            };
-            write!(sql, " {} ", sql_op)?;
-            write_expr_with_prefix(sql, right, prefix)?;
-            write!(sql, ")")?;
-        }
-        Expr::UnaryOp { op, expr } => {
-            // Convert TraceQL NOT operator to SQL equivalent
-            let sql_op = match op {
-                UnaryOperator::Not => "NOT",
-            };
-            write!(sql, "{} ", sql_op)?;
-            write!(sql, "(")?;
-            write_expr_with_prefix(sql, expr, prefix)?;
-            write!(sql, ")")?;
-        }
-        Expr::Comparison { field, op, value } => {
-            write_comparison(sql, field, op, value, prefix)?;
-        }
-    }
-    Ok(())
-}
-
-/// Write a comparison expression
-fn write_comparison(
-    sql: &mut String,
-    field: &FieldRef,
-    op: &ComparisonOperator,
-    value: &Value,
-    prefix: &str,
-) -> Result<(), ConversionError> {
-    let table_prefix = if prefix.is_empty() {
-        String::new()
-    } else {
-        format!("{}.", prefix)
-    };
-
-    // Check if this is a span or resource attribute that returns a list
-    let is_list_attr = match field.scope {
-        FieldScope::Span => {
-            // Span attributes except dedicated columns
-            !matches!(field.name.as_str(), "http.method" | "http.url" | "http.status_code" | "http.response_code")
-        }
-        FieldScope::Resource => {
-            // Resource attributes except dedicated columns
-            !matches!(field.name.as_str(),
-                "service.name" | "cluster" | "namespace" | "pod" | "container" |
-                "k8s.cluster.name" | "k8s.namespace.name" | "k8s.pod.name" | "k8s.container.name"
-            )
-        }
-        FieldScope::Unscoped => {
-            // Unscoped fields use map_extract which returns a list
-            true
-        }
-        _ => false
-    };
-
-    // Map TraceQL field to SQL column
-    let sql_field = field_to_sql(field, &table_prefix)?;
-
-    // Write the comparison
-    match op {
-        ComparisonOperator::Eq if is_list_attr => {
-            // Use list_contains for span and resource attributes
-            write!(sql, "list_contains({}, ", sql_field)?;
-            write_value(sql, value)?;
-            write!(sql, ")")?;
-        }
-        ComparisonOperator::NotEq if is_list_attr => {
-            // Use NOT list_contains for span and resource attributes
-            write!(sql, "NOT list_contains({}, ", sql_field)?;
-            write_value(sql, value)?;
-            write!(sql, ")")?;
-        }
-        ComparisonOperator::Regex if is_list_attr => {
-            // TODO: Use proper list aggregation instead of array_to_string
-            // This workaround concatenates all list elements which may produce false matches
-            // Should use a list iteration function when available in DataFusion
-            write!(sql, "array_to_string({}, ',') ~ ", sql_field)?;
-            write_value(sql, value)?;
-        }
-        ComparisonOperator::NotRegex if is_list_attr => {
-            // TODO: Use proper list aggregation instead of array_to_string
-            // This workaround concatenates all list elements which may produce false matches
-            // Should use a list iteration function when available in DataFusion
-            write!(sql, "array_to_string({}, ',') !~ ", sql_field)?;
-            write_value(sql, value)?;
-        }
-        ComparisonOperator::Regex => {
-            // Use DataFusion regex match
-            write!(sql, "{} ~ ", sql_field)?;
-            write_value(sql, value)?;
-        }
-        ComparisonOperator::NotRegex => {
-            write!(sql, "{} !~ ", sql_field)?;
-            write_value(sql, value)?;
-        }
-        _ => {
-            write!(sql, "{} {} ", sql_field, op)?;
-            write_value(sql, value)?;
-        }
-    }
-
     Ok(())
 }
 
@@ -450,6 +751,17 @@ fn field_to_sql(field: &FieldRef, table_prefix: &str) -> Result<String, Conversi
     }
 }
 
+/// Maps a TraceQL field name to the SQL column name used in the base_spans projection
+fn map_field_to_column_name(field_name: &str) -> &str {
+    match field_name {
+        "status" => "\"StatusCode\"",
+        "name" => "\"Name\"",
+        "duration" => "\"DurationNano\"",
+        "kind" => "\"Kind\"",
+        _ => field_name,
+    }
+}
+
 /// Write a value to SQL
 fn write_value(sql: &mut String, value: &Value) -> Result<(), ConversionError> {
     match value {
@@ -508,21 +820,16 @@ fn write_pipeline_op(
             // Use date_bin to create time buckets
             write!(sql, "SELECT ")?;
 
-            // Add time bucket column
+            // Add time bucket column (cast UInt64 to Int64 for to_timestamp_nanos)
             write!(
                 sql,
-                "date_bin(INTERVAL '5 minutes', to_timestamp_nanos(\"StartTimeUnixNano\"), TIMESTAMP '1970-01-01 00:00:00') as time_bucket"
+                "date_bin(INTERVAL '5 minutes', to_timestamp_nanos(CAST(\"StartTimeUnixNano\" AS BIGINT)), TIMESTAMP '1970-01-01 00:00:00') as time_bucket"
             )?;
 
             // Add group by fields
             for field in group_by {
-                // Assume group_by fields are intrinsic fields
-                let field_ref = FieldRef {
-                    scope: FieldScope::Intrinsic,
-                    name: field.clone(),
-                };
-                let column_name = field_to_sql(&field_ref, "")?;
-                write!(sql, ", {} as {}", column_name, field)?;
+                let column_name = map_field_to_column_name(field);
+                write!(sql, ", {}", column_name)?;
             }
 
             // Add rate calculation (count per 5 minutes)
@@ -533,14 +840,16 @@ fn write_pipeline_op(
             // Add GROUP BY clause
             write!(sql, "GROUP BY time_bucket")?;
             for field in group_by {
-                write!(sql, ", {}", field)?;
+                let column_name = map_field_to_column_name(field);
+                write!(sql, ", {}", column_name)?;
             }
             writeln!(sql)?;
 
             // Order by time bucket and group by fields
             write!(sql, "ORDER BY time_bucket")?;
             for field in group_by {
-                write!(sql, ", {}", field)?;
+                let column_name = map_field_to_column_name(field);
+                write!(sql, ", {}", column_name)?;
             }
         }
         PipelineOp::Count { group_by } => {
@@ -552,7 +861,8 @@ fn write_pipeline_op(
                     if i > 0 {
                         write!(sql, ", ")?;
                     }
-                    write!(sql, "{}", field)?;
+                    let column_name = map_field_to_column_name(field);
+                    write!(sql, "{}", column_name)?;
                 }
                 write!(sql, ", ")?;
             }
@@ -566,7 +876,8 @@ fn write_pipeline_op(
                     if i > 0 {
                         write!(sql, ", ")?;
                     }
-                    write!(sql, "{}", field)?;
+                    let column_name = map_field_to_column_name(field);
+                    write!(sql, "{}", column_name)?;
                 }
                 writeln!(sql)?;
             }
@@ -577,11 +888,13 @@ fn write_pipeline_op(
             // Add group by fields
             if !group_by.is_empty() {
                 for f in group_by {
-                    write!(sql, "{}, ", f)?;
+                    let column_name = map_field_to_column_name(f);
+                    write!(sql, "{}, ", column_name)?;
                 }
             }
 
-            writeln!(sql, "AVG({}) as avg FROM {}", field, source)?;
+            let field_column = map_field_to_column_name(field);
+            writeln!(sql, "AVG({}) as avg FROM {}", field_column, source)?;
 
             // Add GROUP BY clause if needed
             if !group_by.is_empty() {
@@ -590,7 +903,8 @@ fn write_pipeline_op(
                     if i > 0 {
                         write!(sql, ", ")?;
                     }
-                    write!(sql, "{}", f)?;
+                    let column_name = map_field_to_column_name(f);
+                    write!(sql, "{}", column_name)?;
                 }
                 writeln!(sql)?;
             }
@@ -601,11 +915,13 @@ fn write_pipeline_op(
             // Add group by fields
             if !group_by.is_empty() {
                 for f in group_by {
-                    write!(sql, "{}, ", f)?;
+                    let column_name = map_field_to_column_name(f);
+                    write!(sql, "{}, ", column_name)?;
                 }
             }
 
-            writeln!(sql, "SUM({}) as sum FROM {}", field, source)?;
+            let field_column = map_field_to_column_name(field);
+            writeln!(sql, "SUM({}) as sum FROM {}", field_column, source)?;
 
             // Add GROUP BY clause if needed
             if !group_by.is_empty() {
@@ -614,7 +930,8 @@ fn write_pipeline_op(
                     if i > 0 {
                         write!(sql, ", ")?;
                     }
-                    write!(sql, "{}", f)?;
+                    let column_name = map_field_to_column_name(f);
+                    write!(sql, "{}", column_name)?;
                 }
                 writeln!(sql)?;
             }
@@ -625,11 +942,13 @@ fn write_pipeline_op(
             // Add group by fields
             if !group_by.is_empty() {
                 for f in group_by {
-                    write!(sql, "{}, ", f)?;
+                    let column_name = map_field_to_column_name(f);
+                    write!(sql, "{}, ", column_name)?;
                 }
             }
 
-            writeln!(sql, "MIN({}) as min FROM {}", field, source)?;
+            let field_column = map_field_to_column_name(field);
+            writeln!(sql, "MIN({}) as min FROM {}", field_column, source)?;
 
             // Add GROUP BY clause if needed
             if !group_by.is_empty() {
@@ -638,7 +957,8 @@ fn write_pipeline_op(
                     if i > 0 {
                         write!(sql, ", ")?;
                     }
-                    write!(sql, "{}", f)?;
+                    let column_name = map_field_to_column_name(f);
+                    write!(sql, "{}", column_name)?;
                 }
                 writeln!(sql)?;
             }
@@ -649,11 +969,13 @@ fn write_pipeline_op(
             // Add group by fields
             if !group_by.is_empty() {
                 for f in group_by {
-                    write!(sql, "{}, ", f)?;
+                    let column_name = map_field_to_column_name(f);
+                    write!(sql, "{}, ", column_name)?;
                 }
             }
 
-            writeln!(sql, "MAX({}) as max FROM {}", field, source)?;
+            let field_column = map_field_to_column_name(field);
+            writeln!(sql, "MAX({}) as max FROM {}", field_column, source)?;
 
             // Add GROUP BY clause if needed
             if !group_by.is_empty() {
@@ -662,7 +984,8 @@ fn write_pipeline_op(
                     if i > 0 {
                         write!(sql, ", ")?;
                     }
-                    write!(sql, "{}", f)?;
+                    let column_name = map_field_to_column_name(f);
+                    write!(sql, "{}", column_name)?;
                 }
                 writeln!(sql)?;
             }
@@ -710,7 +1033,9 @@ mod tests {
     fn test_empty_filter() {
         let query = parse("{ }").unwrap();
         let sql = traceql_to_sql(&query).unwrap();
-        assert!(sql.contains("SELECT * FROM spans"));
+        // Should generate inline CTEs with unnest operations
+        assert!(sql.contains("WITH unnest_resources"));
+        assert!(sql.contains("FROM unnest_spans"));
     }
 
     #[test]

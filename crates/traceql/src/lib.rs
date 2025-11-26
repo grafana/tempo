@@ -78,7 +78,9 @@ mod tests {
     #[test]
     fn test_end_to_end_simple() {
         let sql = traceql_to_sql_string("{ }").unwrap();
-        assert!(sql.contains("SELECT * FROM spans"));
+        // Should generate inline CTEs with unnest operations
+        assert!(sql.contains("WITH unnest_resources"));
+        assert!(sql.contains("FROM unnest_spans"));
     }
 
     #[test]
