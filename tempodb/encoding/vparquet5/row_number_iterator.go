@@ -44,14 +44,17 @@ var _ pq.Iterator = (*virtualRowNumberIterator)(nil)
 // to calculate virtual row numbers on the given definitionLevel. This is used to iterate over spans in a trace without
 // actually reading a column on span definition level.
 type virtualRowNumberIterator struct {
-	iter            pq.Iterator // iterator returning row count
-	definitionLevel int
+	iter            pq.Iterator // iterator returning the row count
+	definitionLevel int         // definition level of virtual row numbers
 
 	at       pq.IteratorResult
 	rowsMax  int32
 	rowsLeft int32
 }
 
+// newVirtualRowNumberIterator creates a new virtual row number iterator. The iterator will read the row count from the
+// given column and use it to calculate virtual row numbers on the given definitionLevel. The row number column read by iter
+// is expected to have a definition level lower than definitionLevel.
 func newVirtualRowNumberIterator(iter pq.Iterator, definitionLevel int) *virtualRowNumberIterator {
 	return &virtualRowNumberIterator{
 		iter:            iter,
