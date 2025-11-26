@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "ksonnet-util"
+        }
+      },
+      "version": "a64f0ca4b1c285d615fd0cbbf5870ae291b6914e",
+      "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/rollout-operator.git",
+          "subdir": "operations/rollout-operator"
+        }
+      },
+      "version": "4a47245cb7ffa81a0a94c704de36e2e6069421fd",
+      "sum": "nu+33+dylfBD2zFTNQ+9x4LztbdhFAtXrNjoe/jyon8="
+    }
+  ],
+  "legacyImports": false
+}
