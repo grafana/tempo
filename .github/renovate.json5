@@ -11,10 +11,6 @@
   ignoreDeps: [],
   separateMajorMinor: true,
   separateMultipleMajor: true,
-  minimumReleaseAge: '14 days',
-  // Prevent PR creation until minimumReleaseAge has passed (blocks the renovate/stability-days check)
-  internalChecksFilter: 'strict',
-  // Add extra labels to PRs, can be used filter PRs created by renovate
   labels: ['dependencies', 'renovate'],
   packageRules: [
     {
