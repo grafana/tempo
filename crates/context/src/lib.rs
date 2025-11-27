@@ -1,15 +1,15 @@
 use config::Config;
-use provider::{display, register_tempo_table, register_udfs, create_flattened_view};
-use storage::BlockInfo;
-use traceql;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::*;
 use datafusion_physical_plan::metrics::MetricsSet;
 use object_store::ObjectStore;
+use provider::{create_flattened_view, display, register_tempo_table, register_udfs};
 use std::collections::HashMap;
 use std::sync::Arc;
+use storage::BlockInfo;
+use traceql;
 use tracing::{debug, info};
 
 /// Create a new DataFusion session context
@@ -29,9 +29,9 @@ pub async fn create_context(config_file: Option<&str>) -> Result<SessionContext>
     }
 
     // Validate the configuration - fail if invalid
-    app_config.validate().map_err(|e| {
-        DataFusionError::External(format!("Invalid configuration: {}", e).into())
-    })?;
+    app_config
+        .validate()
+        .map_err(|e| DataFusionError::External(format!("Invalid configuration: {}", e).into()))?;
 
     info!("Using S3 configuration:");
     info!("  Endpoint: {}", app_config.s3.endpoint);
@@ -42,11 +42,17 @@ pub async fn create_context(config_file: Option<&str>) -> Result<SessionContext>
         "  Pool Max Idle Per Host: {}",
         app_config.s3.pool_max_idle_per_host
     );
-    info!("  Pool Idle Timeout: {}s", app_config.s3.pool_idle_timeout_secs);
+    info!(
+        "  Pool Idle Timeout: {}s",
+        app_config.s3.pool_idle_timeout_secs
+    );
     info!("  Cutoff Hours: {}", app_config.s3.cutoff_hours);
 
     info!("Using DataFusion configuration:");
-    info!("  Parquet Pruning: {}", app_config.datafusion.parquet_pruning);
+    info!(
+        "  Parquet Pruning: {}",
+        app_config.datafusion.parquet_pruning
+    );
 
     // Determine optimal parallelism based on CPU count
     let cpu_count = std::thread::available_parallelism()
@@ -63,7 +69,8 @@ pub async fn create_context(config_file: Option<&str>) -> Result<SessionContext>
         .with_parquet_pruning(app_config.datafusion.parquet_pruning);
 
     // Disable identifier normalization to preserve case sensitivity
-    session_config = session_config.set_bool("datafusion.sql_parser.enable_ident_normalization", false);
+    session_config =
+        session_config.set_bool("datafusion.sql_parser.enable_ident_normalization", false);
 
     let ctx = SessionContext::new_with_config(session_config);
 
@@ -208,11 +215,11 @@ pub async fn create_block_context(
 
     // Register the parquet file as the "traces" table
     let full_path = format!("tempo://bucket/{}", parquet_path);
-    let options = ParquetReadOptions::default();
+    let options = ParquetReadOptions::default().parquet_pruning(true).skip_metadata(false);
+
     //let schema = tempo_trace_schema();
     //options.schema = Some(&schema);
-    ctx.register_parquet("traces", &full_path, options)
-        .await?;
+    ctx.register_parquet("traces", &full_path, options).await?;
     info!("Registered 'traces' table for block");
 
     // Create the flattened spans view

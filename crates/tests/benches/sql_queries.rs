@@ -100,28 +100,29 @@ struct BenchCase {
 /// with the original TraceQL query as a comment at the top of each file.
 fn get_test_cases() -> Vec<BenchCase> {
     vec![
-        //BenchCase { name: "||", sql: include_str!("queries/pipeOr.sql") },
-        //BenchCase { name: "complex", sql: include_str!("queries/complex.sql") },
+        //BenchCase { name: "mixed", sql: include_str!("queries/mixed.sql") },
         //BenchCase { name: "mixedValMixedMatchAnd", sql: include_str!("queries/mixedValMixedMatchAnd.sql") },
         //BenchCase { name: "mixedValMixedMatchOr", sql: include_str!("queries/mixedValMixedMatchOr.sql") },
         //BenchCase { name: "mixedValNoMatch", sql: include_str!("queries/mixedValNoMatch.sql") },
-        //BenchCase { name: "resourceAttIntrinsicMatch", sql: include_str!("queries/resourceAttIntrinsicMatch.sql") },
-        //BenchCase { name: "resourceAttIntrinsicNoMatch", sql: include_str!("queries/resourceAttIntrinsicNoMatch.sql") },
         //BenchCase { name: "resourceAttValNoMatch", sql: include_str!("queries/resourceAttValNoMatch.sql") },
-        //BenchCase { name: "select", sql: include_str!("queries/select.sql") },
-        //BenchCase { name: "spanAttIntrinsicMatch", sql: include_str!("queries/spanAttIntrinsicMatch.sql") },
+        //BenchCase { name: "spanAttIntrinsicMatchFew", sql: include_str!("queries/spanAttIntrinsicMatchFew.sql") },
         //BenchCase { name: "spanAttIntrinsicNoMatch", sql: include_str!("queries/spanAttIntrinsicNoMatch.sql") },
-        //BenchCase { name: "spanAttValMatchFew", sql: include_str!("queries/spanAttValMatchFew.sql") },
+        //BenchCase { name: "spanAttValMatch", sql: include_str!("queries/spanAttValMatch.sql") },
         //BenchCase { name: "spanAttValNoMatch", sql: include_str!("queries/spanAttValNoMatch.sql") },
         //BenchCase { name: "struct", sql: include_str!("queries/struct.sql") },
-        //BenchCase { name: "traceOrMatch", sql: include_str!("queries/traceOrMatch.sql") },
-        //BenchCase { name: "traceOrNoMatch", sql: include_str!("queries/traceOrNoMatch.sql") },
+        BenchCase { name: "||", sql: include_str!("queries/pipeOr.sql") },
+        BenchCase { name: "complex", sql: include_str!("queries/complex.sql") },
         BenchCase { name: "count", sql: include_str!("queries/count.sql") },
-        //BenchCase { name: "mixed", sql: include_str!("queries/mixed.sql") },
+        BenchCase { name: "rate", sql: include_str!("queries/rate.sql") },
+        BenchCase { name: "resourceAttIntrinsicMatch", sql: include_str!("queries/resourceAttIntrinsicMatch.sql") },
+        BenchCase { name: "resourceAttIntrinsicNoMatch", sql: include_str!("queries/resourceAttIntrinsicNoMatch.sql") },
         BenchCase { name: "resourceAttValMatch", sql: include_str!("queries/resourceAttValMatch.sql") },
-        BenchCase { name: "spanAttIntrinsicMatchFew", sql: include_str!("queries/spanAttIntrinsicMatchFew.sql") },
-        BenchCase { name: "spanAttValMatch", sql: include_str!("queries/spanAttValMatch.sql") },
+        BenchCase { name: "select", sql: include_str!("queries/select.sql") },
+        BenchCase { name: "spanAttIntrinsicMatch", sql: include_str!("queries/spanAttIntrinsicMatch.sql") },
+        BenchCase { name: "spanAttValMatchFew", sql: include_str!("queries/spanAttValMatchFew.sql") },
+        BenchCase { name: "traceOrMatch", sql: include_str!("queries/traceOrMatch.sql") },
         BenchCase { name: "traceOrMatchFew", sql: include_str!("queries/traceOrMatchFew.sql") },
+        BenchCase { name: "traceOrNoMatch", sql: include_str!("queries/traceOrNoMatch.sql") },
     ]
 }
 
@@ -177,8 +178,11 @@ fn bench_sql_queries(c: &mut Criterion) {
     let mut group = c.benchmark_group("sql");
 
     // Set measurement time to get more stable results
-    group.measurement_time(Duration::from_secs(10));
+    group.measurement_time(Duration::from_secs(60));
     group.sample_size(10);
+
+    // Store all metrics for printing at the end
+    let mut all_results: Vec<(String, usize, f64, f64, f64, usize)> = Vec::new();
 
     // Run benchmarks for each query
     for case in get_test_cases() {
@@ -214,7 +218,7 @@ fn bench_sql_queries(c: &mut Criterion) {
             },
         );
 
-        // Calculate and print aggregated metrics from actual runs
+        // Calculate aggregated metrics from actual runs and store for later printing
         let metrics_vec = collected_metrics.lock().unwrap();
         if !metrics_vec.is_empty() {
             let count = metrics_vec.len();
@@ -234,19 +238,35 @@ fn bench_sql_queries(c: &mut Criterion) {
                 0.0
             };
 
-            println!(
-                "{:<40} {:>8} iterations  {:>12.0} ns/op  {:>10.2} MB/s  {:>10.2} MB_io/op  {:>10} spans/op",
-                case.name,
+            all_results.push((
+                case.name.to_string(),
                 count,
-                avg_nanos,
+                avg_nanos as f64,
                 throughput_mbps,
                 mb_io_per_op,
-                avg_spans
-            );
+                avg_spans,
+            ));
         }
     }
 
     group.finish();
+
+    // Print all performance metrics together at the end
+    println!("\n{:-<120}", "");
+    println!("Performance Metrics Summary");
+    println!("{:-<120}", "");
+    for (name, count, avg_nanos, throughput_mbps, mb_io_per_op, avg_spans) in all_results {
+        println!(
+            "{:<40} {:>8} iterations  {:>12.0} ns/op  {:>10.2} MB/s  {:>10.2} MB_io/op  {:>10} spans/op",
+            name,
+            count,
+            avg_nanos,
+            throughput_mbps,
+            mb_io_per_op,
+            avg_spans
+        );
+    }
+    println!("{:-<120}", "");
 }
 
 criterion_group!(benches, bench_sql_queries);

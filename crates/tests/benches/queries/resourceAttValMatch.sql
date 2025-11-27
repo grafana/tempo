@@ -1,19 +1,19 @@
 -- TraceQL: { resource.opencensus.exporterversion = `Jaeger-Go-2.30.0` }
 WITH unnest_resources AS (
-  SELECT t."TraceID", UNNEST(t.rs) as resource
+  SELECT UNNEST(t.rs) as resource
   FROM traces t
 ),
 filtered_resources AS (
-  SELECT * FROM unnest_resources
-  WHERE list_contains(flatten(map_extract(attrs_to_map(resource."Resource"."Attrs"), 'opencensus.exporterversion')), 'Jaeger-Go-2.30.0')
+  SELECT resource FROM unnest_resources
+  WHERE attrs_contain_string(resource."Resource"."Attrs", 'opencensus.exporterversion', 'Jaeger-Go-2.30.0')
 ),
 unnest_scopespans AS (
-  SELECT "TraceID", resource, UNNEST(resource.ss) as scopespans
+  SELECT UNNEST(resource.ss) as scopespans
   FROM filtered_resources
 ),
 unnest_spans AS (
-  SELECT "TraceID", UNNEST(scopespans."Spans") as span
+  SELECT UNNEST(scopespans."Spans") as span
   FROM unnest_scopespans
 )
-SELECT "TraceID", span."SpanID"
+SELECT span."SpanID"
 FROM unnest_spans

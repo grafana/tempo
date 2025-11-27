@@ -20,3 +20,6 @@ BenchmarkBackendBlockTraceQL/||-14                               	       1	10271
 BenchmarkBackendBlockTraceQL/mixed-14                            	     124	   9532096 ns/op	 251.25 MB/s	         2.395 MB_io/op	         0 spans/op
 BenchmarkBackendBlockTraceQL/complex-14                          	     140	   8522084 ns/op	 156.87 MB/s	         1.337 MB_io/op	         0 spans/op
 BenchmarkBackendBlockTraceQL/select-14                           	     138	   8565097 ns/op	 156.08 MB/s	         1.337 MB_io/op	         0 spans/op
+BenchmarkBackendBlockTraceQL/rate-14                             	       1	19401940500 ns/op	  50.05 MB/s	       971.0 MB_io/op	   6212006 spans/op
+BenchmarkBackendBlockTraceQL/count-14                            	       1	18075164875 ns/op	  54.54 MB/s	       985.8 MB_io/op	   5463705 spans/op
+BenchmarkBackendBlockTraceQL/traceOrMatchFew-14                  	       1	8250110458 ns/op	 121.96 MB/s	      1006 MB_io/op	       862.0 spans/op
