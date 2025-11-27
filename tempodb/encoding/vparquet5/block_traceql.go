@@ -914,6 +914,7 @@ const (
 	columnPathResourceAttrBool        = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
 	columnPathResourceServiceName     = "rs.list.element.Resource.ServiceName"
 
+	columnPathScopeSpansSpanCount       = "rs.list.element.ss.list.element.SpanCount"
 	columnPathInstrumentationName       = "rs.list.element.ss.list.element.Scope.Name"
 	columnPathInstrumentationVersion    = "rs.list.element.ss.list.element.Scope.Version"
 	columnPathInstrumentationAttrKey    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Key"
@@ -2213,20 +2214,14 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		iters = nil
 	}
 
-	// if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
-	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
-	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
-	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
-	// TODO: note that if the query is { kind = client } the fetch layer will actually create two iterators over the kind column. this is evidence
-	//  this spaniterator code could be tightened up
-	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
-	//  to the span attributes map in spanCollector
+	// If there are no direct conditions imposed on the span level we are evaluating the SpanCount column to
+	// calculate all span row numbers.
 	if len(required) == 0 {
 		var pred parquetquery.Predicate
 		if sampler != nil {
 			pred = newSamplingPredicate(sampler, nil)
 		}
-		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, pred, "")}
+		required = []parquetquery.Iterator{newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, pred, "spanCount"), DefinitionLevelResourceSpansILSSpan)}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
