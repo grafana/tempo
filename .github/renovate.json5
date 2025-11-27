@@ -11,6 +11,7 @@
   ignoreDeps: [],
   separateMajorMinor: true,
   separateMultipleMajor: true,
+  labels: ['dependencies', 'renovate'],
   packageRules: [
     {
       description: 'Group all GitHub Actions updates',
