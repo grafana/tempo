@@ -2,7 +2,6 @@ package traceql
 
 import (
 	"errors"
-	"math"
 	"strconv"
 	"strings"
 	"text/scanner"
@@ -247,7 +246,6 @@ func (l *lexer) Lex(lval *yySymType) int {
 		l.parsingAttribute = startsAttribute(tok)
 		return tok
 	}
-
 
 	// default to an identifier
 	lval.staticStr = l.TokenText()
