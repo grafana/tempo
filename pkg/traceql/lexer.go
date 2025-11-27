@@ -116,11 +116,6 @@ var tokens = map[string]int{
 	"with":                WITH,
 }
 
-var builtinIntegerConstants = map[string]int{
-	"minInt": math.MinInt,
-	"maxInt": math.MaxInt,
-}
-
 type lexer struct {
 	scanner.Scanner
 	expr   *RootExpr
@@ -253,11 +248,6 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return tok
 	}
 
-	// builtin integer constants (e.g. minInt, maxInt)
-	if value, ok := builtinIntegerConstants[l.TokenText()]; ok {
-		lval.staticInt = value
-		return INTEGER
-	}
 
 	// default to an identifier
 	lval.staticStr = l.TokenText()
