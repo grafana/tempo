@@ -87,7 +87,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:10.4.19@sha256:a9043254ba16fb10945cc27333963dfd08eccbb43b51f1222d831cc564e3a1f4
+    image: grafana/grafana:11.6.8@sha256:0b5c6e4c8b871860f30cdfee33ed85f3ef40b070e11cc479eebcc9a4427706c0
     volumes:
       - ./grafana/datasources/:/etc/grafana/provisioning/datasources/
       - ./grafana/dashboards-provisioning/:/etc/grafana/provisioning/dashboards/
