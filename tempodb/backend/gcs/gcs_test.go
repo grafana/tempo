@@ -299,6 +299,76 @@ func TestObjectWithPrefix(t *testing.T) {
 	}
 }
 
+func TestDelete(t *testing.T) {
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:       "without prefix",
+			prefix:     "",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(`
+						{
+							"location": "US",
+							"storageClass": "STANDARD"
+						}
+						`))
+						return
+					}
+					assert.Equal(t, "/b/blerg/o/test/object", r.URL.Path)
+					_, _ = w.Write([]byte(`{}`))
+				}
+			},
+		},
+		{
+			name:       "with prefix",
+			prefix:     "test_storage",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(`
+						{
+							"location": "US",
+							"storageClass": "STANDARD"
+						}
+						`))
+						return
+					}
+					assert.Equal(t, "/b/blerg/o/test_storage/test/object", r.URL.Path)
+					_, _ = w.Write([]byte(`{}`))
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			_, w, _, err := New(&Config{
+				BucketName: "blerg",
+				Endpoint:   server.URL,
+				Insecure:   true,
+				Prefix:     tc.prefix,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			err = w.Delete(ctx, tc.objectName, tc.keyPath, nil)
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestListBlocksWithPrefix(t *testing.T) {
 	tests := []struct {
 		name              string

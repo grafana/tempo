@@ -471,6 +471,77 @@ func TestObjectWithPrefix(t *testing.T) {
 	}
 }
 
+func TestDelete(t *testing.T) {
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:       "without prefix",
+			prefix:     "",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, r.URL.Query().Get("prefix"), "")
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+						</ListBucketResult>`))
+						return
+					}
+					assert.Equal(t, "/blerg/test/object", r.URL.String())
+					w.WriteHeader(http.StatusNoContent)
+				}
+			},
+		},
+		{
+			name:       "with prefix",
+			prefix:     "test_storage",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+						</ListBucketResult>`))
+						return
+					}
+					assert.Equal(t, "/blerg/test_storage/test/object", r.URL.String())
+					w.WriteHeader(http.StatusNoContent)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			_, w, _, err := New(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    "blerg",
+				Prefix:    tc.prefix,
+				Insecure:  true,
+				Endpoint:  server.URL[7:],
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			err = w.Delete(ctx, tc.objectName, tc.keyPath, nil)
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestListBlocksWithPrefix(t *testing.T) {
 	tests := []struct {
 		name              string
