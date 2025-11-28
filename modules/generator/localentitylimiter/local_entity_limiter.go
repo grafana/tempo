@@ -65,7 +65,8 @@ type LocalEntityLimiter struct {
 	metricTotalEntitiesAdded   prometheus.Counter
 	metricTotalEntitiesRemoved prometheus.Counter
 
-	overflowEntity labels.Labels
+	overflowEntity     labels.Labels
+	overflowEntityHash uint64
 }
 
 func New(maxEntityFunc func(tenant string) uint32, tenant string, limitLogger *tempo_log.RateLimitedLogger) *LocalEntityLimiter {
@@ -85,11 +86,7 @@ func New(maxEntityFunc func(tenant string) uint32, tenant string, limitLogger *t
 		// See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/sdk.md#cardinality-limits
 		overflowEntity: labels.FromStrings("otel_metric_overflow", "true"),
 	}
-
-	// Add the overflow entity to the registry to ensure it's accepted.
-	// Note: we never remove this series from the overflow entity, so it
-	// will stay active until the process exits.
-	l.entityActiveSeries[l.overflowEntity.Hash()] = 1
+	l.overflowEntityHash = l.overflowEntity.Hash()
 
 	return l
 }
@@ -119,6 +116,11 @@ func (l *LocalEntityLimiter) SanitizeLabels(lbls labels.Labels) labels.Labels {
 func (l *LocalEntityLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
+
+	if labelHash == l.overflowEntityHash {
+		// The overflow entity is always accepted.
+		return true
+	}
 
 	activeSeries, ok := l.entityActiveSeries[labelHash]
 	if ok {
