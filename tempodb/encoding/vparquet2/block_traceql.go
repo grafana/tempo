@@ -785,6 +785,11 @@ func checkConditions(conditions []traceql.Condition) error {
 				return fmt.Errorf("operanion none must have 0 arguments. condition: %+v", cond)
 			}
 
+		case traceql.OpExists:
+			if opCount != 0 {
+				return fmt.Errorf("operanion none must have 0 arguments. condition: %+v", cond)
+			}
+
 		case traceql.OpEqual, traceql.OpNotEqual,
 			traceql.OpGreater, traceql.OpGreaterEqual,
 			traceql.OpLess, traceql.OpLessEqual,
@@ -1413,9 +1418,19 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 
 		// Well-known attribute?
 		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			if cond.Op == traceql.OpNone {
+			// Operands that need special handling.
+			switch cond.Op {
+			case traceql.OpNone:
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				continue
+			case traceql.OpExists:
+				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
+				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				continue
+			case traceql.OpNotExists:
+				pred := parquetquery.NewNilValuePredicate()
+				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
 				continue
 			}
 
@@ -1509,9 +1524,19 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 
 		// Well-known selector?
 		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
-			if cond.Op == traceql.OpNone {
+			// Operands that need special handling.
+			switch cond.Op {
+			case traceql.OpNone:
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				continue
+			case traceql.OpExists:
+				addPredicate(entry.columnPath, &parquetquery.SkipNilsPredicate{})
+				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				continue
+			case traceql.OpNotExists:
+				pred := parquetquery.NewNilValuePredicate()
+				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
 				continue
 			}
 
@@ -1649,6 +1674,9 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 	if op == traceql.OpNone {
 		return nil, nil
 	}
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 
 	switch operands[0].Type {
 	case traceql.TypeString:
@@ -1667,6 +1695,10 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
+	}
+
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
 	}
 
 	s := operands[0].EncodeToString(false)
@@ -1699,6 +1731,9 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan bool) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
+	}
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
 	}
 
 	s := operands[0].EncodeToString(false)
@@ -1757,7 +1792,9 @@ func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands)
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	if operands[0].Type != traceql.TypeFloat {
 		return nil, fmt.Errorf("operand is not float: %s", operands[0].EncodeToString(false))
 	}
@@ -1815,6 +1852,9 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	if op == traceql.OpNone {
 		return nil, nil
 	}
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 
 	var i int64
 	switch operands[0].Type {
@@ -1856,7 +1896,9 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	// Ensure operand is float
 	if operands[0].Type != traceql.TypeFloat {
 		return nil, fmt.Errorf("operand is not float: %s", operands[0].EncodeToString(false))
@@ -1886,7 +1928,9 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	if op == traceql.OpNone {
 		return nil, nil
 	}
-
+	if op == traceql.OpExists {
+		return parquetquery.NewSkipNilsPredicate(), nil
+	}
 	// Ensure operand is bool
 	b, ok := operands[0].Bool()
 	if !ok {
@@ -1919,13 +1963,23 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 
 		attrKeys = append(attrKeys, cond.Attribute.Name)
 
-		if cond.Op == traceql.OpNone {
+		switch cond.Op {
+		case traceql.OpNone:
 			// This means we have to scan all values, we don't know what type
 			// to expect
 			attrStringPreds = append(attrStringPreds, nil)
 			attrIntPreds = append(attrIntPreds, nil)
 			attrFltPreds = append(attrFltPreds, nil)
 			boolPreds = append(boolPreds, nil)
+			continue
+		case traceql.OpExists:
+			// This means we have to scan all values, we don't know what type
+			// to expect. But we can skip nils
+			skipNils := &parquetquery.SkipNilsPredicate{}
+			attrStringPreds = append(attrStringPreds, skipNils)
+			attrIntPreds = append(attrIntPreds, skipNils)
+			attrFltPreds = append(attrFltPreds, skipNils)
+			boolPreds = append(boolPreds, skipNils)
 			continue
 		}
 

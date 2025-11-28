@@ -272,6 +272,10 @@ validate_fails:
   - '{ traceDuration > "test" }'
   - '{ rootServiceName = 1 }'
   - '{ rootName != 3.2 }'
+  - '{ span:status = nil }' # Intrinsics cannot be nil
+  - '{ nil = span:status }' # Intrinsics cannot be nil
+  - '{ resource.service.name = nil }' # special attribute resource.service.name cannot be nil
+  - '{ nil = resource.service.name }' # special attribute resource.service.name cannot be nil
   # invalid regexes
   - '{ span.foo =~ "[" }'
   - '{ span.foo !~ "[" }'
