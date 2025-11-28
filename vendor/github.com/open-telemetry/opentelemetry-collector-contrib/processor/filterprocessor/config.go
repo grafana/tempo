@@ -22,6 +22,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlmetric"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofile"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspanevent"
 )
@@ -45,6 +46,7 @@ type Config struct {
 
 	Profiles ProfileFilters `mapstructure:"profiles"`
 
+	resourceFunctions  map[string]ottl.Factory[ottlresource.TransformContext]
 	dataPointFunctions map[string]ottl.Factory[ottldatapoint.TransformContext]
 	logFunctions       map[string]ottl.Factory[ottllog.TransformContext]
 	metricFunctions    map[string]ottl.Factory[ottlmetric.TransformContext]
@@ -68,6 +70,11 @@ type MetricFilters struct {
 	// RegexpConfig specifies options for the regexp match type
 	RegexpConfig *regexp.Config `mapstructure:"regexp"`
 
+	// ResourceConditions is a list of OTTL conditions for an ottlresource context.
+	// If any condition resolves to true, the whole resource will be dropped.
+	// Supports `and`, `or`, and `()`
+	ResourceConditions []string `mapstructure:"resource"`
+
 	// MetricConditions is a list of OTTL conditions for an ottlmetric context.
 	// If any condition resolves to true, the metric will be dropped.
 	// Supports `and`, `or`, and `()`
@@ -81,6 +88,11 @@ type MetricFilters struct {
 
 // TraceFilters filters by OTTL conditions
 type TraceFilters struct {
+	// ResourceConditions is a list of OTTL conditions for an ottlresource context.
+	// If any condition resolves to true, the whole resource will be dropped.
+	// Supports `and`, `or`, and `()`
+	ResourceConditions []string `mapstructure:"resource"`
+
 	// SpanConditions is a list of OTTL conditions for an ottlspan context.
 	// If any condition resolves to true, the span will be dropped.
 	// Supports `and`, `or`, and `()`
@@ -102,6 +114,11 @@ type LogFilters struct {
 	// all other logs should be included.
 	// If both Include and Exclude are specified, Include filtering occurs first.
 	Exclude *LogMatchProperties `mapstructure:"exclude"`
+
+	// ResourceConditions is a list of OTTL conditions for an ottlresource context.
+	// If any condition resolves to true, the whole resource will be dropped.
+	// Supports `and`, `or`, and `()`
+	ResourceConditions []string `mapstructure:"resource"`
 
 	// LogConditions is a list of OTTL conditions for an ottllog context.
 	// If any condition resolves to true, the log event will be dropped.
@@ -281,6 +298,11 @@ func (lmp LogSeverityNumberMatchProperties) validate() error {
 type ProfileFilters struct {
 	_ struct{} // prevent unkeyed literals
 
+	// ResourceConditions is a list of OTTL conditions for an ottlresource context.
+	// If any condition resolves to true, the whole resource will be dropped.
+	// Supports `and`, `or`, and `()`
+	ResourceConditions []string `mapstructure:"resource"`
+
 	// ProfileConditions is a list of OTTL conditions for an ottlprofile context.
 	// If any condition resolves to true, the profile will be dropped.
 	// Supports `and`, `or`, and `()`
@@ -291,17 +313,22 @@ var _ component.Config = (*Config)(nil)
 
 // Validate checks if the processor configuration is valid
 func (cfg *Config) Validate() error {
-	if (cfg.Traces.SpanConditions != nil || cfg.Traces.SpanEventConditions != nil) && (cfg.Spans.Include != nil || cfg.Spans.Exclude != nil) {
+	if (cfg.Traces.ResourceConditions != nil || cfg.Traces.SpanConditions != nil || cfg.Traces.SpanEventConditions != nil) && (cfg.Spans.Include != nil || cfg.Spans.Exclude != nil) {
 		return errors.New("cannot use ottl conditions and include/exclude for spans at the same time")
 	}
-	if (cfg.Metrics.MetricConditions != nil || cfg.Metrics.DataPointConditions != nil) && (cfg.Metrics.Include != nil || cfg.Metrics.Exclude != nil) {
+	if (cfg.Metrics.ResourceConditions != nil || cfg.Metrics.MetricConditions != nil || cfg.Metrics.DataPointConditions != nil) && (cfg.Metrics.Include != nil || cfg.Metrics.Exclude != nil) {
 		return errors.New("cannot use ottl conditions and include/exclude for metrics at the same time")
 	}
-	if cfg.Logs.LogConditions != nil && (cfg.Logs.Include != nil || cfg.Logs.Exclude != nil) {
+	if (cfg.Logs.ResourceConditions != nil || cfg.Logs.LogConditions != nil) && (cfg.Logs.Include != nil || cfg.Logs.Exclude != nil) {
 		return errors.New("cannot use ottl conditions and include/exclude for logs at the same time")
 	}
 
 	var errors error
+
+	if cfg.Traces.ResourceConditions != nil {
+		_, err := filterottl.NewBoolExprForResource(cfg.Metrics.ResourceConditions, cfg.resourceFunctions, ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
+		errors = multierr.Append(errors, err)
+	}
 
 	if cfg.Traces.SpanConditions != nil {
 		_, err := filterottl.NewBoolExprForSpan(cfg.Traces.SpanConditions, cfg.spanFunctions, ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
@@ -310,6 +337,11 @@ func (cfg *Config) Validate() error {
 
 	if cfg.Traces.SpanEventConditions != nil {
 		_, err := filterottl.NewBoolExprForSpanEvent(cfg.Traces.SpanEventConditions, cfg.spanEventFunctions, ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
+		errors = multierr.Append(errors, err)
+	}
+
+	if cfg.Metrics.ResourceConditions != nil {
+		_, err := filterottl.NewBoolExprForResource(cfg.Metrics.ResourceConditions, cfg.resourceFunctions, ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
 		errors = multierr.Append(errors, err)
 	}
 
@@ -323,8 +355,18 @@ func (cfg *Config) Validate() error {
 		errors = multierr.Append(errors, err)
 	}
 
+	if cfg.Logs.ResourceConditions != nil {
+		_, err := filterottl.NewBoolExprForResource(cfg.Metrics.ResourceConditions, cfg.resourceFunctions, ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
+		errors = multierr.Append(errors, err)
+	}
+
 	if cfg.Logs.LogConditions != nil {
 		_, err := filterottl.NewBoolExprForLog(cfg.Logs.LogConditions, cfg.logFunctions, ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
+		errors = multierr.Append(errors, err)
+	}
+
+	if cfg.Profiles.ResourceConditions != nil {
+		_, err := filterottl.NewBoolExprForResource(cfg.Metrics.ResourceConditions, cfg.resourceFunctions, ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
 		errors = multierr.Append(errors, err)
 	}
 
