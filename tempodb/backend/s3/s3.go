@@ -344,8 +344,8 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
-	filename := backend.ObjectFileName(keypath, name)
-	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, filename, minio.RemoveObjectOptions{})
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, backend.ObjectFileName(keypath, name), minio.RemoveObjectOptions{})
 }
 
 // List implements backend.Reader

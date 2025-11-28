@@ -174,6 +174,7 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	return readError(rw.bucket.Object(backend.ObjectFileName(keypath, name)).Delete(ctx))
 }
 

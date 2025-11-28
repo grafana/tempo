@@ -153,6 +153,8 @@ func (rw *Azure) CloseAppend(context.Context, backend.AppendTracker) error {
 }
 
 func (rw *Azure) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	blobClient, err := getBlobClient(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		return fmt.Errorf("cannot get Azure blob client, name: %s: %w", backend.ObjectFileName(keypath, name), err)
