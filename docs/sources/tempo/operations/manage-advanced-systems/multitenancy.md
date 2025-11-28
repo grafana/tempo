@@ -10,7 +10,7 @@ aliases:
 
 # Enable multi-tenancy
 
-Tempo is a multi-tenant distributed tracing backend. 
+Tempo is a multi-tenant distributed tracing backend.
 Tempo uses the `X-Scope-OrgID` header to enforce multi-tenancy in Tempo and Grafana Enterprise Traces.
 It is set to the tenant (or “organization”) name.
 It is used for scoped writes (ingest) so that each span is stored under its specified tenant, and scoped reads so that queries return only that tenant’s data.
@@ -18,9 +18,19 @@ It is used for scoped writes (ingest) so that each span is stored under its spec
 If you're interested in setting up multi-tenancy, consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector-multitenant)
 in the repository. This example uses the following settings to achieve multi-tenancy in Tempo.
 
-Multi-tenancy on ingestion is supported with GPRC and HTTP for OTLP.
-You can add headers both in the OpenTelemetry Collector and Grafana Alloy or using `curl` or any other relevant HTTP/gRPC protocol tool. 
-Here is an example configuration for Alloy. 
+## Tenant IDs
+
+Tenant IDs are transmitted to Tempo via the `X-Scope-OrgID` HTTP header. This header must be included in all requests to Tempo when multi-tenancy is enabled.
+
+Multi-tenancy on ingestion is supported with both gRPC and HTTP for OTLP (OpenTelemetry Protocol). You can add the header in:
+
+- OpenTelemetry Collector configuration
+- Grafana Alloy configuration
+- Any HTTP/gRPC client using `curl` or other relevant tools
+
+## Example Alloy configuration
+
+The following example shows how to configure Grafana Alloy to send traces with a tenant ID.
 
 ```
 otelcol.exporter.otlphttp "tempo" {
@@ -47,7 +57,7 @@ otelcol.exporter.otlphttp "tempo" {
 
 ## Configure multi-tenancy
 
-1. Configure the OTEL Collector to attach the `X-Scope-OrgID` header on push:
+1. Configure the OpenTelemetry Collector to attach the `X-Scope-OrgID` header on push:
 
    ```
    exporters:
@@ -61,9 +71,9 @@ otelcol.exporter.otlphttp "tempo" {
    ```yaml
    - name: Tempo-Multitenant
      jsonData:
-       httpHeaderName1: 'X-Scope-OrgID'
+       httpHeaderName1: "X-Scope-OrgID"
      secureJsonData:
-       httpHeaderValue1: 'foo-bar-baz'
+       httpHeaderValue1: "foo-bar-baz"
    ```
 
 1. Enable multi-tenancy on the Tempo backend by setting the following configuration value on all Tempo components:
