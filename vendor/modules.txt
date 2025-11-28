@@ -1430,7 +1430,7 @@ github.com/twmb/franz-go/pkg/sasl/scram
 # github.com/twmb/franz-go/pkg/kadm v1.17.1
 ## explicit; go 1.24.0
 github.com/twmb/franz-go/pkg/kadm
-# github.com/twmb/franz-go/pkg/kfake v0.0.0-20251107035046-d7de41391da4
+# github.com/twmb/franz-go/pkg/kfake v0.0.0-20251123185109-2b5c574e9ddd
 ## explicit; go 1.24.0
 github.com/twmb/franz-go/pkg/kfake
 # github.com/twmb/franz-go/pkg/kmsg v1.12.0
