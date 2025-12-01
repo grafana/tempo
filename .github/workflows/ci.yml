@@ -108,6 +108,7 @@ jobs:
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
