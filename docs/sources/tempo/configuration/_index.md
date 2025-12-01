@@ -1842,7 +1842,6 @@ See below for how to override these limits globally or per tenant.
 #### Standard overrides
 
 You can create an `overrides` section to configure ingestion limits that apply to all tenants of the cluster.
-A snippet of a `config.yaml` file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
 
 ```yaml
 # Overrides configuration block
