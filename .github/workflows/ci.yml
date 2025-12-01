@@ -1,6 +1,9 @@
 name: CI
 on:
   pull_request:
+  push:
+    branches:
+      - main
 # Requiring certain checks for PRs to be merge-able in Github, forces for those checks to be *always* run.
 # Even if the changes do not require them (i.e. the paths indicated below). That's why `paths-ignore` is commented out.
 #
@@ -22,6 +25,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request'
     steps:
 
       - name: Check out code
@@ -87,6 +91,19 @@ jobs:
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
+
+      - name: List coverage artifacts
+        run: ls .coverage
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.test-target }}
+          path: .coverage/*.out
+          retention-days: 1
+          include-hidden-files: true
+          if-no-files-found: error
 
   integration-tests:
     name: Run integration tests
@@ -220,3 +237,125 @@ jobs:
 
       - name: Build Website
         run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
+
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-24.04
+    needs: [unit-tests]
+    if: always() && !cancelled()
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
+        with:
+          go-version: '1.25.4'
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: .coverage/
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -la .coverage/
+
+      - name: Install coverage tools
+        run: make tools
+
+      - name: Merge coverage data
+        run: make coverage-merge
+
+      - name: Convert to Cobertura XML
+        run: make coverage-cobertura
+
+      - name: Upload Cobertura coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-cobertura
+          path: .coverage/cobertura.xml
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
+
+  coverage-annotations:
+    name: Coverage Annotations
+    runs-on: ubuntu-24.04
+    needs: [coverage-report]
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          persist-credentials: false
+          path: pr-source
+
+      - name: Check out main branch
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          persist-credentials: false
+          ref: main
+          path: main-source
+
+      - name: Download PR Cobertura coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-cobertura
+          path: .coverage/
+
+      - name: Get latest main branch workflow run
+        id: get-main-run
+        working-directory: ./main-source
+        # This also needs to include --status=success after builds are stabilized
+        run: |
+          RUN_ID=$(gh run list \
+            --workflow=ci.yml \
+            --branch=main \
+            --limit=1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+          echo "run-id=$RUN_ID" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+        continue-on-error: true
+
+      - name: Download baseline coverage from main
+        if: steps.get-main-run.outputs.run-id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-cobertura
+          path: .coverage-baseline/
+          run-id: ${{ steps.get-main-run.outputs.run-id }}
+          github-token: ${{ github.token }}
+        continue-on-error: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install pycobertura
+        run: pip install pycobertura
+
+      - name: Generate coverage diff annotations
+        run: |
+          if [ -f .coverage-baseline/cobertura.xml ]; then
+            pycobertura diff \
+              .coverage-baseline/cobertura.xml \
+              .coverage/cobertura.xml \
+              --format github-annotation \
+              --source1 main-source \
+              --source2 pr-source || true
+          else
+            echo "::warning::No baseline coverage found for main branch. Skipping diff."
+          fi

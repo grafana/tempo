@@ -4,6 +4,7 @@
 .claude
 *.test
 *.out
+.coverage/
 *.pprof
 /.envrc
 /bin

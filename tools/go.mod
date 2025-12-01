@@ -3,11 +3,13 @@ module github.com/grafana/tempo/tools
 go 1.25.4
 
 require (
+	github.com/boumenot/gocover-cobertura v1.4.0
 	github.com/golangci/golangci-lint/v2 v2.1.5
 	github.com/google/go-jsonnet v0.21.0
 	github.com/grafana/tanka v0.32.0
 	github.com/jsonnet-bundler/jsonnet-bundler v0.6.0
 	github.com/psampaz/go-mod-outdated v0.9.0
+	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	golang.org/x/tools v0.39.0
 	gotest.tools/gotestsum v1.13.0
 	mvdan.cc/gofumpt v0.9.2
