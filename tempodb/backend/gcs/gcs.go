@@ -424,6 +424,7 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 }
 
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	o := rw.bucket.Object(backend.ObjectFileName(keypath, name))
 
 	preconditions, err := createPreconditions(version)

@@ -365,6 +365,8 @@ func (rw *Azure) WriteVersioned(ctx context.Context, name string, keypath backen
 }
 
 func (rw *Azure) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {

@@ -596,6 +596,8 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 	// another process writes to the same object in between ReadVersioned and Delete its changes will
 	// be overwritten.
 	// TODO use rw.hedgedCore.GetObject, don't download the full object
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return err
