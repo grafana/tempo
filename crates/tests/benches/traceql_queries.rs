@@ -8,7 +8,8 @@ use anyhow;
 use context::{create_block_context, collect_plan_metrics};
 use storage::BlockInfo;
 use datafusion::execution::context::SessionContext;
-use datafusion::physical_plan::collect;
+use datafusion::physical_plan::execute_stream;
+use futures::StreamExt;
 
 /// Metrics collected from query execution
 #[derive(Debug, Clone)]
@@ -59,14 +60,19 @@ async fn execute(ctx: &SessionContext, sql: &str) -> anyhow::Result<QueryMetrics
     // Create physical plan
     let physical_plan = ctx.state().create_physical_plan(&optimized_plan).await?;
 
-    // Execute the physical plan
+    // Execute the physical plan using execute_stream
     let task_ctx = ctx.task_ctx();
-    let results = collect(physical_plan.clone(), task_ctx).await?;
+    let mut stream = execute_stream(physical_plan.clone(), task_ctx)?;
+
+    // Process and discard each batch as soon as it's received
+    let mut rows_returned: usize = 0;
+    while let Some(batch_result) = stream.next().await {
+        let batch = batch_result?;
+        rows_returned += batch.num_rows();
+        // Batch is immediately dropped here after counting rows
+    }
 
     let elapsed = start.elapsed();
-
-    // Count rows
-    let rows_returned: usize = results.iter().map(|batch| batch.num_rows()).sum();
 
     // Collect metrics from physical plan
     let metrics = collect_plan_metrics(physical_plan);

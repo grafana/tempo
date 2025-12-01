@@ -1,13 +1,13 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::sync::Arc;
 use std::time::Duration;
-use tests::execute_query;
 use tokio::runtime::Runtime;
 use anyhow;
 use context::{create_block_context, collect_plan_metrics};
 use storage::BlockInfo;
 use datafusion::execution::context::SessionContext;
-use datafusion::physical_plan::collect;
+use datafusion::physical_plan::execute_stream;
+use futures::StreamExt;
 
 /// Metrics collected from query execution
 #[derive(Debug, Clone)]
@@ -58,14 +58,19 @@ async fn execute(ctx: &SessionContext, sql: &str) -> anyhow::Result<QueryMetrics
     // Create physical plan
     let physical_plan = ctx.state().create_physical_plan(&optimized_plan).await?;
 
-    // Execute the physical plan
+    // Execute the physical plan using execute_stream
     let task_ctx = ctx.task_ctx();
-    let results = collect(physical_plan.clone(), task_ctx).await?;
+    let mut stream = execute_stream(physical_plan.clone(), task_ctx)?;
+
+    // Process and discard each batch as soon as it's received
+    let mut rows_returned: usize = 0;
+    while let Some(batch_result) = stream.next().await {
+        let batch = batch_result?;
+        rows_returned += batch.num_rows();
+        // Batch is immediately dropped here after counting rows
+    }
 
     let elapsed = start.elapsed();
-
-    // Count rows
-    let rows_returned: usize = results.iter().map(|batch| batch.num_rows()).sum();
 
     // Collect metrics from physical plan
     let metrics = collect_plan_metrics(physical_plan);
@@ -108,8 +113,10 @@ fn get_test_cases() -> Vec<BenchCase> {
         //BenchCase { name: "spanAttIntrinsicMatchFew", sql: include_str!("queries/spanAttIntrinsicMatchFew.sql") },
         //BenchCase { name: "spanAttIntrinsicNoMatch", sql: include_str!("queries/spanAttIntrinsicNoMatch.sql") },
         //BenchCase { name: "spanAttValMatch", sql: include_str!("queries/spanAttValMatch.sql") },
-        //BenchCase { name: "spanAttValNoMatch", sql: include_str!("queries/spanAttValNoMatch.sql") },
+        //BenchCase { name: "spanAttValMatchFew", sql: include_str!("queries/spanAttValMatchFew.sql") },
         //BenchCase { name: "struct", sql: include_str!("queries/struct.sql") },
+        //BenchCase { name: "traceOrMatch", sql: include_str!("queries/traceOrMatch.sql") },
+        //BenchCase { name: "traceOrNoMatch", sql: include_str!("queries/traceOrNoMatch.sql") },
         BenchCase { name: "||", sql: include_str!("queries/pipeOr.sql") },
         BenchCase { name: "complex", sql: include_str!("queries/complex.sql") },
         BenchCase { name: "count", sql: include_str!("queries/count.sql") },
@@ -119,10 +126,8 @@ fn get_test_cases() -> Vec<BenchCase> {
         BenchCase { name: "resourceAttValMatch", sql: include_str!("queries/resourceAttValMatch.sql") },
         BenchCase { name: "select", sql: include_str!("queries/select.sql") },
         BenchCase { name: "spanAttIntrinsicMatch", sql: include_str!("queries/spanAttIntrinsicMatch.sql") },
-        BenchCase { name: "spanAttValMatchFew", sql: include_str!("queries/spanAttValMatchFew.sql") },
-        BenchCase { name: "traceOrMatch", sql: include_str!("queries/traceOrMatch.sql") },
+        BenchCase { name: "spanAttValNoMatch", sql: include_str!("queries/spanAttValNoMatch.sql") },
         BenchCase { name: "traceOrMatchFew", sql: include_str!("queries/traceOrMatchFew.sql") },
-        BenchCase { name: "traceOrNoMatch", sql: include_str!("queries/traceOrNoMatch.sql") },
     ]
 }
 
@@ -228,7 +233,7 @@ fn bench_sql_queries(c: &mut Criterion) {
 
             let avg_spans = total_spans / count;
             let avg_bytes = total_bytes / count;
-            let avg_nanos = total_nanos / count as u128;
+            let avg_nanos: u128 = total_nanos / count as u128;
 
             let mb_io_per_op = (avg_bytes as f64) / (1024.0 * 1024.0);
             let throughput_mbps = if avg_nanos > 0 {

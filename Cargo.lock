@@ -4301,6 +4301,7 @@ dependencies = [
  "context",
  "criterion",
  "datafusion",
+ "futures",
  "object_store",
  "provider",
  "storage",
