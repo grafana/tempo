@@ -8,8 +8,18 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "a64f0ca4b1c285d615fd0cbbf5870ae291b6914e",
+      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "memcached"
+        }
+      },
+      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
+      "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
       "source": {
