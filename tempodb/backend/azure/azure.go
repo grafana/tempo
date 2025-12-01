@@ -288,7 +288,7 @@ func (rw *Azure) Find(ctx context.Context, keypath backend.KeyPath, f backend.Fi
 
 			o = strings.TrimSuffix(*b.Name, dir)
 			opts := backend.FindMatch{
-				Key:      o,
+				Key:      strings.TrimPrefix(o, prefix),
 				Modified: *b.Properties.LastModified,
 			}
 			f(opts)

@@ -519,7 +519,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 			if len(res.Contents) > 0 {
 				for _, c := range res.Contents {
 					opts := backend.FindMatch{
-						Key:      c.Key,
+						Key:      strings.TrimPrefix(c.Key, prefix),
 						Modified: c.LastModified,
 					}
 					f(opts)
