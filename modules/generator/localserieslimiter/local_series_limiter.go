@@ -7,6 +7,7 @@ import (
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/model/labels"
 )
 
 type localSeriesLimiterMetrics struct {
@@ -74,6 +75,10 @@ func New(maxSeriesFunc func(tenant string) uint32, tenant string, limitLogger *t
 		metricTotalSeriesAdded:   metrics.totalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metrics.totalSeriesRemoved.WithLabelValues(tenant),
 	}
+}
+
+func (l *LocalSeriesLimiter) SanitizeLabels(lbls labels.Labels) labels.Labels {
+	return lbls
 }
 
 func (l *LocalSeriesLimiter) OnAdd(_ uint64, seriesCount uint32) bool {

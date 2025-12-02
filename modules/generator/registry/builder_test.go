@@ -7,8 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func noopTransformer(lbls labels.Labels) labels.Labels {
+	return lbls
+}
+
 func TestLabelBuilder(t *testing.T) {
-	builder := NewLabelBuilder(0, 0)
+	builder := NewLabelBuilder(0, 0, noopTransformer)
 	builder.Add("name", "value")
 	lbls, ok := builder.CloseAndBuildLabels()
 
@@ -23,7 +27,7 @@ func TestLabelBuilder(t *testing.T) {
 }
 
 func TestLabelBuilder_MaxLabelNameLength(t *testing.T) {
-	builder := NewLabelBuilder(10, 10)
+	builder := NewLabelBuilder(10, 10, noopTransformer)
 	builder.Add("name", "very_long_value")
 	builder.Add("very_long_name", "value")
 
@@ -34,7 +38,7 @@ func TestLabelBuilder_MaxLabelNameLength(t *testing.T) {
 }
 
 func TestLabelBuilder_InvalidUTF8(t *testing.T) {
-	builder := NewLabelBuilder(0, 0)
+	builder := NewLabelBuilder(0, 0, noopTransformer)
 	builder.Add("name", "svc-\xc3\x28") // Invalid UTF-8
 
 	_, ok := builder.CloseAndBuildLabels()
@@ -56,4 +60,22 @@ func TestSafeBuilderPool(t *testing.T) {
 	reusedBuilder := pool.Get()
 	assert.Equal(t, builder, reusedBuilder)
 	assert.Equal(t, labels.EmptyLabels(), reusedBuilder.Labels())
+}
+
+func TestLabelBuilder_Transformer(t *testing.T) {
+	transformer := func(lbls labels.Labels) labels.Labels {
+		builder := labels.NewBuilder(lbls)
+		builder.Set("transformed_name", lbls.Get("name")+"_transformed")
+		return builder.Labels()
+	}
+	builder := NewLabelBuilder(0, 0, transformer)
+	builder.Add("name", "value")
+	lbls, ok := builder.CloseAndBuildLabels()
+	assert.True(t, ok)
+	assert.Equal(t, labels.FromMap(
+		map[string]string{
+			"name":             "value",
+			"transformed_name": "value_transformed",
+		},
+	), lbls)
 }

@@ -18,14 +18,22 @@ import (
 )
 
 type mockLimiter struct {
-	onAddFunc    func(labelHash uint64, seriesCount uint32) bool
-	onUpdateFunc func(labelHash uint64, seriesCount uint32)
-	onDeleteFunc func(labelHash uint64, seriesCount uint32)
+	transformFunc func(lbls labels.Labels) labels.Labels
+	onAddFunc     func(labelHash uint64, seriesCount uint32) bool
+	onUpdateFunc  func(labelHash uint64, seriesCount uint32)
+	onDeleteFunc  func(labelHash uint64, seriesCount uint32)
 }
 
 var noopLimiter Limiter = &mockLimiter{}
 
 var _ Limiter = (*mockLimiter)(nil)
+
+func (m *mockLimiter) SanitizeLabels(lbls labels.Labels) labels.Labels {
+	if m.transformFunc == nil {
+		return lbls
+	}
+	return m.transformFunc(lbls)
+}
 
 func (m *mockLimiter) OnAdd(labelHash uint64, seriesCount uint32) bool {
 	if m.onAddFunc == nil {
@@ -49,7 +57,7 @@ func (m *mockLimiter) OnDelete(labelHash uint64, seriesCount uint32) {
 }
 
 func buildTestLabels(names []string, values []string) labels.Labels {
-	builder := NewLabelBuilder(0, 0)
+	builder := NewLabelBuilder(0, 0, func(lbls labels.Labels) labels.Labels { return lbls })
 	for i := range names {
 		builder.Add(names[i], values[i])
 	}
