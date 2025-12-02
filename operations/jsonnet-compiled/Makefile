@@ -2,7 +2,7 @@
 all: jb gen check
 
 gen: jb gen-examples
-gen-examples: gen-example/microservices gen-example/microservices-extras
+gen-examples: gen-example/microservices
 
 jb:
 	jb install ../jsonnet/microservices
@@ -22,7 +22,7 @@ gen-example/%:
 	rm -rf out-$*/
 
 check: check-examples
-check-examples: check-example/microservices check-example/microservices-extras
+check-examples: check-example/microservices
 
 check-example/%: gen-example/%
 	git diff --exit-code -- ../$*/gen/*.yaml
