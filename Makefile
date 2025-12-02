@@ -359,10 +359,10 @@ generate-manifest:  ## Generate manifest.md file
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
 jsonnet: tools-image ## Generate jsonnet
-	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util gen
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled gen
 
 jsonnet-check: tools-image ## Check jsonnet
-	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util check
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled check
 
 jsonnet-test: tools-image ## Test jsonnet
 	$(TOOLS_CMD) make -C operations/jsonnet/microservices test
