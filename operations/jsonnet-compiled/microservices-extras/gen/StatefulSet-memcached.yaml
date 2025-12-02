@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: memcached
+  namespace: tracing
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      name: memcached
+  serviceName: memcached
+  template:
+    metadata:
+      labels:
+        name: memcached
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                name: memcached
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - args:
+        - -m 1024
+        - -I 5m
+        - -c 4096
+        - -v
+        image: memcached:1.6.38-alpine
+        imagePullPolicy: IfNotPresent
+        name: memcached
+        ports:
+        - containerPort: 11211
+          name: client
+        resources:
+          limits:
+            memory: 1536Mi
+          requests:
+            cpu: 500m
+            memory: 1329Mi
+      - args:
+        - --memcached.address=localhost:11211
+        - --web.listen-address=0.0.0.0:9150
+        image: prom/memcached-exporter:v0.15.2
+        imagePullPolicy: IfNotPresent
+        name: exporter
+        ports:
+        - containerPort: 9150
+          name: http-metrics
+  updateStrategy:
+    type: RollingUpdate
