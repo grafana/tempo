@@ -1,14 +1,12 @@
-package backend
+package util
 
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/grafana/e2e"
 	e2e_db "github.com/grafana/e2e/db"
-	"github.com/grafana/tempo/integration/util"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -20,17 +18,8 @@ const (
 	gcsImage     = "fsouza/fake-gcs-server:1.52.2"
 )
 
-func parsePort(endpoint string) (int, error) {
-	substrings := strings.Split(endpoint, ":")
-	portStrings := strings.Split(substrings[len(substrings)-1], "/")
-	port, err := strconv.Atoi(portStrings[0])
-	if err != nil {
-		return 0, err
-	}
-	return port, nil
-}
-
-func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
+// jpe - needs to exist? or just part of the test harness stuff?
+func NewBackend(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 	var backendService *e2e.HTTPService
 	switch cfg.StorageConfig.Trace.Backend {
 	case backend.S3:
@@ -88,7 +77,7 @@ func NewAzurite(port int) *e2e.HTTPService {
 		port, // blob storage port
 	)
 
-	s.SetBackoff(util.TempoBackoff())
+	s.SetBackoff(TempoBackoff())
 
 	return s
 }
@@ -106,7 +95,7 @@ func NewGCS(port int) *e2e.HTTPService {
 		port,
 	)
 
-	s.SetBackoff(util.TempoBackoff())
+	s.SetBackoff(TempoBackoff())
 
 	return s
 }

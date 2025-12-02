@@ -9,7 +9,6 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -720,7 +719,7 @@ func setupTempo(t *testing.T, configFilePath string) (*e2e.Scenario, *e2e.HTTPSe
 	require.NoError(t, err)
 	err = yaml.UnmarshalStrict(buff, &cfg)
 	require.NoError(t, err)
-	_, err = backend.New(s, cfg)
+	_, err = util.NewBackend(s, cfg)
 	require.NoError(t, err)
 
 	tempo := util.NewTempoAllInOne()

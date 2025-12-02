@@ -15,7 +15,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/integration/e2e/backend"
 )
 
 func TestInvalidTenants(t *testing.T) {
@@ -30,7 +29,7 @@ func TestInvalidTenants(t *testing.T) {
 	require.NoError(t, err)
 	err = yaml.UnmarshalStrict(buff, &cfg)
 	require.NoError(t, err)
-	_, err = backend.New(s, cfg)
+	_, err = util.NewBackend(s, cfg)
 	require.NoError(t, err)
 
 	require.NoError(t, util.CopyFileToSharedDir(s, configMultiTenant, "config.yaml"))

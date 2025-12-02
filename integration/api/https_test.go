@@ -10,8 +10,6 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/integration/e2e/backend"
-	e2e_ca "github.com/grafana/tempo/integration/e2e/ca"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -25,7 +23,7 @@ const (
 )
 
 func TestHTTPS(t *testing.T) {
-	km := e2e_ca.SetupCertificates(t)
+	km := util.SetupCertificates(t)
 
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
@@ -37,7 +35,7 @@ func TestHTTPS(t *testing.T) {
 	require.NoError(t, err)
 	err = yaml.UnmarshalStrict(buff, &cfg)
 	require.NoError(t, err)
-	_, err = backend.New(s, cfg)
+	_, err = util.NewBackend(s, cfg)
 	require.NoError(t, err)
 
 	// copy in certs

@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	configAllInOneLocal = "deployments/config-all-in-one-local.yaml"
+	configAllInOneLocal = "../deployments/config-all-in-one-local.yaml" // jpe - look for and eliminate cross folder dependencies
 )
 
 func TestReceivers(t *testing.T) {

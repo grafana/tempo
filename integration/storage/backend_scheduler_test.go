@@ -1,4 +1,4 @@
-package backendscheduler
+package storage
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/cmd/tempo/app"
-	e2eBackend "github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -25,10 +24,6 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
-)
-
-const (
-	tenant = "test"
 )
 
 func TestBackendSchedulerConfigurations(t *testing.T) {
@@ -63,7 +58,7 @@ func testWithConfig(t *testing.T, configFile string) {
 	err = yaml.UnmarshalStrict(buff, &cfg)
 	require.NoError(t, err)
 
-	b, err := e2eBackend.New(s, cfg)
+	b, err := util.NewBackend(s, cfg)
 	require.NoError(t, err)
 
 	err = b.WaitReady()

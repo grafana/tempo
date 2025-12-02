@@ -47,59 +47,54 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util2.CopyFileToSharedDir(s, configLimits, "config.yaml"))
-	tempo := util2.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+	util2.WithTempoHarness(t, s, util2.TestHarnessConfig{
+		ConfigOverlay: "config-limits-overlay.yaml",
+	}, func(h *util2.TempoHarness) {
+		// should fail b/c the trace is too large. each batch should be ~70 bytes
+		batch := util.MakeThriftBatchWithSpanCount(2)
+		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch), "max trace size")
 
-	// Get port for the otlp receiver endpoint
-	c, err := util2.NewJaegerToOTLPExporter(tempo.Endpoint(4317))
-	require.NoError(t, err)
-	require.NotNil(t, c)
+		// push a trace
+		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), util.MakeThriftBatchWithSpanCount(1)))
 
-	// should fail b/c the trace is too large. each batch should be ~70 bytes
-	batch := util.MakeThriftBatchWithSpanCount(2)
-	require.NoError(t, c.EmitBatch(context.Background(), batch), "max trace size")
+		// should fail b/c this will be too many traces
+		batch = util.MakeThriftBatch()
+		require.NoError(t, h.JaegerExporter.EmitBatch(context.Background(), batch), "too many traces")
 
-	// push a trace
-	require.NoError(t, c.EmitBatch(context.Background(), util.MakeThriftBatchWithSpanCount(1)))
+		// should fail b/c due to ingestion rate limit
+		batch = util.MakeThriftBatchWithSpanCount(10)
+		err := h.JaegerExporter.EmitBatch(context.Background(), batch)
+		require.Error(t, err)
 
-	// should fail b/c this will be too many traces
-	batch = util.MakeThriftBatch()
-	require.NoError(t, c.EmitBatch(context.Background(), batch), "too many traces")
-
-	// should fail b/c due to ingestion rate limit
-	batch = util.MakeThriftBatchWithSpanCount(10)
-	err = c.EmitBatch(context.Background(), batch)
-	require.Error(t, err)
-
-	// this error must have a retryinfo as expected in otel collector code: https://github.com/open-telemetry/opentelemetry-collector/blob/d7b49df5d9e922df6ce56ad4b64ee1c79f9dbdbe/exporter/otlpexporter/otlp.go#L172
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	foundRetryInfo := false
-	for _, detail := range st.Details() {
-		if _, ok := detail.(*errdetails.RetryInfo); ok {
-			foundRetryInfo = true
-			break
+		// this error must have a retryinfo as expected in otel collector code: https://github.com/open-telemetry/opentelemetry-collector/blob/d7b49df5d9e922df6ce56ad4b64ee1c79f9dbdbe/exporter/otlpexporter/otlp.go#L172
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		foundRetryInfo := false
+		for _, detail := range st.Details() {
+			if _, ok := detail.(*errdetails.RetryInfo); ok {
+				foundRetryInfo = true
+				break
+			}
 		}
-	}
-	require.True(t, foundRetryInfo)
+		require.True(t, foundRetryInfo)
 
-	// test limit metrics
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(2),
-		[]string{"tempo_discarded_spans_total"},
-		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
-	)
-	require.NoError(t, err)
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(1),
-		[]string{"tempo_discarded_spans_total"},
-		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "live_traces_exceeded")),
-	)
-	require.NoError(t, err)
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(10),
-		[]string{"tempo_discarded_spans_total"},
-		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
-	)
-	require.NoError(t, err)
+		// test limit metrics - check on distributor
+		err = h.LiveStores[0].WaitSumMetricsWithOptions(e2e.Equals(2),
+			[]string{"tempo_discarded_spans_total"},
+			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
+		)
+		require.NoError(t, err)
+		err = h.LiveStores[0].WaitSumMetricsWithOptions(e2e.Equals(1),
+			[]string{"tempo_discarded_spans_total"},
+			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "live_traces_exceeded")),
+		)
+		require.NoError(t, err)
+		err = h.Distributor.WaitSumMetricsWithOptions(e2e.Equals(10),
+			[]string{"tempo_discarded_spans_total"},
+			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
+		)
+		require.NoError(t, err)
+	})
 }
 
 func TestOTLPLimits(t *testing.T) {

@@ -1,3 +1,5 @@
+# rename all configs to match tests?
+
 server:
   http_listen_port: 3200
   # grpc_server_max_recv_msg_size: 134217728

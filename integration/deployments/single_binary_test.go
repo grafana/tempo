@@ -11,7 +11,6 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -76,7 +75,7 @@ func TestAllInOne(t *testing.T) {
 				require.NoError(t, err)
 				err = yaml.UnmarshalStrict(buff, &cfg)
 				require.NoError(t, err)
-				_, err = backend.New(s, cfg)
+				_, err = util.NewBackend(s, cfg)
 				require.NoError(t, err)
 
 				tempo := util.NewTempoAllInOne()
@@ -178,7 +177,7 @@ func TestShutdownDelay(t *testing.T) {
 	require.NoError(t, err)
 	err = yaml.UnmarshalStrict(buff, &cfg)
 	require.NoError(t, err)
-	_, err = backend.New(s, cfg)
+	_, err = util.NewBackend(s, cfg)
 	require.NoError(t, err)
 
 	tempo := util.NewTempoAllInOne("-shutdown-delay=5s")

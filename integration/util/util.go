@@ -110,7 +110,7 @@ func NewTempoAllInOneDebug(extraArgs ...string) *e2e.HTTPService {
 	return s
 }
 
-func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...string) *e2e.HTTPService {
+func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...string) *e2e.HTTPService { // jpe - get single binary working? and then add tests?
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")}
 	args = buildArgsWithExtra(args, extraArgs)
 
@@ -133,7 +133,7 @@ func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...stri
 	return s
 }
 
-func NewTempoDistributor(extraArgs ...string) *e2e.HTTPService {
+func NewTempoDistributor(extraArgs ...string) *e2e.HTTPService { // jpe -m make internal? same Q for all below
 	return NewNamedTempoDistributor("distributor", extraArgs...)
 }
 
@@ -156,7 +156,7 @@ func NewNamedTempoDistributor(name string, extraArgs ...string) *e2e.HTTPService
 	return s
 }
 
-func NewTempoIngester(replica int, extraArgs ...string) *e2e.HTTPService {
+func NewTempoIngester(replica int, extraArgs ...string) *e2e.HTTPService { // jpe - remove?
 	return NewNamedTempoIngester("ingester", replica, extraArgs...)
 }
 
@@ -277,7 +277,7 @@ func NewNamedTempoLiveStore(name string, replica int, extraArgs ...string) *e2e.
 	return s
 }
 
-func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPService {
+func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPService { // jpe - remove?
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=scalable-single-binary", "-querier.frontend-address=tempo-" + strconv.Itoa(replica) + ":9095"}
 	args = buildArgsWithExtra(args, extraArgs)
 

@@ -1,0 +1,56 @@
+stream_over_http_enabled: true
+partition_ring_live_store: true
+
+server:
+  http_listen_port: 3200
+  log_level: info
+
+query_frontend:
+  query_end_cutoff: -5m # jpe - why?
+  rf1_after: "2025-01-01T00:00:00Z"
+
+distributor:
+  ingester_write_path_enabled: false
+  kafka_write_path_enabled: true
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317" # jpe - update for tempo single binary?
+
+live_store:
+  partition_ring:
+    kvstore:
+      store: memberlist
+    delete_inactive_partition_after: 1s
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/backend
+    pool:
+      max_workers: 10
+      queue_depth: 100
+    blocklist_poll: 1s
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - live-store-zone-a-0:7946
+    - live-store-zone-b-0:7946
+
+block_builder:
+  consume_cycle_duration: 1m
+
+ingest:
+  enabled: true
+  kafka:
+    address: kafka:9092
+    topic: tempo-ingest
+
+querier:
+  frontend_worker:
+    frontend_address: query-frontend:9095
+  query_live_store: true

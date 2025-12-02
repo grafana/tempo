@@ -1,4 +1,4 @@
-package poller
+package storage
 
 import (
 	"bytes"
@@ -20,7 +20,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	e2eBackend "github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/pkg/blockboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -103,7 +102,7 @@ func TestPollerOwnership(t *testing.T) {
 				require.NoError(t, err)
 				err = yaml.UnmarshalStrict(buff, &cfg)
 				require.NoError(t, err)
-				hhh, err = e2eBackend.New(s, cfg)
+				hhh, err = util.NewBackend(s, cfg)
 				require.NoError(t, err)
 
 				err = hhh.WaitReady()
@@ -267,7 +266,7 @@ func TestTenantDeletion(t *testing.T) {
 				require.NoError(t, err)
 				err = yaml.UnmarshalStrict(buff, &cfg)
 				require.NoError(t, err)
-				hhh, err = e2eBackend.New(s, cfg)
+				hhh, err = util.NewBackend(s, cfg)
 				require.NoError(t, err)
 
 				err = hhh.WaitReady()

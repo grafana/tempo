@@ -1,3 +1,4 @@
+# jpe - partition downscale test
 server:
   http_listen_port: 3200
   log_level: info

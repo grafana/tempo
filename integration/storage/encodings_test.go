@@ -1,4 +1,4 @@
-package e2e
+package storage
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -47,7 +46,7 @@ func TestEncodings(t *testing.T) {
 			require.NoError(t, err)
 
 			// set up the backend
-			_, err = backend.New(s, cfg)
+			_, err = util.NewBackend(s, cfg)
 			require.NoError(t, err)
 
 			tempo := util2.NewTempoAllInOne()

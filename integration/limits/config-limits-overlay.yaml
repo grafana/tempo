@@ -1,0 +1,11 @@
+distributor:
+  retry_after_on_resource_exhausted: 1s
+
+overrides:
+  defaults:
+    ingestion:
+      max_traces_per_user: 1
+      rate_limit_bytes: 500
+      burst_size_bytes: 500
+    global:
+      max_bytes_per_trace: 130
