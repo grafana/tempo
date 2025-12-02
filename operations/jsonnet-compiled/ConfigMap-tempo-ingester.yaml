@@ -1,53 +1,6 @@
 apiVersion: v1
 data:
   tempo.yaml: |
-    cache:
-        caches:
-            - memcached:
-                consistent_hash: true
-                host: memcached
-                max_idle_conns: 100
-                max_item_size: 5.24288e+06
-                service: memcached-client
-                timeout: 200ms
-              roles:
-                - bloom
-            - memcached:
-                consistent_hash: true
-                host: memcached
-                max_idle_conns: 100
-                max_item_size: 5.24288e+06
-                service: memcached-client
-                timeout: 200ms
-              roles:
-                - trace-id-index
-            - memcached:
-                consistent_hash: true
-                host: memcached
-                max_idle_conns: 100
-                max_item_size: 5.24288e+06
-                service: memcached-client
-                timeout: 200ms
-              roles:
-                - parquet-footer
-            - memcached:
-                consistent_hash: true
-                host: memcached-frontend-search
-                max_idle_conns: 100
-                max_item_size: 1.048576e+06
-                service: memcached-client
-                timeout: 50ms
-              roles:
-                - frontend-search
-            - memcached:
-                consistent_hash: true
-                host: memcached-parquet-page
-                max_idle_conns: 100
-                max_item_size: 2.097152e+06
-                service: memcached-client
-                timeout: 200ms
-              roles:
-                - parquet-page
     compactor: {}
     distributor: {}
     http_api_prefix: ""
@@ -70,9 +23,15 @@ data:
                 container_name: tempo
             backend: gcs
             blocklist_poll: "0"
+            cache: memcached
             gcs:
                 bucket_name: tempo
                 chunk_buffer_size: 1.048576e+07
+            memcached:
+                consistent_hash: true
+                host: memcached
+                service: memcached-client
+                timeout: 200ms
             pool:
                 queue_depth: 2000
             s3:

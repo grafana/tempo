@@ -27,7 +27,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: d095963d0b3b8366497159889a275312
+        config_hash: 699cc4b0c5f8f06f2115a375105318c8
       labels:
         name: live-store-zone-a
         rollout-group: live-store

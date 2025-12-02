@@ -3,6 +3,25 @@ local memcached = import 'memcached/memcached.libsonnet';
 memcached {
   local this = self,
 
+  _config+:: {
+    memcached_tiered_enabled: false,
+  },
+
+  tempo_config+:: if !$._config.memcached_tiered_enabled then
+    {
+      storage+: {
+        trace+: {
+          cache: 'memcached',
+          memcached: {
+            consistent_hash: true,
+            timeout: '200ms',
+            host: 'memcached',
+            service: 'memcached-client',
+          },
+        },
+      },
+    },
+
   memcached+:: {
     cpu_limits:: null,
     cpu_requests:: '100m',
@@ -29,22 +48,27 @@ memcached {
       service.mixin.spec.withClusterIp('None'),
   },
 
-  memcached_frontend_search: $.memcached {
-    name: 'memcached-frontend-search',
+  memcached_frontend_search:
+    if this._config.memcached_tiered_enabled then
+      $.memcached {
+        name: 'memcached-frontend-search',
 
-    replicas: $._config.memcached_frontend_search.replicas,
-    connection_limit: $._config.memcached_frontend_search.connection_limit,
-    max_item_size: $._config.memcached_frontend_search.cache_max_size_mbs + 'm',
-    memory_limit_mb: $._config.memcached_frontend_search.memory_limit_mb,
-  },
+        replicas: $._config.memcached_frontend_search.replicas,
+        connection_limit: $._config.memcached_frontend_search.connection_limit,
+        max_item_size: $._config.memcached_frontend_search.cache_max_size_mbs + 'm',
+        memory_limit_mb: $._config.memcached_frontend_search.memory_limit_mb,
+      }
+    else null,
 
-  memcached_parquet_page: $.memcached {
-    name: 'memcached-parquet-page',
-    replicas: $._config.memcached_parquet_page.replicas,
-    connection_limit: $._config.memcached_parquet_page.connection_limit,
-    max_item_size: $._config.memcached_parquet_page.cache_max_size_mbs + 'm',
-    memory_limit_mb: $._config.memcached_parquet_page.memory_limit_mb,
-  },
+  memcached_parquet_page: if this._config.memcached_tiered_enabled then
+    $.memcached {
+      name: 'memcached-parquet-page',
+      replicas: $._config.memcached_parquet_page.replicas,
+      connection_limit: $._config.memcached_parquet_page.connection_limit,
+      max_item_size: $._config.memcached_parquet_page.cache_max_size_mbs + 'm',
+      memory_limit_mb: $._config.memcached_parquet_page.memory_limit_mb,
+    }
+  else null,
 
   memcached_all: $.memcached {
     name: 'memcached',
@@ -117,7 +141,7 @@ memcached {
 
   // disables cache control on the querier. remove once this is rolled out everywhere and the corresponding setting is removed
   // from tempo/tempo.libsonnet
-  tempo_querier_config+::
+  tempo_querier_config+:: if $._config.memcached_tiered_enabled then
     {
       cache+: {
         caches+: this.caches_config,
@@ -131,27 +155,31 @@ memcached {
           },
         },
       },
-    },
+    }
+  else {},
 
-  tempo_ingester_config+::
+  tempo_ingester_config+:: if $._config.memcached_tiered_enabled then
     {
       cache+: {
         caches+: this.caches_config,
       },
-    },
+    }
+  else {},
 
-  tempo_query_frontend_config+::
+  tempo_query_frontend_config+:: if $._config.memcached_tiered_enabled then
     {
       cache+: {
         caches+: this.caches_config,
       },
-    },
+    }
+  else {},
 
-  tempo_compactor_config+::
+  tempo_compactor_config+:: if $._config.memcached_tiered_enabled then
     {
       cache+: {
         caches+: this.caches_config,
       },
-    },
+    }
+  else {},
 
 }
