@@ -3,7 +3,6 @@ module github.com/grafana/tempo/tools
 go 1.25.4
 
 require (
-	github.com/boumenot/gocover-cobertura v1.4.0
 	github.com/golangci/golangci-lint/v2 v2.1.5
 	github.com/google/go-jsonnet v0.21.0
 	github.com/grafana/tanka v0.32.0

@@ -17,7 +17,6 @@ GOARCH ?= $(shell go env GOARCH)
 GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 GOCOVMERGE := $(GOPATH)/bin/gocovmerge
-GOCOVER_COBERTURA := $(GOPATH)/bin/gocover-cobertura
 
 # Build Images
 DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.25.0
@@ -214,10 +213,6 @@ coverage-clean: ## Clean coverage files
 .PHONY: coverage-merge
 coverage-merge: ## Merge all coverage reports
 	$(GOCOVMERGE) $(COVERAGE_DIR)/*.out > $(COVERAGE_DIR)/merged.out
-
-.PHONY: coverage-cobertura
-coverage-cobertura: ## Convert merged coverage to cobertura XML format
-	$(GOCOVER_COBERTURA) < $(COVERAGE_DIR)/merged.out > $(COVERAGE_DIR)/cobertura.xml
 
 ##@ Docker Images
 

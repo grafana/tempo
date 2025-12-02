@@ -3,7 +3,6 @@
 package tools
 
 import (
-	_ "github.com/boumenot/gocover-cobertura"
 	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 	_ "github.com/google/go-jsonnet/cmd/jsonnet"
 	_ "github.com/google/go-jsonnet/cmd/jsonnetfmt"
