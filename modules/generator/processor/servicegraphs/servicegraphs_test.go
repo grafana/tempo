@@ -20,10 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
-
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
 )
 
 // NOTE: This is a way to know if the contents of the semconv package have changed.
@@ -554,24 +550,25 @@ func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
 
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"beast", "god"}
-	cfg.DatabaseNameAttributes = []string{"db.name"}
+	cfg.DatabaseNameAttributes = []string{"db.system"}
 
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	p := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}))
 	defer p.Shutdown(context.Background())
 
-	request, err := loadTestData("testdata/trace-with-queue-database4.json")
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
 	require.NoError(t, err)
 
 	p.PushSpans(context.Background(), request)
 
-	// The server label should be set to the value of db.name
+	// The server label should be set to the value of db.system
 	labels := labels.FromMap(map[string]string{
 		"client":          "mythical-server",
-		"server":          "postgres",
+		"server":          "postgresql",
 		"connection_type": "database",
 		"beast":           "",
 		"god":             "",
 	})
+	print(testRegistry.Query(`traces_service_graph_request_total`, labels))
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
 }
 

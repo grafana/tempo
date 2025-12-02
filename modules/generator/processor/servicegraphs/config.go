@@ -6,6 +6,8 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/prometheus/client_golang/prometheus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 )
 
 type Config struct {
@@ -66,5 +68,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 
 	cfg.EnableMessagingSystemLatencyHistogram = false
 
-	cfg.DatabaseNameAttributes = []string{}
+	cfg.DatabaseNameAttributes = []string{
+		string(semconvnew.DBNamespaceKey),
+		string(semconv.DBNameKey),
+		string(semconv.DBSystemKey),
+	}
 }
