@@ -48,6 +48,14 @@ Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION
 The following examples illustrate some commonly used queries.
 You can use these examples as a starting point for your own queries.
 
+Query construction tips:
+
+- Start broad, then filter: Begin with `{ }` to see all traces, then add conditions
+- Use intrinsics for efficiency: `trace:duration`, `trace:rootService` are faster than aggregations
+- Combine conditions with `&&`: Multiple conditions on the same span are joined with `AND`
+- Use pipeline operators: `|` for aggregations and transformations
+- Group for metrics: Use `by(field)` to create time-series breakdowns
+
 ### Find traces of a specific operation
 
 Let's say that you want to find traces of a specific operation, then both the operation name (the span attribute `name`) and the name of the service that holds this operation (the resource attribute `service.name`) should be specified for proper filtering.
@@ -147,7 +155,7 @@ Find if `productcatalogservice` and `frontend` are siblings.
 
 ### Other examples
 
-Find the services where the http status is 200, and list the service name the span belongs to along with returned traces.
+Find the services where the HTTP status is `200`, and list the service name the span belongs to along with returned traces.
 
 ```
 { span.http.status_code = 200 } | select(resource.service.name)
@@ -165,10 +173,28 @@ Find any trace where any span has an `http.method` attribute set to `GET` as wel
 { span.http.method = "GET" && status = ok } && { span.http.method = "DELETE" && status != ok }
 ```
 
-Find any trace with a `deployment.environment` attribute that matches the regex `prod-.*` and `http.status_code` attribute set to `200`:
+Find any trace with a `deployment.environment` attribute that matches the regular expression `prod-.*` and `http.status_code` attribute set to `200`:
 
 ```
 { resource.deployment.environment =~ "prod-.*" && span.http.status_code = 200 }
+```
+
+Find traces that took longer than 5 seconds:
+
+```
+{ trace:duration > 5s }
+```
+
+Find services with many fast spans, indicating potential over-instrumentation:
+
+```
+{ span:duration < 5ms } | count_over_time() by(resource.service.name) | topk(10)
+```
+
+Find large, slow traces from production:
+
+```
+{ resource.deployment.environment = "production" && trace:duration > 2s } | count() > 30
 ```
 
 ## Select spans
