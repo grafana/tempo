@@ -4,14 +4,14 @@
 * @javiermolinar
 * @joe-elliott
 * @knylander-grafana
-* @yvrhdn
-* @mattdurham
 * @mapno
+* @mattdurham
 * @mdisibio
+* @oleg-kozlyuk-grafana
 * @ruslan-mikhailov
 * @stoewer
+* @yvrhdn
 * @zalegrala
-* @oleg-kozlyuk-grafana
 
 Emeritus Maintainers
 
