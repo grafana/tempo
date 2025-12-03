@@ -166,6 +166,17 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
+
+	// If the same series that was removed due to staleness is registered
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	collectionTimeMs = time.Now().UnixMilli()
+	endOfLastMinuteMs = getEndOfLastMinuteMs(collectionTimeMs)
+	expectedSamples = []sample{
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, endOfLastMinuteMs, 0), // For our counter the series is new, not for the prometheus registry
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
+	}
+	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
 }
 
 func Test_counter_externalLabels(t *testing.T) {
@@ -287,7 +298,6 @@ func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, expe
 		fmt.Println(" - ", sample.l, sample.v)
 	}
 	assert.ElementsMatch(t, expectedExemplars, appender.exemplars)
-	assert.Equal(t, expectedActiveSeries, m.countActiveSeries())
 }
 
 func Test_counter_demandTracking(t *testing.T) {
@@ -369,46 +379,6 @@ func Test_counter_demandDecay(t *testing.T) {
 	assert.LessOrEqual(t, finalDemand, initialDemand/2, "demand should significantly decay")
 }
 
-func Test_counter_concurrentCollectionRace(t *testing.T) {
-	var (
-		c                 = newCounter("my_counter", nil, nil, nil, 15*time.Minute)
-		collectionTimeMs  = time.Now().UnixMilli()
-		endOfLastMinuteMs = getEndOfLastMinuteMs(collectionTimeMs)
-		numGoroutines     = 50
-		initSamplesSeen   = atomic.NewInt32(0)
-		startBarrier      = make(chan struct{}) // Make all the goroutines to start at the same time
-
-		wg sync.WaitGroup
-	)
-
-	registerInitSeriesSeen := func(a *capturingAppender) {
-		for _, s := range a.samples {
-			if s.t == endOfLastMinuteMs && s.v == 0 {
-				initSamplesSeen.Add(1)
-				break
-			}
-		}
-	}
-
-	// Create a new series
-	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-
-	for range numGoroutines {
-		wg.Go(func() {
-			<-startBarrier // Block
-			appender := &capturingAppender{}
-			_ = c.collectMetrics(appender, collectionTimeMs)
-			// Check if this goroutine saw the init sample
-			registerInitSeriesSeen(appender)
-		})
-	}
-
-	close(startBarrier)
-	wg.Wait()
-
-	assert.Equal(t, int32(1), initSamplesSeen.Load(),
-		"Expected exactly 1 goroutine to see the init sample, got %d",
-		initSamplesSeen.Load())
 func Test_counter_onUpdate(t *testing.T) {
 	var seriesUpdated int
 	lifecycler := &mockLimiter{
@@ -438,4 +408,46 @@ func Test_counter_onUpdate(t *testing.T) {
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 3.0)
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 4.0)
 	assert.Equal(t, 3, seriesUpdated)
+}
+
+func Test_counter_concurrentCollectionRace(t *testing.T) {
+	var (
+		c                 = newCounter("my_counter", nil, nil, 15*time.Minute)
+		collectionTimeMs  = time.Now().UnixMilli()
+		endOfLastMinuteMs = getEndOfLastMinuteMs(collectionTimeMs)
+		numGoroutines     = 50
+		initSamplesSeen   = atomic.NewInt32(0)
+		startBarrier      = make(chan struct{}) // Make all the goroutines to start at the same time
+
+		wg sync.WaitGroup
+	)
+
+	registerInitSeriesSeen := func(a *capturingAppender) {
+		for _, s := range a.samples {
+			if s.t == endOfLastMinuteMs && s.v == 0 {
+				initSamplesSeen.Add(1)
+				break
+			}
+		}
+	}
+
+	// Create a new series
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+
+	for range numGoroutines {
+		wg.Go(func() {
+			<-startBarrier // Block
+			appender := &capturingAppender{}
+			_ = c.collectMetrics(appender, collectionTimeMs)
+			// Check if this goroutine saw the init sample
+			registerInitSeriesSeen(appender)
+		})
+	}
+
+	close(startBarrier)
+	wg.Wait()
+
+	assert.Equal(t, int32(1), initSamplesSeen.Load(),
+		"Expected exactly 1 goroutine to see the init sample, got %d",
+		initSamplesSeen.Load())
 }

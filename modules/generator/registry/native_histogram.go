@@ -412,7 +412,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	if wasNew {
 		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 		_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
-		if err != nil {
+		if err != nil && !isOutOfOrderError(err) {
 			s.resetSeenSeries()
 			return err
 		}
@@ -447,7 +447,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if wasNew {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, appendErr := appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
-			if appendErr != nil {
+			if appendErr != nil && !isOutOfOrderError(err) {
 				s.resetSeenSeries()
 				return appendErr
 			}
@@ -478,7 +478,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if wasNew {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err = appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
-			if err != nil {
+			if err != nil && !isOutOfOrderError(err) {
 				s.resetSeenSeries()
 				return err
 			}
