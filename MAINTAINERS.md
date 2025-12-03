@@ -11,6 +11,7 @@
 * @ruslan-mikhailov
 * @stoewer
 * @zalegrala
+* @oleg-kozlyuk-grafana
 
 Emeritus Maintainers
 
