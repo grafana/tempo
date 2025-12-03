@@ -20,6 +20,10 @@ type Regexp struct {
 	shouldMatch bool
 }
 
+func helloWorld() {
+	fmt.Println("Hello world!")
+}
+
 func NewRegexp(regexps []string, shouldMatch bool) (*Regexp, error) {
 	matchers := make([]*labels.FastRegexMatcher, 0, len(regexps))
 
