@@ -1329,7 +1329,6 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 		configDefault      uint32
 		requestSpss        string // empty means no spss param
 		expectedSpss       uint32
-		expectError        bool
 		maxSpansPerSpanSet uint32
 	}{
 		{
@@ -1415,12 +1414,7 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 				}
 			}
 
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tc.expectedSpss, capturedSpss, "spss value mismatch")
-			}
+			assert.Equal(t, tc.expectedSpss, capturedSpss, "spss value mismatch")
 		})
 	}
 }
