@@ -50,6 +50,8 @@
 * [BUGFIX] Fix compactor to properly consider SSE-KMS information during metadata copy [#5774](https://github.com/grafana/tempo/pull/5774) (@steffsas)
 * [BUGFIX] Fix `spss=0` parameter to properly mean unlimited spans instead of being rejected, and respect `max_spans_per_span_set=0` configuration [#5858](https://github.com/grafana/tempo/pull/5858) (@iamrajiv)
 * [BUGFIX] Fix incorrect results in TraceQL compare() caused by potential hash collision of string array attributes [#5835](https://github.com/grafana/tempo/pull/5835) (@mdisibio)
+* [BUGFIX] Fix != nil checks broken in TraceQL Metrics [#5998](https://github.com/grafana/tempo/issues/5998) (@mdisibio)
+* [BUGFIX] Fix = nil handling with intrinsic columns [#5999](https://github.com/grafana/tempo/issues/5999) (@mdisibio)
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
 * [BUGFIX] Fix issues related to integer dedicated columns in vParquet5-preview2 [#5716](https://github.com/grafana/tempo/pull/5716) (@stoewer)
 * [BUGFIX] Fix: handle collisions with job and instance labels when targetInfo is enabled [#5774](https://github.com/grafana/tempo/pull/5774) (@javiermolinar)
