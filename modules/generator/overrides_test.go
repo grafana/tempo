@@ -53,6 +53,10 @@ func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(string) uint32 {
 	return 0
 }
 
+func (m *mockOverrides) MetricsGeneratorMaxActiveEntities(string) uint32 {
+	return 0
+}
+
 func (m *mockOverrides) MetricsGeneratorCollectionInterval(string) time.Duration {
 	return 15 * time.Second
 }
@@ -69,7 +73,7 @@ func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) histogr
 	return m.nativeHistograms
 }
 
-func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {
+func (m *mockOverrides) MetricsGeneratorTraceIDLabelName(string) string {
 	return ""
 }
 

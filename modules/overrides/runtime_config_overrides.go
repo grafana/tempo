@@ -412,8 +412,16 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessors(userID string
 
 // MetricsGeneratorMaxActiveSeries is the maximum amount of active series in the metrics-generator
 // registry for this tenant. Note this is a local limit enforced in every instance separately.
+// Requires the generator's limiter type to be set to "series".
 func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
+}
+
+// MetricsGeneratorMaxEntities is the maximum amount of entities in the metrics-generator registry
+// for this tenant. Note this is a local limit enforced in every instance separately.
+// Requires the generator's limiter type to be set to "entity".
+func (o *runtimeConfigOverridesManager) MetricsGeneratorMaxActiveEntities(userID string) uint32 {
+	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveEntities
 }
 
 // MetricsGeneratorCollectionInterval is the collection interval of the metrics-generator registry
@@ -452,9 +460,9 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorNativeHistogramMinResetD
 	return o.defaultLimits.MetricsGenerator.NativeHistogramMinResetDuration
 }
 
-// MetricsGenerationTraceIDLabelName is the label name used for the trace ID in metrics.
+// MetricsGeneratorTraceIDLabelName is the label name used for the trace ID in metrics.
 // "TraceID" is used if no value is provided.
-func (o *runtimeConfigOverridesManager) MetricsGenerationTraceIDLabelName(userID string) string {
+func (o *runtimeConfigOverridesManager) MetricsGeneratorTraceIDLabelName(userID string) string {
 	return o.getOverridesForUser(userID).MetricsGenerator.TraceIDLabelName
 }
 

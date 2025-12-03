@@ -1321,6 +1321,100 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 	}
 }
 
+// TestDefaultSpansPerSpanSet verifies that the default_spans_per_span_set configuration
+// is properly used when no spss parameter is provided in the request
+func TestDefaultSpansPerSpanSet(t *testing.T) {
+	tests := []struct {
+		name               string
+		configDefault      uint32
+		requestSpss        string // empty means no spss param
+		expectedSpss       uint32
+		expectError        bool
+		maxSpansPerSpanSet uint32
+	}{
+		{
+			name:               "use configured default when no spss param",
+			configDefault:      10,
+			requestSpss:        "",
+			expectedSpss:       10,
+			maxSpansPerSpanSet: 100,
+		},
+		{
+			name:               "use zero as configured default (unlimited)",
+			configDefault:      0,
+			requestSpss:        "",
+			expectedSpss:       0, // 0 means unlimited when explicitly configured
+			maxSpansPerSpanSet: 0,
+		},
+		{
+			name:               "override configured default with request param",
+			configDefault:      10,
+			requestSpss:        "5",
+			expectedSpss:       5,
+			maxSpansPerSpanSet: 100,
+		},
+		{
+			name:               "spss=0 in URL means unlimited when max=0",
+			configDefault:      10,
+			requestSpss:        "0",
+			expectedSpss:       0, // 0 means unlimited, not "return 0 spans"
+			maxSpansPerSpanSet: 0, // max=0 means unlimited allowed
+		},
+		{
+			name:               "respect max_spans_per_span_set=0 (unlimited)",
+			configDefault:      10,
+			requestSpss:        "1000",
+			expectedSpss:       1000,
+			maxSpansPerSpanSet: 0, // 0 means unlimited
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Track the actual spss value that was used
+			var capturedSpss uint32
+
+			next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+				// Parse the request to capture spss
+				req, err := api.ParseSearchRequest(r.HTTPRequest())
+				if err == nil {
+					capturedSpss = req.SpansPerSpanSet
+				}
+				return nil, nil
+			})
+
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+			require.NoError(t, err)
+
+			sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
+				ConcurrentRequests:     defaultConcurrentRequests,
+				TargetBytesPerRequest:  defaultTargetBytesPerRequest,
+				DefaultSpansPerSpanSet: tc.configDefault,
+				MaxSpansPerSpanSet:     tc.maxSpansPerSpanSet,
+			}, log.NewNopLogger())
+			testRT := sharder.Wrap(next)
+
+			// Build request URL
+			urlPath := "/"
+			if tc.requestSpss != "" {
+				urlPath = "/?spss=" + tc.requestSpss
+			}
+
+			req := httptest.NewRequest("GET", urlPath, nil)
+			req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
+
+			_, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
+
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedSpss, capturedSpss, "spss value mismatch")
+			}
+		})
+	}
+}
+
 func urisEqual(t *testing.T, expectedURIs, actualURIs []string) {
 	require.Equal(t, len(expectedURIs), len(actualURIs))
 

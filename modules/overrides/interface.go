@@ -48,10 +48,11 @@ type Interface interface {
 	MetricsGeneratorRingSize(userID string) int
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
+	MetricsGeneratorMaxActiveEntities(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
 	MetricsGeneratorGenerateNativeHistograms(userID string) histograms.HistogramMethod
-	MetricsGenerationTraceIDLabelName(userID string) string
+	MetricsGeneratorTraceIDLabelName(userID string) string
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int

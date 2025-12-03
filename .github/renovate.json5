@@ -11,6 +11,7 @@
   ignoreDeps: [],
   separateMajorMinor: true,
   separateMultipleMajor: true,
+  labels: ['dependencies', 'renovate'],
   packageRules: [
     {
       description: 'Group all GitHub Actions updates',
@@ -69,10 +70,12 @@
     },
     {
       description: 'Automerge patch updates',
-      matchUpdateTypes: ['patch'],
+      matchUpdateTypes: ['digest', 'patch', 'minor'],
       automergeStrategy: 'squash',
       automergeType: 'pr',
-      automerge: true
+      automerge: true,
+      minimumReleaseAge: '7 days',
+      platformAutomerge: false
     },
   ],
 }

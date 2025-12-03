@@ -97,6 +97,10 @@ Grafana Beyla is an eBPF-based application zero-code instrumentation tool to eas
 
 Refer to [Set up Beyla](https://grafana.com/docs/beyla/<BEYLA_VERSION>/setup/) for information about how to instrument using Beyla.
 
+{{< admonition type="note" >}}
+While Beyla is a good choice for metrics, span metrics, and service graphs, if you choose to use it for tracing, check the [Beyla documentation](https://grafana.com/docs/beyla/<BEYLA_VERSION>/) to verify that it meets your tracing needs.
+{{< /admonition >}}
+
 <!-- update these blog links
 ## Grafana Blog
 

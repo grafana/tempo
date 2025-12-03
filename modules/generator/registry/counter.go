@@ -19,8 +19,7 @@ type counter struct {
 	series       map[uint64]*counterSeries
 	seriesDemand *Cardinality
 
-	onAddSeries    func(count uint32) bool
-	onRemoveSeries func(count uint32)
+	lifecycler Limiter
 
 	externalLabels map[string]string
 }
@@ -49,32 +48,22 @@ func (co *counterSeries) resetSeenSeries() {
 	co.firstSeries.Store(true)
 }
 
-func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *counter {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newCounter(name string, lifecycler Limiter, externalLabels map[string]string, staleDuration time.Duration) *counter {
 	return &counter{
 		metricName:     name,
 		series:         make(map[uint64]*counterSeries),
 		seriesDemand:   NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSeries:    onAddSeries,
-		onRemoveSeries: onRemoveSeries,
+		lifecycler:     lifecycler,
 		externalLabels: externalLabels,
 	}
 }
 
-func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
+func (c *counter) Inc(lbls labels.Labels, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
 
-	hash := labelValueCombo.getHash()
+	hash := lbls.Hash()
 
 	c.seriesMtx.RLock()
 	s, ok := c.series[hash]
@@ -82,7 +71,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 
 	c.seriesDemand.Insert(hash)
 	if ok {
-		c.updateSeries(s, value)
+		c.updateSeries(hash, s, value)
 		return
 	}
 
@@ -90,29 +79,30 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	defer c.seriesMtx.Unlock()
 
 	if existing, ok := c.series[hash]; ok {
-		c.updateSeries(existing, value)
+		c.updateSeries(hash, existing, value)
 		return
 	}
 
-	if !c.onAddSeries(1) {
+	if !c.lifecycler.OnAdd(hash, 1) {
 		return
 	}
 
-	c.series[hash] = c.newSeries(labelValueCombo, value)
+	c.series[hash] = c.newSeries(lbls, value)
 }
 
-func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
+func (c *counter) newSeries(lbls labels.Labels, value float64) *counterSeries {
 	return &counterSeries{
-		labels:      getSeriesLabels(c.metricName, labelValueCombo, c.externalLabels),
+		labels:      getSeriesLabels(c.metricName, lbls, c.externalLabels),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),
 	}
 }
 
-func (c *counter) updateSeries(s *counterSeries, value float64) {
+func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64) {
 	s.value.Add(value)
 	s.lastUpdated.Store(time.Now().UnixMilli())
+	c.lifecycler.OnUpdate(hash, 1)
 }
 
 func (c *counter) name() string {
@@ -170,7 +160,7 @@ func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	for hash, s := range c.series {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(c.series, hash)
-			c.onRemoveSeries(1)
+			c.lifecycler.OnDelete(hash, 1)
 		}
 	}
 	c.seriesDemand.Advance()

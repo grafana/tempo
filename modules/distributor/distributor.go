@@ -268,11 +268,11 @@ func New(
 	}
 
 	if cfg.Usage.CostAttribution.Enabled {
-		usage, err := usage.NewTracker(cfg.Usage.CostAttribution, "cost-attribution", o.CostAttributionDimensions, o.CostAttributionMaxCardinality)
+		tracker, err := usage.NewTracker(cfg.Usage.CostAttribution, "cost-attribution", o.CostAttributionDimensions, o.CostAttributionMaxCardinality, logger)
 		if err != nil {
 			return nil, fmt.Errorf("creating usage tracker: %w", err)
 		}
-		d.usage = usage
+		d.usage = tracker
 	}
 
 	var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {

@@ -396,6 +396,7 @@ query_frontend:
         query_ingesters_until: 30m0s
         ingester_shards: 3
         most_recent_shards: 200
+        default_spans_per_span_set: 3
         max_spans_per_span_set: 100
     trace_by_id:
         query_shards: 50
@@ -802,6 +803,7 @@ metrics_generator:
     codec: push-bytes
     disable_local_blocks: false
     disable_grpc: false
+    limiter_type: series
     ingest_concurrency: 16
     instance_id: hostname
 ingest:

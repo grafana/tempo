@@ -32,7 +32,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.4'
 
       - name: check-fmt
         run: make check-fmt
@@ -83,7 +83,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.4'
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
@@ -114,7 +114,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.4'
       - name: Run Tests
         run: make ${{ matrix.test-target }}
 
@@ -130,7 +130,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.4'
 
       - name: Build Tempo
         run: make tempo
@@ -147,23 +147,6 @@ jobs:
       - name: Build tempo-cli
         run: make tempo-cli
 
-  benchmark:
-    name: Benchmark
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
-        with:
-          go-version-file: "go.mod"
-
-      - name: Bench
-        run: make test-bench
-
   vendor-check:
     name: Vendor check
     runs-on: ubuntu-24.04
@@ -176,7 +159,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.4'
 
       - name: Install Protoc
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
@@ -198,7 +181,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
-          go-version-file: "go.mod"
+          go-version: '1.25.4'
 
       - name: Check jsonnet
         run: make jsonnet-check

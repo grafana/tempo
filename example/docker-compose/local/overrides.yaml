@@ -1,0 +1,10 @@
+overrides:
+    "*":
+        ingestion_burst_size_bytes: 2000000
+        ingestion_rate_limit_bytes: 1000000
+        max_bytes_per_trace: 3000000
+        max_traces_per_user: 100000
+        cost_attribution:
+            dimensions:
+                service.name: "svc_name"
+                span.http.target: "name"

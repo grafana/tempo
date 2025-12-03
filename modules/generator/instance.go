@@ -11,10 +11,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/grafana/tempo/modules/generator/localentitylimiter"
+	"github.com/grafana/tempo/modules/generator/localserieslimiter"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -56,7 +59,7 @@ var (
 		Namespace: "tempo",
 		Name:      "metrics_generator_spans_discarded_total",
 		Help:      "The total number of discarded spans received per tenant",
-	}, []string{"tenant", "reason"})
+	}, []string{"tenant", "reason", "processor"})
 	metricSkippedProcessorPushes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_metrics_generation_skipped_processor_pushes_total",
@@ -100,12 +103,23 @@ type instance struct {
 func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
+	limitLogger := tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
+	var limiter registry.Limiter
+	switch cfg.LimiterType {
+	case LimiterTypeSeries:
+		limiter = localserieslimiter.New(overrides.MetricsGeneratorMaxActiveSeries, instanceID, limitLogger)
+	case LimiterTypeEntity:
+		limiter = localentitylimiter.New(overrides.MetricsGeneratorMaxActiveEntities, instanceID, limitLogger)
+	default:
+		return nil, fmt.Errorf("invalid limiter type: %s", cfg.LimiterType)
+	}
+
 	i := &instance{
 		cfg:        cfg,
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
+		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
 		wal:           wal,
 		traceWAL:      traceWAL,
 		traceQueryWAL: rf1TraceWAL,
@@ -317,14 +331,15 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	var err error
 	switch processorName {
 	case processor.SpanMetricsName:
-		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered)
-		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8)
+		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered, processor.SpanMetricsName)
+		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.SpanMetricsName)
 		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter)
 		if err != nil {
 			return err
 		}
 	case processor.ServiceGraphsName:
-		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
+		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.ServiceGraphsName)
+		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger, invalidUTF8Counter)
 	case processor.LocalBlocksName:
 		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.writer, i.overrides)
 		if err != nil {
@@ -343,7 +358,8 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 			}
 		}
 	case processor.HostInfoName:
-		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger)
+		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.HostInfoName)
+		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger, invalidUTF8Counter)
 		if err != nil {
 			return err
 		}
@@ -567,7 +583,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {
 	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(bytesIngested))
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))
-	metricSpansDiscarded.WithLabelValues(i.instanceID, reasonOutsideTimeRangeSlack).Add(float64(expiredSpanCount))
+	metricSpansDiscarded.WithLabelValues(i.instanceID, reasonOutsideTimeRangeSlack, "all").Add(float64(expiredSpanCount))
 }
 
 // shutdown stops the instance and flushes any remaining data. After shutdown

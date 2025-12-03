@@ -369,6 +369,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 					{
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 2,
 								Spans: []Span{
 									{
 										// this span has nil values for everything
@@ -418,6 +419,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 						},
 						ScopeSpans: []ScopeSpans{
 							{
+								SpanCount: 1,
 								Spans: []Span{
 									{
 										SpanID: []byte("nil-test-span-2"),
@@ -995,6 +997,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 					ServiceName: "myservice",
 					Attrs: []Attribute{
 						attr("foo", "abc"),
+						attr("asdf", 123),
 						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
 						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
@@ -1033,6 +1036,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								attr("scope-attr-bool", true),
 							},
 						},
+						SpanCount: 1,
 						Spans: []Span{
 							{
 								SpanID:                 []byte("spanid"),
@@ -1137,6 +1141,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 								attr("scope-attr-str", "scope-attr-2"),
 							},
 						},
+						SpanCount: 1,
 						Spans: []Span{
 							{
 								SpanID:                 []byte("spanid2"),

@@ -733,6 +733,14 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 	}
 
+	// track sent tag values to avoid duplicates. this is a perf improvement
+	sentVals := make(map[traceql.StaticMapKey]struct{})
+	existsTagValue := func(val traceql.Static) bool {
+		mk := val.MapKey()
+		_, ok := sentVals[mk]
+		return ok
+	}
+
 	blockFlushes := b.readFlushes()
 	for _, page := range blockFlushes {
 		file, err := page.file(ctx)
@@ -744,8 +752,9 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		pf := file.parquetFile
 
 		tr := tagRequest{
-			conditions: req.Conditions,
-			tag:        req.TagName,
+			conditions:     req.Conditions,
+			tag:            req.TagName,
+			existsTagValue: existsTagValue,
 		}
 
 		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
@@ -766,6 +775,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 
 			for _, oe := range res.OtherEntries {
 				v := oe.Value.(traceql.Static)
+				sentVals[v.MapKey()] = struct{}{}
 				if cb(v) {
 					iter.Close()
 					mcb(file.r.BytesRead()) // record bytes read
@@ -801,6 +811,13 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 		}, mcb, opts)
 	}
 
+	// track sent tag names to avoid duplicates. this is a perf improvement
+	sentKeys := make(map[tagNameKey]struct{})
+	existsTagName := func(key tagNameKey) bool {
+		_, ok := sentKeys[key]
+		return ok
+	}
+
 	blockFlushes := b.readFlushes()
 	for _, page := range blockFlushes {
 		file, err := page.file(ctx)
@@ -810,8 +827,9 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 		defer file.Close()
 
 		tr := tagRequest{
-			conditions: req.Conditions,
-			scope:      req.Scope,
+			conditions:    req.Conditions,
+			scope:         req.Scope,
+			existsTagName: existsTagName,
 		}
 
 		iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
@@ -830,7 +848,9 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 				break
 			}
 			for _, oe := range res.OtherEntries {
-				if cb(oe.Key, oe.Value.(traceql.AttributeScope)) {
+				scope := oe.Value.(traceql.AttributeScope)
+				sentKeys[tagNameKey{name: oe.Key, scope: scope}] = struct{}{}
+				if cb(oe.Key, scope) {
 					iter.Close()
 					mcb(file.r.BytesRead()) // record bytes read
 					return nil              // We have enough values

@@ -23,8 +23,7 @@ type gauge struct {
 	series       map[uint64]*gaugeSeries
 	seriesDemand *Cardinality
 
-	onAddSeries    func(count uint32) bool
-	onRemoveSeries func(count uint32)
+	lifecycler Limiter
 
 	externalLabels map[string]string
 }
@@ -45,40 +44,30 @@ const (
 	set = "set"
 )
 
-func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, staleDuration time.Duration) *gauge {
-	if onAddSeries == nil {
-		onAddSeries = func(uint32) bool {
-			return true
-		}
-	}
-	if onRemoveSeries == nil {
-		onRemoveSeries = func(uint32) {}
-	}
-
+func newGauge(name string, lifecycler Limiter, externalLabels map[string]string, staleDuration time.Duration) *gauge {
 	return &gauge{
 		metricName:     name,
 		series:         make(map[uint64]*gaugeSeries),
 		seriesDemand:   NewCardinality(staleDuration, removeStaleSeriesInterval),
-		onAddSeries:    onAddSeries,
-		onRemoveSeries: onRemoveSeries,
+		lifecycler:     lifecycler,
 		externalLabels: externalLabels,
 	}
 }
 
-func (g *gauge) Set(labelValueCombo *LabelValueCombo, value float64) {
-	g.updateSeries(labelValueCombo, value, set, true)
+func (g *gauge) Set(lbls labels.Labels, value float64) {
+	g.updateSeries(lbls, value, set, true)
 }
 
-func (g *gauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
-	g.updateSeries(labelValueCombo, value, add, true)
+func (g *gauge) Inc(lbls labels.Labels, value float64) {
+	g.updateSeries(lbls, value, add, true)
 }
 
-func (g *gauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
-	g.updateSeries(labelValueCombo, value, set, false)
+func (g *gauge) SetForTargetInfo(lbls labels.Labels, value float64) {
+	g.updateSeries(lbls, value, set, false)
 }
 
-func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string, updateIfAlreadyExist bool) {
-	hash := labelValueCombo.getHash()
+func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string, updateIfAlreadyExist bool) {
+	hash := lbls.Hash()
 
 	g.seriesMtx.RLock()
 	s, ok := g.series[hash]
@@ -91,7 +80,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(s, value, operation)
+		g.updateSeriesValue(hash, s, value, operation)
 		return
 	}
 
@@ -102,32 +91,33 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(existing, value, operation)
+		g.updateSeriesValue(hash, existing, value, operation)
 		return
 	}
 
-	if !g.onAddSeries(1) {
+	if !g.lifecycler.OnAdd(hash, 1) {
 		return
 	}
 
-	g.series[hash] = g.newSeries(labelValueCombo, value)
+	g.series[hash] = g.newSeries(lbls, value)
 }
 
-func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
+func (g *gauge) newSeries(lbls labels.Labels, value float64) *gaugeSeries {
 	return &gaugeSeries{
-		labels:      getSeriesLabels(g.metricName, labelValueCombo, g.externalLabels),
+		labels:      getSeriesLabels(g.metricName, lbls, g.externalLabels),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 	}
 }
 
-func (g *gauge) updateSeriesValue(s *gaugeSeries, value float64, operation string) {
+func (g *gauge) updateSeriesValue(hash uint64, s *gaugeSeries, value float64, operation string) {
 	if operation == add {
 		s.value.Add(value)
 	} else {
 		s.value.Store(value)
 	}
 	s.lastUpdated.Store(time.Now().UnixMilli())
+	g.lifecycler.OnUpdate(hash, 1)
 }
 
 func (g *gauge) name() string {
@@ -170,7 +160,7 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	for hash, s := range g.series {
 		if s.lastUpdated.Load() < staleTimeMs {
 			delete(g.series, hash)
-			g.onRemoveSeries(1)
+			g.lifecycler.OnDelete(hash, 1)
 		}
 	}
 	g.seriesDemand.Advance()

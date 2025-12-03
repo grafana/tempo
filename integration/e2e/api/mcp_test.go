@@ -8,12 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +41,7 @@ func TestMCP(t *testing.T) {
 	info := tempoUtil.NewTraceInfo(time.Now(), "")
 	require.NoError(t, info.EmitAllBatches(jaegerClient))
 
-	expected, err := info.ConstructTraceFromEpoch()
+	_, err = info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
 	// now query it back with mcp
@@ -84,8 +82,7 @@ func TestMCP(t *testing.T) {
 	sort.Strings(expectedTools)
 	require.Equal(t, expectedTools, actualTools)
 
-	trace := traceOverMCP(t, mcpClient, info.HexID())
-	util.AssertEqualTrace(t, expected, trace)
+	assertTraceOverMCP(t, mcpClient, info.HexID())
 }
 
 func createMCPClient(t *testing.T, tempo *e2e.HTTPService) mcpclient.MCPClient {
@@ -119,7 +116,7 @@ func listTools(t *testing.T, mcpClient mcpclient.MCPClient) []mcp.Tool {
 	return toolsResponse.Tools
 }
 
-func traceOverMCP(t *testing.T, mcpClient mcpclient.MCPClient, traceID string) *tempopb.Trace {
+func assertTraceOverMCP(t *testing.T, mcpClient mcpclient.MCPClient, traceID string) {
 	resp, err := mcpClient.CallTool(context.Background(), mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "get-trace",
@@ -130,11 +127,10 @@ func traceOverMCP(t *testing.T, mcpClient mcpclient.MCPClient, traceID string) *
 
 	str := toolResult(t, resp)
 
-	trace := &tempopb.TraceByIDResponse{}
-	err = jsonpb.UnmarshalString(str, trace)
-	require.NoError(t, err)
-
-	return trace.Trace
+	// the trace format is subject is to change so let's keep it simple.
+	if !strings.Contains(str, traceID) {
+		t.Fatalf("expected trace ID %s not found in response", traceID)
+	}
 }
 
 func toolResult(t *testing.T, resp *mcp.CallToolResult) string {

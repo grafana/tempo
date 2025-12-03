@@ -166,13 +166,9 @@ test-integration-backendscheduler: tools docker-tempo ## Run backend-scheduler i
 test-e2e-ingest: tools docker-tempo ## Run end to end tests for ingest
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/ingest
 
-# test-all/bench use a docker image so build it first to make sure we're up to date
+# test-all use a docker image so build it first to make sure we're up to date
 .PHONY: test-all ## Run all tests
 test-all: test-with-cover test-e2e test-e2e-deployments test-e2e-api test-integration-poller test-integration-backendscheduler test-e2e-ingest
-
-.PHONY: test-bench
-test-bench: tools docker-tempo ## Run all benchmarks
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
 .PHONY: fmt check-fmt
 fmt: tools-image ## Check fmt

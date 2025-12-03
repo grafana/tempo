@@ -30,6 +30,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
 		MetricsGeneratorProcessors:                                                  c.MetricsGenerator.Processors,
 		MetricsGeneratorMaxActiveSeries:                                             c.MetricsGenerator.MaxActiveSeries,
+		MetricsGeneratorMaxActiveEntities:                                           c.MetricsGenerator.MaxActiveEntities,
 		MetricsGeneratorCollectionInterval:                                          c.MetricsGenerator.CollectionInterval,
 		MetricsGeneratorDisableCollection:                                           c.MetricsGenerator.DisableCollection,
 		MetricsGeneratorGenerateNativeHistograms:                                    c.MetricsGenerator.GenerateNativeHistograms,
@@ -107,6 +108,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorRingSize                                                    int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
 	MetricsGeneratorProcessors                                                  listtomap.ListToMap              `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
 	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
+	MetricsGeneratorMaxActiveEntities                                           uint32                           `yaml:"metrics_generator_max_active_entities" json:"metrics_generator_max_active_entities"`
 	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
 	MetricsGeneratorGenerateNativeHistograms                                    histograms.HistogramMethod       `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
@@ -139,7 +141,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout                    time.Duration                    `yaml:"metrics_generator_processor_local_blocks_complete_block_timeout" json:"metrics_generator_processor_local_blocks_complete_block_timeout"`
 	MetricsGeneratorProcessorHostInfoHostIdentifiers                            []string                         `yaml:"metrics_generator_processor_host_info_host_identifiers" json:"metrics_generator_processor_host_info_host_identifiers"`
 	MetricsGeneratorProcessorHostInfoMetricName                                 string                           `yaml:"metrics_generator_processor_host_info_metric_name" json:"metrics_generator_processor_host_info_metric_name"`
-	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
+	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack,omitempty"`
 
 	// Compactor enforced limits.
 	BlockRetention     model.Duration `yaml:"block_retention" json:"block_retention"`
@@ -194,6 +196,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			RingSize:                 l.MetricsGeneratorRingSize,
 			Processors:               l.MetricsGeneratorProcessors,
 			MaxActiveSeries:          l.MetricsGeneratorMaxActiveSeries,
+			MaxActiveEntities:        l.MetricsGeneratorMaxActiveEntities,
 			CollectionInterval:       l.MetricsGeneratorCollectionInterval,
 			DisableCollection:        l.MetricsGeneratorDisableCollection,
 			TraceIDLabelName:         l.MetricsGeneratorTraceIDLabelName,
