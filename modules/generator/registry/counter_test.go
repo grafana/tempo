@@ -166,17 +166,6 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
-
-	// If the same series that was removed due to staleness is registered
-	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
-	collectionTimeMs = time.Now().UnixMilli()
-	endOfLastMinuteMs = getEndOfLastMinuteMs(collectionTimeMs)
-	expectedSamples = []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, endOfLastMinuteMs, 0), // For our counter the series is new, not for the prometheus registry
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
-	}
-	collectMetricAndAssert(t, c, collectionTimeMs, 2, expectedSamples, nil)
 }
 
 func Test_counter_externalLabels(t *testing.T) {

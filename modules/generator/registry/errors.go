@@ -34,5 +34,5 @@ func getErrType(err error) string {
 }
 
 func isOutOfOrderError(err error) bool {
-	return err != nil && errors.Is(err, storage.ErrOutOfOrderSample)
+	return errors.Is(err, storage.ErrOutOfOrderSample)
 }
