@@ -8,7 +8,8 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "master"
+      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
+      "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
       "source": {
@@ -17,7 +18,8 @@
           "subdir": "memcached"
         }
       },
-      "version": "master"
+      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
+      "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
       "source": {
@@ -26,26 +28,9 @@
           "subdir": "operations/rollout-operator"
         }
       },
-      "version": "v0.32.0"
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
-          "subdir": "1.33"
-        }
-      },
-      "version": "main"
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/jsonnet-libs/testonnet.git",
-          "subdir": ""
-        }
-      },
-      "version": "master"
+      "version": "4a47245cb7ffa81a0a94c704de36e2e6069421fd",
+      "sum": "nu+33+dylfBD2zFTNQ+9x4LztbdhFAtXrNjoe/jyon8="
     }
   ],
-  "legacyImports": true
+  "legacyImports": false
 }
