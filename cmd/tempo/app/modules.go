@@ -222,7 +222,7 @@ func (t *App) initPartitionRing() (services.Service, error) {
 		readRing = t.readRings[ringLiveStore]
 		ringName = livestore.PartitionRingName
 		ringKey = livestore.PartitionRingKey
-		kvConfig = t.cfg.LiveStore.Ring.KVStore
+		kvConfig = t.cfg.LiveStore.PartitionRing.KVStore // jpe - what is t.cfg.LiveStore.Ring?
 	}
 
 	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)

@@ -11,7 +11,7 @@ services:
     volumes:
       - ./tempo-data:/var/tempo
 
-  all-in-one:
+  tempo:
     image: &tempoImage grafana/tempo:latest
     depends_on:
       - kafka
@@ -19,6 +19,7 @@ services:
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
+      - ./tempo-data:/var/tempo
     ports:
       - "3200:3200"   # tempo
     
@@ -41,10 +42,10 @@ services:
   k6-tracing:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
     environment:
-      - ENDPOINT=all-in-one:4317
+      - ENDPOINT=tempo:4317
     restart: always
     depends_on:
-      - all-in-one
+      - tempo
 
   prometheus:
     image: prom/prometheus:latest
@@ -59,9 +60,9 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:11.6.7@sha256:41c78d437d7c8e81812aca8b03559e4fca39b43e670a5d9bae44915875faae41
+    image: grafana/grafana:12.2.1@sha256:35c41e0fd0295f5d0ee5db7e780cf33506abfaf47686196f825364889dee878b
     volumes:
-      - ../distributed/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin

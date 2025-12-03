@@ -1,8 +1,9 @@
 partition_ring_live_store: true
+stream_over_http_enabled: true
 
 server:
   http_listen_port: 3200
-  log_level: debug
+  log_level: info
 
 distributor:
   ingester_write_path_enabled: false
@@ -11,11 +12,11 @@ distributor:
     otlp:
       protocols:
         grpc:
-          endpoint: "0.0.0.0:4317" # jpe - all-in-one:4317 ?
-  log_received_spans:
-    enabled: true
-  log_discarded_spans:
-    enabled: true
+          endpoint: "tempo:4317"
+#  log_received_spans:
+#    enabled: true
+#  log_discarded_spans:
+#    enabled: true
 
 compactor:
   compaction:

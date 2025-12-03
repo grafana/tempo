@@ -206,7 +206,8 @@ func loadConfig() (*app.Config, bool, error) {
 		config.Generator.Ring.KVStore.Store = "inmemory"
 		config.Generator.Ring.InstanceAddr = "127.0.0.1"
 
-		// Partition ring
+		// Partition rings
+		config.Ingester.IngesterPartitionRing.KVStore.Store = "inmemory" // jpe - necessary?
 		config.LiveStore.PartitionRing.KVStore.Store = "inmemory"
 	}
 
