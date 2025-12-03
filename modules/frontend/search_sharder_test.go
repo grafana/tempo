@@ -1380,7 +1380,7 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 				if err == nil {
 					capturedSpss = req.SpansPerSpanSet
 				}
-				return nil, nil
+				return pipeline.NewAsyncResponse(nil), nil
 			})
 
 			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
@@ -1403,7 +1403,17 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 			req := httptest.NewRequest("GET", urlPath, nil)
 			req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
 
-			_, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
+			resps, err := testRT.RoundTrip(pipeline.NewHTTPRequest(req))
+			require.NoError(t, err)
+
+			// Drain responses to ensure all the goroutines complete
+			for {
+				_, done, err := resps.Next(context.Background())
+				require.NoError(t, err)
+				if done {
+					break
+				}
+			}
 
 			if tc.expectError {
 				require.Error(t, err)
