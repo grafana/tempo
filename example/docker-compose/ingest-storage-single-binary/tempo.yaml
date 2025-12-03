@@ -1,0 +1,78 @@
+partition_ring_live_store: true
+
+server:
+  http_listen_port: 3200
+  log_level: debug
+
+distributor:
+  ingester_write_path_enabled: false
+  kafka_write_path_enabled: true
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317" # jpe - all-in-one:4317 ?
+  log_received_spans:
+    enabled: true
+  log_discarded_spans:
+    enabled: true
+
+compactor:
+  compaction:
+    block_retention: 1h               # overall Tempo trace retention. set for demo purposes
+
+querier:
+  query_live_store: true
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  traces_storage:
+    path: /var/tempo/generator/traces
+  traces_query_storage:
+    path: /var/tempo/generator/query_traces
+  processor:
+    local_blocks:
+      flush_to_storage: true
+
+query_frontend:
+  rf1_after: "1999-01-01T00:00:00Z"
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: minio:9000
+      access_key: tempo
+      secret_key: supersecret
+      insecure: true
+    wal:
+      path: /var/tempo/wal             # where to store the wal locally
+    local:
+      path: /var/tempo/blocks
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: ['local-blocks', 'span-metrics', 'service-graphs']
+      generate_native_histograms: both
+
+ingest:
+  enabled: true
+  kafka:
+    address: kafka:9092
+    topic:   tempo-ingest
+
+block_builder:
+  consume_cycle_duration: 30s
+
+usage_report:
+  reporting_enabled: false

@@ -89,6 +89,7 @@ const (
 
 	// composite targets
 	SingleBinary         string = "all"
+	SingleBinary3_0      string = "all-3.0"
 	ScalableSingleBinary string = "scalable-single-binary"
 
 	// ring names
@@ -319,7 +320,7 @@ func (t *App) initIngester() (services.Service, error) {
 
 	// In SingleBinary mode don't try to discover partition from host name. Always use
 	// partition 0. This is for small installs or local/debugging setups.
-	singlePartition := t.cfg.Target == SingleBinary
+	singlePartition := (t.cfg.Target == SingleBinary || t.cfg.Target == SingleBinary3_0)
 
 	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer, singlePartition)
 	if err != nil {
@@ -364,7 +365,9 @@ func (t *App) initGenerator() (services.Service, error) {
 	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
 	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
-	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
+	if t.cfg.Target != SingleBinary3_0 { // conflicts with livestore
+		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
+	}
 
 	return t.generator, nil
 }
@@ -430,7 +433,7 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
 
-	if t.cfg.Target == SingleBinary && len(t.cfg.BlockBuilder.AssignedPartitions) == 0 {
+	if (t.cfg.Target == SingleBinary || t.cfg.Target == SingleBinary3_0) && len(t.cfg.BlockBuilder.AssignedPartitions) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
 		t.cfg.BlockBuilder.AssignedPartitions = map[string][]int32{t.cfg.BlockBuilder.InstanceID: {0}}
 	}
@@ -447,9 +450,9 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 func (t *App) initQuerier() (services.Service, error) {
 	// validate worker config
 	// if we're not in single binary mode and worker address is not specified - bail
-	if t.cfg.Target != SingleBinary && t.cfg.Querier.Worker.FrontendAddress == "" {
+	if t.cfg.Target != SingleBinary && t.cfg.Target != SingleBinary3_0 && t.cfg.Querier.Worker.FrontendAddress == "" {
 		return nil, fmt.Errorf("frontend worker address not specified")
-	} else if t.cfg.Target == SingleBinary {
+	} else if t.cfg.Target == SingleBinary || t.cfg.Target == SingleBinary3_0 {
 		// if we're in single binary mode with no worker address specified, register default endpoint
 		if t.cfg.Querier.Worker.FrontendAddress == "" {
 			t.cfg.Querier.Worker.FrontendAddress = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
@@ -622,7 +625,7 @@ func (t *App) initOptionalStore() (services.Service, error) {
 func (t *App) initStore() (services.Service, error) {
 	// the only component that needs a functioning tempodb pool are the queriers. all other components will just spin up
 	// hundreds of never used pool goroutines. set pool size to 0 here to avoid that.
-	if t.cfg.Target != Querier && t.cfg.Target != SingleBinary && t.cfg.Target != ScalableSingleBinary {
+	if t.cfg.Target != Querier && t.cfg.Target != SingleBinary && t.cfg.Target != ScalableSingleBinary && t.cfg.Target != SingleBinary3_0 {
 		t.cfg.StorageConfig.Trace.Pool.MaxWorkers = 0
 		t.cfg.StorageConfig.Trace.Pool.QueueDepth = 0
 	}
@@ -771,6 +774,13 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 func (t *App) initBackendWorker() (services.Service, error) {
 	if t.cfg.Target == BackendWorker {
 		t.cfg.BackendWorker.Poll = true
+	} else {
+		// we are in a single binary or other composite installation. if backend scheduler address is not set, set it to localhost
+		// if we're in single binary mode with no worker address specified, register default endpoint
+		if t.cfg.BackendWorker.BackendSchedulerAddr == "" {
+			t.cfg.BackendWorker.BackendSchedulerAddr = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
+			level.Warn(log.Logger).Log("msg", "Scheduler address is empty in single binary mode. Attempting automatic worker configuration.", "address", t.cfg.BackendWorker.BackendSchedulerAddr)
+		}
 	}
 
 	worker, err := backendworker.New(t.cfg.BackendWorker, t.cfg.BackenSchedulerClient, t.store, t.Overrides, prometheus.DefaultRegisterer)
@@ -793,7 +803,7 @@ func (t *App) initLiveStore() (services.Service, error) {
 
 	// In SingleBinary mode don't try to discover partition from host name.
 	// Always use partition 0. This is for small installs or local/debugging setups.
-	singlePartition := t.cfg.Target == SingleBinary
+	singlePartition := (t.cfg.Target == SingleBinary || t.cfg.Target == SingleBinary3_0)
 
 	t.cfg.LiveStore.IngestConfig = t.cfg.Ingest
 	t.cfg.LiveStore.Ring.ListenPort = t.cfg.Server.GRPCListenPort
@@ -855,6 +865,7 @@ func (t *App) setupModuleManager() error {
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
+	mm.RegisterModule(SingleBinary3_0, nil)
 
 	deps := map[string][]string{
 		// InternalServer: nil,
@@ -888,7 +899,8 @@ func (t *App) setupModuleManager() error {
 		LiveStore:                     {Common, MemberlistKV, PartitionRing},
 
 		// composite targets
-		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},
+		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
+		SingleBinary3_0:      {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, BlockBuilder, LiveStore}, // TODO: when we cut 3.0 remove SingleBinary and replace with this
 		ScalableSingleBinary: {SingleBinary},
 	}
 
