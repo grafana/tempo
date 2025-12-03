@@ -41,7 +41,7 @@ In this example, the search reduces traces to those spans where:
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions.
 If, for a given trace, this pipeline produces a spanset then it's included in the results of the query.
 
-Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for examples of TraceQL metrics queries.
+Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) for examples of TraceQL metrics queries.
 
 ## Examples
 
@@ -613,7 +613,7 @@ With `most_recent=true`, Tempo performs a deeper search across data shards, reta
 
 You can specify the time window to break a search up into when doing a most recent TraceQL search using `most_recent_shards:` in the `query_frontend` configuration block.
 The default value is 200.
-Refer to the [Tempo configuration reference](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#query-frontend/) for more information.
+Refer to the [Tempo configuration reference](/docs/tempo/<TEMPO_VERSION>/configuration/#query-frontend/) for more information.
 
 ### Search impact using `most_recent`
 
