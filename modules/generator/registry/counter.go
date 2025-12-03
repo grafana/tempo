@@ -40,12 +40,12 @@ var (
 	_ metric  = (*counter)(nil)
 )
 
-func (co *counterSeries) wasNew() bool {
-	return co.firstSeries.CompareAndSwap(true, false)
+func (co *counterSeries) isNew() bool {
+	return co.firstSeries.Load()
 }
 
-func (co *counterSeries) resetSeenSeries() {
-	co.firstSeries.Store(true)
+func (co *counterSeries) registerSeenSeries() {
+	co.firstSeries.Store(false)
 }
 
 func newCounter(name string, lifecycler Limiter, externalLabels map[string]string, staleDuration time.Duration) *counter {
@@ -117,19 +117,18 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) error 
 		// If we are about to call Append for the first time on a series, we need
 		// to first insert a 0 value to allow Prometheus to start from a non-null
 		// value.
-		if s.wasNew() {
+		if s.isNew() {
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err := appender.Append(0, s.labels, endOfLastMinuteMs, 0)
-
 			// Out-of-order errors occur when a series is deleted from our registry due to staleness cleanup,
 			// but still exists in Prometheus's TSDB. When the series reappears, we attempt to add the initial 0
 			// but Prometheus already has more recent data. We ignore this error and continue with the current value.
 			if err != nil && !isOutOfOrderError(err) {
-				s.resetSeenSeries()
 				return err
 			}
+			s.registerSeenSeries()
 		}
 
 		_, err := appender.Append(0, s.labels, timeMs, s.value.Load())

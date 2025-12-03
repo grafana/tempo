@@ -54,12 +54,12 @@ type histogramSeries struct {
 	firstSeries *atomic.Bool
 }
 
-func (co *histogramSeries) wasNew() bool {
-	return co.firstSeries.CompareAndSwap(true, false)
+func (hs *histogramSeries) isNew() bool {
+	return hs.firstSeries.Load()
 }
 
-func (co *histogramSeries) resetSeenSeries() {
-	co.firstSeries.Store(true)
+func (hs *histogramSeries) registerSeenSeries() {
+	hs.firstSeries.Store(false)
 }
 
 var (
@@ -186,14 +186,12 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 	for _, s := range h.series {
 		// If we are about to call Append for the first time on a series,
 		// we need to first insert a 0 value to allow Prometheus to start from a non-null value.
-		wasNew := s.wasNew()
-		if wasNew {
+		if s.isNew() {
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 			if err != nil && !isOutOfOrderError(err) {
-				s.resetSeenSeries()
 				return err
 			}
 		}
@@ -212,11 +210,10 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 
 		// bucket
 		for i := range h.bucketLabels {
-			if wasNew {
+			if s.isNew() {
 				endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 				_, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
 				if err != nil && !isOutOfOrderError(err) {
-					s.resetSeenSeries()
 					return err
 				}
 			}
@@ -244,6 +241,10 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 			}
 			// clear the exemplar so we don't emit it again
 			s.exemplars[i].Store("")
+		}
+
+		if s.isNew() {
+			s.registerSeenSeries()
 		}
 	}
 
