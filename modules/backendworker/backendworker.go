@@ -176,9 +176,7 @@ func (w *BackendWorker) starting(ctx context.Context) (err error) {
 		}
 	}
 
-	if w.cfg.Poll {
-		w.store.EnablePolling(ctx, w, false)
-	}
+	w.store.EnablePolling(ctx, w, false)
 
 	return nil
 }
