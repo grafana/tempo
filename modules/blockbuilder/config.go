@@ -76,8 +76,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("wal config validation failed: %w", err)
 	}
 
-	if len(c.AssignedPartitionsMap) == 0 && len(c.AssignedPartitionsMap) == 0 {
-		return fmt.Errorf("at least one of AssignedPartitionsMap or AssignedPartitionsMap must be set")
+	if len(c.AssignedPartitionsMap) == 0 && c.PartitionsPerInstance <= 0 {
+		return fmt.Errorf("at least one of AssignedPartitionsMap or PartitionsPerInstance must be set")
 	}
 
 	return nil

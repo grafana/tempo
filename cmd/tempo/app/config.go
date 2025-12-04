@@ -258,7 +258,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
 
-	if c.BlockBuilder.AssignedPartitionsMap != nil && len(c.BlockBuilder.AssignedPartitionsMap) > 0 {
+	if len(c.BlockBuilder.AssignedPartitionsMap) == 0 && len(c.BlockBuilder.AssignedPartitionsMap) > 0 {
 		warnings = append(warnings, warnPartitionAssigmentCollision)
 	}
 
