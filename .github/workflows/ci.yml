@@ -246,6 +246,7 @@ jobs:
 
       - name: Generate coverage annotations with canopy
         run: |
-          go run github.com/oleg-kozlyuk-grafana/go-canopy/cmd/canopy@40016d82a63b1963a7c667c4609c8090eb426e4b \
+          go run github.com/oleg-kozlyuk-grafana/go-canopy/cmd/canopy@2efb4d4dc1ae364d45aa30bff3dca29bc651d499 \
             --base ${{ github.event.pull_request.base.sha }} \
+            --commit ${{ github.event.pull_request.head.sha }} \
             --format GitHubAnnotations
