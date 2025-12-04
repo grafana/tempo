@@ -350,7 +350,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 		}
 
 		opts := backend.FindMatch{
-			Key:      strings.TrimPrefix(attrs.Name, prefix),
+			Key:      strings.TrimPrefix(attrs.Name, rw.cfg.Prefix),
 			Modified: attrs.Updated,
 		}
 		f(opts)
