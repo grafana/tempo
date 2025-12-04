@@ -5,7 +5,7 @@ go 1.25.4
 require (
 	github.com/golangci/golangci-lint/v2 v2.1.5
 	github.com/google/go-jsonnet v0.21.0
-	github.com/grafana/tanka v0.36.2
+	github.com/grafana/tanka v0.32.0
 	github.com/jsonnet-bundler/jsonnet-bundler v0.6.0
 	github.com/psampaz/go-mod-outdated v0.9.0
 	golang.org/x/tools v0.39.0
