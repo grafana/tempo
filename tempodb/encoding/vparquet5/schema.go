@@ -217,8 +217,9 @@ type InstrumentationScope struct {
 }
 
 type ScopeSpans struct {
-	Scope InstrumentationScope `parquet:""`
-	Spans []Span               `parquet:",list"`
+	Scope     InstrumentationScope `parquet:""`
+	Spans     []Span               `parquet:",list"`
+	SpanCount int32                `parquet:",delta"`
 }
 
 type Resource struct {
@@ -409,6 +410,7 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 			instrumentationScopeToParquet(ils.Scope, &oils.Scope)
 
 			oils.Spans = extendReuseSlice(len(ils.Spans), oils.Spans)
+			oils.SpanCount = int32(len(ils.Spans))
 			for is, s := range ils.Spans {
 				ss := &oils.Spans[is]
 

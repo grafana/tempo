@@ -18,6 +18,27 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+func TestMarshalingFormatFromAcceptHeader(t *testing.T) {
+	tests := []struct {
+		name         string
+		acceptHeader string
+		expected     MarshallingFormat
+	}{
+		{name: "empty accept header", acceptHeader: "", expected: MarshallingFormatJSON},
+		{name: "json", acceptHeader: "application/json", expected: MarshallingFormatJSON},
+		{name: "protobuf", acceptHeader: "application/protobuf", expected: MarshallingFormatProtobuf},
+		{name: "simplified json", acceptHeader: "application/vnd.grafana.llm", expected: MarshallingFormatLLM},
+		{name: "invalid", acceptHeader: "application/invalid", expected: MarshallingFormatJSON},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := MarshalingFormatFromAcceptHeader(http.Header{HeaderAccept: []string{tt.acceptHeader}})
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
 // For licensing reasons these strings exist in two packages. This test exists to make sure they don't
 // drift.
 func TestEquality(t *testing.T) {
@@ -176,12 +197,15 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "zero spss",
 			urlQuery: "spss=0",
-			err:      "invalid spss: must be a positive number",
+			expected: &tempopb.SearchRequest{
+				Tags:            map[string]string{},
+				SpansPerSpanSet: 0,
+			},
 		},
 		{
 			name:     "negative spss",
 			urlQuery: "spss=-2",
-			err:      "invalid spss: must be a positive number",
+			err:      "invalid spss: must be a non-negative number",
 		},
 		{
 			name:     "non-numeric spss",
@@ -456,7 +480,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				Size_:         1000,
 				FooterSize:    2000,
 			},
-			query: "?start=10&end=20&limit=50&maxDuration=40ms&minDuration=30ms&tags=foo%3Dbar&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&footerSize=2000",
+			query: "?start=10&end=20&limit=50&maxDuration=40ms&minDuration=30ms&spss=0&tags=foo%3Dbar&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&footerSize=2000",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
@@ -598,7 +622,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				MaxDurationMs: 30,
 				Limit:         50,
 			},
-			query: "?start=10&end=20&limit=50&maxDuration=30ms&tags=foo%3Dbar",
+			query: "?start=10&end=20&limit=50&maxDuration=30ms&spss=0&tags=foo%3Dbar",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -610,7 +634,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				MinDurationMs: 30,
 				Limit:         50,
 			},
-			query: "?start=10&end=20&limit=50&minDuration=30ms&tags=foo%3Dbar",
+			query: "?start=10&end=20&limit=50&minDuration=30ms&spss=0&tags=foo%3Dbar",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -622,7 +646,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				MinDurationMs: 30,
 				MaxDurationMs: 40,
 			},
-			query: "?start=10&end=20&maxDuration=40ms&minDuration=30ms&tags=foo%3Dbar",
+			query: "?start=10&end=20&maxDuration=40ms&minDuration=30ms&spss=0&tags=foo%3Dbar",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -632,7 +656,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				MinDurationMs: 30,
 				MaxDurationMs: 40,
 			},
-			query: "?start=10&end=20&maxDuration=40ms&minDuration=30ms",
+			query: "?start=10&end=20&maxDuration=40ms&minDuration=30ms&spss=0",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -640,7 +664,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				Start: 10,
 				End:   20,
 			},
-			query: "?start=10&end=20&q=%7B+foo+%3D+%60bar%60+%7D",
+			query: "?start=10&end=20&spss=0&q=%7B+foo+%3D+%60bar%60+%7D",
 		},
 	}
 

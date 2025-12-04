@@ -495,14 +495,18 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling mapping
+            # Custom labeling mapping to rename attributes or combine multiple attributes into a single label.
+            # Use dimension_mappings to rename a single attribute to a custom label name or combine multiple attributes into a composite label.
             dimension_mappings: <list of label mappings>
-                # The new label name
+                # The new label name (will be sanitized for Prometheus compatibility)
               - [name: <string>]
-                # The actual attributes that will make the value of the new label
+                # List of attribute names to map. Can be a single attribute (for renaming) or multiple attributes (for combining)
                 [source_labels: <list of strings>]
-                # The separator used to join multiple `source_labels`
-                [join: <string>]
+                # Separator used to join attribute values together when multiple source_labels are provided.
+                # For example, with source_labels: ["service.name", "service.namespace"] and join: "/",
+                # if service.name="abc" and service.namespace="def", the result is "abc/def".
+                # Ignored if only one source_label is provided.
+                [join: <string> | default = ""]
 
             # Enable traces_target_info metrics
             [enable_target_info: <bool> | default = false]
@@ -745,6 +749,10 @@ query_frontend:
         # The number of shards to break ingester queries into.
         [ingester_shards: <int> | default = 3]
 
+        # The default number of spans to return per span set when not specified in the request.
+        # Set to 0 to return unlimited spans by default.
+        [default_spans_per_span_set: <int> | default = 3]
+
         # The maximum allowed value of spans per span set. 0 disables this limit.
         [max_spans_per_span_set: <int> | default = 100]
 
@@ -829,15 +837,17 @@ In a similar manner, excessive queries result size can also negatively impact qu
 
 #### Limit the spans per spanset
 
-You can set the maximum spans per spanset by setting `max_spans_per_span_set` for the query-frontend.
-The default value is 100.
+You can control spans per spanset behavior using two configuration options:
+
+- `default_spans_per_span_set`: Sets the default number of spans returned when not specified in the query (default: 3). Set to `0` to return unlimited spans by default.
+- `max_spans_per_span_set`: Sets the maximum allowed value (default: 100). Set to `0` to disable the limit entirely.
 
 In Grafana or Grafana Cloud, you can use the **Span Limit** field in the [TraceQL query editor](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/query-editor/) in Grafana Explore.
-This field sets the maximum number of spans to return for each span set.
-The maximum value that you can set for the **Span Limit** value (or the spss query) is controlled by `max_spans_per_span_set`.
+This field sets the number of spans to return for each span set (the `spss` query parameter).
+If not specified, the value from `default_spans_per_span_set` is used.
+The maximum value that you can set for **Span Limit** (or the `spss` query parameter) is controlled by `max_spans_per_span_set`.
 To disable the maximum spans per span set limit, set `max_spans_per_span_set` to `0`.
-When set to `0`, there is no maximum and users can put any value in **Span Limit**.
-However, this can only be set by a Tempo administrator, not by the user.
+When set to `0`, there is no maximum and users can request any number of spans, including unlimited spans by setting `spss=0`.
 
 #### Cap the maximum query length
 
@@ -1275,7 +1285,7 @@ storage:
 
               # Optional
               # Example: encryption_key: <32-byte-long-key>
-              # SSE-C Encryption Key used for object encryption with customer provided keys. 
+              # SSE-C Encryption Key used for object encryption with customer provided keys.
               # It expects a 32 byte long string.
               encryption_key:
 
@@ -1832,7 +1842,6 @@ See below for how to override these limits globally or per tenant.
 #### Standard overrides
 
 You can create an `overrides` section to configure ingestion limits that apply to all tenants of the cluster.
-A snippet of a `config.yaml` file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
 
 ```yaml
 # Overrides configuration block
