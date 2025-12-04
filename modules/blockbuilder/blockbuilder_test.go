@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -39,8 +40,9 @@ const (
 	testPartition     = int32(0)
 )
 
-func TestMain(*testing.M) {
+func TestMain(m *testing.M) {
 	pollTimeout = 2 * time.Second // speed up the tests
+	os.Exit(m.Run())
 }
 
 // When the partition starts with no existing commit,
