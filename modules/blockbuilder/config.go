@@ -58,7 +58,7 @@ func (c *Config) AssignedPartitions() []int32 {
 
 	assignedPartitions := make([]int32, 0, c.PartitionsPerInstance)
 	for i := 0; i < c.PartitionsPerInstance; i++ {
-		assignedPartitions = append(assignedPartitions, id*10+int32(i))
+		assignedPartitions = append(assignedPartitions, id*int32(c.PartitionsPerInstance)+int32(i))
 	}
 	return assignedPartitions
 }
