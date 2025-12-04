@@ -8,7 +8,8 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "master"
+      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
+      "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
       "source": {
@@ -17,7 +18,8 @@
           "subdir": "memcached"
         }
       },
-      "version": "master"
+      "version": "1dab04037c4394fec95606cbca4d1ff6bd85c9a4",
+      "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
       "source": {
@@ -26,25 +28,9 @@
           "subdir": "1.29"
         }
       },
-      "version": "main"
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/ksonnet/ksonnet-lib.git",
-          "subdir": "ksonnet.beta.4"
-        }
-      },
-      "version": "master"
-    },
-    {
-      "source": {
-        "local": {
-          "directory": "../../jsonnet/microservices"
-        }
-      },
-      "version": ""
+      "version": "291653b2c17d03e855e7e00ce0e4ec25502b2ce2",
+      "sum": "rD6FKvLBJtT+gRJDOz6z8iUzvjf/BiH8vdkyIcZMsno="
     }
   ],
-  "legacyImports": true
+  "legacyImports": false
 }

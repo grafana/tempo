@@ -26,3 +26,4 @@ integration/e2e/**/e2e_integration_test[0-9]*
 /tmp
 gh-token.txt
 .cache
+operations/jsonnet/microservices/vendor/
