@@ -215,22 +215,17 @@ func newRowGroupRows(schema *Schema, columns []ColumnChunk, bufferSize int) *row
 		columns:  make([]columnChunkRows, len(columns)),
 		rowIndex: -1,
 	}
-
 	for i, column := range columns {
-		var release func(Page)
-		// Only release pages that are not byte array because the values
-		// that were read from the page might be retained by the program
-		// after calls to ReadRows.
 		switch column.Type().Kind() {
 		case ByteArray, FixedLenByteArray:
-			release = func(Page) {}
-		default:
-			release = Release
+			// (@mdisibio) - If the column can contain pointers, then we must not repool
+			// the underlying values buffer because the rows returned to the caller
+			// reference slices within it.  Detaching the entire values buffer is more
+			// efficient than cloning individual values.
+			r.columns[i].reader.detach = true
 		}
-		r.columns[i].reader.release = release
 		r.columns[i].reader.pages = column.Pages()
 	}
-
 	// This finalizer is used to ensure that the goroutines started by calling
 	// init on the underlying page readers will be shutdown in the event that
 	// Close isn't called and the rowGroupRows object is garbage collected.
