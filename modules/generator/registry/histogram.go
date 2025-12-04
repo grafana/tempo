@@ -191,7 +191,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 			_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
-			if err != nil {
+			if err != nil && !isOutOfOrderError(err) {
 				return err
 			}
 		}
@@ -213,7 +213,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 			if s.isNew() {
 				endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 				_, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
-				if err != nil {
+				if err != nil && !isOutOfOrderError(err) {
 					return err
 				}
 			}
