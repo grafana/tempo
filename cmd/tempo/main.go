@@ -206,7 +206,9 @@ func loadConfig() (*app.Config, bool, error) {
 		config.Generator.Ring.KVStore.Store = "inmemory"
 		config.Generator.Ring.InstanceAddr = "127.0.0.1"
 
-		// Partition rings
+		// Livestore rings
+		config.LiveStore.Ring.KVStore.Store = "inmemory"
+		config.LiveStore.Ring.InstanceAddr = "127.0.0.1"
 		config.LiveStore.PartitionRing.KVStore.Store = "inmemory"
 
 		config.BackendWorker.Ring.KVStore.Store = "" // this will force the single binary to work in "unsharded" mode
