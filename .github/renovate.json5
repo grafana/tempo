@@ -5,12 +5,11 @@
   ],
   timezone: 'UTC',
   schedule: [
-    'before 4am on monday',
+    'at any time',
   ],
-  prConcurrentLimit: 20,
+  prConcurrentLimit: 10,
   ignoreDeps: [],
   separateMajorMinor: true,
-  separateMultipleMajor: true,
   labels: ['dependencies', 'renovate'],
   minimumReleaseAge: '7 days',
   packageRules: [
