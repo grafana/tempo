@@ -12,6 +12,7 @@
   separateMajorMinor: true,
   separateMultipleMajor: true,
   labels: ['dependencies', 'renovate'],
+  minimumReleaseAge: '7 days',
   packageRules: [
     {
       description: 'Group all GitHub Actions updates',
@@ -74,8 +75,7 @@
       automergeStrategy: 'squash',
       automergeType: 'pr',
       automerge: true,
-      minimumReleaseAge: '7 days',
-      platformAutomerge: false
+      platformAutomerge: true
     },
   ],
 }
