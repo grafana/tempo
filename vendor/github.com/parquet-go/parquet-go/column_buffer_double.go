@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 
 	"github.com/parquet-go/bitpack/unsafecast"
+	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/sparse"
 )
 
@@ -73,17 +75,58 @@ func (col *doubleColumnBuffer) WriteDoubles(values []float64) (int, error) {
 }
 
 func (col *doubleColumnBuffer) WriteValues(values []Value) (int, error) {
-	col.writeValues(makeArrayValue(values, offsetOfU64), columnLevels{})
+	col.writeValues(columnLevels{}, makeArrayValue(values, offsetOfU64))
 	return len(values), nil
 }
 
-func (col *doubleColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
+func (col *doubleColumnBuffer) writeValues(levels columnLevels, rows sparse.Array) {
 	if n := len(col.values) + rows.Len(); n > cap(col.values) {
 		col.values = append(make([]float64, 0, max(n, 2*cap(col.values))), col.values...)
 	}
 	n := len(col.values)
 	col.values = col.values[:n+rows.Len()]
 	sparse.GatherFloat64(col.values[n:], rows.Float64Array())
+}
+
+func (col *doubleColumnBuffer) writeBoolean(levels columnLevels, value bool) {
+	var floatValue float64
+	if value {
+		floatValue = 1
+	}
+	col.values = append(col.values, floatValue)
+}
+
+func (col *doubleColumnBuffer) writeInt32(levels columnLevels, value int32) {
+	col.values = append(col.values, float64(value))
+}
+
+func (col *doubleColumnBuffer) writeInt64(levels columnLevels, value int64) {
+	col.values = append(col.values, float64(value))
+}
+
+func (col *doubleColumnBuffer) writeInt96(levels columnLevels, value deprecated.Int96) {
+	floatValue, _ := value.Int().Float64()
+	col.values = append(col.values, floatValue)
+}
+
+func (col *doubleColumnBuffer) writeFloat(levels columnLevels, value float32) {
+	col.values = append(col.values, float64(value))
+}
+
+func (col *doubleColumnBuffer) writeDouble(levels columnLevels, value float64) {
+	col.values = append(col.values, value)
+}
+
+func (col *doubleColumnBuffer) writeByteArray(levels columnLevels, value []byte) {
+	floatValue, err := strconv.ParseFloat(unsafecast.String(value), 64)
+	if err != nil {
+		panic("cannot write byte array to double column: " + err.Error())
+	}
+	col.values = append(col.values, floatValue)
+}
+
+func (col *doubleColumnBuffer) writeNull(levels columnLevels) {
+	col.values = append(col.values, 0)
 }
 
 func (col *doubleColumnBuffer) ReadValuesAt(values []Value, offset int64) (n int, err error) {

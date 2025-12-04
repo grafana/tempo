@@ -3,8 +3,9 @@ package parquet
 import (
 	"bytes"
 	"io"
+	"strconv"
 
-	"github.com/parquet-go/bitpack/unsafecast"
+	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/encoding/plain"
 	"github.com/parquet-go/parquet-go/sparse"
 )
@@ -121,7 +122,9 @@ func (col *byteArrayColumnBuffer) writeByteArrays(values []byte) (count, bytes i
 	baseBytes := len(col.values) + (plain.ByteArrayLengthSize * len(col.lengths))
 
 	err = plain.RangeByteArray(values, func(value []byte) error {
-		col.append(unsafecast.String(value))
+		col.offsets = append(col.offsets, uint32(len(col.values)))
+		col.lengths = append(col.lengths, uint32(len(value)))
+		col.values = append(col.values, value...)
 		return nil
 	})
 
@@ -131,15 +134,71 @@ func (col *byteArrayColumnBuffer) writeByteArrays(values []byte) (count, bytes i
 }
 
 func (col *byteArrayColumnBuffer) WriteValues(values []Value) (int, error) {
-	col.writeValues(makeArrayValue(values, offsetOfPtr), columnLevels{})
+	col.writeValues(columnLevels{}, makeArrayValue(values, offsetOfPtr))
 	return len(values), nil
 }
 
-func (col *byteArrayColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
+func (col *byteArrayColumnBuffer) writeValues(levels columnLevels, rows sparse.Array) {
+	stringArray := rows.StringArray()
 	for i := range rows.Len() {
-		p := rows.Index(i)
-		col.append(*(*string)(p))
+		s := stringArray.Index(i)
+		col.offsets = append(col.offsets, uint32(len(col.values)))
+		col.lengths = append(col.lengths, uint32(len(s)))
+		col.values = append(col.values, s...)
 	}
+}
+
+func (col *byteArrayColumnBuffer) writeBoolean(levels columnLevels, value bool) {
+	offset := len(col.values)
+	col.values = strconv.AppendBool(col.values, value)
+	col.offsets = append(col.offsets, uint32(offset))
+	col.lengths = append(col.lengths, uint32(len(col.values)-offset))
+}
+
+func (col *byteArrayColumnBuffer) writeInt32(levels columnLevels, value int32) {
+	offset := len(col.values)
+	col.values = strconv.AppendInt(col.values, int64(value), 10)
+	col.offsets = append(col.offsets, uint32(offset))
+	col.lengths = append(col.lengths, uint32(len(col.values)-offset))
+}
+
+func (col *byteArrayColumnBuffer) writeInt64(levels columnLevels, value int64) {
+	offset := len(col.values)
+	col.values = strconv.AppendInt(col.values, value, 10)
+	col.offsets = append(col.offsets, uint32(offset))
+	col.lengths = append(col.lengths, uint32(len(col.values)-offset))
+}
+
+func (col *byteArrayColumnBuffer) writeInt96(levels columnLevels, value deprecated.Int96) {
+	offset := len(col.values)
+	col.values, _ = value.Int().AppendText(col.values)
+	col.offsets = append(col.offsets, uint32(offset))
+	col.lengths = append(col.lengths, uint32(len(col.values)-offset))
+}
+
+func (col *byteArrayColumnBuffer) writeFloat(levels columnLevels, value float32) {
+	offset := len(col.values)
+	col.values = strconv.AppendFloat(col.values, float64(value), 'g', -1, 32)
+	col.offsets = append(col.offsets, uint32(offset))
+	col.lengths = append(col.lengths, uint32(len(col.values)-offset))
+}
+
+func (col *byteArrayColumnBuffer) writeDouble(levels columnLevels, value float64) {
+	offset := len(col.values)
+	col.values = strconv.AppendFloat(col.values, value, 'g', -1, 64)
+	col.offsets = append(col.offsets, uint32(offset))
+	col.lengths = append(col.lengths, uint32(len(col.values)-offset))
+}
+
+func (col *byteArrayColumnBuffer) writeByteArray(levels columnLevels, value []byte) {
+	col.offsets = append(col.offsets, uint32(len(col.values)))
+	col.lengths = append(col.lengths, uint32(len(value)))
+	col.values = append(col.values, value...)
+}
+
+func (col *byteArrayColumnBuffer) writeNull(levels columnLevels) {
+	col.offsets = append(col.offsets, uint32(len(col.values)))
+	col.lengths = append(col.lengths, 0)
 }
 
 func (col *byteArrayColumnBuffer) ReadValuesAt(values []Value, offset int64) (n int, err error) {
@@ -160,12 +219,6 @@ func (col *byteArrayColumnBuffer) ReadValuesAt(values []Value, offset int64) (n 
 		}
 		return n, err
 	}
-}
-
-func (col *byteArrayColumnBuffer) append(value string) {
-	col.offsets = append(col.offsets, uint32(len(col.values)))
-	col.lengths = append(col.lengths, uint32(len(value)))
-	col.values = append(col.values, value...)
 }
 
 func (col *byteArrayColumnBuffer) index(i int) []byte {

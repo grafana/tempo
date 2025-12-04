@@ -1,6 +1,7 @@
 package parquet
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/maphash"
 	"maps"
@@ -46,13 +47,8 @@ type schemaState struct {
 }
 
 type schemaCache struct {
-	hashSeed  maphash.Seed
-	writeRows cacheMap[writeRowsCacheKey, writeRowsFunc]
-}
-
-type writeRowsCacheKey struct {
-	gotype reflect.Type
-	column uint64
+	hashSeed   maphash.Seed
+	writeValue cacheMap[uint64, writeValueFunc]
 }
 
 type cacheMap[K comparable, V any] struct {
@@ -345,7 +341,7 @@ func (s *Schema) Deconstruct(row Row, value any) Row {
 		}
 		v = v.Elem()
 	}
-	funcs.deconstruct(columns, levels{}, v)
+	funcs.deconstruct(columns, columnLevels{}, v)
 	return appendRow(row, columns)
 }
 
@@ -386,7 +382,7 @@ func (s *Schema) Reconstruct(value any, row Row) error {
 		return true
 	})
 	// we avoid the defer penalty by releasing b manually
-	err := funcs.reconstruct(v, levels{}, columns)
+	err := funcs.reconstruct(v, columnLevels{}, columns)
 	b.release()
 	return err
 }
@@ -657,11 +653,11 @@ func forEachStructTagOption(sf reflect.StructField, do func(t reflect.Type, opti
 
 func nodeOf(path []string, t reflect.Type, tags parquetTags, tagReplacements []StructTagOption) Node {
 	switch t {
-	case reflect.TypeOf(deprecated.Int96{}):
+	case reflect.TypeFor[deprecated.Int96]():
 		return Leaf(Int96Type)
-	case reflect.TypeOf(uuid.UUID{}):
+	case reflect.TypeFor[uuid.UUID]():
 		return UUID()
-	case reflect.TypeOf(time.Time{}):
+	case reflect.TypeFor[time.Time]():
 		return Timestamp(Nanosecond)
 	}
 
@@ -736,6 +732,9 @@ func nodeOf(path []string, t reflect.Type, tags parquetTags, tagReplacements []S
 
 	case reflect.Struct:
 		return structNodeOf(path, t, tagReplacements)
+
+	case reflect.Interface:
+		return (Group)(nil)
 	}
 
 	if n == nil {
@@ -968,7 +967,7 @@ func makeNodeOf(path []string, t reflect.Type, name string, tags parquetTags, ta
 					}
 				default:
 					switch t {
-					case reflect.TypeOf(time.Time{}):
+					case reflect.TypeFor[time.Time]():
 						setEncoding(&DeltaBinaryPacked)
 					default:
 						throwInvalidTag(t, name, option)
@@ -986,6 +985,9 @@ func makeNodeOf(path []string, t reflect.Type, name string, tags parquetTags, ta
 			case "list":
 				switch t.Kind() {
 				case reflect.Slice:
+					if t == reflect.TypeFor[json.RawMessage]() {
+						throwInvalidTag(t, name, option)
+					}
 					element := makeNodeOf(append(path, "list", "element"), t.Elem(), t.Name(), tags.getListElementNodeTags(), tagReplacements)
 					setNode(element)
 					setList()
@@ -1032,6 +1034,7 @@ func makeNodeOf(path []string, t reflect.Type, name string, tags parquetTags, ta
 				}
 
 				setNode(Decimal(scale, precision, baseType))
+
 			case "string":
 				switch {
 				case t.Kind() == reflect.String:
@@ -1040,6 +1043,7 @@ func makeNodeOf(path []string, t reflect.Type, name string, tags parquetTags, ta
 					throwInvalidTag(t, name, option)
 				}
 				setNode(String())
+
 			case "bytes":
 				switch {
 				case t.Kind() == reflect.String:
@@ -1048,37 +1052,61 @@ func makeNodeOf(path []string, t reflect.Type, name string, tags parquetTags, ta
 					throwInvalidTag(t, name, option)
 				}
 				setNode(Leaf(ByteArrayType))
+
 			case "date":
 				switch t.Kind() {
 				case reflect.Int32:
 					setNode(Date())
+				case reflect.Ptr:
+					// Support *time.Time with date tag
+					if t.Elem() == reflect.TypeFor[time.Time]() {
+						setNode(Optional(Date()))
+					} else {
+						throwInvalidTag(t, name, option)
+					}
 				default:
-					throwInvalidTag(t, name, option)
+					switch t {
+					case reflect.TypeFor[time.Time]():
+						setNode(Date())
+					default:
+						throwInvalidTag(t, name, option)
+					}
 				}
+
 			case "time":
-				switch t.Kind() {
-				case reflect.Int32:
+				// Handle time.Duration specially - it can use any time unit
+				// (millisecond, microsecond, or nanosecond) and TimeAdjusted()
+				// will automatically select the correct physical type
+				if t == reflect.TypeFor[time.Duration]() {
 					timeUnit, adjusted, err := parseTimestampArgs(args)
-					if err != nil || timeUnit.Duration() < time.Millisecond {
+					if err != nil {
 						throwInvalidTag(t, name, option+args)
 					}
+					// If no args provided, default to nanosecond for time.Duration
+					if args == "()" {
+						timeUnit = Nanosecond
+						adjusted = true
+					}
 					setNode(TimeAdjusted(timeUnit, adjusted))
-				case reflect.Int64:
-					timeUnit, adjusted, err := parseTimestampArgs(args)
-					if t == reflect.TypeOf(time.Duration(0)) {
-						if args == "()" {
-							timeUnit = Nanosecond
-						} else if timeUnit != Nanosecond {
+				} else {
+					switch t.Kind() {
+					case reflect.Int32:
+						timeUnit, adjusted, err := parseTimestampArgs(args)
+						if err != nil || timeUnit.Duration() < time.Millisecond {
 							throwInvalidTag(t, name, option+args)
 						}
+						setNode(TimeAdjusted(timeUnit, adjusted))
+					case reflect.Int64:
+						timeUnit, adjusted, err := parseTimestampArgs(args)
+						if err != nil || timeUnit.Duration() == time.Millisecond {
+							throwInvalidTag(t, name, option+args)
+						}
+						setNode(TimeAdjusted(timeUnit, adjusted))
+					default:
+						throwInvalidTag(t, name, option)
 					}
-					if err != nil || timeUnit.Duration() == time.Millisecond {
-						throwInvalidTag(t, name, option+args)
-					}
-					setNode(TimeAdjusted(timeUnit, adjusted))
-				default:
-					throwInvalidTag(t, name, option)
 				}
+
 			case "timestamp":
 				switch t.Kind() {
 				case reflect.Int64:
@@ -1089,7 +1117,7 @@ func makeNodeOf(path []string, t reflect.Type, name string, tags parquetTags, ta
 					setNode(TimestampAdjusted(timeUnit, adjusted))
 				case reflect.Ptr:
 					// Support *time.Time with timestamp tags
-					if t.Elem() == reflect.TypeOf(time.Time{}) {
+					if t.Elem() == reflect.TypeFor[time.Time]() {
 						timeUnit, adjusted, err := parseTimestampArgs(args)
 						if err != nil {
 							throwInvalidTag(t, name, option+args)
@@ -1101,7 +1129,7 @@ func makeNodeOf(path []string, t reflect.Type, name string, tags parquetTags, ta
 					}
 				default:
 					switch t {
-					case reflect.TypeOf(time.Time{}):
+					case reflect.TypeFor[time.Time]():
 						timeUnit, adjusted, err := parseTimestampArgs(args)
 						if err != nil {
 							throwInvalidTag(t, name, option+args)
@@ -1111,6 +1139,7 @@ func makeNodeOf(path []string, t reflect.Type, name string, tags parquetTags, ta
 						throwInvalidTag(t, name, option)
 					}
 				}
+
 			case "id":
 				id, err := parseIDArgs(args)
 				if err != nil {

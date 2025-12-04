@@ -216,6 +216,14 @@ func newRowGroupRows(schema *Schema, columns []ColumnChunk, bufferSize int) *row
 		rowIndex: -1,
 	}
 	for i, column := range columns {
+		switch column.Type().Kind() {
+		case ByteArray, FixedLenByteArray:
+			// (@mdisibio) - If the column can contain pointers, then we must not repool
+			// the underlying values buffer because the rows returned to the caller
+			// reference slices within it.  Detaching the entire values buffer is more
+			// efficient than cloning individual values.
+			r.columns[i].reader.detach = true
+		}
 		r.columns[i].reader.pages = column.Pages()
 	}
 	// This finalizer is used to ensure that the goroutines started by calling

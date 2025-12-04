@@ -4,6 +4,7 @@ import (
 	"io"
 	"slices"
 
+	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/sparse"
 )
 
@@ -206,7 +207,7 @@ func (col *optionalColumnBuffer) WriteValues(values []Value) (n int, err error) 
 	return n, nil
 }
 
-func (col *optionalColumnBuffer) writeValues(rows sparse.Array, levels columnLevels) {
+func (col *optionalColumnBuffer) writeValues(levels columnLevels, rows sparse.Array) {
 	// The row count is zero when writing an null optional value, in which case
 	// we still need to output a row to the buffer to record the definition
 	// level.
@@ -233,8 +234,81 @@ func (col *optionalColumnBuffer) writeValues(rows sparse.Array, levels columnLev
 		broadcastValueInt32(col.rows[i:], -1)
 	} else {
 		broadcastRangeInt32(col.rows[i:], int32(col.base.Len()))
-		col.base.writeValues(rows, levels)
+		col.base.writeValues(levels, rows)
 	}
+}
+
+func (col *optionalColumnBuffer) writeBoolean(levels columnLevels, value bool) {
+	if levels.definitionLevel != col.maxDefinitionLevel {
+		col.writeNull(levels)
+	} else {
+		col.base.writeBoolean(levels, value)
+		col.writeLevel()
+	}
+}
+
+func (col *optionalColumnBuffer) writeInt32(levels columnLevels, value int32) {
+	if levels.definitionLevel != col.maxDefinitionLevel {
+		col.writeNull(levels)
+	} else {
+		col.base.writeInt32(levels, value)
+		col.writeLevel()
+	}
+}
+
+func (col *optionalColumnBuffer) writeInt64(levels columnLevels, value int64) {
+	if levels.definitionLevel != col.maxDefinitionLevel {
+		col.writeNull(levels)
+	} else {
+		col.base.writeInt64(levels, value)
+		col.writeLevel()
+	}
+}
+
+func (col *optionalColumnBuffer) writeInt96(levels columnLevels, value deprecated.Int96) {
+	if levels.definitionLevel != col.maxDefinitionLevel {
+		col.writeNull(levels)
+	} else {
+		col.base.writeInt96(levels, value)
+		col.writeLevel()
+	}
+}
+
+func (col *optionalColumnBuffer) writeFloat(levels columnLevels, value float32) {
+	if levels.definitionLevel != col.maxDefinitionLevel {
+		col.writeNull(levels)
+	} else {
+		col.base.writeFloat(levels, value)
+		col.writeLevel()
+	}
+}
+
+func (col *optionalColumnBuffer) writeDouble(levels columnLevels, value float64) {
+	if levels.definitionLevel != col.maxDefinitionLevel {
+		col.writeNull(levels)
+	} else {
+		col.base.writeDouble(levels, value)
+		col.writeLevel()
+	}
+}
+
+func (col *optionalColumnBuffer) writeByteArray(levels columnLevels, value []byte) {
+	if levels.definitionLevel != col.maxDefinitionLevel {
+		col.writeNull(levels)
+	} else {
+		col.base.writeByteArray(levels, value)
+		col.writeLevel()
+	}
+}
+
+func (col *optionalColumnBuffer) writeNull(levels columnLevels) {
+	col.definitionLevels = append(col.definitionLevels, levels.definitionLevel)
+	col.rows = append(col.rows, -1)
+}
+
+func (col *optionalColumnBuffer) writeLevel() {
+	col.definitionLevels = append(col.definitionLevels, col.maxDefinitionLevel)
+	col.rows = append(col.rows, int32(col.base.Len()-1))
 }
 
 func (col *optionalColumnBuffer) ReadValuesAt(values []Value, offset int64) (int, error) {

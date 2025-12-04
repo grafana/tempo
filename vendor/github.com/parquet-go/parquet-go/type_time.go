@@ -238,6 +238,23 @@ func (t *timeType) EstimateDecodeSize(numValues int, src []byte, enc encoding.En
 }
 
 func (t *timeType) AssignValue(dst reflect.Value, src Value) error {
+	// Handle time.Duration specially to convert from the stored time unit to nanoseconds
+	if dst.Type() == reflect.TypeFor[time.Duration]() {
+		v := src.int64()
+		var nanos int64
+		switch {
+		case t.Unit.Millis != nil:
+			nanos = v * int64(time.Millisecond)
+		case t.Unit.Micros != nil:
+			nanos = v * int64(time.Microsecond)
+		case t.Unit.Nanos != nil:
+			nanos = v
+		default:
+			nanos = v
+		}
+		dst.SetInt(nanos)
+		return nil
+	}
 	return t.baseType().AssignValue(dst, src)
 }
 

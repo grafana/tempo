@@ -674,7 +674,11 @@ func mergeTwoNodes(a, b Node) Node {
 
 	var merged Node
 	if leaf1 {
-		merged = Leaf(b.Type())
+		// Prefer the type with a logical type annotation if one exists.
+		// This ensures that logical types like JSON are preserved when merging
+		// a typed node (from an authoritative schema) with a plain node (from
+		// reflection-based schema generation).
+		merged = Leaf(selectLogicalType(b.Type(), a.Type()))
 
 		// Apply compression (keep last non-nil)
 		compression1 := a.Compression()
@@ -766,6 +770,13 @@ func nullable(n Node) Node {
 		return Optional(n)
 	}
 	return n
+}
+
+func selectLogicalType(t1, t2 Type) Type {
+	if t1.LogicalType() != nil {
+		return t1
+	}
+	return t2
 }
 
 // MergeSortingColumns returns the common prefix of all sorting columns passed as arguments.

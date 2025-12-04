@@ -1,6 +1,7 @@
 package parquet
 
 import (
+	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/sparse"
 )
 
@@ -68,13 +69,19 @@ type ColumnBuffer interface {
 	// trade off for now as it is preferrable to optimize for safety over
 	// extensibility in the public APIs, we might revisit in the future if we
 	// learn about valid use cases for custom column buffer types.
-	writeValues(rows sparse.Array, levels columnLevels)
-}
+	writeValues(levels columnLevels, rows sparse.Array)
 
-type columnLevels struct {
-	repetitionDepth byte
-	repetitionLevel byte
-	definitionLevel byte
+	// Parquet primitive type write methods. Each column buffer implementation
+	// supports only the Parquet types it can handle and panics for others.
+	// These methods are unexported for the same reasons as writeValues above.
+	writeBoolean(levels columnLevels, value bool)
+	writeInt32(levels columnLevels, value int32)
+	writeInt64(levels columnLevels, value int64)
+	writeInt96(levels columnLevels, value deprecated.Int96)
+	writeFloat(levels columnLevels, value float32)
+	writeDouble(levels columnLevels, value float64)
+	writeByteArray(levels columnLevels, value []byte)
+	writeNull(levels columnLevels)
 }
 
 func columnIndexOfNullable(base ColumnBuffer, maxDefinitionLevel byte, definitionLevels []byte) (ColumnIndex, error) {

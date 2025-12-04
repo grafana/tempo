@@ -1,6 +1,7 @@
 package parquet
 
 import (
+	"io"
 	"log"
 	"reflect"
 	"runtime"
@@ -84,11 +85,8 @@ func bufferFuncOf[T any](t reflect.Type, schema *Schema) bufferFunc[T] {
 func makeBufferFunc[T any](t reflect.Type, schema *Schema) bufferFunc[T] {
 	writeRows := writeRowsFuncOf(t, schema, nil, nil)
 	return func(buf *GenericBuffer[T], rows []T) (n int, err error) {
-		err = writeRows(buf.base.columns, makeArrayOf(rows), columnLevels{})
-		if err == nil {
-			n = len(rows)
-		}
-		return n, err
+		writeRows(buf.base.columns, columnLevels{}, makeArrayFromSlice(rows))
+		return len(rows), nil
 	}
 }
 
@@ -493,6 +491,10 @@ func newBuffer[T bufferedType](data []T) *buffer[T] {
 	return b
 }
 
+func (b *buffer[T]) reset() {
+	b.data = b.data[:0]
+}
+
 func (b *buffer[T]) ref() {
 	if b.refc.Add(1) <= 1 {
 		panic("BUG: buffer reference count overflow")
@@ -513,6 +515,31 @@ func monitorBufferRelease[T bufferedType](b *buffer[T]) {
 		log.Printf("PARQUETGODEBUG: buffer[%d] garbage collected with non-zero reference count (rc=%d)\n%s", b.id, rc, string(b.stack))
 	}
 }
+
+type bytesBufferWriter struct {
+	buf *buffer[byte]
+}
+
+func (w bytesBufferWriter) Write(p []byte) (int, error) {
+	w.buf.data = append(w.buf.data, p...)
+	return len(p), nil
+}
+
+func (w bytesBufferWriter) WriteByte(b byte) error {
+	w.buf.data = append(w.buf.data, b)
+	return nil
+}
+
+func (w bytesBufferWriter) WriteString(s string) (int, error) {
+	w.buf.data = append(w.buf.data, s...)
+	return len(s), nil
+}
+
+var (
+	_ io.ByteWriter   = bytesBufferWriter{}
+	_ io.StringWriter = bytesBufferWriter{}
+	_ io.Writer       = bytesBufferWriter{}
+)
 
 type bufferPool[T bufferedType] struct {
 	// Buckets are split in two groups for short and large buffers. In the short
@@ -676,6 +703,23 @@ func (p *bufferedPage) Release() {
 	bufferUnref(p.repetitionLevels)
 }
 
+// ReleaseAndDetachValues releases all underlying buffers except the one backing byte-array contents. This
+// allows row and values read from the buffer to continue to be valid, instead relying
+// on the garbage collector after it is no longer needed.
+func (p *bufferedPage) ReleaseAndDetachValues() {
+	// We don't return the values buffer to the pool and allow
+	// standard GC to track it.  Remove debug finalizer.
+	if debug.TRACEBUF > 0 {
+		runtime.SetFinalizer(p.values, nil)
+	}
+
+	// Return everything else back to pools.
+	Release(p.Page)
+	bufferUnref(p.offsets)
+	bufferUnref(p.definitionLevels)
+	bufferUnref(p.repetitionLevels)
+}
+
 func bufferRef[T bufferedType](buf *buffer[T]) {
 	if buf != nil {
 		buf.ref()
@@ -730,6 +774,24 @@ func Release(page Page) {
 	}
 }
 
+// releaseAndDetachValues is an optional granular memory management method like Release,
+// that releases ownership of the page and potentially allows its underlying buffers
+// to be reused for new pages acquired from ReadPage.  However this method makes the
+// additional guarantee that string and byte array values read from the page will
+// continue to be valid past the page lifetime.  Page-specific implementations do this
+// by reusing what buffers they can, while not invaliding the string and byte array values.
+// Those are relinquished to the garbage collector and cleaned up when no longer referenced
+// by the calling application.
+//
+// Usage of this is optional and follows the guidelines as Release.
+//
+// Calling this function on pages that do not embed a reference counter does nothing.
+func releaseAndDetachValues(page Page) {
+	if p, _ := page.(detachable); p != nil {
+		p.ReleaseAndDetachValues()
+	}
+}
+
 type retainable interface {
 	Retain()
 }
@@ -738,7 +800,12 @@ type releasable interface {
 	Release()
 }
 
+type detachable interface {
+	ReleaseAndDetachValues()
+}
+
 var (
 	_ retainable = (*bufferedPage)(nil)
 	_ releasable = (*bufferedPage)(nil)
+	_ detachable = (*bufferedPage)(nil)
 )

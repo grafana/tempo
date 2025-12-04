@@ -75,6 +75,34 @@ func (t *dateType) EstimateDecodeSize(numValues int, src []byte, enc encoding.En
 }
 
 func (t *dateType) AssignValue(dst reflect.Value, src Value) error {
+	switch dst.Type() {
+	case reflect.TypeOf(time.Time{}):
+		// Check if the value is NULL - if so, assign zero time.Time
+		if src.IsNull() {
+			dst.Set(reflect.ValueOf(time.Time{}))
+			return nil
+		}
+
+		// DATE is stored as days since Unix epoch (January 1, 1970)
+		days := src.int32()
+		val := time.Unix(int64(days)*86400, 0).UTC()
+		dst.Set(reflect.ValueOf(val))
+		return nil
+	case reflect.TypeOf((*time.Time)(nil)):
+		// Handle *time.Time (pointer to time.Time)
+		if src.IsNull() {
+			// For NULL values, set the pointer to nil
+			dst.Set(reflect.Zero(dst.Type()))
+			return nil
+		}
+
+		// DATE is stored as days since Unix epoch (January 1, 1970)
+		days := src.int32()
+		val := time.Unix(int64(days)*86400, 0).UTC()
+		ptr := &val
+		dst.Set(reflect.ValueOf(ptr))
+		return nil
+	}
 	return int32Type{}.AssignValue(dst, src)
 }
 

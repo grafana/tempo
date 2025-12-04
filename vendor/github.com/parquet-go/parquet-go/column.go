@@ -584,8 +584,10 @@ func (c *Column) DecodeDataPageV1(header DataPageHeaderV1, page []byte, dict Dic
 }
 
 func (c *Column) decodeDataPageV1(header DataPageHeaderV1, page *buffer[byte], dict Dictionary, size int32) (Page, error) {
-	var pageData = page.data
-	var err error
+	var (
+		pageData = page.data
+		err      error
+	)
 
 	if isCompressed(c.compression) {
 		if page, err = c.decompress(pageData, size); err != nil {
@@ -595,9 +597,11 @@ func (c *Column) decodeDataPageV1(header DataPageHeaderV1, page *buffer[byte], d
 		pageData = page.data
 	}
 
-	var numValues = int(header.NumValues())
-	var repetitionLevels *buffer[byte]
-	var definitionLevels *buffer[byte]
+	var (
+		numValues        = int(header.NumValues())
+		repetitionLevels *buffer[byte]
+		definitionLevels *buffer[byte]
+	)
 
 	if c.maxRepetitionLevel > 0 {
 		encoding := lookupLevelEncoding(header.RepetitionLevelEncoding(), c.maxRepetitionLevel)
@@ -631,8 +635,8 @@ func (c *Column) DecodeDataPageV2(header DataPageHeaderV2, page []byte, dict Dic
 }
 
 func (c *Column) decodeDataPageV2(header DataPageHeaderV2, page *buffer[byte], dict Dictionary, size int32) (Page, error) {
-	var numValues = int(header.NumValues())
-	var pageData = page.data
+	numValues := int(header.NumValues())
+	pageData := page.data
 	var err error
 
 	var repetitionLevels *buffer[byte]
@@ -708,12 +712,7 @@ func (c *Column) decodeDataPage(header DataPageHeader, numValues int, repetition
 	var vbuf *buffer[byte]
 	var pageOffsets []uint32
 	var pageValues []byte
-	// For ByteArray/FixedLenByteArray columns, use a heap buffer because the
-	// content might be retained by the application after reading the pages,
-	// which would cause memory corruption if the buffers were reused.
 	switch {
-	case pageKind == ByteArray || pageKind == FixedLenByteArray:
-		pageValues = make([]byte, pageType.EstimateDecodeSize(numValues, data, pageEncoding))
 	case pageEncoding.CanDecodeInPlace():
 		vbuf = page
 		pageValues = data
@@ -834,9 +833,7 @@ func (c *Column) decodeDictionary(header DictionaryPageHeader, page *buffer[byte
 	return pageType.NewDictionary(int(c.index), numValues, values), nil
 }
 
-var (
-	_ Node = (*Column)(nil)
-)
+var _ Node = (*Column)(nil)
 
 func validateColumns(t reflect.Type) (string, bool) {
 	// Only validate struct types

@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/parquet-go/bitpack"
+	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/sparse"
 )
 
@@ -91,16 +92,16 @@ func (col *booleanColumnBuffer) Swap(i, j int) {
 }
 
 func (col *booleanColumnBuffer) WriteBooleans(values []bool) (int, error) {
-	col.writeValues(sparse.MakeBoolArray(values).UnsafeArray(), columnLevels{})
+	col.writeValues(columnLevels{}, sparse.MakeBoolArray(values).UnsafeArray())
 	return len(values), nil
 }
 
 func (col *booleanColumnBuffer) WriteValues(values []Value) (int, error) {
-	col.writeValues(makeArrayValue(values, offsetOfBool), columnLevels{})
+	col.writeValues(columnLevels{}, makeArrayValue(values, offsetOfBool))
 	return len(values), nil
 }
 
-func (col *booleanColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
+func (col *booleanColumnBuffer) writeValues(_ columnLevels, rows sparse.Array) {
 	numBytes := bitpack.ByteCount(uint(col.numValues) + uint(rows.Len()))
 	if cap(col.bits) < numBytes {
 		col.bits = append(make([]byte, 0, max(numBytes, 2*cap(col.bits))), col.bits...)
@@ -149,6 +150,50 @@ func (col *booleanColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
 	}
 
 	col.bits = col.bits[:bitpack.ByteCount(uint(col.numValues))]
+}
+
+func (col *booleanColumnBuffer) writeBoolean(levels columnLevels, value bool) {
+	numBytes := bitpack.ByteCount(uint(col.numValues) + 1)
+	if cap(col.bits) < numBytes {
+		col.bits = append(make([]byte, 0, max(numBytes, 2*cap(col.bits))), col.bits...)
+	}
+	col.bits = col.bits[:numBytes]
+	x := uint(col.numValues) / 8
+	y := uint(col.numValues) % 8
+	bit := byte(0)
+	if value {
+		bit = 1
+	}
+	col.bits[x] = (bit << y) | (col.bits[x] & ^(1 << y))
+	col.numValues++
+}
+
+func (col *booleanColumnBuffer) writeInt32(levels columnLevels, value int32) {
+	col.writeBoolean(levels, value != 0)
+}
+
+func (col *booleanColumnBuffer) writeInt64(levels columnLevels, value int64) {
+	col.writeBoolean(levels, value != 0)
+}
+
+func (col *booleanColumnBuffer) writeInt96(levels columnLevels, value deprecated.Int96) {
+	col.writeBoolean(levels, !value.IsZero())
+}
+
+func (col *booleanColumnBuffer) writeFloat(levels columnLevels, value float32) {
+	col.writeBoolean(levels, value != 0)
+}
+
+func (col *booleanColumnBuffer) writeDouble(levels columnLevels, value float64) {
+	col.writeBoolean(levels, value != 0)
+}
+
+func (col *booleanColumnBuffer) writeByteArray(levels columnLevels, value []byte) {
+	col.writeBoolean(levels, len(value) != 0)
+}
+
+func (col *booleanColumnBuffer) writeNull(levels columnLevels) {
+	col.writeBoolean(levels, false)
 }
 
 func (col *booleanColumnBuffer) ReadValuesAt(values []Value, offset int64) (n int, err error) {

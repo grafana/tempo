@@ -172,11 +172,8 @@ func makeWriteFunc[T any](t reflect.Type, schema *Schema, tagReplacements []Stru
 				w.columns[i] = c.columnBuffer
 			}
 		}
-		err = writeRows(w.columns, makeArrayOf(rows), columnLevels{})
-		if err == nil {
-			n = len(rows)
-		}
-		return n, err
+		writeRows(w.columns, columnLevels{}, makeArrayFromSlice(rows))
+		return len(rows), nil
 	}
 }
 
@@ -731,7 +728,7 @@ func newWriterRowGroup(w *writer, config *WriterConfig) *writerRowGroup {
 			columnPath:         leaf.path,
 			columnType:         columnType,
 			originalType:       columnType,
-			columnIndex:        columnType.NewColumnIndexer(config.ColumnIndexSizeLimit),
+			columnIndex:        columnType.NewColumnIndexer(config.ColumnIndexSizeLimit(leaf.path)),
 			columnFilter:       searchBloomFilterColumn(config.BloomFilters, leaf.path),
 			compression:        compression,
 			dictionary:         dictionary,

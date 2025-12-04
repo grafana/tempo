@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 
 	"github.com/parquet-go/bitpack/unsafecast"
+	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/sparse"
 )
 
@@ -73,17 +75,57 @@ func (col *uint64ColumnBuffer) WriteUint64s(values []uint64) (int, error) {
 }
 
 func (col *uint64ColumnBuffer) WriteValues(values []Value) (int, error) {
-	col.writeValues(makeArrayValue(values, offsetOfU64), columnLevels{})
+	col.writeValues(columnLevels{}, makeArrayValue(values, offsetOfU64))
 	return len(values), nil
 }
 
-func (col *uint64ColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
+func (col *uint64ColumnBuffer) writeValues(levels columnLevels, rows sparse.Array) {
 	if n := len(col.values) + rows.Len(); n > cap(col.values) {
 		col.values = append(make([]uint64, 0, max(n, 2*cap(col.values))), col.values...)
 	}
 	n := len(col.values)
 	col.values = col.values[:n+rows.Len()]
 	sparse.GatherUint64(col.values[n:], rows.Uint64Array())
+}
+
+func (col *uint64ColumnBuffer) writeBoolean(levels columnLevels, value bool) {
+	var uintValue uint64
+	if value {
+		uintValue = 1
+	}
+	col.values = append(col.values, uintValue)
+}
+
+func (col *uint64ColumnBuffer) writeInt32(levels columnLevels, value int32) {
+	col.values = append(col.values, uint64(value))
+}
+
+func (col *uint64ColumnBuffer) writeInt64(levels columnLevels, value int64) {
+	col.values = append(col.values, uint64(value))
+}
+
+func (col *uint64ColumnBuffer) writeInt96(levels columnLevels, value deprecated.Int96) {
+	col.values = append(col.values, uint64(value.Int64()))
+}
+
+func (col *uint64ColumnBuffer) writeFloat(levels columnLevels, value float32) {
+	col.values = append(col.values, uint64(value))
+}
+
+func (col *uint64ColumnBuffer) writeDouble(levels columnLevels, value float64) {
+	col.values = append(col.values, uint64(value))
+}
+
+func (col *uint64ColumnBuffer) writeByteArray(levels columnLevels, value []byte) {
+	uintValue, err := strconv.ParseUint(unsafecast.String(value), 10, 64)
+	if err != nil {
+		panic("cannot write byte array to uint64 column: " + err.Error())
+	}
+	col.values = append(col.values, uintValue)
+}
+
+func (col *uint64ColumnBuffer) writeNull(levels columnLevels) {
+	col.values = append(col.values, 0)
 }
 
 func (col *uint64ColumnBuffer) ReadValuesAt(values []Value, offset int64) (n int, err error) {
