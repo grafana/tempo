@@ -36,6 +36,7 @@ func TestConfig_validate(t *testing.T) {
 				WAL: wal.Config{
 					Version: encoding.LatestEncoding().Version(),
 				},
+				PartitionsPerInstance: 5,
 			},
 			expectedErr: false,
 		},
