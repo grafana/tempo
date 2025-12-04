@@ -1,4 +1,4 @@
-target: all
+target: all-3.0
 stream_over_http_enabled: true
 
 server:
