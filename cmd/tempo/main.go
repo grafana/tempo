@@ -196,8 +196,8 @@ func loadConfig() (*app.Config, bool, error) {
 	flag.Parse()
 
 	// after loading config, let's force some values if in single binary mode
-	// if we're in single binary mode we're going to force some settings b/c nothing else makes sense
-	if config.Target == app.SingleBinary || config.Target == app.SingleBinary3_0 {
+	// if we're in single binary mode force all rings to be propagated with the in memory store
+	if app.IsSingleBinary(config.Target) {
 		config.Ingester.LifecyclerConfig.RingConfig.KVStore.Store = "inmemory"
 		config.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor = 1
 		config.Ingester.LifecyclerConfig.Addr = "127.0.0.1"
@@ -207,7 +207,6 @@ func loadConfig() (*app.Config, bool, error) {
 		config.Generator.Ring.InstanceAddr = "127.0.0.1"
 
 		// Partition rings
-		config.Ingester.IngesterPartitionRing.KVStore.Store = "inmemory" // jpe - necessary?
 		config.LiveStore.PartitionRing.KVStore.Store = "inmemory"
 	}
 

@@ -39,9 +39,6 @@ metrics_generator:
     path: /var/tempo/generator/traces
   traces_query_storage:
     path: /var/tempo/generator/query_traces
-  processor:
-    local_blocks:
-      flush_to_storage: true
 
 query_frontend:
   rf1_after: "1999-01-01T00:00:00Z"
@@ -57,13 +54,11 @@ storage:
       insecure: true
     wal:
       path: /var/tempo/wal             # where to store the wal locally
-    local:
-      path: /var/tempo/blocks
 
 overrides:
   defaults:
     metrics_generator:
-      processors: ['local-blocks', 'span-metrics', 'service-graphs']
+      processors: ['span-metrics', 'service-graphs']
       generate_native_histograms: both
 
 ingest:

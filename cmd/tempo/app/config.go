@@ -194,7 +194,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnLogDiscardedTraces)
 	}
 
-	if c.StorageConfig.Trace.Backend == backend.Local && c.Target != SingleBinary {
+	if c.StorageConfig.Trace.Backend == backend.Local && !IsSingleBinary(c.Target) {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 
@@ -257,6 +257,8 @@ func (c *Config) CheckConfig() []ConfigWarning {
 	if c.BackendScheduler.Work.PruneAge <= (c.StorageConfig.Trace.BlocklistPoll * 2) {
 		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
+
+	// jpe - add warning about single binary and compaction ring
 
 	return warnings
 }
