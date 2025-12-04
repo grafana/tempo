@@ -885,7 +885,7 @@ func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32
 	cfg.IngestStorageConfig.Kafka.Address = address
 	cfg.IngestStorageConfig.Kafka.Topic = testTopic
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
-	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: assignedPartitions}
+	cfg.AssignedPartitionsMap = map[string][]int32{cfg.InstanceID: assignedPartitions}
 
 	cfg.ConsumeCycleDuration = 5 * time.Second
 

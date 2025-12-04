@@ -636,8 +636,9 @@ func (b *BlockBuilder) getAssignedPartitions() []int32 {
 			ringAssignedPartitions[p.Id] = p.GetState().String()
 		}
 	}
-	assignedActivePartitions := make([]int32, 0, len(b.cfg.AssignedPartitions[b.cfg.InstanceID]))
-	for _, partition := range b.cfg.AssignedPartitions[b.cfg.InstanceID] {
+
+	assignedActivePartitions := make([]int32, 0, len(b.cfg.AssignedPartitions()))
+	for _, partition := range b.cfg.AssignedPartitions() {
 		if s, ok := ringAssignedPartitions[partition]; ok {
 			metricOwnedPartitions.WithLabelValues(strconv.Itoa(int(partition)), s).Set(1)
 			assignedActivePartitions = append(assignedActivePartitions, partition)
