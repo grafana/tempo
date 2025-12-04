@@ -208,6 +208,8 @@ func loadConfig() (*app.Config, bool, error) {
 
 		// Partition rings
 		config.LiveStore.PartitionRing.KVStore.Store = "inmemory"
+
+		config.BackendWorker.Ring.KVStore.Store = "" // this will force the single binary to work in "unsharded" mode
 	}
 
 	return config, configVerify, nil

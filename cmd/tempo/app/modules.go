@@ -227,7 +227,7 @@ func (t *App) initPartitionRing() (services.Service, error) {
 		readRing = t.readRings[ringLiveStore]
 		ringName = livestore.PartitionRingName
 		ringKey = livestore.PartitionRingKey
-		kvConfig = t.cfg.LiveStore.PartitionRing.KVStore // jpe - what is t.cfg.LiveStore.Ring?
+		kvConfig = t.cfg.LiveStore.PartitionRing.KVStore
 	}
 
 	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
@@ -772,13 +772,9 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 }
 
 func (t *App) initBackendWorker() (services.Service, error) {
-	if t.cfg.Target != BackendWorker { // jpe - if single binary?
-		// we are in a single binary or other composite installation. if backend scheduler address is not set, set it to localhost
-		// if we're in single binary mode with no worker address specified, register default endpoint
-		if t.cfg.BackendWorker.BackendSchedulerAddr == "" {
-			t.cfg.BackendWorker.BackendSchedulerAddr = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
-			level.Warn(log.Logger).Log("msg", "Scheduler address is empty in single binary mode. Attempting automatic worker configuration.", "address", t.cfg.BackendWorker.BackendSchedulerAddr)
-		}
+	if IsSingleBinary(t.cfg.Target) && t.cfg.BackendWorker.BackendSchedulerAddr == "" {
+		t.cfg.BackendWorker.BackendSchedulerAddr = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
+		level.Warn(log.Logger).Log("msg", "Scheduler address is empty in single binary mode. Attempting automatic worker configuration.", "address", t.cfg.BackendWorker.BackendSchedulerAddr)
 	}
 
 	worker, err := backendworker.New(t.cfg.BackendWorker, t.cfg.BackenSchedulerClient, t.store, t.Overrides, prometheus.DefaultRegisterer)

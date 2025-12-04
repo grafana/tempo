@@ -258,8 +258,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
 
-	// jpe - add warning about single binary and compaction ring
-
 	return warnings
 }
 
