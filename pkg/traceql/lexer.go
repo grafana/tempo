@@ -210,7 +210,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 	multiTok := -1
 	tokStrNext := l.TokenText()
 	for {
-		tokStrNext = tokStrNext + string(l.Peek())
+		tokStrNext += string(l.Peek())
 		tok, ok := tokens[tokStrNext]
 		if ok {
 			multiTok = tok
