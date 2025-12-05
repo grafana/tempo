@@ -69,11 +69,11 @@ func (r *RandomBatcher) GenerateBatch(spanCount int64) *v1_trace.ResourceSpans {
 }
 
 func (r *RandomBatcher) randomSpanGenerator(ctx context.Context) {
-	min := 0
-	max := 30
+	minSpanCount := 0
+	maxSpanCount := 30
 
 	rising := true
-	length := min
+	length := minSpanCount
 
 	rr := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -109,9 +109,9 @@ func (r *RandomBatcher) randomSpanGenerator(ctx context.Context) {
 			}
 
 			switch length {
-			case max:
+			case maxSpanCount:
 				rising = false
-			case min:
+			case minSpanCount:
 				rising = true
 			}
 

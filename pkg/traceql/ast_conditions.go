@@ -44,71 +44,73 @@ func (o SelectOperation) extractConditions(request *FetchSpansRequest) {
 
 func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	// TODO we can further optimise this by attempting to execute every FieldExpression, if they only contain statics it should resolve
-	switch o.LHS.(type) {
+	switch l := o.LHS.(type) {
 	case Attribute:
-		switch o.RHS.(type) {
+		switch r := o.RHS.(type) {
 		case Static:
-			if (o.RHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
+			switch {
+			case (r.Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean(): // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
-					Attribute: o.LHS.(Attribute),
+					Attribute: l,
 					Op:        OpNone,
 					Operands:  nil,
 				})
-			} else if o.RHS.(Static).Type == TypeBoolean && (o.Op == OpOr || o.Op == OpAnd) {
+			case r.Type == TypeBoolean && (o.Op == OpOr || o.Op == OpAnd):
 				request.appendCondition(Condition{
-					Attribute: o.LHS.(Attribute),
+					Attribute: l,
 					Op:        OpNone,
 					Operands:  nil,
 				})
-			} else {
+			default:
 				request.appendCondition(Condition{
-					Attribute: o.LHS.(Attribute),
+					Attribute: l,
 					Op:        o.Op,
-					Operands:  []Static{o.RHS.(Static)},
+					Operands:  []Static{r},
 				})
 			}
 		case Attribute:
 			// Both sides are attributes, just fetch both
 			request.appendCondition(Condition{
-				Attribute: o.LHS.(Attribute),
+				Attribute: l,
 				Op:        OpNone,
 				Operands:  nil,
 			})
 			request.appendCondition(Condition{
-				Attribute: o.RHS.(Attribute),
+				Attribute: r,
 				Op:        OpNone,
 				Operands:  nil,
 			})
 		default:
 			// Just fetch LHS and try to do something smarter with RHS
 			request.appendCondition(Condition{
-				Attribute: o.LHS.(Attribute),
+				Attribute: l,
 				Op:        OpNone,
 				Operands:  nil,
 			})
 			o.RHS.extractConditions(request)
 		}
 	case Static:
-		switch o.RHS.(type) {
+		switch r := o.RHS.(type) {
 		case Static:
 			// 2 statics, don't need to send any conditions
 			return
 		case Attribute:
-			if (o.LHS.(Static).Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
+			switch {
+			case (l.Type == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean(): // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
-					Attribute: o.RHS.(Attribute),
+					Attribute: r,
 					Op:        OpNone,
 					Operands:  nil,
 				})
-			} else if o.LHS.(Static).Type == TypeBoolean && (o.Op == OpOr || o.Op == OpAnd) {
+			case l.Type == TypeBoolean && (o.Op == OpOr || o.Op == OpAnd):
 				request.appendCondition(Condition{
-					Attribute: o.RHS.(Attribute),
+					Attribute: r,
 					Op:        OpNone,
 					Operands:  nil,
 				})
-			} else {
+			default:
 				request.appendCondition(Condition{
-					Attribute: o.RHS.(Attribute),
+					Attribute: r,
 					Op:        o.Op,
 					Operands:  []Static{o.LHS.(Static)},
 				})

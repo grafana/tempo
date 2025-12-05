@@ -76,8 +76,8 @@ func (l *LiveTraces[T]) Size() uint64 {
 	return l.sz
 }
 
-func (l *LiveTraces[T]) Push(traceID []byte, batch T, max uint64) bool {
-	return l.PushWithTimestampAndLimits(time.Now(), traceID, batch, max, 0) == nil
+func (l *LiveTraces[T]) Push(traceID []byte, batch T, maxLiveTraces uint64) bool {
+	return l.PushWithTimestampAndLimits(time.Now(), traceID, batch, maxLiveTraces, 0) == nil
 }
 
 func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte, batch T, maxLiveTraces, maxTraceSize uint64) error {
